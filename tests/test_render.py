@@ -124,7 +124,7 @@ class Report(unittest.TestCase):
         r["revisions"] = [{"entity": "static/apps-metadata.json", "n-revs": 128}, {"entity": "static/index.html", "n-revs": 51},
                           {"entity": "gone.py", "n-revs": 300}]
         text = rendered(r, [], full=True)
-        lines = [l for l in text.splitlines() if l.startswith(("static/", "gone.py"))]
+        lines = [l.strip() for l in text.splitlines() if l.strip().startswith(("static/", "gone.py"))]
         # index.html: 51 x 4000 = 204,000 beats metadata.json: 128 x 800 = 102,400; deleted gone.py sorts last
         self.assertTrue(lines[0].startswith("static/index.html"), lines)
         self.assertTrue(lines[1].startswith("static/apps-metadata.json"), lines)
@@ -223,10 +223,35 @@ class Layout(unittest.TestCase):
         self.assertIn("↳ Add a .mailmap to make it permanent.", text)
         self.assertIn("a <a@x> merged into A <A@x>", text)
 
-    def test_sections_open_with_a_rule_and_a_blank_line(self):
-        text = rendered(sample_report(), [])
-        self.assertRegex(text, r"\n\nPeople ─+\n")
-        self.assertRegex(text, r"\n\nHotspots ─+\n")
+    def test_sections_open_with_a_symbol_and_a_title(self):
+        text = rendered(sample_report(), [], width=80)
+        self.assertRegex(text, r"\n\n◉ People\n")
+        self.assertRegex(text, r"\n\n◆ Hotspots\n")
+        self.assertNotIn("─────", text.split("◉ People")[1].split("\n")[0], "no rule across the width")
+
+    def test_small_tables_sit_side_by_side_on_wide_terminals(self):
+        wide = rendered(sample_report(), [], width=120)
+        line = next(l for l in wide.splitlines() if "▤ Size by language" in l)
+        self.assertIn("◉ People", line)
+        line = next(l for l in wide.splitlines() if "◔ Activity" in l)
+        self.assertIn("◷ Surviving code by year written", line)
+        narrow = rendered(sample_report(), [], width=80)
+        line = next(l for l in narrow.splitlines() if "▤ Size by language" in l)
+        self.assertNotIn("People", line)
+
+    def test_share_columns_carry_inline_bars(self):
+        text = rendered(sample_report(), [], width=80)
+        people = text[text.index("◉ People"):text.index("◔ Activity")]
+        self.assertRegex(people, r"Ann\s+234\s+64% ▰{6}")
+        size = text[text.index("▤ Size by language"):text.index("◉ People")]
+        self.assertRegex(size, r"HTML\s+28\s+4,783\s+88% ▰{8}")
+
+    def test_grades(self):
+        self.assertEqual(render.cell_style("share", "64%"), "bold #ff5cc8")
+        self.assertEqual(render.cell_style("share", "25%"), "#ff9ee0")
+        self.assertIsNone(render.cell_style("share", "3%"))
+        self.assertEqual(render.cell_style("degree", "95%"), "bold #ff5cc8")
+        self.assertEqual(render.cell_style("fixes", "5"), "bold #ff5cc8")
 
     def test_default_columns_are_the_ones_you_read(self):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=False)}
@@ -263,13 +288,11 @@ class Layout(unittest.TestCase):
         text = rendered(r, [], width=80)
         self.assertIn("…/pipeline/persist_and_more_words.py", text)
         self.assertNotIn(long, text)
-        hot = text[text.index("\nHotspots ─"):]
-        self.assertNotRegex(hot, r"\n[a-z_]+\.py\s*\n", "no folded file-name tails")
+        hot = text[text.index("\n◆ Hotspots"):]
+        self.assertNotRegex(hot, r"\n\s*[a-z_]+\.py\s*\n", "no folded file-name tails")
 
     def test_threshold_styles(self):
-        self.assertEqual(render.cell_style("degree", "95%"), "yellow")
         self.assertIsNone(render.cell_style("degree", "70%"))
-        self.assertEqual(render.cell_style("fixes", "5"), "yellow")
         self.assertIsNone(render.cell_style("fixes", "2"))
         self.assertIsNone(render.cell_style("file", "5"))
 
@@ -280,7 +303,7 @@ class ReviewFixes(unittest.TestCase):
         render.print_section(c, render._section("File types", [("type", {})], [["py"]], caption="c = code"))
         render.print_section(c, render._section("Portfolio (0 repositories)", [("repo", {})], [], note="no repositories"))
         text = c.export_text()
-        self.assertRegex(text, r"\nFile types ─+\n")
+        self.assertRegex(text, r"\n▥ File types\n")
         self.assertIn("c = code", text)
         self.assertIn("Portfolio (0 repositories): no repositories", text)
 
@@ -300,8 +323,8 @@ class ReviewFixes(unittest.TestCase):
         # 70 is the narrowest width where the 31-character file name fits beside these numbers
         for width in (70, 76, 84):
             text = rendered(r, [], width=width)
-            hot = text[text.index("\nHotspots ─"):]
-            self.assertNotRegex(hot, r"\n[a-z_0-9]+\.py\s*\n", f"folded tail at width {width}")
+            hot = text[text.index("\n◆ Hotspots"):]
+            self.assertNotRegex(hot, r"\n\s*[a-z_0-9]+\.py\s*\n", f"folded tail at width {width}")
             self.assertNotRegex(hot, r"\.p\s*\n", f"file name cut at width {width}")
 
     def test_markdown_rows_are_capped_unless_full(self):

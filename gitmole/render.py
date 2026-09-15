@@ -5,15 +5,33 @@ paths. `full` restores every column and row (Markdown export is always full)."""
 from __future__ import annotations
 
 from rich import box
+from rich.columns import Columns
 from rich.console import Console, Group
+from rich.padding import Padding
 from rich.panel import Panel
-from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
 from . import knowledge, textfmt
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
+
+# section styling: the banner's palette carried into the tables
+ACCENT = "#5ad0ff"          # section titles
+HEADER = "bold #c86cff"     # column headers
+BAR = "#5ad0ff"             # inline share bars
+HOT = "bold #ff5cc8"        # values past a threshold
+WARM = "#ff9ee0"            # values worth a glance
+ROW_STYLES = ["", "on #1c2230"]
+SIDE_BY_SIDE_MIN_WIDTH = 100
+
+SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
+           "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
+           "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥"}
+# the one column to read first in each table; the rest are dimmed
+KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "revs", "Change coupling": "degree",
+              "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
+              "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
@@ -317,44 +335,90 @@ def findings_panel(findings: list) -> Panel:
 def cell_style(column: str, value: str):
     """A style for values that crossed a threshold, or None."""
     try:
+        if column == "share":
+            n = int(value.rstrip("%"))
+            return HOT if n >= 50 else (WARM if n >= 20 else None)
         if column == "degree" and int(value.rstrip("%")) >= 90:
-            return "yellow"
+            return HOT
         if column == "fixes" and int(value) >= 5:
-            return "yellow"
+            return HOT
     except ValueError:
         pass
     return None
 
 
+def _base_title(title: str) -> str:
+    return title.split(" (")[0]
+
+
+def _cell(column: str, value: str, bars: bool) -> Text:
+    style = cell_style(column, value) or ""
+    if bars and column == "share" and value.endswith("%"):
+        n = int(value[:-1])
+        return Text(f"{value:>4} ", style=style) + Text("▰" * max(1, n // 10) if n else "", style=BAR)
+    return Text(value, style=style)
+
+
 def rich_table(sec: dict):
-    """A table for a section: no title (the caller prints a rule), caption underneath, thresholds coloured."""
+    """A table for a section: no title (the caller prints the heading), caption underneath,
+    coloured headers, bold key column, dimmed secondary columns, zebra rows, threshold colours."""
+    key = KEY_METRIC.get(_base_title(sec["title"]))
     kw = {}
     if sec.get("caption"):
-        kw = {"caption": sec["caption"], "caption_justify": "left", "caption_style": "dim"}
+        kw = {"caption": sec["caption"], "caption_justify": "left", "caption_style": "dim italic"}
     fits = max((len(line) for line in (sec.get("caption") or "").split("\n")), default=0)
-    t = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, min_width=fits, **kw)
-    for name, opts in zip(sec["columns"], sec["col_opts"]):
-        t.add_column(name, **opts)
+    bars = "share" in sec["columns"] and "" not in sec["columns"]   # inline bars only where there is no bar column
+    t = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, min_width=fits, header_style=HEADER,
+              row_styles=ROW_STYLES, border_style="#3a4150", **kw)
+    for i, (name, opts) in enumerate(zip(sec["columns"], sec["col_opts"])):
+        o = dict(opts)
+        o.setdefault("style", "bold" if i == 0 else ("" if name in (key, "share", "") else "dim"))
+        if bars and name == "share":
+            o["justify"] = "left"   # the percentage is padded to four characters, so the bars line up
+        t.add_column(name, **o)
     for row in sec["rows"]:
-        t.add_row(*[Text(cell, style=cell_style(col, cell) or "") for col, cell in zip(sec["columns"], row)])
+        t.add_row(*[_cell(col, cell, bars) for col, cell in zip(sec["columns"], row)])
     return t
 
 
-def print_section(console: Console, sec: dict) -> None:
-    """Blank line, then either 'title: note' for an empty section or a left rule and the table."""
-    console.print(Text(""))
+def heading(sec: dict) -> Text:
+    symbol = SYMBOLS.get(_base_title(sec["title"]), "•")
+    return Text(f"{symbol} ", style=ACCENT) + Text(sec["title"], style=f"bold {ACCENT}")
+
+
+def section_block(sec: dict):
+    """Heading plus table, or heading plus a dim note for an empty section."""
     if not sec["rows"] and sec["note"]:
-        console.print(Text(f"{sec['title']}: {sec['note']}", style="dim"))
-        return
-    console.print(Rule(sec["title"], align="left", style="dim"))
-    console.print(rich_table(sec))
+        return heading(sec) + Text(f": {sec['note']}", style="dim")
+    return Group(heading(sec), Padding(rich_table(sec), (0, 0, 0, 2)))
+
+
+def print_section(console: Console, sec: dict) -> None:
+    """Blank line, then the section's heading and table (or note)."""
+    console.print(Text(""))
+    console.print(section_block(sec))
+
+
+PAIRS = [(0, 1), (2, 6)]   # size | people, activity | code age, when the terminal is wide enough
+PAIR_GAP = 3
 
 
 def report(report: dict, findings: list, console: Console, full: bool = False) -> None:
     console.print(header(report, findings))
     console.print(findings_panel(findings))
-    for sec in sections(report, full=full, width=console.width):
-        print_section(console, sec)
+    secs = sections(report, full=full, width=console.width)
+    order = list(range(len(secs)))
+    if console.width >= SIDE_BY_SIDE_MIN_WIDTH:
+        for a, b in PAIRS:
+            left, right = section_block(secs[a]), section_block(secs[b])
+            needed = console.measure(left).maximum + PAIR_GAP + console.measure(right).maximum
+            if needed > console.width:
+                continue   # stacked, with the usual blank line between them
+            console.print(Text(""))
+            console.print(Columns([left, right], padding=(0, PAIR_GAP), equal=False, expand=False))
+            order = [i for i in order if i not in (a, b)]
+    for i in order:
+        print_section(console, secs[i])
     console.print(Text(""))
     console.print(Text(secrets_line(report), style="red" if report.get("secrets") else "green"))
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
