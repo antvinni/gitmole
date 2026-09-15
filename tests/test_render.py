@@ -34,9 +34,9 @@ def sample_report():
     }
 
 
-def rendered(report, findings, width=120):
+def rendered(report, findings, width=120, full=False):
     console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
-    render.report(report, findings, console)
+    render.report(report, findings, console, full=full)
     return console.export_text()
 
 
@@ -58,7 +58,7 @@ class Report(unittest.TestCase):
         self.assertIn("Nothing flagged", rendered(sample_report(), []))
 
     def test_tables_show_people_hotspots_coupling_age_and_health(self):
-        text = rendered(sample_report(), [])
+        text = rendered(sample_report(), [], full=True)
         self.assertIn("Ann", text)
         self.assertIn("static/apps-metadata.json", text)
         self.assertIn("static/treasury.html", text)
@@ -79,12 +79,11 @@ class Report(unittest.TestCase):
         self.assertIn("1 identity ", text)
         self.assertNotIn("1 identities", text)
 
-    def test_empty_coupling_table_says_none_and_keeps_short_title(self):
+    def test_empty_coupling_collapses_to_one_line(self):
         r = sample_report()
         r["coupling"] = []
         text = rendered(r, [], width=60)
-        self.assertIn("Change coupling", text)
-        self.assertIn("no pairs with 5+ shared revisions", text)
+        self.assertIn("Change coupling: no pairs with 5+ shared revisions", text)
         self.assertNotIn("together)\n", text.replace("(files that change\ntogether)", "together)\n"))
 
     def test_age_falls_back_to_last_changed_years_when_theseus_skipped(self):
@@ -124,7 +123,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["revisions"] = [{"entity": "static/apps-metadata.json", "n-revs": 128}, {"entity": "static/index.html", "n-revs": 51},
                           {"entity": "gone.py", "n-revs": 300}]
-        text = rendered(r, [])
+        text = rendered(r, [], full=True)
         lines = [l for l in text.splitlines() if l.startswith(("static/", "gone.py"))]
         # index.html: 51 x 4000 = 204,000 beats metadata.json: 128 x 800 = 102,400; deleted gone.py sorts last
         self.assertTrue(lines[0].startswith("static/index.html"), lines)
@@ -169,7 +168,7 @@ class Activity(unittest.TestCase):
 
 class KnowledgeMap(unittest.TestCase):
     def test_section_lists_areas_with_owners(self):
-        text = rendered(sample_report(), [])
+        text = rendered(sample_report(), [], full=True)
         self.assertIn("Knowledge map", text)
         self.assertRegex(text, r"static/\s+1,000\s+2\s+Ann \(90%\)\s+Bob \(10%\)")
         self.assertRegex(text, r"tests/\s+300\s+1\s+Bob \(100%\)")
@@ -208,9 +207,76 @@ class Timeline(unittest.TestCase):
         self.assertIn("no timeline data", rendered(r, []))
 
 
+class Layout(unittest.TestCase):
+    def test_header_carries_the_findings_tally(self):
+        f = [{"severity": "warning", "title": "Bus factor of one", "detail": "Ann wrote 79% of the code."},
+             {"severity": "info", "title": "x", "detail": "y."}]
+        self.assertIn("1 warning, 1 note", rendered(sample_report(), f))
+        self.assertIn("nothing flagged", rendered(sample_report(), []))
+
+    def test_findings_are_grouped_with_one_advice_line(self):
+        f = [{"severity": "info", "title": "One person under several identities", "detail": "a <a@x> merged into A <A@x> by name and email similarity. Add a .mailmap to make it permanent."},
+             {"severity": "info", "title": "One person under several identities", "detail": "b <b@x> merged into B <B@x> by name and email similarity. Add a .mailmap to make it permanent."}]
+        text = rendered(sample_report(), f)
+        self.assertIn("One person under several identities (2)", text)
+        self.assertEqual(text.count("Add a .mailmap"), 1)
+        self.assertIn("↳ Add a .mailmap to make it permanent.", text)
+        self.assertIn("a <a@x> merged into A <A@x>", text)
+
+    def test_sections_open_with_a_rule_and_a_blank_line(self):
+        text = rendered(sample_report(), [])
+        self.assertRegex(text, r"\n\nPeople ─+\n")
+        self.assertRegex(text, r"\n\nHotspots ─+\n")
+
+    def test_default_columns_are_the_ones_you_read(self):
+        secs = {x["title"]: x for x in render.sections(sample_report(), full=False)}
+        self.assertEqual(secs["Size by language"]["columns"], ["language", "files", "code", "share"])
+        self.assertEqual(secs["People"]["columns"], ["author", "commits", "share", "surviving code"])
+        self.assertEqual([x for x in secs if x.startswith("Hotspots")], ["Hotspots"])
+        self.assertEqual(secs["Hotspots"]["columns"], ["file", "revs", "lines", "fixes", "authors"])
+        self.assertEqual(secs["Change coupling"]["columns"], ["file", "changes with", "degree"])
+        self.assertEqual(secs["Knowledge map"]["columns"], ["area", "lines added", "main owner", "second"])
+
+    def test_full_restores_every_column_and_row(self):
+        secs = {x["title"]: x for x in render.sections(sample_report(), full=True)}
+        self.assertEqual(secs["Size by language"]["columns"], ["language", "files", "code", "share", "complexity"])
+        self.assertIn("email", secs["People"]["columns"])
+        self.assertEqual(secs["Hotspots (score = revisions × lines of code)"]["columns"], ["file", "revs", "lines", "cplx", "score", "fixes", "authors", "idle"])
+        self.assertIn("avg revs", secs["Change coupling"]["columns"])
+
+    def test_row_caps_and_the_more_line(self):
+        r = sample_report()
+        r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 100 - i} for i in range(12)]
+        r["size"]["files"] = {f"f{i}.py": {"code": 10, "complexity": 0} for i in range(12)}
+        compact = {x["title"]: x for x in render.sections(r, full=False)}["Hotspots"]
+        self.assertEqual(len(compact["rows"]), 8)
+        self.assertEqual(compact["caption"], "and 4 more")
+        full = {x["title"]: x for x in render.sections(r, full=True)}["Hotspots (score = revisions × lines of code)"]
+        self.assertEqual(len(full["rows"]), 12)
+        self.assertIsNone(full["caption"])
+
+    def test_long_paths_are_elided_not_folded(self):
+        r = sample_report()
+        long = "packages/core/src/repowise/core/pipeline/persist_and_more_words.py"
+        r["revisions"] = [{"entity": long, "n-revs": 50}]
+        r["size"]["files"] = {long: {"code": 100, "complexity": 1}}
+        text = rendered(r, [], width=80)
+        self.assertIn("…/pipeline/persist_and_more_words.py", text)
+        self.assertNotIn(long, text)
+        hot = text[text.index("\nHotspots ─"):]
+        self.assertNotRegex(hot, r"\n[a-z_]+\.py\s*\n", "no folded file-name tails")
+
+    def test_threshold_styles(self):
+        self.assertEqual(render.cell_style("degree", "95%"), "yellow")
+        self.assertIsNone(render.cell_style("degree", "70%"))
+        self.assertEqual(render.cell_style("fixes", "5"), "yellow")
+        self.assertIsNone(render.cell_style("fixes", "2"))
+        self.assertIsNone(render.cell_style("file", "5"))
+
+
 class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
-        secs = render.sections(sample_report())
+        secs = render.sections(sample_report(), full=True)
         titles = [x["title"] for x in secs]
         self.assertEqual(titles[:3], ["Size by language", "People", "Activity"])
         self.assertTrue(titles[3].startswith("Timeline"))
@@ -224,7 +290,7 @@ class Sections(unittest.TestCase):
     def test_empty_section_has_a_note_instead_of_rows(self):
         r = sample_report()
         r["coupling"] = []
-        sec = next(x for x in render.sections(r) if x["title"] == "Change coupling")
+        sec = next(x for x in render.sections(r, full=True) if x["title"] == "Change coupling")
         self.assertEqual(sec["rows"], [])
         self.assertEqual(sec["note"], "no pairs with 5+ shared revisions")
 

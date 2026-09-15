@@ -382,6 +382,21 @@ class Since(unittest.TestCase):
         self.assertIn("--since", c.export_text())
 
 
+class FullFlag(unittest.TestCase):
+    def test_full_shows_the_score_column(self):
+        with tempfile.TemporaryDirectory() as out:
+            _report_dir(out)
+            with open(os.path.join(out, "maat-revisions.csv"), "w") as fh:
+                fh.write("entity,n-revs\na.py,3\n")
+            with open(os.path.join(out, "size.json"), "w") as fh:
+                json.dump([{"Name": "Python", "Count": 1, "Code": 10, "Comment": 0, "Blank": 0, "Complexity": 1,
+                            "Files": [{"Location": "a.py", "Code": 10, "Complexity": 1}]}], fh)
+            compact = console(); cli.main([out, "--no-run"], console=compact)
+            full = console(); cli.main([out, "--no-run", "--full"], console=full)
+        self.assertNotIn("score", compact.export_text())
+        self.assertIn("score", full.export_text())
+
+
 class Arguments(unittest.TestCase):
     def test_bad_target_is_reported_not_raised(self):
         c = console()
