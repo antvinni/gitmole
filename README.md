@@ -153,97 +153,96 @@ Running `gitmole .` inside this repository:
 
 ```text
 ╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 45 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main                             │
-│ 4,295 lines in 37 files  ·  Python, SVG, Markdown, Plain Text                                    │
-│ 2 warnings, 2 notes                                                                              │
+│ 51 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                             │
+│ 4,651 lines in 37 files  ·  Python, SVG, Markdown, Plain Text                                    │
+│ 2 warnings, 3 notes                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (4) ───────────────────────────────────────────────────────────────────────────────────╮
+╭─ Findings (5) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ▲ Bus factor of one                                                                              │
 │   vinni wrote 100% of the code that survives today.                                              │
 │ ▲ Knowledge islands                                                                              │
-│   3 area(s) with at least 200 lines were written almost entirely by one person: build/ (vinni    │
-│   100%); tests/ (vinni 100%); gitmole/ (vinni 100%). That is 99% of all lines added              │
+│   3 area(s) with at least 200 lines were written almost entirely by one person: tests/ (vinni    │
+│   100%); gitmole/ (vinni 100%); build/ (vinni 100%). That is 99% of all lines added              │
 │   ↳ Pair or review across them before that person is unavailable.                                │
+│ ● Bug magnets                                                                                    │
+│   1 file(s) were fixed 3+ times in the last six months: gitmole/run.py (3 recent, 3 total)       │
+│   ↳ Expect the next bug there too.                                                               │
 │ ● Files that always change together                                                              │
-│   17 pairs change together at least 80% of the time, e.g. gitmole/run.py + tests/test_run.py     │
-│   (100%); gitmole/maat.py + tests/test_maat.py (100%); gitmole/findings.py +                     │
-│   tests/test_findings.py (100%). Usually a shared layout or a hidden dependency.                 │
+│   11 pairs change together at least 80% of the time, e.g. gitmole/maat.py + tests/test_maat.py   │
+│   (100%); gitmole/findings.py + tests/test_findings.py (100%); gitmole/knowledge.py +            │
+│   tests/test_knowledge.py (100%). Usually a shared layout or a hidden dependency.                │
 │ ● One person under several identities                                                            │
 │   antvinni <5262575+antvinni@users.noreply.github.com> merged into vinni                         │
 │   <5262575+antvinni@users.noreply.github.com> by name and email similarity                       │
 │   ↳ Add a .mailmap to make it permanent.                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-Size by language ───────────────────────────────────────────────────────────────────────────────────
-language     files    code   share
-──────────────────────────────────
-Python          31   3,466     81%
-SVG              1     399      9%
-Markdown         1     308      7%
-Plain Text       1      67      2%
-TOML             1      29      1%
-License          1      17      0%
-Shell            1       9      0%
+▤ Size by language                             ◉ People
+  language     files    code   share             author   commits   share             surviving code
+  ──────────────────────────────────────────     ───────────────────────────────────────────────────
+  Python          31   3,803    82% ▰▰▰▰▰▰▰▰     vinni         51   100% ▰▰▰▰▰▰▰▰▰▰             100%
+  SVG              1     399     9% ▰
+  Markdown         1     336     7% ▰
+  Plain Text       1      58     1% ▰
+  TOML             1      29     1% ▰
+  License          1      17     0%
+  Shell            1       9     0%
 
-People ─────────────────────────────────────────────────────────────────────────────────────────────
-author   commits   share   surviving code
-─────────────────────────────────────────
-vinni         45    100%             100%
+◔ Activity
+  weekday   commits   share
+  ────────────────────────────────────────────
+  Mon             0      0%
+  Tue            43     84%   ████████████████
+  Wed             8     16%   ███
+  Thu             0      0%
+  Fri             0      0%
+  Sat             0      0%
+  Sun             0      0%
+  busiest hour 23:00 (13 commits)
+  6% of commits are fixes
 
-Activity ───────────────────────────────────────────────────────────────────────────────────────────
-weekday   commits   share
-────────────────────────────────────────────────
-Mon             0      0%
-Tue            45    100%   ████████████████████
-Wed             0      0%
-Thu             0      0%
-Fri             0      0%
-Sat             0      0%
-Sun             0      0%
-busiest hour 23:00 (15 commits)
+▦ Timeline (Oct 2025 → Sep 2026)
+  author   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep
+  ──────────────────────────────────────────────────────────────────────────────
+  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    51
 
-Timeline (Oct 2025 → Sep 2026) ─────────────────────────────────────────────────────────────────────
-author   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep
-──────────────────────────────────────────────────────────────────────────────
-vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    45
+◆ Hotspots
+  file                   revs   lines   fixes   authors
+  ─────────────────────────────────────────────────────
+  gitmole/render.py        24     380       2         1
+  tests/test_render.py     23     354       2         1
+  tests/test_cli.py        21     358       0         1
+  tests/test_run.py        22     335       3         1
+  gitmole/cli.py           24     273       1         1
+  gitmole/run.py           23     248       3         1
+  tests/test_maat.py       16     229       2         1
+  gitmole/maat.py          16     195       2         1
+  and 35 more
 
-Hotspots ───────────────────────────────────────────────────────────────────────────────────────────
-file                   revs   lines   fixes   authors
-─────────────────────────────────────────────────────
-tests/test_run.py        20     333       0         1
-gitmole/render.py        21     317       0         1
-tests/test_cli.py        18     357       0         1
-gitmole/cli.py           21     273       0         1
-tests/test_render.py     20     277       0         1
-gitmole/run.py           20     248       0         1
-tests/test_maat.py       15     176       0         1
-gitmole/maat.py          15     167       0         1
-and 35 more
+⟷ Change coupling
+  file                   changes with              degree
+  ───────────────────────────────────────────────────────
+  gitmole/maat.py        tests/test_maat.py          100%
+  gitmole/findings.py    tests/test_findings.py      100%
+  gitmole/knowledge.py   tests/test_knowledge.py     100%
+  gitmole/render.py      tests/test_render.py         98%
+  gitmole/run.py         tests/test_run.py            98%
+  and 74 more
 
-Change coupling ────────────────────────────────────────────────────────────────────────────────────
-file                  changes with             degree
-─────────────────────────────────────────────────────
-gitmole/run.py        tests/test_run.py          100%
-gitmole/maat.py       tests/test_maat.py         100%
-gitmole/findings.py   tests/test_findings.py     100%
-gitmole/render.py     tests/test_render.py        98%
-gitmole/cli.py        tests/test_cli.py           92%
-and 67 more
+◷ Surviving code by year written
+  year   lines   share
+  ─────────────────────────────────────────────────────
+  2026   6,334    100%   ██████████████████████████████
 
-Surviving code by year written ─────────────────────────────────────────────────────────────────────
-year   lines   share
-─────────────────────────────────────────────────────
-2026   5,807    100%   ██████████████████████████████
+⌂ Knowledge map
+  area       lines added   main owner     second
+  ──────────────────────────────────────────────
+  tests/           3,783   vinni (100%)   -
+  gitmole/         3,731   vinni (100%)   -
+  build/           3,362   vinni (100%)   -
+  bin/                89   vinni (100%)   -
 
-Knowledge map ──────────────────────────────────────────────────────────────────────────────────────
-area       lines added   main owner     second
-──────────────────────────────────────────────
-build/           3,362   vinni (100%)   -
-tests/           3,208   vinni (100%)   -
-gitmole/         3,109   vinni (100%)   -
-bin/                89   vinni (100%)   -
-
-Repo health (git-sizer concerns): nothing flagged
+✚ Repo health (git-sizer concerns): nothing flagged
 
 Secrets: none found
 Full results and plots in ../analysis-gitmole
@@ -251,8 +250,12 @@ Full results and plots in ../analysis-gitmole
 
 In a terminal the banner above heads the run: the letters pulse in neon,
 the pixel mole beside them glances side to side while the tools work, and
-the findings and tables are coloured, with values past a threshold (coupling
-at 90%, five fixes) in yellow. Piped output, as above, is plain text.
+the findings and tables are coloured: section headings in the banner's cyan,
+column headers in its violet, one key column per table in full white with
+the rest dimmed, inline bars on share columns, and values past a threshold
+(a share over 50%, coupling at 90%, five fixes) in pink. On a terminal 100
+columns or wider the small tables sit side by side. Piped output, as above,
+is plain text.
 This is the default report; `--full` adds complexity, score and idle months
 to hotspots, emails to people, average revisions to coupling, the author
 count to the knowledge map, and lifts the row caps. The Markdown export
