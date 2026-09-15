@@ -30,6 +30,7 @@ PALETTE = {
     "W": "#ffffff",  # muzzle, paws
     "K": "#1b1b2b",  # pupils, nose
 }
+# "K" on rows 4-5 are the pupils; `look` slides them one column: 0 = inner (toward the letters), 1 = outer.
 SPRITE = [
     "....CCCCCCCC....",
     "..CCMMMMMMMMCC..",
@@ -45,12 +46,29 @@ SPRITE = [
     ".CBBDBBBBBDBBBC.",
 ]
 SPRITE_WIDTH = len(SPRITE[0])
+EYE_ROWS = (4, 5)
+EYES = ((3, 6), (10, 13))  # column ranges of the two eyes
 
 
-def _sprite_rows() -> list:
+def sprite_grid(look: int = 0) -> list:
+    """The pixel grid with pupils shifted to the inner (0) or outer (1) side of each eye."""
+    grid = [list(row) for row in SPRITE]
+    for r in EYE_ROWS:
+        for start, end in EYES:
+            for c in range(start, end):
+                grid[r][c] = "C"
+            if look == 0:
+                grid[r][start] = grid[r][start + 1] = "K"
+            else:
+                grid[r][start + 1] = grid[r][start + 2] = "K"
+    return ["".join(row) for row in grid]
+
+
+def _sprite_rows(look: int = 0) -> list:
     """Six Text rows, each packing two pixel rows with ▀ / ▄ and fg/bg colours."""
+    grid = sprite_grid(look)
     rows = []
-    for top, bottom in zip(SPRITE[0::2], SPRITE[1::2]):
+    for top, bottom in zip(grid[0::2], grid[1::2]):
         line = Text()
         for t, b in zip(top, bottom):
             if t == "." and b == ".":
@@ -65,10 +83,10 @@ def _sprite_rows() -> list:
     return rows
 
 
-def neon(offset: int = 0) -> Text:
+def neon(offset: int = 0, look: int = 0) -> Text:
     """The banner with the palette rotated down by `offset` rows, and the mole beside it."""
     text = Text()
-    sprite = _sprite_rows()
+    sprite = _sprite_rows(look)
     for i, row in enumerate(ART.split("\n")):
         colour = NEON[(i - offset) % len(NEON)]
         text.append(row, style=Style(color=Color.parse(colour), bold=True))
@@ -78,9 +96,12 @@ def neon(offset: int = 0) -> Text:
     return text
 
 
+LOOK_EVERY = 5  # frames per glance; at 10 fps the eyes move every half second
+
+
 def frames():
-    """Endless generator of banner frames with the gradient flowing downwards."""
-    offset = 0
+    """Endless generator of banner frames: gradient flowing down, eyes glancing side to side."""
+    n = 0
     while True:
-        yield neon(offset)
-        offset = (offset + 1) % len(NEON)
+        yield neon(offset=n % len(NEON), look=(n // LOOK_EVERY) % 2)
+        n += 1

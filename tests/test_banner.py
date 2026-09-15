@@ -70,6 +70,33 @@ class Rotation(unittest.TestCase):
         self.assertEqual(letter_styles(banner.neon(offset=6)), letter_styles(banner.neon()))
 
 
+def sprite_styles(text):
+    return [str(sp.style) for sp in text.spans if sp.style and getattr(sp.style, "bgcolor", None)]
+
+
+class EyeMovement(unittest.TestCase):
+    def test_look_left_and_right_render_differently(self):
+        self.assertNotEqual(sprite_styles(banner.neon(look=0)), sprite_styles(banner.neon(look=1)))
+        self.assertEqual(banner.neon(look=0).plain, banner.neon(look=1).plain)
+
+    def test_pupils_stay_inside_the_eyes(self):
+        for look in (0, 1):
+            grid = banner.sprite_grid(look)
+            self.assertEqual(len(grid), 12)
+            for row in grid:
+                self.assertEqual(len(row), 16)
+            # pupils only appear on rows 4-5 and in the eye columns 3-5 / 10-12, plus the nose on row 6
+            for r, row in enumerate(grid):
+                for c, ch in enumerate(row):
+                    if ch == "K":
+                        self.assertTrue((r in (4, 5) and (3 <= c <= 5 or 10 <= c <= 12)) or (r == 6 and c in (7, 8)), (r, c))
+
+    def test_frames_move_the_eyes_over_time(self):
+        gen = banner.frames()
+        seen = {tuple(sprite_styles(next(gen))) for _ in range(40)}
+        self.assertGreaterEqual(len(seen), 2)
+
+
 class Animator(unittest.TestCase):
     def test_frames_cycle_through_every_offset_then_repeat(self):
         frames = banner.frames()

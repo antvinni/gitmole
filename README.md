@@ -1,11 +1,4 @@
-```
-███╗   ███╗ ██████╗ ██╗     ███████╗
-████╗ ████║██╔═══██╗██║     ██╔════╝
-██╔████╔██║██║   ██║██║     █████╗
-██║╚██╔╝██║██║   ██║██║     ██╔══╝
-██║ ╚═╝ ██║╚██████╔╝███████╗███████╗
-╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚══════╝
-```
+![gitmole](docs/banner.png)
 
 # gitmole
 
@@ -155,8 +148,9 @@ Secrets: none found
 Full results and plots in ../analysis-gitmole
 ```
 
-In a terminal the banner pulses in neon while the tools run, and the
-findings and tables are coloured. Piped output, as above, is plain text.
+In a terminal the banner above heads the run: the letters pulse in neon,
+the pixel mole beside them glances side to side while the tools work, and
+the findings and tables are coloured. Piped output, as above, is plain text.
 
 ### The terminal report
 
