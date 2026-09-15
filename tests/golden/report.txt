@@ -35,18 +35,19 @@ Fri             1     12%   ██
 Sat             0      0%
 Sun             2     25%   █████
 busiest hour 09:00 (2 commits)
+12% of commits are fixes
 Timeline (Jun 2024 → May 2025)
 author        Jun   Jul   Aug   Sep   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May
 ───────────────────────────────────────────────────────────────────────────────────
 Ann Example     1     ·     ·     ·     ·     ·     1     ·     ·     1     ·     ·
 Bob Example     ·     ·     ·     1     ·     ·     ·     ·     ·     ·     ·     1
 Hotspots (score = revisions × lines of code)
-file          revs   lines   cplx   score   authors   idle
-──────────────────────────────────────────────────────────
-app/main.py      7       6      1      42         2      0
-app/util.py      5       2      0      10         2      3
-Makefile         1       2      0       2         1      9
-app/old.py       2       -      -       -         2      0
+file          revs   lines   cplx   score   fixes   authors   idle
+──────────────────────────────────────────────────────────────────
+app/main.py      7       6      1      42       1         2      0
+app/util.py      5       2      0      10       0         2      3
+Makefile         1       2      0       2       0         1      9
+app/old.py       2       -      -       -       1         2      0
 Change coupling
 file          changes with   degree   avg revs
 ──────────────────────────────────────────────

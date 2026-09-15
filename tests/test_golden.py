@@ -52,7 +52,8 @@ def build_repo(d):
             with open(full, "w") as fh:
                 fh.write(content)
         git("add", "-A")
-        git("commit", "-q", "-m", f"{who} {when[:10]}", GIT_AUTHOR_NAME=name, GIT_AUTHOR_EMAIL=email, GIT_COMMITTER_NAME=name,
+        subject = "fix: drop the old module" if who == "bob" and when.startswith("2025-05") else f"{who} {when[:10]}"
+        git("commit", "-q", "-m", subject, GIT_AUTHOR_NAME=name, GIT_AUTHOR_EMAIL=email, GIT_COMMITTER_NAME=name,
             GIT_COMMITTER_EMAIL=email, GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when)
 
 

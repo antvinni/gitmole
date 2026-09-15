@@ -23,6 +23,7 @@ def sample_report():
         "cohorts": {"Code added in 2025": 8733, "Code added in 2026": 2728},
         "theseus_authors": {"Ann": 9076, "Bob": 2342},
         "secrets": [],
+        "fixes": [{"entity": "static/apps-metadata.json", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 4}],
         "ownership": [{"entity": "static/a.html", "author": "Ann", "added": 900, "deleted": 0},
                       {"entity": "static/b.html", "author": "Bob", "added": 100, "deleted": 0},
                       {"entity": "tests/t.py", "author": "Bob", "added": 300, "deleted": 0}],
@@ -131,6 +132,8 @@ class Report(unittest.TestCase):
         self.assertTrue(lines[2].startswith("gone.py"), lines)
         self.assertRegex(lines[0], r"51\s+4,000\s+12")
         self.assertIn("score", text)
+        self.assertIn("fixes", text)
+        self.assertRegex(lines[1], r"static/apps-metadata.json\s+128\s+800\s+0\s+102,400\s+9\s")
 
     def test_footer_path_is_never_wrapped(self):
         r = sample_report()
@@ -152,6 +155,11 @@ class Activity(unittest.TestCase):
         self.assertIn("Activity", text)
         self.assertRegex(text, r"Thu\s+60")
         self.assertIn("busiest hour 10:00", text)
+
+    def test_activity_notes_the_share_of_fix_commits(self):
+        r = sample_report()
+        r["activity"]["fix_commits"] = 58
+        self.assertIn("25% of commits are fixes", rendered(r, []))
 
     def test_activity_absent_when_no_data(self):
         r = sample_report()

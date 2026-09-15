@@ -127,6 +127,29 @@ class DuplicateIdentities(unittest.TestCase):
         self.assertEqual(findings.duplicate_identities(report()), [])
 
 
+class BugMagnets(unittest.TestCase):
+    FIXES = [{"entity": "core/parser.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5},
+             {"entity": "core/util.py", "n-fixes": 4, "last-fix": "2026-08-01", "recent-fixes": 3},
+             {"entity": "tests/test_parser.py", "n-fixes": 7, "last-fix": "2026-09-01", "recent-fixes": 6},
+             {"entity": "core/old.py", "n-fixes": 8, "last-fix": "2024-01-01", "recent-fixes": 0}]
+
+    def test_names_files_with_a_run_of_recent_fixes_excluding_tests(self):
+        f = findings.bug_magnets(report(fixes=self.FIXES))
+        self.assertEqual(f[0]["severity"], "warning")
+        self.assertIn("core/parser.py (5", f[0]["detail"])
+        self.assertIn("core/util.py (3", f[0]["detail"])
+        self.assertNotIn("tests/", f[0]["detail"])
+        self.assertNotIn("core/old.py", f[0]["detail"])
+
+    def test_info_below_five_recent_fixes(self):
+        f = findings.bug_magnets(report(fixes=self.FIXES[1:2]))
+        self.assertEqual(f[0]["severity"], "info")
+
+    def test_nothing_without_recent_fixes(self):
+        self.assertEqual(findings.bug_magnets(report(fixes=self.FIXES[3:])), [])
+        self.assertEqual(findings.bug_magnets(report()), [])
+
+
 class KnowledgeIslands(unittest.TestCase):
     OWN = [{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0},
            {"entity": "core/b.py", "author": "Bob", "added": 50, "deleted": 0},

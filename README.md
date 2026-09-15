@@ -237,15 +237,22 @@ the findings and tables are coloured. Piped output, as above, is plain text.
 2. **Findings**: anything the heuristics flagged, worst first. Currently:
    secrets in history, an unconfigured git identity (example.com and the
    like), one author owning most surviving code, git-sizer concerns, one file
-   dominating the churn, tightly coupled file pairs, a large share of stale
-   files, one person under several identities, and knowledge islands: areas
-   of at least 200 lines written almost entirely by one person (a warning
-   when such areas hold most of the code).
+   dominating the churn, bug magnets (source files fixed three or more times
+   in the last six months; a warning at five), tightly coupled file pairs, a
+   large share of stale files, one person under several identities, and
+   knowledge islands: areas of at least 200 lines written almost entirely by
+   one person (a warning when such areas hold most of the code).
+
+   A commit counts as a fix when its subject starts with `fix:`, `hotfix:` or
+   `bugfix:` in the conventional style, or mentions fix, bug, hotfix,
+   regression or crash. Test files are left out of bug magnets because they
+   change with every fix.
 3. **Tables**: size by language, people (identities merged by name and
    email similarity, on top of `.mailmap`), activity by weekday with the
-   busiest hour, a timeline of commits per author over the last twelve
-   months, hotspots ranked by revisions times lines of code with
-   complexity alongside, change coupling, surviving code by year, a
+   busiest hour and the share of commits that are fixes, a timeline of
+   commits per author over the last twelve months, hotspots ranked by
+   revisions times lines of code with complexity and the number of fix
+   commits alongside, change coupling, surviving code by year, a
    knowledge map (lines added per area of the tree and who wrote them),
    repo health.
 
@@ -262,7 +269,7 @@ directory for a remote target:
 | File | From | What it is |
 |---|---|---|
 | `meta.json` | git | name, branch, commit count, date span, identities |
-| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; per-author totals and monthly timeline |
+| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | gitleaks | any secret-looking strings across all history |
@@ -272,6 +279,7 @@ directory for a remote target:
 | `maat-authors.csv` | change analysis | authors per file |
 | `maat-age.csv` | change analysis | months since last change per file |
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file |
+| `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
 | `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
 | `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |

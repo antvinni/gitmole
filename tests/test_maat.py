@@ -5,32 +5,32 @@ import unittest
 
 from gitmole import maat
 
-LOG = """--a1--2026-01-10T09:15:00+00:00--Ann
+LOG = """--a1--2026-01-10T09:15:00+00:00--Ann--feat: initial layout
 3\t1\tsrc/a.py
 2\t0\tsrc/b.py
 
---b2--2026-02-10T14:00:00+00:00--Bob
+--b2--2026-02-10T14:00:00+00:00--Bob--Add logo -- and docs
 1\t1\tsrc/a.py
 5\t5\tsrc/b.py
 -\t-\timg/logo.png
 
---c3--2026-03-10T09:30:00+00:00--Ann
+--c3--2026-03-10T09:30:00+00:00--Ann--fix(core): crash on empty input
 4\t0\tsrc/a.py
 1\t0\tsrc/c.py
 
---d4--2026-03-12T22:00:00+00:00--Ann
+--d4--2026-03-12T22:00:00+00:00--Ann--Refactor helpers
 1\t0\tsrc/a.py
 1\t0\tsrc/b.py
 
---e5--2026-04-01T09:00:00+00:00--Ann
+--e5--2026-04-01T09:00:00+00:00--Ann--Fixed the off-by-one in b
 1\t0\tsrc/a.py
 1\t0\tsrc/b.py
 
---f6--2026-04-02T09:45:00+00:00--Ann
+--f6--2026-04-02T09:45:00+00:00--Ann--prefix cleanup
 1\t0\tsrc/a.py
 1\t0\tsrc/b.py
 
---g7--2026-04-03T11:00:00+00:00--Cat
+--g7--2026-04-03T11:00:00+00:00--Cat--Hotfix: regression in a
 0\t2\tsrc/a.py
 0\t1\tsrc/b.py
 """
@@ -43,8 +43,15 @@ class ParseLog(unittest.TestCase):
         self.assertEqual(commits[0]["author"], "Ann")
         self.assertEqual(commits[0]["date"], "2026-01-10")
         self.assertEqual(commits[0]["time"], "2026-01-10T09:15:00+00:00")
+        self.assertEqual(commits[0]["subject"], "feat: initial layout")
+        self.assertEqual(commits[1]["subject"], "Add logo -- and docs", "double dashes inside a subject survive")
         self.assertEqual(commits[0]["files"], [("src/a.py", 3, 1), ("src/b.py", 2, 0)])
         self.assertEqual(commits[1]["files"][2], ("img/logo.png", 0, 0))
+
+    def test_old_logs_without_subjects_still_parse(self):
+        commits = maat.parse_log("--x--2026-05-04--Ann\n1\t0\tf.py\n")
+        self.assertEqual(commits[0]["subject"], "")
+        self.assertEqual(commits[0]["files"], [("f.py", 1, 0)])
 
 
 class Revisions(unittest.TestCase):
@@ -116,6 +123,27 @@ class Aliases(unittest.TestCase):
         self.assertNotIn(("src/b.py", "Bob"), own)
 
 
+class IsFix(unittest.TestCase):
+    def test_conventional_and_wordy_subjects(self):
+        for yes in ["fix: x", "fix(core)!: x", "Fixed the thing", "bugfix", "Hotfix: y", "Resolve crash on start", "regression in parser", "Bug 123"]:
+            self.assertTrue(maat.is_fix(yes), yes)
+        for no in ["prefix cleanup", "feat: bugsnag integration", "Add fixtures", "docs: typo", "Suffix handling"]:
+            self.assertFalse(maat.is_fix(no), no)
+
+
+class Fixes(unittest.TestCase):
+    def test_counts_fixes_per_entity_with_last_and_recent(self):
+        rows = {r["entity"]: r for r in maat.fixes(maat.parse_log(LOG), now="2026-09-15")}
+        self.assertEqual(rows["src/a.py"], {"entity": "src/a.py", "n-fixes": 3, "last-fix": "2026-04-03", "recent-fixes": 2})
+        self.assertEqual(rows["src/b.py"]["n-fixes"], 2)
+        self.assertEqual(rows["src/c.py"]["n-fixes"], 1)
+        self.assertNotIn("img/logo.png", rows)
+
+    def test_recent_window_is_six_months(self):
+        rows = {r["entity"]: r for r in maat.fixes(maat.parse_log(LOG), now="2026-10-02")}
+        self.assertEqual(rows["src/a.py"]["recent-fixes"], 1)   # 2026-04-03 is inside six months of 2026-10-02; 2026-04-01 is not
+
+
 class Activity(unittest.TestCase):
     def test_commits_by_weekday_hour_month_and_author(self):
         a = maat.activity(maat.parse_log(LOG))
@@ -126,6 +154,7 @@ class Activity(unittest.TestCase):
         self.assertEqual(a["by_month"], {"2026-01": 1, "2026-02": 1, "2026-03": 2, "2026-04": 3})
         self.assertEqual(a["authors"]["Ann"], {"commits": 5, "added": 16, "deleted": 1, "first": "2026-01-10", "last": "2026-04-02"})
         self.assertEqual(a["authors"]["Cat"]["deleted"], 3)
+        self.assertEqual(a["fix_commits"], 3)
 
     def test_legacy_short_dates_still_parse(self):
         a = maat.activity(maat.parse_log("--x--2026-05-04--Ann\n1\t0\tf.py\n"))
@@ -205,7 +234,7 @@ class WriteAll(unittest.TestCase):
                 fh.write(LOG)
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
-            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-revisions.csv"])
+            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-fixes.csv", "maat-revisions.csv"])
             self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))
             with open(os.path.join(d, "maat-revisions.csv")) as fh:
                 self.assertEqual(fh.readline().strip(), "entity,n-revs")

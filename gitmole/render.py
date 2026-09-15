@@ -73,11 +73,13 @@ def activity_section(report: dict) -> dict:
     total = sum(act["by_weekday"])
     rows = [(WEEKDAYS[i], n, _pct(n, total), _bar(n, total, 20)) for i, n in enumerate(act["by_weekday"])]
     hours = act.get("by_hour") or []
-    caption = None
+    notes = []
     if hours and max(hours):
         h = max(range(24), key=lambda i: hours[i])
-        caption = f"busiest hour {h:02d}:00 ({hours[h]} commits)"
-    return _section("Activity", columns, rows, caption=caption)
+        notes.append(f"busiest hour {h:02d}:00 ({hours[h]} commits)")
+    if act.get("fix_commits") is not None and total:
+        notes.append(f"{_pct(act['fix_commits'], total)} of commits are fixes")
+    return _section("Activity", columns, rows, caption="\n".join(notes) or None)
 
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -119,6 +121,7 @@ def hotspots_section(report: dict) -> dict:
     """Change frequency times size, Tornhill-style. Files no longer in the tree sort last."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
+    fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
     files = report["size"].get("files") or {}
     scored = []
     for r in report.get("revisions") or []:
@@ -126,10 +129,11 @@ def hotspots_section(report: dict) -> dict:
         scored.append((r["n-revs"] * info["code"] if info else -1, r, info))
     scored.sort(key=lambda t: (-t[0], -t[1]["n-revs"], t[1]["entity"]))
     rows = [(r["entity"], r["n-revs"], f"{info['code']:,}" if info else "-", info["complexity"] if info else "-",
-             f"{score:,}" if info else "-", authors.get(r["entity"], "-"), ages.get(r["entity"], "-"))
+             f"{score:,}" if info else "-", fixes.get(r["entity"], 0), authors.get(r["entity"], "-"), ages.get(r["entity"], "-"))
             for score, r, info in scored[:10]]
     return _section("Hotspots (score = revisions × lines of code)",
-                    [("file", {"overflow": "fold", "ratio": 3}), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT), ("authors", RIGHT), ("idle", RIGHT)], rows)
+                    [("file", {"overflow": "fold", "ratio": 3}), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT),
+                     ("fixes", RIGHT), ("authors", RIGHT), ("idle", RIGHT)], rows)
 
 
 def coupling_section(report: dict) -> dict:
