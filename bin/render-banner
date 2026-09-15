@@ -1,51 +1,88 @@
 #!/usr/bin/env python3
-"""Render the terminal banner (letters + pixel mole) to docs/banner.png with Pillow.
+"""Render the terminal banner (letters + pixel mole) to docs/banner.svg.
 
-Letters are drawn with a monospace font that has box-drawing glyphs (Menlo on
-macOS); the sprite is drawn pixel by pixel so it is exact. The PNG is reduced
-to a palette so it stays a few kilobytes.
+Everything is rectangles: block cells are filled, the double-line box-drawing
+outlines (╔ ═ ╗ ║ ╚ ╝) are drawn geometrically, and the sprite is one rect per
+run of same-coloured pixels. No fonts, so it is crisp at any zoom and tiny.
 """
 import os
 import sys
 
-from PIL import Image, ImageDraw, ImageFont
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 from gitmole import banner  # noqa: E402
 
-CELL_W, CELL_H = 16, 32          # one terminal cell, at 2x for crisp display
+CW, CH = 16, 32     # one terminal cell
 PAD = 24
 BG = "#1b1b2b"
-FONT = "/System/Library/Fonts/Menlo.ttc"
+T = 2               # outline thickness
+G = 4               # half the gap between the two lines of a double outline
+
+rects = []
+
+
+def rect(x, y, w, h, fill):
+    rects.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}"/>')
+
+
+def hline(y, x_from, x_to, fill):
+    rect(x_from, y - T // 2, x_to - x_from, T, fill)
+
+
+def vline(x, y_from, y_to, fill):
+    rect(x - T // 2, y_from, T, y_to - y_from, fill)
+
+
+def box_glyph(ch, x0, y0, fill):
+    x1, y1 = x0 + CW, y0 + CH
+    cx, cy = x0 + CW // 2, y0 + CH // 2
+    xa, xb, ya, yb = cx - G, cx + G, cy - G, cy + G   # left/right verticals, top/bottom horizontals
+    if ch == "═":
+        hline(ya, x0, x1, fill); hline(yb, x0, x1, fill)
+    elif ch == "║":
+        vline(xa, y0, y1, fill); vline(xb, y0, y1, fill)
+    elif ch == "╔":   # right + down
+        hline(ya, xa, x1, fill); vline(xa, ya, y1, fill); hline(yb, xb, x1, fill); vline(xb, yb, y1, fill)
+    elif ch == "╗":   # left + down
+        hline(ya, x0, xb, fill); vline(xb, ya, y1, fill); hline(yb, x0, xa, fill); vline(xa, yb, y1, fill)
+    elif ch == "╚":   # right + up
+        hline(yb, xa, x1, fill); vline(xa, y0, yb, fill); hline(ya, xb, x1, fill); vline(xb, y0, ya, fill)
+    elif ch == "╝":   # left + up
+        hline(yb, x0, xb, fill); vline(xb, y0, yb, fill); hline(ya, x0, xa, fill); vline(xa, y0, ya, fill)
+    else:
+        raise ValueError(f"no geometry for {ch!r}")
+
 
 rows = banner.ART.split("\n")
 cols = banner.LETTERS_WIDTH + banner.GAP + banner.SPRITE_WIDTH
-img = Image.new("RGB", (cols * CELL_W + 2 * PAD, len(rows) * CELL_H + 2 * PAD), BG)
-draw = ImageDraw.Draw(img)
-font = ImageFont.truetype(FONT, 30)
+width, height = cols * CW + 2 * PAD, len(rows) * CH + 2 * PAD
 
 for r, row in enumerate(rows):
     colour = banner.NEON[r]
     for c, ch in enumerate(row):
-        if ch == " ":
-            continue
-        x, y = PAD + c * CELL_W, PAD + r * CELL_H
+        x, y = PAD + c * CW, PAD + r * CH
         if ch == "█":
-            draw.rectangle([x, y, x + CELL_W - 1, y + CELL_H - 1], fill=colour)
-        else:
-            draw.text((x, y - 2), ch, font=font, fill=colour)
+            rect(x, y, CW, CH, colour)
+        elif ch != " ":
+            box_glyph(ch, x, y, colour)
 
 grid = banner.sprite_grid(0)
-px_h = CELL_H // 2
-x0 = PAD + (banner.LETTERS_WIDTH + banner.GAP) * CELL_W
+PH = CH // 2
+x0 = PAD + (banner.LETTERS_WIDTH + banner.GAP) * CW
 for r, row in enumerate(grid):
-    for c, ch in enumerate(row):
-        if ch == ".":
-            continue
-        x, y = x0 + c * CELL_W, PAD + r * px_h
-        draw.rectangle([x, y, x + CELL_W - 1, y + px_h - 1], fill=banner.PALETTE[ch])
+    c = 0
+    while c < len(row):
+        ch = row[c]
+        run = 1
+        while c + run < len(row) and row[c + run] == ch:
+            run += 1
+        if ch != ".":
+            rect(x0 + c * CW, PAD + r * PH, run * CW, PH, banner.PALETTE[ch])
+        c += run
 
-out = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "docs", "banner.png")
+svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" '
+       f'shape-rendering="crispEdges">\n<rect width="100%" height="100%" fill="{BG}"/>\n' + "\n".join(rects) + "\n</svg>\n")
+out = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "docs", "banner.svg")
 os.makedirs(os.path.dirname(out), exist_ok=True)
-img.convert("P", palette=Image.ADAPTIVE, colors=16).save(out, optimize=True)
-print(out, img.size, os.path.getsize(out), "bytes")
+with open(out, "w") as fh:
+    fh.write(svg)
+print(out, f"{width}x{height}", os.path.getsize(out), "bytes,", len(rects), "rects")
