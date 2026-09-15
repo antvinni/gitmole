@@ -303,6 +303,41 @@ class FileTypes(unittest.TestCase):
         self.assertEqual(calls[0]["types"], "py,sql")
 
 
+class ReferenceDate(unittest.TestCase):
+    def _main(self, env, extra=()):
+        from unittest.mock import patch
+        calls = []
+        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, env):
+            _tiny_repo(d)
+            def planner(repo, out, branch="HEAD", **kw):
+                calls.append(kw)
+                return [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            c = console()
+            rc = cli.main([d, "--out", os.path.join(d, "out"), *extra], console=c, tool_check=lambda **kw: [], planner=planner,
+                          estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            meta_path = os.path.join(d, "out", "meta.json")
+            meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+        return rc, c.export_text(), calls, meta
+
+    def test_env_override_is_forwarded_recorded_and_announced(self):
+        rc, text, calls, meta = self._main({"GITMOLE_NOW": "2025-06-15"})
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls[0]["now"], "2025-06-15")
+        self.assertEqual(meta["now"], "2025-06-15")
+        self.assertIn("2025-06-15", text)
+
+    def test_absent_override_means_today_and_nothing_recorded(self):
+        rc, text, calls, meta = self._main({})
+        self.assertIsNone(calls[0]["now"])
+        self.assertNotIn("now", meta)
+
+    def test_malformed_override_is_an_error(self):
+        rc, text, calls, meta = self._main({"GITMOLE_NOW": "2025-6-15"})
+        self.assertEqual(rc, 2)
+        self.assertIn("GITMOLE_NOW", text)
+        self.assertEqual(calls, [])
+
+
 class Arguments(unittest.TestCase):
     def test_bad_target_is_reported_not_raised(self):
         c = console()

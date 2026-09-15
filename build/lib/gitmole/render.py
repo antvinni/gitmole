@@ -229,7 +229,7 @@ def report(report: dict, findings: list, console: Console) -> None:
     for sec in sections(report):
         console.print(rich_table(sec))
     console.print(Text(secrets_line(report), style="red" if report.get("secrets") else "green"))
-    console.print(Text(f"\nFull results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
+    console.print(Text(f"\nFull results and plots in {report['out_dir']}", style="dim"))
 
 
 # --- markdown / json -------------------------------------------------------

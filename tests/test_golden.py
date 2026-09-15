@@ -4,9 +4,11 @@ Regenerate the stored report with:  UPDATE_GOLDEN=1 python3 -m unittest tests.te
 """
 import io
 import os
+import re
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from rich.console import Console
 
@@ -54,10 +56,18 @@ def build_repo(d):
             GIT_COMMITTER_EMAIL=email, GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when)
 
 
+# The pipeline's own git subprocesses must not see the developer's git config either.
+HERMETIC_ENV = {"GITMOLE_NOW": NOW, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
+
+
 def normalise(text: str, out_dir: str) -> str:
-    import re
     text = re.sub(r"^\d+ steps in [\d.]+s\n", "", text, flags=re.M)
-    return text.replace(out_dir, "<out>").strip() + "\n"
+    text = text.replace(out_dir, "<out>")
+    return "\n".join(line.rstrip() for line in text.strip().splitlines()) + "\n"
+
+
+def update_requested() -> bool:
+    return os.environ.get("UPDATE_GOLDEN", "").strip().lower() in ("1", "true", "yes")
 
 
 @unittest.skipUnless(run.missing_tools() == [], "external tools not installed")
@@ -69,21 +79,14 @@ class Golden(unittest.TestCase):
             build_repo(repo)
             out = os.path.join(work, "out")
             c = Console(file=io.StringIO(), width=100, record=True, force_terminal=False, color_system=None)
-            env_before = os.environ.get("GITMOLE_NOW")
-            os.environ["GITMOLE_NOW"] = NOW
-            try:
+            with patch.dict(os.environ, HERMETIC_ENV):
                 rc = cli.main([repo, "--out", out], console=c)
-            finally:
-                if env_before is None:
-                    del os.environ["GITMOLE_NOW"]
-                else:
-                    os.environ["GITMOLE_NOW"] = env_before
             self.assertEqual(rc, 0)
             actual = normalise(c.export_text(), out)
-        if os.environ.get("UPDATE_GOLDEN") or not os.path.exists(GOLDEN):
+        if update_requested():
             with open(GOLDEN, "w") as fh:
                 fh.write(actual)
-            self.skipTest(f"golden file written to {GOLDEN}; review it and rerun")
+        self.assertTrue(os.path.exists(GOLDEN), f"{GOLDEN} is missing; run with UPDATE_GOLDEN=1 to create it, then review it")
         with open(GOLDEN) as fh:
             expected = fh.read()
         if actual != expected:
