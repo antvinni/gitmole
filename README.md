@@ -45,7 +45,7 @@ metrics.
 
 ## Install
 
-Requires Homebrew, Python 3, and Java (for code-maat).
+Requires Homebrew and Python 3. OpenJDK is installed via brew for code-maat.
 
 ```bash
 ./bin/install.sh
@@ -54,7 +54,7 @@ Requires Homebrew, Python 3, and Java (for code-maat).
 That runs, roughly:
 
 ```bash
-brew install onefetch git-quick-stats scc git-sizer gitleaks
+brew install onefetch git-quick-stats scc git-sizer gitleaks openjdk
 python3 -m pip install --user git-of-theseus pydriller
 curl -L -o ~/bin/code-maat.jar \
   https://github.com/adamtornhill/code-maat/releases/download/v1.0.4/code-maat-1.0.4-standalone.jar

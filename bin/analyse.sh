@@ -11,11 +11,21 @@ fi
 repo="$(cd "$1" && pwd)"
 out="$(dirname "$repo")/analysis-$(basename "$repo")"
 jar="${CODE_MAAT_JAR:-$HOME/bin/code-maat.jar}"
+
+# Homebrew openjdk is keg-only, and pip --user puts scripts under ~/Library/Python.
+export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+for d in "$HOME"/Library/Python/*/bin; do [ -d "$d" ] && PATH="$d:$PATH"; done
+export PATH
+
+for t in onefetch git-quick-stats scc git-sizer gitleaks java git-of-theseus-analyze; do
+  command -v "$t" >/dev/null || { echo "missing: $t (run bin/install.sh)" >&2; exit 1; }
+done
+[ -f "$jar" ] || { echo "missing: $jar (run bin/install.sh)" >&2; exit 1; }
 mkdir -p "$out"
 cd "$repo"
 
 echo "==> overview (onefetch)"
-onefetch --no-art > "$out/overview.txt"
+onefetch --no-art --no-bold --no-color-palette | sed $'s/\x1b\\[[0-9;?]*[A-Za-z]//g' > "$out/overview.txt"
 
 echo "==> contributors (git-quick-stats)"
 git-quick-stats -T > "$out/contributors.txt"
@@ -36,7 +46,7 @@ for a in revisions coupling authors age entity-ownership; do
 done
 
 echo "==> code age (git-of-theseus)"
-git-of-theseus-analyze . --outdir "$out/theseus"
+git-of-theseus-analyze . --branch "$(git rev-parse --abbrev-ref HEAD)" --outdir "$out/theseus"
 git-of-theseus-stack-plot "$out/theseus/cohorts.json" --outfile "$out/code-age.png"
 git-of-theseus-survival-plot "$out/theseus/survival.json" --outfile "$out/survival.png"
 

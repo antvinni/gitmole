@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Install the gitmole tool set on macOS. Requires Homebrew, Python 3, Java.
+# Install the gitmole tool set on macOS. Requires Homebrew and Python 3.
 set -euo pipefail
 
 CODE_MAAT_VERSION="1.0.4"
 JAR_DIR="${HOME}/bin"
 
-brew install onefetch git-quick-stats scc git-sizer gitleaks
+# openjdk is keg-only; analyse.sh adds /opt/homebrew/opt/openjdk/bin to PATH itself.
+brew install onefetch git-quick-stats scc git-sizer gitleaks openjdk
 
 python3 -m pip install --user git-of-theseus pydriller
 
