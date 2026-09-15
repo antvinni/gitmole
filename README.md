@@ -1,11 +1,4 @@
-```
-███╗   ███╗ ██████╗ ██╗     ███████╗    ▄▄████████▄▄
-████╗ ████║██╔═══██╗██║     ██╔════╝   ██████████████
-██╔████╔██║██║   ██║██║     █████╗    ███  █████  ████
-██║╚██╔╝██║██║   ██║██║     ██╔══╝    ███████▄▄███████
-██║ ╚═╝ ██║╚██████╔╝███████╗███████╗  ████████████████
-╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚══════╝  ▀██████████████▀
-```
+![gitmole](docs/banner.png)
 
 # gitmole
 
@@ -213,6 +206,7 @@ directory for a remote target:
 python3 -m unittest discover -s tests -t .
 ```
 
+`bin/render-banner` regenerates `docs/banner.png` from the banner code.
 The code lives in `gitmole/`: `run.py` plans and executes the tools,
 `load.py` parses their output, `findings.py` holds the heuristics, and
 `render.py` draws the report. `bin/gitmole` is a thin launcher.

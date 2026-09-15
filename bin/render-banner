@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Render the terminal banner (letters + pixel mole) to docs/banner.png with Pillow.
+
+Letters are drawn with a monospace font that has box-drawing glyphs (Menlo on
+macOS); the sprite is drawn pixel by pixel so it is exact. The PNG is reduced
+to a palette so it stays a few kilobytes.
+"""
+import os
+import sys
+
+from PIL import Image, ImageDraw, ImageFont
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from gitmole import banner  # noqa: E402
+
+CELL_W, CELL_H = 16, 32          # one terminal cell, at 2x for crisp display
+PAD = 24
+BG = "#1b1b2b"
+FONT = "/System/Library/Fonts/Menlo.ttc"
+
+rows = banner.ART.split("\n")
+cols = banner.LETTERS_WIDTH + banner.GAP + banner.SPRITE_WIDTH
+img = Image.new("RGB", (cols * CELL_W + 2 * PAD, len(rows) * CELL_H + 2 * PAD), BG)
+draw = ImageDraw.Draw(img)
+font = ImageFont.truetype(FONT, 30)
+
+for r, row in enumerate(rows):
+    colour = banner.NEON[r]
+    for c, ch in enumerate(row):
+        if ch == " ":
+            continue
+        x, y = PAD + c * CELL_W, PAD + r * CELL_H
+        if ch == "█":
+            draw.rectangle([x, y, x + CELL_W - 1, y + CELL_H - 1], fill=colour)
+        else:
+            draw.text((x, y - 2), ch, font=font, fill=colour)
+
+grid = banner.sprite_grid(0)
+px_h = CELL_H // 2
+x0 = PAD + (banner.LETTERS_WIDTH + banner.GAP) * CELL_W
+for r, row in enumerate(grid):
+    for c, ch in enumerate(row):
+        if ch == ".":
+            continue
+        x, y = x0 + c * CELL_W, PAD + r * px_h
+        draw.rectangle([x, y, x + CELL_W - 1, y + px_h - 1], fill=banner.PALETTE[ch])
+
+out = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "docs", "banner.png")
+os.makedirs(os.path.dirname(out), exist_ok=True)
+img.convert("P", palette=Image.ADAPTIVE, colors=16).save(out, optimize=True)
+print(out, img.size, os.path.getsize(out), "bytes")
