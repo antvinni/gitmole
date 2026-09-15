@@ -71,7 +71,11 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if kind == "remote":
         parent = tempfile.mkdtemp(prefix="gitmole-", dir=os.environ.get("TMPDIR"))
         ui.print(f"[dim]cloning {target} into {parent}[/dim]")
-        repo_dir = cloner(target, parent)
+        try:
+            repo_dir = cloner(target, parent)
+        except run.GhError as e:
+            err.print(f"[red]could not clone {target}:[/red] {e}", soft_wrap=True)
+            return 2
     else:
         repo_dir = target
 
@@ -125,7 +129,11 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
     from . import render
 
     base = os.path.abspath(args.out) if args.out else os.path.join(os.getcwd(), f"analysis-{owner}")
-    repos = lister(owner)
+    try:
+        repos = lister(owner)
+    except run.GhError as e:
+        ui.print(f"[red]could not list repositories for {owner}:[/red] {e}", soft_wrap=True)
+        return 2
     if not repos:
         ui.print(f"[red]no repositories found for {owner}[/red]")
         return 2
@@ -133,7 +141,11 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
     reports = []
     for i, name in enumerate(repos, 1):
         ui.print(f"[bold]{name}[/bold] [dim]({i}/{len(repos)})[/dim]")
-        repo_dir = cloner(f"{owner}/{name}", parent)
+        try:
+            repo_dir = cloner(f"{owner}/{name}", parent)
+        except run.GhError as e:
+            ui.print(f"[red]could not clone {owner}/{name}:[/red] {e}", soft_wrap=True)
+            continue
         out_dir = os.path.join(base, name)
         _analyse(repo_dir, out_dir, args, ui, planner, estimator)
         report = load.load_report(out_dir)

@@ -38,6 +38,21 @@ class ListRepos(unittest.TestCase):
         self.assertIn("isArchived", " ".join(calls[0]))
 
 
+class GhErrors(unittest.TestCase):
+    def test_list_repos_wraps_gh_failure_with_its_stderr(self):
+        def lister(argv):
+            raise subprocess.CalledProcessError(1, argv, stderr="tls: failed to verify certificate")
+        with self.assertRaises(run.GhError) as ctx:
+            run.list_repos("acme", lister=lister)
+        self.assertIn("failed to verify certificate", str(ctx.exception))
+
+    def test_clone_wraps_gh_failure_with_its_stderr(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(run.GhError) as ctx:
+                run.clone("acme/definitely-missing-repo-xyz", d, runner=lambda argv: (_ for _ in ()).throw(subprocess.CalledProcessError(1, argv, stderr="repository not found")))
+        self.assertIn("repository not found", str(ctx.exception))
+
+
 class RepoName(unittest.TestCase):
     def test_strips_git_suffix_and_takes_last_segment(self):
         self.assertEqual(run.repo_name("https://github.com/o/r.git"), "r")

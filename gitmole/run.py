@@ -49,21 +49,34 @@ def output_dir(kind: str, repo_dir: str, explicit, cwd: str = None) -> str:
     return os.path.join(base, name)
 
 
+class GhError(RuntimeError):
+    """gh failed; the message is its stderr."""
+
+
 def _gh(argv: list) -> str:
     return subprocess.run(argv, check=True, capture_output=True, text=True).stdout
 
 
+def _wrap(fn, argv):
+    try:
+        return fn(argv)
+    except subprocess.CalledProcessError as e:
+        raise GhError((e.stderr or "").strip() or f"{' '.join(argv)} exited {e.returncode}") from None
+    except FileNotFoundError:
+        raise GhError("gh is not installed or not on PATH") from None
+
+
 def list_repos(owner: str, lister=_gh) -> list:
-    """Names of the owner's non-archived repositories, via gh."""
-    out = lister(["gh", "repo", "list", owner, "--limit", "500", "--json", "name,isArchived",
-                  "--jq", ".[] | select(.isArchived | not) | .name"])
+    """Names of the owner's non-archived repositories, via gh. Raises GhError."""
+    out = _wrap(lister, ["gh", "repo", "list", owner, "--limit", "500", "--json", "name,isArchived",
+                         "--jq", ".[] | select(.isArchived | not) | .name"])
     return sorted(set(out.split()))
 
 
-def clone(target: str, dest_parent: str) -> str:
-    """Clone a remote target with gh (so private repos use the existing auth)."""
+def clone(target: str, dest_parent: str, runner=_gh) -> str:
+    """Clone a remote target with gh (so private repos use the existing auth). Raises GhError."""
     dest = os.path.join(dest_parent, repo_name(target))
-    subprocess.run(["gh", "repo", "clone", target, dest], check=True)
+    _wrap(runner, ["gh", "repo", "clone", target, dest, "--", "--quiet"])
     return dest
 
 

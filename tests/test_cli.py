@@ -6,7 +6,7 @@ import unittest
 
 from rich.console import Console
 
-from gitmole import cli
+from gitmole import cli, run
 
 
 def console():
@@ -218,6 +218,28 @@ class Portfolio(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue(md.startswith("# acme"), md[:40])
         self.assertIn("| repo |", md)
+
+
+class GhFailures(unittest.TestCase):
+    def test_listing_failure_is_reported_cleanly(self):
+        def lister(owner):
+            raise run.GhError("Post https://api.github.com/graphql: tls: failed to verify certificate")
+        c = console()
+        rc = cli.main(["acme/*"], console=c, tool_check=lambda: [], lister=lister)
+        text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("could not list repositories for acme", text)
+        self.assertIn("failed to verify certificate", text)
+
+    def test_clone_failure_is_reported_cleanly(self):
+        def cloner(target, parent):
+            raise run.GhError("repository not found")
+        c = console()
+        rc = cli.main(["acme/missing"], console=c, tool_check=lambda: [], cloner=cloner)
+        text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("could not clone acme/missing", text)
+        self.assertIn("repository not found", text)
 
 
 class Arguments(unittest.TestCase):
