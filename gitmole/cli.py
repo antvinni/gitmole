@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import sys
 import tempfile
 import threading
@@ -24,7 +25,8 @@ def parse_args(argv):
     p.add_argument("--workers", type=int, default=6, help="how many tools to run at once")
     p.add_argument("--plots", action="store_true", help="also run git-of-theseus for the code-age and survival plots")
     p.add_argument("--deep", action="store_true", help="run code age and plots even when the repo exceeds the blame budget")
-    p.add_argument("--budget", type=int, default=50000, help="max git blames before code age or plots are skipped (default 50000)")
+    p.add_argument("--time-budget", type=float, default=60, metavar="SECONDS", help="skip code age when its projected time exceeds this (default 60)")
+    p.add_argument("--budget", type=int, default=50000, help="max git blames before plots are skipped (default 50000)")
     p.add_argument("--timeout", type=float, default=900, help="seconds any single tool may run before being killed (default 900)")
     p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from code age and plots")
     p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra ignore pattern for code age and plots (repeatable)")
@@ -35,8 +37,20 @@ def parse_args(argv):
     return p.parse_args(argv)
 
 
+_control = run.Control()
+
+
+def interrupt(*_):
+    """Ctrl-C: kill every running step's process group; the run loop then exits 130."""
+    _control.cancel()
+
+
 def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
          lister=run.list_repos, cloner=run.clone) -> int:
+    global _control
+    _control = run.Control()
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGINT, interrupt)
     args = parse_args(sys.argv[1:] if argv is None else argv)
     console = console or Console()
     err = Console(stderr=True) if console.file is sys.stdout else console
@@ -80,8 +94,15 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         repo_dir = target
 
     out_dir = run.output_dir(kind, repo_dir, args.out)
-    _analyse(repo_dir, out_dir, args, ui, planner, estimator)
+    try:
+        _analyse(repo_dir, out_dir, args, ui, planner, estimator)
+    except Interrupted:
+        return 130
     return _render(out_dir, console, ui, args)
+
+
+class Interrupted(Exception):
+    pass
 
 
 def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator) -> None:
@@ -91,11 +112,13 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     open(log_path, "w").close()
 
     estimate = estimator(repo_dir, run.MONTH)
-    age_ok = args.deep or estimate["files"] <= args.budget
+    projected = float(estimate.get("seconds", 0.0))
+    age_ok = args.deep or projected <= args.time_budget
     plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
     if not age_ok:
-        ui.print(f"[yellow]code age skipped:[/yellow] about {estimate['files']:,} files to blame exceeds the budget of {args.budget:,}. "
-                 f"Rerun with --deep to force it, or --ignore-data to shrink it.")
+        ui.print(f"[yellow]code age skipped:[/yellow] a blame pass over {estimate.get('code_files', estimate['files']):,} files is projected "
+                 f"to take about {projected:,.0f}s, over the {args.time_budget:,.0f}s time budget. "
+                 f"Rerun with --deep to force it, raise --time-budget, or --ignore-data to shrink it.")
     if args.plots and not plots_ok:
         ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
                  f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
@@ -103,12 +126,17 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
 
     meta = run.collect_meta(repo_dir)
-    meta["age"] = {"status": "run" if age_ok else "skipped", "method": "blame", "files": estimate["files"], "budget": args.budget}
+    meta["age"] = {"status": "run" if age_ok else "skipped", "method": "blame", "files": estimate.get("code_files", estimate["files"]),
+                   "projected_seconds": projected, "time_budget": args.time_budget}
     if args.plots:
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore)
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
+    if _control.cancelled.is_set():
+        killed = [n for n, rc in results.items() if rc == "cancelled"]
+        ui.print(f"[red]interrupted:[/red] killed {len(killed)} step(s)")
+        raise Interrupted()
 
     if results.get("code age") == "timeout":
         meta["age"]["status"] = "timeout"
@@ -147,7 +175,10 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
             ui.print(f"[red]could not clone {owner}/{name}:[/red] {e}", soft_wrap=True)
             continue
         out_dir = os.path.join(base, name)
-        _analyse(repo_dir, out_dir, args, ui, planner, estimator)
+        try:
+            _analyse(repo_dir, out_dir, args, ui, planner, estimator)
+        except Interrupted:
+            return 130
         report = load.load_report(out_dir)
         reports.append((name, report, findings.evaluate(report)))
 
@@ -196,7 +227,7 @@ def _execute(steps, log_path, repo_dir, workers, console, timeout=None) -> dict:
     results = {}
     with Live(view(), console=console, refresh_per_second=10, transient=False) as live:
         worker = threading.Thread(
-            target=lambda: results.update(run.execute(steps, log_path=log_path, cwd=repo_dir, workers=workers, on_start=on_start, on_done=on_done, timeout=timeout)))
+            target=lambda: results.update(run.execute(steps, log_path=log_path, cwd=repo_dir, workers=workers, on_start=on_start, on_done=on_done, timeout=timeout, control=_control)))
         worker.start()
         while worker.is_alive():
             live.update(view())

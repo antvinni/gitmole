@@ -110,9 +110,16 @@ def age_section(report: dict) -> dict:
 
 
 def age_fallback_section(report: dict) -> dict:
-    """When the blame pass did not run, show paths by the year they were last changed (from the change log)."""
+    """When the blame pass did not run: net lines added per year from the log, or failing that,
+    paths by the year they were last changed."""
     status = (report["meta"].get("age") or {}).get("status", "skipped")
     reason = {"timeout": "code age timed out", "skipped": "code age skipped"}.get(status, f"code age {status}")
+    net = (report.get("activity") or {}).get("net_by_year") or {}
+    if net:
+        total = sum(v for v in net.values() if v > 0)
+        rows = [(y, f"{v:,}", _pct(v, total) if v > 0 else "-", _bar(v, total) if v > 0 else "") for y, v in net.items()]
+        return _section("Net lines added by year", [("year", {}), ("net lines", RIGHT), ("share", RIGHT), ("", {"style": "blue"})], rows,
+                        caption=f"{reason}; approximation from the log, not a blame")
     last = report["meta"].get("last_date") or ""
     columns = [("year", {}), ("paths", RIGHT), ("share", RIGHT), ("", {"style": "blue"})]
     try:

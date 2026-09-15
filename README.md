@@ -81,6 +81,8 @@ Options: `--out DIR` to choose the output directory, `--no-run DIR` to
 re-render the report from an earlier run, `--plots` to also draw the
 git-of-theseus code-age and survival charts, `--workers N` to change how many
 tools run at once, `--timeout S` to cap any single tool (default 15 minutes).
+Ctrl-C kills every running step, including their child processes, and exits
+with code 130.
 
 All tools run concurrently, so a run takes about as long as the slowest tool.
 Tool stderr goes to `run.log` in the output directory, not the terminal.
@@ -103,15 +105,18 @@ on leaked secrets and still posts the report. Both exports also work with
 
 Blame is the one cost that scales with repo size. gitmole keeps it in check:
 
-- the code-age table comes from one `git blame` per tracked text file at
-  HEAD, run across every CPU core. That is all the table needs;
+- the code-age table comes from one `git blame` per tracked code file at
+  HEAD, run on all but two CPU cores at low priority so the machine stays
+  usable. That is all the table needs;
+- blame cost depends on file size and history depth, not file count, so
+  gitmole times a sample of 25 blames first and projects the whole pass. If
+  the projection exceeds `--time-budget` (default 60 seconds) the pass is
+  skipped with a message, and the report shows net lines added per year from
+  the change log instead, labelled as an approximation;
 - the plots need history, so `--plots` runs git-of-theseus with monthly
-  sampling (tracked files × samples blames) on top;
-- before running, gitmole checks both against `--budget` (default 50,000
-  blames) and skips whichever exceeds it, saying so. Without code age, the
-  report shows paths by the year they were last changed, from the change
-  analysis, deleted paths included;
-- `--deep` forces both regardless of the budget;
+  sampling (tracked files × samples blames) on top, skipped above
+  `--budget` (default 50,000 blames);
+- `--deep` forces both regardless of the budgets;
 - `--ignore-data` excludes data-like files (csv, json, lock files, minified
   and vendored assets) from blame, and `--ignore GLOB` adds your own
   patterns, repeatable. Both shrink the blame count a lot on repos full of
@@ -225,7 +230,7 @@ directory for a remote target:
 | File | From | What it is |
 |---|---|---|
 | `meta.json` | git | name, branch, commit count, date span, identities |
-| `activity.json` | change analysis | commits by weekday, hour and month; per-author totals |
+| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; per-author totals |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | gitleaks | any secret-looking strings across all history |

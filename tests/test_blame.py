@@ -53,6 +53,20 @@ class BlameFile(unittest.TestCase):
         self.assertEqual(counts, {("2024", "Ann"): 3, ("2026", "Bobby"): 1})
 
 
+class Estimate(unittest.TestCase):
+    def test_projects_wall_time_from_a_sample(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            est = blame.estimate(d, sample=1, procs=2, timer=iter([0.0, 0.5]).__next__)
+        # 2 code files, one sampled at 0.5s -> 1.0s single-core -> 0.5s on 2 workers
+        self.assertEqual(est["files"], 2)
+        self.assertAlmostEqual(est["seconds"], 0.5)
+
+    def test_default_workers_leave_two_cores_free(self):
+        self.assertEqual(blame.default_procs(cpu=10), 8)
+        self.assertEqual(blame.default_procs(cpu=2), 1)
+
+
 class WriteAll(unittest.TestCase):
     def test_writes_cohort_and_author_json_in_theseus_layout(self):
         with tempfile.TemporaryDirectory() as d:

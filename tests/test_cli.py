@@ -67,8 +67,9 @@ class Budget(unittest.TestCase):
                 meta = json.load(fh)
             return rc, c.export_text(), meta
 
-    BIG = {"files": 80000, "samples": 11, "blames": 880000}
-    SMALL = {"files": 100, "samples": 5, "blames": 500}
+    BIG = {"files": 80000, "samples": 11, "blames": 880000, "seconds": 400.0}
+    SMALL = {"files": 100, "samples": 5, "blames": 500, "seconds": 0.4}
+    SLOW = {"files": 28000, "samples": 3, "blames": 84000, "seconds": 390.0}
 
     def test_code_age_runs_by_default_and_plots_do_not(self):
         calls = []
@@ -78,14 +79,21 @@ class Budget(unittest.TestCase):
         self.assertEqual(meta["age"]["status"], "run")
         self.assertNotIn("skipped", text)
 
-    def test_code_age_skipped_when_files_exceed_budget(self):
+    def test_code_age_skipped_when_projected_time_exceeds_budget(self):
         calls = []
-        rc, text, meta = self._main([], self.BIG, calls)
+        rc, text, meta = self._main([], self.SLOW, calls)
         self.assertEqual(rc, 0)
         self.assertFalse(calls[0]["age"])
-        self.assertIn("80,000", text)
+        self.assertIn("390", text)
+        self.assertIn("60", text)
         self.assertIn("--deep", text)
         self.assertEqual(meta["age"]["status"], "skipped")
+        self.assertEqual(meta["age"]["projected_seconds"], 390.0)
+
+    def test_time_budget_flag_raises_the_threshold(self):
+        calls = []
+        self._main(["--time-budget", "600"], self.SLOW, calls)
+        self.assertTrue(calls[0]["age"])
 
     def test_plots_flag_runs_theseus_under_budget(self):
         calls = []
@@ -107,10 +115,10 @@ class Budget(unittest.TestCase):
         self.assertTrue(calls[0]["age"])
         self.assertTrue(calls[0]["plots"])
 
-    def test_budget_flag_changes_the_threshold(self):
+    def test_budget_flag_applies_to_plots(self):
         calls = []
-        self._main(["--budget", "1000000"], self.BIG, calls)
-        self.assertTrue(calls[0]["age"])
+        self._main(["--plots", "--budget", "1000000", "--time-budget", "1000"], self.BIG, calls)
+        self.assertTrue(calls[0]["plots"])
 
     def test_ignore_data_and_custom_ignores_reach_the_planner(self):
         calls = []
@@ -122,6 +130,31 @@ class Budget(unittest.TestCase):
         calls = []
         self._main([], self.SMALL, calls)
         self.assertEqual(list(calls[0]["ignore"]), [])
+
+
+class Interrupt(unittest.TestCase):
+    def test_keyboard_interrupt_kills_steps_and_exits_130(self):
+        import threading, time, signal
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            marker = os.path.join(d, "finished")
+            planner = lambda repo, out, branch="HEAD", **kw: [
+                {"name": "slow", "argv": ["sh", "-c", f"sleep 5; touch {marker}"], "stdout": None, "deps": []}]
+            c = console()
+            box = {}
+            def go():
+                box["rc"] = cli.main([d, "--out", os.path.join(d, "out")], console=c, tool_check=lambda **kw: [], planner=planner,
+                                     estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            t = threading.Thread(target=go)
+            t.start()
+            time.sleep(0.5)
+            cli.interrupt()          # what the SIGINT handler does
+            t.join(5)
+            self.assertFalse(t.is_alive(), "gitmole must exit promptly after Ctrl-C")
+            time.sleep(0.2)
+            self.assertFalse(os.path.exists(marker))
+        self.assertEqual(box["rc"], 130)
+        self.assertIn("interrupted", c.export_text())
 
 
 class Timeout(unittest.TestCase):

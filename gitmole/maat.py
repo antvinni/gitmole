@@ -102,7 +102,7 @@ def entity_ownership(commits: list) -> list:
 
 def activity(commits: list) -> dict:
     """Commits by weekday (Mon=0) and hour, by month, and per-author totals."""
-    by_weekday, by_hour, by_month = [0] * 7, [0] * 24, Counter()
+    by_weekday, by_hour, by_month, net_by_year = [0] * 7, [0] * 24, Counter(), Counter()
     authors = {}
     for c in commits:
         when = c.get("time") or c["date"]
@@ -115,12 +115,14 @@ def activity(commits: list) -> dict:
         if stamp and len(when) > 10:
             by_hour[stamp.hour] += 1
         by_month[c["date"][:7]] += 1
+        net_by_year[c["date"][:4]] += sum(a - d for _, a, d in c["files"])
         a = authors.setdefault(c["author"], {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
         a["commits"] += 1
         a["added"] += sum(x for _, x, _ in c["files"])
         a["deleted"] += sum(x for _, _, x in c["files"])
         a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
-    return {"by_weekday": by_weekday, "by_hour": by_hour, "by_month": dict(sorted(by_month.items())), "authors": authors}
+    return {"by_weekday": by_weekday, "by_hour": by_hour, "by_month": dict(sorted(by_month.items())),
+            "net_by_year": dict(sorted(net_by_year.items())), "authors": authors}
 
 
 ANALYSES = {
