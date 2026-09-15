@@ -122,6 +122,12 @@ class Report(unittest.TestCase):
         self.assertRegex(lines[0], r"51\s+4,000\s+12")
         self.assertIn("score", text)
 
+    def test_footer_path_is_never_wrapped(self):
+        r = sample_report()
+        r["out_dir"] = "/very/long/" + "x" * 150 + "/analysis-demo"
+        text = rendered(r, [], width=80)
+        self.assertIn("Full results and plots in " + r["out_dir"], text)
+
     def test_footer_points_at_output_dir(self):
         self.assertIn("/tmp/analysis-demo", rendered(sample_report(), []))
 

@@ -132,10 +132,46 @@ class Activity(unittest.TestCase):
         self.assertEqual(a["by_hour"], [0] * 24)
 
 
+class UtcZSuffix(unittest.TestCase):
+    def test_git_2_45_z_suffix_timestamps_keep_their_hour(self):
+        a = maat.activity(maat.parse_log("--x--2026-05-04T09:15:00Z--Ann\n1\t0\tf.py\n"))
+        self.assertEqual(a["by_hour"][9], 1)
+        self.assertEqual(a["by_weekday"][0], 1)  # 2026-05-04 is a Monday
+
+
 class NetByYear(unittest.TestCase):
     def test_added_minus_deleted_per_year(self):
         a = maat.activity(maat.parse_log(LOG + "--h8--2025-12-31T10:00:00+00:00--Ann\n7\t2\told.py\n"))
         self.assertEqual(a["net_by_year"], {"2025": 5, "2026": 12})
+
+
+class NowParameter(unittest.TestCase):
+    def test_write_all_takes_the_reference_date_as_a_parameter(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                fh.write(LOG)
+            maat.write_all(log, d, now="2030-01-01")
+            with open(os.path.join(d, "maat-age.csv")) as fh:
+                rows = dict(line.strip().split(",") for line in fh.readlines()[1:])
+        self.assertEqual(rows["src/a.py"], "44")   # 2026-04-03 -> 2030-01-01
+
+    def test_library_ignores_the_environment(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, {"GITMOLE_NOW": "2030-01-01"}):
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                fh.write(LOG)
+            maat.write_all(log, d)
+            with open(os.path.join(d, "maat-age.csv")) as fh:
+                rows = dict(line.strip().split(",") for line in fh.readlines()[1:])
+        self.assertNotEqual(rows["src/a.py"], "44")
+
+    def test_validate_now_rejects_malformed_dates(self):
+        self.assertEqual(maat.validate_now("2025-06-15"), "2025-06-15")
+        for bad in ("2025-6-15", "today", "2025-06-15T00:00:00"):
+            with self.assertRaises(ValueError):
+                maat.validate_now(bad)
 
 
 class WriteAll(unittest.TestCase):

@@ -1,3 +1,24 @@
+Metadata-Version: 2.4
+Name: gitmole
+Version: 0.1.0
+Summary: Offline git repository analysis with a terminal report: hotspots, coupling, ownership, code age, secrets, repo health.
+License: MIT
+Project-URL: Homepage, https://github.com/antvinni/gitmole
+Keywords: git,analysis,hotspots,code-age,repository,metrics
+Classifier: Environment :: Console
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Software Development :: Version Control :: Git
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: rich>=13
+Provides-Extra: plots
+Requires-Dist: git-of-theseus; extra == "plots"
+Provides-Extra: scripting
+Requires-Dist: pydriller; extra == "scripting"
+Dynamic: license-file
+
 <img src="docs/banner.svg" width="912" alt="gitmole">
 
 # gitmole
@@ -50,15 +71,25 @@ metrics.
 
 ## Install
 
-Requires Homebrew and Python 3.
+gitmole needs three tools on your PATH: [scc](https://github.com/boyter/scc),
+[git-sizer](https://github.com/github/git-sizer) and
+[gitleaks](https://github.com/gitleaks/gitleaks). All three are in Homebrew
+and in most Linux package managers, and each ships static binaries.
+
+Then install gitmole itself with pipx (or pip) on any platform:
 
 ```bash
-./bin/install.sh
+brew install scc git-sizer gitleaks          # or your package manager
+pipx install git+https://github.com/antvinni/gitmole
+pipx install 'gitmole[plots] @ git+https://github.com/antvinni/gitmole'   # adds git-of-theseus for --plots
 ```
 
-That installs scc, git-sizer and gitleaks from Homebrew, the Python packages
-(rich, plus git-of-theseus and PyDriller for `--plots` and scripting), and
-symlinks the `gitmole` command into Homebrew's bin directory.
+`python -m gitmole` works too. From a checkout, `pip install -e .` gives an
+editable install.
+
+On macOS, `./bin/install.sh` does all of the above the developer way: brew
+tools, the Python packages into your user site, and a symlink of
+`bin/gitmole` into Homebrew's bin directory so the checkout is what runs.
 
 ## Run
 
@@ -274,21 +305,6 @@ directory for a remote target:
 ```bash
 python3 -m unittest discover -s tests -t .
 ```
-
-`tests/test_golden.py` builds a small synthetic repository, runs the whole
-pipeline with the real tools, and compares the plain-text report against
-`tests/golden/report.txt`. It skips itself when the tools are not installed.
-When a change to the report is intended, regenerate the stored file and
-review the diff:
-
-```bash
-UPDATE_GOLDEN=1 python3 -m unittest tests.test_golden
-```
-
-`GITMOLE_NOW=YYYY-MM-DD` fixes the reference date for file ages, which is
-what keeps that report stable. gitmole validates it, announces it at the
-start of a run, and records it in `meta.json`, so a forgotten export cannot
-silently skew a real report.
 
 `bin/render-banner` regenerates `docs/banner.svg` from the banner code.
 The code lives in `gitmole/`: `run.py` plans and executes the tools,

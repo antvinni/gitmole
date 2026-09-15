@@ -130,6 +130,13 @@ class Plan(unittest.TestCase):
         by = {s["name"]: s for s in run.plan("/r", "/o")}
         self.assertNotIn("--types", by["code age"]["argv"], "default types need no flag")
 
+    def test_reference_date_is_forwarded_to_the_change_analysis_only(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", now="2025-06-15")}
+        argv = by["change analysis"]["argv"]
+        self.assertEqual(argv[argv.index("--now") + 1], "2025-06-15")
+        self.assertNotIn("--now", by["code age"]["argv"])
+        self.assertNotIn("--now", {s["name"]: s for s in run.plan("/r", "/o")}["change analysis"]["argv"])
+
     def test_plots_add_theseus_after_code_age(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", plots=True)}
         self.assertEqual(by["git-of-theseus"]["deps"], ["code age"])

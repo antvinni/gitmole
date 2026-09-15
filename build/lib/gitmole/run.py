@@ -111,7 +111,7 @@ def missing_tools(plots: bool = False, path: str = None) -> list:
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
-         procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None) -> list:
+         procs: int = None, interval: int = MONTH, ignore=(), types: str = None) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
@@ -124,7 +124,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "gitleaks", "argv": ["gitleaks", "git", "--no-banner", "--report-path", o("secrets.json"), "--exit-code", "0"], "stdout": None, "deps": []},
         {"name": "git-log", "argv": ["git", "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
-        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
+        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})

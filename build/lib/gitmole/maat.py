@@ -115,8 +115,7 @@ def activity(commits: list) -> dict:
     for c in commits:
         when = c.get("time") or c["date"]
         try:
-            # git >= 2.45 writes UTC as a trailing Z, which fromisoformat rejects before Python 3.11
-            stamp = dt.datetime.fromisoformat(when[:-1] + "+00:00" if when.endswith("Z") else when)
+            stamp = dt.datetime.fromisoformat(when)
         except ValueError:
             stamp = None
         day = stamp.date() if stamp else dt.date.fromisoformat(c["date"])
@@ -155,37 +154,21 @@ def aliases_from_meta(path: str) -> dict:
     return out
 
 
-def validate_now(value: str) -> str:
-    """A reference date must be exactly YYYY-MM-DD."""
-    if len(value) != 10 or dt.date.fromisoformat(value).isoformat() != value:
-        raise ValueError(f"reference date must be YYYY-MM-DD, got {value!r}")
-    return value
-
-
-def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None) -> None:
-    """`now` (YYYY-MM-DD) is the reference date for file ages; default today."""
+def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT) -> None:
     with open(log_path, encoding="utf-8", errors="replace") as fh:
         commits = parse_log(fh.read(), aliases_from_meta(aliases_path) if aliases_path else None, types)
     for name, (fn, header) in ANALYSES.items():
-        rows = age(commits, now=now) if name == "age" else fn(commits)
         with open(os.path.join(out_dir, f"maat-{name}.csv"), "w", newline="") as fh:
             w = csv.DictWriter(fh, fieldnames=header)
             w.writeheader()
-            w.writerows(rows)
+            w.writerows(fn(commits))
     with open(os.path.join(out_dir, "activity.json"), "w") as fh:
         json.dump(activity(commits), fh)
 
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    aliases, types, now = None, filetypes.DEFAULT, None
-    while "--now" in args:
-        i = args.index("--now")
-        try:
-            now = validate_now(args[i + 1])
-        except (ValueError, IndexError) as e:
-            sys.exit(f"maat.py: {e}")
-        del args[i:i + 2]
+    aliases, types = None, filetypes.DEFAULT
     while "--types" in args:
         i = args.index("--types"); types = filetypes.parse(args[i + 1]); del args[i:i + 2]
     if "--aliases" in args:
@@ -193,5 +176,5 @@ if __name__ == "__main__":
         aliases = args[i + 1]
         del args[i:i + 2]
     if len(args) != 2:
-        sys.exit("usage: maat.py LOG OUT_DIR [--aliases META_JSON] [--types LIST|all] [--now YYYY-MM-DD]")
-    write_all(args[0], args[1], aliases, types, now)
+        sys.exit("usage: maat.py LOG OUT_DIR [--aliases META_JSON] [--types LIST|all]")
+    write_all(args[0], args[1], aliases, types)
