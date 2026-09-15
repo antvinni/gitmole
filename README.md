@@ -238,13 +238,16 @@ the findings and tables are coloured. Piped output, as above, is plain text.
    secrets in history, an unconfigured git identity (example.com and the
    like), one author owning most surviving code, git-sizer concerns, one file
    dominating the churn, tightly coupled file pairs, a large share of stale
-   files, and one person under several identities.
+   files, one person under several identities, and knowledge islands: areas
+   of at least 200 lines written almost entirely by one person (a warning
+   when such areas hold most of the code).
 3. **Tables**: size by language, people (identities merged by name and
    email similarity, on top of `.mailmap`), activity by weekday with the
    busiest hour, a timeline of commits per author over the last twelve
    months, hotspots ranked by revisions times lines of code with
-   complexity alongside, change coupling, surviving code by year, repo
-   health.
+   complexity alongside, change coupling, surviving code by year, a
+   knowledge map (lines added per area of the tree and who wrote them),
+   repo health.
 
    Hotspots, coupling, ownership and code age only look at source files: a
    built-in list of code extensions plus names like Makefile and Dockerfile.
@@ -283,7 +286,9 @@ directory for a remote target:
 3. Change coupling shows files that always change together. That usually
    means a hidden dependency or copy-pasted layout.
 4. People and the surviving-code table tell you whether knowledge is
-   concentrated in one or two people.
+   concentrated in one or two people; the knowledge map says where. Areas
+   are top-level directories, or the subdirectories of a lone top-level one
+   such as `src/`.
 5. Repo health and secrets are pass or fail checks. Read them only if they
    flag something.
 

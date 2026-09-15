@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 
+from . import knowledge
+
 SEVERITIES = ["critical", "warning", "info"]
 
 PLACEHOLDER_NAMES = {"your name", "unknown", "root", "user"}
@@ -108,7 +110,22 @@ def duplicate_identities(report: dict) -> list:
     return out
 
 
-RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, tight_coupling, stale_files, duplicate_identities]
+def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9) -> list:
+    areas = knowledge.areas(report.get("ownership") or [])
+    islands = knowledge.islands(areas, min_lines=min_lines, min_share=min_share)
+    if not islands:
+        return []
+    total = sum(a["lines"] for a in areas)
+    covered = sum(i["lines"] for i in islands)
+    sev = "warning" if total and covered / total > 0.5 else "info"
+    listed = "; ".join(f"{i['area']} ({i['owner']} {i['share']}%)" for i in islands[:5])
+    more = f" and {len(islands) - 5} more" if len(islands) > 5 else ""
+    return [_f(sev, "Knowledge islands",
+               f"{len(islands)} area(s) with at least {min_lines} lines were written almost entirely by one person: {listed}{more}. "
+               f"That is {_pct(covered, total)} of all lines added. Pair or review across them before that person is unavailable.")]
+
+
+RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, tight_coupling, stale_files, duplicate_identities, knowledge_islands]
 
 
 def evaluate(report: dict) -> list:

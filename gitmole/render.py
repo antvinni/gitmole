@@ -7,6 +7,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from . import knowledge
+
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 RIGHT = {"justify": "right"}
@@ -174,6 +176,17 @@ def age_fallback_section(report: dict) -> dict:
     return _section("Paths in history by year last changed", columns, rows, note=None if rows else f"no age data ({reason})", caption=reason)
 
 
+def knowledge_section(report: dict) -> dict:
+    """Ownership by area of the tree: who wrote most of each directory."""
+    areas = knowledge.areas(report.get("ownership") or [])[:10]
+    columns = [("area", {"overflow": "fold"}), ("lines added", RIGHT), ("authors", RIGHT), ("main owner", {}), ("second", {})]
+    rows = []
+    for a in areas:
+        owners = [f"{name} ({_pct(n, a['lines'])})" for name, n in a["owners"][:2]]
+        rows.append((a["area"], f"{a['lines']:,}", a["authors"], owners[0], owners[1] if len(owners) > 1 else "-"))
+    return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data")
+
+
 def health_section(report: dict) -> dict:
     rows = [(r["name"], r["value"], "*" * r["concern"], r["ref"]) for r in report.get("sizer") or []]
     return _section("Repo health (git-sizer concerns)", [("metric", {}), ("value", RIGHT), ("concern", {}), ("object", FOLD)], rows,
@@ -181,7 +194,8 @@ def health_section(report: dict) -> dict:
 
 
 def sections(report: dict) -> list:
-    return [size_section(report), people_section(report), activity_section(report), timeline_section(report), hotspots_section(report), coupling_section(report), age_section(report), health_section(report)]
+    return [size_section(report), people_section(report), activity_section(report), timeline_section(report), hotspots_section(report),
+            coupling_section(report), age_section(report), knowledge_section(report), health_section(report)]
 
 
 def secrets_line(report: dict) -> str:
