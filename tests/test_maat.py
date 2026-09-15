@@ -86,6 +86,25 @@ class Ownership(unittest.TestCase):
         self.assertEqual(rows[("src/a.py", "Cat")]["deleted"], 2)
 
 
+class Types(unittest.TestCase):
+    def test_file_entries_outside_the_types_are_dropped(self):
+        commits = maat.parse_log(LOG, types={"py"})
+        self.assertEqual(commits[1]["files"], [("src/a.py", 1, 1), ("src/b.py", 5, 5)])
+        self.assertNotIn("img/logo.png", {p for c in commits for p, _, _ in c["files"]})
+
+    def test_none_means_everything(self):
+        commits = maat.parse_log(LOG, types=None)
+        self.assertIn("img/logo.png", {p for c in commits for p, _, _ in c["files"]})
+
+
+class Timeline(unittest.TestCase):
+    def test_commits_per_author_per_month(self):
+        a = maat.activity(maat.parse_log(LOG))
+        self.assertEqual(a["timeline"]["Ann"], {"2026-01": 1, "2026-03": 2, "2026-04": 2})
+        self.assertEqual(a["timeline"]["Bob"], {"2026-02": 1})
+        self.assertEqual(a["timeline"]["Cat"], {"2026-04": 1})
+
+
 class Aliases(unittest.TestCase):
     def test_author_names_are_canonicalised(self):
         commits = maat.parse_log(LOG, aliases={"Bob": "Robert"})

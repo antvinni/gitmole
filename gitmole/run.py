@@ -10,7 +10,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
-from . import blame, identity
+from . import blame, filetypes, identity
 
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
@@ -111,11 +111,12 @@ def missing_tools(plots: bool = False, path: str = None) -> list:
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
-         procs: int = None, interval: int = MONTH, ignore=()) -> list:
+         procs: int = None, interval: int = MONTH, ignore=(), types: str = None) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
-    blame_argv = [sys.executable, BLAME_SCRIPT, repo_dir, out_dir, "--procs", str(procs or blame.default_procs()), *ignores, "--aliases", o("meta.json")]
+    type_args = ["--types", types] if types else []
+    blame_argv = [sys.executable, BLAME_SCRIPT, repo_dir, out_dir, "--procs", str(procs or blame.default_procs()), *ignores, *type_args, "--aliases", o("meta.json")]
     theseus_argv = ["git-of-theseus-analyze", ".", "--branch", branch, "--outdir", o("theseus"),
                     "--procs", str(procs or os.cpu_count() or 2), "--interval", str(interval), *ignores]
     steps = [
@@ -123,7 +124,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "gitleaks", "argv": ["gitleaks", "git", "--no-banner", "--report-path", o("secrets.json"), "--exit-code", "0"], "stdout": None, "deps": []},
         {"name": "git-log", "argv": ["git", "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
-        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
+        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
@@ -246,14 +247,14 @@ def _git(repo_dir: str, *args) -> str:
     return subprocess.run(["git", *args], cwd=repo_dir, check=True, capture_output=True, text=True).stdout
 
 
-def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int = 25) -> dict:
+def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int = 25, types=filetypes.DEFAULT) -> dict:
     """Cost of the blame passes: a timed projection for the HEAD pass (seconds) and
     tracked files times sampled commits for git-of-theseus (blames)."""
     files = len(_git(repo_dir, "ls-files").splitlines())
     times = [int(t) for t in _git(repo_dir, "log", "--format=%ct").split()]
     span = (max(times) - min(times)) if times else 0
     samples = min(len(times), span // interval + 1) if times else 0
-    projection = blame.estimate(repo_dir, ignore=ignore, sample=sample)
+    projection = blame.estimate(repo_dir, ignore=ignore, sample=sample, types=types)
     return {"files": files, "samples": samples, "blames": files * samples,
             "seconds": projection["seconds"], "code_files": projection["files"]}
 

@@ -14,7 +14,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 
-from . import __version__, banner, findings, load, run
+from . import __version__, banner, filetypes, findings, load, run
 
 
 def parse_args(argv):
@@ -30,6 +30,8 @@ def parse_args(argv):
     p.add_argument("--timeout", type=float, default=900, help="seconds any single tool may run before being killed (default 900)")
     p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from code age and plots")
     p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra ignore pattern for code age and plots (repeatable)")
+    p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
+    p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
@@ -73,6 +75,12 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         err.print(f"[red]{e}[/red]")
         return 2
 
+    if args.list_file_types:
+        if kind != "path":
+            err.print("[red]--list-file-types needs a local path[/red]")
+            return 2
+        return _list_file_types(target, args, console)
+
     missing = tool_check(plots=args.plots)
     if missing:
         err.print("[red]missing tools:[/red] " + ", ".join(missing))
@@ -105,13 +113,32 @@ class Interrupted(Exception):
     pass
 
 
+def _types_spec(spec):
+    """Normalise --file-types for the planner: None for the default, 'all', or a sorted comma list."""
+    if spec is None:
+        return None
+    parsed = filetypes.parse(spec)
+    return "all" if parsed is None else ",".join(sorted(parsed))
+
+
+def _list_file_types(repo_dir: str, args, console: Console) -> int:
+    from . import render
+
+    rows = [(k, n, "yes" if inc else "no") for k, n, inc in filetypes.discover(repo_dir, filetypes.parse(args.file_types))]
+    sec = render._section("File types", [("type", {}), ("files", render.RIGHT), ("code", {})], rows, note="no tracked files",
+                          caption="code = analysed for hotspots, coupling and code age")
+    console.print(render.rich_table(sec))
+    return 0
+
+
 def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator) -> None:
     """Run the whole pipeline for one repository into out_dir."""
     os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)
     log_path = os.path.join(out_dir, "run.log")
     open(log_path, "w").close()
 
-    estimate = estimator(repo_dir, run.MONTH)
+    ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
+    estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types))
     projected = float(estimate.get("seconds", 0.0))
     age_ok = args.deep or projected <= args.time_budget
     plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
@@ -124,13 +151,14 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
                  f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
                  f"Rerun with --deep to force them, or --ignore-data to shrink them.")
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
+    types_spec = _types_spec(args.file_types)
 
     meta = run.collect_meta(repo_dir)
     meta["age"] = {"status": "run" if age_ok else "skipped", "method": "blame", "files": estimate.get("code_files", estimate["files"]),
                    "projected_seconds": projected, "time_budget": args.time_budget}
     if args.plots:
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
-    steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore)
+    steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec)
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
     if _control.cancelled.is_set():

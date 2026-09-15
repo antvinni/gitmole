@@ -32,20 +32,10 @@ def _low_priority():
         pass
 
 
-# Text files that are not code: docs, config, data. git-of-theseus skips these too, and the
-# table must agree with its plots.
-NON_CODE = {
-    "md", "markdown", "rst", "txt", "adoc", "org",
-    "json", "yaml", "yml", "toml", "ini", "cfg", "properties", "env",
-    "csv", "tsv", "xml", "svg", "lock", "log",
-    "license", "licence", "copying", "authors", "changelog", "notice", "readme", "codeowners", "gitignore", "gitattributes", "editorconfig", "mailmap",
-}
-
-
-def _is_code(path: str) -> bool:
-    name = path.rsplit("/", 1)[-1].lower()
-    ext = name.rsplit(".", 1)[-1] if "." in name else name
-    return ext not in NON_CODE and name.lstrip(".") not in NON_CODE
+try:
+    from . import filetypes
+except ImportError:  # run as a script: the package directory is sys.path[0]
+    import filetypes
 
 
 def text_files(repo: str, ignore=()) -> list:
@@ -55,9 +45,9 @@ def text_files(repo: str, ignore=()) -> list:
     return [f for f in files if not any(fnmatch.fnmatch(f, g) for g in ignore)]
 
 
-def code_files(repo: str, ignore=()) -> list:
-    """text_files() minus documentation, configuration and data formats."""
-    return [f for f in text_files(repo, ignore) if _is_code(f)]
+def code_files(repo: str, ignore=(), types=filetypes.DEFAULT) -> list:
+    """text_files() restricted to source file types (None = no restriction)."""
+    return [f for f in text_files(repo, ignore) if filetypes.matches(f, types)]
 
 
 def blame_file(repo: str, path: str) -> dict:
@@ -80,9 +70,9 @@ def _job(args):
     return blame_file(*args)
 
 
-def estimate(repo: str, files: list = None, ignore=(), sample: int = 25, procs: int = None, timer=time.monotonic) -> dict:
+def estimate(repo: str, files: list = None, ignore=(), sample: int = 25, procs: int = None, timer=time.monotonic, types=filetypes.DEFAULT) -> dict:
     """Project the wall time of the pass by timing a spread of `sample` blames single-threaded."""
-    files = code_files(repo, ignore) if files is None else files
+    files = code_files(repo, ignore, types) if files is None else files
     procs = procs or default_procs()
     n = len(files)
     if not n or not sample:
@@ -108,9 +98,9 @@ def _series(counter: Counter, label) -> dict:
     return {"labels": [label(k) for k, _ in items], "ts": [now], "y": [[n] for _, n in items]}
 
 
-def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, procs: int = None) -> dict:
+def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, procs: int = None, types=filetypes.DEFAULT) -> dict:
     aliases = aliases_from_meta(aliases_path) if aliases_path else {}
-    files = code_files(repo, ignore)
+    files = code_files(repo, ignore, types)
     years, authors = Counter(), Counter()
     with Pool(procs or default_procs(), initializer=_low_priority) as pool:
         for counts in pool.imap_unordered(_job, [(repo, f) for f in files], chunksize=8):
@@ -130,7 +120,9 @@ def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, proc
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    procs, aliases, ignore = None, None, []
+    procs, aliases, ignore, types = None, None, [], filetypes.DEFAULT
+    while "--types" in args:
+        i = args.index("--types"); types = filetypes.parse(args[i + 1]); del args[i:i + 2]
     while "--procs" in args:
         i = args.index("--procs"); procs = int(args[i + 1]); del args[i:i + 2]
     while "--aliases" in args:
@@ -138,5 +130,5 @@ if __name__ == "__main__":
     while "--ignore" in args:
         i = args.index("--ignore"); ignore.append(args[i + 1]); del args[i:i + 2]
     if len(args) != 2:
-        sys.exit("usage: blame.py REPO OUT_DIR [--procs N] [--ignore GLOB]... [--aliases META_JSON]")
-    print(json.dumps(write_all(args[0], args[1], ignore, aliases, procs)))
+        sys.exit("usage: blame.py REPO OUT_DIR [--procs N] [--ignore GLOB]... [--aliases META_JSON] [--types LIST|all]")
+    print(json.dumps(write_all(args[0], args[1], ignore, aliases, procs, types)))

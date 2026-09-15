@@ -42,6 +42,8 @@ class TextFiles(unittest.TestCase):
             # binaries, Markdown, YAML and CSV are not code; git-of-theseus skips them too
             self.assertEqual(blame.code_files(d), ["a.py", "b.py"])
             self.assertEqual(blame.code_files(d, ignore=["b.*"]), ["a.py"])
+            self.assertEqual(blame.code_files(d, types={"csv"}), ["data.csv"])
+            self.assertEqual(blame.code_files(d, types=None), ["README.md", "a.py", "b.py", "config.yaml", "data.csv"])
             self.assertIn("data.csv", blame.text_files(d))
 
 

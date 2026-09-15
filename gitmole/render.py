@@ -75,6 +75,38 @@ def activity_section(report: dict) -> dict:
     return _section("Activity", columns, rows, caption=caption)
 
 
+MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _month_range(last: str, n: int = 12) -> list:
+    """The n months ending at 'YYYY-MM', oldest first."""
+    y, m = int(last[:4]), int(last[5:7])
+    out = []
+    for _ in range(n):
+        out.append(f"{y:04d}-{m:02d}")
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    return out[::-1]
+
+
+def _month_label(ym: str) -> str:
+    return f"{MONTHS[int(ym[5:7]) - 1]} {ym[:4]}"
+
+
+def timeline_section(report: dict, months: int = 12, authors: int = 8) -> dict:
+    tl = (report.get("activity") or {}).get("timeline") or {}
+    if not tl:
+        return _section("Timeline", [("author", {})], [], note="no timeline data")
+    last = max(m for per in tl.values() for m in per)
+    span = _month_range(last, months)
+    columns = [("author", {"overflow": "fold"})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
+    in_window = {a: sum(per.get(m, 0) for m in span) for a, per in tl.items()}
+    ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0][:authors]
+    rows = [(a, *[tl[a].get(m) or "·" for m in span]) for a in ranked]
+    return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows)
+
+
 def hotspots_section(report: dict) -> dict:
     """Change frequency times size, Tornhill-style. Files no longer in the tree sort last."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
@@ -143,7 +175,7 @@ def health_section(report: dict) -> dict:
 
 
 def sections(report: dict) -> list:
-    return [size_section(report), people_section(report), activity_section(report), hotspots_section(report), coupling_section(report), age_section(report), health_section(report)]
+    return [size_section(report), people_section(report), activity_section(report), timeline_section(report), hotspots_section(report), coupling_section(report), age_section(report), health_section(report)]
 
 
 def secrets_line(report: dict) -> str:

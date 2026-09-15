@@ -24,7 +24,9 @@ def sample_report():
         "theseus_authors": {"Ann": 9076, "Bob": 2342},
         "secrets": [],
         "activity": {"by_weekday": [40, 50, 45, 60, 30, 5, 3], "by_hour": [0] * 9 + [20, 30, 25] + [0] * 12,
-                     "by_month": {"2026-07": 10, "2026-08": 20, "2026-09": 12}, "authors": {}},
+                     "by_month": {"2026-07": 10, "2026-08": 20, "2026-09": 12}, "authors": {},
+                     "timeline": {"Ann": {"2025-10": 3, "2026-08": 12, "2026-09": 7}, "Bob": {"2026-09": 5},
+                                  "Old Timer": {"2019-01": 400}}},
     }
 
 
@@ -141,12 +143,28 @@ class Activity(unittest.TestCase):
         self.assertIn("no activity data", rendered(r, []))
 
 
+class Timeline(unittest.TestCase):
+    def test_last_twelve_months_per_author_with_dots_for_zero(self):
+        text = rendered(sample_report(), [], width=120)
+        self.assertIn("Timeline (Oct 2025 → Sep 2026)", text)
+        self.assertRegex(text, r"Ann\s+3(\s+·){9}\s+12\s+7")
+        self.assertRegex(text, r"Bob(\s+·){11}\s+5")
+        self.assertIn("Oct", text)
+        self.assertNotIn("Old Timer", text, "authors with no commits in the window are left out")
+
+    def test_timeline_absent_without_data(self):
+        r = sample_report()
+        r["activity"] = {}
+        self.assertIn("no timeline data", rendered(r, []))
+
+
 class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report())
         titles = [x["title"] for x in secs]
         self.assertEqual(titles[:3], ["Size by language", "People", "Activity"])
-        self.assertTrue(titles[3].startswith("Hotspots"))
+        self.assertTrue(titles[3].startswith("Timeline"))
+        self.assertTrue(titles[4].startswith("Hotspots"))
         self.assertEqual(titles[-1], "Repo health (git-sizer concerns)")
         size = secs[0]
         self.assertEqual(size["columns"][:3], ["language", "files", "code"])
