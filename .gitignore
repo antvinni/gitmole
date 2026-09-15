@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 analysis-*/
+build/
+dist/
+*.egg-info/

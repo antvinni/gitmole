@@ -50,15 +50,28 @@ metrics.
 
 ## Install
 
-Requires Homebrew and Python 3.
+gitmole needs three tools on your PATH: [scc](https://github.com/boyter/scc),
+[git-sizer](https://github.com/github/git-sizer) and
+[gitleaks](https://github.com/gitleaks/gitleaks). All three are in Homebrew
+and in most Linux package managers, and each ships static binaries.
+
+Then install gitmole itself with pipx (or pip) on any platform:
 
 ```bash
-./bin/install.sh
+brew install scc git-sizer gitleaks          # or your package manager
+pipx install git+https://github.com/antvinni/gitmole
+pipx install 'gitmole[plots] @ git+https://github.com/antvinni/gitmole'   # adds git-of-theseus for --plots
 ```
 
-That installs scc, git-sizer and gitleaks from Homebrew, the Python packages
-(rich, plus git-of-theseus and PyDriller for `--plots` and scripting), and
-symlinks the `gitmole` command into Homebrew's bin directory.
+`python -m gitmole` works too. From a checkout, `pip install -e .` gives an
+editable install. Use pip 22 or newer: the pip that ships with macOS's system
+Python is older and silently builds an empty package called UNKNOWN from
+modern project files. pipx brings its own current pip, and
+`python3 -m pip install -U pip` fixes a plain venv.
+
+On macOS, `./bin/install.sh` does all of the above the developer way: brew
+tools, the Python packages into your user site, and a symlink of
+`bin/gitmole` into Homebrew's bin directory so the checkout is what runs.
 
 ## Run
 
