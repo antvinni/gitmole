@@ -108,44 +108,45 @@ marked in the report, and the rest of the report still renders.
 Running `gitmole .` inside this repository:
 
 ```text
-╭─ gitmole ────────────────────────────────────────────────────────────────────╮
-│ 6 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main         │
-│ 1,153 lines in 17 files  ·  Python, Markdown, Shell                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (1) ───────────────────────────────────────────────────────────────╮
-│ ▲ Bus factor of one                                                          │
-│   vinni wrote 100% of the code that survives today.                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
+│ 9 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main                             │
+│ 1,445 lines in 18 files  ·  Python, Markdown, License, Shell                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Findings (1) ───────────────────────────────────────────────────────────────────────────────────╮
+│ ▲ Bus factor of one                                                                              │
+│   vinni wrote 100% of the code that survives today.                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 Size by language
 language   files    code   share   complexity
 ─────────────────────────────────────────────
-Python        15   1,015     88%          250
-Markdown       1     123     11%            0
+Python        15   1,207     84%          289
+Markdown       1     206     14%            0
+License        1      17      1%            0
 Shell          1      15      1%            1
 People
-author   email                 commits   share   surviving code
-───────────────────────────────────────────────────────────────
-vinni    5262575+antvinni@users.noreply.github.com         6    100%             100%
+author   email                                       commits   share   surviving code
+─────────────────────────────────────────────────────────────────────────────────────
+vinni    5262575+antvinni@users.noreply.github.com         9    100%             100%
 Hotspots (most revised files)
 file                   revisions   authors   months idle
 ────────────────────────────────────────────────────────
-README.md                      4         1             0
-gitmole/cli.py                 3         1             0
+README.md                      7         1             0
+gitmole/cli.py                 4         1             0
+tests/test_cli.py              3         1             0
+gitmole/render.py              3         1             0
+tests/test_render.py           3         1             0
 bin/analyse.sh                 3         1             0
 bin/install.sh                 3         1             0
-tests/test_cli.py              2         1             0
+tests/test_run.py              2         1             0
+gitmole/run.py                 2         1             0
 gitmole/banner.py              2         1             0
-tests/test_banner.py           2         1             0
-tests/test_run.py              1         1             0
-tests/test_load.py             1         1             0
-gitmole/load.py                1         1             0
 Change coupling
 no pairs with 5+ shared revisions
 
 Surviving code by year written
 year   lines   share
 ─────────────────────────────────────────────────────
-2026   1,292    100%   ██████████████████████████████
+2026   1,541    100%   ██████████████████████████████
 Repo health (git-sizer concerns)
 nothing flagged
 
