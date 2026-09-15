@@ -77,11 +77,31 @@ gitmole https://github.com/o/r     # same, from a URL
 
 Options: `--out DIR` to choose the output directory, `--no-run DIR` to
 re-render the report from an earlier run, `--jar PATH` if the code-maat jar is
-elsewhere, `--workers N` to change how many tools run at once.
+elsewhere, `--workers N` to change how many tools run at once, `--timeout S`
+to cap any single tool (default 15 minutes).
 
-All tools run concurrently, so a run takes about as long as the slowest tool
-(usually git-of-theseus or code-maat). Tool stderr goes to `run.log` in the
-output directory, not the terminal.
+All tools run concurrently, so a run takes about as long as the slowest tool.
+Tool stderr goes to `run.log` in the output directory, not the terminal.
+
+### Big repositories
+
+git-of-theseus is the one tool whose cost explodes: it runs one `git blame`
+per file per sampled commit. gitmole keeps it in check:
+
+- it samples monthly rather than weekly and uses every CPU core;
+- before running it estimates the blame count (tracked files × samples) and
+  skips git-of-theseus when that exceeds `--budget` (default 50,000). The
+  report then shows paths by the year they were last changed, from
+  code-maat, instead of surviving lines by year written. code-maat counts
+  every path that ever appeared in the log, deleted ones included;
+- `--deep` forces git-of-theseus regardless of the budget;
+- `--ignore-data` excludes data-like files (csv, json, lock files, minified
+  and vendored assets) from git-of-theseus, and `--ignore GLOB` adds your
+  own patterns, repeatable. Both shrink the blame count a lot on repos full
+  of exports and fixtures.
+
+A tool that exceeds `--timeout` is killed along with its child processes,
+marked in the report, and the rest of the report still renders.
 
 ## Example
 

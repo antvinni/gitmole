@@ -23,11 +23,16 @@ def parse_args(argv):
     p.add_argument("--no-run", action="store_true", help="skip the tools; re-render the report from an existing output directory")
     p.add_argument("--jar", default=os.path.expanduser("~/bin/code-maat.jar"), help="path to the code-maat standalone jar")
     p.add_argument("--workers", type=int, default=6, help="how many tools to run at once")
+    p.add_argument("--deep", action="store_true", help="run git-of-theseus even when the repo exceeds the blame budget")
+    p.add_argument("--budget", type=int, default=50000, help="max git blames before git-of-theseus is skipped (default 50000)")
+    p.add_argument("--timeout", type=float, default=900, help="seconds any single tool may run before being killed (default 900)")
+    p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from git-of-theseus")
+    p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra git-of-theseus ignore pattern (repeatable)")
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
     return p.parse_args(argv)
 
 
-def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan) -> int:
+def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     console = console or Console()
     err = Console(stderr=True) if console.file is sys.stdout else console
@@ -65,9 +70,23 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     log_path = os.path.join(out_dir, "run.log")
     open(log_path, "w").close()
 
-    meta = run.write_meta(repo_dir, out_dir)
-    results = _execute(planner(repo_dir, out_dir, args.jar, branch=meta["branch"]), log_path, repo_dir, args.workers, console)
+    estimate = estimator(repo_dir, run.MONTH)
+    deep = args.deep or estimate["blames"] <= args.budget
+    if not deep:
+        console.print(f"[yellow]git-of-theseus skipped:[/yellow] about {estimate['blames']:,} git blames "
+                      f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
+                      f"Rerun with --deep to force it, or --ignore-data to shrink it.")
+    ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
 
+    meta = run.collect_meta(repo_dir)
+    meta["theseus"] = {"status": "run" if deep else "skipped", "budget": args.budget, **estimate}
+    steps = planner(repo_dir, out_dir, args.jar, branch=meta["branch"], theseus=deep, ignore=ignore)
+    run.save_meta(meta, out_dir)
+    results = _execute(steps, log_path, repo_dir, args.workers, console, timeout=args.timeout)
+
+    if results.get("git-of-theseus") == "timeout":
+        meta["theseus"]["status"] = "timeout"
+        run.save_meta(meta, out_dir)
     failed = [n for n, rc in results.items() if rc != 0]
     if failed:
         console.print(f"[yellow]{len(failed)} step(s) did not complete:[/yellow] " + ", ".join(f"{n} ({results[n]})" for n in failed))
@@ -75,7 +94,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     return _render(out_dir, console)
 
 
-def _execute(steps, log_path, repo_dir, workers, console) -> dict:
+def _execute(steps, log_path, repo_dir, workers, console, timeout=None) -> dict:
     """Run the steps under a Live display: the banner pulsing above a status line."""
     active, lock = set(), threading.Lock()
     started = time.monotonic()
@@ -104,7 +123,7 @@ def _execute(steps, log_path, repo_dir, workers, console) -> dict:
     results = {}
     with Live(view(), console=console, refresh_per_second=10, transient=False) as live:
         worker = threading.Thread(
-            target=lambda: results.update(run.execute(steps, log_path=log_path, cwd=repo_dir, workers=workers, on_start=on_start, on_done=on_done)))
+            target=lambda: results.update(run.execute(steps, log_path=log_path, cwd=repo_dir, workers=workers, on_start=on_start, on_done=on_done, timeout=timeout)))
         worker.start()
         while worker.is_alive():
             live.update(view())

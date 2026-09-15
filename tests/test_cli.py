@@ -37,7 +37,7 @@ class LiveRun(unittest.TestCase):
             subprocess.run(["git", "init", "-q", d], check=True)
             subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "--allow-empty", "-m", "x"], check=True)
             c = Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system="truecolor")
-            fake_plan = lambda repo, out, jar, branch="HEAD": [
+            fake_plan = lambda repo, out, jar, branch="HEAD", **kw: [
                 {"name": "quick", "argv": ["sh", "-c", "sleep 0.3"], "stdout": None, "deps": []}]
             rc = cli.main([d, "--out", os.path.join(d, "out"), "--jar", "/x.jar"], console=c, tool_check=lambda jar: [], planner=fake_plan)
             text = c.export_text()
@@ -45,6 +45,77 @@ class LiveRun(unittest.TestCase):
         self.assertIn("███╗   ███╗", text)
         self.assertIn("1 steps in", text)
         self.assertIn(os.path.basename(d), text)
+
+
+def _tiny_repo(d):
+    import subprocess
+    subprocess.run(["git", "init", "-q", d], check=True)
+    subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "--allow-empty", "-m", "x"], check=True)
+
+
+class Budget(unittest.TestCase):
+    def _main(self, extra, estimate, plan_calls):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = console()
+            def planner(repo, out, jar, branch="HEAD", **kw):
+                plan_calls.append(kw)
+                return [{"name": "quick", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}]
+            rc = cli.main([d, "--out", os.path.join(d, "out"), "--jar", "/x.jar", *extra], console=c,
+                          tool_check=lambda jar: [], planner=planner, estimator=lambda repo, interval: estimate)
+            with open(os.path.join(d, "out", "meta.json")) as fh:
+                meta = json.load(fh)
+            return rc, c.export_text(), meta
+
+    def test_skips_theseus_over_budget_and_says_how_to_force(self):
+        calls = []
+        rc, text, meta = self._main([], {"files": 30000, "samples": 11, "blames": 330000}, calls)
+        self.assertEqual(rc, 0)
+        self.assertFalse(calls[0]["theseus"])
+        self.assertIn("330,000", text)
+        self.assertIn("--deep", text)
+        self.assertEqual(meta["theseus"]["status"], "skipped")
+
+    def test_runs_theseus_under_budget(self):
+        calls = []
+        _, text, meta = self._main([], {"files": 100, "samples": 5, "blames": 500}, calls)
+        self.assertTrue(calls[0]["theseus"])
+        self.assertEqual(meta["theseus"]["status"], "run")
+        self.assertNotIn("skipped", text)
+
+    def test_deep_forces_theseus_regardless_of_budget(self):
+        calls = []
+        self._main(["--deep"], {"files": 30000, "samples": 11, "blames": 330000}, calls)
+        self.assertTrue(calls[0]["theseus"])
+
+    def test_budget_flag_changes_the_threshold(self):
+        calls = []
+        self._main(["--budget", "1000000"], {"files": 30000, "samples": 11, "blames": 330000}, calls)
+        self.assertTrue(calls[0]["theseus"])
+
+    def test_ignore_data_and_custom_ignores_reach_the_planner(self):
+        calls = []
+        self._main(["--ignore-data", "--ignore", "docs/**"], {"files": 1, "samples": 1, "blames": 1}, calls)
+        self.assertIn("*.csv", calls[0]["ignore"])
+        self.assertIn("docs/**", calls[0]["ignore"])
+
+    def test_no_ignores_by_default(self):
+        calls = []
+        self._main([], {"files": 1, "samples": 1, "blames": 1}, calls)
+        self.assertEqual(list(calls[0]["ignore"]), [])
+
+
+class Timeout(unittest.TestCase):
+    def test_timed_out_step_is_reported(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = console()
+            planner = lambda repo, out, jar, branch="HEAD", **kw: [
+                {"name": "sleepy", "argv": ["sh", "-c", "sleep 3"], "stdout": None, "deps": []}]
+            cli.main([d, "--out", os.path.join(d, "out"), "--jar", "/x.jar", "--timeout", "0.3"], console=c,
+                     tool_check=lambda jar: [], planner=planner, estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1})
+            text = c.export_text()
+        self.assertIn("sleepy (timeout)", text)
 
 
 class Arguments(unittest.TestCase):

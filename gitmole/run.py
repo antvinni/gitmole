@@ -4,9 +4,16 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+
+MONTH = 30 * 24 * 3600  # git-of-theseus sampling interval in seconds
+
+# Data-like files that inflate git-of-theseus without saying anything about code age.
+DATA_IGNORES = ["*.csv", "*.json", "*.lock", "*.min.js", "*.min.css", "*.svg", "*.map",
+                "vendor/**", "node_modules/**", "third_party/**", "dist/**", "build/**"]
 
 _OWNER_REPO = re.compile(r"^[\w.-]+/[\w.-]+$")
 _URL = re.compile(r"^(https?://|git@|ssh://)")
@@ -60,9 +67,14 @@ def missing_tools(jar: str) -> list:
     return missing
 
 
-def plan(repo_dir: str, out_dir: str, jar: str, branch: str = "HEAD") -> list:
+def plan(repo_dir: str, out_dir: str, jar: str, branch: str = "HEAD", theseus: bool = True,
+         procs: int = None, interval: int = MONTH, ignore=()) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
+    theseus_argv = ["git-of-theseus-analyze", ".", "--branch", branch, "--outdir", o("theseus"),
+                    "--procs", str(procs or os.cpu_count() or 2), "--interval", str(interval)]
+    for pattern in ignore:
+        theseus_argv += ["--ignore", pattern]
     steps = [
         {"name": "onefetch", "argv": ["onefetch", "--no-art", "--no-bold", "--no-color-palette", "--true-color", "never"], "stdout": o("overview.txt"), "deps": []},
         {"name": "git-quick-stats", "argv": ["git-quick-stats", "-T"], "stdout": o("contributors.txt"), "deps": []},
@@ -70,17 +82,34 @@ def plan(repo_dir: str, out_dir: str, jar: str, branch: str = "HEAD") -> list:
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "gitleaks", "argv": ["gitleaks", "git", "--no-banner", "--report-path", o("secrets.json"), "--exit-code", "0"], "stdout": None, "deps": []},
         {"name": "git-log", "argv": ["git", "log", "--all", "--numstat", "--date=short", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
-        {"name": "git-of-theseus", "argv": ["git-of-theseus-analyze", ".", "--branch", branch, "--outdir", o("theseus")], "stdout": None, "deps": []},
-        {"name": "theseus stack plot", "argv": ["git-of-theseus-stack-plot", o("theseus/cohorts.json"), "--outfile", o("code-age.png")], "stdout": None, "deps": ["git-of-theseus"]},
-        {"name": "theseus survival plot", "argv": ["git-of-theseus-survival-plot", o("theseus/survival.json"), "--outfile", o("survival.png")], "stdout": None, "deps": ["git-of-theseus"]},
     ]
+    if theseus:
+        steps += [
+            {"name": "git-of-theseus", "argv": theseus_argv, "stdout": None, "deps": []},
+            {"name": "theseus stack plot", "argv": ["git-of-theseus-stack-plot", o("theseus/cohorts.json"), "--outfile", o("code-age.png")], "stdout": None, "deps": ["git-of-theseus"]},
+            {"name": "theseus survival plot", "argv": ["git-of-theseus-survival-plot", o("theseus/survival.json"), "--outfile", o("survival.png")], "stdout": None, "deps": ["git-of-theseus"]},
+        ]
     for analysis in ["revisions", "coupling", "authors", "age", "entity-ownership"]:
         steps.append({"name": f"code-maat {analysis}", "argv": ["java", "-jar", jar, "-l", log, "-c", "git2", "-a", analysis], "stdout": o(f"maat-{analysis}.csv"), "deps": ["git-log"]})
     return steps
 
 
-def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_start=None, on_done=None) -> dict:
-    """Run steps concurrently, honouring deps. Returns {name: returncode | 'skipped'}."""
+def _run_step(argv, cwd, env, stdout, stderr, timeout):
+    """Run one command in its own process group so a timeout can kill its children too."""
+    proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=stdout, stderr=stderr, start_new_session=True)
+    try:
+        return proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+        return "timeout"
+
+
+def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_start=None, on_done=None, timeout: float = None) -> dict:
+    """Run steps concurrently, honouring deps. Returns {name: returncode | 'skipped' | 'timeout'}."""
     results = {}
     lock = threading.Lock()
     env = dict(os.environ, PATH=env_path())
@@ -94,7 +123,9 @@ def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_st
             log.flush()
             out = open(step["stdout"], "w") if step["stdout"] else log
             try:
-                rc = subprocess.run(step["argv"], cwd=cwd, env=env, stdout=out, stderr=log).returncode
+                rc = _run_step(step["argv"], cwd, env, out, log, timeout)
+                if rc == "timeout":
+                    log.write(f"==> {step['name']}: killed after {timeout}s timeout\n")
             finally:
                 if step["stdout"]:
                     out.close()
@@ -129,6 +160,15 @@ def _git(repo_dir: str, *args) -> str:
     return subprocess.run(["git", *args], cwd=repo_dir, check=True, capture_output=True, text=True).stdout
 
 
+def estimate_blames(repo_dir: str, interval: int = MONTH) -> dict:
+    """Rough cost of git-of-theseus: tracked files times the number of sampled commits."""
+    files = len(_git(repo_dir, "ls-files").splitlines())
+    times = [int(t) for t in _git(repo_dir, "log", "--format=%ct").split()]
+    span = (max(times) - min(times)) if times else 0
+    samples = min(len(times), span // interval + 1) if times else 0
+    return {"files": files, "samples": samples, "blames": files * samples}
+
+
 def collect_meta(repo_dir: str) -> dict:
     from .load import parse_authors_log
 
@@ -144,8 +184,12 @@ def collect_meta(repo_dir: str) -> dict:
     }
 
 
-def write_meta(repo_dir: str, out_dir: str) -> dict:
-    meta = collect_meta(repo_dir)
+def save_meta(meta: dict, out_dir: str) -> None:
     with open(os.path.join(out_dir, "meta.json"), "w") as fh:
         json.dump(meta, fh, indent=2)
+
+
+def write_meta(repo_dir: str, out_dir: str) -> dict:
+    meta = collect_meta(repo_dir)
+    save_meta(meta, out_dir)
     return meta

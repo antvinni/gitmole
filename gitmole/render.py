@@ -84,13 +84,38 @@ def coupling_table(report: dict) -> Table:
                   rows=[(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in rows], empty="no pairs with 5+ shared revisions")
 
 
-def age_table(report: dict) -> Table:
+def _bar(part, whole, width=30) -> str:
+    return "█" * int(width * part / whole) if whole else ""
+
+
+def age_fallback_table(report: dict):
+    """When git-of-theseus did not run, show files by the year they were last changed (from code-maat)."""
+    status = (report["meta"].get("theseus") or {}).get("status", "skipped")
+    reason = {"timeout": "git-of-theseus timed out", "skipped": "git-of-theseus skipped"}.get(status, f"git-of-theseus {status}")
+    last = report["meta"].get("last_date") or ""
+    try:
+        end_year, end_month = int(last[:4]), int(last[5:7])
+    except ValueError:
+        return _table("Paths in history by year last changed", "year", rows=(), empty=f"no age data ({reason})")
+    counts = {}
+    for row in report.get("age") or []:
+        months_back = end_month - 1 - int(row["age-months"])
+        year = end_year + months_back // 12
+        counts[year] = counts.get(year, 0) + 1
+    total = sum(counts.values())
+    rows = [(str(y), n, _pct(n, total), _bar(n, total)) for y, n in sorted(counts.items(), reverse=True)]
+    return _table("Paths in history by year last changed", "year", ("paths", {"justify": "right"}), ("share", {"justify": "right"}), ("", {"style": "blue"}),
+                  rows=rows, empty=f"no age data ({reason})", caption=reason, caption_justify="left", caption_style="dim")
+
+
+def age_table(report: dict):
     cohorts = report.get("cohorts") or {}
+    if not cohorts and report["meta"].get("theseus", {}).get("status", "run") != "run":
+        return age_fallback_table(report)
     total = sum(cohorts.values())
     rows = []
     for label, lines in cohorts.items():
-        bar = "█" * int(30 * lines / total) if total else ""
-        rows.append((label.replace("Code added in ", ""), f"{lines:,}", _pct(lines, total), bar))
+        rows.append((label.replace("Code added in ", ""), f"{lines:,}", _pct(lines, total), _bar(lines, total)))
     return _table("Surviving code by year written", "year", ("lines", {"justify": "right"}), ("share", {"justify": "right"}), ("", {"style": "blue"}), rows=rows)
 
 

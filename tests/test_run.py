@@ -61,6 +61,48 @@ class Plan(unittest.TestCase):
         self.assertEqual(argv[argv.index("--branch") + 1], "trunk")
 
 
+class PlanTheseusOptions(unittest.TestCase):
+    def argv(self, **kw):
+        by = {s["name"]: s for s in run.plan("/r", "/o", "/j.jar", **kw)}
+        return by["git-of-theseus"]["argv"]
+
+    def test_uses_every_core_and_monthly_sampling_by_default(self):
+        argv = self.argv()
+        self.assertEqual(argv[argv.index("--procs") + 1], str(os.cpu_count()))
+        self.assertEqual(argv[argv.index("--interval") + 1], str(run.MONTH))
+
+    def test_ignore_patterns_are_forwarded_one_flag_each(self):
+        argv = self.argv(ignore=["*.csv", "vendor/**"])
+        self.assertEqual(argv[argv.index("--ignore") + 1], "*.csv")
+        self.assertEqual(argv.count("--ignore"), 2)
+        self.assertIn("vendor/**", argv)
+
+    def test_theseus_can_be_left_out_entirely(self):
+        names = [s["name"] for s in run.plan("/r", "/o", "/j.jar", theseus=False)]
+        self.assertNotIn("git-of-theseus", names)
+        self.assertNotIn("theseus stack plot", names)
+        self.assertNotIn("theseus survival plot", names)
+        self.assertIn("code-maat age", names)
+
+
+class EstimateBlames(unittest.TestCase):
+    def test_files_times_samples_over_the_history_span(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            ident = dict(GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+            for i, date in enumerate(["2026-01-01T00:00:00", "2026-02-15T00:00:00", "2026-04-01T00:00:00"]):
+                open(os.path.join(d, f"f{i}.py"), "w").write("x")
+                open(os.path.join(d, f"g{i}.py"), "w").write("x")
+                git("add", "-A")
+                git("commit", "-q", "-m", str(i), GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date, **ident)
+            est = run.estimate_blames(d, interval=run.MONTH)
+        # 6 files; 90 days at a 30-day interval would be 4 samples, capped at the 3 commits that exist
+        self.assertEqual(est, {"files": 6, "samples": 3, "blames": 18})
+
+
 class Execute(unittest.TestCase):
     def test_respects_dependencies_and_reports_failures(self):
         with tempfile.TemporaryDirectory() as d:
@@ -82,6 +124,18 @@ class Execute(unittest.TestCase):
         self.assertEqual(results["broken"], 3)
         self.assertEqual(results["second"], 0)
         self.assertEqual(sorted(seen), sorted(s["name"] for s in steps))
+
+    def test_times_out_a_step_and_kills_its_process_group(self):
+        with tempfile.TemporaryDirectory() as d:
+            marker = os.path.join(d, "child-finished")
+            steps = [{"name": "slow", "argv": ["sh", "-c", f"(sleep 5; touch {marker}) & sleep 5"], "stdout": None, "deps": []},
+                     {"name": "after", "argv": ["sh", "-c", "true"], "stdout": None, "deps": ["slow"]}]
+            results = run.execute(steps, log_path=os.path.join(d, "run.log"), timeout=0.5)
+            import time
+            time.sleep(0.7)
+            self.assertFalse(os.path.exists(marker), "background child kept running after timeout")
+        self.assertEqual(results["slow"], "timeout")
+        self.assertEqual(results["after"], "skipped")
 
     def test_skips_steps_whose_dependency_failed(self):
         steps = [
