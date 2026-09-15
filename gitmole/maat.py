@@ -29,7 +29,9 @@ def parse_log(text: str, aliases: dict = None, types=None) -> list:
     `types` restricts the file entries (None = keep everything); commits are always kept."""
     aliases = aliases or {}
     commits, current = [], None
-    for line in text.splitlines():
+    # split on newlines only: str.splitlines also breaks on \r, form feed and Unicode separators,
+    # any of which can appear inside a commit subject
+    for line in text.split("\n"):
         if line.startswith("--"):
             parts = line.split("--", 4)          # subject is last, so dashes inside it survive
             _, h, when, author = parts[:4]
@@ -208,7 +210,8 @@ def validate_now(value: str) -> str:
 def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None, since: str = None) -> None:
     """`now` (YYYY-MM-DD) is the reference date for file ages; default today. `since` bounds every
     analysis except file ages, which always describe the whole history."""
-    with open(log_path, encoding="utf-8", errors="replace") as fh:
+    # newline="": keep a \r inside a subject as-is instead of turning it into a line break
+    with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
         commits = parse_log(fh.read(), aliases_from_meta(aliases_path) if aliases_path else None, types)
     windowed = in_window(commits, since)
     for name, (fn, header) in ANALYSES.items():

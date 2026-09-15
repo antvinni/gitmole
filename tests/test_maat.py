@@ -48,6 +48,14 @@ class ParseLog(unittest.TestCase):
         self.assertEqual(commits[0]["files"], [("src/a.py", 3, 1), ("src/b.py", 2, 0)])
         self.assertEqual(commits[1]["files"][2], ("img/logo.png", 0, 0))
 
+    def test_subjects_with_exotic_line_break_characters_do_not_split_the_log(self):
+        # U+2028 and form feed are line breaks to str.splitlines but not to git
+        text = "--x--2026-05-04T10:00:00+00:00--Ann--Fix\u2028broken\x0cthing\n1\t0\tf.py\n"
+        commits = maat.parse_log(text)
+        self.assertEqual(len(commits), 1)
+        self.assertEqual(commits[0]["files"], [("f.py", 1, 0)])
+        self.assertTrue(maat.is_fix(commits[0]["subject"]))
+
     def test_old_logs_without_subjects_still_parse(self):
         commits = maat.parse_log("--x--2026-05-04--Ann\n1\t0\tf.py\n")
         self.assertEqual(commits[0]["subject"], "")
@@ -202,6 +210,17 @@ class NowParameter(unittest.TestCase):
         for bad in ("2025-6-15", "today", "2025-06-15T00:00:00"):
             with self.assertRaises(ValueError):
                 maat.validate_now(bad)
+
+
+class CarriageReturnInSubject(unittest.TestCase):
+    def test_write_all_reads_the_log_without_newline_translation(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "wb") as fh:
+                fh.write(b"--x--2026-05-04T10:00:00+00:00--Ann--Fix the\rwatcher (#1)\n1\t0\tf.py\n")
+            maat.write_all(log, d)
+            with open(os.path.join(d, "maat-revisions.csv")) as fh:
+                self.assertEqual(fh.read().splitlines()[1], "f.py,1")
 
 
 class SinceWindow(unittest.TestCase):
