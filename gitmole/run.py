@@ -95,8 +95,12 @@ def plan(repo_dir: str, out_dir: str, jar: str, branch: str = "HEAD", theseus: b
 
 
 def _run_step(argv, cwd, env, stdout, stderr, timeout):
-    """Run one command in its own process group so a timeout can kill its children too."""
-    proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=stdout, stderr=stderr, start_new_session=True)
+    """Run one command in its own process group so a timeout can kill its children too.
+
+    stdin is /dev/null: these tools never need input, and letting them inherit an
+    interactive terminal as a new session leader corrupts the parent's tty (EIO)."""
+    proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                            stdout=stdout, stderr=stderr, start_new_session=True)
     try:
         return proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:

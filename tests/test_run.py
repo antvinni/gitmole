@@ -137,6 +137,17 @@ class Execute(unittest.TestCase):
         self.assertEqual(results["slow"], "timeout")
         self.assertEqual(results["after"], "skipped")
 
+    def test_tools_get_a_null_stdin_not_the_parents_terminal(self):
+        # Regression: children inheriting an interactive stdin as new session leaders
+        # corrupted the parent tty (EIO). They must read EOF immediately instead.
+        with tempfile.TemporaryDirectory() as d:
+            cap = os.path.join(d, "stdin.txt")
+            steps = [{"name": "reader", "argv": ["sh", "-c", f"cat > {cap}"], "stdout": None, "deps": []}]
+            results = run.execute(steps, log_path=os.path.join(d, "run.log"), timeout=5)
+            self.assertEqual(results["reader"], 0)
+            with open(cap) as fh:
+                self.assertEqual(fh.read(), "")
+
     def test_skips_steps_whose_dependency_failed(self):
         steps = [
             {"name": "a", "argv": ["sh", "-c", "exit 1"], "stdout": None, "deps": []},

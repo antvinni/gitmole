@@ -155,8 +155,9 @@ Secrets: none found
 Full results and plots in ../analysis-gitmole
 ```
 
-In a terminal the banner pulses in neon while the tools run, and the
-findings and tables are coloured. Piped output, as above, is plain text.
+In a terminal at least 72 columns wide a run opens with the mole, then the
+banner pulses in neon while the tools run, and the findings and tables are
+coloured. Piped output, as above, is plain text.
 
 ### The terminal report
 
