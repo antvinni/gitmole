@@ -67,41 +67,60 @@ class Budget(unittest.TestCase):
                 meta = json.load(fh)
             return rc, c.export_text(), meta
 
-    def test_skips_theseus_over_budget_and_says_how_to_force(self):
-        calls = []
-        rc, text, meta = self._main([], {"files": 30000, "samples": 11, "blames": 330000}, calls)
-        self.assertEqual(rc, 0)
-        self.assertFalse(calls[0]["theseus"])
-        self.assertIn("330,000", text)
-        self.assertIn("--deep", text)
-        self.assertEqual(meta["theseus"]["status"], "skipped")
+    BIG = {"files": 80000, "samples": 11, "blames": 880000}
+    SMALL = {"files": 100, "samples": 5, "blames": 500}
 
-    def test_runs_theseus_under_budget(self):
+    def test_code_age_runs_by_default_and_plots_do_not(self):
         calls = []
-        _, text, meta = self._main([], {"files": 100, "samples": 5, "blames": 500}, calls)
-        self.assertTrue(calls[0]["theseus"])
-        self.assertEqual(meta["theseus"]["status"], "run")
+        _, text, meta = self._main([], self.SMALL, calls)
+        self.assertTrue(calls[0]["age"])
+        self.assertFalse(calls[0]["plots"])
+        self.assertEqual(meta["age"]["status"], "run")
         self.assertNotIn("skipped", text)
 
-    def test_deep_forces_theseus_regardless_of_budget(self):
+    def test_code_age_skipped_when_files_exceed_budget(self):
         calls = []
-        self._main(["--deep"], {"files": 30000, "samples": 11, "blames": 330000}, calls)
-        self.assertTrue(calls[0]["theseus"])
+        rc, text, meta = self._main([], self.BIG, calls)
+        self.assertEqual(rc, 0)
+        self.assertFalse(calls[0]["age"])
+        self.assertIn("80,000", text)
+        self.assertIn("--deep", text)
+        self.assertEqual(meta["age"]["status"], "skipped")
+
+    def test_plots_flag_runs_theseus_under_budget(self):
+        calls = []
+        _, _, meta = self._main(["--plots"], self.SMALL, calls)
+        self.assertTrue(calls[0]["plots"])
+        self.assertEqual(meta["plots"]["status"], "run")
+
+    def test_plots_skipped_when_files_times_samples_exceed_budget_but_age_still_runs(self):
+        calls = []
+        _, text, meta = self._main(["--plots"], {"files": 30000, "samples": 11, "blames": 330000}, calls)
+        self.assertTrue(calls[0]["age"], "30,000 files is under the 50,000 budget")
+        self.assertFalse(calls[0]["plots"])
+        self.assertIn("330,000", text)
+        self.assertEqual(meta["plots"]["status"], "skipped")
+
+    def test_deep_forces_both_regardless_of_budget(self):
+        calls = []
+        self._main(["--deep", "--plots"], self.BIG, calls)
+        self.assertTrue(calls[0]["age"])
+        self.assertTrue(calls[0]["plots"])
 
     def test_budget_flag_changes_the_threshold(self):
         calls = []
-        self._main(["--budget", "1000000"], {"files": 30000, "samples": 11, "blames": 330000}, calls)
-        self.assertTrue(calls[0]["theseus"])
+        self._main(["--budget", "1000000"], self.BIG, calls)
+        self.assertTrue(calls[0]["age"])
 
     def test_ignore_data_and_custom_ignores_reach_the_planner(self):
         calls = []
-        self._main(["--ignore-data", "--ignore", "docs/**"], {"files": 1, "samples": 1, "blames": 1}, calls)
+        self._main(["--ignore-data", "--ignore", "docs/**"], self.SMALL, calls)
         self.assertIn("*.csv", calls[0]["ignore"])
         self.assertIn("docs/**", calls[0]["ignore"])
 
     def test_no_ignores_by_default(self):
         calls = []
-        self._main([], {"files": 1, "samples": 1, "blames": 1}, calls)
+        self._main([], self.SMALL, calls)
         self.assertEqual(list(calls[0]["ignore"]), [])
 
 

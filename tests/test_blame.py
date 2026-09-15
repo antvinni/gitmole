@@ -1,0 +1,77 @@
+import json
+import os
+import subprocess
+import tempfile
+import unittest
+
+from gitmole import blame
+
+
+def make_repo(d):
+    def git(*args, **env):
+        e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+        subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+    git("init", "-q")
+    ann = dict(GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="a@x",
+               GIT_AUTHOR_DATE="2024-05-01T00:00:00", GIT_COMMITTER_DATE="2024-05-01T00:00:00")
+    with open(os.path.join(d, "a.py"), "w") as fh:
+        fh.write("one\ntwo\nthree\n")
+    with open(os.path.join(d, "data.csv"), "w") as fh:
+        fh.write("x,y\n1,2\n")
+    with open(os.path.join(d, "blob.bin"), "wb") as fh:
+        fh.write(b"\x00\x01\x02binary\x00")
+    with open(os.path.join(d, "README.md"), "w") as fh:
+        fh.write("# docs\n")
+    with open(os.path.join(d, "config.yaml"), "w") as fh:
+        fh.write("a: 1\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "one", **ann)
+    bob = dict(ann, GIT_AUTHOR_NAME="Bobby", GIT_AUTHOR_EMAIL="b@x", GIT_AUTHOR_DATE="2026-02-01T00:00:00", GIT_COMMITTER_DATE="2026-02-01T00:00:00")
+    with open(os.path.join(d, "a.py"), "a") as fh:
+        fh.write("four\n")
+    with open(os.path.join(d, "b.py"), "w") as fh:
+        fh.write("x\ny\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "two", **bob)
+
+
+class TextFiles(unittest.TestCase):
+    def test_lists_tracked_code_files_skipping_binaries_docs_data_and_ignores(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            # binaries, Markdown, YAML and CSV are not code; git-of-theseus skips them too
+            self.assertEqual(blame.code_files(d), ["a.py", "b.py"])
+            self.assertEqual(blame.code_files(d, ignore=["b.*"]), ["a.py"])
+            self.assertIn("data.csv", blame.text_files(d))
+
+
+class BlameFile(unittest.TestCase):
+    def test_counts_lines_per_year_and_author(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            counts = blame.blame_file(d, "a.py")
+        self.assertEqual(counts, {("2024", "Ann"): 3, ("2026", "Bobby"): 1})
+
+
+class WriteAll(unittest.TestCase):
+    def test_writes_cohort_and_author_json_in_theseus_layout(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            out = os.path.join(d, "out")
+            os.makedirs(os.path.join(out, "theseus"))
+            meta = os.path.join(out, "meta.json")
+            with open(meta, "w") as fh:
+                json.dump({"identities": [{"name": "Bob", "email": "b@x", "commits": 1, "aliases": [{"name": "Bobby", "email": "b@x", "commits": 1}]}]}, fh)
+            blame.write_all(d, out, ignore=["*.csv"], aliases_path=meta, procs=2)
+            with open(os.path.join(out, "theseus", "cohorts.json")) as fh:
+                cohorts = json.load(fh)
+            with open(os.path.join(out, "theseus", "authors.json")) as fh:
+                authors = json.load(fh)
+        self.assertEqual(cohorts["labels"], ["Code added in 2024", "Code added in 2026"])
+        self.assertEqual(cohorts["y"], [[3], [3]])
+        self.assertEqual(len(cohorts["ts"]), 1)
+        self.assertEqual(dict(zip(authors["labels"], [y[0] for y in authors["y"]])), {"Ann": 3, "Bob": 3})
+
+
+if __name__ == "__main__":
+    unittest.main()

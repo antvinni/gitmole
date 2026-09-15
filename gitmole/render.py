@@ -103,9 +103,9 @@ def _bar(part, whole, width=30) -> str:
 
 
 def age_fallback_table(report: dict):
-    """When git-of-theseus did not run, show paths by the year they were last changed (from the change log)."""
-    status = (report["meta"].get("theseus") or {}).get("status", "skipped")
-    reason = {"timeout": "git-of-theseus timed out", "skipped": "git-of-theseus skipped"}.get(status, f"git-of-theseus {status}")
+    """When the blame pass did not run, show paths by the year they were last changed (from the change log)."""
+    status = (report["meta"].get("age") or {}).get("status", "skipped")
+    reason = {"timeout": "code age timed out", "skipped": "code age skipped"}.get(status, f"code age {status}")
     last = report["meta"].get("last_date") or ""
     try:
         end_year, end_month = int(last[:4]), int(last[5:7])
@@ -124,7 +124,7 @@ def age_fallback_table(report: dict):
 
 def age_table(report: dict):
     cohorts = report.get("cohorts") or {}
-    if not cohorts and report["meta"].get("theseus", {}).get("status", "run") != "run":
+    if not cohorts and report["meta"].get("age", {}).get("status", "run") != "run":
         return age_fallback_table(report)
     total = sum(cohorts.values())
     rows = []

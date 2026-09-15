@@ -75,22 +75,22 @@ class Report(unittest.TestCase):
     def test_age_falls_back_to_last_changed_years_when_theseus_skipped(self):
         r = sample_report()
         r["cohorts"] = {}
-        r["meta"]["theseus"] = {"status": "skipped", "blames": 330000, "budget": 50000}
+        r["meta"]["age"] = {"status": "skipped", "files": 80000, "budget": 50000}
         r["age"] = [{"entity": "a", "age-months": 0}, {"entity": "b", "age-months": 2},
                     {"entity": "c", "age-months": 14}, {"entity": "d", "age-months": 30}]
         text = rendered(r, [])
         self.assertIn("Paths in history by year last changed", text)
-        self.assertIn("git-of-theseus skipped", text)
+        self.assertIn("code age skipped", text)
         self.assertNotIn("code-maat", text)
         for year, count in (("2026", "2"), ("2025", "1"), ("2024", "1")):
             self.assertRegex(text, rf"{year}\s+{count}\s")
         self.assertNotIn("Surviving code by year written", text)
 
-    def test_age_says_when_theseus_timed_out(self):
+    def test_age_says_when_blame_timed_out(self):
         r = sample_report()
         r["cohorts"] = {}
-        r["meta"]["theseus"] = {"status": "timeout"}
-        self.assertIn("git-of-theseus timed out", rendered(r, []))
+        r["meta"]["age"] = {"status": "timeout"}
+        self.assertIn("code age timed out", rendered(r, []))
 
     def test_hotspots_rank_by_revisions_times_lines_and_show_complexity(self):
         r = sample_report()

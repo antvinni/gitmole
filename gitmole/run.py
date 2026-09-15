@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from . import identity
 
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
+BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
 
 MONTH = 30 * 24 * 3600  # git-of-theseus sampling interval in seconds
 
@@ -69,14 +70,15 @@ def missing_tools() -> list:
     return [t for t in REQUIRED_TOOLS if not any(os.access(os.path.join(d, t), os.X_OK) for d in path.split(os.pathsep) if d)]
 
 
-def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", theseus: bool = True,
+def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=()) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
+    procs = str(procs or os.cpu_count() or 2)
+    ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
+    blame_argv = [sys.executable, BLAME_SCRIPT, repo_dir, out_dir, "--procs", procs, *ignores, "--aliases", o("meta.json")]
     theseus_argv = ["git-of-theseus-analyze", ".", "--branch", branch, "--outdir", o("theseus"),
-                    "--procs", str(procs or os.cpu_count() or 2), "--interval", str(interval)]
-    for pattern in ignore:
-        theseus_argv += ["--ignore", pattern]
+                    "--procs", procs, "--interval", str(interval), *ignores]
     steps = [
         {"name": "onefetch", "argv": ["onefetch", "--no-art", "--no-bold", "--no-color-palette", "--true-color", "never"], "stdout": o("overview.txt"), "deps": []},
         {"name": "git-quick-stats", "argv": ["git-quick-stats", "-T"], "stdout": o("contributors.txt"), "deps": []},
@@ -86,9 +88,11 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", theseus: bool = True
         {"name": "git-log", "argv": ["git", "log", "--all", "--use-mailmap", "--numstat", "--date=short", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
-    if theseus:
+    if age:
+        steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
+    if plots:
         steps += [
-            {"name": "git-of-theseus", "argv": theseus_argv, "stdout": None, "deps": []},
+            {"name": "git-of-theseus", "argv": theseus_argv, "stdout": None, "deps": ["code age"] if age else []},
             {"name": "theseus stack plot", "argv": ["git-of-theseus-stack-plot", o("theseus/cohorts.json"), "--outfile", o("code-age.png")], "stdout": None, "deps": ["git-of-theseus"]},
             {"name": "theseus survival plot", "argv": ["git-of-theseus-survival-plot", o("theseus/survival.json"), "--outfile", o("survival.png")], "stdout": None, "deps": ["git-of-theseus"]},
         ]

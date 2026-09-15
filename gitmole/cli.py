@@ -22,11 +22,12 @@ def parse_args(argv):
     p.add_argument("--out", help="output directory (default: analysis-<repo> next to the clone, or in cwd for remote targets)")
     p.add_argument("--no-run", action="store_true", help="skip the tools; re-render the report from an existing output directory")
     p.add_argument("--workers", type=int, default=6, help="how many tools to run at once")
-    p.add_argument("--deep", action="store_true", help="run git-of-theseus even when the repo exceeds the blame budget")
-    p.add_argument("--budget", type=int, default=50000, help="max git blames before git-of-theseus is skipped (default 50000)")
+    p.add_argument("--plots", action="store_true", help="also run git-of-theseus for the code-age and survival plots")
+    p.add_argument("--deep", action="store_true", help="run code age and plots even when the repo exceeds the blame budget")
+    p.add_argument("--budget", type=int, default=50000, help="max git blames before code age or plots are skipped (default 50000)")
     p.add_argument("--timeout", type=float, default=900, help="seconds any single tool may run before being killed (default 900)")
-    p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from git-of-theseus")
-    p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra git-of-theseus ignore pattern (repeatable)")
+    p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from code age and plots")
+    p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra ignore pattern for code age and plots (repeatable)")
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
     return p.parse_args(argv)
 
@@ -70,22 +71,30 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     open(log_path, "w").close()
 
     estimate = estimator(repo_dir, run.MONTH)
-    deep = args.deep or estimate["blames"] <= args.budget
-    if not deep:
-        console.print(f"[yellow]git-of-theseus skipped:[/yellow] about {estimate['blames']:,} git blames "
-                      f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
+    age_ok = args.deep or estimate["files"] <= args.budget
+    plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
+    if not age_ok:
+        console.print(f"[yellow]code age skipped:[/yellow] about {estimate['files']:,} files to blame exceeds the budget of {args.budget:,}. "
                       f"Rerun with --deep to force it, or --ignore-data to shrink it.")
+    if args.plots and not plots_ok:
+        console.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
+                      f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
+                      f"Rerun with --deep to force them, or --ignore-data to shrink them.")
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
 
     meta = run.collect_meta(repo_dir)
-    meta["theseus"] = {"status": "run" if deep else "skipped", "budget": args.budget, **estimate}
-    steps = planner(repo_dir, out_dir, branch=meta["branch"], theseus=deep, ignore=ignore)
+    meta["age"] = {"status": "run" if age_ok else "skipped", "method": "blame", "files": estimate["files"], "budget": args.budget}
+    if args.plots:
+        meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
+    steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore)
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, console, timeout=args.timeout)
 
+    if results.get("code age") == "timeout":
+        meta["age"]["status"] = "timeout"
     if results.get("git-of-theseus") == "timeout":
-        meta["theseus"]["status"] = "timeout"
-        run.save_meta(meta, out_dir)
+        meta["plots"]["status"] = "timeout"
+    run.save_meta(meta, out_dir)
     failed = [n for n, rc in results.items() if rc != 0]
     if failed:
         console.print(f"[yellow]{len(failed)} step(s) did not complete:[/yellow] " + ", ".join(f"{n} ({results[n]})" for n in failed))

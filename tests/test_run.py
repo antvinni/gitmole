@@ -45,17 +45,36 @@ class Plan(unittest.TestCase):
     def test_lists_every_tool_and_theseus_plots_depend_on_analyze(self):
         steps = run.plan("/r", "/o")
         names = [s["name"] for s in steps]
-        for expected in ["onefetch", "git-quick-stats", "scc", "git-sizer", "gitleaks", "git-log",
-                         "change analysis", "git-of-theseus", "theseus stack plot", "theseus survival plot"]:
+        for expected in ["onefetch", "git-quick-stats", "scc", "git-sizer", "gitleaks", "git-log", "change analysis", "code age"]:
             self.assertIn(expected, names)
-        self.assertFalse([n for n in names if n.startswith("code-maat")])
+        for absent in ["git-of-theseus", "theseus stack plot", "theseus survival plot"]:
+            self.assertNotIn(absent, names, "plots are opt-in")
         by = {s["name"]: s for s in steps}
-        self.assertEqual(by["theseus stack plot"]["deps"], ["git-of-theseus"])
         self.assertEqual(by["change analysis"]["deps"], ["git-log"])
+        self.assertEqual(by["code age"]["deps"], [])
         self.assertEqual(by["onefetch"]["deps"], [])
         self.assertEqual(by["scc"]["stdout"], "/o/size.json")
         self.assertIn("--by-file", by["scc"]["argv"])
         self.assertIn("--use-mailmap", by["git-log"]["argv"])
+
+    def test_code_age_runs_the_bundled_blame_script(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", ignore=["*.csv"])}
+        argv = by["code age"]["argv"]
+        self.assertTrue(argv[1].endswith("gitmole/blame.py"), argv)
+        self.assertEqual(argv[2:4], ["/r", "/o"])
+        self.assertEqual(argv[argv.index("--procs") + 1], str(os.cpu_count()))
+        self.assertEqual(argv[argv.index("--ignore") + 1], "*.csv")
+        self.assertEqual(argv[argv.index("--aliases") + 1], "/o/meta.json")
+
+    def test_plots_add_theseus_after_code_age(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", plots=True)}
+        self.assertEqual(by["git-of-theseus"]["deps"], ["code age"])
+        self.assertEqual(by["theseus stack plot"]["deps"], ["git-of-theseus"])
+
+    def test_age_can_be_left_out(self):
+        names = [s["name"] for s in run.plan("/r", "/o", age=False, plots=True)]
+        self.assertNotIn("code age", names)
+        self.assertIn("git-of-theseus", names)
 
     def test_change_analysis_runs_the_bundled_script_with_the_meta_aliases(self):
         by = {s["name"]: s for s in run.plan("/r", "/o")}
@@ -68,14 +87,14 @@ class Plan(unittest.TestCase):
         self.assertEqual(run.missing_tools(), [])
 
     def test_theseus_tracks_the_given_branch(self):
-        by = {s["name"]: s for s in run.plan("/r", "/o", branch="trunk")}
+        by = {s["name"]: s for s in run.plan("/r", "/o", branch="trunk", plots=True)}
         argv = by["git-of-theseus"]["argv"]
         self.assertEqual(argv[argv.index("--branch") + 1], "trunk")
 
 
 class PlanTheseusOptions(unittest.TestCase):
     def argv(self, **kw):
-        by = {s["name"]: s for s in run.plan("/r", "/o", **kw)}
+        by = {s["name"]: s for s in run.plan("/r", "/o", plots=True, **kw)}
         return by["git-of-theseus"]["argv"]
 
     def test_uses_every_core_and_monthly_sampling_by_default(self):
@@ -88,13 +107,6 @@ class PlanTheseusOptions(unittest.TestCase):
         self.assertEqual(argv[argv.index("--ignore") + 1], "*.csv")
         self.assertEqual(argv.count("--ignore"), 2)
         self.assertIn("vendor/**", argv)
-
-    def test_theseus_can_be_left_out_entirely(self):
-        names = [s["name"] for s in run.plan("/r", "/o", theseus=False)]
-        self.assertNotIn("git-of-theseus", names)
-        self.assertNotIn("theseus stack plot", names)
-        self.assertNotIn("theseus survival plot", names)
-        self.assertIn("change analysis", names)
 
 
 class EstimateBlames(unittest.TestCase):

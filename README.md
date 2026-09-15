@@ -21,12 +21,14 @@ analysis can tell you about a repo.
 | How big is the codebase, per language | [scc](https://github.com/boyter/scc) | brew |
 | Is the repo itself healthy (huge blobs, deep trees) | [git-sizer](https://github.com/github/git-sizer) | brew |
 | Where is the risk: hotspots, coupling, ownership | gitmole's own change analysis over `git log --numstat` | built in |
-| How old is the surviving code, per year and author | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip |
+| How old is the surviving code, per year and author | gitmole's own blame pass (one `git blame` per file at HEAD) | built in |
+| Code-age and survival plots over time | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip, opt-in with `--plots` |
 | Have secrets ever been committed | [gitleaks](https://github.com/gitleaks/gitleaks) | brew |
 | Anything custom the above don't answer | [PyDriller](https://github.com/ishepard/pydriller) | pip |
 
 The first four give a full picture in under a minute. The change analysis
-and git-of-theseus produce the genuinely non-obvious insight. gitleaks should never be skipped on a repo you did not
+and the blame pass produce the genuinely non-obvious insight. git-of-theseus
+only adds the plots, so it is off by default. gitleaks should never be skipped on a repo you did not
 author. PyDriller is optional and only matters if you want to script your own
 metrics.
 
@@ -65,29 +67,30 @@ gitmole https://github.com/o/r     # same, from a URL
 ```
 
 Options: `--out DIR` to choose the output directory, `--no-run DIR` to
-re-render the report from an earlier run,
-`--workers N` to change how many tools run at once, `--timeout S` to cap any
-single tool (default 15 minutes).
+re-render the report from an earlier run, `--plots` to also draw the
+git-of-theseus code-age and survival charts, `--workers N` to change how many
+tools run at once, `--timeout S` to cap any single tool (default 15 minutes).
 
 All tools run concurrently, so a run takes about as long as the slowest tool.
 Tool stderr goes to `run.log` in the output directory, not the terminal.
 
 ### Big repositories
 
-git-of-theseus is the one tool whose cost explodes: it runs one `git blame`
-per file per sampled commit. gitmole keeps it in check:
+Blame is the one cost that scales with repo size. gitmole keeps it in check:
 
-- it samples monthly rather than weekly and uses every CPU core;
-- before running it estimates the blame count (tracked files × samples) and
-  skips git-of-theseus when that exceeds `--budget` (default 50,000). The
-  report then shows paths by the year they were last changed, from the
-  change analysis, instead of surviving lines by year written. That counts
-  every path that ever appeared in the log, deleted ones included;
-- `--deep` forces git-of-theseus regardless of the budget;
+- the code-age table comes from one `git blame` per tracked text file at
+  HEAD, run across every CPU core. That is all the table needs;
+- the plots need history, so `--plots` runs git-of-theseus with monthly
+  sampling (tracked files × samples blames) on top;
+- before running, gitmole checks both against `--budget` (default 50,000
+  blames) and skips whichever exceeds it, saying so. Without code age, the
+  report shows paths by the year they were last changed, from the change
+  analysis, deleted paths included;
+- `--deep` forces both regardless of the budget;
 - `--ignore-data` excludes data-like files (csv, json, lock files, minified
-  and vendored assets) from git-of-theseus, and `--ignore GLOB` adds your
-  own patterns, repeatable. Both shrink the blame count a lot on repos full
-  of exports and fixtures.
+  and vendored assets) from blame, and `--ignore GLOB` adds your own
+  patterns, repeatable. Both shrink the blame count a lot on repos full of
+  exports and fixtures.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
 marked in the report, and the rest of the report still renders.
@@ -186,9 +189,9 @@ directory for a remote target:
 | `maat-authors.csv` | change analysis | authors per file |
 | `maat-age.csv` | change analysis | months since last change per file |
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file |
-| `theseus/` | git-of-theseus | raw cohort and survival data |
-| `code-age.png` | git-of-theseus | stacked plot of surviving code by year |
-| `survival.png` | git-of-theseus | how long a line of code tends to live |
+| `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
+| `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
+| `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |
 | `run.log` | gitmole | every command run and its stderr |
 
 ## How to read the output
@@ -199,8 +202,8 @@ directory for a remote target:
    lines. Large files that change constantly are your risk.
 3. Change coupling shows files that always change together. That usually
    means a hidden dependency or copy-pasted layout.
-4. People and the code-age plot tell you whether knowledge is concentrated
-   in one or two people.
+4. People and the surviving-code table tell you whether knowledge is
+   concentrated in one or two people.
 5. Repo health and secrets are pass or fail checks. Read them only if they
    flag something.
 
@@ -214,15 +217,15 @@ python3 -m unittest discover -s tests -t .
 The code lives in `gitmole/`: `run.py` plans and executes the tools,
 `maat.py` is the standalone change analysis (revisions, coupling, authors,
 age, ownership over the numstat log; the file names still say maat because
-the layout matches what code-maat produced), `identity.py` merges author
-aliases, `load.py` parses the outputs, `findings.py` holds the heuristics,
+the layout matches what code-maat produced), `blame.py` is the standalone
+code-age pass (its output mimics git-of-theseus so one loader serves both),
+`identity.py` merges author aliases, `load.py` parses the outputs, `findings.py` holds the heuristics,
 and `render.py` draws the report. `bin/gitmole` is a thin launcher.
 
 ## Safety notes
 
 - Everything here is offline except the optional clone step, which uses
-  your existing gh auth. gitleaks and git-of-theseus never send data
-  anywhere.
+  your existing gh auth. None of the tools send data anywhere.
 - Remote targets are cloned into a fresh temp directory. Local clones are
   only read, but the log export and the gitleaks scan touch all branches.
 - Install from the official repos or Homebrew with pinned versions, not from
