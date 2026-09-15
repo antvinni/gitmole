@@ -38,6 +38,7 @@ def summary(report: dict) -> dict:
         "identities": len(ids), "branch": m.get("branch", "?"),
         "lines": report["size"]["total_code"], "files": report["size"]["total_files"],
         "languages": [l["name"] for l in report["size"]["languages"][:4]],
+        "since": m.get("since"),
     }
 
 
@@ -54,7 +55,9 @@ def people_section(report: dict) -> dict:
     surviving = report.get("theseus_authors") or {}
     total_lines = sum(surviving.values())
     rows = [(i["name"], i["email"], i["commits"], _pct(i["commits"], total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:8]]
-    return _section("People", [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), ("share", RIGHT), ("surviving code", RIGHT)], rows)
+    since = report["meta"].get("since")
+    caption = f"commits since {since}; surviving code is for the whole tree" if since else None
+    return _section("People", [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), ("share", RIGHT), ("surviving code", RIGHT)], rows, caption=caption)
 
 
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -100,6 +103,9 @@ def timeline_section(report: dict, months: int = 12, authors: int = 8) -> dict:
         return _section("Timeline", [("author", {})], [], note="no timeline data")
     last = max(m for per in tl.values() for m in per)
     span = _month_range(last, months)
+    since = report["meta"].get("since")
+    if since:
+        span = [m for m in span if m >= since[:7]] or span[-1:]
     columns = [("author", {"overflow": "fold"})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     in_window = {a: sum(per.get(m, 0) for m in span) for a, per in tl.items()}
     ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0][:authors]
@@ -190,6 +196,8 @@ def header(report: dict) -> Panel:
     body = Text()
     body.append(f"{s['commits']} commits", style="bold")
     body.append(f"  ·  {s['first_date']} → {s['last_date']}")
+    if s["since"]:
+        body.append(f"  ·  since {s['since']}", style="yellow")
     body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}  ·  branch {s['branch']}\n")
     body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}")
     return Panel(body, title=f"[bold]{s['name']}[/bold]", title_align="left", border_style="blue")
@@ -215,7 +223,9 @@ def rich_table(sec: dict):
     kw = {}
     if sec.get("caption"):
         kw = {"caption": sec["caption"], "caption_justify": "left", "caption_style": "dim"}
-    t = Table(title=sec["title"], title_justify="left", box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, **kw)
+    # never let a title or caption wrap to a narrow table's width
+    fits = max(len(sec["title"]), max((len(line) for line in (sec.get("caption") or "").split("\n")), default=0))
+    t = Table(title=sec["title"], title_justify="left", box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, min_width=fits, **kw)
     for name, opts in zip(sec["columns"], sec["col_opts"]):
         t.add_column(name, **opts)
     for row in sec["rows"]:
@@ -241,7 +251,7 @@ def _md_cell(cell: str) -> str:
 def markdown(report: dict, findings: list) -> str:
     s = summary(report)
     out = [f"# {s['name']}", "",
-           f"{s['commits']} commits · {s['first_date']} → {s['last_date']} · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
+           f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "") + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
            f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}", "",
            "## Findings", ""]
     if findings:

@@ -148,11 +148,18 @@ ANALYSES = {
 def aliases_from_meta(path: str) -> dict:
     with open(path) as fh:
         meta = json.load(fh)
+    if "aliases" in meta:
+        return dict(meta["aliases"])
     out = {}
     for ident in meta.get("identities", []):
         for a in ident.get("aliases", []):
             out[a["name"]] = ident["name"]
     return out
+
+
+def in_window(commits: list, since: str = None) -> list:
+    """Commits authored on or after `since` (YYYY-MM-DD); all of them when since is None."""
+    return [c for c in commits if not since or c["date"] >= since]
 
 
 def validate_now(value: str) -> str:
@@ -162,23 +169,34 @@ def validate_now(value: str) -> str:
     return value
 
 
-def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None) -> None:
-    """`now` (YYYY-MM-DD) is the reference date for file ages; default today."""
+def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None, since: str = None) -> None:
+    """`now` (YYYY-MM-DD) is the reference date for file ages; default today. `since` bounds every
+    analysis except file ages, which always describe the whole history."""
     with open(log_path, encoding="utf-8", errors="replace") as fh:
         commits = parse_log(fh.read(), aliases_from_meta(aliases_path) if aliases_path else None, types)
+    windowed = in_window(commits, since)
     for name, (fn, header) in ANALYSES.items():
-        rows = age(commits, now=now) if name == "age" else fn(commits)
+        rows = age(commits, now=now) if name == "age" else fn(windowed)   # ages describe the whole history
         with open(os.path.join(out_dir, f"maat-{name}.csv"), "w", newline="") as fh:
             w = csv.DictWriter(fh, fieldnames=header)
             w.writeheader()
             w.writerows(rows)
+    act = activity(windowed)
+    act["window"] = since
     with open(os.path.join(out_dir, "activity.json"), "w") as fh:
-        json.dump(activity(commits), fh)
+        json.dump(act, fh)
 
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    aliases, types, now = None, filetypes.DEFAULT, None
+    aliases, types, now, since = None, filetypes.DEFAULT, None, None
+    while "--since" in args:
+        i = args.index("--since")
+        try:
+            since = validate_now(args[i + 1])
+        except (ValueError, IndexError) as e:
+            sys.exit(f"maat.py: {e}")
+        del args[i:i + 2]
     while "--now" in args:
         i = args.index("--now")
         try:
@@ -193,5 +211,5 @@ if __name__ == "__main__":
         aliases = args[i + 1]
         del args[i:i + 2]
     if len(args) != 2:
-        sys.exit("usage: maat.py LOG OUT_DIR [--aliases META_JSON] [--types LIST|all] [--now YYYY-MM-DD]")
-    write_all(args[0], args[1], aliases, types, now)
+        sys.exit("usage: maat.py LOG OUT_DIR [--aliases META_JSON] [--types LIST|all] [--now YYYY-MM-DD] [--since YYYY-MM-DD]")
+    write_all(args[0], args[1], aliases, types, now, since)

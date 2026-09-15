@@ -338,6 +338,50 @@ class ReferenceDate(unittest.TestCase):
         self.assertEqual(calls, [])
 
 
+class Since(unittest.TestCase):
+    def _main(self, extra, env=None):
+        from unittest.mock import patch
+        calls = []
+        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, env or {}):
+            _tiny_repo(d)
+            def planner(repo, out, branch="HEAD", **kw):
+                calls.append(kw)
+                return [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            c = console()
+            rc = cli.main([d, "--out", os.path.join(d, "out"), *extra], console=c, tool_check=lambda **kw: [], planner=planner,
+                          estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            meta_path = os.path.join(d, "out", "meta.json")
+            meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+        return rc, c.export_text(), calls, meta
+
+    def test_since_is_resolved_against_the_reference_date_and_recorded(self):
+        rc, text, calls, meta = self._main(["--since", "2y"], {"GITMOLE_NOW": "2026-09-15"})
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls[0]["since"], "2024-09-15")
+        self.assertEqual(meta["since"], "2024-09-15")
+        self.assertIn("since 2024-09-15", text)
+
+    def test_bad_since_is_an_error(self):
+        rc, text, calls, meta = self._main(["--since", "lately"])
+        self.assertEqual(rc, 2)
+        self.assertIn("--since", text)
+        self.assertEqual(calls, [])
+
+    def test_empty_window_is_an_error_not_an_empty_report(self):
+        rc, text, calls, meta = self._main(["--since", "2030-01-01"])
+        self.assertEqual(rc, 2)
+        self.assertIn("no commits", text)
+        self.assertEqual(calls, [])
+
+    def test_since_is_refused_with_no_run(self):
+        with tempfile.TemporaryDirectory() as out:
+            _report_dir(out)
+            c = console()
+            rc = cli.main([out, "--no-run", "--since", "2y"], console=c)
+        self.assertEqual(rc, 2)
+        self.assertIn("--since", c.export_text())
+
+
 class Arguments(unittest.TestCase):
     def test_bad_target_is_reported_not_raised(self):
         c = console()

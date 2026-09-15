@@ -1,6 +1,8 @@
 """Resolve the target, plan the tool invocations, and run them concurrently."""
 from __future__ import annotations
 
+import calendar
+import datetime as dt
 import json
 import os
 import re
@@ -111,7 +113,7 @@ def missing_tools(plots: bool = False, path: str = None) -> list:
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
-         procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None) -> list:
+         procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
@@ -124,7 +126,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "gitleaks", "argv": ["gitleaks", "git", "--no-banner", "--report-path", o("secrets.json"), "--exit-code", "0"], "stdout": None, "deps": []},
         {"name": "git-log", "argv": ["git", "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
-        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
+        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
@@ -135,6 +137,37 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
             {"name": "theseus survival plot", "argv": ["git-of-theseus-survival-plot", o("theseus/survival.json"), "--outfile", o("survival.png")], "stdout": None, "deps": ["git-of-theseus"]},
         ]
     return steps
+
+
+_RELATIVE = re.compile(r"^(\d+)([ymd])$")
+
+
+def parse_since(spec: str, today: str) -> str:
+    """'2y' | '18m' | '90d' | 'YYYY-MM-DD' -> 'YYYY-MM-DD', relative to `today`. Raises ValueError."""
+    from . import maat
+
+    hint = "--since wants 2y, 18m, 90d or YYYY-MM-DD"
+    spec = (spec or "").strip().lower()
+    m = _RELATIVE.match(spec)
+    try:
+        if not m:
+            date = dt.date.fromisoformat(maat.validate_now(spec))
+        else:
+            n, unit = int(m.group(1)), m.group(2)
+            base = dt.date.fromisoformat(today)
+            if unit == "d":
+                date = base - dt.timedelta(days=n)
+            else:
+                months = n * 12 if unit == "y" else n
+                y, mo = base.year, base.month - months
+                while mo <= 0:
+                    y, mo = y - 1, mo + 12
+                date = dt.date(y, mo, min(base.day, calendar.monthrange(y, mo)[1]))
+    except (ValueError, OverflowError):
+        raise ValueError(f"{hint}, got {spec!r}") from None
+    if date.year < 1970:
+        raise ValueError(f"{hint}; git cannot represent dates before 1970, got {spec!r}")
+    return date.isoformat()
 
 
 class Control:
@@ -259,19 +292,30 @@ def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int
             "seconds": projection["seconds"], "code_files": projection["files"]}
 
 
-def collect_meta(repo_dir: str) -> dict:
+def collect_meta(repo_dir: str, since: str = None) -> dict:
+    """Repository facts from git. The window (author date >= since) bounds the commit count, the
+    date range and the identity table; aliases are merged over the whole history so blame and
+    ownership keep merging people who have no commits in the window."""
     from .load import parse_authors_log
 
-    dates = _git(repo_dir, "log", "--all", "--use-mailmap", "--format=%ad", "--date=short").split()
-    return {
+    lines = _git(repo_dir, "log", "--all", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").splitlines()
+    rows = [l.split("\t", 2) for l in lines if l.count("\t") == 2]
+    windowed = [r for r in rows if not since or r[0] >= since]
+    dates = [r[0] for r in windowed]
+    all_identities = identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in rows)))
+    meta = {
         "name": repo_name(repo_dir),
         "path": repo_dir,
         "branch": _git(repo_dir, "rev-parse", "--abbrev-ref", "HEAD").strip(),
         "commits": len(dates),
         "first_date": min(dates) if dates else "",
         "last_date": max(dates) if dates else "",
-        "identities": identity.merge(parse_authors_log(_git(repo_dir, "log", "--all", "--use-mailmap", "--format=%aN\t%aE"))),
+        "identities": identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in windowed))),
+        "aliases": {a["name"]: i["name"] for i in all_identities for a in i.get("aliases", [])},
     }
+    if since:
+        meta["since"] = since
+    return meta
 
 
 def save_meta(meta: dict, out_dir: str) -> None:

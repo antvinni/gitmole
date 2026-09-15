@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -172,6 +173,28 @@ class NowParameter(unittest.TestCase):
         for bad in ("2025-6-15", "today", "2025-06-15T00:00:00"):
             with self.assertRaises(ValueError):
                 maat.validate_now(bad)
+
+
+class SinceWindow(unittest.TestCase):
+    def test_window_bounds_everything_except_age(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                fh.write(LOG)
+            maat.write_all(log, d, now="2026-09-15", since="2026-04-01")
+            def rows(name):
+                with open(os.path.join(d, name)) as fh:
+                    return fh.read().splitlines()[1:]
+            self.assertEqual(rows("maat-revisions.csv"), ["src/a.py,3", "src/b.py,3"], "only commits from 2026-04-01 on")
+            self.assertIn("src/c.py,6", rows("maat-age.csv"), "age keeps the whole history")
+            with open(os.path.join(d, "activity.json")) as fh:
+                a = json.load(fh)
+            self.assertEqual(sum(a["by_weekday"]), 3)
+            self.assertEqual(a["window"], "2026-04-01")
+
+    def test_empty_window_is_reported(self):
+        commits = maat.parse_log(LOG)
+        self.assertEqual(maat.in_window(commits, "2030-01-01"), [])
 
 
 class WriteAll(unittest.TestCase):
