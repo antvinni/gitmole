@@ -43,6 +43,14 @@ class ParseMaatCsv(unittest.TestCase):
     def test_empty_text_gives_empty_list(self):
         self.assertEqual(load.parse_maat_csv(""), [])
 
+    def test_only_numeric_columns_are_converted(self):
+        rows = load.parse_maat_csv("entity,author,added,deleted\n2024,1234,10,0\n")
+        self.assertEqual(rows, [{"entity": "2024", "author": "1234", "added": 10, "deleted": 0}])
+        rows = load.parse_maat_csv("entity,n-fixes,last-fix,recent-fixes\n007,2,2026-01-05,1\n")
+        self.assertEqual(rows[0]["entity"], "007")
+        self.assertEqual(rows[0]["last-fix"], "2026-01-05")
+        self.assertEqual(rows[0]["n-fixes"], 2)
+
 
 class ParseGitSizer(unittest.TestCase):
     TEXT = """| Name                         | Value     | Level of concern               |

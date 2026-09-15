@@ -40,7 +40,7 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
 
 def text_files(repo: str, ignore=()) -> list:
     """Tracked, non-binary files, minus ignore globs."""
-    out = subprocess.run(["git", "grep", "-I", "--name-only", "--cached", "-e", ""], cwd=repo, capture_output=True, text=True).stdout
+    out = subprocess.run(["git", "-c", "core.quotePath=false", "grep", "-I", "--name-only", "--cached", "-e", ""], cwd=repo, capture_output=True, text=True).stdout
     files = sorted(set(out.split("\n")) - {""})
     return [f for f in files if not any(fnmatch.fnmatch(f, g) for g in ignore)]
 

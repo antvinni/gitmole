@@ -16,11 +16,11 @@ class Areas(unittest.TestCase):
     def test_groups_added_lines_by_top_level_directory(self):
         areas = knowledge.areas(OWNERSHIP)
         by = {a["area"]: a for a in areas}
-        self.assertEqual([a["area"] for a in areas], ["web/", "app/", "."])
+        self.assertEqual([a["area"] for a in areas], ["web/", "app/", "(root files)"])
         self.assertEqual(by["app/"]["lines"], 420)
         self.assertEqual(by["app/"]["owners"], [("Ann", 400), ("Bob", 20)])
         self.assertEqual(by["app/"]["authors"], 2)
-        self.assertEqual(by["."]["owners"], [("Ann", 30)])
+        self.assertEqual(by["(root files)"]["owners"], [("Ann", 30)])
 
     def test_descends_when_one_directory_holds_almost_everything(self):
         rows = [dict(r, entity="src/" + r["entity"]) for r in OWNERSHIP if r["entity"] != "README.md"]
@@ -29,6 +29,23 @@ class Areas(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual(knowledge.areas([]), [])
+
+
+class OddNames(unittest.TestCase):
+    def test_all_digit_paths_and_authors_do_not_crash(self):
+        rows = [{"entity": "2024", "author": "1234", "added": 10, "deleted": 0},
+                {"entity": "app/2025", "author": "Ann", "added": 10, "deleted": 0},
+                {"entity": "app/x.py", "author": "1234", "added": 10, "deleted": 0}]
+        areas = knowledge.areas(rows)
+        self.assertEqual([a["area"] for a in areas], ["app/", "(root files)"])
+        self.assertEqual(areas[0]["owners"], [("1234", 10), ("Ann", 10)])
+
+    def test_git_quoted_paths_are_unquoted(self):
+        rows = [{"entity": '"src/\\303\\244.py"', "author": "Ann", "added": 900, "deleted": 0},
+                {"entity": "src/b.py", "author": "Bob", "added": 100, "deleted": 0}]
+        areas = knowledge.areas(rows)
+        self.assertEqual([a["area"] for a in areas], ["src/"])
+        self.assertEqual(areas[0]["lines"], 1000)
 
 
 class Islands(unittest.TestCase):

@@ -47,6 +47,17 @@ class TextFiles(unittest.TestCase):
             self.assertIn("data.csv", blame.text_files(d))
 
 
+class NonAsciiPaths(unittest.TestCase):
+    def test_listed_unquoted(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            with open(os.path.join(d, "s\u00e4.py"), "w") as fh:
+                fh.write("x\n")
+            subprocess.run(["git", "-C", d, "add", "-A"], check=True, capture_output=True)
+            self.assertIn("s\u00e4.py", blame.code_files(d))
+            self.assertFalse([f for f in blame.code_files(d) if f.startswith('"')])
+
+
 class BlameFile(unittest.TestCase):
     def test_counts_lines_per_year_and_author(self):
         with tempfile.TemporaryDirectory() as d:
