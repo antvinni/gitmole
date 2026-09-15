@@ -108,6 +108,7 @@ class LoadReport(unittest.TestCase):
                 "maat-authors.csv": "entity,n-authors,n-revs\na.py,1,3\n",
                 "repo-health.txt": "",
                 "secrets.json": "[]",
+                "activity.json": json.dumps({"by_weekday": [1, 0, 0, 0, 0, 0, 0], "by_hour": [0] * 24, "by_month": {"2026-01": 1}, "authors": {}}),
                 "theseus/cohorts.json": json.dumps({"labels": ["Code added in 2026"], "ts": ["t"], "y": [[10]]}),
                 "theseus/authors.json": json.dumps({"labels": ["Ann"], "ts": ["t"], "y": [[10]]}),
             }
@@ -123,6 +124,7 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["theseus_authors"], {"Ann": 10})
         self.assertEqual(r["sizer"], [])
         self.assertEqual(r["secrets"], [])
+        self.assertEqual(r["activity"]["by_month"], {"2026-01": 1})
         self.assertEqual(r["out_dir"], out)
 
     def test_surviving_lines_are_re_keyed_to_merged_identities(self):
@@ -144,6 +146,7 @@ class LoadReport(unittest.TestCase):
                 fh.write(json.dumps({"name": "demo", "commits": 0, "identities": []}))
             r = load.load_report(out)
         self.assertEqual(r["revisions"], [])
+        self.assertEqual(r["activity"], {})
         self.assertEqual(r["cohorts"], {})
         self.assertEqual(r["size"]["languages"], [])
 

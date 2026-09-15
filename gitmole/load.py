@@ -150,4 +150,5 @@ def load_report(out_dir: str) -> dict:
         "cohorts": parse_theseus(cohorts) if cohorts else {},
         "theseus_authors": surviving,
         "secrets": parse_secrets(_read(out_dir, "secrets.json")),
+        "activity": json.loads(_read(out_dir, "activity.json") or "{}"),
     }

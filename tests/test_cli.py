@@ -39,7 +39,7 @@ class LiveRun(unittest.TestCase):
             c = Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system="truecolor")
             fake_plan = lambda repo, out, branch="HEAD", **kw: [
                 {"name": "quick", "argv": ["sh", "-c", "sleep 0.3"], "stdout": None, "deps": []}]
-            rc = cli.main([d, "--out", os.path.join(d, "out")], console=c, tool_check=lambda: [], planner=fake_plan)
+            rc = cli.main([d, "--out", os.path.join(d, "out")], console=c, tool_check=lambda **kw: [], planner=fake_plan)
             text = c.export_text()
         self.assertEqual(rc, 0)
         self.assertIn("███╗   ███╗", text)
@@ -62,7 +62,7 @@ class Budget(unittest.TestCase):
                 plan_calls.append(kw)
                 return [{"name": "quick", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}]
             rc = cli.main([d, "--out", os.path.join(d, "out"), *extra], console=c,
-                          tool_check=lambda: [], planner=planner, estimator=lambda repo, interval: estimate)
+                          tool_check=lambda **kw: [], planner=planner, estimator=lambda repo, interval: estimate)
             with open(os.path.join(d, "out", "meta.json")) as fh:
                 meta = json.load(fh)
             return rc, c.export_text(), meta
@@ -132,7 +132,7 @@ class Timeout(unittest.TestCase):
             planner = lambda repo, out, branch="HEAD", **kw: [
                 {"name": "sleepy", "argv": ["sh", "-c", "sleep 3"], "stdout": None, "deps": []}]
             cli.main([d, "--out", os.path.join(d, "out"), "--timeout", "0.3"], console=c,
-                     tool_check=lambda: [], planner=planner, estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1})
+                     tool_check=lambda **kw: [], planner=planner, estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1})
             text = c.export_text()
         self.assertIn("sleepy (timeout)", text)
 
@@ -189,7 +189,7 @@ class Portfolio(unittest.TestCase):
                 return d
             planner = lambda repo, out, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
             c = console()
-            rc = cli.main(["acme/*", "--out", os.path.join(work, "pf"), *extra], console=c, tool_check=lambda: [], planner=planner,
+            rc = cli.main(["acme/*", "--out", os.path.join(work, "pf"), *extra], console=c, tool_check=lambda **kw: [], planner=planner,
                           estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1},
                           lister=lambda owner: ["one", "two"], cloner=cloner)
             text = c.export_text()
@@ -225,7 +225,7 @@ class GhFailures(unittest.TestCase):
         def lister(owner):
             raise run.GhError("Post https://api.github.com/graphql: tls: failed to verify certificate")
         c = console()
-        rc = cli.main(["acme/*"], console=c, tool_check=lambda: [], lister=lister)
+        rc = cli.main(["acme/*"], console=c, tool_check=lambda **kw: [], lister=lister)
         text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("could not list repositories for acme", text)
@@ -235,7 +235,7 @@ class GhFailures(unittest.TestCase):
         def cloner(target, parent):
             raise run.GhError("repository not found")
         c = console()
-        rc = cli.main(["acme/missing"], console=c, tool_check=lambda: [], cloner=cloner)
+        rc = cli.main(["acme/missing"], console=c, tool_check=lambda **kw: [], cloner=cloner)
         text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("could not clone acme/missing", text)
@@ -252,7 +252,7 @@ class Arguments(unittest.TestCase):
     def test_missing_tools_are_listed(self):
         with tempfile.TemporaryDirectory() as d:
             c = console()
-            rc = cli.main([d], console=c, tool_check=lambda: ["scc"])
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"])
         text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("scc", text)

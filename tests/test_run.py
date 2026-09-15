@@ -98,14 +98,17 @@ class Plan(unittest.TestCase):
     def test_lists_every_tool_and_theseus_plots_depend_on_analyze(self):
         steps = run.plan("/r", "/o")
         names = [s["name"] for s in steps]
-        for expected in ["onefetch", "git-quick-stats", "scc", "git-sizer", "gitleaks", "git-log", "change analysis", "code age"]:
+        for expected in ["scc", "git-sizer", "gitleaks", "git-log", "change analysis", "code age"]:
             self.assertIn(expected, names)
+        for gone in ["onefetch", "git-quick-stats"]:
+            self.assertNotIn(gone, names)
         for absent in ["git-of-theseus", "theseus stack plot", "theseus survival plot"]:
             self.assertNotIn(absent, names, "plots are opt-in")
         by = {s["name"]: s for s in steps}
         self.assertEqual(by["change analysis"]["deps"], ["git-log"])
         self.assertEqual(by["code age"]["deps"], [])
-        self.assertEqual(by["onefetch"]["deps"], [])
+        self.assertEqual(by["scc"]["deps"], [])
+        self.assertIn("--date=iso-strict", by["git-log"]["argv"])
         self.assertEqual(by["scc"]["stdout"], "/o/size.json")
         self.assertIn("--by-file", by["scc"]["argv"])
         self.assertIn("--use-mailmap", by["git-log"]["argv"])
@@ -135,9 +138,11 @@ class Plan(unittest.TestCase):
         self.assertTrue(argv[1].endswith("gitmole/maat.py"), argv)
         self.assertEqual(argv[2:], ["/o/log.txt", "/o", "--aliases", "/o/meta.json"])
 
-    def test_no_java_required(self):
-        self.assertNotIn("java", run.REQUIRED_TOOLS)
+    def test_only_three_tools_required_by_default_and_theseus_with_plots(self):
+        self.assertEqual(run.REQUIRED_TOOLS, ["scc", "git-sizer", "gitleaks"])
         self.assertEqual(run.missing_tools(), [])
+        self.assertEqual(run.missing_tools(plots=True), [])
+        self.assertEqual(run.missing_tools(plots=True, path="/nonexistent"), ["scc", "git-sizer", "gitleaks", "git-of-theseus-analyze"])
 
     def test_theseus_tracks_the_given_branch(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", branch="trunk", plots=True)}

@@ -57,6 +57,24 @@ def people_section(report: dict) -> dict:
     return _section("People", [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), ("share", RIGHT), ("surviving code", RIGHT)], rows)
 
 
+WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def activity_section(report: dict) -> dict:
+    act = report.get("activity") or {}
+    columns = [("weekday", {}), ("commits", RIGHT), ("share", RIGHT), ("", {"style": "blue"})]
+    if not act.get("by_weekday"):
+        return _section("Activity", columns, [], note="no activity data")
+    total = sum(act["by_weekday"])
+    rows = [(WEEKDAYS[i], n, _pct(n, total), _bar(n, total, 20)) for i, n in enumerate(act["by_weekday"])]
+    hours = act.get("by_hour") or []
+    caption = None
+    if hours and max(hours):
+        h = max(range(24), key=lambda i: hours[i])
+        caption = f"busiest hour {h:02d}:00 ({hours[h]} commits)"
+    return _section("Activity", columns, rows, caption=caption)
+
+
 def hotspots_section(report: dict) -> dict:
     """Change frequency times size, Tornhill-style. Files no longer in the tree sort last."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
@@ -118,7 +136,7 @@ def health_section(report: dict) -> dict:
 
 
 def sections(report: dict) -> list:
-    return [size_section(report), people_section(report), hotspots_section(report), coupling_section(report), age_section(report), health_section(report)]
+    return [size_section(report), people_section(report), activity_section(report), hotspots_section(report), coupling_section(report), age_section(report), health_section(report)]
 
 
 def secrets_line(report: dict) -> str:

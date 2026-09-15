@@ -24,8 +24,8 @@ def parse_log(text: str, aliases: dict = None) -> list:
     commits, current = [], None
     for line in text.splitlines():
         if line.startswith("--"):
-            _, h, date, author = line.split("--", 3)
-            current = {"hash": h, "date": date, "author": aliases.get(author, author), "files": []}
+            _, h, when, author = line.split("--", 3)
+            current = {"hash": h, "date": when[:10], "time": when, "author": aliases.get(author, author), "files": []}
             commits.append(current)
         elif line.strip() and current is not None:
             added, deleted, path = line.split("\t", 2)
@@ -100,6 +100,29 @@ def entity_ownership(commits: list) -> list:
     return rows
 
 
+def activity(commits: list) -> dict:
+    """Commits by weekday (Mon=0) and hour, by month, and per-author totals."""
+    by_weekday, by_hour, by_month = [0] * 7, [0] * 24, Counter()
+    authors = {}
+    for c in commits:
+        when = c.get("time") or c["date"]
+        try:
+            stamp = dt.datetime.fromisoformat(when)
+        except ValueError:
+            stamp = None
+        day = stamp.date() if stamp else dt.date.fromisoformat(c["date"])
+        by_weekday[day.weekday()] += 1
+        if stamp and len(when) > 10:
+            by_hour[stamp.hour] += 1
+        by_month[c["date"][:7]] += 1
+        a = authors.setdefault(c["author"], {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
+        a["commits"] += 1
+        a["added"] += sum(x for _, x, _ in c["files"])
+        a["deleted"] += sum(x for _, _, x in c["files"])
+        a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
+    return {"by_weekday": by_weekday, "by_hour": by_hour, "by_month": dict(sorted(by_month.items())), "authors": authors}
+
+
 ANALYSES = {
     "revisions": (revisions, ["entity", "n-revs"]),
     "coupling": (coupling, ["entity", "coupled", "degree", "average-revs"]),
@@ -127,6 +150,8 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None) -> None:
             w = csv.DictWriter(fh, fieldnames=header)
             w.writeheader()
             w.writerows(fn(commits))
+    with open(os.path.join(out_dir, "activity.json"), "w") as fh:
+        json.dump(activity(commits), fh)
 
 
 if __name__ == "__main__":

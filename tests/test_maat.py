@@ -4,32 +4,32 @@ import unittest
 
 from gitmole import maat
 
-LOG = """--a1--2026-01-10--Ann
+LOG = """--a1--2026-01-10T09:15:00+00:00--Ann
 3\t1\tsrc/a.py
 2\t0\tsrc/b.py
 
---b2--2026-02-10--Bob
+--b2--2026-02-10T14:00:00+00:00--Bob
 1\t1\tsrc/a.py
 5\t5\tsrc/b.py
 -\t-\timg/logo.png
 
---c3--2026-03-10--Ann
+--c3--2026-03-10T09:30:00+00:00--Ann
 4\t0\tsrc/a.py
 1\t0\tsrc/c.py
 
---d4--2026-03-12--Ann
+--d4--2026-03-12T22:00:00+00:00--Ann
 1\t0\tsrc/a.py
 1\t0\tsrc/b.py
 
---e5--2026-04-01--Ann
+--e5--2026-04-01T09:00:00+00:00--Ann
 1\t0\tsrc/a.py
 1\t0\tsrc/b.py
 
---f6--2026-04-02--Ann
+--f6--2026-04-02T09:45:00+00:00--Ann
 1\t0\tsrc/a.py
 1\t0\tsrc/b.py
 
---g7--2026-04-03--Cat
+--g7--2026-04-03T11:00:00+00:00--Cat
 0\t2\tsrc/a.py
 0\t1\tsrc/b.py
 """
@@ -41,6 +41,7 @@ class ParseLog(unittest.TestCase):
         self.assertEqual(len(commits), 7)
         self.assertEqual(commits[0]["author"], "Ann")
         self.assertEqual(commits[0]["date"], "2026-01-10")
+        self.assertEqual(commits[0]["time"], "2026-01-10T09:15:00+00:00")
         self.assertEqual(commits[0]["files"], [("src/a.py", 3, 1), ("src/b.py", 2, 0)])
         self.assertEqual(commits[1]["files"][2], ("img/logo.png", 0, 0))
 
@@ -95,6 +96,23 @@ class Aliases(unittest.TestCase):
         self.assertNotIn(("src/b.py", "Bob"), own)
 
 
+class Activity(unittest.TestCase):
+    def test_commits_by_weekday_hour_month_and_author(self):
+        a = maat.activity(maat.parse_log(LOG))
+        # 2026-01-10 Sat, 02-10 Tue, 03-10 Tue, 03-12 Thu, 04-01 Wed, 04-02 Thu, 04-03 Fri
+        self.assertEqual(a["by_weekday"], [0, 2, 1, 2, 1, 1, 0])
+        self.assertEqual(a["by_hour"][9], 4)
+        self.assertEqual(a["by_hour"][22], 1)
+        self.assertEqual(a["by_month"], {"2026-01": 1, "2026-02": 1, "2026-03": 2, "2026-04": 3})
+        self.assertEqual(a["authors"]["Ann"], {"commits": 5, "added": 16, "deleted": 1, "first": "2026-01-10", "last": "2026-04-02"})
+        self.assertEqual(a["authors"]["Cat"]["deleted"], 3)
+
+    def test_legacy_short_dates_still_parse(self):
+        a = maat.activity(maat.parse_log("--x--2026-05-04--Ann\n1\t0\tf.py\n"))
+        self.assertEqual(sum(a["by_weekday"]), 1)
+        self.assertEqual(a["by_hour"], [0] * 24)
+
+
 class WriteAll(unittest.TestCase):
     def test_writes_the_five_csv_files_in_code_maat_layout(self):
         with tempfile.TemporaryDirectory() as d:
@@ -104,6 +122,7 @@ class WriteAll(unittest.TestCase):
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
             self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-revisions.csv"])
+            self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))
             with open(os.path.join(d, "maat-revisions.csv")) as fh:
                 self.assertEqual(fh.readline().strip(), "entity,n-revs")
                 self.assertEqual(fh.readline().strip(), "src/a.py,7")

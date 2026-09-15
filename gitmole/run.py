@@ -100,12 +100,14 @@ def env_path() -> str:
     return os.pathsep.join(parts + [os.environ.get("PATH", "")])
 
 
-REQUIRED_TOOLS = ["onefetch", "git-quick-stats", "scc", "git-sizer", "gitleaks", "git-of-theseus-analyze"]
+REQUIRED_TOOLS = ["scc", "git-sizer", "gitleaks"]
+PLOT_TOOLS = ["git-of-theseus-analyze"]
 
 
-def missing_tools() -> list:
-    path = env_path()
-    return [t for t in REQUIRED_TOOLS if not any(os.access(os.path.join(d, t), os.X_OK) for d in path.split(os.pathsep) if d)]
+def missing_tools(plots: bool = False, path: str = None) -> list:
+    path = env_path() if path is None else path
+    wanted = REQUIRED_TOOLS + (PLOT_TOOLS if plots else [])
+    return [t for t in wanted if not any(os.access(os.path.join(d, t), os.X_OK) for d in path.split(os.pathsep) if d)]
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
@@ -118,12 +120,10 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
     theseus_argv = ["git-of-theseus-analyze", ".", "--branch", branch, "--outdir", o("theseus"),
                     "--procs", procs, "--interval", str(interval), *ignores]
     steps = [
-        {"name": "onefetch", "argv": ["onefetch", "--no-art", "--no-bold", "--no-color-palette", "--true-color", "never"], "stdout": o("overview.txt"), "deps": []},
-        {"name": "git-quick-stats", "argv": ["git-quick-stats", "-T"], "stdout": o("contributors.txt"), "deps": []},
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "gitleaks", "argv": ["gitleaks", "git", "--no-banner", "--report-path", o("secrets.json"), "--exit-code", "0"], "stdout": None, "deps": []},
-        {"name": "git-log", "argv": ["git", "log", "--all", "--use-mailmap", "--numstat", "--date=short", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
+        {"name": "git-log", "argv": ["git", "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if age:

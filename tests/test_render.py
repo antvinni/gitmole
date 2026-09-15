@@ -23,6 +23,8 @@ def sample_report():
         "cohorts": {"Code added in 2025": 8733, "Code added in 2026": 2728},
         "theseus_authors": {"Ann": 9076, "Bob": 2342},
         "secrets": [],
+        "activity": {"by_weekday": [40, 50, 45, 60, 30, 5, 3], "by_hour": [0] * 9 + [20, 30, 25] + [0] * 12,
+                     "by_month": {"2026-07": 10, "2026-08": 20, "2026-09": 12}, "authors": {}},
     }
 
 
@@ -113,12 +115,25 @@ class Report(unittest.TestCase):
         self.assertTrue(all(len(line) <= 80 for line in text.splitlines()), "a line exceeds 80 columns")
 
 
+class Activity(unittest.TestCase):
+    def test_activity_shows_weekdays_and_busiest_hour(self):
+        text = rendered(sample_report(), [])
+        self.assertIn("Activity", text)
+        self.assertRegex(text, r"Thu\s+60")
+        self.assertIn("busiest hour 10:00", text)
+
+    def test_activity_absent_when_no_data(self):
+        r = sample_report()
+        r["activity"] = {}
+        self.assertIn("no activity data", rendered(r, []))
+
+
 class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report())
         titles = [x["title"] for x in secs]
-        self.assertEqual(titles[:2], ["Size by language", "People"])
-        self.assertTrue(titles[2].startswith("Hotspots"))
+        self.assertEqual(titles[:3], ["Size by language", "People", "Activity"])
+        self.assertTrue(titles[3].startswith("Hotspots"))
         self.assertEqual(titles[-1], "Repo health (git-sizer concerns)")
         size = secs[0]
         self.assertEqual(size["columns"][:3], ["language", "files", "code"])

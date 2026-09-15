@@ -59,7 +59,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         err.print(f"[red]{e}[/red]")
         return 2
 
-    missing = tool_check()
+    missing = tool_check(plots=args.plots)
     if missing:
         err.print("[red]missing tools:[/red] " + ", ".join(missing))
         err.print("run bin/install.sh from the gitmole checkout")
