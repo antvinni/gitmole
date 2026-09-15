@@ -38,6 +38,7 @@ def summary(report: dict) -> dict:
         "identities": len(ids), "branch": m.get("branch", "?"),
         "lines": report["size"]["total_code"], "files": report["size"]["total_files"],
         "languages": [l["name"] for l in report["size"]["languages"][:4]],
+        "since": m.get("since"),
     }
 
 
@@ -190,6 +191,8 @@ def header(report: dict) -> Panel:
     body = Text()
     body.append(f"{s['commits']} commits", style="bold")
     body.append(f"  ·  {s['first_date']} → {s['last_date']}")
+    if s["since"]:
+        body.append(f"  ·  since {s['since']}", style="yellow")
     body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}  ·  branch {s['branch']}\n")
     body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}")
     return Panel(body, title=f"[bold]{s['name']}[/bold]", title_align="left", border_style="blue")
@@ -241,7 +244,7 @@ def _md_cell(cell: str) -> str:
 def markdown(report: dict, findings: list) -> str:
     s = summary(report)
     out = [f"# {s['name']}", "",
-           f"{s['commits']} commits · {s['first_date']} → {s['last_date']} · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
+           f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "") + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
            f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}", "",
            "## Findings", ""]
     if findings:

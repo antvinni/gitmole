@@ -76,6 +76,45 @@ class GhErrors(unittest.TestCase):
         self.assertIn("repository not found", str(ctx.exception))
 
 
+class ParseSince(unittest.TestCase):
+    def test_relative_and_absolute_forms(self):
+        today = "2026-09-15"
+        self.assertEqual(run.parse_since("2y", today), "2024-09-15")
+        self.assertEqual(run.parse_since("18m", today), "2025-03-15")
+        self.assertEqual(run.parse_since("90d", today), "2026-06-17")
+        self.assertEqual(run.parse_since("2024-01-01", today), "2024-01-01")
+
+    def test_month_end_clamps(self):
+        self.assertEqual(run.parse_since("1m", "2026-03-31"), "2026-02-28")
+
+    def test_garbage_raises(self):
+        for bad in ("yesterday", "2y3m", "2026-13-01", ""):
+            with self.assertRaises(ValueError):
+                run.parse_since(bad, "2026-09-15")
+
+
+class SinceInPlanAndMeta(unittest.TestCase):
+    def test_plan_bounds_the_log(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", since="2024-01-01")}
+        self.assertIn("--since=2024-01-01", by["git-log"]["argv"])
+        self.assertNotIn("--since=2024-01-01", by["code age"]["argv"])
+        self.assertFalse([a for a in {s["name"]: s for s in run.plan("/r", "/o")}["git-log"]["argv"] if a.startswith("--since")])
+
+    def test_collect_meta_counts_only_the_window(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            ident = dict(GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.com", GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="ann@x.com")
+            for date in ["2023-01-01T10:00:00", "2025-01-01T10:00:00", "2026-01-01T10:00:00"]:
+                git("commit", "-q", "--allow-empty", "-m", date, GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date, **ident)
+            meta = run.collect_meta(d, since="2024-06-01")
+        self.assertEqual(meta["commits"], 2)
+        self.assertEqual(meta["first_date"], "2025-01-01")
+        self.assertEqual(meta["since"], "2024-06-01")
+
+
 class RepoName(unittest.TestCase):
     def test_strips_git_suffix_and_takes_last_segment(self):
         self.assertEqual(run.repo_name("https://github.com/o/r.git"), "r")

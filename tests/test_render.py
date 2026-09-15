@@ -61,6 +61,13 @@ class Report(unittest.TestCase):
         self.assertIn("2025", text)
         self.assertIn("21.3 MiB", text)
 
+    def test_header_mentions_the_window_when_bounded(self):
+        r = sample_report()
+        r["meta"]["since"] = "2024-09-15"
+        text = rendered(r, [])
+        self.assertIn("since 2024-09-15", text)
+        self.assertNotIn("since", rendered(sample_report(), []))
+
     def test_header_singular_identity(self):
         r = sample_report()
         r["meta"]["identities"] = r["meta"]["identities"][:1]
