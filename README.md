@@ -204,3 +204,28 @@ The code lives in `gitmole/`: `run.py` plans and executes the tools,
   only read, but the log export and the gitleaks scan touch all branches.
 - Install from the official repos or Homebrew with pinned versions, not from
   forks.
+
+## License
+
+gitmole is released under the [MIT License](LICENSE).
+
+It does not bundle any of the tools it wraps. `bin/install.sh` fetches them
+from their own sources, and gitmole runs them as separate processes. Their
+licences:
+
+| Tool | Licence |
+|---|---|
+| onefetch | MIT |
+| git-quick-stats | MIT |
+| scc | MIT |
+| git-sizer | MIT |
+| gitleaks | MIT |
+| rich | MIT |
+| git-of-theseus | Apache-2.0 |
+| PyDriller | Apache-2.0 |
+| code-maat | GPL-3.0 |
+
+code-maat's GPL applies to code-maat itself. gitmole only invokes the
+standalone jar as a subprocess and never links to or redistributes it, so it
+does not extend to gitmole. If you ever want to ship the jar inside a gitmole
+distribution, that changes; drop it or keep it as a separate download.
