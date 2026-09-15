@@ -41,22 +41,25 @@ def parse_scc(text: str) -> dict:
     }
 
 
+NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes"}
+
+
 def parse_maat_csv(text: str) -> list:
+    """Rows as dicts. Only known numeric columns become ints; a file or author named 2024 stays a string."""
     if not text.strip():
         return []
     out = []
     for row in csv.DictReader(io.StringIO(text)):
-        out.append({k: _num(v) for k, v in row.items()})
+        out.append({k: (_num(v) if k in NUMERIC_COLUMNS else v) for k, v in row.items()})
     return out
 
 
 def _num(v):
-    if v is None:
-        return v
+    """An int for a numeric cell; 0 for a missing, empty or garbage one (a row cut short by a killed step)."""
     try:
         return int(v)
-    except ValueError:
-        return v
+    except (TypeError, ValueError):
+        return 0
 
 
 _SIZER_ROW = re.compile(r"^\|(?P<pad> *)(?P<name>.*?)\s*(?:\[(?P<ref>\d+)\])?\s*\|\s*(?P<value>.*?)\s*\|\s*(?P<concern>\**)\s*\|$")

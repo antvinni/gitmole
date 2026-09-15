@@ -68,10 +68,10 @@ year   lines   share
 2025       2     18%   █████
 
 Knowledge map ──────────────────────────────────────────────────────────────────────────────────────
-area   lines added   main owner           second
-───────────────────────────────────────────────────────────
-app/            20   Ann Example (80%)    Bob Example (20%)
-.                2   Bob Example (100%)   -
+area           lines added   main owner           second
+───────────────────────────────────────────────────────────────────
+app/                    20   Ann Example (80%)    Bob Example (20%)
+(root files)             2   Bob Example (100%)   -
 
 Repo health (git-sizer concerns): nothing flagged
 

@@ -184,6 +184,7 @@ class Plan(unittest.TestCase):
         self.assertEqual(by["scc"]["stdout"], "/o/size.json")
         self.assertIn("--by-file", by["scc"]["argv"])
         self.assertIn("--use-mailmap", by["git-log"]["argv"])
+        self.assertEqual(by["git-log"]["argv"][:4], ["git", "-c", "core.quotePath=false", "log"], "non-ASCII paths must not be octal-escaped and quoted")
 
     def test_code_age_runs_the_bundled_blame_script(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", ignore=["*.csv"])}

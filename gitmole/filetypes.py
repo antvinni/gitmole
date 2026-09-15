@@ -1,8 +1,29 @@
-"""Which files count as source code. Standalone so blame.py and maat.py can import it as scripts."""
+"""Which files count as source code, and how to get paths out of git safely.
+Standalone so blame.py and maat.py can import it as scripts."""
 from __future__ import annotations
 
 import subprocess
 from collections import Counter
+
+# git quotes paths with non-ASCII, quote, backslash or control characters unless told not to;
+# every git call that prints paths goes through this prefix.
+GIT = ["git", "-c", "core.quotePath=false"]
+
+
+def git_paths(repo: str, subcommand: str, *args) -> list:
+    """Paths printed by a git subcommand, read NUL-separated as bytes so nothing is ever quoted
+    and a name that is not valid UTF-8 survives (as surrogate escapes that round-trip into argv)."""
+    out = subprocess.run([*GIT, subcommand, "-z", *args], cwd=repo, capture_output=True).stdout
+    return sorted(p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p)
+
+
+def unquote(path: str) -> str:
+    """Undo git's C-style quoting ("src/\\303\\244.py", "say \\"hi\\".md") when it still appears,
+    e.g. in an older log export. Bytes that are not UTF-8 become U+FFFD."""
+    if len(path) < 2 or path[0] != '"' or path[-1] != '"':
+        return path
+    inner = path[1:-1]
+    return inner.encode("utf-8").decode("unicode_escape").encode("latin-1").decode("utf-8", "replace")
 
 # Source extensions analysed by default. Docs, data and config are deliberately absent.
 DEFAULT = frozenset("""
@@ -43,7 +64,6 @@ def matches(path: str, types) -> bool:
 
 def discover(repo: str, types=DEFAULT) -> list:
     """[(key, file count, included)] over the index, most common first."""
-    out = subprocess.run(["git", "ls-files"], cwd=repo, capture_output=True, text=True, check=True).stdout
-    counts = Counter(key(p) for p in out.split("\n") if p)
+    counts = Counter(key(p) for p in git_paths(repo, "ls-files"))
     rows = [(k, n, matches(f"x.{k}" if k not in NAMES else k, types)) for k, n in counts.items()]
     return sorted(rows, key=lambda r: (-r[1], r[0]))

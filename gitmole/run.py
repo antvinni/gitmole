@@ -125,7 +125,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "gitleaks", "argv": ["gitleaks", "git", "--no-banner", "--report-path", o("secrets.json"), "--exit-code", "0"], "stdout": None, "deps": []},
-        {"name": "git-log", "argv": ["git", "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN--%s", "--no-renames"], "stdout": log, "deps": []},
+        {"name": "git-log", "argv": [*filetypes.GIT, "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN--%s", "--no-renames"], "stdout": log, "deps": []},
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if age:

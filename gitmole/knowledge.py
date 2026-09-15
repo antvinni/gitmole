@@ -4,11 +4,14 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 
+ROOT = "(root files)"
+
+
 def _area(entity: str, depth: int) -> str:
-    parts = entity.split("/")
-    if len(parts) == 1:
-        return "."
-    return "/".join(parts[:min(depth, len(parts) - 1)]) + "/"
+    dirs = entity.split("/")[:-1]
+    if not dirs:
+        return ROOT
+    return "/".join(dirs[:depth]) + "/"
 
 
 def _aggregate(rows: list, depth: int) -> list:
@@ -35,7 +38,7 @@ def areas(ownership_rows: list, dominant: float = 0.8) -> list:
         return []
     top = _aggregate(rows, 1)
     total = sum(a["lines"] for a in top)
-    if top[0]["area"] != "." and top[0]["lines"] >= dominant * total:
+    if top[0]["area"] != ROOT and top[0]["lines"] >= dominant * total:
         return _aggregate(rows, 2)
     return top
 

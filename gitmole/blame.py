@@ -40,8 +40,7 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
 
 def text_files(repo: str, ignore=()) -> list:
     """Tracked, non-binary files, minus ignore globs."""
-    out = subprocess.run(["git", "grep", "-I", "--name-only", "--cached", "-e", ""], cwd=repo, capture_output=True, text=True).stdout
-    files = sorted(set(out.split("\n")) - {""})
+    files = filetypes.git_paths(repo, "grep", "-I", "--name-only", "--cached", "-e", "")
     return [f for f in files if not any(fnmatch.fnmatch(f, g) for g in ignore)]
 
 
@@ -113,9 +112,9 @@ def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, proc
     cohorts = _series(years, lambda y: f"Code added in {y}")
     order = sorted(range(len(cohorts["labels"])), key=lambda i: cohorts["labels"][i])
     cohorts = {"labels": [cohorts["labels"][i] for i in order], "ts": cohorts["ts"], "y": [cohorts["y"][i] for i in order]}
-    with open(os.path.join(out_dir, "theseus", "cohorts.json"), "w") as fh:
+    with open(os.path.join(out_dir, "theseus", "cohorts.json"), "w", encoding="utf-8") as fh:
         json.dump(cohorts, fh)
-    with open(os.path.join(out_dir, "theseus", "authors.json"), "w") as fh:
+    with open(os.path.join(out_dir, "theseus", "authors.json"), "w", encoding="utf-8") as fh:
         json.dump(_series(authors, lambda a: a), fh)
     return {"files": len(files), "lines": sum(years.values())}
 
