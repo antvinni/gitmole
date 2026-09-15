@@ -83,6 +83,60 @@ All tools run concurrently, so a run takes about as long as the slowest tool
 (usually git-of-theseus or code-maat). Tool stderr goes to `run.log` in the
 output directory, not the terminal.
 
+## Example
+
+Running `gitmole .` inside this repository:
+
+```text
+╭─ gitmole ────────────────────────────────────────────────────────────────────╮
+│ 6 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main         │
+│ 1,153 lines in 17 files  ·  Python, Markdown, Shell                          │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Findings (1) ───────────────────────────────────────────────────────────────╮
+│ ▲ Bus factor of one                                                          │
+│   vinni wrote 100% of the code that survives today.                          │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Size by language
+language   files    code   share   complexity
+─────────────────────────────────────────────
+Python        15   1,015     88%          250
+Markdown       1     123     11%            0
+Shell          1      15      1%            1
+People
+author   email                 commits   share   surviving code
+───────────────────────────────────────────────────────────────
+vinni    5262575+antvinni@users.noreply.github.com         6    100%             100%
+Hotspots (most revised files)
+file                   revisions   authors   months idle
+────────────────────────────────────────────────────────
+README.md                      4         1             0
+gitmole/cli.py                 3         1             0
+bin/analyse.sh                 3         1             0
+bin/install.sh                 3         1             0
+tests/test_cli.py              2         1             0
+gitmole/banner.py              2         1             0
+tests/test_banner.py           2         1             0
+tests/test_run.py              1         1             0
+tests/test_load.py             1         1             0
+gitmole/load.py                1         1             0
+Change coupling
+no pairs with 5+ shared revisions
+
+Surviving code by year written
+year   lines   share
+─────────────────────────────────────────────────────
+2026   1,292    100%   ██████████████████████████████
+Repo health (git-sizer concerns)
+nothing flagged
+
+Secrets: none found
+
+Full results and plots in ../analysis-gitmole
+```
+
+In a terminal the banner pulses in neon while the tools run, and the
+findings and tables are coloured. Piped output, as above, is plain text.
+
 ### The terminal report
 
 1. **Header**: commits, date span, identities, branch, size, top languages.

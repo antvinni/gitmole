@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from rich import box
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -11,7 +11,9 @@ SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 
 
-def _table(title: str, *columns, rows=(), **kw) -> Table:
+def _table(title: str, *columns, rows=(), empty: str = None, **kw):
+    if not rows and empty:
+        return Group(Text(title, style="table.title"), Text(empty, style="dim"), Text(""))
     t = Table(title=title, title_justify="left", box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, **kw)
     for col in columns:
         name, opts = (col, {}) if isinstance(col, str) else col
@@ -32,7 +34,7 @@ def header(report: dict) -> Panel:
     body = Text()
     body.append(f"{m.get('commits', 0)} commits", style="bold")
     body.append(f"  ·  {m.get('first_date', '?')} → {m.get('last_date', '?')}")
-    body.append(f"  ·  {len(ids)} identities  ·  branch {m.get('branch', '?')}\n")
+    body.append(f"  ·  {len(ids)} {'identity' if len(ids) == 1 else 'identities'}  ·  branch {m.get('branch', '?')}\n")
     body.append(f"{report['size']['total_code']:,} lines in {report['size']['total_files']} files  ·  {langs}")
     return Panel(body, title=f"[bold]{m.get('name', 'repo')}[/bold]", title_align="left", border_style="blue")
 
@@ -78,8 +80,8 @@ def hotspots_table(report: dict) -> Table:
 
 def coupling_table(report: dict) -> Table:
     rows = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))[:10]
-    return _table("Change coupling (files that change together)", ("file", {"overflow": "fold"}), ("changes with", {"overflow": "fold"}), ("degree", {"justify": "right"}), ("avg revs", {"justify": "right"}),
-                  rows=[(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in rows])
+    return _table("Change coupling", ("file", {"overflow": "fold"}), ("changes with", {"overflow": "fold"}), ("degree", {"justify": "right"}), ("avg revs", {"justify": "right"}),
+                  rows=[(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in rows], empty="no pairs with 5+ shared revisions")
 
 
 def age_table(report: dict) -> Table:
@@ -94,7 +96,7 @@ def age_table(report: dict) -> Table:
 
 def health_table(report: dict) -> Table:
     rows = [(r["name"], r["value"], "*" * r["concern"], r["ref"]) for r in report.get("sizer") or []]
-    return _table("Repo health (git-sizer concerns)", "metric", ("value", {"justify": "right"}), "concern", ("object", {"overflow": "fold"}), rows=rows or [("nothing flagged", "", "", "")])
+    return _table("Repo health (git-sizer concerns)", "metric", ("value", {"justify": "right"}), "concern", ("object", {"overflow": "fold"}), rows=rows, empty="nothing flagged")
 
 
 def report(report: dict, findings: list, console: Console) -> None:

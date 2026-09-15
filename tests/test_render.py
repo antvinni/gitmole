@@ -56,6 +56,21 @@ class Report(unittest.TestCase):
         self.assertIn("2025", text)
         self.assertIn("21.3 MiB", text)
 
+    def test_header_singular_identity(self):
+        r = sample_report()
+        r["meta"]["identities"] = r["meta"]["identities"][:1]
+        text = rendered(r, [])
+        self.assertIn("1 identity ", text)
+        self.assertNotIn("1 identities", text)
+
+    def test_empty_coupling_table_says_none_and_keeps_short_title(self):
+        r = sample_report()
+        r["coupling"] = []
+        text = rendered(r, [], width=60)
+        self.assertIn("Change coupling", text)
+        self.assertIn("no pairs with 5+ shared revisions", text)
+        self.assertNotIn("together)\n", text.replace("(files that change\ntogether)", "together)\n"))
+
     def test_footer_points_at_output_dir(self):
         self.assertIn("/tmp/analysis-demo", rendered(sample_report(), []))
 
