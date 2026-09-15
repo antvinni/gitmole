@@ -90,7 +90,9 @@ size, and the worst finding per repo. `--markdown` and `--json` write a
 portfolio document with every repo's findings; `--fail-on` looks across all
 of them.
 
-Options: `--out DIR` to choose the output directory, `--no-run DIR` to
+Options: `--full` for every column and every row (the default report keeps
+the columns you read, caps each table, and elides long paths in the
+middle), `--out DIR` to choose the output directory, `--no-run DIR` to
 re-render the report from an earlier run, `--since 2y` (or `18m`, `90d`, a
 date) to bound the history by author date so people, activity, timeline,
 hotspots and coupling describe the current team rather than the founders
@@ -151,90 +153,118 @@ Running `gitmole .` inside this repository:
 
 ```text
 ╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 28 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main                            │
-│ 3,372 lines in 28 files  ·  Python, SVG, Markdown, License                                       │
+│ 45 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main                             │
+│ 4,295 lines in 37 files  ·  Python, SVG, Markdown, Plain Text                                    │
+│ 2 warnings, 2 notes                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
+╭─ Findings (4) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ▲ Bus factor of one                                                                              │
 │   vinni wrote 100% of the code that survives today.                                              │
+│ ▲ Knowledge islands                                                                              │
+│   3 area(s) with at least 200 lines were written almost entirely by one person: build/ (vinni    │
+│   100%); tests/ (vinni 100%); gitmole/ (vinni 100%). That is 99% of all lines added              │
+│   ↳ Pair or review across them before that person is unavailable.                                │
 │ ● Files that always change together                                                              │
-│   10 pairs change together at least 80% of the time, e.g. gitmole/run.py + tests/test_run.py     │
-│   (100%); gitmole/render.py + tests/test_render.py (95%); gitmole/cli.py + tests/test_cli.py     │
-│   (88%). Usually a shared layout or a hidden dependency.                                         │
+│   17 pairs change together at least 80% of the time, e.g. gitmole/run.py + tests/test_run.py     │
+│   (100%); gitmole/maat.py + tests/test_maat.py (100%); gitmole/findings.py +                     │
+│   tests/test_findings.py (100%). Usually a shared layout or a hidden dependency.                 │
+│ ● One person under several identities                                                            │
+│   antvinni <5262575+antvinni@users.noreply.github.com> merged into vinni                         │
+│   <5262575+antvinni@users.noreply.github.com> by name and email similarity                       │
+│   ↳ Add a .mailmap to make it permanent.                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-Size by language
-language   files    code   share   complexity
-─────────────────────────────────────────────
-Python        24   2,679     79%          742
-SVG            1     399     12%            0
-Markdown       1     268      8%            0
-License        1      17      1%            0
-Shell          1       9      0%            1
-People
-author   email                                       commits   share   surviving code
-─────────────────────────────────────────────────────────────────────────────────────
-vinni    5262575+antvinni@users.noreply.github.com        28    100%             100%
-Activity
+
+Size by language ───────────────────────────────────────────────────────────────────────────────────
+language     files    code   share
+──────────────────────────────────
+Python          31   3,466     81%
+SVG              1     399      9%
+Markdown         1     308      7%
+Plain Text       1      67      2%
+TOML             1      29      1%
+License          1      17      0%
+Shell            1       9      0%
+
+People ─────────────────────────────────────────────────────────────────────────────────────────────
+author   commits   share   surviving code
+─────────────────────────────────────────
+vinni         45    100%             100%
+
+Activity ───────────────────────────────────────────────────────────────────────────────────────────
 weekday   commits   share
 ────────────────────────────────────────────────
 Mon             0      0%
-Tue            28    100%   ████████████████████
+Tue            45    100%   ████████████████████
 Wed             0      0%
 Thu             0      0%
 Fri             0      0%
 Sat             0      0%
 Sun             0      0%
-busiest hour 20:00 (7 commits)
-Timeline (Oct 2025 → Sep 2026)
+busiest hour 23:00 (15 commits)
+
+Timeline (Oct 2025 → Sep 2026) ─────────────────────────────────────────────────────────────────────
 author   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep
 ──────────────────────────────────────────────────────────────────────────────
-vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    28
-Hotspots (score = revisions × lines of code)
-file                   revs   lines   cplx   score   authors   idle
-───────────────────────────────────────────────────────────────────
-gitmole/cli.py           14     236     94   3,304         1      0
-tests/test_cli.py        11     276     23   3,036         1      0
-tests/test_run.py        11     267     46   2,937         1      0
-gitmole/run.py           11     213     92   2,343         1      0
-gitmole/render.py        10     228    132   2,280         1      0
-tests/test_render.py      9     184      8   1,656         1      0
-gitmole/banner.py         8      84     16     672         1      0
-tests/test_banner.py      6      94     38     564         1      0
-gitmole/maat.py           4     141     59     564         1      0
-tests/test_maat.py        4     126     17     504         1      0
-Change coupling
-file                changes with           degree   avg revs
-────────────────────────────────────────────────────────────
-gitmole/run.py      tests/test_run.py        100%         11
-gitmole/render.py   tests/test_render.py      95%         10
-gitmole/cli.py      tests/test_cli.py         88%         13
-gitmole/render.py   tests/test_cli.py         86%         11
-gitmole/banner.py   tests/test_banner.py      86%          7
-gitmole/run.py      tests/test_cli.py         82%         11
-tests/test_cli.py   tests/test_run.py         82%         11
-gitmole/cli.py      gitmole/run.py            80%         13
-gitmole/cli.py      tests/test_run.py         80%         13
-tests/test_cli.py   tests/test_render.py      80%         10
-Surviving code by year written
+vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    45
+
+Hotspots ───────────────────────────────────────────────────────────────────────────────────────────
+file                   revs   lines   fixes   authors
+─────────────────────────────────────────────────────
+tests/test_run.py        20     333       0         1
+gitmole/render.py        21     317       0         1
+tests/test_cli.py        18     357       0         1
+gitmole/cli.py           21     273       0         1
+tests/test_render.py     20     277       0         1
+gitmole/run.py           20     248       0         1
+tests/test_maat.py       15     176       0         1
+gitmole/maat.py          15     167       0         1
+and 35 more
+
+Change coupling ────────────────────────────────────────────────────────────────────────────────────
+file                  changes with             degree
+─────────────────────────────────────────────────────
+gitmole/run.py        tests/test_run.py          100%
+gitmole/maat.py       tests/test_maat.py         100%
+gitmole/findings.py   tests/test_findings.py     100%
+gitmole/render.py     tests/test_render.py        98%
+gitmole/cli.py        tests/test_cli.py           92%
+and 67 more
+
+Surviving code by year written ─────────────────────────────────────────────────────────────────────
 year   lines   share
 ─────────────────────────────────────────────────────
-2026   3,074    100%   ██████████████████████████████
-Repo health (git-sizer concerns)
-nothing flagged
+2026   5,807    100%   ██████████████████████████████
+
+Knowledge map ──────────────────────────────────────────────────────────────────────────────────────
+area       lines added   main owner     second
+──────────────────────────────────────────────
+build/           3,362   vinni (100%)   -
+tests/           3,208   vinni (100%)   -
+gitmole/         3,109   vinni (100%)   -
+bin/                89   vinni (100%)   -
+
+Repo health (git-sizer concerns): nothing flagged
 
 Secrets: none found
-
 Full results and plots in ../analysis-gitmole
 ```
 
 In a terminal the banner above heads the run: the letters pulse in neon,
 the pixel mole beside them glances side to side while the tools work, and
-the findings and tables are coloured. Piped output, as above, is plain text.
+the findings and tables are coloured, with values past a threshold (coupling
+at 90%, five fixes) in yellow. Piped output, as above, is plain text.
+This is the default report; `--full` adds complexity, score and idle months
+to hotspots, emails to people, average revisions to coupling, the author
+count to the knowledge map, and lifts the row caps. The Markdown export
+keeps every column but caps each table at 50 rows unless `--full`.
 
 ### The terminal report
 
-1. **Header**: commits, date span, identities, branch, size, top languages.
-2. **Findings**: anything the heuristics flagged, worst first. Currently:
+1. **Header**: commits, date span, identities, branch, size, top languages,
+   and a one-line tally of the findings.
+2. **Findings**: anything the heuristics flagged, worst first. Findings of
+   the same kind are grouped into one entry with a list, and advice sits on
+   its own line under the facts. Currently:
    secrets in history, an unconfigured git identity (example.com and the
    like), one author owning most surviving code, git-sizer concerns, one file
    dominating the churn, bug magnets (source files fixed three or more times

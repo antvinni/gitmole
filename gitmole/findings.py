@@ -63,7 +63,7 @@ def sizer_concerns(report: dict) -> list:
     for row in report.get("sizer") or []:
         sev = "warning" if row["concern"] >= 2 else "info"
         where = f" at {row['ref']}" if row.get("ref") else ""
-        out.append(_f(sev, f"Repo health: {row['name']}", f"{row['value']}{where}. git-sizer level of concern {row['concern']}."))
+        out.append(_f(sev, "Repo health", f"{row['name']} is {row['value']}{where}. git-sizer level of concern {row['concern']}."))
     return out
 
 

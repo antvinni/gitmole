@@ -33,6 +33,7 @@ def parse_args(argv):
     p.add_argument("--since", metavar="WHEN", help="only analyse history newer than this: 2y, 18m, 90d or YYYY-MM-DD (code age is always the whole tree)")
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
+    p.add_argument("--full", action="store_true", help="every column and every row in the terminal report (the default is the tighter, readable one)")
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
@@ -160,7 +161,7 @@ def _list_file_types(repo_dir: str, args, console: Console) -> int:
     rows = [(k, n, "yes" if inc else "no") for k, n, inc in filetypes.discover(repo_dir, filetypes.parse(args.file_types))]
     sec = render._section("File types", [("type", {}), ("files", render.RIGHT), ("code", {})], rows, note="no tracked files",
                           caption="code = analysed for hotspots, coupling and code age")
-    console.print(render.rich_table(sec))
+    render.print_section(console, sec)
     return 0
 
 
@@ -258,8 +259,8 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
     if args.markdown:
         _write(render.portfolio_markdown(owner, reports), export_path(args.markdown), console)
     if "-" not in (args.json, args.markdown):
-        console.print(render.rich_table(render.portfolio_section(reports)))
-        console.print(Text(f"\nPer-repository results in {base}", style="dim"))
+        render.print_section(console, render.portfolio_section(reports))
+        console.print(Text(f"\nPer-repository results in {base}", style="dim"), soft_wrap=True)
     all_found = [f for _, _, found in reports for f in found]
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in all_found):
         return 3
@@ -323,9 +324,9 @@ def _render(out_dir: str, console: Console, ui: Console, args) -> int:
     if args.json:
         _write(json.dumps(render.to_json(report, found), indent=2) + "\n", args.json, console)
     if args.markdown:
-        _write(render.markdown(report, found), args.markdown, console)
+        _write(render.markdown(report, found, full=args.full), args.markdown, console)
     if "-" not in (args.json, args.markdown):
-        render.report(report, found, console)
+        render.report(report, found, console, full=args.full)
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
         return 3
     return 0
