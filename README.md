@@ -51,29 +51,49 @@ Requires Homebrew and Python 3. OpenJDK is installed via brew for code-maat.
 ./bin/install.sh
 ```
 
-That runs, roughly:
-
-```bash
-brew install onefetch git-quick-stats scc git-sizer gitleaks openjdk
-python3 -m pip install --user git-of-theseus pydriller
-curl -L -o ~/bin/code-maat.jar \
-  https://github.com/adamtornhill/code-maat/releases/download/v1.0.4/code-maat-1.0.4-standalone.jar
-```
-
-The jar version is pinned in `bin/install.sh`. Check the
+That installs the brew tools, the Python packages (git-of-theseus, PyDriller,
+rich), downloads the pinned code-maat jar to `~/bin`, and symlinks the
+`gitmole` command into Homebrew's bin directory. Check the
 [code-maat releases](https://github.com/adamtornhill/code-maat/releases)
-page before bumping it.
+page before bumping the jar version in `bin/install.sh`.
 
 ## Run
 
 ```bash
-./bin/analyse.sh /path/to/clone
+gitmole .                          # the clone you are in
+gitmole /path/to/clone             # any local clone
+gitmole owner/repo                 # clones with gh into a temp dir first
+gitmole https://github.com/o/r     # same, from a URL
 ```
 
-Output lands in `analysis-<repo-name>/` next to the clone:
+Options: `--out DIR` to choose the output directory, `--no-run DIR` to
+re-render the report from an earlier run, `--jar PATH` if the code-maat jar is
+elsewhere, `--workers N` to change how many tools run at once.
+
+All tools run concurrently, so a run takes about as long as the slowest tool
+(usually git-of-theseus or code-maat). Tool stderr goes to `run.log` in the
+output directory, not the terminal.
+
+### The terminal report
+
+1. **Header**: commits, date span, identities, branch, size, top languages.
+2. **Findings**: anything the heuristics flagged, worst first. Currently:
+   secrets in history, an unconfigured git identity (example.com and the
+   like), one author owning most surviving code, git-sizer concerns, one file
+   dominating the churn, tightly coupled file pairs, a large share of stale
+   files, and one person under several identities.
+3. **Tables**: size by language, people, hotspots, change coupling, surviving
+   code by year, repo health.
+4. **Footer**: where the files and plots are.
+
+### The output directory
+
+Lands in `analysis-<repo>/` next to a local clone, or in the current
+directory for a remote target:
 
 | File | From | What it is |
 |---|---|---|
+| `meta.json` | git | name, branch, commit count, date span, identities |
 | `overview.txt` | onefetch | languages, authors, age, size |
 | `contributors.txt` | git-quick-stats | commits per author, activity by hour and weekday |
 | `size.json` | scc | lines per language, COCOMO estimate |
@@ -88,25 +108,36 @@ Output lands in `analysis-<repo-name>/` next to the clone:
 | `theseus/` | git-of-theseus | raw cohort and survival data |
 | `code-age.png` | git-of-theseus | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus | how long a line of code tends to live |
+| `run.log` | gitmole | every command run and its stderr |
 
 ## How to read the output
 
-1. Start with `overview.txt` and `contributors.txt` for orientation.
-2. Sort `maat-revisions.csv` by count and join it with line counts from
-   `size.json`. Large files that change constantly are your hotspots.
-3. `maat-coupling.csv` shows files that always change together. That usually
-   means a hidden dependency.
-4. `maat-entity-ownership.csv` and the git-of-theseus plots tell you whether
-   knowledge is concentrated in one or two people.
-5. `repo-health.txt` and `secrets.json` are pass or fail checks. Read them
-   only if they flag something.
+1. Start with the header and the findings.
+2. The hotspots table is `maat-revisions.csv` joined with author and age.
+   Large files that change constantly are your risk.
+3. Change coupling shows files that always change together. That usually
+   means a hidden dependency or copy-pasted layout.
+4. People and the code-age plot tell you whether knowledge is concentrated
+   in one or two people.
+5. Repo health and secrets are pass or fail checks. Read them only if they
+   flag something.
+
+## Development
+
+```bash
+python3 -m unittest discover -s tests -t .
+```
+
+The code lives in `gitmole/`: `run.py` plans and executes the tools,
+`load.py` parses their output, `findings.py` holds the heuristics, and
+`render.py` draws the report. `bin/gitmole` is a thin launcher.
 
 ## Safety notes
 
-- Everything here is offline. gitleaks and git-of-theseus never send data
+- Everything here is offline except the optional clone step, which uses
+  your existing gh auth. gitleaks and git-of-theseus never send data
   anywhere.
-- Run against a fresh clone in a scratch directory. code-maat and
-  git-of-theseus only read, but the log export and the gitleaks scan touch all
-  branches, so a throwaway clone keeps things clean.
+- Remote targets are cloned into a fresh temp directory. Local clones are
+  only read, but the log export and the gitleaks scan touch all branches.
 - Install from the official repos or Homebrew with pinned versions, not from
   forks.

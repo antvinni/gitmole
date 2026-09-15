@@ -1,0 +1,151 @@
+"""Resolve the target, plan the tool invocations, and run them concurrently."""
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+
+_OWNER_REPO = re.compile(r"^[\w.-]+/[\w.-]+$")
+_URL = re.compile(r"^(https?://|git@|ssh://)")
+
+
+def classify_target(target: str) -> tuple:
+    if os.path.isdir(target):
+        return ("path", os.path.abspath(target))
+    if _URL.match(target) or _OWNER_REPO.match(target):
+        return ("remote", target)
+    raise ValueError(f"{target!r} is neither a directory, owner/repo, nor a git URL")
+
+
+def repo_name(target: str) -> str:
+    tail = target.rstrip("/").rsplit("/", 1)[-1]
+    return tail[:-4] if tail.endswith(".git") else tail
+
+
+def output_dir(kind: str, repo_dir: str, explicit, cwd: str = None) -> str:
+    if explicit:
+        return os.path.abspath(explicit)
+    name = f"analysis-{repo_name(repo_dir)}"
+    base = os.path.dirname(repo_dir) if kind == "path" else (cwd or os.getcwd())
+    return os.path.join(base, name)
+
+
+def clone(target: str, dest_parent: str) -> str:
+    """Clone a remote target with gh (so private repos use the existing auth)."""
+    dest = os.path.join(dest_parent, repo_name(target))
+    subprocess.run(["gh", "repo", "clone", target, dest], check=True)
+    return dest
+
+
+def env_path() -> str:
+    """PATH with brew's keg-only openjdk and pip's user bin dirs added."""
+    parts = ["/opt/homebrew/opt/openjdk/bin"]
+    lib = os.path.expanduser("~/Library/Python")
+    if os.path.isdir(lib):
+        parts += [os.path.join(lib, v, "bin") for v in sorted(os.listdir(lib), reverse=True)]
+    return os.pathsep.join(parts + [os.environ.get("PATH", "")])
+
+
+REQUIRED_TOOLS = ["onefetch", "git-quick-stats", "scc", "git-sizer", "gitleaks", "java", "git-of-theseus-analyze"]
+
+
+def missing_tools(jar: str) -> list:
+    path = env_path()
+    missing = [t for t in REQUIRED_TOOLS if not any(os.access(os.path.join(d, t), os.X_OK) for d in path.split(os.pathsep) if d)]
+    if not os.path.isfile(jar):
+        missing.append(jar)
+    return missing
+
+
+def plan(repo_dir: str, out_dir: str, jar: str, branch: str = "HEAD") -> list:
+    o = lambda name: os.path.join(out_dir, name)  # noqa: E731
+    log = o("log.txt")
+    steps = [
+        {"name": "onefetch", "argv": ["onefetch", "--no-art", "--no-bold", "--no-color-palette", "--true-color", "never"], "stdout": o("overview.txt"), "deps": []},
+        {"name": "git-quick-stats", "argv": ["git-quick-stats", "-T"], "stdout": o("contributors.txt"), "deps": []},
+        {"name": "scc", "argv": ["scc", "--format", "json"], "stdout": o("size.json"), "deps": []},
+        {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
+        {"name": "gitleaks", "argv": ["gitleaks", "git", "--no-banner", "--report-path", o("secrets.json"), "--exit-code", "0"], "stdout": None, "deps": []},
+        {"name": "git-log", "argv": ["git", "log", "--all", "--numstat", "--date=short", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
+        {"name": "git-of-theseus", "argv": ["git-of-theseus-analyze", ".", "--branch", branch, "--outdir", o("theseus")], "stdout": None, "deps": []},
+        {"name": "theseus stack plot", "argv": ["git-of-theseus-stack-plot", o("theseus/cohorts.json"), "--outfile", o("code-age.png")], "stdout": None, "deps": ["git-of-theseus"]},
+        {"name": "theseus survival plot", "argv": ["git-of-theseus-survival-plot", o("theseus/survival.json"), "--outfile", o("survival.png")], "stdout": None, "deps": ["git-of-theseus"]},
+    ]
+    for analysis in ["revisions", "coupling", "authors", "age", "entity-ownership"]:
+        steps.append({"name": f"code-maat {analysis}", "argv": ["java", "-jar", jar, "-l", log, "-c", "git2", "-a", analysis], "stdout": o(f"maat-{analysis}.csv"), "deps": ["git-log"]})
+    return steps
+
+
+def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_start=None, on_done=None) -> dict:
+    """Run steps concurrently, honouring deps. Returns {name: returncode | 'skipped'}."""
+    results = {}
+    lock = threading.Lock()
+    env = dict(os.environ, PATH=env_path())
+    pending = {s["name"]: s for s in steps}
+
+    def run_one(step):
+        if on_start:
+            on_start(step["name"])
+        with open(log_path, "a") as log:
+            log.write(f"\n==> {step['name']}: {' '.join(step['argv'])}\n")
+            log.flush()
+            out = open(step["stdout"], "w") if step["stdout"] else log
+            try:
+                rc = subprocess.run(step["argv"], cwd=cwd, env=env, stdout=out, stderr=log).returncode
+            finally:
+                if step["stdout"]:
+                    out.close()
+        return step["name"], rc
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = set()
+        while pending or futures:
+            for name in list(pending):
+                step = pending[name]
+                if any(results.get(d) not in (None, 0) for d in step["deps"]):
+                    results[name] = "skipped"
+                    del pending[name]
+                    if on_done:
+                        on_done(name, "skipped")
+                elif all(results.get(d) == 0 for d in step["deps"]):
+                    futures.add(pool.submit(run_one, step))
+                    del pending[name]
+            if not futures:
+                continue
+            done, futures = wait(futures, return_when=FIRST_COMPLETED)
+            for f in done:
+                name, rc = f.result()
+                with lock:
+                    results[name] = rc
+                if on_done:
+                    on_done(name, rc)
+    return results
+
+
+def _git(repo_dir: str, *args) -> str:
+    return subprocess.run(["git", *args], cwd=repo_dir, check=True, capture_output=True, text=True).stdout
+
+
+def collect_meta(repo_dir: str) -> dict:
+    from .load import parse_authors_log
+
+    dates = _git(repo_dir, "log", "--all", "--format=%ad", "--date=short").split()
+    return {
+        "name": repo_name(repo_dir),
+        "path": repo_dir,
+        "branch": _git(repo_dir, "rev-parse", "--abbrev-ref", "HEAD").strip(),
+        "commits": len(dates),
+        "first_date": min(dates) if dates else "",
+        "last_date": max(dates) if dates else "",
+        "identities": parse_authors_log(_git(repo_dir, "log", "--all", "--format=%aN\t%aE")),
+    }
+
+
+def write_meta(repo_dir: str, out_dir: str) -> dict:
+    meta = collect_meta(repo_dir)
+    with open(os.path.join(out_dir, "meta.json"), "w") as fh:
+        json.dump(meta, fh, indent=2)
+    return meta
