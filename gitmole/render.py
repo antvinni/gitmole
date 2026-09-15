@@ -207,3 +207,40 @@ def markdown(report: dict, findings: list) -> str:
 
 def to_json(report: dict, findings: list) -> dict:
     return {**{k: v for k, v in report.items()}, "findings": findings}
+
+
+# --- portfolio -------------------------------------------------------------
+
+def portfolio_section(reports: list) -> dict:
+    """reports: [(name, report, findings)] -> one row per repository."""
+    rows = []
+    for name, rep, found in reports:
+        s = summary(rep)
+        surviving = rep.get("theseus_authors") or {}
+        total = sum(surviving.values())
+        bus = _pct(max(surviving.values()), total) if surviving else "-"
+        worst = f"{found[0]['severity']}: {found[0]['title']}" if found else "-"
+        rows.append((name, s["commits"], s["identities"], bus, len(rep.get("secrets") or []), f"{s['lines']:,}", worst))
+    return _section(f"Portfolio ({len(reports)} repositories)",
+                    [("repo", {"overflow": "fold"}), ("commits", RIGHT), ("people", RIGHT), ("top author", RIGHT),
+                     ("secrets", RIGHT), ("lines", RIGHT), ("worst finding", {"overflow": "fold", "ratio": 2})], rows,
+                    note=None if rows else "no repositories")
+
+
+def portfolio_markdown(owner: str, reports: list) -> str:
+    sec = portfolio_section(reports)
+    out = [f"# {owner}", "", f"{len(reports)} repositories analysed with gitmole.", "", f"## {sec['title']}", ""]
+    if sec["rows"]:
+        out.append("| " + " | ".join(sec["columns"]) + " |")
+        out.append("| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]) + " |")
+        out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sec["rows"]]
+    else:
+        out.append(f"_{sec['note']}_")
+    for name, rep, found in reports:
+        out += ["", f"## {name}", ""]
+        out += [f"- **{f['severity']}** {f['title']} — {f['detail']}" for f in found] or ["Nothing flagged."]
+    return "\n".join(out) + "\n"
+
+
+def portfolio_json(owner: str, reports: list) -> dict:
+    return {"owner": owner, "repos": [{"name": n, "summary": summary(r), "findings": f, "out_dir": r["out_dir"]} for n, r, f in reports]}

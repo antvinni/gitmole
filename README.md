@@ -64,7 +64,15 @@ gitmole .                          # the clone you are in
 gitmole /path/to/clone             # any local clone
 gitmole owner/repo                 # clones with gh into a temp dir first
 gitmole https://github.com/o/r     # same, from a URL
+gitmole 'owner/*'                  # every non-archived repo of a user or org
 ```
+
+The last form is portfolio mode: each repository is cloned and analysed in
+turn into `analysis-<owner>/<repo>/`, then one table summarises them all with
+commits, people, the top author's share of surviving code, secrets found,
+size, and the worst finding per repo. `--markdown` and `--json` write a
+portfolio document with every repo's findings; `--fail-on` looks across all
+of them.
 
 Options: `--out DIR` to choose the output directory, `--no-run DIR` to
 re-render the report from an earlier run, `--plots` to also draw the

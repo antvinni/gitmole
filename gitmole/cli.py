@@ -35,7 +35,8 @@ def parse_args(argv):
     return p.parse_args(argv)
 
 
-def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames) -> int:
+def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
+         lister=run.list_repos, cloner=run.clone) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     console = console or Console()
     err = Console(stderr=True) if console.file is sys.stdout else console
@@ -64,14 +65,23 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         err.print("run bin/install.sh from the gitmole checkout")
         return 2
 
+    if kind == "org":
+        return _portfolio(target, args, console, ui, planner, estimator, lister, cloner)
+
     if kind == "remote":
         parent = tempfile.mkdtemp(prefix="gitmole-", dir=os.environ.get("TMPDIR"))
         ui.print(f"[dim]cloning {target} into {parent}[/dim]")
-        repo_dir = run.clone(target, parent)
+        repo_dir = cloner(target, parent)
     else:
         repo_dir = target
 
     out_dir = run.output_dir(kind, repo_dir, args.out)
+    _analyse(repo_dir, out_dir, args, ui, planner, estimator)
+    return _render(out_dir, console, ui, args)
+
+
+def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator) -> None:
+    """Run the whole pipeline for one repository into out_dir."""
     os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)
     log_path = os.path.join(out_dir, "run.log")
     open(log_path, "w").close()
@@ -81,11 +91,11 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
     if not age_ok:
         ui.print(f"[yellow]code age skipped:[/yellow] about {estimate['files']:,} files to blame exceeds the budget of {args.budget:,}. "
-                      f"Rerun with --deep to force it, or --ignore-data to shrink it.")
+                 f"Rerun with --deep to force it, or --ignore-data to shrink it.")
     if args.plots and not plots_ok:
         ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
-                      f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
-                      f"Rerun with --deep to force them, or --ignore-data to shrink them.")
+                 f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
+                 f"Rerun with --deep to force them, or --ignore-data to shrink them.")
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
 
     meta = run.collect_meta(repo_dir)
@@ -101,11 +111,48 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if results.get("git-of-theseus") == "timeout":
         meta["plots"]["status"] = "timeout"
     run.save_meta(meta, out_dir)
+
     failed = [n for n, rc in results.items() if rc != 0]
     if failed:
         ui.print(f"[yellow]{len(failed)} step(s) did not complete:[/yellow] " + ", ".join(f"{n} ({results[n]})" for n in failed))
         ui.print(f"[dim]details in {log_path}[/dim]\n")
-    return _render(out_dir, console, ui, args)
+
+
+def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimator, lister, cloner) -> int:
+    """Analyse every non-archived repository of an owner and summarise them in one table."""
+    import json
+
+    from . import render
+
+    base = os.path.abspath(args.out) if args.out else os.path.join(os.getcwd(), f"analysis-{owner}")
+    repos = lister(owner)
+    if not repos:
+        ui.print(f"[red]no repositories found for {owner}[/red]")
+        return 2
+    parent = tempfile.mkdtemp(prefix="gitmole-", dir=os.environ.get("TMPDIR"))
+    reports = []
+    for i, name in enumerate(repos, 1):
+        ui.print(f"[bold]{name}[/bold] [dim]({i}/{len(repos)})[/dim]")
+        repo_dir = cloner(f"{owner}/{name}", parent)
+        out_dir = os.path.join(base, name)
+        _analyse(repo_dir, out_dir, args, ui, planner, estimator)
+        report = load.load_report(out_dir)
+        reports.append((name, report, findings.evaluate(report)))
+
+    def export_path(p):
+        return p if p == "-" or os.path.isabs(p) else os.path.join(base, p)
+
+    if args.json:
+        _write(json.dumps(render.portfolio_json(owner, reports), indent=2) + "\n", export_path(args.json), console)
+    if args.markdown:
+        _write(render.portfolio_markdown(owner, reports), export_path(args.markdown), console)
+    if "-" not in (args.json, args.markdown):
+        console.print(render.rich_table(render.portfolio_section(reports)))
+        console.print(Text(f"\nPer-repository results in {base}", style="dim"))
+    all_found = [f for _, _, found in reports for f in found]
+    if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in all_found):
+        return 3
+    return 0
 
 
 def _execute(steps, log_path, repo_dir, workers, console, timeout=None) -> dict:

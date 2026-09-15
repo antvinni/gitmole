@@ -18,9 +18,24 @@ class ClassifyTarget(unittest.TestCase):
     def test_github_url_is_remote(self):
         self.assertEqual(run.classify_target("https://github.com/o/r.git"), ("remote", "https://github.com/o/r.git"))
 
+    def test_owner_star_is_an_org(self):
+        self.assertEqual(run.classify_target("acme/*"), ("org", "acme"))
+
     def test_garbage_raises(self):
         with self.assertRaises(ValueError):
             run.classify_target("not a repo at all")
+
+
+class ListRepos(unittest.TestCase):
+    def test_uses_gh_to_list_non_archived_repos_sorted(self):
+        calls = []
+        def lister(argv):
+            calls.append(argv)
+            return "zeta\nalpha\n"
+        self.assertEqual(run.list_repos("acme", lister=lister), ["alpha", "zeta"])
+        self.assertEqual(calls[0][:3], ["gh", "repo", "list"])
+        self.assertIn("acme", calls[0])
+        self.assertIn("isArchived", " ".join(calls[0]))
 
 
 class RepoName(unittest.TestCase):

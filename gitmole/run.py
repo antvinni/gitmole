@@ -21,6 +21,7 @@ MONTH = 30 * 24 * 3600  # git-of-theseus sampling interval in seconds
 DATA_IGNORES = ["*.csv", "*.json", "*.lock", "*.min.js", "*.min.css", "*.svg", "*.map",
                 "vendor/**", "node_modules/**", "third_party/**", "dist/**", "build/**"]
 
+_ORG = re.compile(r"^[\w.-]+/\*$")
 _OWNER_REPO = re.compile(r"^[\w.-]+/[\w.-]+$")
 _URL = re.compile(r"^(https?://|git@|ssh://)")
 
@@ -28,6 +29,8 @@ _URL = re.compile(r"^(https?://|git@|ssh://)")
 def classify_target(target: str) -> tuple:
     if os.path.isdir(target):
         return ("path", os.path.abspath(target))
+    if _ORG.match(target):
+        return ("org", target[:-2])
     if _URL.match(target) or _OWNER_REPO.match(target):
         return ("remote", target)
     raise ValueError(f"{target!r} is neither a directory, owner/repo, nor a git URL")
@@ -44,6 +47,17 @@ def output_dir(kind: str, repo_dir: str, explicit, cwd: str = None) -> str:
     name = f"analysis-{repo_name(repo_dir)}"
     base = os.path.dirname(repo_dir) if kind == "path" else (cwd or os.getcwd())
     return os.path.join(base, name)
+
+
+def _gh(argv: list) -> str:
+    return subprocess.run(argv, check=True, capture_output=True, text=True).stdout
+
+
+def list_repos(owner: str, lister=_gh) -> list:
+    """Names of the owner's non-archived repositories, via gh."""
+    out = lister(["gh", "repo", "list", owner, "--limit", "500", "--json", "name,isArchived",
+                  "--jq", ".[] | select(.isArchived | not) | .name"])
+    return sorted(set(out.split()))
 
 
 def clone(target: str, dest_parent: str) -> str:

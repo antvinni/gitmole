@@ -175,6 +175,51 @@ class Export(unittest.TestCase):
             self.assertEqual(cli.main([out, "--no-run"], console=console()), 0)
 
 
+class Portfolio(unittest.TestCase):
+    def _run(self, extra=(), fail=False):
+        with tempfile.TemporaryDirectory() as work:
+            def cloner(target, parent):
+                d = os.path.join(parent, target.split("/")[-1])
+                os.makedirs(d)
+                _tiny_repo(d)
+                if target.endswith("two"):
+                    import subprocess
+                    subprocess.run(["git", "-C", d, "-c", "user.name=Your Name", "-c", "user.email=you@example.com",
+                                    "commit", "-q", "--allow-empty", "-m", "x"], check=True)
+                return d
+            planner = lambda repo, out, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            c = console()
+            rc = cli.main(["acme/*", "--out", os.path.join(work, "pf"), *extra], console=c, tool_check=lambda: [], planner=planner,
+                          estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1},
+                          lister=lambda owner: ["one", "two"], cloner=cloner)
+            text = c.export_text()
+            dirs = sorted(os.listdir(os.path.join(work, "pf")))
+            has_meta = all(os.path.isfile(os.path.join(work, "pf", d, "meta.json")) for d in dirs)
+            md = os.path.join(work, "pf", "portfolio.md")
+            md_text = open(md).read() if os.path.exists(md) else ""
+        return rc, text, dirs, has_meta, md_text
+
+    def test_runs_every_repo_and_prints_one_summary_table(self):
+        rc, text, dirs, has_meta, _ = self._run()
+        self.assertEqual(rc, 0)
+        self.assertEqual(dirs, ["one", "two"])
+        self.assertTrue(has_meta)
+        self.assertIn("Portfolio", text)
+        self.assertIn("one", text)
+        self.assertIn("two", text)
+        self.assertIn("Unconfigured git identity", text, "worst finding per repo is shown")
+
+    def test_fail_on_looks_across_all_repos(self):
+        rc, *_ = self._run(["--fail-on", "warning"])
+        self.assertEqual(rc, 3)
+
+    def test_markdown_export_writes_a_portfolio_file(self):
+        rc, _, _, _, md = self._run(["--markdown", "portfolio.md"])
+        self.assertEqual(rc, 0)
+        self.assertTrue(md.startswith("# acme"), md[:40])
+        self.assertIn("| repo |", md)
+
+
 class Arguments(unittest.TestCase):
     def test_bad_target_is_reported_not_raised(self):
         c = console()
