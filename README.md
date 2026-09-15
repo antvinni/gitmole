@@ -79,7 +79,9 @@ of them.
 
 Options: `--out DIR` to choose the output directory, `--no-run DIR` to
 re-render the report from an earlier run, `--plots` to also draw the
-git-of-theseus code-age and survival charts, `--workers N` to change how many
+git-of-theseus code-age and survival charts, `--file-types py,sql` to choose
+which files count as code (or `all`; `--list-file-types` shows what is in the
+tree and what the default includes), `--workers N` to change how many
 tools run at once, `--timeout S` to cap any single tool (default 15 minutes).
 Ctrl-C kills every running step, including their child processes, and exits
 with code 130.
@@ -131,70 +133,74 @@ Running `gitmole .` inside this repository:
 
 ```text
 ╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 25 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main                            │
-│ 2,988 lines in 26 files  ·  Python, SVG, Markdown, License                                       │
+│ 28 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main                            │
+│ 3,372 lines in 28 files  ·  Python, SVG, Markdown, License                                       │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ▲ Bus factor of one                                                                              │
 │   vinni wrote 100% of the code that survives today.                                              │
 │ ● Files that always change together                                                              │
-│   5 pairs change together at least 80% of the time, e.g. gitmole/run.py + tests/test_run.py      │
-│   (100%); gitmole/render.py + tests/test_render.py (92%); gitmole/banner.py +                    │
-│   tests/test_banner.py (86%). Usually a shared layout or a hidden dependency.                    │
+│   10 pairs change together at least 80% of the time, e.g. gitmole/run.py + tests/test_run.py     │
+│   (100%); gitmole/render.py + tests/test_render.py (95%); gitmole/cli.py + tests/test_cli.py     │
+│   (88%). Usually a shared layout or a hidden dependency.                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 Size by language
 language   files    code   share   complexity
 ─────────────────────────────────────────────
-Python        22   2,333     78%          636
-SVG            1     399     13%            0
-Markdown       1     230      8%            0
+Python        24   2,679     79%          742
+SVG            1     399     12%            0
+Markdown       1     268      8%            0
 License        1      17      1%            0
 Shell          1       9      0%            1
 People
 author   email                                       commits   share   surviving code
 ─────────────────────────────────────────────────────────────────────────────────────
-vinni    5262575+antvinni@users.noreply.github.com        25    100%             100%
+vinni    5262575+antvinni@users.noreply.github.com        28    100%             100%
 Activity
 weekday   commits   share
 ────────────────────────────────────────────────
 Mon             0      0%
-Tue            25    100%   ████████████████████
+Tue            28    100%   ████████████████████
 Wed             0      0%
 Thu             0      0%
 Fri             0      0%
 Sat             0      0%
 Sun             0      0%
 busiest hour 20:00 (7 commits)
+Timeline (Oct 2025 → Sep 2026)
+author   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep
+──────────────────────────────────────────────────────────────────────────────
+vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    28
 Hotspots (score = revisions × lines of code)
 file                   revs   lines   cplx   score   authors   idle
 ───────────────────────────────────────────────────────────────────
-README.md                18     230      0   4,140         1      0
-gitmole/cli.py           11     191     76   2,101         1      0
-tests/test_run.py         8     240     41   1,920         1      0
-tests/test_cli.py         8     221     19   1,768         1      0
-gitmole/run.py            8     180     76   1,440         1      0
-gitmole/render.py         7     199    107   1,393         1      0
-tests/test_render.py      6     157      8     942         1      0
+gitmole/cli.py           14     236     94   3,304         1      0
+tests/test_cli.py        11     276     23   3,036         1      0
+tests/test_run.py        11     267     46   2,937         1      0
+gitmole/run.py           11     213     92   2,343         1      0
+gitmole/render.py        10     228    132   2,280         1      0
+tests/test_render.py      9     184      8   1,656         1      0
 gitmole/banner.py         8      84     16     672         1      0
 tests/test_banner.py      6      94     38     564         1      0
-docs/banner.svg           1     399      0     399         1      0
+gitmole/maat.py           4     141     59     564         1      0
+tests/test_maat.py        4     126     17     504         1      0
 Change coupling
 file                changes with           degree   avg revs
 ────────────────────────────────────────────────────────────
-gitmole/run.py      tests/test_run.py        100%          8
-gitmole/render.py   tests/test_render.py      92%          7
+gitmole/run.py      tests/test_run.py        100%         11
+gitmole/render.py   tests/test_render.py      95%         10
+gitmole/cli.py      tests/test_cli.py         88%         13
+gitmole/render.py   tests/test_cli.py         86%         11
 gitmole/banner.py   tests/test_banner.py      86%          7
-gitmole/cli.py      tests/test_cli.py         84%         10
-gitmole/render.py   tests/test_cli.py         80%          8
-gitmole/run.py      tests/test_cli.py         75%          8
-tests/test_cli.py   tests/test_run.py         75%          8
-gitmole/cli.py      gitmole/run.py            74%         10
-gitmole/cli.py      tests/test_run.py         74%         10
-tests/test_cli.py   tests/test_render.py      71%          7
+gitmole/run.py      tests/test_cli.py         82%         11
+tests/test_cli.py   tests/test_run.py         82%         11
+gitmole/cli.py      gitmole/run.py            80%         13
+gitmole/cli.py      tests/test_run.py         80%         13
+tests/test_cli.py   tests/test_render.py      80%         10
 Surviving code by year written
 year   lines   share
 ─────────────────────────────────────────────────────
-2026   2,887    100%   ██████████████████████████████
+2026   3,074    100%   ██████████████████████████████
 Repo health (git-sizer concerns)
 nothing flagged
 
@@ -217,9 +223,14 @@ the findings and tables are coloured. Piped output, as above, is plain text.
    files, and one person under several identities.
 3. **Tables**: size by language, people (identities merged by name and
    email similarity, on top of `.mailmap`), activity by weekday with the
-   busiest hour, hotspots ranked by revisions times lines of code with
+   busiest hour, a timeline of commits per author over the last twelve
+   months, hotspots ranked by revisions times lines of code with
    complexity alongside, change coupling, surviving code by year, repo
    health.
+
+   Hotspots, coupling, ownership and code age only look at source files: a
+   built-in list of code extensions plus names like Makefile and Dockerfile.
+   Size by language, activity and the timeline cover the whole repository.
 4. **Footer**: where the files and plots are.
 
 ### The output directory
@@ -230,7 +241,7 @@ directory for a remote target:
 | File | From | What it is |
 |---|---|---|
 | `meta.json` | git | name, branch, commit count, date span, identities |
-| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; per-author totals |
+| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; per-author totals and monthly timeline |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | gitleaks | any secret-looking strings across all history |

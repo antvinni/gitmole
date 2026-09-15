@@ -122,6 +122,14 @@ class Plan(unittest.TestCase):
         self.assertEqual(argv[argv.index("--ignore") + 1], "*.csv")
         self.assertEqual(argv[argv.index("--aliases") + 1], "/o/meta.json")
 
+    def test_file_types_are_forwarded_to_blame_and_change_analysis(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", types="py,sql")}
+        for name in ("code age", "change analysis"):
+            argv = by[name]["argv"]
+            self.assertEqual(argv[argv.index("--types") + 1], "py,sql", name)
+        by = {s["name"]: s for s in run.plan("/r", "/o")}
+        self.assertNotIn("--types", by["code age"]["argv"], "default types need no flag")
+
     def test_plots_add_theseus_after_code_age(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", plots=True)}
         self.assertEqual(by["git-of-theseus"]["deps"], ["code age"])

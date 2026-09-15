@@ -62,7 +62,7 @@ class Budget(unittest.TestCase):
                 plan_calls.append(kw)
                 return [{"name": "quick", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}]
             rc = cli.main([d, "--out", os.path.join(d, "out"), *extra], console=c,
-                          tool_check=lambda **kw: [], planner=planner, estimator=lambda repo, interval: estimate)
+                          tool_check=lambda **kw: [], planner=planner, estimator=lambda repo, interval, **kw: estimate)
             with open(os.path.join(d, "out", "meta.json")) as fh:
                 meta = json.load(fh)
             return rc, c.export_text(), meta
@@ -144,7 +144,7 @@ class Interrupt(unittest.TestCase):
             box = {}
             def go():
                 box["rc"] = cli.main([d, "--out", os.path.join(d, "out")], console=c, tool_check=lambda **kw: [], planner=planner,
-                                     estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+                                     estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
             t = threading.Thread(target=go)
             t.start()
             time.sleep(0.5)
@@ -165,7 +165,7 @@ class Timeout(unittest.TestCase):
             planner = lambda repo, out, branch="HEAD", **kw: [
                 {"name": "sleepy", "argv": ["sh", "-c", "sleep 3"], "stdout": None, "deps": []}]
             cli.main([d, "--out", os.path.join(d, "out"), "--timeout", "0.3"], console=c,
-                     tool_check=lambda **kw: [], planner=planner, estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1})
+                     tool_check=lambda **kw: [], planner=planner, estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1})
             text = c.export_text()
         self.assertIn("sleepy (timeout)", text)
 
@@ -223,7 +223,7 @@ class Portfolio(unittest.TestCase):
             planner = lambda repo, out, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
             c = console()
             rc = cli.main(["acme/*", "--out", os.path.join(work, "pf"), *extra], console=c, tool_check=lambda **kw: [], planner=planner,
-                          estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1},
+                          estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1},
                           lister=lambda owner: ["one", "two"], cloner=cloner)
             text = c.export_text()
             dirs = sorted(os.listdir(os.path.join(work, "pf")))
@@ -273,6 +273,34 @@ class GhFailures(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("could not clone acme/missing", text)
         self.assertIn("repository not found", text)
+
+
+class FileTypes(unittest.TestCase):
+    def test_list_file_types_prints_the_tree_and_exits(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            for name in ["a.py", "notes.md"]:
+                open(os.path.join(d, name), "w").write("x\n")
+            import subprocess
+            subprocess.run(["git", "-C", d, "add", "-A"], check=True)
+            c = console()
+            rc = cli.main([d, "--list-file-types"], console=c, tool_check=lambda **kw: [])
+            text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertRegex(text, r"py\s+1\s+yes")
+        self.assertRegex(text, r"md\s+1\s+no")
+        self.assertNotIn("Findings", text)
+
+    def test_file_types_reach_the_planner(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            def planner(repo, out, branch="HEAD", **kw):
+                calls.append(kw)
+                return [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            cli.main([d, "--out", os.path.join(d, "out"), "--file-types", "py, sql"], console=console(), tool_check=lambda **kw: [],
+                     planner=planner, estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+        self.assertEqual(calls[0]["types"], "py,sql")
 
 
 class Arguments(unittest.TestCase):
