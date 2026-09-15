@@ -40,6 +40,7 @@ def parse_log(text: str, aliases: dict = None, types=None) -> list:
             commits.append(current)
         elif line.strip() and current is not None:
             added, deleted, path = line.split("\t", 2)
+            path = filetypes.unquote(path)
             if not filetypes.matches(path, types):
                 continue
             current["files"].append((path, int(added) if added.isdigit() else 0, int(deleted) if deleted.isdigit() else 0))
@@ -217,13 +218,13 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filet
     for name, (fn, header) in ANALYSES.items():
         source = commits if name == "age" else windowed   # ages describe the whole history
         rows = fn(source, now=now) if name in NEEDS_NOW else fn(source)
-        with open(os.path.join(out_dir, f"maat-{name}.csv"), "w", newline="") as fh:
+        with open(os.path.join(out_dir, f"maat-{name}.csv"), "w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=header)
             w.writeheader()
             w.writerows(rows)
     act = activity(windowed)
     act["window"] = since
-    with open(os.path.join(out_dir, "activity.json"), "w") as fh:
+    with open(os.path.join(out_dir, "activity.json"), "w", encoding="utf-8") as fh:
         json.dump(act, fh)
 
 

@@ -55,12 +55,11 @@ def parse_maat_csv(text: str) -> list:
 
 
 def _num(v):
-    if v is None:
-        return v
+    """An int for a numeric cell; 0 for a missing, empty or garbage one (a row cut short by a killed step)."""
     try:
         return int(v)
-    except ValueError:
-        return v
+    except (TypeError, ValueError):
+        return 0
 
 
 _SIZER_ROW = re.compile(r"^\|(?P<pad> *)(?P<name>.*?)\s*(?:\[(?P<ref>\d+)\])?\s*\|\s*(?P<value>.*?)\s*\|\s*(?P<concern>\**)\s*\|$")

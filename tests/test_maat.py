@@ -62,6 +62,24 @@ class ParseLog(unittest.TestCase):
         self.assertEqual(commits[0]["files"], [("f.py", 1, 0)])
 
 
+class QuotedPathsInLog(unittest.TestCase):
+    def test_paths_are_unquoted_when_parsed(self):
+        text = '--x--2026-05-04T10:00:00+00:00--Ann--s\n1\t0\t"src/\\303\\244.py"\n2\t0\t"say \\"hi\\".py"\n'
+        commits = maat.parse_log(text, types=None)
+        self.assertEqual([p for p, _, _ in commits[0]["files"]], ["src/\u00e4.py", 'say "hi".py'])
+
+    def test_csv_files_are_written_as_utf8_regardless_of_locale(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w", encoding="utf-8") as fh:
+                fh.write("--x--2026-05-04T10:00:00+00:00--\u00c5nn--s\n1\t0\tsrc/\u4e2d.py\n")
+            maat.write_all(log, d, types=None)
+            with open(os.path.join(d, "maat-entity-ownership.csv"), "rb") as fh:
+                raw = fh.read()
+        self.assertIn("src/\u4e2d.py".encode("utf-8"), raw)
+        self.assertIn("\u00c5nn".encode("utf-8"), raw)
+
+
 class Revisions(unittest.TestCase):
     def test_counts_commits_per_entity(self):
         rows = maat.revisions(maat.parse_log(LOG))

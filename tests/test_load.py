@@ -43,6 +43,13 @@ class ParseMaatCsv(unittest.TestCase):
     def test_empty_text_gives_empty_list(self):
         self.assertEqual(load.parse_maat_csv(""), [])
 
+    def test_truncated_or_empty_numeric_cells_become_zero(self):
+        rows = load.parse_maat_csv("entity,author,added,deleted\napp/x.py,Ann,10,0\napp/y.py,Bob\napp/z.py,Cat,,x\n")
+        self.assertEqual(rows[1]["added"], 0)
+        self.assertEqual(rows[1]["deleted"], 0)
+        self.assertEqual(rows[2]["added"], 0)
+        self.assertEqual(rows[2]["deleted"], 0)
+
     def test_only_numeric_columns_are_converted(self):
         rows = load.parse_maat_csv("entity,author,added,deleted\n2024,1234,10,0\n")
         self.assertEqual(rows, [{"entity": "2024", "author": "1234", "added": 10, "deleted": 0}])

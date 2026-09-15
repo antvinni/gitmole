@@ -40,8 +40,8 @@ class OddNames(unittest.TestCase):
         self.assertEqual([a["area"] for a in areas], ["app/", "(root files)"])
         self.assertEqual(areas[0]["owners"], [("1234", 10), ("Ann", 10)])
 
-    def test_git_quoted_paths_are_unquoted(self):
-        rows = [{"entity": '"src/\\303\\244.py"', "author": "Ann", "added": 900, "deleted": 0},
+    def test_non_ascii_paths_group_with_their_directory(self):
+        rows = [{"entity": "src/\u00e4.py", "author": "Ann", "added": 900, "deleted": 0},
                 {"entity": "src/b.py", "author": "Bob", "added": 100, "deleted": 0}]
         areas = knowledge.areas(rows)
         self.assertEqual([a["area"] for a in areas], ["src/"])
