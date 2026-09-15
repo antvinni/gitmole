@@ -87,18 +87,20 @@ class ParseSince(unittest.TestCase):
     def test_month_end_clamps(self):
         self.assertEqual(run.parse_since("1m", "2026-03-31"), "2026-02-28")
 
-    def test_garbage_raises(self):
-        for bad in ("yesterday", "2y3m", "2026-13-01", ""):
-            with self.assertRaises(ValueError):
+    def test_garbage_raises_a_value_error_with_the_hint(self):
+        for bad in ("yesterday", "2y3m", "2026-13-01", "", "20240101", "1900-01-01", "1000000000d", "99999y"):
+            with self.assertRaises(ValueError) as ctx:
                 run.parse_since(bad, "2026-09-15")
+            self.assertIn("--since", str(ctx.exception), bad)
 
 
 class SinceInPlanAndMeta(unittest.TestCase):
-    def test_plan_bounds_the_log(self):
+    def test_plan_exports_the_full_log_and_hands_the_window_to_the_analysis(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", since="2024-01-01")}
-        self.assertIn("--since=2024-01-01", by["git-log"]["argv"])
-        self.assertNotIn("--since=2024-01-01", by["code age"]["argv"])
-        self.assertFalse([a for a in {s["name"]: s for s in run.plan("/r", "/o")}["git-log"]["argv"] if a.startswith("--since")])
+        self.assertFalse([a for a in by["git-log"]["argv"] if a.startswith("--since")], "git --since is a traversal cutoff on committer date; the window is applied in Python")
+        argv = by["change analysis"]["argv"]
+        self.assertEqual(argv[argv.index("--since") + 1], "2024-01-01")
+        self.assertNotIn("--since", by["code age"]["argv"])
 
     def test_collect_meta_counts_only_the_window(self):
         with tempfile.TemporaryDirectory() as d:
@@ -113,6 +115,36 @@ class SinceInPlanAndMeta(unittest.TestCase):
         self.assertEqual(meta["commits"], 2)
         self.assertEqual(meta["first_date"], "2025-01-01")
         self.assertEqual(meta["since"], "2024-06-01")
+
+    def test_window_uses_author_date_and_survives_an_old_committer_date_on_the_tip(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            ident = dict(GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.com", GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="ann@x.com")
+            git("commit", "-q", "--allow-empty", "-m", "new", GIT_AUTHOR_DATE="2025-01-01T10:00:00", GIT_COMMITTER_DATE="2025-01-01T10:00:00", **ident)
+            # rebased old work: authored 2020, committed 2026 -> outside the window by author date
+            git("commit", "-q", "--allow-empty", "-m", "rebased", GIT_AUTHOR_DATE="2020-03-01T10:00:00", GIT_COMMITTER_DATE="2026-01-01T10:00:00", **ident)
+            # clock-skewed tip: committed "2019" but authored 2026 -> inside; git --since would have stopped here
+            git("commit", "-q", "--allow-empty", "-m", "tip", GIT_AUTHOR_DATE="2026-02-01T10:00:00", GIT_COMMITTER_DATE="2019-01-01T10:00:00", **ident)
+            meta = run.collect_meta(d, since="2024-06-01")
+        self.assertEqual(meta["commits"], 2)
+        self.assertEqual((meta["first_date"], meta["last_date"]), ("2025-01-01", "2026-02-01"))
+
+    def test_aliases_come_from_the_whole_history_even_when_windowed(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            base = dict(GIT_COMMITTER_NAME="x", GIT_COMMITTER_EMAIL="x@x")
+            for name, email, when in [("John Smith", "john@corp", "2019-01-01T10:00:00"), ("john-smith", "j@old", "2019-06-01T10:00:00"),
+                                      ("Zed", "z@x", "2026-01-01T10:00:00")]:
+                git("commit", "-q", "--allow-empty", "-m", name, GIT_AUTHOR_NAME=name, GIT_AUTHOR_EMAIL=email, GIT_AUTHOR_DATE=when, GIT_COMMITTER_DATE=when, **base)
+            meta = run.collect_meta(d, since="2025-01-01")
+        self.assertEqual([i["name"] for i in meta["identities"]], ["Zed"])
+        self.assertEqual(meta["aliases"], {"john-smith": "John Smith"}, "merged from the full history so blame and ownership still merge them")
 
 
 class RepoName(unittest.TestCase):

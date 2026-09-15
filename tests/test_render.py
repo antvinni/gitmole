@@ -165,6 +165,19 @@ class Timeline(unittest.TestCase):
         self.assertIn("Oct", text)
         self.assertNotIn("Old Timer", text, "authors with no commits in the window are left out")
 
+    def test_timeline_starts_at_the_window(self):
+        r = sample_report()
+        r["meta"]["since"] = "2026-07-15"
+        text = rendered(r, [], width=120)
+        self.assertIn("Timeline (Jul 2026 → Sep 2026)", text)
+        self.assertNotIn("Oct", text)
+
+    def test_people_caption_says_what_is_windowed(self):
+        r = sample_report()
+        r["meta"]["since"] = "2026-07-15"
+        text = rendered(r, [])
+        self.assertIn("commits since 2026-07-15; surviving code is for the whole tree", text)
+
     def test_timeline_absent_without_data(self):
         r = sample_report()
         r["activity"] = {}

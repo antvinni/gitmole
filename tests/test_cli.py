@@ -367,6 +367,20 @@ class Since(unittest.TestCase):
         self.assertIn("--since", text)
         self.assertEqual(calls, [])
 
+    def test_empty_window_is_an_error_not_an_empty_report(self):
+        rc, text, calls, meta = self._main(["--since", "2030-01-01"])
+        self.assertEqual(rc, 2)
+        self.assertIn("no commits", text)
+        self.assertEqual(calls, [])
+
+    def test_since_is_refused_with_no_run(self):
+        with tempfile.TemporaryDirectory() as out:
+            _report_dir(out)
+            c = console()
+            rc = cli.main([out, "--no-run", "--since", "2y"], console=c)
+        self.assertEqual(rc, 2)
+        self.assertIn("--since", c.export_text())
+
 
 class Arguments(unittest.TestCase):
     def test_bad_target_is_reported_not_raised(self):

@@ -89,6 +89,8 @@ def estimate(repo: str, files: list = None, ignore=(), sample: int = 25, procs: 
 def aliases_from_meta(path: str) -> dict:
     with open(path) as fh:
         meta = json.load(fh)
+    if "aliases" in meta:
+        return dict(meta["aliases"])
     return {a["name"]: i["name"] for i in meta.get("identities", []) for a in i.get("aliases", [])}
 
 

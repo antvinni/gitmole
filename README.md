@@ -92,9 +92,11 @@ of them.
 
 Options: `--out DIR` to choose the output directory, `--no-run DIR` to
 re-render the report from an earlier run, `--since 2y` (or `18m`, `90d`, a
-date) to bound the history so people, activity, timeline, hotspots and
-coupling describe the current team rather than the founders (code age is a
-blame of today's tree and always covers everything), `--plots` to also draw
+date) to bound the history by author date so people, activity, timeline,
+hotspots and coupling describe the current team rather than the founders
+(file ages and code age always cover the whole history; identity aliases
+are still merged over all of it; an empty window is an error), `--plots` to
+also draw
 the git-of-theseus code-age and survival charts, `--file-types py,sql` to choose
 which files count as code (or `all`; `--list-file-types` shows what is in the
 tree and what the default includes), `--workers N` to change how many

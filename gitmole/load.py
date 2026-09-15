@@ -132,7 +132,7 @@ def load_report(out_dir: str) -> dict:
     meta = json.loads(_read(out_dir, "meta.json") or "{}")
     cohorts = _read(out_dir, "theseus/cohorts.json")
     authors = _read(out_dir, "theseus/authors.json")
-    canonical = identity.canonical_names(meta.get("identities") or [])
+    canonical = dict(meta["aliases"]) if "aliases" in meta else identity.canonical_names(meta.get("identities") or [])
     surviving = OrderedDict()
     for name, lines in (parse_theseus(authors) if authors else {}).items():
         key = canonical.get(name, name)
