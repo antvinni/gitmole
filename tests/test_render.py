@@ -274,6 +274,65 @@ class Layout(unittest.TestCase):
         self.assertIsNone(render.cell_style("file", "5"))
 
 
+class ReviewFixes(unittest.TestCase):
+    def test_print_section_draws_heading_table_and_note(self):
+        c = Console(file=io.StringIO(), width=80, record=True, force_terminal=False, color_system=None)
+        render.print_section(c, render._section("File types", [("type", {})], [["py"]], caption="c = code"))
+        render.print_section(c, render._section("Portfolio (0 repositories)", [("repo", {})], [], note="no repositories"))
+        text = c.export_text()
+        self.assertRegex(text, r"\nFile types ─+\n")
+        self.assertIn("c = code", text)
+        self.assertIn("Portfolio (0 repositories): no repositories", text)
+
+    def test_full_lifts_the_timeline_cap(self):
+        r = sample_report()
+        r["activity"]["timeline"] = {f"Author {i:02d}": {"2026-09": 12 - i} for i in range(12)}
+        compact = next(x for x in render.sections(r, full=False) if x["title"].startswith("Timeline"))
+        full = next(x for x in render.sections(r, full=True) if x["title"].startswith("Timeline"))
+        self.assertEqual((len(compact["rows"]), compact["caption"]), (8, "and 4 more"))
+        self.assertEqual((len(full["rows"]), full["caption"]), (12, None))
+
+    def test_paths_fit_next_to_wide_numbers_at_narrow_widths(self):
+        r = sample_report()
+        long = "services/payments/adapters/stripe_webhook_handler_v2.py"
+        r["revisions"] = [{"entity": long, "n-revs": 12345}]
+        r["size"]["files"] = {long: {"code": 1234567, "complexity": 9}}
+        # 70 is the narrowest width where the 31-character file name fits beside these numbers
+        for width in (70, 76, 84):
+            text = rendered(r, [], width=width)
+            hot = text[text.index("\nHotspots ─"):]
+            self.assertNotRegex(hot, r"\n[a-z_0-9]+\.py\s*\n", f"folded tail at width {width}")
+            self.assertNotRegex(hot, r"\.p\s*\n", f"file name cut at width {width}")
+
+    def test_markdown_rows_are_capped_unless_full(self):
+        r = sample_report()
+        r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 200 - i} for i in range(60)]
+        r["size"]["files"] = {f"f{i}.py": {"code": 10, "complexity": 0} for i in range(60)}
+        import re as _re
+        rows = lambda md: len(_re.findall(r"^\| f\d+\.py \|", md, _re.M))
+        md = render.markdown(r, [])
+        self.assertEqual(rows(md), 50)
+        self.assertIn("_and 10 more_", md)
+        self.assertEqual(rows(render.markdown(r, [], full=True)), 60)
+
+    def test_repo_health_findings_group(self):
+        f = [{"severity": "warning", "title": "Repo health", "detail": "Blobs: Maximum size is 21.3 MiB at a.mp4. git-sizer level of concern 2."},
+             {"severity": "info", "title": "Repo health", "detail": "Trees: Maximum entries is 2.1 k. git-sizer level of concern 1."}]
+        text = rendered(sample_report(), f)
+        self.assertIn("Repo health (2)", text)
+
+    def test_fixes_threshold_has_no_dead_recent_branch(self):
+        self.assertIsNone(render.cell_style("recent", "9"))
+
+    def test_portfolio_markdown_groups_findings_like_the_report(self):
+        rep = sample_report()
+        f = [{"severity": "info", "title": "One person under several identities", "detail": "a merged into A by name and email similarity. Add a .mailmap to make it permanent."},
+             {"severity": "info", "title": "One person under several identities", "detail": "b merged into B by name and email similarity. Add a .mailmap to make it permanent."}]
+        md = render.portfolio_markdown("acme", [("demo", rep, f)])
+        self.assertIn("One person under several identities (2)", md)
+        self.assertEqual(md.count("Add a .mailmap"), 1)
+
+
 class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report(), full=True)

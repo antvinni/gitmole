@@ -62,6 +62,8 @@ class SizerConcerns(unittest.TestCase):
         f = findings.sizer_concerns(r)
         self.assertEqual([x["severity"] for x in f], ["warning", "info"])
         self.assertIn("static/v.mp4", f[0]["detail"])
+        self.assertEqual({x["title"] for x in f}, {"Repo health"}, "one title so the report can group them")
+        self.assertIn("Blobs: Maximum size", f[0]["detail"])
 
 
 class HotspotDominance(unittest.TestCase):

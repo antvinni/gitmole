@@ -287,6 +287,7 @@ class FileTypes(unittest.TestCase):
             rc = cli.main([d, "--list-file-types"], console=c, tool_check=lambda **kw: [])
             text = c.export_text()
         self.assertEqual(rc, 0)
+        self.assertRegex(text, r"\nFile types ─+\n")
         self.assertRegex(text, r"py\s+1\s+yes")
         self.assertRegex(text, r"md\s+1\s+no")
         self.assertNotIn("Findings", text)

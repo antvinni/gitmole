@@ -161,7 +161,7 @@ def _list_file_types(repo_dir: str, args, console: Console) -> int:
     rows = [(k, n, "yes" if inc else "no") for k, n, inc in filetypes.discover(repo_dir, filetypes.parse(args.file_types))]
     sec = render._section("File types", [("type", {}), ("files", render.RIGHT), ("code", {})], rows, note="no tracked files",
                           caption="code = analysed for hotspots, coupling and code age")
-    console.print(render.rich_table(sec))
+    render.print_section(console, sec)
     return 0
 
 
@@ -259,11 +259,7 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
     if args.markdown:
         _write(render.portfolio_markdown(owner, reports), export_path(args.markdown), console)
     if "-" not in (args.json, args.markdown):
-        from rich.rule import Rule
-        sec = render.portfolio_section(reports)
-        console.print(Text(""))
-        console.print(Rule(sec["title"], align="left", style="dim"))
-        console.print(render.rich_table(sec))
+        render.print_section(console, render.portfolio_section(reports))
         console.print(Text(f"\nPer-repository results in {base}", style="dim"), soft_wrap=True)
     all_found = [f for _, _, found in reports for f in found]
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in all_found):
@@ -328,7 +324,7 @@ def _render(out_dir: str, console: Console, ui: Console, args) -> int:
     if args.json:
         _write(json.dumps(render.to_json(report, found), indent=2) + "\n", args.json, console)
     if args.markdown:
-        _write(render.markdown(report, found), args.markdown, console)
+        _write(render.markdown(report, found, full=args.full), args.markdown, console)
     if "-" not in (args.json, args.markdown):
         render.report(report, found, console, full=args.full)
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):

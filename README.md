@@ -252,10 +252,11 @@ Full results and plots in ../analysis-gitmole
 In a terminal the banner above heads the run: the letters pulse in neon,
 the pixel mole beside them glances side to side while the tools work, and
 the findings and tables are coloured, with values past a threshold (coupling
-at 90%, five recent fixes) in yellow. Piped output, as above, is plain text.
+at 90%, five fixes) in yellow. Piped output, as above, is plain text.
 This is the default report; `--full` adds complexity, score and idle months
 to hotspots, emails to people, average revisions to coupling, the author
-count to the knowledge map, and lifts the row caps.
+count to the knowledge map, and lifts the row caps. The Markdown export
+keeps every column but caps each table at 50 rows unless `--full`.
 
 ### The terminal report
 

@@ -19,8 +19,9 @@ RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
 PATH = {"overflow": "fold", "no_wrap": False}
 
-# rows shown by default; `full` lifts the caps
-CAPS = {"People": 6, "Hotspots": 8, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8}
+# rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own.
+CAPS = {"People": 6, "Hotspots": 8, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8}
+MARKDOWN_CAP = 50
 
 
 def _pct(part, whole) -> str:
@@ -37,19 +38,41 @@ def _section(title, columns, rows, note=None, caption=None) -> dict:
             "rows": [[str(c) for c in r] for r in rows], "note": note, "caption": caption}
 
 
-def _cap(title: str, rows: list, full: bool):
-    """(rows, caption) after applying the default row cap."""
-    n = CAPS.get(title)
-    if full or n is None or len(rows) <= n:
-        return rows, None
-    return rows[:n], f"and {len(rows) - n} more"
+def _limit(title: str, full, cap=None):
+    """How many rows to keep: None for all. `full` may be False (terminal default), True, or 'markdown'."""
+    if full is True:
+        return None
+    if full == "markdown":
+        return MARKDOWN_CAP
+    return cap if cap is not None else CAPS.get(title)
 
 
-def _path(p: str, width, reserved: int) -> str:
-    """Elide a path to the room left after `reserved` columns of numbers and padding."""
+def _more(total: int, limit) -> str:
+    return f"and {total - limit} more" if limit is not None and total > limit else None
+
+
+def _keep(columns: list, rows: list, names) -> tuple:
+    """Keep only the columns called `names`, in the given order, for both header and rows."""
+    index = {c[0]: i for i, c in enumerate(columns)}
+    picked = [index[n] for n in names]
+    return [columns[i] for i in picked], [tuple(r[i] for i in picked) for r in rows]
+
+
+def _path_room(width, rows: list, columns: list, path_columns: int = 1) -> int:
+    """Characters available to each path column once the other cells and rich's padding are counted."""
     if width is None:
-        return p
-    return textfmt.shorten_path(p, max(24, width - reserved))
+        return None
+    other = [i for i, c in enumerate(columns) if i >= path_columns]
+    widest = sum(max([len(str(r[i])) for r in rows] + [len(columns[i][0])]) for i in other)
+    padding = 3 * (len(columns) - 1)
+    return max(16, (width - widest - padding) // path_columns)
+
+
+def _shorten(rows: list, width, columns: list, path_columns: int = 1) -> list:
+    room = _path_room(width, rows, columns, path_columns)
+    if room is None:
+        return rows
+    return [tuple(textfmt.shorten_path(str(c), room) if i < path_columns else c for i, c in enumerate(r)) for r in rows]
 
 
 # --- data ------------------------------------------------------------------
@@ -70,13 +93,12 @@ def summary(report: dict) -> dict:
 def size_section(report: dict, full: bool = True, width=None) -> dict:
     langs = report["size"]["languages"]
     total = report["size"]["total_code"]
-    rows = [(l["name"], l["files"], f"{l['code']:,}", _pct(l["code"], total), l["complexity"]) for l in langs]
+    limit = _limit("Size by language", full)
+    rows = [(l["name"], l["files"], f"{l['code']:,}", _pct(l["code"], total), l["complexity"]) for l in langs[:limit]]
     columns = [("language", {}), ("files", RIGHT), ("code", RIGHT), ("share", RIGHT), ("complexity", RIGHT)]
-    if not full:
-        rows = [r[:4] for r in rows]
-        columns = columns[:4]
-    rows, caption = _cap("Size by language", rows, full)
-    return _section("Size by language", columns, rows, caption=caption)
+    if full is not True:
+        columns, rows = _keep(columns, rows, ["language", "files", "code", "share"])
+    return _section("Size by language", columns, rows, caption=_more(len(langs), limit))
 
 
 def people_section(report: dict, full: bool = True, width=None) -> dict:
@@ -84,14 +106,14 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     total_commits = sum(i["commits"] for i in ids)
     surviving = report.get("theseus_authors") or {}
     total_lines = sum(surviving.values())
-    rows = [(i["name"], i["email"], i["commits"], _pct(i["commits"], total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids]
+    limit = _limit("People", full)
+    rows = [(i["name"], i["email"], i["commits"], _pct(i["commits"], total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
     columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), ("share", RIGHT), ("surviving code", RIGHT)]
-    if not full:
-        rows = [(r[0], *r[2:]) for r in rows]
-        columns = [columns[0]] + columns[2:]
-    rows, more = _cap("People", rows, full)
+    if full is not True:
+        columns, rows = _keep(columns, rows, ["author", "commits", "share", "surviving code"])
     since = report["meta"].get("since")
     notes = [f"commits since {since}; surviving code is for the whole tree"] if since else []
+    more = _more(len(ids), limit)
     if more:
         notes.append(more)
     return _section("People", columns, rows, caption="\n".join(notes) or None)
@@ -136,7 +158,7 @@ def _month_label(ym: str) -> str:
     return f"{MONTHS[int(ym[5:7]) - 1]} {ym[:4]}"
 
 
-def timeline_section(report: dict, full: bool = True, width=None, months: int = 12, authors: int = 8) -> dict:
+def timeline_section(report: dict, full: bool = True, width=None, months: int = 12) -> dict:
     tl = (report.get("activity") or {}).get("timeline") or {}
     if not tl:
         return _section("Timeline", [("author", {})], [], note="no timeline data")
@@ -147,9 +169,10 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
         span = [m for m in span if m >= since[:7]] or span[-1:]
     columns = [("author", {"overflow": "fold"})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     in_window = {a: sum(per.get(m, 0) for m in span) for a, per in tl.items()}
-    ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0][:authors]
-    rows = [(a, *[tl[a].get(m) or "·" for m in span]) for a in ranked]
-    return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows)
+    ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0]
+    limit = _limit("Timeline", full)
+    rows = [(a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
+    return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))
 
 
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
@@ -163,33 +186,28 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
         info = files.get(r["entity"])
         scored.append((r["n-revs"] * info["code"] if info else -1, r, info))
     scored.sort(key=lambda t: (-t[0], -t[1]["n-revs"], t[1]["entity"]))
-    title = "Hotspots (score = revisions × lines of code)" if full else "Hotspots"
+    title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
+    limit = _limit("Hotspots", full)
     rows = []
-    for score, r, info in scored:
-        name = r["entity"] if full else _path(r["entity"], width, 36)
-        cells = (name, r["n-revs"], f"{info['code']:,}" if info else "-", info["complexity"] if info else "-",
-                 f"{score:,}" if info else "-", fixes.get(r["entity"], 0), authors.get(r["entity"], "-"), ages.get(r["entity"], "-"))
-        rows.append(cells if full else (cells[0], cells[1], cells[2], cells[5], cells[6]))
+    for score, r, info in scored[:limit]:
+        rows.append((r["entity"], r["n-revs"], f"{info['code']:,}" if info else "-", info["complexity"] if info else "-",
+                     f"{score:,}" if info else "-", fixes.get(r["entity"], 0), authors.get(r["entity"], "-"), ages.get(r["entity"], "-")))
     columns = [("file", PATH), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT), ("fixes", RIGHT), ("authors", RIGHT), ("idle", RIGHT)]
-    if not full:
-        columns = [columns[0], columns[1], columns[2], columns[5], columns[6]]
-    rows, caption = _cap("Hotspots", rows, full)
-    return _section(title, columns, rows, caption=caption)
+    if full is not True:
+        columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors"])
+        rows = _shorten(rows, width, columns)
+    return _section(title, columns, rows, caption=_more(len(scored), limit))
 
 
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))
-    reserved = 20
-    half = None if width is None else max(24, (width - reserved) // 2)
-    def name(p):
-        return p if full or half is None else textfmt.shorten_path(p, half)
-    rows = [(name(p["entity"]), name(p["coupled"]), f"{p['degree']}%", p["average-revs"]) for p in pairs]
+    limit = _limit("Change coupling", full)
+    rows = [(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in pairs[:limit]]
     columns = [("file", PATH), ("changes with", PATH), ("degree", RIGHT), ("avg revs", RIGHT)]
-    if not full:
-        rows = [r[:3] for r in rows]
-        columns = columns[:3]
-    rows, caption = _cap("Change coupling", rows, full)
-    return _section("Change coupling", columns, rows, note=None if rows else "no pairs with 5+ shared revisions", caption=caption)
+    if full is not True:
+        columns, rows = _keep(columns, rows, ["file", "changes with", "degree"])
+        rows = _shorten(rows, width, columns, path_columns=2)
+    return _section("Change coupling", columns, rows, note=None if rows else "no pairs with 5+ shared revisions", caption=_more(len(pairs), limit))
 
 
 def age_section(report: dict, full: bool = True, width=None) -> dict:
@@ -232,16 +250,15 @@ def age_fallback_section(report: dict) -> dict:
 def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     """Ownership by area of the tree: who wrote most of each directory."""
     areas = knowledge.areas(report.get("ownership") or [])
+    limit = _limit("Knowledge map", full)
     rows = []
-    for a in areas:
+    for a in areas[:limit]:
         owners = [f"{name} ({_pct(n, a['lines'])})" for name, n in a["owners"][:2]] + ["-"]
         rows.append((a["area"], f"{a['lines']:,}", a["authors"], owners[0], owners[1]))
     columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("main owner", {}), ("second", {})]
-    if not full:
-        rows = [(r[0], r[1], r[3], r[4]) for r in rows]
-        columns = [columns[0], columns[1], columns[3], columns[4]]
-    rows, caption = _cap("Knowledge map", rows, full)
-    return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption=caption)
+    if full is not True:
+        columns, rows = _keep(columns, rows, ["area", "lines added", "main owner", "second"])
+    return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption=_more(len(areas), limit))
 
 
 def health_section(report: dict, full: bool = True, width=None) -> dict:
@@ -302,7 +319,7 @@ def cell_style(column: str, value: str):
     try:
         if column == "degree" and int(value.rstrip("%")) >= 90:
             return "yellow"
-        if column in ("fixes", "recent") and int(value) >= 5:
+        if column == "fixes" and int(value) >= 5:
             return "yellow"
     except ValueError:
         pass
@@ -323,16 +340,21 @@ def rich_table(sec: dict):
     return t
 
 
+def print_section(console: Console, sec: dict) -> None:
+    """Blank line, then either 'title: note' for an empty section or a left rule and the table."""
+    console.print(Text(""))
+    if not sec["rows"] and sec["note"]:
+        console.print(Text(f"{sec['title']}: {sec['note']}", style="dim"))
+        return
+    console.print(Rule(sec["title"], align="left", style="dim"))
+    console.print(rich_table(sec))
+
+
 def report(report: dict, findings: list, console: Console, full: bool = False) -> None:
     console.print(header(report, findings))
     console.print(findings_panel(findings))
     for sec in sections(report, full=full, width=console.width):
-        console.print(Text(""))
-        if not sec["rows"] and sec["note"]:
-            console.print(Text(f"{sec['title']}: {sec['note']}", style="dim"))
-            continue
-        console.print(Rule(sec["title"], align="left", style="dim"))
-        console.print(rich_table(sec))
+        print_section(console, sec)
     console.print(Text(""))
     console.print(Text(secrets_line(report), style="red" if report.get("secrets") else "green"))
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
@@ -344,21 +366,26 @@ def _md_cell(cell: str) -> str:
     return cell.replace("|", "\\|").replace("\n", " ")
 
 
-def markdown(report: dict, findings: list) -> str:
+def _md_findings(findings: list) -> list:
+    if not findings:
+        return ["Nothing flagged."]
+    out = []
+    for g in textfmt.group_findings(findings):
+        line = f"- **{g['severity']}** {g['title']} — " + "; ".join(g["items"])
+        if g["advice"]:
+            line += f" _{g['advice']}_"
+        out.append(line)
+    return out
+
+
+def markdown(report: dict, findings: list, full: bool = False) -> str:
     s = summary(report)
     out = [f"# {s['name']}", "",
            f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "") + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
            f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}", "",
            "## Findings", ""]
-    if findings:
-        for g in textfmt.group_findings(findings):
-            line = f"- **{g['severity']}** {g['title']} — " + "; ".join(g["items"])
-            if g["advice"]:
-                line += f" _{g['advice']}_"
-            out.append(line)
-    else:
-        out.append("Nothing flagged.")
-    for sec in sections(report, full=True):
+    out += _md_findings(findings)
+    for sec in sections(report, full=True if full else "markdown"):
         out += ["", f"## {sec['title']}", ""]
         if not sec["rows"]:
             out.append(f"_{sec['note'] or 'nothing'}_")
@@ -405,7 +432,7 @@ def portfolio_markdown(owner: str, reports: list) -> str:
         out.append(f"_{sec['note']}_")
     for name, rep, found in reports:
         out += ["", f"## {name}", ""]
-        out += [f"- **{f['severity']}** {f['title']} — {f['detail']}" for f in found] or ["Nothing flagged."]
+        out += _md_findings(found)
     return "\n".join(out) + "\n"
 
 
