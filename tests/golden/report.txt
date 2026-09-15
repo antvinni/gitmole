@@ -1,0 +1,61 @@
+╭─ demo ───────────────────────────────────────────────────────────────────────────────────────────╮
+│ 8 commits  ·  2024-01-10 → 2025-05-30  ·  2 identities  ·  branch main                           │
+│ 13 lines in 5 files  ·  Python, CSV, Makefile, Markdown                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
+│ ● Files that always change together                                                              │
+│   1 pair changes together at least 80% of the time, e.g. app/main.py + app/util.py (83%).        │
+│   Usually a shared layout or a hidden dependency.                                                │
+│ ● One person under several identities                                                            │
+│   bob-example <9999+bob-example@users.noreply.demo.test> merged into Bob Example <bob@demo.test> │
+│   by name and email similarity. Add a .mailmap to make it permanent.                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+Size by language                            
+language   files   code   share   complexity
+────────────────────────────────────────────
+Python         2      8     62%            1
+CSV            1      2     15%            0
+Makefile       1      2     15%            0
+Markdown       1      1      8%            0
+People                                                        
+author        email           commits   share   surviving code
+──────────────────────────────────────────────────────────────
+Ann Example   ann@demo.test         5     62%              64%
+Bob Example   bob@demo.test         3     38%              36%
+Activity                           
+weekday   commits   share          
+───────────────────────────────────
+Mon             0      0%          
+Tue             0      0%          
+Wed             3     38%   ███████
+Thu             2     25%   █████  
+Fri             1     12%   ██     
+Sat             0      0%          
+Sun             2     25%   █████  
+Timeline (Jun 2024 → May 2025)                                                     
+author        Jun   Jul   Aug   Sep   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May
+───────────────────────────────────────────────────────────────────────────────────
+Ann Example     1     ·     ·     ·     ·     ·     1     ·     ·     1     ·     ·
+Bob Example     ·     ·     ·     1     ·     ·     ·     ·     ·     ·     ·     1
+Hotspots (score = revisions × lines of code)              
+file          revs   lines   cplx   score   authors   idle
+──────────────────────────────────────────────────────────
+app/main.py      7       6      1      42         2      0
+app/util.py      5       2      0      10         2      3
+Makefile         1       2      0       2         1      9
+app/old.py       2       -      -       -         2      0
+Change coupling                               
+file          changes with   degree   avg revs
+──────────────────────────────────────────────
+app/main.py   app/util.py       83%          6
+Surviving code by year written                 
+year   lines   share                           
+───────────────────────────────────────────────
+2024       9     82%   ████████████████████████
+2025       2     18%   █████                   
+Repo health (git-sizer concerns)
+nothing flagged
+
+Secrets: none found
+
+Full results and plots in <out>

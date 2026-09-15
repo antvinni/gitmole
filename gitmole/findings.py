@@ -80,8 +80,9 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
         return []
     pairs.sort(key=lambda p: (-p["degree"], -p["average-revs"]))
     top = "; ".join(f"{p['entity']} + {p['coupled']} ({p['degree']}%)" for p in pairs[:3])
+    count = f"{len(pairs)} pair changes" if len(pairs) == 1 else f"{len(pairs)} pairs change"
     return [_f("info", "Files that always change together",
-               f"{len(pairs)} pairs change together at least {min_degree}% of the time, e.g. {top}. Usually a shared layout or a hidden dependency.")]
+               f"{count} together at least {min_degree}% of the time, e.g. {top}. Usually a shared layout or a hidden dependency.")]
 
 
 def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:

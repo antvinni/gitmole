@@ -138,6 +138,26 @@ class NetByYear(unittest.TestCase):
         self.assertEqual(a["net_by_year"], {"2025": 5, "2026": 12})
 
 
+class NowOverride(unittest.TestCase):
+    def test_gitmole_now_fixes_the_age_reference_date(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                fh.write(LOG)
+            before = os.environ.get("GITMOLE_NOW")
+            os.environ["GITMOLE_NOW"] = "2030-01-01"
+            try:
+                maat.write_all(log, d)
+            finally:
+                if before is None:
+                    del os.environ["GITMOLE_NOW"]
+                else:
+                    os.environ["GITMOLE_NOW"] = before
+            with open(os.path.join(d, "maat-age.csv")) as fh:
+                rows = dict(line.strip().split(",") for line in fh.readlines()[1:])
+        self.assertEqual(rows["src/a.py"], "44")   # 2026-04-03 -> 2030-01-01
+
+
 class WriteAll(unittest.TestCase):
     def test_writes_the_five_csv_files_in_code_maat_layout(self):
         with tempfile.TemporaryDirectory() as d:

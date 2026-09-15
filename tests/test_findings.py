@@ -83,6 +83,11 @@ class TightCoupling(unittest.TestCase):
         self.assertIn("2 pairs", f[0]["detail"])
         self.assertIn("a", f[0]["detail"])
 
+    def test_single_pair_reads_grammatically(self):
+        pairs = [{"entity": "a", "coupled": "b", "degree": 100, "average-revs": 10}]
+        f = findings.tight_coupling(report(coupling=pairs))
+        self.assertIn("1 pair changes together", f[0]["detail"])
+
     def test_nothing_when_no_tight_pairs(self):
         self.assertEqual(findings.tight_coupling(report()), [])
 

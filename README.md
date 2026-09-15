@@ -275,6 +275,19 @@ directory for a remote target:
 python3 -m unittest discover -s tests -t .
 ```
 
+`tests/test_golden.py` builds a small synthetic repository, runs the whole
+pipeline with the real tools, and compares the plain-text report against
+`tests/golden/report.txt`. It skips itself when the tools are not installed.
+When a change to the report is intended, regenerate the stored file and
+review the diff:
+
+```bash
+UPDATE_GOLDEN=1 python3 -m unittest tests.test_golden
+```
+
+The change analysis honours `GITMOLE_NOW=YYYY-MM-DD` as the reference date
+for file ages, which is what keeps that report stable.
+
 `bin/render-banner` regenerates `docs/banner.svg` from the banner code.
 The code lives in `gitmole/`: `run.py` plans and executes the tools,
 `maat.py` is the standalone change analysis (revisions, coupling, authors,

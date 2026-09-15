@@ -155,13 +155,16 @@ def aliases_from_meta(path: str) -> dict:
 
 
 def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT) -> None:
+    """GITMOLE_NOW=YYYY-MM-DD fixes the reference date for file ages (used by the end-to-end test)."""
+    now = os.environ.get("GITMOLE_NOW") or None
     with open(log_path, encoding="utf-8", errors="replace") as fh:
         commits = parse_log(fh.read(), aliases_from_meta(aliases_path) if aliases_path else None, types)
     for name, (fn, header) in ANALYSES.items():
+        rows = age(commits, now=now) if name == "age" else fn(commits)
         with open(os.path.join(out_dir, f"maat-{name}.csv"), "w", newline="") as fh:
             w = csv.DictWriter(fh, fieldnames=header)
             w.writeheader()
-            w.writerows(fn(commits))
+            w.writerows(rows)
     with open(os.path.join(out_dir, "activity.json"), "w") as fh:
         json.dump(activity(commits), fh)
 
