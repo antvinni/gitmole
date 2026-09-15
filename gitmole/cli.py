@@ -10,7 +10,7 @@ import time
 
 from rich.console import Console
 
-from . import __version__, findings, load, run
+from . import __version__, banner, findings, load, run
 
 
 def parse_args(argv):
@@ -28,6 +28,8 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools) -> in
     args = parse_args(sys.argv[1:] if argv is None else argv)
     console = console or Console()
     err = Console(stderr=True) if console.file is sys.stdout else console
+    if console.is_terminal:
+        console.print(banner.neon())
 
     if args.no_run:
         out_dir = os.path.abspath(args.target)
