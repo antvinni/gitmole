@@ -118,7 +118,7 @@ class Plan(unittest.TestCase):
         argv = by["code age"]["argv"]
         self.assertTrue(argv[1].endswith("gitmole/blame.py"), argv)
         self.assertEqual(argv[2:4], ["/r", "/o"])
-        self.assertEqual(argv[argv.index("--procs") + 1], str(os.cpu_count()))
+        self.assertEqual(argv[argv.index("--procs") + 1], str(max(1, os.cpu_count() - 2)))
         self.assertEqual(argv[argv.index("--ignore") + 1], "*.csv")
         self.assertEqual(argv[argv.index("--aliases") + 1], "/o/meta.json")
 
@@ -180,9 +180,10 @@ class EstimateBlames(unittest.TestCase):
                 open(os.path.join(d, f"g{i}.py"), "w").write("x")
                 git("add", "-A")
                 git("commit", "-q", "-m", str(i), GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date, **ident)
-            est = run.estimate_blames(d, interval=run.MONTH)
+            est = run.estimate_blames(d, interval=run.MONTH, sample=0)
         # 6 files; 90 days at a 30-day interval would be 4 samples, capped at the 3 commits that exist
-        self.assertEqual(est, {"files": 6, "samples": 3, "blames": 18})
+        self.assertEqual({k: est[k] for k in ("files", "samples", "blames")}, {"files": 6, "samples": 3, "blames": 18})
+        self.assertIn("seconds", est)
 
 
 class Execute(unittest.TestCase):
@@ -218,6 +219,26 @@ class Execute(unittest.TestCase):
             self.assertFalse(os.path.exists(marker), "background child kept running after timeout")
         self.assertEqual(results["slow"], "timeout")
         self.assertEqual(results["after"], "skipped")
+
+    def test_cancel_kills_running_steps_and_marks_pending_ones(self):
+        import threading, time
+        with tempfile.TemporaryDirectory() as d:
+            marker = os.path.join(d, "finished")
+            steps = [{"name": "slow", "argv": ["sh", "-c", f"sleep 5; touch {marker}"], "stdout": None, "deps": []},
+                     {"name": "after", "argv": ["sh", "-c", "true"], "stdout": None, "deps": ["slow"]}]
+            ctl = run.Control()
+            box = {}
+            t = threading.Thread(target=lambda: box.update(run.execute(steps, log_path=os.path.join(d, "run.log"), control=ctl)))
+            t.start()
+            time.sleep(0.3)
+            started = time.monotonic()
+            ctl.cancel()
+            t.join(5)
+            self.assertLess(time.monotonic() - started, 3, "cancel must not wait for the sleep to finish")
+            time.sleep(0.2)
+            self.assertFalse(os.path.exists(marker))
+        self.assertEqual(box["slow"], "cancelled")
+        self.assertEqual(box["after"], "cancelled")
 
     def test_tools_get_a_null_stdin_not_the_parents_terminal(self):
         # Regression: children inheriting an interactive stdin as new session leaders

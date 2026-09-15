@@ -14,8 +14,22 @@ import json
 import os
 import subprocess
 import sys
+import time
 from collections import Counter
 from multiprocessing import Pool
+
+
+def default_procs(cpu: int = None) -> int:
+    """Leave two cores free so the machine stays usable while blame runs."""
+    cpu = cpu or os.cpu_count() or 2
+    return max(1, cpu - 2)
+
+
+def _low_priority():
+    try:
+        os.nice(10)
+    except OSError:
+        pass
 
 
 # Text files that are not code: docs, config, data. git-of-theseus skips these too, and the
@@ -66,6 +80,22 @@ def _job(args):
     return blame_file(*args)
 
 
+def estimate(repo: str, files: list = None, ignore=(), sample: int = 25, procs: int = None, timer=time.monotonic) -> dict:
+    """Project the wall time of the pass by timing a spread of `sample` blames single-threaded."""
+    files = code_files(repo, ignore) if files is None else files
+    procs = procs or default_procs()
+    n = len(files)
+    if not n or not sample:
+        return {"files": n, "seconds": 0.0, "sampled": 0}
+    step = max(1, n // sample)
+    picked = files[::step][:sample]
+    t0 = timer()
+    for f in picked:
+        blame_file(repo, f)
+    per_file = (timer() - t0) / len(picked)
+    return {"files": n, "seconds": per_file * n / procs, "sampled": len(picked)}
+
+
 def aliases_from_meta(path: str) -> dict:
     with open(path) as fh:
         meta = json.load(fh)
@@ -82,7 +112,7 @@ def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, proc
     aliases = aliases_from_meta(aliases_path) if aliases_path else {}
     files = code_files(repo, ignore)
     years, authors = Counter(), Counter()
-    with Pool(procs or os.cpu_count() or 2) as pool:
+    with Pool(procs or default_procs(), initializer=_low_priority) as pool:
         for counts in pool.imap_unordered(_job, [(repo, f) for f in files], chunksize=8):
             for (year, author), n in counts.items():
                 years[year] += n

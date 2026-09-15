@@ -113,6 +113,12 @@ class Activity(unittest.TestCase):
         self.assertEqual(a["by_hour"], [0] * 24)
 
 
+class NetByYear(unittest.TestCase):
+    def test_added_minus_deleted_per_year(self):
+        a = maat.activity(maat.parse_log(LOG + "--h8--2025-12-31T10:00:00+00:00--Ann\n7\t2\told.py\n"))
+        self.assertEqual(a["net_by_year"], {"2025": 5, "2026": 12})
+
+
 class WriteAll(unittest.TestCase):
     def test_writes_the_five_csv_files_in_code_maat_layout(self):
         with tempfile.TemporaryDirectory() as d:

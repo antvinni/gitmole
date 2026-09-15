@@ -10,7 +10,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
-from . import identity
+from . import blame, identity
 
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
@@ -114,11 +114,10 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
          procs: int = None, interval: int = MONTH, ignore=()) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
-    procs = str(procs or os.cpu_count() or 2)
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
-    blame_argv = [sys.executable, BLAME_SCRIPT, repo_dir, out_dir, "--procs", procs, *ignores, "--aliases", o("meta.json")]
+    blame_argv = [sys.executable, BLAME_SCRIPT, repo_dir, out_dir, "--procs", str(procs or blame.default_procs()), *ignores, "--aliases", o("meta.json")]
     theseus_argv = ["git-of-theseus-analyze", ".", "--branch", branch, "--outdir", o("theseus"),
-                    "--procs", procs, "--interval", str(interval), *ignores]
+                    "--procs", str(procs or os.cpu_count() or 2), "--interval", str(interval), *ignores]
     steps = [
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
@@ -137,26 +136,61 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
     return steps
 
 
-def _run_step(argv, cwd, env, stdout, stderr, timeout):
-    """Run one command in its own process group so a timeout can kill its children too.
+class Control:
+    """Shared cancellation state: tracks running process groups so Ctrl-C can kill them all."""
+
+    def __init__(self):
+        self.cancelled = threading.Event()
+        self._procs = set()
+        self._lock = threading.Lock()
+
+    def register(self, proc):
+        with self._lock:
+            self._procs.add(proc)
+
+    def unregister(self, proc):
+        with self._lock:
+            self._procs.discard(proc)
+
+    def cancel(self):
+        self.cancelled.set()
+        with self._lock:
+            procs = list(self._procs)
+        for proc in procs:
+            _killpg(proc)
+
+
+def _killpg(proc):
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def _run_step(argv, cwd, env, stdout, stderr, timeout, control: Control = None):
+    """Run one command in its own process group so a timeout or Ctrl-C can kill its children too.
 
     stdin is /dev/null: these tools never need input, and letting them inherit an
     interactive terminal as a new session leader corrupts the parent's tty (EIO)."""
     proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                             stdout=stdout, stderr=stderr, start_new_session=True)
+    if control:
+        control.register(proc)
     try:
-        return proc.wait(timeout=timeout)
+        rc = proc.wait(timeout=timeout)
+        return "cancelled" if control and control.cancelled.is_set() else rc
     except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        _killpg(proc)
         proc.wait()
         return "timeout"
+    finally:
+        if control:
+            control.unregister(proc)
 
 
-def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_start=None, on_done=None, timeout: float = None) -> dict:
-    """Run steps concurrently, honouring deps. Returns {name: returncode | 'skipped' | 'timeout'}."""
+def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_start=None, on_done=None,
+            timeout: float = None, control: Control = None) -> dict:
+    """Run steps concurrently, honouring deps. Returns {name: returncode | 'skipped' | 'timeout' | 'cancelled'}."""
     results = {}
     lock = threading.Lock()
     env = dict(os.environ, PATH=env_path())
@@ -170,7 +204,7 @@ def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_st
             log.flush()
             out = open(step["stdout"], "w") if step["stdout"] else log
             try:
-                rc = _run_step(step["argv"], cwd, env, out, log, timeout)
+                rc = _run_step(step["argv"], cwd, env, out, log, timeout, control)
                 if rc == "timeout":
                     log.write(f"==> {step['name']}: killed after {timeout}s timeout\n")
             finally:
@@ -183,7 +217,12 @@ def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_st
         while pending or futures:
             for name in list(pending):
                 step = pending[name]
-                if any(results.get(d) not in (None, 0) for d in step["deps"]):
+                if control and control.cancelled.is_set():
+                    results[name] = "cancelled"
+                    del pending[name]
+                    if on_done:
+                        on_done(name, "cancelled")
+                elif any(results.get(d) not in (None, 0) for d in step["deps"]):
                     results[name] = "skipped"
                     del pending[name]
                     if on_done:
@@ -207,13 +246,16 @@ def _git(repo_dir: str, *args) -> str:
     return subprocess.run(["git", *args], cwd=repo_dir, check=True, capture_output=True, text=True).stdout
 
 
-def estimate_blames(repo_dir: str, interval: int = MONTH) -> dict:
-    """Rough cost of git-of-theseus: tracked files times the number of sampled commits."""
+def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int = 25) -> dict:
+    """Cost of the blame passes: a timed projection for the HEAD pass (seconds) and
+    tracked files times sampled commits for git-of-theseus (blames)."""
     files = len(_git(repo_dir, "ls-files").splitlines())
     times = [int(t) for t in _git(repo_dir, "log", "--format=%ct").split()]
     span = (max(times) - min(times)) if times else 0
     samples = min(len(times), span // interval + 1) if times else 0
-    return {"files": files, "samples": samples, "blames": files * samples}
+    projection = blame.estimate(repo_dir, ignore=ignore, sample=sample)
+    return {"files": files, "samples": samples, "blames": files * samples,
+            "seconds": projection["seconds"], "code_files": projection["files"]}
 
 
 def collect_meta(repo_dir: str) -> dict:

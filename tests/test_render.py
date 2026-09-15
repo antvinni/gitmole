@@ -78,6 +78,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["cohorts"] = {}
         r["meta"]["age"] = {"status": "skipped", "files": 80000, "budget": 50000}
+        r["activity"] = {}
         r["age"] = [{"entity": "a", "age-months": 0}, {"entity": "b", "age-months": 2},
                     {"entity": "c", "age-months": 14}, {"entity": "d", "age-months": 30}]
         text = rendered(r, [])
@@ -88,10 +89,22 @@ class Report(unittest.TestCase):
             self.assertRegex(text, rf"{year}\s+{count}\s")
         self.assertNotIn("Surviving code by year written", text)
 
+    def test_age_uses_net_lines_from_the_log_when_blame_skipped(self):
+        r = sample_report()
+        r["cohorts"] = {}
+        r["meta"]["age"] = {"status": "skipped"}
+        r["activity"]["net_by_year"] = {"2025": 8000, "2026": 2000}
+        text = rendered(r, [])
+        self.assertIn("Net lines added by year", text)
+        self.assertIn("code age skipped", text)
+        self.assertRegex(text, r"2025\s+8,000\s+80%")
+        self.assertNotIn("Paths in history", text)
+
     def test_age_says_when_blame_timed_out(self):
         r = sample_report()
         r["cohorts"] = {}
         r["meta"]["age"] = {"status": "timeout"}
+        r["activity"] = {}
         self.assertIn("code age timed out", rendered(r, []))
 
     def test_hotspots_rank_by_revisions_times_lines_and_show_complexity(self):
