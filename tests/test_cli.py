@@ -37,9 +37,9 @@ class LiveRun(unittest.TestCase):
             subprocess.run(["git", "init", "-q", d], check=True)
             subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "--allow-empty", "-m", "x"], check=True)
             c = Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system="truecolor")
-            fake_plan = lambda repo, out, jar, branch="HEAD", **kw: [
+            fake_plan = lambda repo, out, branch="HEAD", **kw: [
                 {"name": "quick", "argv": ["sh", "-c", "sleep 0.3"], "stdout": None, "deps": []}]
-            rc = cli.main([d, "--out", os.path.join(d, "out"), "--jar", "/x.jar"], console=c, tool_check=lambda jar: [], planner=fake_plan)
+            rc = cli.main([d, "--out", os.path.join(d, "out")], console=c, tool_check=lambda: [], planner=fake_plan)
             text = c.export_text()
         self.assertEqual(rc, 0)
         self.assertIn("███╗   ███╗", text)
@@ -58,11 +58,11 @@ class Budget(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             _tiny_repo(d)
             c = console()
-            def planner(repo, out, jar, branch="HEAD", **kw):
+            def planner(repo, out, branch="HEAD", **kw):
                 plan_calls.append(kw)
                 return [{"name": "quick", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}]
-            rc = cli.main([d, "--out", os.path.join(d, "out"), "--jar", "/x.jar", *extra], console=c,
-                          tool_check=lambda jar: [], planner=planner, estimator=lambda repo, interval: estimate)
+            rc = cli.main([d, "--out", os.path.join(d, "out"), *extra], console=c,
+                          tool_check=lambda: [], planner=planner, estimator=lambda repo, interval: estimate)
             with open(os.path.join(d, "out", "meta.json")) as fh:
                 meta = json.load(fh)
             return rc, c.export_text(), meta
@@ -110,10 +110,10 @@ class Timeout(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             _tiny_repo(d)
             c = console()
-            planner = lambda repo, out, jar, branch="HEAD", **kw: [
+            planner = lambda repo, out, branch="HEAD", **kw: [
                 {"name": "sleepy", "argv": ["sh", "-c", "sleep 3"], "stdout": None, "deps": []}]
-            cli.main([d, "--out", os.path.join(d, "out"), "--jar", "/x.jar", "--timeout", "0.3"], console=c,
-                     tool_check=lambda jar: [], planner=planner, estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1})
+            cli.main([d, "--out", os.path.join(d, "out"), "--timeout", "0.3"], console=c,
+                     tool_check=lambda: [], planner=planner, estimator=lambda repo, interval: {"files": 1, "samples": 1, "blames": 1})
             text = c.export_text()
         self.assertIn("sleepy (timeout)", text)
 
@@ -128,11 +128,12 @@ class Arguments(unittest.TestCase):
     def test_missing_tools_are_listed(self):
         with tempfile.TemporaryDirectory() as d:
             c = console()
-            rc = cli.main([d, "--jar", "/nope/code-maat.jar"], console=c, tool_check=lambda jar: ["scc", jar])
+            rc = cli.main([d], console=c, tool_check=lambda: ["scc"])
         text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("scc", text)
         self.assertIn("install.sh", text)
+        self.assertNotIn("jar", text)
 
 
 if __name__ == "__main__":

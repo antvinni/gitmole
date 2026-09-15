@@ -43,27 +43,39 @@ class OutputDir(unittest.TestCase):
 
 class Plan(unittest.TestCase):
     def test_lists_every_tool_and_theseus_plots_depend_on_analyze(self):
-        steps = run.plan("/r", "/o", "/j.jar")
+        steps = run.plan("/r", "/o")
         names = [s["name"] for s in steps]
         for expected in ["onefetch", "git-quick-stats", "scc", "git-sizer", "gitleaks", "git-log",
-                         "code-maat revisions", "code-maat coupling", "code-maat authors", "code-maat age",
-                         "code-maat entity-ownership", "git-of-theseus", "theseus stack plot", "theseus survival plot"]:
+                         "change analysis", "git-of-theseus", "theseus stack plot", "theseus survival plot"]:
             self.assertIn(expected, names)
+        self.assertFalse([n for n in names if n.startswith("code-maat")])
         by = {s["name"]: s for s in steps}
         self.assertEqual(by["theseus stack plot"]["deps"], ["git-of-theseus"])
-        self.assertEqual(by["code-maat coupling"]["deps"], ["git-log"])
+        self.assertEqual(by["change analysis"]["deps"], ["git-log"])
         self.assertEqual(by["onefetch"]["deps"], [])
         self.assertEqual(by["scc"]["stdout"], "/o/size.json")
+        self.assertIn("--by-file", by["scc"]["argv"])
+        self.assertIn("--use-mailmap", by["git-log"]["argv"])
+
+    def test_change_analysis_runs_the_bundled_script_with_the_meta_aliases(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o")}
+        argv = by["change analysis"]["argv"]
+        self.assertTrue(argv[1].endswith("gitmole/maat.py"), argv)
+        self.assertEqual(argv[2:], ["/o/log.txt", "/o", "--aliases", "/o/meta.json"])
+
+    def test_no_java_required(self):
+        self.assertNotIn("java", run.REQUIRED_TOOLS)
+        self.assertEqual(run.missing_tools(), [])
 
     def test_theseus_tracks_the_given_branch(self):
-        by = {s["name"]: s for s in run.plan("/r", "/o", "/j.jar", branch="trunk")}
+        by = {s["name"]: s for s in run.plan("/r", "/o", branch="trunk")}
         argv = by["git-of-theseus"]["argv"]
         self.assertEqual(argv[argv.index("--branch") + 1], "trunk")
 
 
 class PlanTheseusOptions(unittest.TestCase):
     def argv(self, **kw):
-        by = {s["name"]: s for s in run.plan("/r", "/o", "/j.jar", **kw)}
+        by = {s["name"]: s for s in run.plan("/r", "/o", **kw)}
         return by["git-of-theseus"]["argv"]
 
     def test_uses_every_core_and_monthly_sampling_by_default(self):
@@ -78,11 +90,11 @@ class PlanTheseusOptions(unittest.TestCase):
         self.assertIn("vendor/**", argv)
 
     def test_theseus_can_be_left_out_entirely(self):
-        names = [s["name"] for s in run.plan("/r", "/o", "/j.jar", theseus=False)]
+        names = [s["name"] for s in run.plan("/r", "/o", theseus=False)]
         self.assertNotIn("git-of-theseus", names)
         self.assertNotIn("theseus stack plot", names)
         self.assertNotIn("theseus survival plot", names)
-        self.assertIn("code-maat age", names)
+        self.assertIn("change analysis", names)
 
 
 class EstimateBlames(unittest.TestCase):
@@ -178,8 +190,28 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(meta["commits"], 3)
         self.assertEqual(meta["first_date"], "2025-01-02")
         self.assertEqual(meta["last_date"], "2026-03-04")
-        self.assertEqual(meta["identities"], [{"name": "Ann", "email": "ann@x.com", "commits": 2},
-                                              {"name": "Bob", "email": "bob@x.com", "commits": 1}])
+        self.assertEqual(meta["identities"], [{"name": "Ann", "email": "ann@x.com", "commits": 2, "aliases": []},
+                                              {"name": "Bob", "email": "bob@x.com", "commits": 1, "aliases": []}])
+
+    def test_identities_are_merged_and_mailmap_is_honoured(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            base = dict(GIT_COMMITTER_NAME="x", GIT_COMMITTER_EMAIL="x@x")
+            for name, email in [("Ann Lee", "ann@x.com"), ("ann-lee", "1@users.noreply.github.com"), ("Bob", "bob@x.com"), ("Robert", "bob@old.com")]:
+                git("commit", "-q", "--allow-empty", "-m", name, GIT_AUTHOR_NAME=name, GIT_AUTHOR_EMAIL=email, **base)
+            with open(os.path.join(d, ".mailmap"), "w") as fh:
+                fh.write("Bob <bob@x.com> Robert <bob@old.com>\n")
+            git("add", ".mailmap")
+            git("commit", "-q", "-m", "mailmap", GIT_AUTHOR_NAME="Bob", GIT_AUTHOR_EMAIL="bob@x.com", **base)
+            meta = run.collect_meta(d)
+        by = {i["name"]: i for i in meta["identities"]}
+        self.assertEqual(set(by), {"Ann Lee", "Bob"})
+        self.assertEqual(by["Bob"]["commits"], 3)
+        self.assertEqual(by["Bob"]["aliases"], [], "mailmap should merge Robert before the heuristic sees it")
+        self.assertEqual([a["name"] for a in by["Ann Lee"]["aliases"]], ["ann-lee"])
 
 
 if __name__ == "__main__":

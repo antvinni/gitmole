@@ -17,6 +17,20 @@ class ParseScc(unittest.TestCase):
         self.assertEqual(result["total_files"], 6)
 
 
+class ParseSccByFile(unittest.TestCase):
+    def test_collects_per_file_code_and_complexity_with_clean_paths(self):
+        text = json.dumps([
+            {"Name": "Python", "Count": 2, "Code": 100, "Comment": 5, "Blank": 3, "Complexity": 7,
+             "Files": [{"Location": "./src/a.py", "Code": 60, "Complexity": 5}, {"Location": "src/b.py", "Code": 40, "Complexity": 2}]},
+        ])
+        result = load.parse_scc(text)
+        self.assertEqual(result["files"], {"src/a.py": {"code": 60, "complexity": 5}, "src/b.py": {"code": 40, "complexity": 2}})
+        self.assertEqual(result["total_code"], 100)
+
+    def test_files_key_is_empty_without_by_file_data(self):
+        self.assertEqual(load.parse_scc(json.dumps([{"Name": "Go", "Count": 1, "Code": 1, "Comment": 0, "Blank": 0, "Complexity": 0}]))["files"], {})
+
+
 class ParseMaatCsv(unittest.TestCase):
     def test_parses_rows_with_numeric_columns(self):
         text = "entity,n-revs\nstatic/a.json,128\nsrc/b.py,3\n"
@@ -110,6 +124,18 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["sizer"], [])
         self.assertEqual(r["secrets"], [])
         self.assertEqual(r["out_dir"], out)
+
+    def test_surviving_lines_are_re_keyed_to_merged_identities(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "theseus"))
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "demo", "commits": 3, "identities": [
+                    {"name": "Bob", "email": "b@x", "commits": 3, "aliases": [{"name": "Robert", "email": "r@x", "commits": 1}]}]}, fh)
+            with open(os.path.join(out, "theseus/authors.json"), "w") as fh:
+                json.dump({"labels": ["Bob", "Robert", "Ann"], "ts": ["t"], "y": [[70], [20], [10]]}, fh)
+            r = load.load_report(out)
+        self.assertEqual(r["theseus_authors"], {"Bob": 90, "Ann": 10})
 
     def test_missing_optional_file_gives_empty_value(self):
         import tempfile

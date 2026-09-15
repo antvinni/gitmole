@@ -20,20 +20,19 @@ analysis can tell you about a repo.
 | Who commits, when, how much churn | [git-quick-stats](https://github.com/git-quick-stats/git-quick-stats) | brew |
 | How big is the codebase, per language | [scc](https://github.com/boyter/scc) | brew |
 | Is the repo itself healthy (huge blobs, deep trees) | [git-sizer](https://github.com/github/git-sizer) | brew |
-| Where is the risk: hotspots, coupling, ownership | [code-maat](https://github.com/adamtornhill/code-maat) | jar, needs Java |
+| Where is the risk: hotspots, coupling, ownership | gitmole's own change analysis over `git log --numstat` | built in |
 | How old is the surviving code, per year and author | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip |
 | Have secrets ever been committed | [gitleaks](https://github.com/gitleaks/gitleaks) | brew |
 | Anything custom the above don't answer | [PyDriller](https://github.com/ishepard/pydriller) | pip |
 
-The first four give a full picture in under a minute. code-maat and
-git-of-theseus produce the genuinely non-obvious insight, so they are worth
-the extra setup. gitleaks should never be skipped on a repo you did not
+The first four give a full picture in under a minute. The change analysis
+and git-of-theseus produce the genuinely non-obvious insight. gitleaks should never be skipped on a repo you did not
 author. PyDriller is optional and only matters if you want to script your own
 metrics.
 
 ### Considered and left out
 
-- **hercules**: overlaps code-maat and git-of-theseus, and the project is
+- **hercules**: overlaps the change analysis and git-of-theseus, and the project is
   archived. Add it only if you want its burndown charts specifically.
 - **tokei**: duplicates scc without the effort estimate.
 - **git-extras**: convenient, but everything it reports is covered above.
@@ -47,17 +46,14 @@ metrics.
 
 ## Install
 
-Requires Homebrew and Python 3. OpenJDK is installed via brew for code-maat.
+Requires Homebrew and Python 3.
 
 ```bash
 ./bin/install.sh
 ```
 
 That installs the brew tools, the Python packages (git-of-theseus, PyDriller,
-rich), downloads the pinned code-maat jar to `~/bin`, and symlinks the
-`gitmole` command into Homebrew's bin directory. Check the
-[code-maat releases](https://github.com/adamtornhill/code-maat/releases)
-page before bumping the jar version in `bin/install.sh`.
+rich), and symlinks the `gitmole` command into Homebrew's bin directory.
 
 ## Run
 
@@ -69,9 +65,9 @@ gitmole https://github.com/o/r     # same, from a URL
 ```
 
 Options: `--out DIR` to choose the output directory, `--no-run DIR` to
-re-render the report from an earlier run, `--jar PATH` if the code-maat jar is
-elsewhere, `--workers N` to change how many tools run at once, `--timeout S`
-to cap any single tool (default 15 minutes).
+re-render the report from an earlier run,
+`--workers N` to change how many tools run at once, `--timeout S` to cap any
+single tool (default 15 minutes).
 
 All tools run concurrently, so a run takes about as long as the slowest tool.
 Tool stderr goes to `run.log` in the output directory, not the terminal.
@@ -84,8 +80,8 @@ per file per sampled commit. gitmole keeps it in check:
 - it samples monthly rather than weekly and uses every CPU core;
 - before running it estimates the blame count (tracked files × samples) and
   skips git-of-theseus when that exceeds `--budget` (default 50,000). The
-  report then shows paths by the year they were last changed, from
-  code-maat, instead of surviving lines by year written. code-maat counts
+  report then shows paths by the year they were last changed, from the
+  change analysis, instead of surviving lines by year written. That counts
   every path that ever appeared in the log, deleted ones included;
 - `--deep` forces git-of-theseus regardless of the budget;
 - `--ignore-data` excludes data-like files (csv, json, lock files, minified
@@ -102,44 +98,49 @@ Running `gitmole .` inside this repository:
 
 ```text
 ╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 9 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main                             │
-│ 1,445 lines in 18 files  ·  Python, Markdown, License, Shell                                     │
+│ 19 commits  ·  2026-09-15 → 2026-09-15  ·  1 identity  ·  branch main                            │
+│ 2,366 lines in 24 files  ·  Python, SVG, Markdown, License                                       │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (1) ───────────────────────────────────────────────────────────────────────────────────╮
+╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ▲ Bus factor of one                                                                              │
 │   vinni wrote 100% of the code that survives today.                                              │
+│ ● Files that always change together                                                              │
+│   1 pairs change together at least 80% of the time, e.g. gitmole/banner.py +                     │
+│   tests/test_banner.py (86%). Usually a shared layout or a hidden dependency.                    │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 Size by language
 language   files    code   share   complexity
 ─────────────────────────────────────────────
-Python        15   1,207     84%          289
-Markdown       1     206     14%            0
+Python        20   1,739     73%          440
+SVG            1     399     17%            0
+Markdown       1     202      9%            0
 License        1      17      1%            0
-Shell          1      15      1%            1
+Shell          1       9      0%            1
 People
 author   email                                       commits   share   surviving code
 ─────────────────────────────────────────────────────────────────────────────────────
-vinni    5262575+antvinni@users.noreply.github.com         9    100%             100%
-Hotspots (most revised files)
-file                   revisions   authors   months idle
-────────────────────────────────────────────────────────
-README.md                      7         1             0
-gitmole/cli.py                 4         1             0
-tests/test_cli.py              3         1             0
-gitmole/render.py              3         1             0
-tests/test_render.py           3         1             0
-bin/analyse.sh                 3         1             0
-bin/install.sh                 3         1             0
-tests/test_run.py              2         1             0
-gitmole/run.py                 2         1             0
-gitmole/banner.py              2         1             0
+vinni    5262575+antvinni@users.noreply.github.com        19    100%             100%
+Hotspots (score = revisions × lines of code)
+file                   revs   lines   cplx   score   authors   idle
+───────────────────────────────────────────────────────────────────
+README.md                14     202      0   2,828         1      0
+gitmole/cli.py            6     115     35     690         1      0
+gitmole/banner.py         8      84     16     672         1      0
+tests/test_banner.py      6      94     38     564         1      0
+tests/test_run.py         3     181     29     543         1      0
+gitmole/run.py            3     151     57     453         1      0
+docs/banner.svg           1     399      0     399         1      0
+gitmole/render.py         3     121     59     363         1      0
+tests/test_cli.py         3     114      8     342         1      0
+tests/test_render.py      3      96      5     288         1      0
 Change coupling
-no pairs with 5+ shared revisions
-
+file                changes with           degree   avg revs
+────────────────────────────────────────────────────────────
+gitmole/banner.py   tests/test_banner.py      86%          7
 Surviving code by year written
 year   lines   share
 ─────────────────────────────────────────────────────
-2026   1,541    100%   ██████████████████████████████
+2026   2,082    100%   ██████████████████████████████
 Repo health (git-sizer concerns)
 nothing flagged
 
@@ -160,8 +161,10 @@ the findings and tables are coloured. Piped output, as above, is plain text.
    like), one author owning most surviving code, git-sizer concerns, one file
    dominating the churn, tightly coupled file pairs, a large share of stale
    files, and one person under several identities.
-3. **Tables**: size by language, people, hotspots, change coupling, surviving
-   code by year, repo health.
+3. **Tables**: size by language, people (identities merged by name and
+   email similarity, on top of `.mailmap`), hotspots ranked by revisions
+   times lines of code with complexity alongside, change coupling,
+   surviving code by year, repo health.
 4. **Footer**: where the files and plots are.
 
 ### The output directory
@@ -177,12 +180,12 @@ directory for a remote target:
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | gitleaks | any secret-looking strings across all history |
-| `log.txt` | git | the log export code-maat reads |
-| `maat-revisions.csv` | code-maat | change frequency per file |
-| `maat-coupling.csv` | code-maat | files that change together |
-| `maat-authors.csv` | code-maat | authors per file |
-| `maat-age.csv` | code-maat | months since last change per file |
-| `maat-entity-ownership.csv` | code-maat | lines added and deleted per author per file |
+| `log.txt` | git | the numstat log export the change analysis reads |
+| `maat-revisions.csv` | change analysis | change frequency per file |
+| `maat-coupling.csv` | change analysis | files that change together |
+| `maat-authors.csv` | change analysis | authors per file |
+| `maat-age.csv` | change analysis | months since last change per file |
+| `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file |
 | `theseus/` | git-of-theseus | raw cohort and survival data |
 | `code-age.png` | git-of-theseus | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus | how long a line of code tends to live |
@@ -191,8 +194,9 @@ directory for a remote target:
 ## How to read the output
 
 1. Start with the header and the findings.
-2. The hotspots table is `maat-revisions.csv` joined with author and age.
-   Large files that change constantly are your risk.
+2. The hotspots table is `maat-revisions.csv` joined with scc's per-file
+   size and complexity, author count, and age, ranked by revisions times
+   lines. Large files that change constantly are your risk.
 3. Change coupling shows files that always change together. That usually
    means a hidden dependency or copy-pasted layout.
 4. People and the code-age plot tell you whether knowledge is concentrated
@@ -208,8 +212,11 @@ python3 -m unittest discover -s tests -t .
 
 `bin/render-banner` regenerates `docs/banner.svg` from the banner code.
 The code lives in `gitmole/`: `run.py` plans and executes the tools,
-`load.py` parses their output, `findings.py` holds the heuristics, and
-`render.py` draws the report. `bin/gitmole` is a thin launcher.
+`maat.py` is the standalone change analysis (revisions, coupling, authors,
+age, ownership over the numstat log; the file names still say maat because
+the layout matches what code-maat produced), `identity.py` merges author
+aliases, `load.py` parses the outputs, `findings.py` holds the heuristics,
+and `render.py` draws the report. `bin/gitmole` is a thin launcher.
 
 ## Safety notes
 
@@ -239,9 +246,7 @@ licences:
 | rich | MIT |
 | git-of-theseus | Apache-2.0 |
 | PyDriller | Apache-2.0 |
-| code-maat | GPL-3.0 |
 
-code-maat's GPL applies to code-maat itself. gitmole only invokes the
-standalone jar as a subprocess and never links to or redistributes it, so it
-does not extend to gitmole. If you ever want to ship the jar inside a gitmole
-distribution, that changes; drop it or keep it as a separate download.
+The change analysis (hotspots, coupling, ownership, age) is gitmole's own
+code, written after the ideas in Adam Tornhill's code-maat but sharing no
+code with it.

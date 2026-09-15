@@ -21,7 +21,6 @@ def parse_args(argv):
     p.add_argument("target", help="local clone path, owner/repo, or git URL")
     p.add_argument("--out", help="output directory (default: analysis-<repo> next to the clone, or in cwd for remote targets)")
     p.add_argument("--no-run", action="store_true", help="skip the tools; re-render the report from an existing output directory")
-    p.add_argument("--jar", default=os.path.expanduser("~/bin/code-maat.jar"), help="path to the code-maat standalone jar")
     p.add_argument("--workers", type=int, default=6, help="how many tools to run at once")
     p.add_argument("--deep", action="store_true", help="run git-of-theseus even when the repo exceeds the blame budget")
     p.add_argument("--budget", type=int, default=50000, help="max git blames before git-of-theseus is skipped (default 50000)")
@@ -52,7 +51,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         err.print(f"[red]{e}[/red]")
         return 2
 
-    missing = tool_check(args.jar)
+    missing = tool_check()
     if missing:
         err.print("[red]missing tools:[/red] " + ", ".join(missing))
         err.print("run bin/install.sh from the gitmole checkout")
@@ -80,7 +79,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
 
     meta = run.collect_meta(repo_dir)
     meta["theseus"] = {"status": "run" if deep else "skipped", "budget": args.budget, **estimate}
-    steps = planner(repo_dir, out_dir, args.jar, branch=meta["branch"], theseus=deep, ignore=ignore)
+    steps = planner(repo_dir, out_dir, branch=meta["branch"], theseus=deep, ignore=ignore)
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, console, timeout=args.timeout)
 

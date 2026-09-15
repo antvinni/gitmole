@@ -26,11 +26,18 @@ def secrets_found(report: dict) -> list:
     return [_f("critical", f"{len(secrets)} secret(s) in history", f"{sample}{more}. Rotate them; deleting the file does not remove them from git.")]
 
 
+def _all_identities(report: dict):
+    """Every identity row plus its aliases, flattened."""
+    for i in report["meta"].get("identities") or []:
+        yield i
+        for a in i.get("aliases") or []:
+            yield a
+
+
 def placeholder_identity(report: dict) -> list:
-    ids = report["meta"].get("identities") or []
-    total = sum(i["commits"] for i in ids)
+    total = sum(i["commits"] for i in report["meta"].get("identities") or [])
     out = []
-    for i in ids:
+    for i in _all_identities(report):
         if i["name"].strip().lower() in PLACEHOLDER_NAMES or PLACEHOLDER_EMAIL.search(i["email"].lower()):
             out.append(_f("warning", "Unconfigured git identity",
                           f"\"{i['name']} <{i['email']}>\" made {i['commits']} commits ({_pct(i['commits'], total)}). Set user.name and user.email; consider a .mailmap for history."))
@@ -88,26 +95,15 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
                f"{_pct(len(stale), len(age))} of files ({len(stale)}) have not changed in {months} months or more.")]
 
 
-def _tokens(name: str) -> set:
-    return {t for t in re.split(r"[^a-z0-9]+", name.lower()) if len(t) >= 3}
-
-
 def duplicate_identities(report: dict) -> list:
-    ids = report["meta"].get("identities") or []
-    groups = []
-    for i in ids:
-        for g in groups:
-            if any(len(_tokens(i["name"]) & _tokens(j["name"])) >= 2 or i["email"].lower() == j["email"].lower() for j in g):
-                g.append(i)
-                break
-        else:
-            groups.append([i])
     out = []
-    for g in groups:
-        if len(g) < 2:
+    for i in report["meta"].get("identities") or []:
+        aliases = i.get("aliases") or []
+        if not aliases:
             continue
-        names = ", ".join(f"{i['name']} <{i['email']}>" for i in g)
-        out.append(_f("info", "One person under several identities", f"{names}. Add a .mailmap so the stats merge them."))
+        names = ", ".join(f"{a['name']} <{a['email']}>" for a in aliases)
+        out.append(_f("info", "One person under several identities",
+                      f"{names} merged into {i['name']} <{i['email']}> by name and email similarity. Add a .mailmap to make it permanent."))
     return out
 
 

@@ -6,8 +6,13 @@ import os
 import re
 import signal
 import subprocess
+import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+
+from . import identity
+
+MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 
 MONTH = 30 * 24 * 3600  # git-of-theseus sampling interval in seconds
 
@@ -48,26 +53,23 @@ def clone(target: str, dest_parent: str) -> str:
 
 
 def env_path() -> str:
-    """PATH with brew's keg-only openjdk and pip's user bin dirs added."""
-    parts = ["/opt/homebrew/opt/openjdk/bin"]
+    """PATH with pip's user bin dirs added."""
+    parts = []
     lib = os.path.expanduser("~/Library/Python")
     if os.path.isdir(lib):
         parts += [os.path.join(lib, v, "bin") for v in sorted(os.listdir(lib), reverse=True)]
     return os.pathsep.join(parts + [os.environ.get("PATH", "")])
 
 
-REQUIRED_TOOLS = ["onefetch", "git-quick-stats", "scc", "git-sizer", "gitleaks", "java", "git-of-theseus-analyze"]
+REQUIRED_TOOLS = ["onefetch", "git-quick-stats", "scc", "git-sizer", "gitleaks", "git-of-theseus-analyze"]
 
 
-def missing_tools(jar: str) -> list:
+def missing_tools() -> list:
     path = env_path()
-    missing = [t for t in REQUIRED_TOOLS if not any(os.access(os.path.join(d, t), os.X_OK) for d in path.split(os.pathsep) if d)]
-    if not os.path.isfile(jar):
-        missing.append(jar)
-    return missing
+    return [t for t in REQUIRED_TOOLS if not any(os.access(os.path.join(d, t), os.X_OK) for d in path.split(os.pathsep) if d)]
 
 
-def plan(repo_dir: str, out_dir: str, jar: str, branch: str = "HEAD", theseus: bool = True,
+def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", theseus: bool = True,
          procs: int = None, interval: int = MONTH, ignore=()) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
@@ -78,10 +80,11 @@ def plan(repo_dir: str, out_dir: str, jar: str, branch: str = "HEAD", theseus: b
     steps = [
         {"name": "onefetch", "argv": ["onefetch", "--no-art", "--no-bold", "--no-color-palette", "--true-color", "never"], "stdout": o("overview.txt"), "deps": []},
         {"name": "git-quick-stats", "argv": ["git-quick-stats", "-T"], "stdout": o("contributors.txt"), "deps": []},
-        {"name": "scc", "argv": ["scc", "--format", "json"], "stdout": o("size.json"), "deps": []},
+        {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "gitleaks", "argv": ["gitleaks", "git", "--no-banner", "--report-path", o("secrets.json"), "--exit-code", "0"], "stdout": None, "deps": []},
-        {"name": "git-log", "argv": ["git", "log", "--all", "--numstat", "--date=short", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
+        {"name": "git-log", "argv": ["git", "log", "--all", "--use-mailmap", "--numstat", "--date=short", "--pretty=format:--%h--%ad--%aN", "--no-renames"], "stdout": log, "deps": []},
+        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if theseus:
         steps += [
@@ -89,8 +92,6 @@ def plan(repo_dir: str, out_dir: str, jar: str, branch: str = "HEAD", theseus: b
             {"name": "theseus stack plot", "argv": ["git-of-theseus-stack-plot", o("theseus/cohorts.json"), "--outfile", o("code-age.png")], "stdout": None, "deps": ["git-of-theseus"]},
             {"name": "theseus survival plot", "argv": ["git-of-theseus-survival-plot", o("theseus/survival.json"), "--outfile", o("survival.png")], "stdout": None, "deps": ["git-of-theseus"]},
         ]
-    for analysis in ["revisions", "coupling", "authors", "age", "entity-ownership"]:
-        steps.append({"name": f"code-maat {analysis}", "argv": ["java", "-jar", jar, "-l", log, "-c", "git2", "-a", analysis], "stdout": o(f"maat-{analysis}.csv"), "deps": ["git-log"]})
     return steps
 
 
@@ -176,7 +177,7 @@ def estimate_blames(repo_dir: str, interval: int = MONTH) -> dict:
 def collect_meta(repo_dir: str) -> dict:
     from .load import parse_authors_log
 
-    dates = _git(repo_dir, "log", "--all", "--format=%ad", "--date=short").split()
+    dates = _git(repo_dir, "log", "--all", "--use-mailmap", "--format=%ad", "--date=short").split()
     return {
         "name": repo_name(repo_dir),
         "path": repo_dir,
@@ -184,7 +185,7 @@ def collect_meta(repo_dir: str) -> dict:
         "commits": len(dates),
         "first_date": min(dates) if dates else "",
         "last_date": max(dates) if dates else "",
-        "identities": parse_authors_log(_git(repo_dir, "log", "--all", "--format=%aN\t%aE")),
+        "identities": identity.merge(parse_authors_log(_git(repo_dir, "log", "--all", "--use-mailmap", "--format=%aN\t%aE"))),
     }
 
 

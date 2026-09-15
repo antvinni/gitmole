@@ -8,6 +8,8 @@ import os
 import re
 from collections import Counter, OrderedDict
 
+from . import identity
+
 
 def parse_scc(text: str) -> dict:
     rows = json.loads(text) if text.strip() else []
@@ -25,10 +27,17 @@ def parse_scc(text: str) -> dict:
         ),
         key=lambda r: -r["code"],
     )
+    files = {}
+    for r in rows:
+        for f in r.get("Files", []) or []:
+            loc = f.get("Location", "")
+            loc = loc[2:] if loc.startswith("./") else loc
+            files[loc] = {"code": f.get("Code", 0), "complexity": f.get("Complexity", 0)}
     return {
         "languages": languages,
         "total_code": sum(r["code"] for r in languages),
         "total_files": sum(r["files"] for r in languages),
+        "files": files,
     }
 
 
@@ -123,6 +132,11 @@ def load_report(out_dir: str) -> dict:
     meta = json.loads(_read(out_dir, "meta.json") or "{}")
     cohorts = _read(out_dir, "theseus/cohorts.json")
     authors = _read(out_dir, "theseus/authors.json")
+    canonical = identity.canonical_names(meta.get("identities") or [])
+    surviving = OrderedDict()
+    for name, lines in (parse_theseus(authors) if authors else {}).items():
+        key = canonical.get(name, name)
+        surviving[key] = surviving.get(key, 0) + lines
     return {
         "out_dir": out_dir,
         "meta": meta,
@@ -134,6 +148,6 @@ def load_report(out_dir: str) -> dict:
         "ownership": parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")),
         "sizer": parse_git_sizer(_read(out_dir, "repo-health.txt")),
         "cohorts": parse_theseus(cohorts) if cohorts else {},
-        "theseus_authors": parse_theseus(authors) if authors else {},
+        "theseus_authors": surviving,
         "secrets": parse_secrets(_read(out_dir, "secrets.json")),
     }

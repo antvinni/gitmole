@@ -98,15 +98,25 @@ class StaleFiles(unittest.TestCase):
 
 
 class DuplicateIdentities(unittest.TestCase):
-    def test_groups_same_person_by_shared_name_tokens(self):
+    def test_reports_merged_aliases_and_suggests_a_mailmap(self):
         r = report()
-        r["meta"]["identities"] = [{"name": "Grzegorz Bankosz", "email": "g@thg.com", "commits": 25},
-                                   {"name": "thg-grzegorz-bankosz", "email": "1@users.noreply.github.com", "commits": 16},
-                                   {"name": "Bob", "email": "bob@x.com", "commits": 1}]
+        r["meta"]["identities"] = [{"name": "Grzegorz Bankosz", "email": "g@thg.com", "commits": 41,
+                                    "aliases": [{"name": "thg-grzegorz-bankosz", "email": "1@users.noreply.github.com", "commits": 16}]},
+                                   {"name": "Bob", "email": "bob@x.com", "commits": 1, "aliases": []}]
         f = findings.duplicate_identities(r)
         self.assertEqual(len(f), 1)
         self.assertIn("Grzegorz Bankosz", f[0]["detail"])
+        self.assertIn("thg-grzegorz-bankosz", f[0]["detail"])
         self.assertIn("mailmap", f[0]["detail"])
+        self.assertIn("merged", f[0]["detail"])
+
+    def test_placeholder_identity_is_found_inside_aliases_too(self):
+        r = report()
+        r["meta"]["identities"] = [{"name": "vinni", "email": "v@x.com", "commits": 100,
+                                    "aliases": [{"name": "Your Name", "email": "you@example.com", "commits": 60}]}]
+        f = findings.placeholder_identity(r)
+        self.assertEqual(len(f), 1)
+        self.assertIn("60%", f[0]["detail"])
 
     def test_nothing_when_distinct(self):
         self.assertEqual(findings.duplicate_identities(report()), [])

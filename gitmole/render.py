@@ -71,11 +71,25 @@ def people_table(report: dict) -> Table:
 
 
 def hotspots_table(report: dict) -> Table:
+    """Change frequency times size, Tornhill-style. Files no longer in the tree sort last."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
-    rows = sorted(report.get("revisions") or [], key=lambda r: -r["n-revs"])[:10]
-    return _table("Hotspots (most revised files)", ("file", {"overflow": "fold"}), ("revisions", {"justify": "right"}), ("authors", {"justify": "right"}), ("months idle", {"justify": "right"}),
-                  rows=[(r["entity"], r["n-revs"], authors.get(r["entity"], "-"), ages.get(r["entity"], "-")) for r in rows])
+    files = report["size"].get("files") or {}
+    scored = []
+    for r in report.get("revisions") or []:
+        info = files.get(r["entity"])
+        score = r["n-revs"] * info["code"] if info else -1
+        scored.append((score, r, info))
+    scored.sort(key=lambda t: (-t[0], -t[1]["n-revs"], t[1]["entity"]))
+    rows = []
+    for score, r, info in scored[:10]:
+        rows.append((r["entity"], r["n-revs"],
+                     f"{info['code']:,}" if info else "-", info["complexity"] if info else "-",
+                     f"{score:,}" if info else "-",
+                     authors.get(r["entity"], "-"), ages.get(r["entity"], "-")))
+    return _table("Hotspots (score = revisions × lines of code)", ("file", {"overflow": "fold", "ratio": 3}), ("revs", {"justify": "right"}),
+                  ("lines", {"justify": "right"}), ("cplx", {"justify": "right"}), ("score", {"justify": "right"}),
+                  ("authors", {"justify": "right"}), ("idle", {"justify": "right"}), rows=rows)
 
 
 def coupling_table(report: dict) -> Table:
@@ -89,7 +103,7 @@ def _bar(part, whole, width=30) -> str:
 
 
 def age_fallback_table(report: dict):
-    """When git-of-theseus did not run, show files by the year they were last changed (from code-maat)."""
+    """When git-of-theseus did not run, show paths by the year they were last changed (from the change log)."""
     status = (report["meta"].get("theseus") or {}).get("status", "skipped")
     reason = {"timeout": "git-of-theseus timed out", "skipped": "git-of-theseus skipped"}.get(status, f"git-of-theseus {status}")
     last = report["meta"].get("last_date") or ""

@@ -13,7 +13,8 @@ def sample_report():
                  "identities": [{"name": "Ann", "email": "ann@x.com", "commits": 234}, {"name": "Bob", "email": "bob@x.com", "commits": 129}]},
         "size": {"languages": [{"name": "HTML", "files": 28, "code": 4783, "comment": 144, "blank": 732, "complexity": 0},
                                {"name": "Python", "files": 7, "code": 638, "comment": 50, "blank": 52, "complexity": 57}],
-                 "total_code": 5421, "total_files": 35},
+                 "total_code": 5421, "total_files": 35,
+                 "files": {"static/apps-metadata.json": {"code": 800, "complexity": 0}, "static/index.html": {"code": 4000, "complexity": 12}}},
         "revisions": [{"entity": "static/apps-metadata.json", "n-revs": 128}, {"entity": "static/index.html", "n-revs": 51}],
         "authors": [{"entity": "static/apps-metadata.json", "n-authors": 4, "n-revs": 128}],
         "coupling": [{"entity": "static/tax.html", "coupled": "static/treasury.html", "degree": 85, "average-revs": 11}],
@@ -80,6 +81,7 @@ class Report(unittest.TestCase):
         text = rendered(r, [])
         self.assertIn("Paths in history by year last changed", text)
         self.assertIn("git-of-theseus skipped", text)
+        self.assertNotIn("code-maat", text)
         for year, count in (("2026", "2"), ("2025", "1"), ("2024", "1")):
             self.assertRegex(text, rf"{year}\s+{count}\s")
         self.assertNotIn("Surviving code by year written", text)
@@ -89,6 +91,19 @@ class Report(unittest.TestCase):
         r["cohorts"] = {}
         r["meta"]["theseus"] = {"status": "timeout"}
         self.assertIn("git-of-theseus timed out", rendered(r, []))
+
+    def test_hotspots_rank_by_revisions_times_lines_and_show_complexity(self):
+        r = sample_report()
+        r["revisions"] = [{"entity": "static/apps-metadata.json", "n-revs": 128}, {"entity": "static/index.html", "n-revs": 51},
+                          {"entity": "gone.py", "n-revs": 300}]
+        text = rendered(r, [])
+        lines = [l for l in text.splitlines() if l.startswith(("static/", "gone.py"))]
+        # index.html: 51 x 4000 = 204,000 beats metadata.json: 128 x 800 = 102,400; deleted gone.py sorts last
+        self.assertTrue(lines[0].startswith("static/index.html"), lines)
+        self.assertTrue(lines[1].startswith("static/apps-metadata.json"), lines)
+        self.assertTrue(lines[2].startswith("gone.py"), lines)
+        self.assertRegex(lines[0], r"51\s+4,000\s+12")
+        self.assertIn("score", text)
 
     def test_footer_points_at_output_dir(self):
         self.assertIn("/tmp/analysis-demo", rendered(sample_report(), []))
