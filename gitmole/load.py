@@ -146,6 +146,7 @@ def load_report(out_dir: str) -> dict:
         "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),
         "ownership": parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")),
+        "fixes": parse_maat_csv(_read(out_dir, "maat-fixes.csv")),
         "sizer": parse_git_sizer(_read(out_dir, "repo-health.txt")),
         "cohorts": parse_theseus(cohorts) if cohorts else {},
         "theseus_authors": surviving,

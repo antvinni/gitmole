@@ -106,6 +106,7 @@ class LoadReport(unittest.TestCase):
                 "maat-coupling.csv": "entity,coupled,degree,average-revs\n",
                 "maat-age.csv": "entity,age-months\na.py,0\n",
                 "maat-authors.csv": "entity,n-authors,n-revs\na.py,1,3\n",
+                "maat-fixes.csv": "entity,n-fixes,last-fix,recent-fixes\na.py,2,2026-01-05,1\n",
                 "repo-health.txt": "",
                 "secrets.json": "[]",
                 "activity.json": json.dumps({"by_weekday": [1, 0, 0, 0, 0, 0, 0], "by_hour": [0] * 24, "by_month": {"2026-01": 1}, "authors": {}}),
@@ -120,6 +121,7 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["size"]["total_code"], 10)
         self.assertEqual(r["revisions"][0]["entity"], "a.py")
         self.assertEqual(r["coupling"], [])
+        self.assertEqual(r["fixes"][0]["recent-fixes"], 1)
         self.assertEqual(r["cohorts"], {"Code added in 2026": 10})
         self.assertEqual(r["theseus_authors"], {"Ann": 10})
         self.assertEqual(r["sizer"], [])
@@ -147,6 +149,7 @@ class LoadReport(unittest.TestCase):
             r = load.load_report(out)
         self.assertEqual(r["revisions"], [])
         self.assertEqual(r["activity"], {})
+        self.assertEqual(r["fixes"], [])
         self.assertEqual(r["cohorts"], {})
         self.assertEqual(r["size"]["languages"], [])
 

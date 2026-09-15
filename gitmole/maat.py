@@ -14,6 +14,7 @@ import itertools
 import json
 import math
 import os
+import re
 import sys
 from collections import Counter, defaultdict
 
@@ -28,10 +29,14 @@ def parse_log(text: str, aliases: dict = None, types=None) -> list:
     `types` restricts the file entries (None = keep everything); commits are always kept."""
     aliases = aliases or {}
     commits, current = [], None
-    for line in text.splitlines():
+    # split on newlines only: str.splitlines also breaks on \r, form feed and Unicode separators,
+    # any of which can appear inside a commit subject
+    for line in text.split("\n"):
         if line.startswith("--"):
-            _, h, when, author = line.split("--", 3)
-            current = {"hash": h, "date": when[:10], "time": when, "author": aliases.get(author, author), "files": []}
+            parts = line.split("--", 4)          # subject is last, so dashes inside it survive
+            _, h, when, author = parts[:4]
+            subject = parts[4] if len(parts) > 4 else ""
+            current = {"hash": h, "date": when[:10], "time": when, "author": aliases.get(author, author), "subject": subject, "files": []}
             commits.append(current)
         elif line.strip() and current is not None:
             added, deleted, path = line.split("\t", 2)
@@ -39,6 +44,15 @@ def parse_log(text: str, aliases: dict = None, types=None) -> list:
                 continue
             current["files"].append((path, int(added) if added.isdigit() else 0, int(deleted) if deleted.isdigit() else 0))
     return commits
+
+
+_FIX_CONVENTIONAL = re.compile(r"^(fix|hotfix|bugfix)(\([^)]*\))?!?:", re.I)
+_FIX_WORDS = re.compile(r"\b(fix|fixes|fixed|fixing|bugfix|hotfix|bug|bugs|regression|crash|crashes)\b", re.I)
+
+
+def is_fix(subject: str) -> bool:
+    """Does the commit subject describe a bug fix? Conventional `fix:` or plain fix/bug words."""
+    return bool(_FIX_CONVENTIONAL.match(subject or "") or _FIX_WORDS.search(subject or ""))
 
 
 def _revs(commits) -> Counter:
@@ -97,6 +111,27 @@ def age(commits: list, now: str = None) -> list:
     return rows
 
 
+RECENT_MONTHS = 6
+
+
+def fixes(commits: list, now: str = None) -> list:
+    """Per entity: how many fix commits touched it, the last one, and how many in the recent window."""
+    now = now or dt.date.today().isoformat()
+    total, last, recent = Counter(), {}, Counter()
+    for c in commits:
+        if not is_fix(c.get("subject", "")):
+            continue
+        fresh = _months_between(c["date"], now) < RECENT_MONTHS
+        for p, _, _ in c["files"]:
+            total[p] += 1
+            last[p] = max(last.get(p, ""), c["date"])
+            if fresh:
+                recent[p] += 1
+    rows = [{"entity": p, "n-fixes": n, "last-fix": last[p], "recent-fixes": recent[p]} for p, n in total.items()]
+    rows.sort(key=lambda r: (-r["recent-fixes"], -r["n-fixes"], r["entity"]))
+    return rows
+
+
 def entity_ownership(commits: list) -> list:
     added, deleted = Counter(), Counter()
     for c in commits:
@@ -111,7 +146,7 @@ def entity_ownership(commits: list) -> list:
 def activity(commits: list) -> dict:
     """Commits by weekday (Mon=0) and hour, by month, and per-author totals."""
     by_weekday, by_hour, by_month, net_by_year = [0] * 7, [0] * 24, Counter(), Counter()
-    authors, timeline = {}, defaultdict(Counter)
+    authors, timeline, fix_commits = {}, defaultdict(Counter), 0
     for c in commits:
         when = c.get("time") or c["date"]
         try:
@@ -126,6 +161,7 @@ def activity(commits: list) -> dict:
         by_month[c["date"][:7]] += 1
         net_by_year[c["date"][:4]] += sum(a - d for _, a, d in c["files"])
         timeline[c["author"]][c["date"][:7]] += 1
+        fix_commits += is_fix(c.get("subject", ""))
         a = authors.setdefault(c["author"], {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
         a["commits"] += 1
         a["added"] += sum(x for _, x, _ in c["files"])
@@ -133,7 +169,7 @@ def activity(commits: list) -> dict:
         a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
     return {"by_weekday": by_weekday, "by_hour": by_hour, "by_month": dict(sorted(by_month.items())),
             "net_by_year": dict(sorted(net_by_year.items())), "authors": authors,
-            "timeline": {a: dict(sorted(m.items())) for a, m in timeline.items()}}
+            "timeline": {a: dict(sorted(m.items())) for a, m in timeline.items()}, "fix_commits": fix_commits}
 
 
 ANALYSES = {
@@ -142,7 +178,9 @@ ANALYSES = {
     "authors": (authors, ["entity", "n-authors", "n-revs"]),
     "age": (age, ["entity", "age-months"]),
     "entity-ownership": (entity_ownership, ["entity", "author", "added", "deleted"]),
+    "fixes": (fixes, ["entity", "n-fixes", "last-fix", "recent-fixes"]),
 }
+NEEDS_NOW = {"age", "fixes"}
 
 
 def aliases_from_meta(path: str) -> dict:
@@ -172,11 +210,13 @@ def validate_now(value: str) -> str:
 def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None, since: str = None) -> None:
     """`now` (YYYY-MM-DD) is the reference date for file ages; default today. `since` bounds every
     analysis except file ages, which always describe the whole history."""
-    with open(log_path, encoding="utf-8", errors="replace") as fh:
+    # newline="": keep a \r inside a subject as-is instead of turning it into a line break
+    with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
         commits = parse_log(fh.read(), aliases_from_meta(aliases_path) if aliases_path else None, types)
     windowed = in_window(commits, since)
     for name, (fn, header) in ANALYSES.items():
-        rows = age(commits, now=now) if name == "age" else fn(windowed)   # ages describe the whole history
+        source = commits if name == "age" else windowed   # ages describe the whole history
+        rows = fn(source, now=now) if name in NEEDS_NOW else fn(source)
         with open(os.path.join(out_dir, f"maat-{name}.csv"), "w", newline="") as fh:
             w = csv.DictWriter(fh, fieldnames=header)
             w.writeheader()

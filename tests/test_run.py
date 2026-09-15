@@ -180,6 +180,7 @@ class Plan(unittest.TestCase):
         self.assertEqual(by["code age"]["deps"], [])
         self.assertEqual(by["scc"]["deps"], [])
         self.assertIn("--date=iso-strict", by["git-log"]["argv"])
+        self.assertIn("--pretty=format:--%h--%ad--%aN--%s", by["git-log"]["argv"])
         self.assertEqual(by["scc"]["stdout"], "/o/size.json")
         self.assertIn("--by-file", by["scc"]["argv"])
         self.assertIn("--use-mailmap", by["git-log"]["argv"])

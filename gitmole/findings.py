@@ -110,6 +110,22 @@ def duplicate_identities(report: dict) -> list:
     return out
 
 
+_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing)(/|$)|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+)$", re.I)
+
+
+def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
+    """Source files with a run of recent fix commits. Test files are left out: they change with every fix."""
+    hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and not _TEST_PATH.search(f["entity"])]
+    if not hot:
+        return []
+    hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
+    sev = "warning" if hot[0]["recent-fixes"] >= warn_at else "info"
+    listed = "; ".join(f"{f['entity']} ({f['recent-fixes']} recent, {f['n-fixes']} total)" for f in hot[:5])
+    more = f" and {len(hot) - 5} more" if len(hot) > 5 else ""
+    return [_f(sev, "Bug magnets",
+               f"{len(hot)} file(s) were fixed {min_recent}+ times in the last six months: {listed}{more}. Expect the next bug there too.")]
+
+
 def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9) -> list:
     areas = knowledge.areas(report.get("ownership") or [])
     islands = knowledge.islands(areas, min_lines=min_lines, min_share=min_share)
@@ -125,7 +141,7 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                f"That is {_pct(covered, total)} of all lines added. Pair or review across them before that person is unavailable.")]
 
 
-RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, tight_coupling, stale_files, duplicate_identities, knowledge_islands]
+RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, tight_coupling, stale_files, duplicate_identities, knowledge_islands]
 
 
 def evaluate(report: dict) -> list:
