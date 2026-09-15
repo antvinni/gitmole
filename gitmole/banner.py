@@ -35,30 +35,3 @@ def frames():
         yield neon(offset)
         offset = (offset + 1) % len(NEON)
 
-
-# --- the mole splash -------------------------------------------------------
-
-import os  # noqa: E402
-
-MOLE_WIDTH = 72
-
-# density-shaded art: darkest characters are the mole, mid tones the mound, light ones grass and sky
-SHADES = {
-    "@": "#4a2c20", "#": "#5a3a2a", "%": "#6b4632",
-    "*": "#8b5a3c",
-    "+": "#a8763e", "=": "#b9884a",
-    "-": "#6abf4b", ":": "#7fcf5c", ".": "#9ddb7a",
-}
-
-
-def mole() -> Text:
-    """The mole splash, coloured by shade."""
-    path = os.path.join(os.path.dirname(__file__), "mole.txt")
-    with open(path, encoding="ascii") as fh:
-        art = fh.read().rstrip("\n")
-    text = Text()
-    for row in art.split("\n"):
-        for ch in row:
-            text.append(ch, style=Style(color=Color.parse(SHADES[ch])) if ch in SHADES else None)
-        text.append("\n")
-    return text

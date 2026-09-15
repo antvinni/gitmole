@@ -65,9 +65,6 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     else:
         repo_dir = target
 
-    if console.is_terminal and console.width >= banner.MOLE_WIDTH:
-        console.print(banner.mole())
-
     out_dir = run.output_dir(kind, repo_dir, args.out)
     os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)
     log_path = os.path.join(out_dir, "run.log")
