@@ -23,6 +23,9 @@ def sample_report():
         "cohorts": {"Code added in 2025": 8733, "Code added in 2026": 2728},
         "theseus_authors": {"Ann": 9076, "Bob": 2342},
         "secrets": [],
+        "ownership": [{"entity": "static/a.html", "author": "Ann", "added": 900, "deleted": 0},
+                      {"entity": "static/b.html", "author": "Bob", "added": 100, "deleted": 0},
+                      {"entity": "tests/t.py", "author": "Bob", "added": 300, "deleted": 0}],
         "activity": {"by_weekday": [40, 50, 45, 60, 30, 5, 3], "by_hour": [0] * 9 + [20, 30, 25] + [0] * 12,
                      "by_month": {"2026-07": 10, "2026-08": 20, "2026-09": 12}, "authors": {},
                      "timeline": {"Ann": {"2025-10": 3, "2026-08": 12, "2026-09": 7}, "Bob": {"2026-09": 5},
@@ -149,6 +152,19 @@ class Activity(unittest.TestCase):
         self.assertIn("no activity data", rendered(r, []))
 
 
+class KnowledgeMap(unittest.TestCase):
+    def test_section_lists_areas_with_owners(self):
+        text = rendered(sample_report(), [])
+        self.assertIn("Knowledge map", text)
+        self.assertRegex(text, r"static/\s+1,000\s+2\s+Ann \(90%\)\s+Bob \(10%\)")
+        self.assertRegex(text, r"tests/\s+300\s+1\s+Bob \(100%\)")
+
+    def test_absent_without_ownership(self):
+        r = sample_report()
+        r["ownership"] = []
+        self.assertIn("no ownership data", rendered(r, []))
+
+
 class Timeline(unittest.TestCase):
     def test_last_twelve_months_per_author_with_dots_for_zero(self):
         text = rendered(sample_report(), [], width=120)
@@ -170,6 +186,7 @@ class Sections(unittest.TestCase):
         titles = [x["title"] for x in secs]
         self.assertEqual(titles[:3], ["Size by language", "People", "Activity"])
         self.assertTrue(titles[3].startswith("Timeline"))
+        self.assertEqual(titles[-2], "Knowledge map")
         self.assertTrue(titles[4].startswith("Hotspots"))
         self.assertEqual(titles[-1], "Repo health (git-sizer concerns)")
         size = secs[0]

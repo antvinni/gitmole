@@ -56,6 +56,11 @@ year   lines   share
 ───────────────────────────────────────────────
 2024       9     82%   ████████████████████████
 2025       2     18%   █████
+Knowledge map
+area   lines added   authors   main owner           second
+─────────────────────────────────────────────────────────────────────
+app/            20         2   Ann Example (80%)    Bob Example (20%)
+.                2         1   Bob Example (100%)   -
 Repo health (git-sizer concerns)
 nothing flagged
 

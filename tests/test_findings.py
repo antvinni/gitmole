@@ -127,6 +127,30 @@ class DuplicateIdentities(unittest.TestCase):
         self.assertEqual(findings.duplicate_identities(report()), [])
 
 
+class KnowledgeIslands(unittest.TestCase):
+    OWN = [{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0},
+           {"entity": "core/b.py", "author": "Bob", "added": 50, "deleted": 0},
+           {"entity": "web/i.html", "author": "Bob", "added": 300, "deleted": 0},
+           {"entity": "web/j.html", "author": "Cat", "added": 300, "deleted": 0}]
+
+    def test_warns_when_islands_hold_most_of_the_code(self):
+        f = findings.knowledge_islands(report(ownership=self.OWN))
+        self.assertEqual(f[0]["severity"], "warning")
+        self.assertIn("core/", f[0]["detail"])
+        self.assertIn("Ann", f[0]["detail"])
+        self.assertIn("95%", f[0]["detail"])
+        self.assertNotIn("web/", f[0]["detail"])
+
+    def test_info_when_islands_are_a_minority(self):
+        own = self.OWN + [{"entity": "web/k.html", "author": "Dan", "added": 3000, "deleted": 0}]
+        f = findings.knowledge_islands(report(ownership=own))
+        self.assertEqual(f[0]["severity"], "info")
+
+    def test_nothing_when_shared(self):
+        self.assertEqual(findings.knowledge_islands(report(ownership=self.OWN[2:])), [])
+        self.assertEqual(findings.knowledge_islands(report()), [])
+
+
 class Evaluate(unittest.TestCase):
     def test_orders_by_severity(self):
         r = report(secrets=[{"rule": "x", "file": "f", "commit": "c", "line": 1}],
