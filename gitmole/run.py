@@ -67,9 +67,20 @@ def _wrap(fn, argv):
 
 
 def list_repos(owner: str, lister=_gh) -> list:
-    """Names of the owner's non-archived repositories, via gh. Raises GhError."""
-    out = _wrap(lister, ["gh", "repo", "list", owner, "--limit", "500", "--json", "name,isArchived",
-                         "--jq", ".[] | select(.isArchived | not) | .name"])
+    """Names of the owner's non-archived repositories via gh's REST calls. Raises GhError.
+
+    Your own account lists private repos too; an organisation uses the org endpoint
+    (private repos included where the token allows); anyone else gets public repos."""
+    me = _wrap(lister, ["gh", "api", "user", "--jq", ".login"]).strip()
+    if me == owner:
+        path = "user/repos?affiliation=owner&per_page=100"
+    else:
+        try:
+            _wrap(lister, ["gh", "api", f"orgs/{owner}", "--jq", ".login"])
+            path = f"orgs/{owner}/repos?per_page=100"
+        except GhError:
+            path = f"users/{owner}/repos?per_page=100"
+    out = _wrap(lister, ["gh", "api", "--paginate", path, "--jq", ".[] | select(.archived | not) | .name"])
     return sorted(set(out.split()))
 
 

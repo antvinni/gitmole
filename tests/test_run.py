@@ -27,15 +27,38 @@ class ClassifyTarget(unittest.TestCase):
 
 
 class ListRepos(unittest.TestCase):
-    def test_uses_gh_to_list_non_archived_repos_sorted(self):
+    def _lister(self, me="someone", is_org=False):
         calls = []
         def lister(argv):
             calls.append(argv)
+            path = argv[2] if len(argv) > 2 else ""
+            if path == "user":
+                return me + "\n"
+            if path.startswith("orgs/") and "/repos" not in path:
+                if is_org:
+                    return "acme\n"
+                raise subprocess.CalledProcessError(1, argv, stderr="HTTP 404: Not Found")
             return "zeta\nalpha\n"
+        return lister, calls
+
+    def test_user_repos_via_rest_sorted(self):
+        lister, calls = self._lister()
         self.assertEqual(run.list_repos("acme", lister=lister), ["alpha", "zeta"])
-        self.assertEqual(calls[0][:3], ["gh", "repo", "list"])
-        self.assertIn("acme", calls[0])
-        self.assertIn("isArchived", " ".join(calls[0]))
+        final = calls[-1]
+        self.assertEqual(final[:3], ["gh", "api", "--paginate"])
+        self.assertTrue(final[3].startswith("users/acme/repos"), final)
+        self.assertIn("archived", " ".join(final))
+
+    def test_own_account_includes_private_repos(self):
+        lister, calls = self._lister(me="acme")
+        run.list_repos("acme", lister=lister)
+        self.assertTrue(calls[-1][3].startswith("user/repos"), calls[-1])
+        self.assertIn("affiliation=owner", calls[-1][3])
+
+    def test_organisation_uses_the_org_endpoint(self):
+        lister, calls = self._lister(is_org=True)
+        run.list_repos("acme", lister=lister)
+        self.assertTrue(calls[-1][3].startswith("orgs/acme/repos"), calls[-1])
 
 
 class GhErrors(unittest.TestCase):
