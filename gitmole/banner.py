@@ -17,9 +17,20 @@ ART = """\
 NEON = ["#ff00ff", "#ff2ee6", "#ff5cc8", "#c86cff", "#5ad0ff", "#00ffff"]
 
 
-def neon() -> Text:
+def neon(offset: int = 0) -> Text:
+    """The banner with the palette rotated down by `offset` rows."""
     text = Text()
-    for i, row in enumerate(ART.split("\n")):
-        text.append(row, style=Style(color=Color.parse(NEON[i]), bold=True))
+    rows = ART.split("\n")
+    for i, row in enumerate(rows):
+        colour = NEON[(i - offset) % len(NEON)]
+        text.append(row, style=Style(color=Color.parse(colour), bold=True))
         text.append("\n")
     return text
+
+
+def frames():
+    """Endless generator of banner frames with the gradient flowing downwards."""
+    offset = 0
+    while True:
+        yield neon(offset)
+        offset = (offset + 1) % len(NEON)

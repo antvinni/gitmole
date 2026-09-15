@@ -30,6 +30,23 @@ class NoRun(unittest.TestCase):
         self.assertIn("/nonexistent/analysis-x", c.export_text())
 
 
+class LiveRun(unittest.TestCase):
+    def test_full_run_on_a_terminal_console_prints_banner_and_report(self):
+        with tempfile.TemporaryDirectory() as d:
+            import subprocess
+            subprocess.run(["git", "init", "-q", d], check=True)
+            subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "--allow-empty", "-m", "x"], check=True)
+            c = Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system="truecolor")
+            fake_plan = lambda repo, out, jar, branch="HEAD": [
+                {"name": "quick", "argv": ["sh", "-c", "sleep 0.3"], "stdout": None, "deps": []}]
+            rc = cli.main([d, "--out", os.path.join(d, "out"), "--jar", "/x.jar"], console=c, tool_check=lambda jar: [], planner=fake_plan)
+            text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertIn("███╗   ███╗", text)
+        self.assertIn("1 steps in", text)
+        self.assertIn(os.path.basename(d), text)
+
+
 class Arguments(unittest.TestCase):
     def test_bad_target_is_reported_not_raised(self):
         c = console()

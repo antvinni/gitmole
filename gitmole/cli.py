@@ -8,7 +8,10 @@ import tempfile
 import threading
 import time
 
-from rich.console import Console
+from rich.console import Console, Group
+from rich.live import Live
+from rich.spinner import Spinner
+from rich.text import Text
 
 from . import __version__, banner, findings, load, run
 
@@ -24,14 +27,14 @@ def parse_args(argv):
     return p.parse_args(argv)
 
 
-def main(argv=None, console: Console = None, tool_check=run.missing_tools) -> int:
+def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     console = console or Console()
     err = Console(stderr=True) if console.file is sys.stdout else console
-    if console.is_terminal:
-        console.print(banner.neon())
 
     if args.no_run:
+        if console.is_terminal:
+            console.print(banner.neon())
         out_dir = os.path.abspath(args.target)
         if not os.path.isfile(os.path.join(out_dir, "meta.json")):
             err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
@@ -63,7 +66,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools) -> in
     open(log_path, "w").close()
 
     meta = run.write_meta(repo_dir, out_dir)
-    results = _execute(run.plan(repo_dir, out_dir, args.jar, branch=meta["branch"]), log_path, repo_dir, args.workers, console)
+    results = _execute(planner(repo_dir, out_dir, args.jar, branch=meta["branch"]), log_path, repo_dir, args.workers, console)
 
     failed = [n for n, rc in results.items() if rc != 0]
     if failed:
@@ -73,26 +76,40 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools) -> in
 
 
 def _execute(steps, log_path, repo_dir, workers, console) -> dict:
+    """Run the steps under a Live display: the banner pulsing above a status line."""
     active, lock = set(), threading.Lock()
     started = time.monotonic()
+    spinner = Spinner("dots", style="cyan")
+    frame = banner.frames()
 
-    def label():
+    def label() -> str:
         with lock:
             names = ", ".join(sorted(active))
         return f"running {names}" if names else "finishing"
 
-    with console.status(label()) as status:
-        def on_start(name):
-            with lock:
-                active.add(name)
-            status.update(label())
+    def view():
+        if not console.is_terminal:
+            return Text(label())
+        status = Group(spinner, Text(" " + label(), style="dim"))
+        return Group(next(frame), status)
 
-        def on_done(name, rc):
-            with lock:
-                active.discard(name)
-            status.update(label())
+    def on_start(name):
+        with lock:
+            active.add(name)
 
-        results = run.execute(steps, log_path=log_path, cwd=repo_dir, workers=workers, on_start=on_start, on_done=on_done)
+    def on_done(name, rc):
+        with lock:
+            active.discard(name)
+
+    results = {}
+    with Live(view(), console=console, refresh_per_second=10, transient=False) as live:
+        worker = threading.Thread(
+            target=lambda: results.update(run.execute(steps, log_path=log_path, cwd=repo_dir, workers=workers, on_start=on_start, on_done=on_done)))
+        worker.start()
+        while worker.is_alive():
+            live.update(view())
+            worker.join(0.1)
+        live.update(Group(banner.neon(), Text("")) if console.is_terminal else Text(""))
     console.print(f"[dim]{len(steps)} steps in {time.monotonic() - started:.1f}s[/dim]\n")
     return results
 
