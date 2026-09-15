@@ -137,6 +137,44 @@ class Timeout(unittest.TestCase):
         self.assertIn("sleepy (timeout)", text)
 
 
+def _report_dir(out, identities=None):
+    with open(os.path.join(out, "meta.json"), "w") as fh:
+        json.dump({"name": "demo", "commits": 5, "identities": identities or []}, fh)
+
+
+class Export(unittest.TestCase):
+    def test_json_export_to_file(self):
+        with tempfile.TemporaryDirectory() as out:
+            _report_dir(out)
+            c = console()
+            rc = cli.main([out, "--no-run", "--json", os.path.join(out, "r.json")], console=c)
+            with open(os.path.join(out, "r.json")) as fh:
+                d = json.load(fh)
+        self.assertEqual(rc, 0)
+        self.assertEqual(d["meta"]["name"], "demo")
+        self.assertIn("findings", d)
+        self.assertIn("demo", c.export_text(), "the terminal report still prints when exporting to a file")
+
+    def test_markdown_to_stdout_replaces_the_terminal_report(self):
+        with tempfile.TemporaryDirectory() as out:
+            _report_dir(out)
+            c = Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system="truecolor")
+            rc = cli.main([out, "--no-run", "--markdown", "-"], console=c)
+            text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertTrue(text.startswith("# demo"), text[:40])
+        self.assertNotIn("╭", text)
+        self.assertNotIn("███╗", text, "no banner when piping an export to stdout")
+
+    def test_fail_on_returns_3_when_a_finding_reaches_the_level(self):
+        ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            _report_dir(out, ids)
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "warning"], console=console()), 3)
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical"], console=console()), 0)
+            self.assertEqual(cli.main([out, "--no-run"], console=console()), 0)
+
+
 class Arguments(unittest.TestCase):
     def test_bad_target_is_reported_not_raised(self):
         c = console()

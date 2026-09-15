@@ -1,4 +1,4 @@
-"""Draw the terminal report with rich."""
+"""Turn a loaded report into sections, then draw them with rich or as Markdown/JSON."""
 from __future__ import annotations
 
 from rich import box
@@ -9,34 +9,133 @@ from rich.text import Text
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
-
-
-def _table(title: str, *columns, rows=(), empty: str = None, **kw):
-    if not rows and empty:
-        return Group(Text(title, style="table.title"), Text(empty, style="dim"), Text(""))
-    t = Table(title=title, title_justify="left", box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, **kw)
-    for col in columns:
-        name, opts = (col, {}) if isinstance(col, str) else col
-        t.add_column(name, **opts)
-    for row in rows:
-        t.add_row(*[str(c) for c in row])
-    return t
+RIGHT = {"justify": "right"}
+FOLD = {"overflow": "fold"}
 
 
 def _pct(part, whole) -> str:
     return f"{100 * part / whole:.0f}%" if whole else "-"
 
 
-def header(report: dict) -> Panel:
+def _bar(part, whole, width=30) -> str:
+    return "█" * int(width * part / whole) if whole else ""
+
+
+def _section(title, columns, rows, note=None, caption=None) -> dict:
+    """columns: list of (name, rich column options). rows: lists of already-formatted cells."""
+    return {"title": title, "columns": [c[0] for c in columns], "col_opts": [c[1] for c in columns],
+            "rows": [[str(c) for c in r] for r in rows], "note": note, "caption": caption}
+
+
+# --- data ------------------------------------------------------------------
+
+def summary(report: dict) -> dict:
     m = report["meta"]
-    langs = ", ".join(l["name"] for l in report["size"]["languages"][:4]) or "unknown"
     ids = m.get("identities") or []
+    return {
+        "name": m.get("name", "repo"), "commits": m.get("commits", 0),
+        "first_date": m.get("first_date", "?"), "last_date": m.get("last_date", "?"),
+        "identities": len(ids), "branch": m.get("branch", "?"),
+        "lines": report["size"]["total_code"], "files": report["size"]["total_files"],
+        "languages": [l["name"] for l in report["size"]["languages"][:4]],
+    }
+
+
+def size_section(report: dict) -> dict:
+    langs = report["size"]["languages"][:8]
+    total = report["size"]["total_code"]
+    return _section("Size by language", [("language", {}), ("files", RIGHT), ("code", RIGHT), ("share", RIGHT), ("complexity", RIGHT)],
+                    [(l["name"], l["files"], f"{l['code']:,}", _pct(l["code"], total), l["complexity"]) for l in langs])
+
+
+def people_section(report: dict) -> dict:
+    ids = report["meta"].get("identities") or []
+    total_commits = sum(i["commits"] for i in ids)
+    surviving = report.get("theseus_authors") or {}
+    total_lines = sum(surviving.values())
+    rows = [(i["name"], i["email"], i["commits"], _pct(i["commits"], total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:8]]
+    return _section("People", [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), ("share", RIGHT), ("surviving code", RIGHT)], rows)
+
+
+def hotspots_section(report: dict) -> dict:
+    """Change frequency times size, Tornhill-style. Files no longer in the tree sort last."""
+    authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
+    ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
+    files = report["size"].get("files") or {}
+    scored = []
+    for r in report.get("revisions") or []:
+        info = files.get(r["entity"])
+        scored.append((r["n-revs"] * info["code"] if info else -1, r, info))
+    scored.sort(key=lambda t: (-t[0], -t[1]["n-revs"], t[1]["entity"]))
+    rows = [(r["entity"], r["n-revs"], f"{info['code']:,}" if info else "-", info["complexity"] if info else "-",
+             f"{score:,}" if info else "-", authors.get(r["entity"], "-"), ages.get(r["entity"], "-"))
+            for score, r, info in scored[:10]]
+    return _section("Hotspots (score = revisions × lines of code)",
+                    [("file", {"overflow": "fold", "ratio": 3}), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT), ("authors", RIGHT), ("idle", RIGHT)], rows)
+
+
+def coupling_section(report: dict) -> dict:
+    pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))[:10]
+    return _section("Change coupling", [("file", FOLD), ("changes with", FOLD), ("degree", RIGHT), ("avg revs", RIGHT)],
+                    [(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in pairs],
+                    note=None if pairs else "no pairs with 5+ shared revisions")
+
+
+def age_section(report: dict) -> dict:
+    cohorts = report.get("cohorts") or {}
+    if not cohorts and report["meta"].get("age", {}).get("status", "run") != "run":
+        return age_fallback_section(report)
+    total = sum(cohorts.values())
+    rows = [(label.replace("Code added in ", ""), f"{lines:,}", _pct(lines, total), _bar(lines, total)) for label, lines in cohorts.items()]
+    return _section("Surviving code by year written", [("year", {}), ("lines", RIGHT), ("share", RIGHT), ("", {"style": "blue"})], rows,
+                    note=None if rows else "no age data")
+
+
+def age_fallback_section(report: dict) -> dict:
+    """When the blame pass did not run, show paths by the year they were last changed (from the change log)."""
+    status = (report["meta"].get("age") or {}).get("status", "skipped")
+    reason = {"timeout": "code age timed out", "skipped": "code age skipped"}.get(status, f"code age {status}")
+    last = report["meta"].get("last_date") or ""
+    columns = [("year", {}), ("paths", RIGHT), ("share", RIGHT), ("", {"style": "blue"})]
+    try:
+        end_year, end_month = int(last[:4]), int(last[5:7])
+    except ValueError:
+        return _section("Paths in history by year last changed", columns, [], note=f"no age data ({reason})")
+    counts = {}
+    for row in report.get("age") or []:
+        months_back = end_month - 1 - int(row["age-months"])
+        year = end_year + months_back // 12
+        counts[year] = counts.get(year, 0) + 1
+    total = sum(counts.values())
+    rows = [(str(y), n, _pct(n, total), _bar(n, total)) for y, n in sorted(counts.items(), reverse=True)]
+    return _section("Paths in history by year last changed", columns, rows, note=None if rows else f"no age data ({reason})", caption=reason)
+
+
+def health_section(report: dict) -> dict:
+    rows = [(r["name"], r["value"], "*" * r["concern"], r["ref"]) for r in report.get("sizer") or []]
+    return _section("Repo health (git-sizer concerns)", [("metric", {}), ("value", RIGHT), ("concern", {}), ("object", FOLD)], rows,
+                    note=None if rows else "nothing flagged")
+
+
+def sections(report: dict) -> list:
+    return [size_section(report), people_section(report), hotspots_section(report), coupling_section(report), age_section(report), health_section(report)]
+
+
+def secrets_line(report: dict) -> str:
+    n = len(report.get("secrets") or [])
+    return f"Secrets: {n} found" if n else "Secrets: none found"
+
+
+# --- rich ------------------------------------------------------------------
+
+def header(report: dict) -> Panel:
+    s = summary(report)
     body = Text()
-    body.append(f"{m.get('commits', 0)} commits", style="bold")
-    body.append(f"  ·  {m.get('first_date', '?')} → {m.get('last_date', '?')}")
-    body.append(f"  ·  {len(ids)} {'identity' if len(ids) == 1 else 'identities'}  ·  branch {m.get('branch', '?')}\n")
-    body.append(f"{report['size']['total_code']:,} lines in {report['size']['total_files']} files  ·  {langs}")
-    return Panel(body, title=f"[bold]{m.get('name', 'repo')}[/bold]", title_align="left", border_style="blue")
+    body.append(f"{s['commits']} commits", style="bold")
+    body.append(f"  ·  {s['first_date']} → {s['last_date']}")
+    body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}  ·  branch {s['branch']}\n")
+    body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}")
+    return Panel(body, title=f"[bold]{s['name']}[/bold]", title_align="left", border_style="blue")
 
 
 def findings_panel(findings: list) -> Panel:
@@ -50,103 +149,61 @@ def findings_panel(findings: list) -> Panel:
         body = Text(f["title"], style=style)
         body.append(f"\n{f['detail']}", style="dim")
         grid.add_row(Text(SEVERITY_MARK[f["severity"]], style=style), body)
-    worst = findings[0]["severity"]
-    return Panel(grid, title=f"Findings ({len(findings)})", title_align="left", border_style=SEVERITY_STYLE[worst])
+    return Panel(grid, title=f"Findings ({len(findings)})", title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]])
 
 
-def size_table(report: dict) -> Table:
-    langs = report["size"]["languages"][:8]
-    total = report["size"]["total_code"]
-    return _table("Size by language", "language", ("files", {"justify": "right"}), ("code", {"justify": "right"}), ("share", {"justify": "right"}), ("complexity", {"justify": "right"}),
-                  rows=[(l["name"], l["files"], f"{l['code']:,}", _pct(l["code"], total), l["complexity"]) for l in langs])
-
-
-def people_table(report: dict) -> Table:
-    ids = report["meta"].get("identities") or []
-    total_commits = sum(i["commits"] for i in ids)
-    surviving = report.get("theseus_authors") or {}
-    total_lines = sum(surviving.values())
-    rows = [(i["name"], i["email"], i["commits"], _pct(i["commits"], total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:8]]
-    return _table("People", "author", ("email", {"style": "dim", "overflow": "fold"}), ("commits", {"justify": "right"}), ("share", {"justify": "right"}), ("surviving code", {"justify": "right"}), rows=rows)
-
-
-def hotspots_table(report: dict) -> Table:
-    """Change frequency times size, Tornhill-style. Files no longer in the tree sort last."""
-    authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
-    ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
-    files = report["size"].get("files") or {}
-    scored = []
-    for r in report.get("revisions") or []:
-        info = files.get(r["entity"])
-        score = r["n-revs"] * info["code"] if info else -1
-        scored.append((score, r, info))
-    scored.sort(key=lambda t: (-t[0], -t[1]["n-revs"], t[1]["entity"]))
-    rows = []
-    for score, r, info in scored[:10]:
-        rows.append((r["entity"], r["n-revs"],
-                     f"{info['code']:,}" if info else "-", info["complexity"] if info else "-",
-                     f"{score:,}" if info else "-",
-                     authors.get(r["entity"], "-"), ages.get(r["entity"], "-")))
-    return _table("Hotspots (score = revisions × lines of code)", ("file", {"overflow": "fold", "ratio": 3}), ("revs", {"justify": "right"}),
-                  ("lines", {"justify": "right"}), ("cplx", {"justify": "right"}), ("score", {"justify": "right"}),
-                  ("authors", {"justify": "right"}), ("idle", {"justify": "right"}), rows=rows)
-
-
-def coupling_table(report: dict) -> Table:
-    rows = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))[:10]
-    return _table("Change coupling", ("file", {"overflow": "fold"}), ("changes with", {"overflow": "fold"}), ("degree", {"justify": "right"}), ("avg revs", {"justify": "right"}),
-                  rows=[(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in rows], empty="no pairs with 5+ shared revisions")
-
-
-def _bar(part, whole, width=30) -> str:
-    return "█" * int(width * part / whole) if whole else ""
-
-
-def age_fallback_table(report: dict):
-    """When the blame pass did not run, show paths by the year they were last changed (from the change log)."""
-    status = (report["meta"].get("age") or {}).get("status", "skipped")
-    reason = {"timeout": "code age timed out", "skipped": "code age skipped"}.get(status, f"code age {status}")
-    last = report["meta"].get("last_date") or ""
-    try:
-        end_year, end_month = int(last[:4]), int(last[5:7])
-    except ValueError:
-        return _table("Paths in history by year last changed", "year", rows=(), empty=f"no age data ({reason})")
-    counts = {}
-    for row in report.get("age") or []:
-        months_back = end_month - 1 - int(row["age-months"])
-        year = end_year + months_back // 12
-        counts[year] = counts.get(year, 0) + 1
-    total = sum(counts.values())
-    rows = [(str(y), n, _pct(n, total), _bar(n, total)) for y, n in sorted(counts.items(), reverse=True)]
-    return _table("Paths in history by year last changed", "year", ("paths", {"justify": "right"}), ("share", {"justify": "right"}), ("", {"style": "blue"}),
-                  rows=rows, empty=f"no age data ({reason})", caption=reason, caption_justify="left", caption_style="dim")
-
-
-def age_table(report: dict):
-    cohorts = report.get("cohorts") or {}
-    if not cohorts and report["meta"].get("age", {}).get("status", "run") != "run":
-        return age_fallback_table(report)
-    total = sum(cohorts.values())
-    rows = []
-    for label, lines in cohorts.items():
-        rows.append((label.replace("Code added in ", ""), f"{lines:,}", _pct(lines, total), _bar(lines, total)))
-    return _table("Surviving code by year written", "year", ("lines", {"justify": "right"}), ("share", {"justify": "right"}), ("", {"style": "blue"}), rows=rows)
-
-
-def health_table(report: dict) -> Table:
-    rows = [(r["name"], r["value"], "*" * r["concern"], r["ref"]) for r in report.get("sizer") or []]
-    return _table("Repo health (git-sizer concerns)", "metric", ("value", {"justify": "right"}), "concern", ("object", {"overflow": "fold"}), rows=rows, empty="nothing flagged")
+def rich_table(sec: dict):
+    if not sec["rows"] and sec["note"]:
+        return Group(Text(sec["title"], style="table.title"), Text(sec["note"], style="dim"), Text(""))
+    kw = {}
+    if sec.get("caption"):
+        kw = {"caption": sec["caption"], "caption_justify": "left", "caption_style": "dim"}
+    t = Table(title=sec["title"], title_justify="left", box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, **kw)
+    for name, opts in zip(sec["columns"], sec["col_opts"]):
+        t.add_column(name, **opts)
+    for row in sec["rows"]:
+        t.add_row(*row)
+    return t
 
 
 def report(report: dict, findings: list, console: Console) -> None:
     console.print(header(report))
     console.print(findings_panel(findings))
-    console.print(size_table(report))
-    console.print(people_table(report))
-    console.print(hotspots_table(report))
-    console.print(coupling_table(report))
-    console.print(age_table(report))
-    console.print(health_table(report))
-    secrets = report.get("secrets") or []
-    console.print(Text(f"Secrets: {len(secrets)} found" if secrets else "Secrets: none found", style="red" if secrets else "green"))
+    for sec in sections(report):
+        console.print(rich_table(sec))
+    console.print(Text(secrets_line(report), style="red" if report.get("secrets") else "green"))
     console.print(Text(f"\nFull results and plots in {report['out_dir']}", style="dim"))
+
+
+# --- markdown / json -------------------------------------------------------
+
+def _md_cell(cell: str) -> str:
+    return cell.replace("|", "\\|").replace("\n", " ")
+
+
+def markdown(report: dict, findings: list) -> str:
+    s = summary(report)
+    out = [f"# {s['name']}", "",
+           f"{s['commits']} commits · {s['first_date']} → {s['last_date']} · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
+           f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}", "",
+           "## Findings", ""]
+    if findings:
+        out += [f"- **{f['severity']}** {f['title']} — {f['detail']}" for f in findings]
+    else:
+        out.append("Nothing flagged.")
+    for sec in sections(report):
+        out += ["", f"## {sec['title']}", ""]
+        if not sec["rows"]:
+            out.append(f"_{sec['note'] or 'nothing'}_")
+            continue
+        out.append("| " + " | ".join(sec["columns"]) + " |")
+        out.append("| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]) + " |")
+        out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sec["rows"]]
+        if sec.get("caption"):
+            out += ["", f"_{sec['caption']}_"]
+    out += ["", secrets_line(report), "", f"Full results and plots in {report['out_dir']}", ""]
+    return "\n".join(out)
+
+
+def to_json(report: dict, findings: list) -> dict:
+    return {**{k: v for k, v in report.items()}, "findings": findings}

@@ -113,5 +113,62 @@ class Report(unittest.TestCase):
         self.assertTrue(all(len(line) <= 80 for line in text.splitlines()), "a line exceeds 80 columns")
 
 
+class Sections(unittest.TestCase):
+    def test_sections_carry_title_columns_and_rows_in_report_order(self):
+        secs = render.sections(sample_report())
+        titles = [x["title"] for x in secs]
+        self.assertEqual(titles[:2], ["Size by language", "People"])
+        self.assertTrue(titles[2].startswith("Hotspots"))
+        self.assertEqual(titles[-1], "Repo health (git-sizer concerns)")
+        size = secs[0]
+        self.assertEqual(size["columns"][:3], ["language", "files", "code"])
+        self.assertEqual(size["rows"][0][0], "HTML")
+
+    def test_empty_section_has_a_note_instead_of_rows(self):
+        r = sample_report()
+        r["coupling"] = []
+        sec = next(x for x in render.sections(r) if x["title"] == "Change coupling")
+        self.assertEqual(sec["rows"], [])
+        self.assertEqual(sec["note"], "no pairs with 5+ shared revisions")
+
+
+class Markdown(unittest.TestCase):
+    def test_markdown_has_header_findings_and_tables(self):
+        f = [{"severity": "warning", "title": "Bus factor of one", "detail": "Ann wrote 79% of the code."}]
+        md = render.markdown(sample_report(), f)
+        self.assertTrue(md.startswith("# demo"))
+        self.assertIn("363 commits", md)
+        self.assertIn("## Findings", md)
+        self.assertIn("**warning** Bus factor of one", md)
+        self.assertIn("## Size by language", md)
+        self.assertIn("| language | files | code |", md)
+        self.assertIn("| HTML | 28 | 4,783 |", md)
+        self.assertIn("static/apps-metadata.json", md)
+        self.assertIn("Secrets: none found", md)
+        self.assertNotIn("╭", md)
+
+    def test_markdown_escapes_pipes_and_notes_empty_tables(self):
+        r = sample_report()
+        r["coupling"] = []
+        r["revisions"] = [{"entity": "weird|name.py", "n-revs": 3}]
+        md = render.markdown(r, [])
+        self.assertIn("weird\\|name.py", md)
+        self.assertIn("_no pairs with 5+ shared revisions_", md)
+        self.assertIn("Nothing flagged.", md)
+
+
+class Json(unittest.TestCase):
+    def test_to_json_is_serialisable_and_carries_findings_and_meta(self):
+        import json as _json
+        f = [{"severity": "info", "title": "x", "detail": "y"}]
+        text = _json.dumps(render.to_json(sample_report(), f))
+        d = _json.loads(text)
+        self.assertEqual(d["meta"]["name"], "demo")
+        self.assertEqual(d["findings"], f)
+        self.assertEqual(d["size"]["total_code"], 5421)
+        self.assertIn("revisions", d)
+        self.assertIn("cohorts", d)
+
+
 if __name__ == "__main__":
     unittest.main()

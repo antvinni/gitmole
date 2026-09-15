@@ -74,6 +74,20 @@ tools run at once, `--timeout S` to cap any single tool (default 15 minutes).
 All tools run concurrently, so a run takes about as long as the slowest tool.
 Tool stderr goes to `run.log` in the output directory, not the terminal.
 
+### Exports and CI
+
+```bash
+gitmole . --markdown report.md         # the same report as a Markdown document
+gitmole . --json report.json           # every table plus the findings, machine-readable
+gitmole . --markdown - | pbcopy        # - means stdout; banner and progress go to stderr
+gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
+```
+
+`--fail-on` accepts `critical`, `warning`, or `info`. A CI job that runs
+`gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"` blocks
+on leaked secrets and still posts the report. Both exports also work with
+`--no-run` against an earlier output directory.
+
 ### Big repositories
 
 Blame is the one cost that scales with repo size. gitmole keeps it in check:

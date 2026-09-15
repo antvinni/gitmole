@@ -28,6 +28,9 @@ def parse_args(argv):
     p.add_argument("--timeout", type=float, default=900, help="seconds any single tool may run before being killed (default 900)")
     p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from code age and plots")
     p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra ignore pattern for code age and plots (repeatable)")
+    p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
+    p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
+    p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
     return p.parse_args(argv)
 
@@ -36,15 +39,18 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     args = parse_args(sys.argv[1:] if argv is None else argv)
     console = console or Console()
     err = Console(stderr=True) if console.file is sys.stdout else console
+    # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
+    quiet = "-" in (args.json, args.markdown)
+    ui = Console(stderr=True) if quiet else console
 
     if args.no_run:
-        if console.is_terminal:
-            console.print(banner.neon())
         out_dir = os.path.abspath(args.target)
         if not os.path.isfile(os.path.join(out_dir, "meta.json")):
             err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
             return 2
-        return _render(out_dir, console)
+        if ui.is_terminal:
+            ui.print(banner.neon())
+        return _render(out_dir, console, ui, args)
 
     try:
         kind, target = run.classify_target(args.target)
@@ -60,7 +66,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
 
     if kind == "remote":
         parent = tempfile.mkdtemp(prefix="gitmole-", dir=os.environ.get("TMPDIR"))
-        console.print(f"[dim]cloning {target} into {parent}[/dim]")
+        ui.print(f"[dim]cloning {target} into {parent}[/dim]")
         repo_dir = run.clone(target, parent)
     else:
         repo_dir = target
@@ -74,10 +80,10 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     age_ok = args.deep or estimate["files"] <= args.budget
     plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
     if not age_ok:
-        console.print(f"[yellow]code age skipped:[/yellow] about {estimate['files']:,} files to blame exceeds the budget of {args.budget:,}. "
+        ui.print(f"[yellow]code age skipped:[/yellow] about {estimate['files']:,} files to blame exceeds the budget of {args.budget:,}. "
                       f"Rerun with --deep to force it, or --ignore-data to shrink it.")
     if args.plots and not plots_ok:
-        console.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
+        ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
                       f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
                       f"Rerun with --deep to force them, or --ignore-data to shrink them.")
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
@@ -88,7 +94,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore)
     run.save_meta(meta, out_dir)
-    results = _execute(steps, log_path, repo_dir, args.workers, console, timeout=args.timeout)
+    results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
 
     if results.get("code age") == "timeout":
         meta["age"]["status"] = "timeout"
@@ -97,9 +103,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     run.save_meta(meta, out_dir)
     failed = [n for n, rc in results.items() if rc != 0]
     if failed:
-        console.print(f"[yellow]{len(failed)} step(s) did not complete:[/yellow] " + ", ".join(f"{n} ({results[n]})" for n in failed))
-        console.print(f"[dim]details in {log_path}[/dim]\n")
-    return _render(out_dir, console)
+        ui.print(f"[yellow]{len(failed)} step(s) did not complete:[/yellow] " + ", ".join(f"{n} ({results[n]})" for n in failed))
+        ui.print(f"[dim]details in {log_path}[/dim]\n")
+    return _render(out_dir, console, ui, args)
 
 
 def _execute(steps, log_path, repo_dir, workers, console, timeout=None) -> dict:
@@ -141,11 +147,29 @@ def _execute(steps, log_path, repo_dir, workers, console, timeout=None) -> dict:
     return results
 
 
-def _render(out_dir: str, console: Console) -> int:
+def _write(text: str, target: str, console: Console) -> None:
+    if target == "-":
+        console.print(Text(text), soft_wrap=True, end="")
+    else:
+        with open(target, "w") as fh:
+            fh.write(text)
+
+
+def _render(out_dir: str, console: Console, ui: Console, args) -> int:
+    import json
+
     from . import render
 
     report = load.load_report(out_dir)
-    render.report(report, findings.evaluate(report), console)
+    found = findings.evaluate(report)
+    if args.json:
+        _write(json.dumps(render.to_json(report, found), indent=2) + "\n", args.json, console)
+    if args.markdown:
+        _write(render.markdown(report, found), args.markdown, console)
+    if "-" not in (args.json, args.markdown):
+        render.report(report, found, console)
+    if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
+        return 3
     return 0
 
 
