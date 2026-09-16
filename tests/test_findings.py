@@ -413,7 +413,7 @@ class KnowledgeLoss(unittest.TestCase):
         f = findings.knowledge_loss(r)
         self.assertEqual(f[0]["severity"], "warning")
         self.assertEqual(f[0]["title"], "Knowledge loss")
-        self.assertIn("1 person with no commits since 2024-11-09 wrote 40% of the code that survives today: Bob (40%)", f[0]["detail"])
+        self.assertIn("People with no commits since 2024-11-09 wrote 40% of the code that survives today: Bob (40%)", f[0]["detail"])
         self.assertIn("Areas mostly theirs: old/ (100%), docs/ (100%)", f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Pair someone on old/ first; nobody who wrote it is around to ask.")
 
@@ -440,6 +440,15 @@ class KnowledgeLoss(unittest.TestCase):
         r = self._report(theseus_authors={"Ann": 60, "Bob": 40})
         r["meta"]["gone_months"] = 24
         self.assertEqual(findings.knowledge_loss(r), [], "Bob committed 17 months before the last commit")
+
+    def test_small_contributors_are_folded_into_others(self):
+        # total 1000; Dan, Eve and Fay each round to 0% individually and are folded into "others".
+        r = self._report(theseus_authors={"Ann": 718, "Bob": 250, "Cat": 20, "Dan": 4, "Eve": 4, "Fay": 4})
+        for name in ("Cat", "Dan", "Eve", "Fay"):
+            r["activity"]["authors"][name] = {"commits": 1, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2024-06-01"}
+        f = findings.knowledge_loss(r)
+        self.assertIn("wrote 28% of the code that survives today: Bob (25%), Cat (2%) and 3 others (1%)", f[0]["detail"])
+        self.assertNotIn("Dan", f[0]["detail"])
 
 
 class Advice(unittest.TestCase):

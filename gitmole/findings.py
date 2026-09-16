@@ -268,10 +268,18 @@ def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.
         return []
     sev = "warning" if lost / total >= warn_share else "info"
     people = sorted(by_person.items(), key=lambda kv: (-kv[1], kv[0]))
-    listed = ", ".join(f"{n} ({_pct(v, total)})" for n, v in people[:3]) + (f" and {len(people) - 3} more" if len(people) > 3 else "")
+    named = [(n, v) for n, v in people if round(100 * v / total) >= 1][:3]
+    if named:
+        named_names = {n for n, _ in named}
+        rest = [(n, v) for n, v in people if n not in named_names]
+        listed = ", ".join(f"{n} ({_pct(v, total)})" for n, v in named)
+        if rest:
+            listed += f" and {_plural(len(rest), 'other')} ({_pct(sum(v for _, v in rest), total)})"
+    else:
+        listed = f"{len(people)} {'person' if len(people) == 1 else 'people'} at under 1% each"
     theirs = [a for a in loss.areas(source_rows, names) if a["lines"] >= 200 and a["lost_share"] >= 0.8]
     theirs.sort(key=lambda a: (-a["lines"], a["area"]))
-    statement = (f"{len(gone)} {'person' if len(gone) == 1 else 'people'} with no commits since {loss.cutoff(report, months)} "
+    statement = (f"People with no commits since {loss.cutoff(report, months)} "
                  f"wrote {_pct(lost, total)} {basis}: {listed}.")
     if theirs:
         statement += " Areas mostly theirs: " + ", ".join(f"{a['area']} ({round(100 * a['lost_share'])}%)" for a in theirs[:3]) + "."
