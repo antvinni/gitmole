@@ -16,8 +16,12 @@ repository and bumped by the existing release workflow.
 
   ```
   brew tap antvinni/gitmole https://github.com/antvinni/gitmole
+  brew trust antvinni/gitmole
   brew install gitmole
   ```
+
+  Homebrew 7 refuses to install from a third-party tap until `brew trust`
+  has marked it; found during the v0.2.3 end-to-end check.
 
   The one-line `brew install antvinni/gitmole/gitmole` form does not work
   without a `homebrew-` prefixed repository and is not offered.
