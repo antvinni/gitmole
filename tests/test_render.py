@@ -244,6 +244,37 @@ class Report(unittest.TestCase):
         self.assertIn("ranked by churn × recent fixes × complexity × single ownership; commits since 2026-01-01", caption)
         self.assertTrue(caption.endswith("would name 1.0); whole history"), caption)
 
+    def test_default_hotspots_hide_test_files_and_say_so(self):
+        r = sample_report()
+        r["revisions"].append({"entity": "tests/test_a.py", "n-revs": 200})
+        r["size"]["files"]["tests/test_a.py"] = {"code": 50, "complexity": 1}
+        text = rendered(r, [])
+        hot = text[text.index("◆ Hotspots"):]
+        self.assertNotIn("tests/test_a.py", hot)
+        self.assertIn("1 test file hidden; --full shows them", hot)
+        full_text = rendered(r, [], full=True)
+        self.assertIn("tests/test_a.py", full_text[full_text.index("◆ Hotspots"):])
+
+    def test_default_coupling_hides_test_pairs_and_says_so(self):
+        r = sample_report()
+        r["coupling"].append({"entity": "static/tax.html", "coupled": "tests/test_tax.py", "degree": 100, "average-revs": 11})
+        text = rendered(r, [])
+        coupling = text[text.index("Change coupling"):]
+        self.assertNotIn("tests/test_tax.py", coupling)
+        self.assertIn("1 test pair hidden; --full shows them", coupling)
+        full_text = rendered(r, [], full=True)
+        self.assertIn("tests/test_tax.py", full_text[full_text.index("Change coupling"):])
+
+    def test_default_complex_functions_hide_test_files(self):
+        r = sample_report()
+        r["functions"].append({"file": "tests/test_a.py", "function": "test_thing", "ccn": 40, "nloc": 50, "params": 0, "start": 1, "end": 50})
+        text = rendered(r, [])
+        fn = text[text.index("Complex functions"):]
+        self.assertNotIn("tests/test_a.py", fn)
+        self.assertIn("1 test file hidden; --full shows them", fn)
+        full_text = rendered(r, [], full=True)
+        self.assertIn("tests/test_a.py", full_text[full_text.index("Complex functions"):])
+
 
 class Activity(unittest.TestCase):
     def test_activity_shows_weekdays_and_busiest_hour(self):

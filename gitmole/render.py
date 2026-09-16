@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
+from . import filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -76,6 +76,24 @@ def _limit(title: str, full, cap=None):
 
 def _more(total: int, limit) -> str:
     return f"and {total - limit} more" if limit is not None and total > limit else None
+
+
+def _hide_tests(rows: list, path_of, full, noun="test file") -> tuple:
+    """Drop rows whose path (or any of whose paths) is a test path, unless `full` is True.
+    `path_of(row)` returns a single path or a tuple of paths to check. Returns (rows, note),
+    `note` being the caption note for the hidden count, or None."""
+    if full is True:
+        return rows, None
+    kept, hidden = [], 0
+    for row in rows:
+        paths = path_of(row)
+        paths = (paths,) if isinstance(paths, str) else paths
+        if any(filetypes.is_test_path(p) for p in paths):
+            hidden += 1
+        else:
+            kept.append(row)
+    note = f"{hidden} {noun}{'s' if hidden != 1 else ''} hidden; --full shows them" if hidden else None
+    return kept, note
 
 
 def _keep(columns: list, rows: list, names) -> tuple:
@@ -307,6 +325,7 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
     scored = hotspots.ranked(report)
+    scored, hidden_note = _hide_tests(scored, lambda h: h["entity"], full)
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
     series = (report.get("trend") or {}).get("files") or {}
@@ -327,7 +346,7 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
         rows = _shorten(rows, width, columns)
-    notes = [c for c in (_more(len(scored), limit),) if c]
+    notes = [c for c in (_more(len(scored), limit), hidden_note) if c]
     if series and full is not False:   # the tight report keeps its captions short
         notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
     return _section(title, columns, rows, caption="; ".join(notes) or None)
@@ -335,13 +354,15 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
 
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))
+    pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair")
     limit = _limit("Change coupling", full)
     rows = [(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in pairs[:limit]]
     columns = [("file", PATH), ("changes with", PATH), ("degree", RIGHT), ("avg revs", RIGHT)]
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "changes with", "degree"])
         rows = _shorten(rows, width, columns, path_columns=2)
-    return _section("Change coupling", columns, rows, note=None if rows else "no pairs with 5+ shared revisions", caption=_more(len(pairs), limit))
+    notes = [c for c in (_more(len(pairs), limit), hidden_note) if c]
+    return _section("Change coupling", columns, rows, note=None if rows else "no pairs with 5+ shared revisions", caption="; ".join(notes) or None)
 
 
 def age_section(report: dict, full: bool = True, width=None) -> dict:
@@ -387,6 +408,7 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     """Functions at or over the complexity floor, worst first, from lizard when it is installed."""
     measured = report.get("functions") or []
     funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
+    funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full)
     limit = _limit("Complex functions", full)
     rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
@@ -404,7 +426,7 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
         note = f"nothing over complexity {CCN_FLOOR} ({len(measured):,} function{'s' if len(measured) != 1 else ''} measured{'; ' + partial if partial else ''})"
     else:
         note = None
-    caption = "; ".join(c for c in (_more(len(funcs), limit), partial) if c) or None
+    caption = "; ".join(c for c in (_more(len(funcs), limit), hidden_note, partial) if c) or None
     return _section("Complex functions", columns, rows, note=note, caption=caption)
 
 
