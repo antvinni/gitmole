@@ -37,6 +37,11 @@ def sample_report():
     }
 
 
+def _section_text(text: str, heading: str) -> str:
+    """The rendered report from one section's heading to the end: what that section printed."""
+    return text[text.index(heading):]
+
+
 def rendered(report, findings, width=120, full=False):
     console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
     render.report(report, findings, console, full=full)
@@ -271,9 +276,88 @@ class Report(unittest.TestCase):
         text = rendered(r, [])
         fn = text[text.index("Complex functions"):]
         self.assertNotIn("tests/test_a.py", fn)
-        self.assertIn("1 test file hidden; --full shows them", fn)
+        self.assertIn("1 function in a test file hidden; --full shows them", fn)
         full_text = rendered(r, [], full=True)
         self.assertIn("tests/test_a.py", full_text[full_text.index("Complex functions"):])
+
+    def test_hotspots_with_only_test_files_say_what_was_hidden(self):
+        r = sample_report()
+        r["revisions"] = [{"entity": "tests/test_a.py", "n-revs": 200}]
+        r["size"]["files"] = {"tests/test_a.py": {"code": 50, "complexity": 1}}
+        hot = _section_text(rendered(r, [], width=200), "\u25c6 Hotspots")
+        self.assertIn("no source hotspots; 1 test file hidden; --full shows them", hot)
+
+    def test_coupling_with_only_test_pairs_says_what_was_hidden(self):
+        r = sample_report()
+        r["coupling"] = [{"entity": "static/tax.html", "coupled": "tests/test_tax.py", "degree": 100, "average-revs": 11}]
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("no source pairs with 5+ shared revisions; 1 test pair hidden; --full shows them", coupling)
+
+    def test_coupling_with_nothing_to_show_keeps_its_plain_note(self):
+        r = sample_report()
+        r["coupling"] = []
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("no pairs with 5+ shared revisions", coupling)
+        self.assertNotIn("hidden", coupling)
+
+    def test_complex_functions_with_only_test_files_say_what_was_hidden(self):
+        r = sample_report()
+        r["functions"] = [{"file": "tests/test_a.py", "function": "test_thing", "ccn": 40, "nloc": 50, "params": 0, "start": 1, "end": 50}]
+        fn = _section_text(rendered(r, [], width=200), "Complex functions")
+        self.assertIn("nothing over complexity 10 in source files (1 function measured); "
+                      "1 function in a test file hidden; --full shows them", fn)
+
+    def test_complex_functions_with_nothing_to_show_keep_their_plain_note(self):
+        r = sample_report()
+        r["functions"] = [{"file": "static/js/app.js", "function": "render", "ccn": 2, "nloc": 5, "params": 0, "start": 1, "end": 5}]
+        fn = _section_text(rendered(r, [], width=200), "Complex functions")
+        self.assertIn("nothing over complexity 10 (1 function measured)", fn)
+        self.assertNotIn("hidden", fn)
+
+
+class HideTests(unittest.TestCase):
+    """render._hide_tests: the rows dropped from the default tables and the caption that counts them."""
+
+    def hide(self, paths, full=False, **kw):
+        rows = [{"path": p} for p in paths]
+        kept, note = render._hide_tests(rows, lambda r: r["path"], full, **kw)
+        return [r["path"] for r in kept], note
+
+    def test_full_hides_nothing(self):
+        kept, note = self.hide(["app.py", "tests/test_app.py"], full=True)
+        self.assertEqual(kept, ["app.py", "tests/test_app.py"])
+        self.assertIsNone(note)
+
+    def test_markdown_export_still_hides(self):
+        kept, note = self.hide(["app.py", "tests/test_app.py"], full="markdown")
+        self.assertEqual(kept, ["app.py"])
+        self.assertEqual(note, "1 test file hidden; --full shows them")
+
+    def test_nothing_hidden_has_no_note(self):
+        kept, note = self.hide(["app.py", "util.py"])
+        self.assertEqual(kept, ["app.py", "util.py"])
+        self.assertIsNone(note)
+
+    def test_a_pair_goes_when_either_side_is_a_test(self):
+        pairs = [("app.py", "util.py"), ("app.py", "tests/test_app.py"), ("tests/test_util.py", "util.py")]
+        kept, note = render._hide_tests(pairs, lambda p: p, False, noun="test pair")
+        self.assertEqual(kept, [("app.py", "util.py")])
+        self.assertEqual(note, "2 test pairs hidden; --full shows them")
+
+    def test_singular_and_plural_of_the_default_noun(self):
+        self.assertEqual(self.hide(["tests/test_a.py"])[1], "1 test file hidden; --full shows them")
+        self.assertEqual(self.hide(["tests/test_a.py", "tests/test_b.py"])[1], "2 test files hidden; --full shows them")
+
+    def test_singular_and_plural_of_a_multi_word_noun(self):
+        kw = {"noun": "function in a test file", "plural": "functions in test files"}
+        self.assertEqual(self.hide(["tests/test_a.py"], **kw)[1], "1 function in a test file hidden; --full shows them")
+        self.assertEqual(self.hide(["tests/test_a.py", "tests/test_b.py"], **kw)[1],
+                         "2 functions in test files hidden; --full shows them")
+
+    def test_the_count_is_every_hidden_row_not_only_the_visible_ones(self):
+        kept, note = self.hide(["app.py"] + [f"tests/test_{i}.py" for i in range(12)])
+        self.assertEqual(kept, ["app.py"])
+        self.assertEqual(note, "12 test files hidden; --full shows them")   # hiding happens before any row cap
 
 
 class Activity(unittest.TestCase):

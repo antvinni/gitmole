@@ -78,10 +78,12 @@ def _more(total: int, limit) -> str:
     return f"and {total - limit} more" if limit is not None and total > limit else None
 
 
-def _hide_tests(rows: list, path_of, full, noun="test file") -> tuple:
+def _hide_tests(rows: list, path_of, full, noun="test file", plural=None) -> tuple:
     """Drop rows whose path (or any of whose paths) is a test path, unless `full` is True.
-    `path_of(row)` returns a single path or a tuple of paths to check. Returns (rows, note),
-    `note` being the caption note for the hidden count, or None."""
+    `path_of(row)` returns a single path or a tuple of paths to check. `noun` names one hidden row
+    and `plural` names several, `noun + "s"` by default (a multi-word noun gives its own plural:
+    "function in a test file" -> "functions in test files"). Returns (rows, note), `note` being
+    the caption note for the hidden count, or None."""
     if full is True:
         return rows, None
     kept, hidden = [], 0
@@ -92,8 +94,14 @@ def _hide_tests(rows: list, path_of, full, noun="test file") -> tuple:
             hidden += 1
         else:
             kept.append(row)
-    note = f"{hidden} {noun}{'s' if hidden != 1 else ''} hidden; --full shows them" if hidden else None
+    note = f"{hidden} {noun if hidden == 1 else plural or noun + 's'} hidden; --full shows them" if hidden else None
     return kept, note
+
+
+def _empty_note(base, hidden_note, source_base=None) -> str:
+    """The note that replaces a table with no rows left. When test rows were hidden the note has to
+    carry the count, since the caption goes with the table, and what is left is the source rows."""
+    return f"{source_base or base}; {hidden_note}" if hidden_note else base
 
 
 def _keep(columns: list, rows: list, names) -> tuple:
@@ -346,10 +354,11 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
         rows = _shorten(rows, width, columns)
-    notes = [c for c in (_more(len(scored), limit), hidden_note) if c]
+    note = None if rows else _empty_note(None, hidden_note, "no source hotspots")
+    notes = [c for c in (_more(len(scored), limit), None if note else hidden_note) if c]
     if series and full is not False:   # the tight report keeps its captions short
         notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
-    return _section(title, columns, rows, caption="; ".join(notes) or None)
+    return _section(title, columns, rows, note=note, caption="; ".join(notes) or None)
 
 
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:
@@ -361,8 +370,9 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "changes with", "degree"])
         rows = _shorten(rows, width, columns, path_columns=2)
-    notes = [c for c in (_more(len(pairs), limit), hidden_note) if c]
-    return _section("Change coupling", columns, rows, note=None if rows else "no pairs with 5+ shared revisions", caption="; ".join(notes) or None)
+    note = None if rows else _empty_note("no pairs with 5+ shared revisions", hidden_note, "no source pairs with 5+ shared revisions")
+    notes = [c for c in (_more(len(pairs), limit), None if note else hidden_note) if c]
+    return _section("Change coupling", columns, rows, note=note, caption="; ".join(notes) or None)
 
 
 def age_section(report: dict, full: bool = True, width=None) -> dict:
@@ -408,7 +418,7 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     """Functions at or over the complexity floor, worst first, from lizard when it is installed."""
     measured = report.get("functions") or []
     funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
-    funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full)
+    funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full, noun="function in a test file", plural="functions in test files")
     limit = _limit("Complex functions", full)
     rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
@@ -423,10 +433,12 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     elif not measured:
         note = "no functions found in the code files"
     elif not rows:
-        note = f"nothing over complexity {CCN_FLOOR} ({len(measured):,} function{'s' if len(measured) != 1 else ''} measured{'; ' + partial if partial else ''})"
+        counted = f"({len(measured):,} function{'s' if len(measured) != 1 else ''} measured{'; ' + partial if partial else ''})"
+        note = _empty_note(f"nothing over complexity {CCN_FLOOR} {counted}", hidden_note,
+                           f"nothing over complexity {CCN_FLOOR} in source files {counted}")
     else:
         note = None
-    caption = "; ".join(c for c in (_more(len(funcs), limit), hidden_note, partial) if c) or None
+    caption = "; ".join(c for c in (_more(len(funcs), limit), None if note else hidden_note, partial) if c) or None
     return _section("Complex functions", columns, rows, note=note, caption=caption)
 
 
