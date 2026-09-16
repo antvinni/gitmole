@@ -306,9 +306,9 @@ rows unless `--full`.
    five), reverts (5% of commits or five of them; a warning at 10%; names
    the file most often backed out), brain methods (functions with
    complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
-   hotspots getting more complex (three or more of the ten top hotspots
-   grew by a quarter in a year; a warning when the top one did), tightly
-   coupled file pairs (a file and its test are expected to change
+   hotspots getting more complex (three or more of the top hotspots (up
+   to ten) grew by a quarter in a year; a warning when the top one did),
+   tightly coupled file pairs (a file and its test are expected to change
    together, so those pairs are left out), duplicated blocks of 30+ lines
    (with `--duplicates`), a large share of stale files (files still in the
    tree; deleted paths do not count), knowledge islands: areas of at least
