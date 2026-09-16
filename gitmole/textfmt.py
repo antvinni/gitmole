@@ -22,6 +22,11 @@ def shorten_path(path: str, max_len: int) -> str:
     return candidates[-1]
 
 
+def times(n: int) -> str:
+    """How often something happened, in words for the small numbers: once, twice, 3 times."""
+    return {1: "once", 2: "twice"}.get(n, f"{n} times")
+
+
 _ADVICE_VERBS = ("Add ", "Set ", "Rotate ", "Pair ", "Rerun ", "Expect ", "Consider ", "Use ", "Review ", "Merge ", "Split ", "Move ", "Extract ")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 

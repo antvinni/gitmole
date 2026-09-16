@@ -374,10 +374,12 @@ class Reverts(unittest.TestCase):
         return r
 
     def test_info_at_five_percent_names_the_most_reverted_file(self):
-        f = findings.reverts(self._report(5, reverted={"core/a.py": 3, "core/b.py": 2, "tests/t.py": 4}))
+        # maat.activity sorts by count desc then path, so the test file leads the table
+        f = findings.reverts(self._report(5, reverted={"tests/t.py": 4, "core/a.py": 3, "core/b.py": 2}))
         self.assertEqual(f[0]["severity"], "info")
         self.assertEqual(f[0]["title"], "Reverts")
-        self.assertIn("5 of 100 commits are reverts; core/a.py was reverted 3 times, core/b.py twice", f[0]["detail"])
+        self.assertIn("5 of 100 commits are reverts; core/a.py was reverted 3 times, core/b.py twice, tests/t.py 4 times",
+                      f[0]["detail"], "source files lead, test files still listed")
         self.assertEqual(f[0]["advice"], "Add a check before merge for core/a.py; it is the file most often backed out.")
 
     def test_five_reverts_fire_even_below_five_percent(self):
@@ -407,6 +409,7 @@ class KnowledgeLoss(unittest.TestCase):
 
     def test_warning_names_the_largest_area_nobody_around_wrote(self):
         r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
+                         age=[{"entity": "old/a.py", "age-months": 2}, {"entity": "docs/x.md", "age-months": 30}],
                          ownership=[{"entity": "old/a.py", "author": "Bob", "added": 800, "deleted": 0},
                                     {"entity": "docs/x.md", "author": "Bob", "added": 300, "deleted": 0},
                                     {"entity": "app/b.py", "author": "Ann", "added": 900, "deleted": 0}])
@@ -416,6 +419,34 @@ class KnowledgeLoss(unittest.TestCase):
         self.assertIn("People with no commits since 2024-11-09 wrote 40% of the code that survives today: Bob (40%)", f[0]["detail"])
         self.assertIn("Areas mostly theirs: old/ (100%), docs/ (100%)", f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Pair someone on old/ first; nobody who wrote it is around to ask.")
+
+    def test_a_live_area_is_preferred_over_a_bigger_idle_one(self):
+        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
+                         age=[{"entity": "old/a.py", "age-months": 30}, {"entity": "live/b.py", "age-months": 3}],
+                         ownership=[{"entity": "old/a.py", "author": "Bob", "added": 800, "deleted": 0},
+                                    {"entity": "live/b.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "app/c.py", "author": "Ann", "added": 900, "deleted": 0}])
+        f = findings.knowledge_loss(r)
+        self.assertEqual(f[0]["advice"], "Pair someone on live/ first; nobody who wrote it is around to ask.")
+        self.assertIn("Areas mostly theirs: live/ (100%), old/ (100%)", f[0]["detail"], "the live area leads the list too")
+
+    def test_advice_falls_back_when_no_area_is_still_live(self):
+        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
+                         age=[{"entity": "old/a.py", "age-months": 30}],
+                         ownership=[{"entity": "old/a.py", "author": "Bob", "added": 800, "deleted": 0},
+                                    {"entity": "app/c.py", "author": "Ann", "added": 900, "deleted": 0}])
+        f = findings.knowledge_loss(r)
+        self.assertEqual(f[0]["advice"], "Pair someone with the people who worked with Bob before the rest of that knowledge goes.")
+        self.assertIn("Areas mostly theirs: old/ (100%)", f[0]["detail"], "the areas are still worth naming")
+
+    def test_root_files_count_as_live_when_a_file_in_the_root_is_fresh(self):
+        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
+                         age=[{"entity": "main.py", "age-months": 1}, {"entity": "old/a.py", "age-months": 30}],
+                         ownership=[{"entity": "main.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "old/a.py", "author": "Bob", "added": 800, "deleted": 0},
+                                    {"entity": "app/c.py", "author": "Ann", "added": 900, "deleted": 0}])
+        f = findings.knowledge_loss(r)
+        self.assertEqual(f[0]["advice"], "Pair someone on (root files) first; nobody who wrote it is around to ask.")
 
     def test_info_between_ten_and_thirty_percent(self):
         f = findings.knowledge_loss(self._report(theseus_authors={"Ann": 85, "Bob": 15}))
@@ -464,11 +495,21 @@ class ComplexityGrowth(unittest.TestCase):
         f = findings.complexity_growth(self._report([3, 3, 3, 0, 0]))
         self.assertEqual(f[0]["severity"], "warning", "core/f0.py is the top hotspot and grew")
         self.assertEqual(f[0]["title"], "Hotspots getting more complex")
-        self.assertIn("3 of the 5 top hotspots grew by 25% or more in a year: core/f0.py (+30%), core/f1.py (+30%), core/f2.py (+30%)", f[0]["detail"])
+        self.assertIn("3 of the 5 top source hotspots grew by 25% or more in a year: core/f0.py (+30%), core/f1.py (+30%), core/f2.py (+30%)", f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Split core/f0.py before the next change; its complexity grew 30% in a year.")
         f = findings.complexity_growth(self._report([0, 3, 3, 3, 0]))
         self.assertEqual(f[0]["severity"], "info")
         self.assertEqual(f[0]["advice"], "Split core/f1.py before the next change; its complexity grew 30% in a year.")
+
+    def test_a_growing_test_file_is_neither_counted_nor_named(self):
+        r = self._report([3, 3, 3, 0, 0])
+        r["size"]["files"]["tests/test_x.py"] = {"code": 1000, "complexity": 10}   # the top hotspot by score
+        r["revisions"].insert(0, {"entity": "tests/test_x.py", "n-revs": 90})
+        r["trend"]["files"]["tests/test_x.py"] = [["2025-09-10", 10, 1000], ["2026-09-10", 20, 1000]]
+        f = findings.complexity_growth(r)
+        self.assertIn("3 of the 5 top source hotspots", f[0]["detail"], "the test file is not one of the five")
+        self.assertNotIn("tests/test_x.py", f[0]["detail"])
+        self.assertEqual(f[0]["severity"], "warning", "core/f0.py still leads the source hotspots")
 
     def test_two_growers_or_small_growth_is_nothing(self):
         self.assertEqual(findings.complexity_growth(self._report([3, 3, 0, 0, 0])), [])
