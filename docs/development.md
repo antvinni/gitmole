@@ -1,6 +1,6 @@
 # Development
 
-Setting up a checkout, running the tests, cutting a release, and where the code lives; back to [the README](https://github.com/antvinni/gitmole#readme).
+Setting up a checkout, running the tests, cutting a release, and where the code lives; back to [the README](https://github.com/antvinni/gitmole#readme). How to report a bug or send a change: [CONTRIBUTING.md](https://github.com/antvinni/gitmole/blob/main/CONTRIBUTING.md).
 
 ## Setup
 

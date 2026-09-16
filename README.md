@@ -113,6 +113,7 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 - [Full example report](https://github.com/antvinni/gitmole/blob/main/docs/example.md): the whole `gitmole .` output for this repository.
 - [Why these tools](https://github.com/antvinni/gitmole/blob/main/docs/tools.md): the rationale, what was left out, licences.
 - [Development](https://github.com/antvinni/gitmole/blob/main/docs/development.md): setup, tests, releases, code layout.
+- [Contributing](https://github.com/antvinni/gitmole/blob/main/CONTRIBUTING.md): bugs, ideas, pull requests, security reports.
 
 ## Safety
 
