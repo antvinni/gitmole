@@ -306,7 +306,9 @@ rows unless `--full`.
    five), reverts (5% of commits or five of them; a warning at 10%; names
    the file most often backed out), brain methods (functions with
    complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
-   tightly coupled file pairs (a file and its test are expected to change
+   hotspots getting more complex (three or more of the ten top hotspots
+   grew by a quarter in a year; a warning when the top one did), tightly
+   coupled file pairs (a file and its test are expected to change
    together, so those pairs are left out), duplicated blocks of 30+ lines
    (with `--duplicates`), a large share of stale files (files still in the
    tree; deleted paths do not count), knowledge islands: areas of at least
@@ -351,9 +353,12 @@ rows unless `--full`.
    and who wrote them), a timeline of commits per author over the last
    twelve months, hotspots ranked by revisions times lines of code with the
    number of fix commits alongside, change coupling, the most complex
-   functions, repo health. The knowledge map marks owners who have stopped
-   committing with `(gone)`, and under `--full` shows the share of each
-   area's lines that they wrote. With `--full`: size by language, activity
+   functions, repo health. Hotspots carry a `trend` column: the change in
+   complexity over the last year from scc on the file at sampled commits
+   (`--full` shows the whole series as a sparkline). The knowledge map
+   marks owners who have stopped committing with `(gone)`, and under
+   `--full` shows the share of each area's lines that they wrote. With
+   `--full`: size by language, activity
    by weekday with the busiest hour and the share of commits that are
    fixes, and surviving code by year.
 
@@ -387,6 +392,7 @@ directory for a remote target:
 | `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
 | `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |
+| `trend.json` | trend step | complexity and lines of the top hotspots at sampled commits |
 | `run.log` | gitmole | every command run and its stderr |
 
 ## How to read the output

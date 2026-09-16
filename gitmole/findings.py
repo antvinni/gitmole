@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import filetypes, hotspots, knowledge, leaks, loss
+from . import filetypes, hotspots, knowledge, leaks, loss, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -311,6 +311,28 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
                f"Split {big[0]['function']} in {big[0]['file']} first, before the next change lands there.")]
 
 
+def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = 25, top_n: int = 10) -> list:
+    """The top_n hotspots whose complexity grew over the last year, from the trend samples."""
+    series = (report.get("trend") or {}).get("files") or {}
+    last = report["meta"].get("last_date") or ""
+    if not series or not last:
+        return []
+    top = [h["entity"] for h in hotspots.ranked(report) if h["code"] is not None][:top_n]
+    grown = []
+    for path in top:
+        change = trend.change_over_year(series.get(path) or [], last)
+        if change.startswith("+") and int(change[1:-1]) >= min_pct:
+            grown.append((path, int(change[1:-1])))
+    if len(grown) < min_growers:
+        return []
+    sev = "warning" if top and grown[0][0] == top[0] else "info"
+    listed = ", ".join(f"{p} (+{g}%)" for p, g in grown[:5]) + (f" and {len(grown) - 5} more" if len(grown) > 5 else "")
+    first = grown[0]
+    return [_f(sev, "Hotspots getting more complex",
+               f"{len(grown)} of the {top_n} top hotspots grew by {min_pct}% or more in a year: {listed}.",
+               f"Split {first[0]} before the next change; its complexity grew {first[1]}% in a year.")]
+
+
 def duplication(report: dict, min_lines: int = 30) -> list:
     dup = report.get("duplicates") or {}
     blocks = [b for b in dup.get("blocks") or [] if b["lines"] >= min_lines]
@@ -329,8 +351,8 @@ def duplication(report: dict, min_lines: int = 30) -> list:
                f"Extract the {first['lines']}-line block {where} first.")]
 
 
-RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, reverts, brain_methods, tight_coupling,
-         duplication, stale_files, knowledge_islands, knowledge_loss]
+RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, reverts, brain_methods, complexity_growth,
+         tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss]
 
 
 def evaluate(report: dict) -> list:

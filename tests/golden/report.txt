@@ -39,12 +39,12 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
   Bob Example     ·     ·     ·     1     ·     ·     ·     ·     ·     ·     ·     1
 
 ◆ Hotspots
-  file          revs   lines   fixes   authors
-  ────────────────────────────────────────────
-  app/main.py      7       6       1         2
-  app/util.py      5       2       0         2
-  Makefile         1       2       0         1
-  app/old.py       2       -       1         2
+  file          revs   lines   fixes   authors   trend
+  ────────────────────────────────────────────────────
+  app/main.py      7       6       1         2       =
+  app/util.py      5       2       0         2       -
+  Makefile         1       2       0         1       -
+  app/old.py       2       -       1         2       -
 
 ⟷ Change coupling
   file          changes with   degree
