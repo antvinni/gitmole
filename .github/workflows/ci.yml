@@ -46,11 +46,13 @@ jobs:
     name: release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [test, formula]
-    runs-on: ubuntu-latest
+    runs-on: macos-latest   # Homebrew is needed to refresh and verify the formula
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -76,3 +78,28 @@ jobs:
           else
             gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
           fi
+      - name: Bump the Homebrew formula to this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA="$(shasum -a 256 "dist/gitmole-${VERSION}.tar.gz" | cut -c1-64)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          sed -i '' \
+            -e "s|^  url \".*\"$|  url \"https://github.com/antvinni/gitmole/releases/download/${GITHUB_REF_NAME}/gitmole-${VERSION}.tar.gz\"|" \
+            -e "s|^  sha256 \".*\"$|  sha256 \"${SHA}\"|" Formula/gitmole.rb
+          git commit -am "Homebrew formula: ${GITHUB_REF_NAME}"
+          brew tap antvinni/gitmole "$PWD"
+          brew update-python-resources antvinni/gitmole/gitmole
+          cp "$(brew --repo antvinni/gitmole)/Formula/gitmole.rb" Formula/gitmole.rb
+          git diff --quiet || git commit -am "Homebrew formula: ${GITHUB_REF_NAME}" --amend --no-edit
+          git -C "$(brew --repo antvinni/gitmole)" reset --hard -q
+          git -C "$(brew --repo antvinni/gitmole)" pull -q --ff-only "$PWD" main
+          brew audit --strict --online antvinni/gitmole/gitmole
+          brew install --build-from-source antvinni/gitmole/gitmole
+          brew test antvinni/gitmole/gitmole
+          git push origin main
