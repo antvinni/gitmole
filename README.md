@@ -200,13 +200,16 @@ gitmole . --markdown report.md         # the same report as a Markdown document
 gitmole . --json report.json           # every table, the watch list and the findings, machine-readable
 gitmole . --markdown - | pbcopy        # - means stdout; banner and progress go to stderr
 gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
+gitmole . --risk main --risk-threshold 5   # exit 3 if the changed files are too risky
 ```
 
 `--fail-on` accepts `critical`, `warning`, or `info`. A CI job that runs
 `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"` blocks
 on secrets in source files and still posts the report. Secrets found only in
 test files are a warning, so gate on `warning` to block on those too. Both exports also work with
-`--no-run` against an earlier output directory.
+`--no-run` against an earlier output directory. `--risk-threshold` needs `--risk`: it exits 3 when
+the files changed since main add up to more than 5 on the watch-list scale; the total prints in the
+Change risk caption.
 
 ### Big repositories
 

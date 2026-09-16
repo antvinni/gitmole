@@ -577,6 +577,42 @@ class Risk(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("--risk needs a local path", c.export_text())
 
+    def test_threshold_exits_3_when_the_total_is_over_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            estimator = lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0}
+            c = console()
+            rc = cli.main([d, "--out", out, "--risk", "main", "--risk-threshold", "-1"], console=c, tool_check=lambda **kw: [],
+                          planner=planner, estimator=estimator)
+            self.assertEqual(rc, 3, "0 exceeds -1")
+            self.assertIn("Change risk (1 files since main)", c.export_text())
+            c = console()
+            rc = cli.main([out, "--no-run", "--risk", "main", "--risk-threshold", "0"], console=c)
+            self.assertEqual(rc, 0, "0 does not exceed 0")
+            self.assertIn("Change risk (1 files since main)", c.export_text())
+
+    def test_threshold_needs_risk(self):
+        c = console()
+        rc = cli.main(["owner/repo", "--risk-threshold", "1"], console=c, tool_check=lambda **kw: [])
+        self.assertEqual(rc, 2)
+        self.assertIn("--risk-threshold needs --risk", c.export_text())
+
+    def test_threshold_needs_risk_under_no_run_too(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            estimator = lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0}
+            c = console()
+            rc = cli.main([d, "--out", out], console=c, tool_check=lambda **kw: [], planner=planner, estimator=estimator)
+            self.assertEqual(rc, 0)
+            c = console()
+            rc = cli.main([out, "--no-run", "--risk-threshold", "1"], console=c)
+            self.assertEqual(rc, 2)
+            self.assertIn("--risk-threshold needs --risk", c.export_text())
+
 
 class BacktestWindow(unittest.TestCase):
     def _run(self, dates, *extra):
