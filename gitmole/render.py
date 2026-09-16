@@ -417,7 +417,8 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     rows = []
     for a in areas[:limit]:
         owners = [f"{name}{' (gone)' if name in gone else ''} ({_pct(n, a['lines'])})" for name, n in a["owners"][:2]] + ["-"]
-        rows.append((a["area"], f"{a['lines']:,}", a["authors"], _pct(a["lost"], a["lines"]) if gone else "-", owners[0], owners[1]))
+        lost = f"{100 * a['lost_share']:.0f}%" if a["lines"] else "-"
+        rows.append((a["area"], f"{a['lines']:,}", a["authors"], lost if gone else "-", owners[0], owners[1]))
     columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("second", {})]
     if full is not True:
         columns, rows = _keep(columns, rows, ["area", "lines added", "main owner", "second"])

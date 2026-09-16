@@ -318,7 +318,9 @@ def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.
     statement = (f"People with no commits since {loss.cutoff(report, months)} "
                  f"wrote {_pct(lost, total)} {basis}: {listed}.")
     if theirs:
-        statement += " Areas mostly theirs: " + ", ".join(f"{a['area']} ({round(100 * a['lost_share'])}%)" for a in theirs[:3]) + "."
+        listed_areas = ", ".join(f"{a['area']} ({round(100 * a['lost_share'])}%)" for a in theirs[:3])
+        more = f" and {len(theirs) - 3} more" if len(theirs) > 3 else ""
+        statement += f" Areas mostly theirs: {listed_areas}{more}."
     if theirs and theirs[0]["live"]:
         advice = f"Pair someone on {theirs[0]['area']} first; nobody who wrote it is around to ask."
     else:   # nothing there has been touched in a year: pairing on it would be work nobody has asked for

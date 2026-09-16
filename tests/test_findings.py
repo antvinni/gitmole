@@ -451,6 +451,17 @@ class KnowledgeLoss(unittest.TestCase):
         f = findings.knowledge_loss(r)
         self.assertEqual(f[0]["advice"], "Pair someone on (root files) first; nobody who wrote it is around to ask.")
 
+    def test_areas_beyond_three_are_counted_not_named(self):
+        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
+                         age=[{"entity": "a1/x.py", "age-months": 2}],
+                         ownership=[{"entity": "a1/x.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "a2/x.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "a3/x.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "a4/x.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "app/b.py", "author": "Ann", "added": 900, "deleted": 0}])
+        f = findings.knowledge_loss(r)
+        self.assertIn("Areas mostly theirs: a1/ (100%), a2/ (100%), a3/ (100%) and 1 more.", f[0]["detail"])
+
     def test_info_between_ten_and_thirty_percent(self):
         f = findings.knowledge_loss(self._report(theseus_authors={"Ann": 85, "Bob": 15}))
         self.assertEqual(f[0]["severity"], "info")
