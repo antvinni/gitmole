@@ -301,5 +301,13 @@ class WriteAll(unittest.TestCase):
                 self.assertEqual(fh.readline().strip(), "entity,coupled,degree,average-revs")
 
 
+class MonthsBefore(unittest.TestCase):
+    def test_subtracts_whole_months_and_clamps_the_day(self):
+        self.assertEqual(maat.months_before("2025-11-09", 12), "2024-11-09")
+        self.assertEqual(maat.months_before("2026-03-31", 1), "2026-02-28")
+        self.assertEqual(maat.months_before("2026-01-15", 6), "2025-07-15")
+        self.assertEqual(maat.months_before("2026-01-15", 0), "2026-01-15")
+
+
 if __name__ == "__main__":
     unittest.main()
