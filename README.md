@@ -97,7 +97,7 @@ Without Homebrew, install the three tools yourself and use pipx:
 
 ```bash
 pipx ensurepath                                  # once; then open a new shell
-pipx install 'git+https://github.com/antvinni/gitmole@v0.2.2'
+pipx install 'git+https://github.com/antvinni/gitmole@v0.2.3'
 ```
 
 ### Linux
@@ -118,7 +118,7 @@ pipx ensurepath                                  # once; then open a new shell
 # unpack and move the binary into ~/.local/bin, then:
 chmod +x ~/.local/bin/scc ~/.local/bin/gitleaks
 
-pipx install 'git+https://github.com/antvinni/gitmole@v0.2.2'
+pipx install 'git+https://github.com/antvinni/gitmole@v0.2.3'
 ```
 
 On a distribution without a `pipx` package, `python3 -m pip install --user
@@ -137,7 +137,7 @@ gitmole .                                        # a report of the clone you are
 ### Other ways to install
 
 ```bash
-pipx install 'gitmole[plots] @ git+https://github.com/antvinni/gitmole@v0.2.2'   # adds git-of-theseus for --plots
+pipx install 'gitmole[plots] @ git+https://github.com/antvinni/gitmole@v0.2.3'   # adds git-of-theseus for --plots
 pipx install git+https://github.com/antvinni/gitmole                        # main, unreleased
 ```
 
