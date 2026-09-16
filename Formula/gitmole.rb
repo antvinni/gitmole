@@ -10,6 +10,7 @@ class Gitmole < Formula
 
   depends_on "betterleaks"
   depends_on "git-sizer"
+  depends_on "gitleaks" # until the next release: the stable tarball above still runs gitleaks
   depends_on "python@3.14"
   depends_on "scc"
 
