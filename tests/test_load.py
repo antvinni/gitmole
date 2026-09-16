@@ -244,6 +244,7 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["theseus_authors"], {"Ann": 10})
         self.assertEqual(r["sizer"], [])
         self.assertEqual(r["secrets"], [])
+        self.assertTrue(r["secrets_scanned"], "secrets.json was written, empty")
         self.assertEqual(r["activity"]["by_month"], {"2026-01": 1})
         self.assertEqual(r["functions"][0]["function"], "f")
         self.assertEqual(r["duplicates"]["rate"], 5.0)
@@ -293,6 +294,18 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["duplicates"], {"rate": None, "blocks": []})
         self.assertEqual(r["cohorts"], {})
         self.assertEqual(r["size"]["languages"], [])
+
+    def test_secrets_scanned_is_true_only_when_the_step_wrote_its_file(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "d", "commits": 1, "identities": []}, fh)
+            self.assertFalse(load.load_report(out)["secrets_scanned"])
+            with open(os.path.join(out, "secrets.json"), "w") as fh:
+                fh.write("[]")
+            r = load.load_report(out)
+            self.assertTrue(r["secrets_scanned"])
+            self.assertEqual(r["secrets"], [])
 
     def test_trend_is_read_and_empty_when_missing(self):
         import os, tempfile

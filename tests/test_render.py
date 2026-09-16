@@ -23,6 +23,7 @@ def sample_report():
         "cohorts": {"Code added in 2025": 8733, "Code added in 2026": 2728},
         "theseus_authors": {"Ann": 9076, "Bob": 2342},
         "secrets": [],
+        "secrets_scanned": True,
         "fixes": [{"entity": "static/apps-metadata.json", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 4}],
         "functions": [{"file": "static/js/app.js", "function": "render", "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200},
                       {"file": "static/js/util.js", "function": "tidy", "ccn": 12, "nloc": 30, "params": 1, "start": 1, "end": 31}],
@@ -64,6 +65,31 @@ class Report(unittest.TestCase):
 
     def test_no_findings_says_so(self):
         self.assertIn("Nothing flagged", rendered(sample_report(), []))
+
+    def test_a_clean_secrets_scan_is_said_out_loud_in_the_findings(self):
+        text = rendered(sample_report(), [])
+        self.assertIn("✔ No secrets in history", text)
+        self.assertIn("betterleaks scanned every commit on every branch", text)
+        f = [{"severity": "warning", "title": "Bus factor of one", "detail": "Ann wrote 79% of the code."}]
+        text = rendered(sample_report(), f)
+        self.assertIn("Findings (1)", text, "the pass line is not a finding and is not counted")
+        self.assertIn("✔ No secrets in history", text)
+        self.assertLess(text.index("Bus factor of one"), text.index("No secrets in history"), "problems first, the pass line last")
+
+    def test_the_pass_line_names_the_placeholder_hits_left_out(self):
+        r = sample_report()
+        r["secrets"] = [{"rule": "r", "file": "p.json", "commit": "c1", "line": 1, "fingerprint": "c1:p.json", "value": "h3", "placeholder": True}]
+        self.assertIn("No secrets in history", rendered(r, []))
+        self.assertIn("1 placeholder-shaped hit left out", rendered(r, []))
+
+    def test_no_pass_line_when_the_scan_did_not_run_or_found_something(self):
+        r = sample_report()
+        r["secrets_scanned"] = False
+        self.assertNotIn("No secrets in history", rendered(r, []), "a killed step or an old output directory has no secrets.json: say nothing")
+        r = sample_report()
+        r["secrets"] = [{"rule": "r", "file": "a.py", "commit": "c1", "line": 1, "fingerprint": "c1:a.py", "value": "h1", "placeholder": False}]
+        f = [{"severity": "critical", "title": "1 secret(s) in history", "detail": "x"}]
+        self.assertNotIn("No secrets in history", rendered(r, f))
 
     def test_tables_show_people_hotspots_coupling_age_and_health(self):
         text = rendered(sample_report(), [], full=True)
@@ -783,6 +809,7 @@ class ReviewFixes(unittest.TestCase):
         md = render.portfolio_markdown("acme", [("demo", rep, f)])
         self.assertIn("One person under several identities (2)", md)
         self.assertEqual(md.count("Add a .mailmap"), 1)
+        self.assertIn("- **ok** No secrets in history", md, "each repository says when its scan came back clean")
 
 
 class Sections(unittest.TestCase):
@@ -831,6 +858,9 @@ class Markdown(unittest.TestCase):
         self.assertIn("weird\\|name.py", md)
         self.assertIn("_no pairs with 5+ shared revisions_", md)
         self.assertIn("Nothing flagged.", md)
+        self.assertIn("- **ok** No secrets in history", md)
+        r["secrets_scanned"] = False
+        self.assertNotIn("No secrets in history", render.markdown(r, []))
 
 
 class Json(unittest.TestCase):
