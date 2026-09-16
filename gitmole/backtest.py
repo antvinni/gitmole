@@ -4,7 +4,11 @@
 Runs as a pipeline step: `python -m gitmole.backtest OUT_DIR --until T [--repo DIR]`, from inside
 the repository. Reruns the change analysis over OUT_DIR/log.txt with the window ending at T and T as
 the reference date, exports the tree at the last commit before T and runs scc on it, and writes it
-all under OUT_DIR/backtest/ with a meta.json the loader accepts."""
+all under OUT_DIR/backtest/ with a meta.json the loader accepts.
+
+The last commit before T is chosen by committer date (git's --before), since "the tree as of T" is a
+committer-date notion. The change analysis windows commits by author date instead, so the two only
+disagree for commits that were rebased or cherry-picked after their original authoring."""
 from __future__ import annotations
 
 import argparse
@@ -23,11 +27,15 @@ def rev_before(repo: str, date: str):
 
 
 def size_at(repo: str, rev: str) -> str:
-    """scc's --by-file JSON over the tree at rev."""
+    """scc's --by-file JSON over the tree at rev, exported through a temporary index so no
+    archive is held in memory and export-ignore attributes do not thin the tree."""
     with tempfile.TemporaryDirectory(prefix="gitmole-backtest-") as tmp:
-        archive = subprocess.run(["git", "archive", rev], cwd=repo, capture_output=True, check=True)
-        subprocess.run(["tar", "-x", "-C", tmp], input=archive.stdout, check=True)
-        return subprocess.run(["scc", "--by-file", "--format", "json"], cwd=tmp, capture_output=True, text=True, check=True).stdout
+        tree = os.path.join(tmp, "tree")
+        os.makedirs(tree)
+        env = dict(os.environ, GIT_INDEX_FILE=os.path.join(tmp, "index"))
+        subprocess.run(["git", "read-tree", rev], cwd=repo, env=env, check=True, capture_output=True)
+        subprocess.run(["git", "checkout-index", "-a", f"--prefix={tree}/"], cwd=repo, env=env, check=True, capture_output=True)
+        return subprocess.run(["scc", "--by-file", "--format", "json"], cwd=tree, capture_output=True, text=True, check=True).stdout
 
 
 def main(argv=None) -> int:
