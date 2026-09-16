@@ -241,6 +241,27 @@ class CarriageReturnInSubject(unittest.TestCase):
                 self.assertEqual(fh.read().splitlines()[1], "f.py,1")
 
 
+class Reverts(unittest.TestCase):
+    def test_a_revert_is_gits_own_subject_prefix(self):
+        self.assertTrue(maat.is_revert('Revert "feat: initial layout"'))
+        self.assertTrue(maat.is_revert("Revert layout change"))
+        self.assertFalse(maat.is_revert("revert: layout"), "conventional-commit style is not git's revert")
+        self.assertFalse(maat.is_revert("Reverting nothing"))
+        self.assertFalse(maat.is_revert(""))
+
+    def test_activity_counts_reverts_and_the_files_they_touch(self):
+        log = LOG + ('--h8--2026-04-04T10:00:00+00:00--Ann--Revert "Refactor helpers"\n1\t0\tsrc/a.py\n1\t0\tsrc/b.py\n\n'
+                     '--i9--2026-04-05T10:00:00+00:00--Bob--Revert "prefix cleanup"\n0\t1\tsrc/a.py\n')
+        a = maat.activity(maat.parse_log(log))
+        self.assertEqual(a["revert_commits"], 2)
+        self.assertEqual(a["reverted"], {"src/a.py": 2, "src/b.py": 1})
+
+    def test_no_reverts(self):
+        a = maat.activity(maat.parse_log(LOG))
+        self.assertEqual(a["revert_commits"], 0)
+        self.assertEqual(a["reverted"], {})
+
+
 class SinceWindow(unittest.TestCase):
     def test_window_bounds_everything_except_age(self):
         with tempfile.TemporaryDirectory() as d:

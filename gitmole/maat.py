@@ -56,6 +56,11 @@ def is_fix(subject: str) -> bool:
     return bool(_FIX_CONVENTIONAL.match(subject or "") or _FIX_WORDS.search(subject or ""))
 
 
+def is_revert(subject: str) -> bool:
+    """git's own revert subject: `Revert "..."`. Case-sensitive, the quote is not required."""
+    return (subject or "").startswith("Revert ")
+
+
 def _revs(commits) -> Counter:
     return Counter(path for c in commits for path, _, _ in c["files"])
 
@@ -148,6 +153,7 @@ def activity(commits: list) -> dict:
     """Commits by weekday (Mon=0) and hour, by month, and per-author totals."""
     by_weekday, by_hour, by_month, net_by_year = [0] * 7, [0] * 24, Counter(), Counter()
     authors, timeline, fix_commits = {}, defaultdict(Counter), 0
+    revert_commits, reverted = 0, Counter()
     for c in commits:
         when = c.get("time") or c["date"]
         try:
@@ -163,6 +169,10 @@ def activity(commits: list) -> dict:
         net_by_year[c["date"][:4]] += sum(a - d for _, a, d in c["files"])
         timeline[c["author"]][c["date"][:7]] += 1
         fix_commits += is_fix(c.get("subject", ""))
+        if is_revert(c.get("subject", "")):
+            revert_commits += 1
+            for p, _, _ in c["files"]:
+                reverted[p] += 1
         a = authors.setdefault(c["author"], {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
         a["commits"] += 1
         a["added"] += sum(x for _, x, _ in c["files"])
@@ -170,7 +180,9 @@ def activity(commits: list) -> dict:
         a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
     return {"by_weekday": by_weekday, "by_hour": by_hour, "by_month": dict(sorted(by_month.items())),
             "net_by_year": dict(sorted(net_by_year.items())), "authors": authors,
-            "timeline": {a: dict(sorted(m.items())) for a, m in timeline.items()}, "fix_commits": fix_commits}
+            "timeline": {a: dict(sorted(m.items())) for a, m in timeline.items()}, "fix_commits": fix_commits,
+            "revert_commits": revert_commits,
+            "reverted": dict(sorted(reverted.items(), key=lambda kv: (-kv[1], kv[0])))}
 
 
 ANALYSES = {
