@@ -346,6 +346,13 @@ rows unless `--full`.
    Change risk section follows: every file changed since BASE with its watch
    score as a bar and the reasons, or why it has none (new file, changed
    once, test file).
+
+   Under the watch list, one line says how the list would have done:
+   gitmole reruns the change analysis as of six months before the last
+   commit, with scc on the tree at that time, ranks the watch list from
+   that, and counts how many of the files fixed since were on it, next to
+   what a random list of the same size would score. Repositories with
+   under a year of history say `too little history to backtest`.
 4. **Tables**: people (identities merged by name and email similarity on
    top of `.mailmap`, and the caption says whose; bots such as renovate,
    dependabot and GitHub Actions are counted apart in the caption and kept
@@ -393,6 +400,7 @@ directory for a remote target:
 | `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |
 | `trend.json` | trend step | complexity and lines of the top hotspots at sampled commits |
+| `backtest/` | backtest step | the change analysis and size as of six months before the last commit |
 | `run.log` | gitmole | every command run and its stderr |
 
 ## How to read the output

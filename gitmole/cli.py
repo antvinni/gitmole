@@ -208,9 +208,16 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     lizard_ok = args.lizard
     meta["functions"] = {"status": "planned" if lizard_ok else "skipped"}   # "run" only once the step has finished
     meta["trend"] = {"status": "planned"}
+    from . import maat as _maat
+    cut = _maat.months_before(meta["last_date"], 6) if meta["last_date"] else None
+    if cut and meta["first_date"] and meta["first_date"] <= _maat.months_before(cut, 6):
+        meta["backtest"] = {"status": "planned", "until": cut}
+    else:
+        cut = None
+        meta["backtest"] = {"status": "skipped", "reason": "too little history to backtest"}
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
-                    since=args.since_date, lizard=lizard_ok, duplicates=args.duplicates)
+                    since=args.since_date, lizard=lizard_ok, duplicates=args.duplicates, backtest=cut)
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
     if _control.cancelled.is_set():
@@ -228,6 +235,8 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     if lizard_ok:
         meta["functions"]["status"] = status("functions")
     meta["trend"]["status"] = status("trend")
+    if cut and "backtest" in results:
+        meta["backtest"]["status"] = status("backtest")
     run.save_meta(meta, out_dir)
 
     failed = [n for n, rc in results.items() if rc != 0]

@@ -563,5 +563,34 @@ class Risk(unittest.TestCase):
         self.assertIn("--risk needs a local path", c.export_text())
 
 
+class BacktestWindow(unittest.TestCase):
+    def _run(self, dates):
+        import subprocess
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "init", "-q", d], check=True)
+            for date in dates:
+                subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "--allow-empty", "-m", date],
+                               check=True, env=dict(os.environ, GIT_AUTHOR_DATE=f"{date}T10:00:00", GIT_COMMITTER_DATE=f"{date}T10:00:00"))
+            out = os.path.join(d, "out")
+            def planner(repo, o, branch="HEAD", **kw):
+                calls.append(kw)
+                return [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            cli.main([d, "--out", out], console=console(), tool_check=lambda **kw: [], planner=planner,
+                     estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            with open(os.path.join(out, "meta.json")) as fh:
+                return calls[0], json.load(fh)
+
+    def test_cut_off_six_months_before_the_last_commit_with_a_year_of_history(self):
+        kw, meta = self._run(["2025-01-01", "2025-08-01", "2026-03-01"])
+        self.assertEqual(kw["backtest"], "2025-09-01")
+        self.assertEqual(meta["backtest"], {"status": "planned", "until": "2025-09-01"})
+
+    def test_too_little_history_skips(self):
+        kw, meta = self._run(["2025-06-01", "2026-03-01"])
+        self.assertIsNone(kw["backtest"])
+        self.assertEqual(meta["backtest"], {"status": "skipped", "reason": "too little history to backtest"})
+
+
 if __name__ == "__main__":
     unittest.main()

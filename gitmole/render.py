@@ -173,7 +173,17 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     rows = [(r["file"], " · ".join(r["reasons"])) for r in ranked[:limit]]
     columns = [("file", PATH), ("why", {"overflow": "fold", "ratio": 3})]
     since = report["meta"].get("since")
-    caption = "ranked by churn × recent fixes × complexity × single ownership" + (f"; commits since {since}" if since else "")
+    notes = ["ranked by churn × recent fixes × complexity × single ownership" + (f"; commits since {since}" if since else "")]
+    bt = watch.backtest(report)
+    status = report["meta"].get("backtest") or {}
+    if bt:
+        notes.append(f"6 months ago this list would have named {bt['hits']} of the {bt['fixed']} files fixed since "
+                     f"(a random {bt['listed']} would name {bt['expected']})")
+    elif status.get("reason"):
+        notes.append(status["reason"])
+    elif status.get("status") in ("failed", "timeout"):
+        notes.append(f"backtest {status['status']}")
+    caption = "\n".join(notes)
     return _section("Watch list", columns, rows, note=None if rows else watch.why_empty(report), caption=caption if rows else None)
 
 
@@ -637,6 +647,9 @@ def to_json(report: dict, findings: list, risk: dict = None) -> dict:
     out = {**{k: v for k, v in report.items()}, "findings": findings,
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
+    bt = watch.backtest(report)
+    if bt is not None:
+        out["watch_backtest"] = bt
     if risk is not None:
         out["change_risk"] = risk
     return out
