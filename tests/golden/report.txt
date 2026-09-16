@@ -55,6 +55,8 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
   ───────────────────────────────────
   app/main.py   app/util.py       83%
 
+λ Complex functions: nothing over complexity 10 (2 functions measured)
+
 ⌂ Knowledge map
   area           lines added   main owner           second
   ───────────────────────────────────────────────────────────────────

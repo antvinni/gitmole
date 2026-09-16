@@ -141,7 +141,41 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                f"That is {_pct(covered, total)} of all lines added. Pair or review across them before that person is unavailable.")]
 
 
-RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, tight_coupling, stale_files, duplicate_identities, knowledge_islands]
+def _hot_files(report: dict, n: int = 10) -> set:
+    revs = sorted(report.get("revisions") or [], key=lambda r: -r["n-revs"])
+    return {r["entity"] for r in revs[:n]}
+
+
+def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
+    """Functions that are both long and complex. A warning when one sits in a hotspot."""
+    big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines]
+    if not big:
+        return []
+    big.sort(key=lambda f: (-f["ccn"], -f["nloc"]))
+    hot = _hot_files(report)
+    sev = "warning" if any(f["file"] in hot for f in big) else "info"
+    listed = "; ".join(f"{f['function']} ({f['file']}) complexity {f['ccn']}, {f['nloc']} lines, {f['params']} params" for f in big[:5])
+    more = f" and {len(big) - 5} more" if len(big) > 5 else ""
+    return [_f(sev, "Brain methods",
+               f"{len(big)} function(s) are both long and complex: {listed}{more}. Split them before the next change lands there.")]
+
+
+def duplication(report: dict, min_lines: int = 30) -> list:
+    dup = report.get("duplicates") or {}
+    blocks = [b for b in dup.get("blocks") or [] if b["lines"] >= min_lines]
+    if not blocks:
+        return []
+    blocks.sort(key=lambda b: -b["lines"])
+    def place(b):
+        return " and ".join(f"{p}:{start}" for p, start, _ in b["places"][:3])
+    listed = "; ".join(f"{b['lines']} lines in {place(b)}" for b in blocks[:3])
+    more = f" and {len(blocks) - 3} more" if len(blocks) > 3 else ""
+    rate = f" Overall {dup['rate']}% of lines are duplicated." if dup.get("rate") is not None else ""
+    return [_f("info", "Duplicated code", f"{len(blocks)} block(s) of {min_lines}+ duplicated lines: {listed}{more}.{rate} Extract the shared part.")]
+
+
+RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, brain_methods, tight_coupling,
+         duplication, stale_files, duplicate_identities, knowledge_islands]
 
 
 def evaluate(report: dict) -> list:

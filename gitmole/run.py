@@ -106,6 +106,11 @@ REQUIRED_TOOLS = ["scc", "git-sizer", "gitleaks"]
 PLOT_TOOLS = ["git-of-theseus-analyze"]
 
 
+def has_tool(name: str, path: str = None) -> bool:
+    path = env_path() if path is None else path
+    return any(os.access(os.path.join(d, name), os.X_OK) for d in path.split(os.pathsep) if d)
+
+
 def missing_tools(plots: bool = False, path: str = None) -> list:
     path = env_path() if path is None else path
     wanted = REQUIRED_TOOLS + (PLOT_TOOLS if plots else [])
@@ -113,7 +118,8 @@ def missing_tools(plots: bool = False, path: str = None) -> list:
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
-         procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None) -> list:
+         procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
+         lizard: bool = False) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
@@ -128,6 +134,12 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "git-log", "argv": [*filetypes.GIT, "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN--%s", "--no-renames"], "stdout": log, "deps": []},
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
+    if lizard:
+        excludes = [x for pattern in ignore for x in ("-x", pattern)]
+        steps += [
+            {"name": "functions", "argv": ["lizard", "--csv", *excludes, "."], "stdout": o("functions.csv"), "deps": []},
+            {"name": "duplicates", "argv": ["lizard", "-Eduplicate", *excludes, "."], "stdout": o("duplicates.txt"), "deps": []},
+        ]
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
     if plots:

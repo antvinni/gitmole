@@ -98,6 +98,51 @@ class ParseAuthorsLog(unittest.TestCase):
         ])
 
 
+class ParseFunctions(unittest.TestCase):
+    CSV = ('2,1,31,3,2,"_f@14-15@gitmole/findings.py","gitmole/findings.py","_f","_f( severity , title , detail )",14,15\n'
+           '120,41,900,9,140,"parse@10-150@src/parser.py","./src/parser.py","parse","parse( a , b )",10,150\n')
+
+    def test_rows_with_clean_paths(self):
+        rows = load.parse_functions(self.CSV)
+        self.assertEqual(rows[0], {"file": "gitmole/findings.py", "function": "_f", "ccn": 1, "nloc": 2, "params": 3, "start": 14, "end": 15})
+        self.assertEqual(rows[1]["file"], "src/parser.py")
+        self.assertEqual((rows[1]["ccn"], rows[1]["nloc"], rows[1]["params"]), (41, 120, 9))
+
+    def test_empty(self):
+        self.assertEqual(load.parse_functions(""), [])
+
+
+class ParseDuplicates(unittest.TestCase):
+    TEXT = """header junk
+Duplicates
+===================================
+Duplicate block:
+--------------------------
+gitmole/render.py:457 ~ 459
+gitmole/render.py:492 ~ 494
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+Duplicate block:
+--------------------------
+a/x.py:10 ~ 80
+b/y.py:5 ~ 75
+c/z.py:1 ~ 71
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Total duplicate rate: 0.78%
+Total unique rate: 99.65%
+"""
+
+    def test_blocks_with_span_and_rate(self):
+        d = load.parse_duplicates(self.TEXT)
+        self.assertEqual(d["rate"], 0.78)
+        self.assertEqual(len(d["blocks"]), 2)
+        self.assertEqual(d["blocks"][1], {"lines": 71, "places": [("a/x.py", 10, 80), ("b/y.py", 5, 75), ("c/z.py", 1, 71)]})
+        self.assertEqual(d["blocks"][0]["lines"], 3)
+
+    def test_empty(self):
+        self.assertEqual(load.parse_duplicates(""), {"rate": None, "blocks": []})
+
+
 class ParseSecrets(unittest.TestCase):
     def test_returns_rule_file_and_commit_per_finding(self):
         text = json.dumps([{"RuleID": "aws-access-token", "File": "config.py", "Commit": "abc1234def", "StartLine": 3}])
@@ -125,6 +170,8 @@ class LoadReport(unittest.TestCase):
                 "repo-health.txt": "",
                 "secrets.json": "[]",
                 "activity.json": json.dumps({"by_weekday": [1, 0, 0, 0, 0, 0, 0], "by_hour": [0] * 24, "by_month": {"2026-01": 1}, "authors": {}}),
+                "functions.csv": '3,2,20,1,3,"f@1-3@a.py","a.py","f","f( x )",1,3\n',
+                "duplicates.txt": "Duplicate block:\n---\na.py:1 ~ 40\nb.py:1 ~ 40\n^^^\nTotal duplicate rate: 5.00%\n",
                 "theseus/cohorts.json": json.dumps({"labels": ["Code added in 2026"], "ts": ["t"], "y": [[10]]}),
                 "theseus/authors.json": json.dumps({"labels": ["Ann"], "ts": ["t"], "y": [[10]]}),
             }
@@ -142,6 +189,8 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["sizer"], [])
         self.assertEqual(r["secrets"], [])
         self.assertEqual(r["activity"]["by_month"], {"2026-01": 1})
+        self.assertEqual(r["functions"][0]["function"], "f")
+        self.assertEqual(r["duplicates"]["rate"], 5.0)
         self.assertEqual(r["out_dir"], out)
 
     def test_surviving_lines_are_re_keyed_to_merged_identities(self):
@@ -165,6 +214,8 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["revisions"], [])
         self.assertEqual(r["activity"], {})
         self.assertEqual(r["fixes"], [])
+        self.assertEqual(r["functions"], [])
+        self.assertEqual(r["duplicates"], {"rate": None, "blocks": []})
         self.assertEqual(r["cohorts"], {})
         self.assertEqual(r["size"]["languages"], [])
 
