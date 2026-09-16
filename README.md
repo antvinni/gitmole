@@ -456,10 +456,13 @@ rows unless `--full`.
    with the busiest hour and the share of commits that are fixes, and
    surviving code by year.
 
-   Size, hotspots, coupling, ownership, code age and the watch list only
-   look at source files: a built-in list of code extensions plus names like
-   Makefile and Dockerfile (`--file-types all` counts everything). Activity
-   and the timeline cover the whole history.
+   Size, hotspots, coupling, ownership, code age and the watch list analyze
+   source files: a built-in list of code extensions plus names like Makefile
+   and Dockerfile (`--file-types all` counts everything). In the default
+   report, the hotspots and complex functions tables hide test files, and
+   the change coupling table hides pairs with a test file; the captions
+   show how many are hidden, and `--full` shows them. Activity and the
+   timeline cover the whole history.
 5. **Footer**: where the files and plots are.
 
 ### The output directory
