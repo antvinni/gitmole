@@ -20,7 +20,6 @@ classifiers = [
 
 [project.optional-dependencies]
 plots = ["git-of-theseus"]
-scripting = ["pydriller"]
 
 [project.scripts]
 gitmole = "gitmole.cli:main"

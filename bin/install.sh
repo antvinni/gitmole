@@ -4,7 +4,8 @@ set -euo pipefail
 
 brew install scc git-sizer gitleaks
 
-python3 -m pip install --user git-of-theseus pydriller rich lizard
+python3 -m pip install --user rich lizard
+# git-of-theseus is only needed for --plots: python3 -m pip install --user git-of-theseus
 
 # Put the gitmole command on PATH next to the brew tools.
 ln -sfn "$(cd "$(dirname "$0")" && pwd)/gitmole" "$(brew --prefix)/bin/gitmole"

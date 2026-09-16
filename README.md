@@ -24,7 +24,6 @@ analysis can tell you about a repo.
 | Code-age and survival plots over time | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip, opt-in with `--plots` |
 | Per-function complexity, length, parameters; duplicated blocks with `--duplicates` | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
 | Have secrets ever been committed | [gitleaks](https://github.com/gitleaks/gitleaks) | brew |
-| Anything custom the above don't answer | [PyDriller](https://github.com/ishepard/pydriller) | pip |
 
 Three external tools: scc for size, git-sizer for repo health, gitleaks for
 secrets. Everything about history is computed by gitmole from `git log`.
@@ -33,8 +32,7 @@ installed, in well under a second per thousand files; its duplicate finder
 is minutes and gigabytes on a large repo, so it is off unless you pass
 `--duplicates`. git-of-theseus only adds the plots, so it is off by default
 and only needed with `--plots`. gitleaks should never be skipped on a repo you did
-not author. PyDriller is optional and only matters if you want to script your
-own metrics.
+not author.
 
 What gitmole does not do: dead-code detection (that needs a symbol graph per
 language) and test coverage (that needs the project's own test run). It will
@@ -545,8 +543,8 @@ licences:
 | git-sizer | MIT |
 | gitleaks | MIT |
 | rich | MIT |
+| lizard | MIT |
 | git-of-theseus | Apache-2.0 |
-| PyDriller | Apache-2.0 |
 
 The change analysis (hotspots, coupling, ownership, age) is gitmole's own
 code, written after the ideas in Adam Tornhill's code-maat but sharing no
