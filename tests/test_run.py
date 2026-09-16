@@ -2,9 +2,10 @@ import json
 import os
 import subprocess
 import tempfile
+import sys
 import unittest
 
-from gitmole import run
+from gitmole import blame, run
 
 
 class ClassifyTarget(unittest.TestCase):
@@ -186,22 +187,32 @@ class Plan(unittest.TestCase):
         self.assertIn("--use-mailmap", by["git-log"]["argv"])
         self.assertEqual(by["git-log"]["argv"][:4], ["git", "-c", "core.quotePath=false", "log"], "non-ASCII paths must not be octal-escaped and quoted")
 
-    def test_function_metrics_step_is_optional_and_excludes_ignores(self):
-        by = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, ignore=["vendor/**"])}
-        self.assertEqual(by["functions"]["argv"][:2], ["lizard", "--csv"])
-        self.assertEqual(by["functions"]["stdout"], "/o/functions.csv")
-        self.assertEqual(by["duplicates"]["argv"][:2], ["lizard", "-Eduplicate"])
-        self.assertEqual(by["duplicates"]["stdout"], "/o/duplicates.txt")
-        for step in ("functions", "duplicates"):
-            argv = by[step]["argv"]
-            self.assertEqual(argv[argv.index("-x") + 1], "vendor/**")
-        names = [s["name"] for s in run.plan("/r", "/o", lizard=False)]
-        self.assertNotIn("functions", names)
-        self.assertNotIn("duplicates", names)
+    def test_function_metrics_step_is_optional_and_runs_the_bundled_script(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, ignore=["vendor/**"], types="py,sql", procs=3)}
+        argv = by["functions"]["argv"]
+        self.assertEqual(argv[:4], [sys.executable, run.FUNCTIONS_SCRIPT, "/r", "/o"])
+        self.assertEqual(argv[argv.index("--ignore") + 1], "vendor/**")
+        self.assertEqual(argv[argv.index("--types") + 1], "py,sql")
+        self.assertIsNone(by["functions"]["stdout"], "the script writes functions.csv and duplicates.txt itself")
+        self.assertNotIn("duplicates", by, "one lizard pass produces both")
+        self.assertNotIn("functions", [s["name"] for s in run.plan("/r", "/o", lizard=False)])
 
-    def test_lizard_is_detected_not_required(self):
+    def test_function_metrics_workers_are_capped_at_two(self):
+        # lizard's duplicate finder keeps a hash node per token; each worker grows to 1.5-2 GB on a
+        # large repo, and the default worker count exhausted a 16 GB machine.
+        def procs_for(**kw):
+            by = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, **kw)}
+            argv = by["functions"]["argv"]
+            return argv[argv.index("--procs") + 1]
+        self.assertEqual(run.FUNCTIONS_MAX_PROCS, 2)
+        self.assertEqual(procs_for(procs=8), "2", "an explicit larger count is clamped")
+        self.assertEqual(procs_for(procs=1), "1", "a smaller count is kept")
+        self.assertEqual(procs_for(), str(min(2, blame.default_procs())), "the default is clamped too")
+
+    def test_lizard_is_detected_as_a_python_module_not_a_command(self):
         self.assertNotIn("lizard", run.REQUIRED_TOOLS)
-        self.assertIn(run.has_tool("lizard", path="/nonexistent"), (False,))
+        self.assertTrue(run.has_lizard())
+        self.assertFalse(run.has_lizard(finder=lambda name: None))
 
     def test_code_age_runs_the_bundled_blame_script(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", ignore=["*.csv"])}
@@ -408,6 +419,26 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(by["Bob"]["commits"], 3)
         self.assertEqual(by["Bob"]["aliases"], [], "mailmap should merge Robert before the heuristic sees it")
         self.assertEqual([a["name"] for a in by["Ann Lee"]["aliases"]], ["ann-lee"])
+
+
+
+
+class ClearOutputs(unittest.TestCase):
+    def test_removes_every_tool_output_but_keeps_meta_and_the_log(self):
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "theseus"))
+            names = ["size.json", "repo-health.txt", "secrets.json", "log.txt", "maat-revisions.csv", "maat-fixes.csv", "activity.json",
+                     "functions.csv", "duplicates.txt", "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json",
+                     "code-age.png", "survival.png", "meta.json", "run.log", "notes.txt"]
+            for n in names:
+                open(os.path.join(out, n), "w").close()
+            run.clear_outputs(out)
+            left = sorted(os.path.relpath(os.path.join(r, f), out) for r, _, fs in os.walk(out) for f in fs)
+        self.assertEqual(left, ["meta.json", "notes.txt", "run.log"])
+
+    def test_missing_files_are_fine(self):
+        with tempfile.TemporaryDirectory() as out:
+            run.clear_outputs(out)
 
 
 if __name__ == "__main__":

@@ -51,6 +51,7 @@ class SplitAdvice(unittest.TestCase):
         self.assertEqual(textfmt.split_advice("a <a@x> merged into A <A@x> by name and email similarity. Add a .mailmap to make it permanent."),
                          ("a <a@x> merged into A <A@x> by name and email similarity", "Add a .mailmap to make it permanent."))
         self.assertEqual(textfmt.split_advice("Rotate them; deleting the file does not remove them from git."), ("Rotate them; deleting the file does not remove them from git.", None))
+        self.assertEqual(textfmt.split_advice("2 blocks of 30+ duplicated lines. Extract the shared part."), ("2 blocks of 30+ duplicated lines", "Extract the shared part."))
 
 
 if __name__ == "__main__":

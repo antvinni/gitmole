@@ -111,6 +111,11 @@ class ParseFunctions(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(load.parse_functions(""), [])
 
+    def test_a_row_cut_short_by_a_killed_step_does_not_abort_the_report(self):
+        rows = load.parse_functions(self.CSV + '5,3,40,1,5,"g@1-5@a.py","a.py","g","g( )",1,\n')
+        self.assertEqual(len(rows), 3)
+        self.assertEqual((rows[2]["function"], rows[2]["end"]), ("g", 0))
+
 
 class ParseDuplicates(unittest.TestCase):
     TEXT = """header junk
@@ -141,6 +146,10 @@ Total unique rate: 99.65%
 
     def test_empty(self):
         self.assertEqual(load.parse_duplicates(""), {"rate": None, "blocks": []})
+
+    def test_places_come_out_in_path_order_whatever_lizard_printed(self):
+        text = "Duplicate block:\n---\nz.py:1 ~ 40\na.py:9 ~ 48\na.py:1 ~ 40\n^^^\nTotal duplicate rate: 5.00%\n"
+        self.assertEqual(load.parse_duplicates(text)["blocks"][0]["places"], [("a.py", 1, 40), ("a.py", 9, 48), ("z.py", 1, 40)])
 
 
 class ParseSecrets(unittest.TestCase):

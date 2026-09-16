@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import importlib.util
 import json
 import os
 import re
@@ -16,6 +17,10 @@ from . import blame, filetypes, identity
 
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
+FUNCTIONS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "functions.py")
+# lizard's duplicate finder keeps a hash node per token, and every pool worker grows to 1.5-2 GB on a
+# large repo; the blame default (cores minus two) exhausted a 16 GB machine. Two workers is the ceiling.
+FUNCTIONS_MAX_PROCS = 2
 
 MONTH = 30 * 24 * 3600  # git-of-theseus sampling interval in seconds
 
@@ -114,7 +119,30 @@ def has_tool(name: str, path: str = None) -> bool:
 def missing_tools(plots: bool = False, path: str = None) -> list:
     path = env_path() if path is None else path
     wanted = REQUIRED_TOOLS + (PLOT_TOOLS if plots else [])
-    return [t for t in wanted if not any(os.access(os.path.join(d, t), os.X_OK) for d in path.split(os.pathsep) if d)]
+    return [t for t in wanted if not has_tool(t, path)]
+
+
+def has_lizard(finder=importlib.util.find_spec) -> bool:
+    """lizard is a Python module run with this interpreter, so PATH says nothing about it."""
+    return finder("lizard") is not None
+
+
+# Everything a run writes besides meta.json and run.log. Removed before each run so a reused
+# --out directory never shows a previous run's data as this run's (a step skipped or killed
+# this time would otherwise leave last time's file in place).
+OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "log.txt", "activity.json", "functions.csv", "duplicates.txt",
+           "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png"]
+OUTPUT_GLOBS = ["maat-*.csv"]
+
+
+def clear_outputs(out_dir: str) -> None:
+    import glob
+    paths = [os.path.join(out_dir, n) for n in OUTPUTS]
+    for g in OUTPUT_GLOBS:
+        paths += glob.glob(os.path.join(out_dir, g))
+    for path in paths:
+        if os.path.isfile(path):
+            os.remove(path)
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
@@ -135,11 +163,8 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if lizard:
-        excludes = [x for pattern in ignore for x in ("-x", pattern)]
-        steps += [
-            {"name": "functions", "argv": ["lizard", "--csv", *excludes, "."], "stdout": o("functions.csv"), "deps": []},
-            {"name": "duplicates", "argv": ["lizard", "-Eduplicate", *excludes, "."], "stdout": o("duplicates.txt"), "deps": []},
-        ]
+        steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(min(procs or blame.default_procs(), FUNCTIONS_MAX_PROCS)), *ignores, *type_args],
+                      "stdout": None, "deps": []})
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
     if plots:

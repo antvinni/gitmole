@@ -181,6 +181,57 @@ class ComplexFunctions(unittest.TestCase):
         r["functions"] = []
         self.assertIn("Complex functions: no function metrics (install lizard)", rendered(r, []))
 
+    def test_note_says_why_there_is_nothing(self):
+        r = sample_report()
+        r["functions"] = []
+        for status, note in (("skipped", "no function metrics (install lizard)"), ("timeout", "function metrics timed out"),
+                             ("failed", "function metrics failed (see run.log)"), ("run", "no functions found in the code files"),
+                             ("planned", "function metrics did not complete")):
+            r["meta"]["functions"] = {"status": status}
+            self.assertIn(f"Complex functions: {note}", rendered(r, []), status)
+
+    def test_a_partial_run_says_so_even_with_rows(self):
+        r = sample_report()
+        for status, reason in (("timeout", "function metrics timed out"), ("failed", "function metrics failed (see run.log)")):
+            r["meta"]["functions"] = {"status": status}
+            sec = next(x for x in render.sections(r, full=True) if x["title"] == "Complex functions")
+            self.assertTrue(sec["rows"])
+            self.assertEqual(sec["caption"], f"partial: {reason}", status)
+        r["meta"]["functions"] = {"status": "timeout"}
+        r["functions"] = [{"file": "a.py", "function": "simple", "ccn": 2, "nloc": 5, "params": 0, "start": 1, "end": 5}]
+        self.assertIn("Complex functions: nothing over complexity 10 (1 function measured; partial: function metrics timed out)", rendered(r, []))
+
+    def test_a_partial_run_keeps_the_more_caption(self):
+        r = sample_report()
+        r["meta"]["functions"] = {"status": "timeout"}
+        r["functions"] = [{"file": f"f{i}.py", "function": f"fn{i}", "ccn": 20, "nloc": 30, "params": 0, "start": 1, "end": 30} for i in range(10)]
+        sec = next(x for x in render.sections(r, full=False) if x["title"] == "Complex functions")
+        self.assertEqual(sec["caption"], "and 2 more; partial: function metrics timed out")
+
+    def test_long_paths_are_elided_like_every_other_table(self):
+        r = sample_report()
+        r["functions"] = [{"file": "static/javascript/components/deeply/nested/directory/structure/app.js", "function": "render",
+                           "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200}]
+        text = rendered(r, [], width=80)
+        self.assertRegex(text, r"render\s+static/…/structure/app.js\s+27")
+        self.assertNotIn("component\n", text)
+
+    def test_ties_break_by_file_function_and_line_not_by_arrival(self):
+        r = sample_report()
+        r["functions"] = [{"file": "z.py", "function": "b", "ccn": 12, "nloc": 30, "params": 0, "start": 9, "end": 20},
+                          {"file": "a.py", "function": "c", "ccn": 12, "nloc": 30, "params": 0, "start": 5, "end": 20},
+                          {"file": "a.py", "function": "c", "ccn": 12, "nloc": 30, "params": 0, "start": 1, "end": 4}]
+        sec = next(x for x in render.sections(r, full=True) if x["title"] == "Complex functions")
+        self.assertEqual([(row[1], row[0]) for row in sec["rows"]], [("a.py", "c"), ("a.py", "c"), ("z.py", "b")])
+
+    def test_a_long_function_name_does_not_squeeze_the_path_to_the_floor(self):
+        r = sample_report()
+        r["functions"] = [{"file": "src/main/java/com/example/service/impl/AccountServiceImpl.java",
+                           "function": "shouldReturnTheAccountWhenTheIdentifierIsKnownAndActive",
+                           "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200}]
+        sec = next(x for x in render.sections(r, full=False, width=100) if x["title"] == "Complex functions")
+        self.assertEqual(sec["rows"][0][1], "src/…/impl/AccountServiceImpl.java", "the directory survives; only the name would at the 16-char floor")
+
     def test_only_functions_over_the_floor(self):
         r = sample_report()
         r["functions"] = [{"file": "a.py", "function": "simple", "ccn": 9, "nloc": 300, "params": 0, "start": 1, "end": 300}]
