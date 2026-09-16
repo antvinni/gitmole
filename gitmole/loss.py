@@ -1,7 +1,9 @@
 """Knowledge loss: who has stopped committing, and how much of the code is theirs.
 
 "Gone" is measured against the repository's last commit, not today's date, so a clone that was
-last fetched a year ago does not mark everyone as gone."""
+last fetched a year ago does not mark everyone as gone. It is also measured over the whole
+history: a window (--since) that hides someone's last commit must not turn them into a person
+who never existed."""
 from __future__ import annotations
 
 from . import identity, knowledge, maat
@@ -17,7 +19,8 @@ def cutoff(report: dict, months: int = DEFAULT_MONTHS):
 def gone(report: dict, months: int = DEFAULT_MONTHS) -> list:
     """People whose last commit is before the cut-off, by name. Bots are never people."""
     cut = cutoff(report, months)
-    authors = (report.get("activity") or {}).get("authors") or {}
+    act = report.get("activity") or {}
+    authors = act.get("authors_all") or act.get("authors") or {}   # authors_all is absent in older output directories
     if not cut or not authors:
         return []
     bots = {b["name"] for b in report["meta"].get("bots") or []}

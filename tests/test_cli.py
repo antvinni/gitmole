@@ -102,6 +102,10 @@ class FunctionMetrics(unittest.TestCase):
         _, meta, _ = self._main(True, [], step=("sh", "-c", "exit 3"), name="trend")
         self.assertEqual(meta["trend"]["status"], "failed")
 
+    def test_a_plan_without_a_trend_step_leaves_the_status_alone(self):
+        _, meta, _ = self._main(True, [], name="quick")
+        self.assertEqual(meta["trend"]["status"], "planned", "a step that never ran did not run")
+
 
 class Budget(unittest.TestCase):
     def _main(self, extra, estimate, plan_calls):
@@ -383,6 +387,10 @@ class GoneWindow(unittest.TestCase):
         self.assertEqual(self._meta()["gone_months"], 12)
         self.assertEqual(self._meta("--gone", "6")["gone_months"], 6)
 
+    def test_the_default_is_the_window_the_loss_module_defines(self):
+        from gitmole import loss
+        self.assertEqual(cli.parse_args(["x"]).gone, loss.DEFAULT_MONTHS)
+
 
 class Duplicates(unittest.TestCase):
     def test_off_by_default_and_on_with_the_flag(self):
@@ -564,7 +572,7 @@ class Risk(unittest.TestCase):
 
 
 class BacktestWindow(unittest.TestCase):
-    def _run(self, dates):
+    def _run(self, dates, *extra):
         import subprocess
         calls = []
         with tempfile.TemporaryDirectory() as d:
@@ -576,7 +584,7 @@ class BacktestWindow(unittest.TestCase):
             def planner(repo, o, branch="HEAD", **kw):
                 calls.append(kw)
                 return [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
-            cli.main([d, "--out", out], console=console(), tool_check=lambda **kw: [], planner=planner,
+            cli.main([d, "--out", out, *extra], console=console(), tool_check=lambda **kw: [], planner=planner,
                      estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
             with open(os.path.join(out, "meta.json")) as fh:
                 return calls[0], json.load(fh)
@@ -584,6 +592,11 @@ class BacktestWindow(unittest.TestCase):
     def test_cut_off_six_months_before_the_last_commit_with_a_year_of_history(self):
         kw, meta = self._run(["2025-01-01", "2025-08-01", "2026-03-01"])
         self.assertEqual(kw["backtest"], "2025-09-01")
+        self.assertEqual(meta["backtest"], {"status": "planned", "until": "2025-09-01"})
+
+    def test_since_does_not_narrow_the_history_the_backtest_measures(self):
+        kw, meta = self._run(["2025-01-01", "2025-08-01", "2026-03-01"], "--since", "2026-01-01")
+        self.assertEqual(kw["backtest"], "2025-09-01", "the window narrows the analysis, not the backtest")
         self.assertEqual(meta["backtest"], {"status": "planned", "until": "2025-09-01"})
 
     def test_too_little_history_skips(self):

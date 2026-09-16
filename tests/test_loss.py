@@ -28,6 +28,18 @@ class Gone(unittest.TestCase):
         self.assertEqual(loss.cutoff(report(), 12), "2024-11-09")
         self.assertEqual(loss.gone(report()), [{"name": "Bob", "last": "2024-11-08"}])
 
+    def test_authors_all_is_used_so_a_window_cannot_hide_someone(self):
+        r = report()
+        bob = r["activity"]["authors"].pop("Bob")            # --since 2025-01-01 left Bob out of the window
+        r["activity"]["authors_all"] = dict(r["activity"]["authors"], Bob=bob)
+        r["meta"]["since"] = "2025-01-01"
+        self.assertEqual(loss.gone(r), [{"name": "Bob", "last": "2024-11-08"}])
+
+    def test_older_output_directories_without_authors_all_still_work(self):
+        r = report()
+        self.assertNotIn("authors_all", r["activity"])
+        self.assertEqual(loss.gone(r), [{"name": "Bob", "last": "2024-11-08"}])
+
     def test_bots_are_never_people(self):
         names = [g["name"] for g in loss.gone(report(), months=1)]
         self.assertEqual(names, ["Bob", "Cat"])
