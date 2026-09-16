@@ -456,7 +456,7 @@ rows unless `--full`.
    with the busiest hour and the share of commits that are fixes, and
    surviving code by year.
 
-   Size, hotspots, coupling, ownership, code age and the watch list analyze
+   Size, hotspots, coupling, ownership, code age and the watch list analyse
    source files: a built-in list of code extensions plus names like Makefile
    and Dockerfile (`--file-types all` counts everything). In the default
    report, the hotspots and complex functions tables hide test files, and
