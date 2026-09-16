@@ -309,5 +309,26 @@ class MonthsBefore(unittest.TestCase):
         self.assertEqual(maat.months_before("2026-01-15", 0), "2026-01-15")
 
 
+class Until(unittest.TestCase):
+    def test_until_is_exclusive_and_combines_with_since(self):
+        commits = maat.parse_log(LOG)
+        self.assertEqual([c["hash"] for c in maat.in_window(commits, until="2026-03-10")], ["a1", "b2"])
+        self.assertEqual([c["hash"] for c in maat.in_window(commits, since="2026-02-10", until="2026-04-01")], ["b2", "c3", "d4"])
+
+    def test_write_all_takes_until(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                fh.write(LOG)
+            maat.write_all(log, d, now="2026-03-10", until="2026-03-10")
+            with open(os.path.join(d, "maat-revisions.csv")) as fh:
+                rows = dict(line.strip().split(",") for line in fh.readlines()[1:])
+            with open(os.path.join(d, "activity.json")) as fh:
+                act = json.load(fh)
+        self.assertEqual(rows, {"src/a.py": "2", "src/b.py": "2", "img/logo.png": "1"})
+        self.assertEqual(act["fix_commits"], 0)
+        self.assertEqual(act["until"], "2026-03-10")
+
+
 if __name__ == "__main__":
     unittest.main()
