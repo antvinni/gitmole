@@ -8,7 +8,7 @@ import os
 import re
 from collections import Counter, OrderedDict
 
-from . import filetypes, identity
+from . import filetypes, identity, leaks
 
 
 def _rel(path: str) -> str:
@@ -180,11 +180,20 @@ def parse_duplicates(text: str) -> dict:
 
 
 def parse_secrets(text: str) -> list:
+    """gitleaks rows as rule, file, short commit, line, fingerprint, the hashed value and the placeholder
+    flag. A report written before values were hashed still has them: hash them here, keep nothing raw."""
     rows = json.loads(text) if text.strip() else []
-    return [
-        {"rule": r.get("RuleID", ""), "file": r.get("File", ""), "commit": r.get("Commit", "")[:7], "line": r.get("StartLine")}
-        for r in rows
-    ]
+    out = []
+    for r in rows:
+        if "SecretHash" in r:
+            value, placeholder = r["SecretHash"], bool(r.get("Placeholder"))
+        elif r.get("Secret"):
+            value, placeholder = leaks.digest(r["Secret"]), leaks.is_placeholder(r["Secret"])
+        else:
+            value, placeholder = None, False
+        out.append({"rule": r.get("RuleID", ""), "file": r.get("File", ""), "commit": r.get("Commit", "")[:7], "line": r.get("StartLine"),
+                    "fingerprint": r.get("Fingerprint", ""), "value": value, "placeholder": placeholder})
+    return out
 
 
 def _read(out_dir: str, name: str) -> str:

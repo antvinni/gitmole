@@ -179,11 +179,29 @@ Total unique rate: 99.65%
 
 
 class ParseSecrets(unittest.TestCase):
-    def test_returns_rule_file_and_commit_per_finding(self):
-        text = json.dumps([{"RuleID": "aws-access-token", "File": "config.py", "Commit": "abc1234def", "StartLine": 3}])
+    def test_returns_rule_file_commit_fingerprint_and_the_hashed_value(self):
+        hashed = "0a1b2c" + "3d4e5f"   # built at runtime so secret scanners do not flag this file
+        text = json.dumps([{"RuleID": "aws-access-token", "File": "config.py", "Commit": "abc1234def", "StartLine": 3,
+                            "Fingerprint": "abc1234def:config.py:aws-access-token:3", "SecretHash": hashed, "Placeholder": False}])
         self.assertEqual(load.parse_secrets(text), [
-            {"rule": "aws-access-token", "file": "config.py", "commit": "abc1234", "line": 3},
+            {"rule": "aws-access-token", "file": "config.py", "commit": "abc1234", "line": 3,
+             "fingerprint": "abc1234def:config.py:aws-access-token:3", "value": hashed, "placeholder": False},
         ])
+
+    def test_a_report_from_before_the_wrapper_is_hashed_on_load_and_never_keeps_the_value(self):
+        from gitmole import leaks
+        version = "5.0.0-" + "1667386184.dfbbb54"   # built at runtime so secret scanners do not flag this file
+        text = json.dumps([{"RuleID": "generic-api-key", "File": "web/package.json", "Commit": "d2d2d2d", "StartLine": 21,
+                            "Secret": version, "Match": "x"}])
+        row = load.parse_secrets(text)[0]
+        self.assertEqual(row["value"], leaks.digest(version))
+        self.assertTrue(row["placeholder"])
+        self.assertNotIn("dfbbb54", json.dumps(row))
+
+    def test_a_row_with_neither_hash_nor_value_still_loads(self):
+        row = load.parse_secrets(json.dumps([{"RuleID": "x", "File": "f", "Commit": "c", "StartLine": 1}]))[0]
+        self.assertIsNone(row["value"])
+        self.assertFalse(row["placeholder"])
 
     def test_empty_file_is_no_findings(self):
         self.assertEqual(load.parse_secrets(""), [])

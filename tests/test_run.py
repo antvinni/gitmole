@@ -218,6 +218,14 @@ class Plan(unittest.TestCase):
         self.assertEqual(procs_for(procs=1), "1", "a smaller count is kept")
         self.assertEqual(procs_for(), str(min(2, blame.default_procs())), "the default is clamped too")
 
+    def test_gitleaks_runs_through_the_bundled_wrapper_so_raw_secrets_never_reach_disk(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o")}
+        argv = by["gitleaks"]["argv"]
+        self.assertEqual(argv[0], sys.executable)
+        self.assertTrue(argv[1].endswith("gitmole/leaks.py"), argv)
+        self.assertEqual(argv[2:], ["/o/secrets.json"])
+        self.assertIsNone(by["gitleaks"]["stdout"])
+
     def test_lizard_is_detected_as_a_python_module_not_a_command(self):
         self.assertNotIn("lizard", run.REQUIRED_TOOLS)
         self.assertTrue(run.has_lizard())

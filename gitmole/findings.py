@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import filetypes, hotspots, knowledge
+from . import filetypes, hotspots, knowledge, leaks
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -21,13 +21,39 @@ def _pct(part, whole) -> str:
     return f"{round(100 * part / whole)}%" if whole else "0%"
 
 
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
+def _secret_statement(groups: list) -> str:
+    """'N distinct values in M places: rule in file (commits), ...' with at most three values named."""
+    def one(g):
+        others = len(g["files"]) - 1
+        where = g["files"][0] + (f" and {_plural(others, 'other file')}" if others else "")
+        commits = ", ".join(g["commits"][:2]) + (f" and {len(g['commits']) - 2} more" if len(g["commits"]) > 2 else "")
+        return f"{g['rule']} in {where} ({commits})"
+    places = sum(g["places"] for g in groups)
+    sample = "; ".join(one(g) for g in groups[:3])
+    more = f" and {len(groups) - 3} more" if len(groups) > 3 else ""
+    return f"{_plural(len(groups), 'distinct value')} in {_plural(places, 'place')}: {sample}{more}."
+
+
 def secrets_found(report: dict) -> list:
-    secrets = report.get("secrets") or []
-    if not secrets:
-        return []
-    sample = ", ".join(f"{s['rule']} in {s['file']} ({s['commit']})" for s in secrets[:3])
-    more = f" and {len(secrets) - 3} more" if len(secrets) > 3 else ""
-    return [_f("critical", f"{len(secrets)} secret(s) in history", f"{sample}{more}.", "Rotate them; deleting the file does not remove them from git.")]
+    """Secrets grouped by value. A value anywhere in source is critical; one that only ever appears in
+    test files (fixtures, saved pages) is a warning, so a critical gate does not trip on test data.
+    Version strings and shortened tokens were flagged as placeholders and are not a finding."""
+    groups = leaks.group(report.get("secrets") or [])
+    source = [g for g in groups if not g["test"]]
+    tests = [g for g in groups if g["test"]]
+    ignore = "Add the fingerprint of any false positive from secrets.json to .gitleaksignore in the repository."
+    out = []
+    if source:
+        out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source),
+                      f"Rotate them; deleting the file does not remove them from git. {ignore}"))
+    if tests:
+        out.append(_f("warning", f"{len(tests)} secret(s) only in test files", _secret_statement(tests),
+                      f"Confirm they are fixtures, not live keys. {ignore}"))
+    return out
 
 
 def _all_identities(report: dict):

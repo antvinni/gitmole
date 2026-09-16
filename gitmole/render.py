@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import hotspots, identity, knowledge, textfmt, watch
+from . import hotspots, identity, knowledge, leaks, textfmt, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -396,8 +396,15 @@ def sections(report: dict, full: bool = True, width=None) -> list:
 
 
 def secrets_line(report: dict) -> str:
-    n = len(report.get("secrets") or [])
-    return f"Secrets: {n} found" if n else "Secrets: none found"
+    rows = report.get("secrets") or []
+    groups = leaks.group(rows)
+    places = sum(g["places"] for g in groups)
+    line = (f"Secrets: {len(groups)} distinct value{'s' if len(groups) != 1 else ''} in {places} place{'s' if places != 1 else ''}"
+            if groups else "Secrets: none found")
+    skipped = leaks.placeholders(rows)
+    if skipped:
+        line += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
+    return line
 
 
 # --- rich ------------------------------------------------------------------
@@ -538,7 +545,7 @@ def report(report: dict, findings: list, console: Console, full: bool = False) -
         print_section(console, sec)   # stacked, with the usual blank line before it
         done.add(sec["id"])
     console.print(Text(""))
-    console.print(Text(secrets_line(report), style="red" if report.get("secrets") else "green"))
+    console.print(Text(secrets_line(report), style="red" if leaks.group(report.get("secrets") or []) else "green"))
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
 
 
@@ -598,7 +605,7 @@ def portfolio_section(reports: list) -> dict:
         total = sum(surviving.values())
         bus = _pct(max(surviving.values()), total) if surviving else "-"
         worst = f"{found[0]['severity']}: {found[0]['title']}" if found else "-"
-        rows.append((name, s["commits"], s["identities"], bus, len(rep.get("secrets") or []), f"{s['lines']:,}", worst))
+        rows.append((name, s["commits"], s["identities"], bus, len(leaks.group(rep.get("secrets") or [])), f"{s['lines']:,}", worst))
     return _section(f"Portfolio ({len(reports)} repositories)",
                     [("repo", {"overflow": "fold"}), ("commits", RIGHT), ("people", RIGHT), ("top author", RIGHT),
                      ("secrets", RIGHT), ("lines", RIGHT), ("worst finding", {"overflow": "fold", "ratio": 2})], rows,
