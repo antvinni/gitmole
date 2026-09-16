@@ -175,6 +175,18 @@ class Report(unittest.TestCase):
         self.assertRegex(full, r"static/\s+1,000\s+2\s+10%")
         self.assertNotIn("gone", rendered(sample_report(), []))
 
+    def test_hotspots_carry_a_trend_column_and_a_sparkline_under_full(self):
+        r = sample_report()
+        r["meta"]["last_date"] = "2026-09-10"
+        r["trend"] = {"samples": ["2025-09-10", "2026-03-10", "2026-09-10"],
+                      "files": {"static/index.html": [["2025-09-10", 10, 4000], ["2026-03-10", 12, 4000], ["2026-09-10", 16, 4000]]}}
+        text = rendered(r, [])
+        self.assertRegex(text, r"file\s+revs\s+lines\s+fixes\s+authors\s+trend")
+        self.assertRegex(text, r"static/index\.html\s+51\s+4,000\s+0\s+-\s+\+60%")
+        self.assertRegex(text, r"static/apps-metadata\.json\s+128\s+800\s+9\s+4\s+-")
+        self.assertRegex(rendered(r, [], full=True), r"static/index\.html.*▁▃█")
+        self.assertRegex(rendered(sample_report(), []), r"static/index\.html\s+51\s+4,000\s+0\s+-\s+-")
+
 
 class Activity(unittest.TestCase):
     def test_activity_shows_weekdays_and_busiest_hour(self):
@@ -492,7 +504,7 @@ class Layout(unittest.TestCase):
         self.assertNotIn("Size by language", secs)
         self.assertEqual(secs["People"]["columns"], ["author", "commits", "share", "surviving code"])
         self.assertEqual([x for x in secs if x.startswith("Hotspots")], ["Hotspots"])
-        self.assertEqual(secs["Hotspots"]["columns"], ["file", "revs", "lines", "fixes", "authors"])
+        self.assertEqual(secs["Hotspots"]["columns"], ["file", "revs", "lines", "fixes", "authors", "trend"])
         self.assertEqual(secs["Change coupling"]["columns"], ["file", "changes with", "degree"])
         self.assertEqual(secs["Knowledge map"]["columns"], ["area", "lines added", "main owner", "second"])
 
@@ -500,7 +512,7 @@ class Layout(unittest.TestCase):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=True)}
         self.assertEqual(secs["Size by language"]["columns"], ["language", "files", "code", "share", "complexity"])
         self.assertIn("email", secs["People"]["columns"])
-        self.assertEqual(secs["Hotspots (score = revisions × lines of code)"]["columns"], ["file", "revs", "lines", "cplx", "score", "fixes", "authors", "idle"])
+        self.assertEqual(secs["Hotspots (score = revisions × lines of code)"]["columns"], ["file", "revs", "lines", "cplx", "score", "fixes", "authors", "idle", "trend"])
         self.assertIn("avg revs", secs["Change coupling"]["columns"])
 
     def test_row_caps_and_the_more_line(self):
@@ -554,8 +566,8 @@ class ReviewFixes(unittest.TestCase):
         long = "services/payments/adapters/stripe_webhook_handler_v2.py"
         r["revisions"] = [{"entity": long, "n-revs": 12345}]
         r["size"]["files"] = {long: {"code": 1234567, "complexity": 9}}
-        # 70 is the narrowest width where the 31-character file name fits beside these numbers
-        for width in (70, 76, 84):
+        # 75 is the narrowest width where the 31-character file name fits beside these numbers
+        for width in (75, 76, 84):
             text = rendered(r, [], width=width)
             hot = text[text.index("\n◆ Hotspots"):]
             self.assertNotRegex(hot, r"\n\s*[a-z_0-9]+\.py\s*\n", f"folded tail at width {width}")
