@@ -234,4 +234,5 @@ def load_report(out_dir: str) -> dict:
         "activity": json.loads(_read(out_dir, "activity.json") or "{}"),
         "functions": parse_functions(_read(out_dir, "functions.csv")),
         "duplicates": parse_duplicates(_read(out_dir, "duplicates.txt")),
+        "trend": json.loads(_read(out_dir, "trend.json") or '{"samples": [], "files": {}}'),
     }

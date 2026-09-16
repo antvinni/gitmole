@@ -451,6 +451,31 @@ class KnowledgeLoss(unittest.TestCase):
         self.assertNotIn("Dan", f[0]["detail"])
 
 
+class ComplexityGrowth(unittest.TestCase):
+    def _report(self, growth):
+        files = {f"core/f{i}.py": {"code": 100, "complexity": 10} for i in range(5)}
+        r = report(size={"files": files}, revisions=[{"entity": f"core/f{i}.py", "n-revs": 50 - i} for i in range(5)])
+        r["meta"]["last_date"] = "2026-09-10"
+        r["trend"] = {"samples": ["2025-09-10", "2026-09-10"],
+                      "files": {f"core/f{i}.py": [["2025-09-10", 10, 100], ["2026-09-10", 10 + g, 100]] for i, g in enumerate(growth)}}
+        return r
+
+    def test_three_growers_of_a_quarter_are_a_note_warning_when_the_top_hotspot_grows(self):
+        f = findings.complexity_growth(self._report([3, 3, 3, 0, 0]))
+        self.assertEqual(f[0]["severity"], "warning", "core/f0.py is the top hotspot and grew")
+        self.assertEqual(f[0]["title"], "Hotspots getting more complex")
+        self.assertIn("3 of the 5 top hotspots grew by 25% or more in a year: core/f0.py (+30%), core/f1.py (+30%), core/f2.py (+30%)", f[0]["detail"])
+        self.assertEqual(f[0]["advice"], "Split core/f0.py before the next change; its complexity grew 30% in a year.")
+        f = findings.complexity_growth(self._report([0, 3, 3, 3, 0]))
+        self.assertEqual(f[0]["severity"], "info")
+        self.assertEqual(f[0]["advice"], "Split core/f1.py before the next change; its complexity grew 30% in a year.")
+
+    def test_two_growers_or_small_growth_is_nothing(self):
+        self.assertEqual(findings.complexity_growth(self._report([3, 3, 0, 0, 0])), [])
+        self.assertEqual(findings.complexity_growth(self._report([2, 2, 2, 2, 2])), [])
+        self.assertEqual(findings.complexity_growth(report()), [])
+
+
 class Advice(unittest.TestCase):
     def test_every_finding_carries_its_next_step_as_a_field_that_ends_the_detail(self):
         r = report(secrets=[{"rule": "aws", "file": "a.env", "commit": "abc1234"}],

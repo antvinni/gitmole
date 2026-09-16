@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import hotspots, identity, knowledge, leaks, loss, textfmt, watch
+from . import hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -295,14 +295,23 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     scored = hotspots.ranked(report)
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
+    series = (report.get("trend") or {}).get("files") or {}
+    last = report["meta"].get("last_date") or ""
+    def trend_cell(path):
+        s = series.get(path) or []
+        if full is True:
+            return trend.sparkline(s) or "-"
+        return trend.change_over_year(s, last) if last else "-"
     rows = []
     for h in scored[:limit]:
         gone = h["code"] is None
         rows.append((h["entity"], h["revs"], "-" if gone else f"{h['code']:,}", "-" if gone else h["complexity"],
-                     "-" if gone else f"{h['score']:,}", fixes.get(h["entity"], 0), authors.get(h["entity"], "-"), ages.get(h["entity"], "-")))
-    columns = [("file", PATH), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT), ("fixes", RIGHT), ("authors", RIGHT), ("idle", RIGHT)]
+                     "-" if gone else f"{h['score']:,}", fixes.get(h["entity"], 0), authors.get(h["entity"], "-"), ages.get(h["entity"], "-"),
+                     trend_cell(h["entity"])))
+    columns = [("file", PATH), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT), ("fixes", RIGHT), ("authors", RIGHT), ("idle", RIGHT),
+               ("trend", RIGHT)]
     if full is not True:
-        columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors"])
+        columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
         rows = _shorten(rows, width, columns)
     return _section(title, columns, rows, caption=_more(len(scored), limit))
 

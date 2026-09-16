@@ -96,6 +96,12 @@ class FunctionMetrics(unittest.TestCase):
         _, _, left = self._main(False, [], stale=stale)
         self.assertEqual(left, ["meta.json", "run.log"], "last run's outputs must not pass for this run's")
 
+    def test_trend_status_is_recorded(self):
+        _, meta, _ = self._main(True, [], name="trend")
+        self.assertEqual(meta["trend"]["status"], "run")
+        _, meta, _ = self._main(True, [], step=("sh", "-c", "exit 3"), name="trend")
+        self.assertEqual(meta["trend"]["status"], "failed")
+
 
 class Budget(unittest.TestCase):
     def _main(self, extra, estimate, plan_calls):

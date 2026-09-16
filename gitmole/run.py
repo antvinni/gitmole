@@ -133,7 +133,7 @@ def has_lizard(finder=importlib.util.find_spec) -> bool:
 # --out directory never shows a previous run's data as this run's (a step skipped or killed
 # this time would otherwise leave last time's file in place).
 OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "log.txt", "activity.json", "functions.csv", "duplicates.txt",
-           "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png"]
+           "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]
 
 
@@ -149,7 +149,7 @@ def clear_outputs(out_dir: str) -> None:
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
-         lizard: bool = False, duplicates: bool = False) -> list:
+         lizard: bool = False, duplicates: bool = False, trend: bool = True, samples: int = 12) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
@@ -171,6 +171,9 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args,
                                                     *(["--duplicates"] if duplicates else [])],
                       "stdout": None, "deps": []})
+    if trend:
+        steps.append({"name": "trend", "argv": [sys.executable, "-m", "gitmole.trend", out_dir, "--samples", str(samples)],
+                      "stdout": None, "deps": ["scc", "change analysis"]})
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
     if plots:
@@ -270,7 +273,9 @@ def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_st
     """Run steps concurrently, honouring deps. Returns {name: returncode | 'skipped' | 'timeout' | 'cancelled'}."""
     results = {}
     lock = threading.Lock()
-    env = dict(os.environ, PATH=env_path())
+    package_parent = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    env = dict(os.environ, PATH=env_path(),
+               PYTHONPATH=os.pathsep.join([package_parent] + [p for p in [os.environ.get("PYTHONPATH", "")] if p]))
     pending = {s["name"]: s for s in steps}
 
     def run_one(step):
