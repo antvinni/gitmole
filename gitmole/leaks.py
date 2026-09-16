@@ -31,9 +31,14 @@ ARGV = ["betterleaks", "git", "--no-banner", "--report-format", "json", "--repor
 # the value, the text around it, and the commit message, which can quote it; Attributes repeats the message
 RAW_FIELDS = ("Secret", "Match", "Line", "Message", "Attributes")
 
-# A version string (5.0.0-1667386184.dfbbb54) and a token shortened with an ellipsis are the only shapes
-# skipped. Nothing is skipped by prefix: a public and a private key of the same service often share one.
+# Shapes that cannot be a live secret: a version string (5.0.0-1667386184.dfbbb54), a token shortened
+# with an ellipsis, a whole-value template marker (your-project-id, <your-token>, XXXX-XXXX, changeme),
+# and a key block whose body holds no key material. Every rule is about the whole value; nothing is
+# skipped by prefix, since a public and a private key of the same service often share one.
 _VERSION = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
+_MARKER = re.compile(r"^(<[^<>]+>|x+|(?:x{2,}[-_ ]?)+|your[-_][\w-]+|change[-_]?me|replace[-_]?me)$", re.I)
+_KEY_BLOCK = re.compile(r"-----BEGIN [A-Z ]*KEY-----(.*?)-----END [A-Z ]*KEY-----", re.S)
+_KEY_MATERIAL = 64   # a real body is hundreds of base64 characters; a template has dots or a few x's
 
 
 def new_key() -> bytes:
@@ -48,8 +53,14 @@ def digest(value: str, key: bytes) -> str:
 
 
 def is_placeholder(value: str) -> bool:
-    value = value or ""
-    return bool(_VERSION.match(value)) or value.endswith("...") or value.endswith("…")
+    value = (value or "").strip()
+    if _VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value):
+        return True
+    m = _KEY_BLOCK.search(value)
+    if m:
+        body = re.sub(r"\s|\.|…|\\n", "", m.group(1))   # literal \n sequences appear in JSON samples
+        return len(body) < _KEY_MATERIAL
+    return False
 
 
 def sanitise(rows: list) -> list:
@@ -66,15 +77,16 @@ def sanitise(rows: list) -> list:
 
 def group(rows: list) -> list:
     """One entry per distinct secret value (placeholders left out): its rule, the files and commits it
-    appears in, the number of distinct places (commit, file, line), and whether every place is a test
-    file. Values that appear in source come first, then the most widespread."""
+    appears in, the number of distinct places (commit, file, line), whether every place is a test
+    file, and whether every place is a documentation file. Values that appear in source come first,
+    then the most widespread."""
     groups, order = {}, []
     for i, r in enumerate(rows):
         if r.get("placeholder"):
             continue
         key = r.get("value") or ("row", i)
         if key not in groups:
-            groups[key] = {"value": r.get("value"), "rule": r["rule"], "files": [], "commits": [], "_places": set(), "test": True}
+            groups[key] = {"value": r.get("value"), "rule": r["rule"], "files": [], "commits": [], "_places": set(), "test": True, "docs": True}
             order.append(key)
         g = groups[key]
         if r["file"] not in g["files"]:
@@ -83,6 +95,7 @@ def group(rows: list) -> list:
             g["commits"].append(r["commit"])
         g["_places"].add((r["commit"], r["file"], r.get("line")))
         g["test"] = g["test"] and filetypes.is_test_path(r["file"])
+        g["docs"] = g["docs"] and filetypes.is_doc_path(r["file"])
     out = []
     for key in order:
         g = groups[key]

@@ -56,6 +56,15 @@ def is_test_path(path: str) -> bool:
     return bool(_TEST_PATH.search(path))
 
 
+_DOC_PATH = re.compile(r"(^|/)docs?(/|$)|\.(md|markdown|rst|txt|adoc)$", re.I)
+
+
+def is_doc_path(path: str) -> bool:
+    """Documentation: prose formats anywhere, or anything under docs/. A key in a planning document
+    is far more often a template than a leak."""
+    return bool(_DOC_PATH.search(path))
+
+
 def key(path: str) -> str:
     """The lowercased extension, or the whole lowercased name when there is none."""
     name = path.rsplit("/", 1)[-1].lower()

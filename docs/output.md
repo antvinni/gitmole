@@ -14,8 +14,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    ends with a next step that names the file, area or person to start with,
    on its own line under the facts. Currently:
    secrets in history (see below), an unconfigured git identity
-   (example.com and the like), one author owning most surviving code,
-   git-sizer concerns, one file dominating the churn, bug magnets (source
+   (example.com and the like; the advice offers the `.mailmap` line that
+   would merge it into the busiest real identity), one author owning most
+   surviving code, git-sizer concerns (a large blob that is no longer in
+   the tree says so, since deleting it did not shrink the clone), one file dominating the churn, bug magnets (source
    files fixed three or more times in the last six months; a warning at
    five), reverts (5% of commits or five of them; a warning at 10%; names
    the file most often backed out), brain methods (functions with
@@ -43,12 +45,17 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Secrets are grouped by value, so one key copied into ten files is one
    entry with its places counted. A value found in any source file is
    critical. A value found only in test files, such as fixtures and saved
-   web pages, is a warning. Version strings and tokens shortened with "..."
-   cannot be live secrets, so they are left out and counted on the footer
-   line. Nothing is skipped by prefix. To silence a false positive for
-   good, copy its fingerprint from `secrets.json` into a `.betterleaksignore`
-   at the repository root; betterleaks reads it on the next run, and an
-   existing `.gitleaksignore` works too.
+   web pages, or only in documentation (`.md`, `.rst`, `.txt`, `.adoc`, or
+   anything under `docs/`), where it is usually a template, is a warning.
+   Four shapes cannot be a live secret and are left out, counted on the
+   footer line: version strings, tokens shortened with "...", whole-value
+   template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
+   or `changeme`, and a `BEGIN ... KEY` block whose body holds no key
+   material, like the dotted sample in Google's service-account docs. Every
+   rule is about the whole value; nothing is skipped by prefix. To silence a
+   false positive for good, copy its fingerprint from `secrets.json` into a
+   `.betterleaksignore` at the repository root; betterleaks reads it on the
+   next run, and an existing `.gitleaksignore` works too.
 
    The values themselves are never written. `secrets.json` holds a short
    keyed hash in place of each value, the matched text and the commit
@@ -91,7 +98,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    and who wrote them), a timeline of commits per author over the last
    twelve months, hotspots ranked by revisions times lines of code with the
    number of fix commits alongside, change coupling, the most complex
-   functions, repo health. Hotspots carry a `trend` column, sampled for the
+   functions, repo health. Change coupling hides pairs where either file is
+   no longer in the tree, since they describe a layout that no longer
+   exists; the caption counts them and `--full` shows them. Hotspots carry a `trend` column, sampled for the
    top ten hotspots: the change in complexity over the last year from scc on
    the file at sampled commits (`--full` shows the whole series as a
    sparkline). The knowledge map marks owners who have stopped committing

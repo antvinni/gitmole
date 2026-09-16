@@ -313,6 +313,18 @@ class Report(unittest.TestCase):
         hot = _section_text(rendered(r, [], width=200), "\u25c6 Hotspots")
         self.assertIn("no source hotspots; 1 test file hidden; --full shows them", hot)
 
+    def test_default_coupling_hides_pairs_of_deleted_files_and_says_so(self):
+        r = sample_report()   # the tree holds static/index.html and static/apps-metadata.json only
+        r["coupling"] = [{"entity": "static/index.html", "coupled": "static/apps-metadata.json", "degree": 90, "average-revs": 11},
+                         {"entity": "static/tax.html", "coupled": "static/treasury.html", "degree": 85, "average-revs": 11}]
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("static/index.html", coupling)
+        self.assertNotIn("static/tax.html", coupling)
+        self.assertIn("1 historical pair hidden; --full shows them", coupling)
+        full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
+        self.assertIn("static/tax.html", full)
+        self.assertNotIn("hidden", full)
+
     def test_coupling_with_only_test_pairs_says_what_was_hidden(self):
         r = sample_report()
         r["coupling"] = [{"entity": "static/tax.html", "coupled": "tests/test_tax.py", "degree": 100, "average-revs": 11}]

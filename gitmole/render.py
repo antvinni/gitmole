@@ -98,6 +98,17 @@ def _hide_tests(rows: list, path_of, full, noun="test file", plural=None) -> tup
     return kept, note
 
 
+def _hide_gone(pairs: list, report: dict, full) -> tuple:
+    """Drop coupled pairs where either file is no longer in the tree, unless `full` is True: they
+    describe a layout that no longer exists. Returns (pairs, note) like _hide_tests."""
+    tree = (report.get("size") or {}).get("files") or {}
+    if full is True or not tree:
+        return pairs, None
+    kept = [p for p in pairs if p["entity"] in tree and p["coupled"] in tree]
+    hidden = len(pairs) - len(kept)
+    return kept, (f"{hidden} historical pair{'s' if hidden != 1 else ''} hidden; --full shows them" if hidden else None)
+
+
 def _empty_note(base, hidden_note, source_base=None) -> str:
     """The note that replaces a table with no rows left. When test rows were hidden the note has to
     carry the count, since the caption goes with the table, and what is left is the source rows."""
@@ -364,6 +375,8 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))
     pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair")
+    pairs, gone_note = _hide_gone(pairs, report, full)
+    hidden_note = "; ".join(n for n in (hidden_note, gone_note) if n) or None
     limit = _limit("Change coupling", full)
     rows = [(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in pairs[:limit]]
     columns = [("file", PATH), ("changes with", PATH), ("degree", RIGHT), ("avg revs", RIGHT)]
