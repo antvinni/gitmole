@@ -46,11 +46,11 @@ class SecretsFound(unittest.TestCase):
         self.assertEqual(crit["title"], "1 secret(s) in history")
         self.assertIn("1 distinct value in 2 places: generic-api-key in app/settings.py (c1, c2)", crit["detail"])
         self.assertIn("Rotate", crit["advice"])
-        self.assertIn(".gitleaksignore", crit["advice"])
+        self.assertIn(".betterleaksignore", crit["advice"])
         self.assertEqual(warn["title"], "2 secret(s) only in test files")
         self.assertIn("2 distinct values in 3 places", warn["detail"])
         self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
-        self.assertIn(".gitleaksignore", warn["advice"])
+        self.assertIn(".betterleaksignore", warn["advice"])
 
     def test_test_only_secrets_do_not_fail_a_critical_gate(self):
         r = report(secrets=[self.row("h3", "tests/t.py")])

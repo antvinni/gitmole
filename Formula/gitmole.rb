@@ -8,8 +8,8 @@ class Gitmole < Formula
   license "MIT"
   head "https://github.com/antvinni/gitmole.git", branch: "main"
 
+  depends_on "betterleaks"
   depends_on "git-sizer"
-  depends_on "gitleaks"
   depends_on "python@3.14"
   depends_on "scc"
 

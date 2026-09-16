@@ -170,7 +170,7 @@ class Plan(unittest.TestCase):
     def test_lists_every_tool_and_theseus_plots_depend_on_analyze(self):
         steps = run.plan("/r", "/o")
         names = [s["name"] for s in steps]
-        for expected in ["scc", "git-sizer", "gitleaks", "git-log", "change analysis", "code age"]:
+        for expected in ["scc", "git-sizer", "betterleaks", "git-log", "change analysis", "code age"]:
             self.assertIn(expected, names)
         for gone in ["onefetch", "git-quick-stats"]:
             self.assertNotIn(gone, names)
@@ -218,13 +218,13 @@ class Plan(unittest.TestCase):
         self.assertEqual(procs_for(procs=1), "1", "a smaller count is kept")
         self.assertEqual(procs_for(), str(min(2, blame.default_procs())), "the default is clamped too")
 
-    def test_gitleaks_runs_through_the_bundled_wrapper_so_raw_secrets_never_reach_disk(self):
+    def test_betterleaks_runs_through_the_bundled_wrapper_so_raw_secrets_never_reach_disk(self):
         by = {s["name"]: s for s in run.plan("/r", "/o")}
-        argv = by["gitleaks"]["argv"]
+        argv = by["betterleaks"]["argv"]
         self.assertEqual(argv[0], sys.executable)
         self.assertTrue(argv[1].endswith("gitmole/leaks.py"), argv)
         self.assertEqual(argv[2:], ["/o/secrets.json"])
-        self.assertIsNone(by["gitleaks"]["stdout"])
+        self.assertIsNone(by["betterleaks"]["stdout"])
 
     def test_lizard_is_detected_as_a_python_module_not_a_command(self):
         self.assertNotIn("lizard", run.REQUIRED_TOOLS)
@@ -273,7 +273,7 @@ class Plan(unittest.TestCase):
 
     def test_only_three_tools_required_by_default_and_theseus_with_plots(self):
         """Checked against a directory of stub executables, not this machine's PATH."""
-        self.assertEqual(run.REQUIRED_TOOLS, ["scc", "git-sizer", "gitleaks"])
+        self.assertEqual(run.REQUIRED_TOOLS, ["scc", "git-sizer", "betterleaks"])
         with tempfile.TemporaryDirectory() as d:
             for name in run.REQUIRED_TOOLS:
                 stub = os.path.join(d, name)
@@ -285,7 +285,7 @@ class Plan(unittest.TestCase):
             open(stub, "w").close()
             os.chmod(stub, 0o755)
             self.assertEqual(run.missing_tools(plots=True, path=d), [])
-        self.assertEqual(run.missing_tools(plots=True, path="/nonexistent"), ["scc", "git-sizer", "gitleaks", "git-of-theseus-analyze"])
+        self.assertEqual(run.missing_tools(plots=True, path="/nonexistent"), ["scc", "git-sizer", "betterleaks", "git-of-theseus-analyze"])
 
     def test_theseus_tracks_the_given_branch(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", branch="trunk", plots=True)}

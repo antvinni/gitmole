@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""gitleaks, with the secret values kept out of the output directory.
+"""betterleaks, with the secret values kept out of the output directory.
 
-gitmole runs this as the gitleaks step: `python3 leaks.py OUT_JSON`, from inside the repository.
-gitleaks writes its JSON report to our stdout, so the raw report is never a file; each value is
+gitmole runs this as the betterleaks step: `python3 leaks.py OUT_JSON`, from inside the repository.
+betterleaks writes its JSON report to our stdout, so the raw report is never a file; each value is
 replaced by a short keyed hash (enough to tell one value repeated in many places from many values)
 and a flag for shapes that cannot be a live secret, and only that is written. The key is random,
 made for one report and never stored, so a hash in secrets.json cannot be checked against a list of
@@ -27,8 +27,9 @@ try:
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
 
-ARGV = ["gitleaks", "git", "--no-banner", "--report-format", "json", "--report-path", "-", "--exit-code", "0"]
-RAW_FIELDS = ("Secret", "Match", "Line", "Message")   # the value, the text around it, and the commit message, which can quote it
+ARGV = ["betterleaks", "git", "--no-banner", "--report-format", "json", "--report-path", "-", "--exit-code", "0"]
+# the value, the text around it, and the commit message, which can quote it; Attributes repeats the message
+RAW_FIELDS = ("Secret", "Match", "Line", "Message", "Attributes")
 
 # A version string (5.0.0-1667386184.dfbbb54) and a token shortened with an ellipsis are the only shapes
 # skipped. Nothing is skipped by prefix: a public and a private key of the same service often share one.
@@ -102,13 +103,13 @@ def main(argv=None) -> int:
         print("usage: leaks.py OUT_JSON", file=sys.stderr)
         return 2
     target = args[0]
-    # stderr is inherited, so gitleaks' own log lands in run.log as before
+    # stderr is inherited, so betterleaks' own log lands in run.log as before
     proc = subprocess.run(ARGV, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
     if proc.returncode != 0:
-        print(f"leaks.py: gitleaks exited {proc.returncode}; no report written", file=sys.stderr)
+        print(f"leaks.py: betterleaks exited {proc.returncode}; no report written", file=sys.stderr)
         return proc.returncode
     text = proc.stdout.decode("utf-8", "surrogateescape").strip()
-    rows = sanitise(json.loads(text) if text else [])
+    rows = sanitise((json.loads(text) if text else None) or [])   # a clean repository is reported as null
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(target)), prefix=".secrets-", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

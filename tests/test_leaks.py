@@ -11,14 +11,15 @@ from gitmole import leaks
 
 SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "gitmole", "leaks.py")
 
-# Synthetic values only, built at runtime: a secret-shaped literal would make gitleaks, GitHub push
+# Synthetic values only, built at runtime: a secret-shaped literal would make betterleaks, GitHub push
 # protection and gitmole itself flag this file.
 FAKE = "0123456789abcdef" * 2
 VERSION = "5.0.0-" + "1667386184.dfbbb54"
 RAW = [
     {"RuleID": "generic-api-key", "File": "app/settings.py", "Commit": "c1c1c1c1c1", "StartLine": 9, "Fingerprint": "c1c1c1c1c1:app/settings.py:generic-api-key:9",
      "Secret": FAKE, "Match": f'SECRET = "{FAKE}"', "Line": f'SECRET = "{FAKE}"',
-     "Author": "Ann", "Message": f"rotate {FAKE} out of settings"},   # a message can quote the value
+     "Author": "Ann", "Message": f"rotate {FAKE} out of settings",   # a message can quote the value
+     "Attributes": {"confidence": "high", "git.message": f"rotate {FAKE} out of settings", "path": "app/settings.py"}},   # betterleaks repeats it here
     {"RuleID": "generic-api-key", "File": "web/package.json", "Commit": "d2d2d2d2d2", "StartLine": 21, "Fingerprint": "d2d2d2d2d2:web/package.json:generic-api-key:21",
      "Secret": VERSION, "Match": f'auth-next": "{VERSION}"'},
 ]
@@ -58,7 +59,7 @@ class Sanitise(unittest.TestCase):
         self.assertNotIn("0123456789abcdef", text)
         self.assertNotIn("dfbbb54", text)
         for row in rows:
-            self.assertFalse({"Secret", "Match", "Line", "Message"} & set(row), row)
+            self.assertFalse({"Secret", "Match", "Line", "Message", "Attributes"} & set(row), row)
         self.assertEqual(len(rows[0]["SecretHash"]), 12)
         again = leaks.sanitise(RAW + RAW)
         self.assertEqual(again[0]["SecretHash"], again[2]["SecretHash"], "one key per report: repeats still group")
@@ -69,7 +70,7 @@ class Sanitise(unittest.TestCase):
 
 
 class Script(unittest.TestCase):
-    """Runs the script against a stand-in gitleaks on PATH, so the wiring is tested without real keys."""
+    """Runs the script against a stand-in betterleaks on PATH, so the wiring is tested without real keys."""
 
     def _run(self, stdout: str, rc: int = 0):
         with tempfile.TemporaryDirectory() as d:
@@ -78,7 +79,7 @@ class Script(unittest.TestCase):
                 os.makedirs(p)
             with open(os.path.join(d, "stdout.json"), "w") as fh:
                 fh.write(stdout)
-            fake = os.path.join(bindir, "gitleaks")
+            fake = os.path.join(bindir, "betterleaks")
             with open(fake, "w") as fh:
                 fh.write(f"#!/bin/sh\necho \"$@\" > {d}/argv\npwd > {d}/cwd\ncat {d}/stdout.json\necho 'INF scanned' >&2\nexit {rc}\n")
             os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
@@ -102,16 +103,17 @@ class Script(unittest.TestCase):
         self.assertEqual(argv[:1], ["git"])
         self.assertEqual(argv[argv.index("--report-path") + 1], "-", "the raw report must never be a file")
         self.assertEqual(argv[argv.index("--report-format") + 1], "json")
-        self.assertEqual(os.path.realpath(cwd), os.path.realpath(repo), "gitleaks scans the repository it is started in")
+        self.assertEqual(os.path.realpath(cwd), os.path.realpath(repo), "betterleaks scans the repository it is started in")
         self.assertNotIn("0123456789abcdef", written)
         self.assertEqual(len(json.loads(written)), 2)
         self.assertEqual(leftovers, ["secrets.json"], "no temporary file is left behind")
-        self.assertIn("INF scanned", p.stderr, "gitleaks' own log still reaches run.log")
+        self.assertIn("INF scanned", p.stderr, "betterleaks' own log still reaches run.log")
 
     def test_no_findings_writes_an_empty_list(self):
-        p, _, _, written, _, _ = self._run("[]")
-        self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertEqual(json.loads(written), [])
+        for empty in ["[]", "null"]:   # betterleaks prints null for a clean repository
+            p, _, _, written, _, _ = self._run(empty)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertEqual(json.loads(written), [], empty)
 
     def test_a_failed_scan_writes_nothing_and_fails_the_step(self):
         p, _, _, written, leftovers, _ = self._run(json.dumps(RAW), rc=2)
