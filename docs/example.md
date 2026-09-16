@@ -1,6 +1,6 @@
 # Full example report
 
-The complete `gitmole .` report for this repository; the README shows its first three panels; back to [the README](https://github.com/antvinni/gitmole#readme).
+The complete `gitmole .` report for this repository; the README shows its first two panels; back to [the README](https://github.com/antvinni/gitmole#readme).
 
 Running `gitmole .` inside this repository:
 
