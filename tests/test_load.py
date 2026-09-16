@@ -147,6 +147,10 @@ Total unique rate: 99.65%
     def test_empty(self):
         self.assertEqual(load.parse_duplicates(""), {"rate": None, "blocks": []})
 
+    def test_places_come_out_in_path_order_whatever_lizard_printed(self):
+        text = "Duplicate block:\n---\nz.py:1 ~ 40\na.py:9 ~ 48\na.py:1 ~ 40\n^^^\nTotal duplicate rate: 5.00%\n"
+        self.assertEqual(load.parse_duplicates(text)["blocks"][0]["places"], [("a.py", 1, 40), ("a.py", 9, 48), ("z.py", 1, 40)])
+
 
 class ParseSecrets(unittest.TestCase):
     def test_returns_rule_file_and_commit_per_finding(self):

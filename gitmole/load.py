@@ -145,7 +145,7 @@ def parse_duplicates(text: str) -> dict:
                 current.append((_rel(m.group(1)), int(m.group(2)), int(m.group(3))))
             elif line.startswith("^^^"):
                 if current:
-                    blocks.append({"lines": current[0][2] - current[0][1] + 1, "places": current})
+                    blocks.append({"lines": current[0][2] - current[0][1] + 1, "places": sorted(current)})
                 current = None
     m = _DUP_RATE.search(text)
     return {"rate": float(m.group(1)) if m else None, "blocks": blocks}

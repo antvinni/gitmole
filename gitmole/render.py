@@ -76,6 +76,9 @@ def _keep(columns: list, rows: list, names) -> tuple:
     return [columns[i] for i in picked], [tuple(r[i] for i in picked) for r in rows]
 
 
+FOLD_BUDGET = 24   # the most a non-path folding column (a function name, say) may take from the paths' room
+
+
 def _path_indices(path_columns) -> tuple:
     """path_columns: the first N columns (an int) or explicit column indices."""
     return tuple(range(path_columns)) if isinstance(path_columns, int) else tuple(path_columns)
@@ -87,7 +90,10 @@ def _path_room(width, rows: list, columns: list, path_columns=1) -> int:
         return None
     paths = _path_indices(path_columns)
     other = [i for i in range(len(columns)) if i not in paths]
-    widest = sum(max([len(str(r[i])) for r in rows] + [len(columns[i][0])]) for i in other)
+    def charged(i):
+        widest = max([len(str(r[i])) for r in rows] + [len(columns[i][0])])
+        return min(widest, FOLD_BUDGET) if columns[i][1].get("overflow") == "fold" else widest   # a folding column wraps instead
+    widest = sum(charged(i) for i in other)
     padding = 3 * (len(columns) - 1)
     return max(16, (width - widest - padding) // len(paths))
 
@@ -274,7 +280,7 @@ CCN_FLOOR = 10  # lizard's own "complex" threshold; below it a function is not w
 def functions_section(report: dict, full: bool = True, width=None) -> dict:
     """Functions at or over the complexity floor, worst first, from lizard when it is installed."""
     measured = report.get("functions") or []
-    funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"]))
+    funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     limit = _limit("Complex functions", full)
     rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
@@ -282,7 +288,8 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
         rows = _shorten(rows, width, columns, path_columns=(1,))
     status = (report["meta"].get("functions") or {}).get("status", "skipped" if not measured else "run")
     if not measured and status != "run":
-        note = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)"}.get(status, "no function metrics (install lizard)")
+        note = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)",
+                "skipped": "no function metrics (install lizard)"}.get(status, "function metrics did not complete")
     elif not measured:
         note = "no functions found in the code files"
     elif not rows:

@@ -124,6 +124,24 @@ def has_lizard(finder=importlib.util.find_spec) -> bool:
     return finder("lizard") is not None
 
 
+# Everything a run writes besides meta.json and run.log. Removed before each run so a reused
+# --out directory never shows a previous run's data as this run's (a step skipped or killed
+# this time would otherwise leave last time's file in place).
+OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "log.txt", "activity.json", "functions.csv", "duplicates.txt",
+           "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png"]
+OUTPUT_GLOBS = ["maat-*.csv"]
+
+
+def clear_outputs(out_dir: str) -> None:
+    import glob
+    paths = [os.path.join(out_dir, n) for n in OUTPUTS]
+    for g in OUTPUT_GLOBS:
+        paths += glob.glob(os.path.join(out_dir, g))
+    for path in paths:
+        if os.path.isfile(path):
+            os.remove(path)
+
+
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
          lizard: bool = False) -> list:

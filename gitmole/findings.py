@@ -146,7 +146,7 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines]
     if not big:
         return []
-    big.sort(key=lambda f: (-f["ccn"], -f["nloc"]))
+    big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     hot = hotspots.top(report)
     sev = "warning" if any(f["file"] in hot for f in big) else "info"
     listed = "; ".join(f"{f['function']} ({f['file']}) complexity {f['ccn']}, {f['nloc']} lines, {f['params']} params" for f in big[:5])
@@ -160,7 +160,7 @@ def duplication(report: dict, min_lines: int = 30) -> list:
     blocks = [b for b in dup.get("blocks") or [] if b["lines"] >= min_lines]
     if not blocks:
         return []
-    blocks.sort(key=lambda b: -b["lines"])
+    blocks.sort(key=lambda b: (-b["lines"], b["places"]))
     def place(b):
         return " and ".join(f"{p}:{start}" for p, start, _ in b["places"][:3])
     listed = "; ".join(f"{b['lines']} lines in {place(b)}" for b in blocks[:3])

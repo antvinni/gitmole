@@ -198,10 +198,8 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     if args.plots:
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
     lizard_ok = args.lizard
-    meta["functions"] = {"status": "run" if lizard_ok else "skipped"}
-    for stale in ("functions.csv", "duplicates.txt"):   # written by the functions step; never let a previous run's pass for this one
-        if os.path.exists(os.path.join(out_dir, stale)):
-            os.remove(os.path.join(out_dir, stale))
+    meta["functions"] = {"status": "planned" if lizard_ok else "skipped"}   # "run" only once the step has finished
+    run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
                     since=args.since_date, lizard=lizard_ok)
     run.save_meta(meta, out_dir)
@@ -211,12 +209,15 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         ui.print(f"[red]interrupted:[/red] killed {len(killed)} step(s)")
         raise Interrupted()
 
-    if results.get("code age") == "timeout":
-        meta["age"]["status"] = "timeout"
-    if results.get("git-of-theseus") == "timeout":
-        meta["plots"]["status"] = "timeout"
-    if lizard_ok and results.get("functions") not in (0, None):
-        meta["functions"]["status"] = "timeout" if results["functions"] == "timeout" else "failed"
+    def status(step, default="run"):
+        rc = results.get(step, 0)
+        return default if rc == 0 else ("timeout" if rc == "timeout" else "failed")
+    if age_ok:
+        meta["age"]["status"] = status("code age")
+    if args.plots and plots_ok:
+        meta["plots"]["status"] = status("git-of-theseus")
+    if lizard_ok:
+        meta["functions"]["status"] = status("functions")
     run.save_meta(meta, out_dir)
 
     failed = [n for n, rc in results.items() if rc != 0]

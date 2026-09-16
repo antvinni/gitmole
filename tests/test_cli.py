@@ -54,21 +54,21 @@ def _tiny_repo(d):
 
 
 class FunctionMetrics(unittest.TestCase):
-    def _main(self, lizard, calls, stale=()):
+    def _main(self, lizard, calls, stale=(), step=("sh", "-c", "true"), name="quick"):
         with tempfile.TemporaryDirectory() as d:
             _tiny_repo(d)
             out = os.path.join(d, "out")
-            os.makedirs(out)
-            for name in stale:
-                open(os.path.join(out, name), "w").close()
+            os.makedirs(os.path.join(out, "theseus"))
+            for n in stale:
+                open(os.path.join(out, n), "w").close()
             def planner(repo, o, branch="HEAD", **kw):
                 calls.append(kw)
-                return [{"name": "quick", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}]
+                return [{"name": name, "argv": list(step), "stdout": None, "deps": []}]
             rc = cli.main([d, "--out", out], console=console(), tool_check=lambda **kw: [], planner=planner,
                           estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1}, lizard_check=lambda: lizard)
             with open(os.path.join(out, "meta.json")) as fh:
                 meta = json.load(fh)
-            left = sorted(n for n in os.listdir(out) if n in ("functions.csv", "duplicates.txt"))
+            left = sorted(os.path.relpath(os.path.join(r, f), out) for r, _, fs in os.walk(out) for f in fs)
         return rc, meta, left
 
     def test_decided_once_and_recorded(self):
@@ -78,13 +78,23 @@ class FunctionMetrics(unittest.TestCase):
         self.assertTrue(calls[0]["lizard"])
         self.assertEqual(meta["functions"]["status"], "run")
 
-    def test_skipped_without_lizard_and_stale_outputs_are_removed(self):
+    def test_skipped_without_lizard(self):
         calls = []
-        rc, meta, left = self._main(False, calls, stale=("functions.csv", "duplicates.txt"))
+        rc, meta, _ = self._main(False, calls)
         self.assertEqual(rc, 0)
         self.assertFalse(calls[0]["lizard"])
         self.assertEqual(meta["functions"]["status"], "skipped")
-        self.assertEqual(left, [], "last run's lizard output must not pass for this run's")
+
+    def test_a_failed_step_is_recorded_as_such(self):
+        _, meta, _ = self._main(True, [], step=("sh", "-c", "exit 3"), name="functions")
+        self.assertEqual(meta["functions"]["status"], "failed")
+        _, meta, _ = self._main(True, [], step=("sh", "-c", "exit 3"), name="code age")
+        self.assertEqual(meta["age"]["status"], "failed")
+
+    def test_every_previous_output_is_cleared_before_a_run(self):
+        stale = ("functions.csv", "duplicates.txt", "theseus/cohorts.json", "maat-revisions.csv", "size.json")
+        _, _, left = self._main(False, [], stale=stale)
+        self.assertEqual(left, ["meta.json", "run.log"], "last run's outputs must not pass for this run's")
 
 
 class Budget(unittest.TestCase):

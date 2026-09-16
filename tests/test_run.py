@@ -410,5 +410,25 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual([a["name"] for a in by["Ann Lee"]["aliases"]], ["ann-lee"])
 
 
+
+
+class ClearOutputs(unittest.TestCase):
+    def test_removes_every_tool_output_but_keeps_meta_and_the_log(self):
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "theseus"))
+            names = ["size.json", "repo-health.txt", "secrets.json", "log.txt", "maat-revisions.csv", "maat-fixes.csv", "activity.json",
+                     "functions.csv", "duplicates.txt", "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json",
+                     "code-age.png", "survival.png", "meta.json", "run.log", "notes.txt"]
+            for n in names:
+                open(os.path.join(out, n), "w").close()
+            run.clear_outputs(out)
+            left = sorted(os.path.relpath(os.path.join(r, f), out) for r, _, fs in os.walk(out) for f in fs)
+        self.assertEqual(left, ["meta.json", "notes.txt", "run.log"])
+
+    def test_missing_files_are_fine(self):
+        with tempfile.TemporaryDirectory() as out:
+            run.clear_outputs(out)
+
+
 if __name__ == "__main__":
     unittest.main()
