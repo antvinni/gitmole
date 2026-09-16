@@ -16,7 +16,7 @@
 - `depends_on "python@3.14"`, `"scc"`, `"git-sizer"`, `"gitleaks"`. Resource stanzas are generated with `brew update-python-resources`, not typed.
 - No token, no second repository. The release job commits to main with the workflow's own `GITHUB_TOKEN`, after `gh release create` has succeeded.
 - Every commit message: subject, blank line, `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
-- This machine has `/opt/homebrew/bin/gitmole` as a symlink to `bin/gitmole` in this checkout (the developer install). `brew install gitmole` refuses to link over it. Every local verification that installs the formula must end by uninstalling it and restoring the symlink: `brew uninstall gitmole; ln -sfn "$PWD/bin/gitmole" "$(brew --prefix)/bin/gitmole"`, and `brew untap antvinni/gitmole`.
+- This machine has `/opt/homebrew/bin/gitmole` as a symlink to `bin/gitmole` in this checkout (the developer install). `brew install gitmole` refuses to link over it. Every local verification that installs the formula must end by uninstalling it and restoring the symlink: `brew uninstall gitmole; ln -sfn "$PWD/bin/gitmole" "$(brew --prefix)/bin/gitmole"`, and `brew untap antvinni/gitmole`. Installing the formula also installs `python@3.14`, which puts a `python3` without rich or lizard first on PATH and breaks both the developer install and the test suite; when the machine did not have it before, finish with `brew uninstall python@3.14` as well.
 - `python3 -m unittest discover -s tests -t .` must still print OK before each commit (nothing here touches Python code, but the README and workflow live in the same tree).
 
 ## Facts the executor needs

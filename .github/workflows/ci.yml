@@ -28,10 +28,24 @@ jobs:
       - name: Run the tests
         run: python -m unittest discover -s tests -t .
 
+  formula:
+    name: homebrew formula
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tap this checkout
+        run: brew tap antvinni/gitmole "$PWD"
+      - name: Audit
+        run: brew audit --strict --online antvinni/gitmole/gitmole
+      - name: Install from source
+        run: brew install --build-from-source antvinni/gitmole/gitmole
+      - name: Test
+        run: brew test antvinni/gitmole/gitmole
+
   release:
     name: release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: test
+    needs: [test, formula]
     runs-on: ubuntu-latest
     permissions:
       contents: write
