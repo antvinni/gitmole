@@ -12,8 +12,12 @@ shows, one adds a CI gate, three are packaging and documentation.
 
 `gitmole .` lists `cli._analyse` (complexity 35) and `findings.knowledge_loss`
 (34) at the top of Complex functions; both grew during the history-insights
-work. Each is split into named helpers so that no function in the package
-exceeds complexity 20 (lizard's `ccn`), and the two named ones sit under 15.
+work. Each is split into named helpers so that the two named ones sit under 15 and
+nothing in `cli.py` or `findings.py` reaches 20. Four other functions sit
+between 21 and 23 (`run.collect_meta`, `render.timeline_section`,
+`watch.risks`, `render.hotspots_section`); none is long enough to trip the
+brain-methods finding, and they are left for a later round so this PR stays
+a bounded refactor.
 Behaviour is pinned by the existing suite and the golden report: neither
 changes. The 18 minor findings deferred from the history-insights reviews are
 taken in the same PR, except those already fixed or ruled unreachable; the
