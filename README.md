@@ -162,6 +162,14 @@ size. gitmole keeps them in check:
   `--ignore GLOB` adds your own patterns, repeatable. Both shrink the blame
   count a lot on repos full of exports and fixtures.
 
+Two steps read history rather than the working tree, and both are bounded.
+The trend behind the hotspots' `trend` column runs scc over the ten top
+hotspots at up to twelve sampled commits, one run per sample, not one per
+file. The backtest behind the watch list's caption is a second change
+analysis over the same log with the window closed six months before the
+last commit, plus one checkout of the tree as it was then, exported under
+the output directory and removed again when the step ends.
+
 A tool that exceeds `--timeout` is killed along with its child processes,
 marked in the report, and the rest of the report still renders.
 
@@ -171,100 +179,105 @@ Running `gitmole .` inside this repository:
 
 ```text
 ╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 63 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                             │
-│ 4,978 lines in 36 files  ·  Python, Shell                                                        │
-│ most commits on Tue at 23:00  ·  6% of commits are fixes  ·  100% of surviving code from 2026    │
-│ 2 warnings, 1 note                                                                               │
+│ 105 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                           │
+│ 6,592 lines in 44 files  ·  Python, Shell                                                        │
+│ most commits on Wed at 13:00  ·  7% of commits are fixes  ·  100% of surviving code from 2026    │
+│ 4 warnings                                                                                       │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (3) ───────────────────────────────────────────────────────────────────────────────────╮
+╭─ Findings (4) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ▲ Bus factor of one                                                                              │
 │   vinni wrote 100% of the code that survives today                                               │
 │   ↳ Pair someone with vinni on gitmole/ and build/ first; they are 100% and 100% theirs.         │
+│ ▲ Bug magnets                                                                                    │
+│   4 file(s) were fixed 3+ times in the last six months: gitmole/load.py (5 recent, 5 total);     │
+│   gitmole/render.py (4 recent, 4 total); gitmole/findings.py (3 recent, 3 total); gitmole/run.py │
+│   (3 recent, 3 total)                                                                            │
+│   ↳ Review gitmole/load.py and gitmole/render.py before the next release; expect the next bug    │
+│   there.                                                                                         │
+│ ▲ Hotspots getting more complex                                                                  │
+│   3 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+134%),      │
+│   gitmole/run.py (+26%), gitmole/findings.py (+262%)                                             │
+│   ↳ Split gitmole/render.py before the next change; its complexity grew 134% in a year.          │
 │ ▲ Knowledge islands                                                                              │
 │   2 area(s) with at least 200 lines were written almost entirely by one person: gitmole/ (vinni  │
 │   100%); build/ (vinni 100%). That is 99% of all lines added                                     │
-│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 5,370 lines.                 │
-│ ● Bug magnets                                                                                    │
-│   4 file(s) were fixed 3+ times in the last six months: gitmole/findings.py (3 recent, 3 total); │
-│   gitmole/load.py (3 recent, 3 total); gitmole/render.py (3 recent, 3 total); gitmole/run.py (3  │
-│   recent, 3 total)                                                                               │
-│   ↳ Review gitmole/findings.py and gitmole/load.py before the next release; expect the next bug  │
-│   there.                                                                                         │
+│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 6,800 lines.                 │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ◎ Watch list
   file                  why
   ──────────────────────────────────────────────────────────────────────────────────────────────────
-  gitmole/render.py     changed 35 times · fixed 3 times in six months · only vinni has touched it ·
-                        timeline_section() complexity 19 · changes with gitmole/cli.py (75%) and 3
+  gitmole/render.py     changed 50 times · fixed 4 times in six months · only vinni has touched it ·
+                        timeline_section() complexity 22 · changes with gitmole/cli.py (69%) and 3
                         others
-  gitmole/run.py        changed 29 times · fixed 3 times in six months · only vinni has touched it ·
-                        collect_meta() complexity 21 · changes with gitmole/cli.py (76%) and 4
+  gitmole/run.py        changed 39 times · fixed 3 times in six months · only vinni has touched it ·
+                        collect_meta() complexity 23 · changes with gitmole/cli.py (71%) and 3
                         others
-  gitmole/cli.py        changed 29 times · fixed once in six months · only vinni has touched it ·
-                        _analyse() complexity 27 · changes with gitmole/run.py (76%) and 1 other
-  gitmole/findings.py   changed 19 times · fixed 3 times in six months · only vinni has touched it ·
-                        bus_factor() complexity 12 · changes with gitmole/render.py (67%) and 1
+  gitmole/findings.py   changed 29 times · fixed 3 times in six months · only vinni has touched it ·
+                        knowledge_loss() complexity 34 · changes with gitmole/render.py (58%) and 1
                         other
-  gitmole/load.py       changed 17 times · fixed 3 times in six months · only vinni has touched it ·
-                        parse_git_sizer() complexity 15 · changes with gitmole/run.py (65%) and 2
+  gitmole/cli.py        changed 37 times · fixed once in six months · only vinni has touched it ·
+                        _analyse() complexity 35 · changes with gitmole/run.py (71%) and 1 other
+  gitmole/load.py       changed 25 times · fixed 5 times in six months · only vinni has touched it ·
+                        parse_git_sizer() complexity 15 · changes with gitmole/run.py (66%) and 2
                         others
   ranked by churn × recent fixes × complexity × single ownership
+  too little history to backtest
 
 ◉ People
   author      commits   share                surviving code
   ─────────────────────────────────────────────────────────
-  vinni            63   100% ▰▰▰▰▰▰▰▰▰▰                100%
+  vinni           105   100% ▰▰▰▰▰▰▰▰▰▰                100%
   aliases merged for vinni; a .mailmap makes that permanent
 
 ⌂ Knowledge map
   area       lines added   main owner     second
   ──────────────────────────────────────────────
-  tests/           5,557   vinni (100%)   -
-  gitmole/         5,370   vinni (100%)   -
+  tests/           7,489   vinni (100%)   -
+  gitmole/         6,800   vinni (100%)   -
   build/           3,362   vinni (100%)   -
   bin/                91   vinni (100%)   -
 
 ▦ Timeline (Oct 2025 → Sep 2026)
   author   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep
   ──────────────────────────────────────────────────────────────────────────────
-  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    63
+  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·   105
 
 ◆ Hotspots
-  file                     revs   lines   fixes   authors
-  ───────────────────────────────────────────────────────
-  tests/test_render.py       34     533       3         1
-  gitmole/render.py          35     473       3         1
-  tests/test_run.py          28     395       3         1
-  tests/test_cli.py          26     423       0         1
-  gitmole/cli.py             29     285       1         1
-  gitmole/run.py             29     280       3         1
-  tests/test_findings.py     18     303       3         1
-  tests/test_maat.py         16     229       2         1
-  and 41 more
+  file                     revs   lines   fixes   authors   trend
+  ───────────────────────────────────────────────────────────────
+  tests/test_render.py       49     684       4         1   +738%
+  gitmole/render.py          50     545       4         1   +134%
+  tests/test_run.py          38     476       3         1    +46%
+  tests/test_cli.py          34     522       0         1    +58%
+  tests/test_findings.py     28     460       3         1   +400%
+  gitmole/run.py             39     302       3         1    +26%
+  gitmole/cli.py             37     313       1         1    +24%
+  gitmole/findings.py        29     293       3         1   +262%
+  and 49 more
 
 ⟷ Change coupling
   file                   changes with              degree
   ───────────────────────────────────────────────────────
   gitmole/maat.py        tests/test_maat.py          100%
   gitmole/filetypes.py   tests/test_filetypes.py     100%
-  gitmole/textfmt.py     tests/test_textfmt.py       100%
+  gitmole/functions.py   tests/test_functions.py     100%
   gitmole/knowledge.py   tests/test_knowledge.py     100%
   gitmole/render.py      tests/test_render.py         99%
-  and 86 more
+  and 85 more
 
 λ Complex functions
-  function            file                ccn   lines   params
-  ────────────────────────────────────────────────────────────
-  _analyse            gitmole/cli.py       27      52        6
-  main                gitmole/cli.py       26      79        8
-  risks               gitmole/watch.py     22      32        2
-  collect_meta        gitmole/run.py       21      25        2
-  functions_section   gitmole/render.py    19      22        3
-  timeline_section    gitmole/render.py    19      15        4
-  people_section      gitmole/render.py    18      24        3
-  _portfolio          gitmole/cli.py       16      43        8
-  and 20 more
+  function           file                  ccn   lines   params
+  ─────────────────────────────────────────────────────────────
+  _analyse           gitmole/cli.py         35      66        6
+  knowledge_loss     gitmole/findings.py    34      44        3
+  main               gitmole/cli.py         28      82        8
+  collect_meta       gitmole/run.py         23      27        2
+  risks              gitmole/watch.py       22      32        2
+  timeline_section   gitmole/render.py      22      16        4
+  hotspots_section   gitmole/render.py      21      25        3
+  markdown           gitmole/render.py      19      24        5
+  and 34 more
 
 ✚ Repo health (git-sizer concerns): nothing flagged
 
@@ -292,9 +305,10 @@ rows unless `--full`.
 ### The terminal report
 
 1. **Header**: commits, date span, identities, branch, size, top languages,
-   one line for the busiest day and hour, the share of fix commits and the
-   year most surviving code was written (or why the blame pass did not run),
-   and a one-line tally of the findings.
+   one line for the busiest day and hour, the share of fix commits, the
+   share that are reverts when there are any, and the year most surviving
+   code was written (or why the blame pass did not run), and a one-line
+   tally of the findings.
 2. **Findings**: anything the heuristics flagged, worst first. Findings of
    the same kind are grouped into one entry with a list, and every finding
    ends with a next step that names the file, area or person to start with,
@@ -306,17 +320,17 @@ rows unless `--full`.
    five), reverts (5% of commits or five of them; a warning at 10%; names
    the file most often backed out), brain methods (functions with
    complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
-   hotspots getting more complex (three or more of the top hotspots (up
-   to ten) grew by a quarter in a year; a warning when the top one did),
+   hotspots getting more complex (three or more of the top ten hotspots
+   grew by a quarter in a year; a warning when the top one did),
    tightly coupled file pairs (a file and its test are expected to change
    together, so those pairs are left out), duplicated blocks of 30+ lines
    (with `--duplicates`), a large share of stale files (files still in the
    tree; deleted paths do not count), knowledge islands: areas of at least
    200 lines written almost entirely by one person (a warning when such
    areas hold most of the code), and knowledge loss (people with no commits
-   in the last twelve months who wrote 10% or more of the surviving code; a
-   warning at 30%). An unconfigured identity is only flagged when it made
-   at least 1% of the commits.
+   in the twelve months before the last commit who wrote 10% or more of the
+   surviving code; a warning at 30%). An unconfigured identity is only
+   flagged when it made at least 1% of the commits.
 
    Secrets are grouped by value, so one key copied into ten files is one
    entry with its places counted. A value found in any source file is
@@ -361,14 +375,14 @@ rows unless `--full`.
    and who wrote them), a timeline of commits per author over the last
    twelve months, hotspots ranked by revisions times lines of code with the
    number of fix commits alongside, change coupling, the most complex
-   functions, repo health. Hotspots carry a `trend` column: the change in
-   complexity over the last year from scc on the file at sampled commits
-   (`--full` shows the whole series as a sparkline). The knowledge map
-   marks owners who have stopped committing with `(gone)`, and under
-   `--full` shows the share of each area's lines that they wrote. With
-   `--full`: size by language, activity
-   by weekday with the busiest hour and the share of commits that are
-   fixes, and surviving code by year.
+   functions, repo health. Hotspots carry a `trend` column, sampled for the
+   top ten hotspots: the change in complexity over the last year from scc on
+   the file at sampled commits (`--full` shows the whole series as a
+   sparkline). The knowledge map marks owners who have stopped committing
+   with `(gone)`, and under `--full` shows the share of each area's lines
+   that they wrote. With `--full`: size by language, activity by weekday
+   with the busiest hour and the share of commits that are fixes, and
+   surviving code by year.
 
    Size, hotspots, coupling, ownership, code age and the watch list only
    look at source files: a built-in list of code extensions plus names like
