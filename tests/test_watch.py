@@ -93,5 +93,38 @@ class WhyEmpty(unittest.TestCase):
         self.assertEqual(watch.why_empty(report(revisions=[{"entity": "core/gone.py", "n-revs": 50}])), "the files that changed more than once are no longer in the tree")
 
 
+class ChangeRisk(unittest.TestCase):
+    def test_scores_touched_files_with_the_watch_score_and_reasons(self):
+        # Add core/once.py to size.files so it's in the tree and will report "changed once"
+        r = report(size={"files": {"core/parser.py": {"code": 800, "complexity": 40}, "core/util.py": {"code": 200, "complexity": 5},
+                                   "web/index.html": {"code": 4000, "complexity": 0}, "tests/test_parser.py": {"code": 300, "complexity": 2},
+                                   "core/once.py": {"code": 10, "complexity": 0}}})
+        out = watch.change_risk(r, ["core/util.py", "core/parser.py", "core/new.py", "core/once.py", "tests/test_parser.py"])
+        files = [f["file"] for f in out["files"]]
+        self.assertEqual(files[:2], ["core/parser.py", "core/util.py"], "highest score first")
+        by = {f["file"]: f for f in out["files"]}
+        self.assertGreater(by["core/parser.py"]["score"], by["core/util.py"]["score"])
+        self.assertIn("changed 40 times", by["core/parser.py"]["reasons"][0])
+        self.assertEqual((by["core/new.py"]["score"], by["core/new.py"]["reasons"]), (0, ["new file"]))
+        self.assertEqual((by["core/once.py"]["score"], by["core/once.py"]["reasons"]), (0, ["changed once"]))
+        self.assertEqual((by["tests/test_parser.py"]["score"], by["tests/test_parser.py"]["reasons"]), (0, ["test file"]))
+        # Test file path that's also new reports "test file" (test file wins over new file)
+        test_new_file_out = watch.change_risk(r, ["tests/data/new_fixture.py"])
+        self.assertEqual(test_new_file_out["files"][0]["reasons"], ["test file"])
+        self.assertAlmostEqual(out["total"], by["core/parser.py"]["score"] + by["core/util.py"]["score"])
+        self.assertEqual(out["watched"], 2, "both are in the top 15 of the watch list")
+        self.assertEqual(out["max_score"], watch.risks(r)[0]["score"])
+
+    def test_max_score_is_repo_wide_not_touched(self):
+        # max_score should be the highest score in the repository, not the max of touched files
+        r = report()
+        # Touch only util.py (not the top file), but max_score should still be top file's score
+        out = watch.change_risk(r, ["core/util.py"])
+        self.assertEqual(out["max_score"], watch.risks(r)[0]["score"], "max_score is repo-wide max, not touched max")
+
+    def test_empty(self):
+        self.assertEqual(watch.change_risk(report(), []), {"files": [], "total": 0.0, "watched": 0, "max_score": 0.0})
+
+
 if __name__ == "__main__":
     unittest.main()

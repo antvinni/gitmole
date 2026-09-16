@@ -453,6 +453,32 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(meta["bots"], [{"name": "renovate[bot]", "commits": 2}, {"name": "dependabot[bot]", "commits": 1}])
 
 
+class ChangedFiles(unittest.TestCase):
+    def test_lists_paths_changed_since_the_merge_base(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+                         GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q", "-b", "main")
+            for name in ("a.py", "b.py"):
+                open(os.path.join(d, name), "w").write("x\n")
+            git("add", "-A"); git("commit", "-q", "-m", "base")
+            git("switch", "-q", "-c", "feature")
+            open(os.path.join(d, "b.py"), "a").write("y\n")
+            os.makedirs(os.path.join(d, "dir"))
+            open(os.path.join(d, "dir", "c.py"), "w").write("z\n")
+            git("add", "-A"); git("commit", "-q", "-m", "work")
+            git("switch", "-q", "main")
+            open(os.path.join(d, "a.py"), "a").write("main moved on\n")
+            git("commit", "-q", "-am", "main")
+            git("switch", "-q", "feature")
+            self.assertEqual(run.changed_files(d, "main"), ["b.py", "dir/c.py"], "three-dot diff: main's own change to a.py is not ours")
+            with self.assertRaises(ValueError) as ctx:
+                run.changed_files(d, "nope")
+            self.assertIn("nope", str(ctx.exception))
+
+
 class ClearOutputs(unittest.TestCase):
     def test_removes_every_tool_output_but_keeps_meta_and_the_log(self):
         with tempfile.TemporaryDirectory() as out:

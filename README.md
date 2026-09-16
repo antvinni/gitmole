@@ -112,8 +112,11 @@ tree and what the default includes), `--duplicates` to also look for
 duplicated blocks, `--workers N` to change how many tools run at once,
 `--timeout S` to cap any single tool (default 15 minutes), `--gone MONTHS` to
 change how long without a commit counts as gone (default 12, measured before
-the last commit). Ctrl-C kills every running step, including their child
-processes, and exits with code 130.
+the last commit), `--risk BASE` to score the files changed since BASE (the
+merge base with HEAD) with the watch list's score, in one extra section with
+a total; it works with `--no-run` and the JSON carries the number for CI.
+Ctrl-C kills every running step, including their child processes, and exits
+with code 130.
 
 All tools run concurrently, so a run takes about as long as the slowest tool.
 Tool stderr goes to `run.log` in the output directory, not the terminal.
@@ -337,7 +340,10 @@ rows unless `--full`.
    found is named in the reasons. The reasons name the fix count, the sole
    owner, the function and the files it always changes with. Test files are
    left out. Under `--since`, churn and ownership are windowed and the list
-   says so. `--full` and the exports show fifteen.
+   says so. `--full` and the exports show fifteen. With `--risk BASE`, a
+   Change risk section follows: every file changed since BASE with its watch
+   score as a bar and the reasons, or why it has none (new file, changed
+   once, test file).
 4. **Tables**: people (identities merged by name and email similarity on
    top of `.mailmap`, and the caption says whose; bots such as renovate,
    dependabot and GitHub Actions are counted apart in the caption and kept
