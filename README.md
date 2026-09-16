@@ -1,10 +1,12 @@
-<img src="docs/banner.svg" width="912" alt="gitmole">
+<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/banner.svg" width="912" alt="gitmole">
 
 # gitmole
 
-A local, offline toolkit for digging into any cloned git repository: who
-works on it, where the risk is, how old the code is, whether the repo itself
-is healthy, and whether anything sensitive was ever committed.
+> A toolkit for digging into any cloned git repository: who works on it,
+> where the risk is, how old the code is, whether the repo itself is healthy,
+> and whether anything sensitive was ever committed.
+>
+> Any stack. Free. Offline. No token. No AI. Light.
 
 ## Principles
 
@@ -30,6 +32,9 @@ is healthy, and whether anything sensitive was ever committed.
 
 ## The tool set
 
+One tool per question; together they cover what a single command can tell
+you about a clone.
+
 | Question | Tool | Install |
 |---|---|---|
 | What is this repo, at a glance; who commits, when, how much churn | gitmole itself, from the git log | built in |
@@ -41,7 +46,7 @@ is healthy, and whether anything sensitive was ever committed.
 | Per-function complexity, length, parameters; duplicated blocks with `--duplicates` | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
 | Have secrets ever been committed | [gitleaks](https://github.com/gitleaks/gitleaks) | brew |
 
-Why these and not others: [docs/tools.md](docs/tools.md).
+Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/blob/main/docs/tools.md).
 
 ## Install
 
@@ -220,53 +225,50 @@ Running `gitmole .` inside this repository:
 
 ```text
 ╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 105 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                           │
-│ 6,592 lines in 44 files  ·  Python, Shell                                                        │
-│ most commits on Wed at 13:00  ·  7% of commits are fixes  ·  100% of surviving code from 2026    │
-│ 4 warnings                                                                                       │
+│ 115 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                           │
+│ 6,944 lines in 44 files  ·  Python, Ruby                                                         │
+│ most commits on Wed at 20:00  ·  3% of commits are fixes  ·  100% of surviving code from 2026    │
+│ 3 warnings, 1 note                                                                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Findings (4) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ▲ Bus factor of one                                                                              │
 │   vinni wrote 100% of the code that survives today                                               │
 │   ↳ Pair someone with vinni on gitmole/ and build/ first; they are 100% and 100% theirs.         │
-│ ▲ Bug magnets                                                                                    │
-│   4 file(s) were fixed 3+ times in the last six months: gitmole/load.py (5 recent, 5 total);     │
-│   gitmole/render.py (4 recent, 4 total); gitmole/findings.py (3 recent, 3 total); gitmole/run.py │
-│   (3 recent, 3 total)                                                                            │
-│   ↳ Review gitmole/load.py and gitmole/render.py before the next release; expect the next bug    │
-│   there.                                                                                         │
 │ ▲ Hotspots getting more complex                                                                  │
-│   3 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+134%),      │
-│   gitmole/run.py (+26%), gitmole/findings.py (+262%)                                             │
-│   ↳ Split gitmole/render.py before the next change; its complexity grew 134% in a year.          │
+│   4 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+150%),      │
+│   gitmole/cli.py (+32%), gitmole/findings.py (+266%), gitmole/run.py (+26%)                      │
+│   ↳ Split gitmole/render.py before the next change; its complexity grew 150% in a year.          │
 │ ▲ Knowledge islands                                                                              │
 │   2 area(s) with at least 200 lines were written almost entirely by one person: gitmole/ (vinni  │
-│   100%); build/ (vinni 100%). That is 99% of all lines added                                     │
-│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 6,800 lines.                 │
+│   100%); build/ (vinni 100%). That is 97% of all lines added                                     │
+│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 5,458 lines.                 │
+│ ● Bug magnets                                                                                    │
+│   1 file(s) were fixed 3+ times in the last six months: gitmole/run.py (3 recent, 3 total)       │
+│   ↳ Review gitmole/run.py before the next release; expect the next bug there.                    │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ◎ Watch list
   file                  why
   ──────────────────────────────────────────────────────────────────────────────────────────────────
-  gitmole/render.py     changed 50 times · fixed 4 times in six months · only vinni has touched it ·
-                        timeline_section() complexity 22 · changes with gitmole/cli.py (69%) and 3
+  gitmole/render.py     changed 38 times · fixed twice in six months · only vinni has touched it ·
+                        hotspots_section() complexity 23 · changes with gitmole/cli.py (63%) and 3
                         others
-  gitmole/run.py        changed 39 times · fixed 3 times in six months · only vinni has touched it ·
-                        collect_meta() complexity 23 · changes with gitmole/cli.py (71%) and 3
+  gitmole/cli.py        changed 38 times · fixed twice in six months · only vinni has touched it ·
+                        main() complexity 17 · changes with gitmole/render.py (63%) and 1 other
+  gitmole/run.py        changed 25 times · fixed 3 times in six months · only vinni has touched it ·
+                        collect_meta() complexity 23 · changes with gitmole/load.py (67%) and 2
                         others
-  gitmole/findings.py   changed 29 times · fixed 3 times in six months · only vinni has touched it ·
-                        knowledge_loss() complexity 34 · changes with gitmole/render.py (58%) and 1
+  gitmole/findings.py   changed 25 times · fixed twice in six months · only vinni has touched it ·
+                        complexity_growth() complexity 18 · changes with gitmole/load.py (62%) and 1
                         other
-  gitmole/cli.py        changed 37 times · fixed once in six months · only vinni has touched it ·
-                        _analyse() complexity 35 · changes with gitmole/run.py (71%) and 1 other
-  gitmole/load.py       changed 25 times · fixed 5 times in six months · only vinni has touched it ·
-                        parse_git_sizer() complexity 15 · changes with gitmole/run.py (66%) and 2
+  gitmole/load.py       changed 17 times · fixed twice in six months · only vinni has touched it ·
+                        parse_git_sizer() complexity 15 · changes with gitmole/run.py (67%) and 2
                         others
   ranked by churn × recent fixes × complexity × single ownership
   too little history to backtest
 ```
 
-The full report is in [docs/example.md](docs/example.md).
+The full report is in [docs/example.md](https://github.com/antvinni/gitmole/blob/main/docs/example.md).
 
 ### The terminal report
 
@@ -311,7 +313,8 @@ The full report is in [docs/example.md](docs/example.md).
    `bugfix:` in the conventional style, or mentions fix, bug, hotfix,
    regression or crash. Test files are left out of every finding that names a
    file, area or function: they change with every fix, and owning the tests is
-   not the knowledge risk. The tables still show them.
+   not the knowledge risk. The default tables leave them out too; `--full`
+   shows them.
 3. **Watch list**: the five files where the next bug is most likely, with
    the reasons in words. Every source file still in the tree that changed
    more than once is scored churn × (1 + recent fixes) × (1 + complexity),
@@ -359,15 +362,16 @@ The full report is in [docs/example.md](docs/example.md).
    timeline cover the whole history.
 5. **Footer**: where the files and plots are.
 
-The files each run writes, and how to read them: [docs/output.md](docs/output.md).
+The files each run writes, and how to read them: [docs/output.md](https://github.com/antvinni/gitmole/blob/main/docs/output.md).
 
 ## Development
 
-Developer setup: Homebrew for the three tools, `brew install scc
-git-sizer gitleaks`. Then either a virtual environment with
-`pip install -e .`, or the checkout style: `python3 -m pip install --user
-rich lizard` and `ln -sfn "$PWD/bin/gitmole" "$(brew --prefix)/bin/gitmole"`,
-which makes the checkout what runs.
+Developer setup: Homebrew for the three tools,
+`brew install scc git-sizer gitleaks`. Then either a virtual environment
+with `pip install -e .`, or the checkout style:
+`python3 -m pip install --user rich lizard` and
+`ln -sfn "$PWD/bin/gitmole" "$(brew --prefix)/bin/gitmole"`, which makes
+the checkout what runs.
 
 ```bash
 python3 -m unittest discover -s tests -t .
@@ -426,7 +430,7 @@ and `render.py` draws the report. `bin/gitmole` is a thin launcher.
 
 ## License
 
-gitmole is released under the [MIT License](LICENSE).
+gitmole is released under the [MIT License](https://github.com/antvinni/gitmole/blob/main/LICENSE).
 
 It does not bundle any of the tools it wraps; gitmole runs them as
 separate processes. Their licences:

@@ -1,6 +1,6 @@
 # Why these tools
 
-Why gitmole includes each tool in the tool set, and the ones it left out; back to [../README.md](../README.md).
+Why gitmole includes each tool in the tool set, and the ones it left out; back to [the README](https://github.com/antvinni/gitmole#readme).
 
 One tool per question. Together they cover most of what a single-command
 analysis can tell you about a repo.

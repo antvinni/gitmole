@@ -1,6 +1,6 @@
 # The output files
 
-What each run writes to disk, and how to read the report it produces; back to [../README.md](../README.md).
+What each run writes to disk, and how to read the report it produces; back to [the README](https://github.com/antvinni/gitmole#readme).
 
 ## The output directory
 
@@ -35,7 +35,8 @@ directory for a remote target:
 1. Start with the header and the findings.
 2. The hotspots table is `maat-revisions.csv` joined with scc's per-file
    size and complexity, author count, and age, ranked by revisions times
-   lines. Large files that change constantly are your risk.
+   lines. Large files that change constantly are your risk. By default the
+   tables leave test files out and say how many; `--full` shows them.
 3. Change coupling shows files that always change together. That usually
    means a hidden dependency or copy-pasted layout.
 4. People and the surviving-code table tell you whether knowledge is

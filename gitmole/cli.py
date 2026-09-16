@@ -35,7 +35,7 @@ def parse_args(argv):
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
     p.add_argument("--duplicates", action="store_true", help="also look for duplicated code blocks (minutes and gigabytes on a large repo; function metrics alone take seconds)")
-    p.add_argument("--full", action="store_true", help="every column and every row in the terminal report (the default is the tighter, readable one)")
+    p.add_argument("--full", action="store_true", help="every column and every row in the terminal report, and the test files the default tables hide (the default is the tighter, readable one)")
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
@@ -62,9 +62,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     args = parse_args(sys.argv[1:] if argv is None else argv)
     console = console or Console()
     err = Console(stderr=True) if console.file is sys.stdout else console
-    if args.risk_threshold is not None and not args.risk:
-        err.print("[red]--risk-threshold needs --risk[/red]")
-        return 2
+    rc = _check_args(args, err)
+    if rc is not None:
+        return rc
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
     quiet = "-" in (args.json, args.markdown)
     ui = Console(stderr=True) if quiet else console
@@ -81,18 +81,15 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     except ValueError as e:
         err.print(f"[red]{e}[/red]")
         return 2
-    if args.risk and kind != "path":
-        err.print("[red]--risk needs a local path[/red]")
-        return 2
+    rc = _check_args(args, err, kind)
+    if rc is not None:
+        return rc
 
     args.now = now
     if args.since_date:
         ui.print(f"[dim]history bounded: since {args.since_date}[/dim]")
 
     if args.list_file_types:
-        if kind != "path":
-            err.print("[red]--list-file-types needs a local path[/red]")
-            return 2
         return _list_file_types(target, args, console)
 
     missing = tool_check(plots=args.plots)
@@ -114,6 +111,22 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         err.print(f"[red]{e}[/red]")
         return 2
     return _render(out_dir, console, ui, args, err)
+
+
+def _check_args(args, err, kind=None) -> int | None:
+    """The argument combinations that cannot work, in one place: 2 and a message, or None. Called
+    once on the arguments alone, then again with the target's `kind` for the checks that need it."""
+    if kind is None:
+        bad = "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk else None
+    elif kind == "path":
+        bad = None
+    else:
+        bad = ("--risk needs a local path" if args.risk else
+               "--list-file-types needs a local path" if args.list_file_types else None)
+    if bad:
+        err.print(f"[red]{bad}[/red]")
+        return 2
+    return None
 
 
 def _resolve_time(args, err, ui):
@@ -199,8 +212,9 @@ def _list_file_types(repo_dir: str, args, console: Console) -> int:
     return 0
 
 
-def _budgets(args, estimate, ui) -> tuple[bool, bool]:
-    """Decide whether code age and plots fit their time/size budgets, printing a skip notice for each one cut."""
+def _budgets(args, estimate, ui) -> tuple[bool, bool, float]:
+    """Decide whether code age and plots fit their time/size budgets, printing a skip notice for each
+    one cut. The projected blame time comes back with them: meta.json records it."""
     projected = float(estimate.get("seconds", 0.0))
     age_ok = args.deep or projected <= args.time_budget
     plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
@@ -212,11 +226,12 @@ def _budgets(args, estimate, ui) -> tuple[bool, bool]:
         ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
                  f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
                  f"Rerun with --deep to force them, or --ignore-data to shrink them.")
-    return age_ok, plots_ok
+    return age_ok, plots_ok, projected
 
 
-def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool) -> tuple[dict, str | None]:
-    """Collect this run's meta.json: repo facts plus a planned status record for every optional step."""
+def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, projected: float) -> tuple[dict, str | None]:
+    """Collect this run's meta.json: repo facts plus a planned status record for every optional step.
+    Raises NoCommits when --since leaves no commits to analyse."""
     types_spec = _types_spec(args.file_types)
 
     meta = run.collect_meta(repo_dir, since=args.since_date)
@@ -226,7 +241,6 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool) -
         raise NoCommits(f"no commits since {args.since_date}; widen --since")
     if args.now:
         meta["now"] = args.now
-    projected = float(estimate.get("seconds", 0.0))
     meta["age"] = {"status": "run" if age_ok else "skipped", "method": "blame", "files": estimate.get("code_files", estimate["files"]),
                    "projected_seconds": projected, "time_budget": args.time_budget}
     if args.plots:
@@ -270,10 +284,9 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
 
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
     estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types))
-    age_ok, plots_ok = _budgets(args, estimate, ui)
-    ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
+    age_ok, plots_ok, projected = _budgets(args, estimate, ui)
 
-    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok)
+    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected)
     types_spec = meta["file_types"]
     lizard_ok = args.lizard
     run.clear_outputs(out_dir)
