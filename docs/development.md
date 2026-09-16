@@ -10,6 +10,12 @@ style: `python3 -m pip install --user rich lizard` and
 `ln -sfn "$PWD/bin/gitmole" "$(brew --prefix)/bin/gitmole"`, which makes
 the checkout what runs.
 
+The checkout symlink and `brew install gitmole` claim the same path, so pick
+one: `brew link --overwrite gitmole` makes the Homebrew install what runs,
+and the `ln` line above switches back. The launcher runs on whichever
+`python3` is first on your PATH, so that interpreter needs rich and lizard;
+installing python@3.14 through Homebrew changes which one that is.
+
 ## Tests
 
 ```bash
