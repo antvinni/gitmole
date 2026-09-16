@@ -197,9 +197,11 @@ class Report(unittest.TestCase):
         r["backtest"] = past
         r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
-        text = rendered(r, [])
-        self.assertIn("6 months ago this list would have named 1 of the 2 files fixed since (a random 2 would name 1.0)", text)
+        text = rendered(r, [], width=150)
+        self.assertIn("6 months ago this list would have named 1 of the 2 files fixed since "
+                     "(a random 2 of the 2 files that had changed more than once would name 1.0)", text)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["hits"], 1)
+        self.assertEqual(render.to_json(r, [])["watch_backtest"]["pool"], 2)
 
 
 class Activity(unittest.TestCase):

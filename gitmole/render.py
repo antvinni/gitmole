@@ -178,7 +178,7 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     status = report["meta"].get("backtest") or {}
     if bt:
         notes.append(f"6 months ago this list would have named {bt['hits']} of the {bt['fixed']} files fixed since "
-                     f"(a random {bt['listed']} would name {bt['expected']})")
+                     f"(a random {bt['listed']} of the {bt['pool']} files that had changed more than once would name {bt['expected']})")
     elif status.get("reason"):
         notes.append(status["reason"])
     elif status.get("status") in ("failed", "timeout"):
