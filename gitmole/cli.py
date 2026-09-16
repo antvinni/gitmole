@@ -31,6 +31,7 @@ def parse_args(argv):
     p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from code age, function metrics and plots")
     p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra ignore pattern for code age, function metrics and plots (repeatable)")
     p.add_argument("--since", metavar="WHEN", help="only analyse history newer than this: 2y, 18m, 90d or YYYY-MM-DD (code age is always the whole tree)")
+    p.add_argument("--gone", type=int, default=12, metavar="MONTHS", help="a person with no commits this many months before the last commit counts as gone (default 12)")
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
     p.add_argument("--duplicates", action="store_true", help="also look for duplicated code blocks (minutes and gigabytes on a large repo; function metrics alone take seconds)")
@@ -191,6 +192,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
 
     meta = run.collect_meta(repo_dir, since=args.since_date)
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
+    meta["gone_months"] = args.gone
     if args.since_date and meta["commits"] == 0:
         raise NoCommits(f"no commits since {args.since_date}; widen --since")
     if args.now:

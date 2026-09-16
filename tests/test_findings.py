@@ -396,6 +396,61 @@ class Reverts(unittest.TestCase):
         self.assertEqual(findings.reverts(report()), [])
 
 
+class KnowledgeLoss(unittest.TestCase):
+    def _report(self, **over):
+        r = report(**over)
+        r["meta"].update({"last_date": "2025-11-09", "bots": []})
+        r["activity"] = {"authors": {
+            "Ann": {"commits": 60, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2025-10-01"},
+            "Bob": {"commits": 40, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2024-06-01"}}}
+        return r
+
+    def test_warning_names_the_largest_area_nobody_around_wrote(self):
+        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
+                         ownership=[{"entity": "old/a.py", "author": "Bob", "added": 800, "deleted": 0},
+                                    {"entity": "docs/x.md", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "app/b.py", "author": "Ann", "added": 900, "deleted": 0}])
+        f = findings.knowledge_loss(r)
+        self.assertEqual(f[0]["severity"], "warning")
+        self.assertEqual(f[0]["title"], "Knowledge loss")
+        self.assertIn("People with no commits since 2024-11-09 wrote 40% of the code that survives today: Bob (40%)", f[0]["detail"])
+        self.assertIn("Areas mostly theirs: old/ (100%), docs/ (100%)", f[0]["detail"])
+        self.assertEqual(f[0]["advice"], "Pair someone on old/ first; nobody who wrote it is around to ask.")
+
+    def test_info_between_ten_and_thirty_percent(self):
+        f = findings.knowledge_loss(self._report(theseus_authors={"Ann": 85, "Bob": 15}))
+        self.assertEqual(f[0]["severity"], "info")
+        self.assertEqual(f[0]["advice"], "Pair someone with the people who worked with Bob before the rest of that knowledge goes.")
+
+    def test_nothing_below_ten_percent_or_when_nobody_is_gone(self):
+        self.assertEqual(findings.knowledge_loss(self._report(theseus_authors={"Ann": 95, "Bob": 5})), [])
+        r = self._report()
+        r["activity"]["authors"]["Bob"]["last"] = "2025-11-01"
+        self.assertEqual(findings.knowledge_loss(r), [])
+
+    def test_without_a_blame_pass_uses_lines_added_and_says_so(self):
+        r = self._report(theseus_authors={},
+                         ownership=[{"entity": "old/a.py", "author": "Bob", "added": 400, "deleted": 0},
+                                    {"entity": "app/b.py", "author": "Ann", "added": 600, "deleted": 0}])
+        f = findings.knowledge_loss(r)
+        self.assertEqual(f[0]["severity"], "warning")
+        self.assertIn("wrote 40% of all lines added (from lines added, not a blame)", f[0]["detail"])
+
+    def test_window_from_meta(self):
+        r = self._report(theseus_authors={"Ann": 60, "Bob": 40})
+        r["meta"]["gone_months"] = 24
+        self.assertEqual(findings.knowledge_loss(r), [], "Bob committed 17 months before the last commit")
+
+    def test_small_contributors_are_folded_into_others(self):
+        # total 1000; Dan, Eve and Fay each round to 0% individually and are folded into "others".
+        r = self._report(theseus_authors={"Ann": 718, "Bob": 250, "Cat": 20, "Dan": 4, "Eve": 4, "Fay": 4})
+        for name in ("Cat", "Dan", "Eve", "Fay"):
+            r["activity"]["authors"][name] = {"commits": 1, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2024-06-01"}
+        f = findings.knowledge_loss(r)
+        self.assertIn("wrote 28% of the code that survives today: Bob (25%), Cat (2%) and 3 others (1%)", f[0]["detail"])
+        self.assertNotIn("Dan", f[0]["detail"])
+
+
 class Advice(unittest.TestCase):
     def test_every_finding_carries_its_next_step_as_a_field_that_ends_the_detail(self):
         r = report(secrets=[{"rule": "aws", "file": "a.env", "commit": "abc1234"}],

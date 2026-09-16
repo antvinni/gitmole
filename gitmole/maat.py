@@ -106,6 +106,16 @@ def _months_between(earlier: str, later: str) -> int:
     return max(0, (b.year - a.year) * 12 + (b.month - a.month) - (1 if b.day < a.day else 0))
 
 
+def months_before(date: str, months: int) -> str:
+    """The ISO date `months` whole months before `date`, day clamped to the month's length."""
+    import calendar
+    d = dt.date.fromisoformat(date)
+    y, m = d.year, d.month - months
+    while m <= 0:
+        y, m = y - 1, m + 12
+    return dt.date(y, m, min(d.day, calendar.monthrange(y, m)[1])).isoformat()
+
+
 def age(commits: list, now: str = None) -> list:
     now = now or dt.date.today().isoformat()
     last = {}
