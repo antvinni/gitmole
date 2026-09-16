@@ -38,10 +38,14 @@ def _all_identities(report: dict):
             yield a
 
 
-def placeholder_identity(report: dict) -> list:
+def placeholder_identity(report: dict, min_share: float = 0.01) -> list:
+    """A placeholder name or mailbox with a real share of the commits. One stray commit in thousands
+    is not worth the panel space."""
     total = sum(i["commits"] for i in report["meta"].get("identities") or [])
     out = []
     for i in _all_identities(report):
+        if total and i["commits"] / total < min_share:
+            continue
         if i["name"].strip().lower() in PLACEHOLDER_NAMES or PLACEHOLDER_EMAIL.search(i["email"].lower()):
             out.append(_f("warning", "Unconfigured git identity",
                           f"\"{i['name']} <{i['email']}>\" made {i['commits']} commits ({_pct(i['commits'], total)}).",
@@ -136,7 +140,12 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
 
 
 def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
+    """Files still in the tree that nobody has touched. The age table covers every path in the
+    history, so paths that were deleted are left out here; they are not dead code, they are gone."""
     age = report.get("age") or []
+    tree = (report.get("size") or {}).get("files") or {}
+    if tree:
+        age = [a for a in age if a["entity"] in tree]
     if not age:
         return []
     stale = [a for a in age if a["age-months"] >= months]
@@ -145,18 +154,6 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
     return [_f("info", "A large share of files is untouched",
                f"{_pct(len(stale), len(age))} of files ({len(stale)}) have not changed in {months} months or more.",
                "Consider deleting what nobody has needed; dead code hides in untouched files.")]
-
-
-def duplicate_identities(report: dict) -> list:
-    out = []
-    for i in report["meta"].get("identities") or []:
-        aliases = i.get("aliases") or []
-        if not aliases:
-            continue
-        names = ", ".join(f"{a['name']} <{a['email']}>" for a in aliases)
-        out.append(_f("info", "One person under several identities",
-                      f"{names} merged into {i['name']} <{i['email']}> by name and email similarity.", "Add a .mailmap to make it permanent."))
-    return out
 
 
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
@@ -232,7 +229,7 @@ def duplication(report: dict, min_lines: int = 30) -> list:
 
 
 RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, brain_methods, tight_coupling,
-         duplication, stale_files, duplicate_identities, knowledge_islands]
+         duplication, stale_files, knowledge_islands]
 
 
 def evaluate(report: dict) -> list:

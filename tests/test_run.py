@@ -197,12 +197,21 @@ class Plan(unittest.TestCase):
         self.assertNotIn("duplicates", by, "one lizard pass produces both")
         self.assertNotIn("functions", [s["name"] for s in run.plan("/r", "/o", lizard=False)])
 
-    def test_function_metrics_workers_are_capped_at_two(self):
+    def test_function_metrics_use_the_blame_workers_without_the_duplicate_finder(self):
+        def step(**kw):
+            return {s["name"]: s for s in run.plan("/r", "/o", lizard=True, **kw)}["functions"]["argv"]
+        argv = step(procs=8)
+        self.assertEqual(argv[argv.index("--procs") + 1], "8")
+        self.assertNotIn("--duplicates", argv, "duplicate detection is opt-in")
+        argv = step()
+        self.assertEqual(argv[argv.index("--procs") + 1], str(blame.default_procs()))
+
+    def test_duplicate_finder_is_forwarded_and_caps_the_workers_at_two(self):
         # lizard's duplicate finder keeps a hash node per token; each worker grows to 1.5-2 GB on a
         # large repo, and the default worker count exhausted a 16 GB machine.
         def procs_for(**kw):
-            by = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, **kw)}
-            argv = by["functions"]["argv"]
+            argv = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, duplicates=True, **kw)}["functions"]["argv"]
+            self.assertIn("--duplicates", argv)
             return argv[argv.index("--procs") + 1]
         self.assertEqual(run.FUNCTIONS_MAX_PROCS, 2)
         self.assertEqual(procs_for(procs=8), "2", "an explicit larger count is clamped")
@@ -420,7 +429,20 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(by["Bob"]["aliases"], [], "mailmap should merge Robert before the heuristic sees it")
         self.assertEqual([a["name"] for a in by["Ann Lee"]["aliases"]], ["ann-lee"])
 
-
+    def test_bots_are_left_out_of_identities_and_listed_apart(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            base = dict(GIT_COMMITTER_NAME="x", GIT_COMMITTER_EMAIL="x@x")
+            for name, email in [("Ann", "ann@x.com"), ("renovate[bot]", "29139614+renovate[bot]@users.noreply.github.com"),
+                                ("renovate[bot]", "29139614+renovate[bot]@users.noreply.github.com"), ("dependabot[bot]", "support@github.com")]:
+                git("commit", "-q", "--allow-empty", "-m", name, GIT_AUTHOR_NAME=name, GIT_AUTHOR_EMAIL=email, **base)
+            meta = run.collect_meta(d)
+        self.assertEqual([i["name"] for i in meta["identities"]], ["Ann"])
+        self.assertEqual(meta["commits"], 4, "the commit count is the whole history")
+        self.assertEqual(meta["bots"], [{"name": "renovate[bot]", "commits": 2}, {"name": "dependabot[bot]", "commits": 1}])
 
 
 class ClearOutputs(unittest.TestCase):

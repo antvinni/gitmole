@@ -19,7 +19,8 @@ MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
 FUNCTIONS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "functions.py")
 # lizard's duplicate finder keeps a hash node per token, and every pool worker grows to 1.5-2 GB on a
-# large repo; the blame default (cores minus two) exhausted a 16 GB machine. Two workers is the ceiling.
+# large repo; the blame default (cores minus two) exhausted a 16 GB machine. Two workers is the ceiling
+# when it runs. Without it lizard is fast (well under a second per thousand files) and uses the blame workers.
 FUNCTIONS_MAX_PROCS = 2
 
 MONTH = 30 * 24 * 3600  # git-of-theseus sampling interval in seconds
@@ -147,7 +148,7 @@ def clear_outputs(out_dir: str) -> None:
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
-         lizard: bool = False) -> list:
+         lizard: bool = False, duplicates: bool = False) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
@@ -163,7 +164,11 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if lizard:
-        steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(min(procs or blame.default_procs(), FUNCTIONS_MAX_PROCS)), *ignores, *type_args],
+        workers = procs or blame.default_procs()
+        if duplicates:
+            workers = min(workers, FUNCTIONS_MAX_PROCS)
+        steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args,
+                                                    *(["--duplicates"] if duplicates else [])],
                       "stdout": None, "deps": []})
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
@@ -332,13 +337,19 @@ def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int
 def collect_meta(repo_dir: str, since: str = None) -> dict:
     """Repository facts from git. The window (author date >= since) bounds the commit count, the
     date range and the identity table; aliases are merged over the whole history so blame and
-    ownership keep merging people who have no commits in the window."""
+    ownership keep merging people who have no commits in the window. Bots (renovate, dependabot,
+    GitHub Actions and anything named *[bot]) are counted apart under "bots", not as identities."""
+    from collections import Counter
+
     from .load import parse_authors_log
 
     lines = _git(repo_dir, "log", "--all", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").splitlines()
-    rows = [l.split("\t", 2) for l in lines if l.count("\t") == 2]
-    windowed = [r for r in rows if not since or r[0] >= since]
-    dates = [r[0] for r in windowed]
+    all_rows = [l.split("\t", 2) for l in lines if l.count("\t") == 2]
+    rows = [r for r in all_rows if not identity.is_bot(r[1], r[2])]
+    all_windowed = [r for r in all_rows if not since or r[0] >= since]
+    windowed = [r for r in all_windowed if not identity.is_bot(r[1], r[2])]
+    dates = [r[0] for r in all_windowed]
+    bots = Counter(n for _, n, e in all_windowed if identity.is_bot(n, e))
     all_identities = identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in rows)))
     meta = {
         "name": repo_name(repo_dir),
@@ -348,6 +359,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
         "first_date": min(dates) if dates else "",
         "last_date": max(dates) if dates else "",
         "identities": identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in windowed))),
+        "bots": [{"name": n, "commits": c} for n, c in sorted(bots.items(), key=lambda kv: (-kv[1], kv[0]))],
         "aliases": {a["name"]: i["name"] for i in all_identities for a in i.get("aliases", [])},
     }
     if since:

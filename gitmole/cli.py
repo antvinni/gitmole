@@ -33,6 +33,7 @@ def parse_args(argv):
     p.add_argument("--since", metavar="WHEN", help="only analyse history newer than this: 2y, 18m, 90d or YYYY-MM-DD (code age is always the whole tree)")
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
+    p.add_argument("--duplicates", action="store_true", help="also look for duplicated code blocks (minutes and gigabytes on a large repo; function metrics alone take seconds)")
     p.add_argument("--full", action="store_true", help="every column and every row in the terminal report (the default is the tighter, readable one)")
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
@@ -189,6 +190,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     types_spec = _types_spec(args.file_types)
 
     meta = run.collect_meta(repo_dir, since=args.since_date)
+    meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     if args.since_date and meta["commits"] == 0:
         raise NoCommits(f"no commits since {args.since_date}; widen --since")
     if args.now:
@@ -201,7 +203,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     meta["functions"] = {"status": "planned" if lizard_ok else "skipped"}   # "run" only once the step has finished
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
-                    since=args.since_date, lizard=lizard_ok)
+                    since=args.since_date, lizard=lizard_ok, duplicates=args.duplicates)
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
     if _control.cancelled.is_set():

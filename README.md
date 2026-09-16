@@ -22,15 +22,17 @@ analysis can tell you about a repo.
 | Where is the risk: hotspots, coupling, ownership | gitmole's own change analysis over `git log --numstat` | built in |
 | How old is the surviving code, per year and author | gitmole's own blame pass (one `git blame` per file at HEAD) | built in |
 | Code-age and survival plots over time | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip, opt-in with `--plots` |
-| Per-function complexity, length, parameters; duplicated blocks | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
+| Per-function complexity, length, parameters; duplicated blocks with `--duplicates` | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
 | Have secrets ever been committed | [gitleaks](https://github.com/gitleaks/gitleaks) | brew |
 | Anything custom the above don't answer | [PyDriller](https://github.com/ishepard/pydriller) | pip |
 
 Three external tools: scc for size, git-sizer for repo health, gitleaks for
 secrets. Everything about history is computed by gitmole from `git log`.
 lizard adds function-level metrics for two dozen languages when it is
-installed; git-of-theseus only adds the plots, so it is off by default and
-only needed with `--plots`. gitleaks should never be skipped on a repo you did
+installed, in well under a second per thousand files; its duplicate finder
+is minutes and gigabytes on a large repo, so it is off unless you pass
+`--duplicates`. git-of-theseus only adds the plots, so it is off by default
+and only needed with `--plots`. gitleaks should never be skipped on a repo you did
 not author. PyDriller is optional and only matters if you want to script your
 own metrics.
 
@@ -107,8 +109,9 @@ are still merged over all of it; an empty window is an error), `--plots` to
 also draw
 the git-of-theseus code-age and survival charts, `--file-types py,sql` to choose
 which files count as code (or `all`; `--list-file-types` shows what is in the
-tree and what the default includes), `--workers N` to change how many
-tools run at once, `--timeout S` to cap any single tool (default 15 minutes).
+tree and what the default includes), `--duplicates` to also look for
+duplicated blocks, `--workers N` to change how many tools run at once,
+`--timeout S` to cap any single tool (default 15 minutes).
 Ctrl-C kills every running step, including their child processes, and exits
 with code 130.
 
@@ -131,7 +134,8 @@ on leaked secrets and still posts the report. Both exports also work with
 
 ### Big repositories
 
-Blame is the one cost that scales with repo size. gitmole keeps it in check:
+Blame and lizard's duplicate finder are the two costs that scale with repo
+size. gitmole keeps them in check:
 
 - the code-age table comes from one `git blame` per tracked code file at
   HEAD, run on all but two CPU cores at low priority so the machine stays
@@ -145,6 +149,10 @@ Blame is the one cost that scales with repo size. gitmole keeps it in check:
   sampling (tracked files × samples blames) on top, skipped above
   `--budget` (default 50,000 blames);
 - `--deep` forces both regardless of the budgets;
+- the duplicate finder is off by default. It keeps a hash node per token,
+  so on a repo of a few thousand files it runs for minutes at one or two
+  gigabytes per worker, which is why `--duplicates` also caps that step at
+  two workers. Function metrics without it take a second or two;
 - `--ignore-data` excludes data-like files (csv, json, lock files, minified
   and vendored assets) from blame and from the function metrics, and
   `--ignore GLOB` adds your own patterns, repeatable. Both shrink the blame
@@ -158,76 +166,76 @@ marked in the report, and the rest of the report still renders.
 Running `gitmole .` inside this repository:
 
 ```text
-╭─ gitmole ──────────────────────────────────────────────────────────────────────────────────────╮
-│ 61 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                          │
-│ 5,750 lines in 43 files  ·  Python, SVG, Markdown, Plain Text                                  │
-│ most commits on Tue at 23:00  ·  5% of commits are fixes  ·  100% of surviving code from 2026  │
-│ 2 warnings, 2 notes                                                                            │
-╰────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (4) ─────────────────────────────────────────────────────────────────────────────────╮
-│ ▲ Bus factor of one                                                                            │
-│   vinni wrote 100% of the code that survives today                                             │
-│   ↳ Pair someone with vinni on gitmole/ and build/ first; they are 100% and 100% theirs.       │
-│ ▲ Knowledge islands                                                                            │
-│   2 area(s) with at least 200 lines were written almost entirely by one person: gitmole/       │
-│   (vinni 100%); build/ (vinni 100%). That is 99% of all lines added                            │
-│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 4,888 lines.               │
-│ ● Bug magnets                                                                                  │
-│   1 file(s) were fixed 3+ times in the last six months: gitmole/run.py (3 recent, 3 total)     │
-│   ↳ Review gitmole/run.py before the next release; expect the next bug there.                  │
-│ ● One person under several identities                                                          │
-│   antvinni <5262575+antvinni@users.noreply.github.com> merged into vinni                       │
-│   <5262575+antvinni@users.noreply.github.com> by name and email similarity                     │
-│   ↳ Add a .mailmap to make it permanent.                                                       │
-╰────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
+│ 63 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                             │
+│ 4,978 lines in 36 files  ·  Python, Shell                                                        │
+│ most commits on Tue at 23:00  ·  6% of commits are fixes  ·  100% of surviving code from 2026    │
+│ 2 warnings, 1 note                                                                               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Findings (3) ───────────────────────────────────────────────────────────────────────────────────╮
+│ ▲ Bus factor of one                                                                              │
+│   vinni wrote 100% of the code that survives today                                               │
+│   ↳ Pair someone with vinni on gitmole/ and build/ first; they are 100% and 100% theirs.         │
+│ ▲ Knowledge islands                                                                              │
+│   2 area(s) with at least 200 lines were written almost entirely by one person: gitmole/ (vinni  │
+│   100%); build/ (vinni 100%). That is 99% of all lines added                                     │
+│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 5,370 lines.                 │
+│ ● Bug magnets                                                                                    │
+│   4 file(s) were fixed 3+ times in the last six months: gitmole/findings.py (3 recent, 3 total); │
+│   gitmole/load.py (3 recent, 3 total); gitmole/render.py (3 recent, 3 total); gitmole/run.py (3  │
+│   recent, 3 total)                                                                               │
+│   ↳ Review gitmole/findings.py and gitmole/load.py before the next release; expect the next bug  │
+│   there.                                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ◎ Watch list
   file                  why
-  ────────────────────────────────────────────────────────────────────────────────────────────────
-  gitmole/render.py     changed 33 times · fixed twice in six months · only vinni has touched it ·
-                        functions_section() complexity 19 · changes with gitmole/cli.py (77%) and
-                        3 others
-  gitmole/run.py        changed 29 times · fixed 3 times in six months · only vinni has touched it
-                        · execute() complexity 16 · changes with gitmole/cli.py (76%) and 4 others
+  ──────────────────────────────────────────────────────────────────────────────────────────────────
+  gitmole/render.py     changed 35 times · fixed 3 times in six months · only vinni has touched it ·
+                        timeline_section() complexity 19 · changes with gitmole/cli.py (75%) and 3
+                        others
+  gitmole/run.py        changed 29 times · fixed 3 times in six months · only vinni has touched it ·
+                        collect_meta() complexity 21 · changes with gitmole/cli.py (76%) and 4
+                        others
   gitmole/cli.py        changed 29 times · fixed once in six months · only vinni has touched it ·
-                        _analyse() complexity 27 · changes with gitmole/render.py (77%) and 1
+                        _analyse() complexity 27 · changes with gitmole/run.py (76%) and 1 other
+  gitmole/findings.py   changed 19 times · fixed 3 times in six months · only vinni has touched it ·
+                        bus_factor() complexity 12 · changes with gitmole/render.py (67%) and 1
                         other
-  gitmole/findings.py   changed 17 times · fixed twice in six months · only vinni has touched it ·
-                        bus_factor() complexity 12 · changes with gitmole/render.py (64%) and 1
-                        other
-  gitmole/maat.py       changed 16 times · fixed twice in six months · only vinni has touched it ·
-                        activity() complexity 12 · changes with gitmole/blame.py (62%) and 2
+  gitmole/load.py       changed 17 times · fixed 3 times in six months · only vinni has touched it ·
+                        parse_git_sizer() complexity 15 · changes with gitmole/run.py (65%) and 2
                         others
   ranked by churn × recent fixes × complexity × single ownership
 
 ◉ People
-  author   commits   share             surviving code
-  ───────────────────────────────────────────────────
-  vinni         61   100% ▰▰▰▰▰▰▰▰▰▰             100%
+  author      commits   share                surviving code
+  ─────────────────────────────────────────────────────────
+  vinni            63   100% ▰▰▰▰▰▰▰▰▰▰                100%
+  aliases merged for vinni; a .mailmap makes that permanent
 
 ⌂ Knowledge map
   area       lines added   main owner     second
   ──────────────────────────────────────────────
-  tests/           5,000   vinni (100%)   -
-  gitmole/         4,888   vinni (100%)   -
+  tests/           5,557   vinni (100%)   -
+  gitmole/         5,370   vinni (100%)   -
   build/           3,362   vinni (100%)   -
   bin/                91   vinni (100%)   -
 
 ▦ Timeline (Oct 2025 → Sep 2026)
   author   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep
   ──────────────────────────────────────────────────────────────────────────────
-  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    61
+  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    63
 
 ◆ Hotspots
   file                     revs   lines   fixes   authors
   ───────────────────────────────────────────────────────
-  tests/test_render.py       32     517       2         1
-  gitmole/render.py          33     464       2         1
-  tests/test_run.py          28     373       3         1
-  tests/test_cli.py          26     396       0         1
-  gitmole/cli.py             29     283       1         1
-  gitmole/run.py             29     271       3         1
-  tests/test_findings.py     16     296       2         1
+  tests/test_render.py       34     533       3         1
+  gitmole/render.py          35     473       3         1
+  tests/test_run.py          28     395       3         1
+  tests/test_cli.py          26     423       0         1
+  gitmole/cli.py             29     285       1         1
+  gitmole/run.py             29     280       3         1
+  tests/test_findings.py     18     303       3         1
   tests/test_maat.py         16     229       2         1
   and 41 more
 
@@ -236,28 +244,28 @@ Running `gitmole .` inside this repository:
   ───────────────────────────────────────────────────────
   gitmole/maat.py        tests/test_maat.py          100%
   gitmole/filetypes.py   tests/test_filetypes.py     100%
+  gitmole/textfmt.py     tests/test_textfmt.py       100%
   gitmole/knowledge.py   tests/test_knowledge.py     100%
-  gitmole/render.py      tests/test_render.py         98%
-  gitmole/run.py         tests/test_run.py            98%
-  and 88 more
+  gitmole/render.py      tests/test_render.py         99%
+  and 86 more
 
 λ Complex functions
   function            file                ccn   lines   params
   ────────────────────────────────────────────────────────────
-  _analyse            gitmole/cli.py       27      51        6
+  _analyse            gitmole/cli.py       27      52        6
   main                gitmole/cli.py       26      79        8
   risks               gitmole/watch.py     22      32        2
+  collect_meta        gitmole/run.py       21      25        2
   functions_section   gitmole/render.py    19      22        3
-  timeline_section    gitmole/render.py    18      15        4
+  timeline_section    gitmole/render.py    19      15        4
+  people_section      gitmole/render.py    18      24        3
   _portfolio          gitmole/cli.py       16      43        8
-  execute             gitmole/run.py       16      35        8
-  parse_git_sizer     gitmole/load.py      15      31        1
-  and 18 more
+  and 20 more
 
 ✚ Repo health (git-sizer concerns): nothing flagged
 
 Secrets: none found
-Full results and plots in ../analysis-gitmole
+Full results and plots in analysis-gitmole
 ```
 
 In a terminal the banner above heads the run: the letters pulse in neon,
@@ -293,10 +301,12 @@ rows unless `--full`.
    in the last six months; a warning at five), brain methods (functions with
    complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
    tightly coupled file pairs (a file and its test are expected to change
-   together, so those pairs are left out), duplicated blocks of 30+ lines, a
-   large share of stale files, one person under several identities, and
-   knowledge islands: areas of at least 200 lines written almost entirely by
-   one person (a warning when such areas hold most of the code).
+   together, so those pairs are left out), duplicated blocks of 30+ lines
+   (with `--duplicates`), a large share of stale files (files still in the
+   tree; deleted paths do not count), and knowledge islands: areas of at
+   least 200 lines written almost entirely by one person (a warning when
+   such areas hold most of the code). An unconfigured identity is only
+   flagged when it made at least 1% of the commits.
 
    A commit counts as a fix when its subject starts with `fix:`, `hotfix:` or
    `bugfix:` in the conventional style, or mentions fix, bug, hotfix,
@@ -314,8 +324,10 @@ rows unless `--full`.
    owner, the function and the files it always changes with. Test files are
    left out. Under `--since`, churn and ownership are windowed and the list
    says so. `--full` and the exports show fifteen.
-4. **Tables**: people (identities merged by name and email similarity, on
-   top of `.mailmap`), a knowledge map (lines added per area of the tree and
+4. **Tables**: people (identities merged by name and email similarity on
+   top of `.mailmap`, and the caption says whose; bots such as renovate,
+   dependabot and GitHub Actions are counted apart in the caption and kept
+   out of the timeline), a knowledge map (lines added per area of the tree and
    who wrote them), a timeline of commits per author over the last twelve
    months, hotspots ranked by revisions times lines of code with the number
    of fix commits alongside, change coupling, the most complex functions,
@@ -323,10 +335,10 @@ rows unless `--full`.
    the busiest hour and the share of commits that are fixes, and surviving
    code by year.
 
-   Hotspots, coupling, ownership, code age and the watch list only look at
-   source files: a built-in list of code extensions plus names like Makefile
-   and Dockerfile. Size by language, activity and the timeline cover the
-   whole repository.
+   Size, hotspots, coupling, ownership, code age and the watch list only
+   look at source files: a built-in list of code extensions plus names like
+   Makefile and Dockerfile (`--file-types all` counts everything). Activity
+   and the timeline cover the whole history.
 5. **Footer**: where the files and plots are.
 
 ### The output directory
@@ -349,7 +361,7 @@ directory for a remote target:
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file |
 | `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
 | `functions.csv` | lizard | per-function complexity, length, parameters |
-| `duplicates.txt` | lizard | duplicated blocks and the overall duplicate rate |
+| `duplicates.txt` | lizard, `--duplicates` only | duplicated blocks and the overall duplicate rate |
 | `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
 | `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |

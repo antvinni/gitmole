@@ -7,12 +7,13 @@ from __future__ import annotations
 from rich import box
 from rich.columns import Columns
 from rich.console import Console, Group
+from rich.markup import escape
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import hotspots, knowledge, textfmt, watch
+from . import hotspots, identity, knowledge, textfmt, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -194,6 +195,14 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     more = _more(len(ids), limit)
     if more:
         notes.append(more)
+    bots = report["meta"].get("bots") or []
+    if bots:
+        notes.append("bots left out: " + ", ".join(f"{b['name']} ({b['commits']}{' commits' if i == 0 else ''})" for i, b in enumerate(bots[:3]))
+                     + (f" and {len(bots) - 3} more" if len(bots) > 3 else ""))
+    merged = [i["name"] for i in ids if i.get("aliases")]
+    if merged:
+        who = ", ".join(merged[:3]) + (f" and {len(merged) - 3} more" if len(merged) > 3 else "")
+        notes.append(f"aliases merged for {who}; a .mailmap makes that permanent")
     return _section("People", columns, rows, caption="\n".join(notes) or None)
 
 
@@ -244,7 +253,9 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
         span = [m for m in span if m >= since[:7]] or span[-1:]
     columns = [("author", {"overflow": "fold"})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     in_window = {a: sum(per.get(m, 0) for m in span) for a, per in tl.items()}
-    ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0]
+    # the run decided who is a bot from name and email; the timeline only has the name, so it asks the run
+    bots = {b["name"] for b in report["meta"].get("bots") or []}
+    ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0 and a not in bots and not identity.is_bot(a)]
     limit = _limit("Timeline", full)
     rows = [(a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
     return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))
@@ -458,7 +469,7 @@ def rich_table(sec: dict):
     key = KEY_METRIC.get(_base_title(sec["title"]))
     kw = {}
     if sec.get("caption"):
-        kw = {"caption": sec["caption"], "caption_justify": "left", "caption_style": "dim italic"}
+        kw = {"caption": escape(sec["caption"]), "caption_justify": "left", "caption_style": "dim italic"}   # a name like renovate[bot] is not markup
     fits = max((len(line) for line in (sec.get("caption") or "").split("\n")), default=0)
     bars = "share" in sec["columns"] and "" not in sec["columns"]   # inline bars only where there is no bar column
     t = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, min_width=fits, header_style=HEADER,

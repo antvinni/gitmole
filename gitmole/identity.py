@@ -4,6 +4,18 @@ from __future__ import annotations
 import re
 
 
+_BOT_WORDS = ("dependabot", "renovate", "github-actions", "github actions")
+
+
+def is_bot(name: str, email: str = "") -> bool:
+    """A commit author that is a service, not a person: GitHub's *[bot] suffix, or one of the
+    common automation names in the name or the mailbox."""
+    n, local = name.strip().lower(), email.strip().lower().split("@")[0]
+    if n.endswith("[bot]") or local.endswith("[bot]"):
+        return True
+    return any(w in n for w in _BOT_WORDS) or any(w in local for w in _BOT_WORDS) or email.strip().lower() == "actions@github.com"
+
+
 def _tokens(name: str) -> set:
     return {t for t in re.split(r"[^a-z0-9]+", name.lower()) if len(t) >= 3}
 
