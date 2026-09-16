@@ -21,11 +21,12 @@ below, so one can be dropped without touching the others.
 
 ## Shared rules
 
-- The default terminal report gains exactly four small marks: a pulse phrase
-  for reverts, a "trend" column on the hotspots table, one caption line under
-  the watch list for the backtest, and the change-risk section only when
-  `--risk` is given. Everything else is `--full`, `--json`, or a finding that
-  fires only past a threshold.
+- The default terminal report gains only small marks. As built they are six:
+  a pulse phrase for reverts, `(gone)` beside an owner in the knowledge map,
+  the knowledge map's caption saying what "gone" means, a "trend" column on
+  the hotspots table, one caption line under the watch list for the backtest,
+  and the change-risk section only when `--risk` is given. Everything else is
+  `--full`, `--json`, or a finding that fires only past a threshold.
 - Every finding carries a next step (`advice`) that names a file, area or
   person, as the existing rules do in `findings.py`.
 - Every new output file is listed in `run.OUTPUTS` so a reused output
@@ -173,24 +174,43 @@ history to backtest`, when the first commit is less than six months before `T`
 **Step.** `gitmole/backtest.py`, run as `python -m gitmole.backtest OUT_DIR
 --until T --now T`, `deps: ["git-log", "change analysis"]`. It runs
 `maat.write_all` on the same log export with `until=T, now=T` into
-`OUT_DIR/backtest/`, finds `REV = git rev-list -1 --before=T HEAD`, exports
-the tree at REV with `git archive REV | tar -x` into a temporary directory,
-runs `scc --by-file --format json` there into `OUT_DIR/backtest/size.json`,
-and writes `OUT_DIR/backtest/meta.json` with `{"now": T, "last_date": T}`.
-The functions step is not rerun: lizard only names functions in reasons and
-does not enter the score.
+`OUT_DIR/backtest/`, finds `REV = trend.rev_before(repo, T, end_of_day=False)`,
+exports the tree at REV through a temporary index (`GIT_INDEX_FILE` plus
+`git read-tree REV` and `git checkout-index -a --prefix=`) into a temporary
+directory under OUT_DIR, runs `scc --by-file --format json` there into
+`OUT_DIR/backtest/size.json`, and writes `OUT_DIR/backtest/meta.json` with
+`{"now": T, "last_date": T}`. The export is a temporary index rather than
+`git archive REV | tar -x` because `export-ignore` attributes thin an archive,
+and scc would then measure a tree the repository never had; the checkout goes
+under the output directory so a SIGKILL leaves it where the next run's
+`clear_outputs` finds it. The functions step is not rerun: lizard only names
+functions in reasons and does not enter the score.
 
-**Evaluation.** In `watch.backtest(report, past)`: `listed` is the top 15 of
-`watch.risks(past)`; `fixed` is the set of source files with a fix commit in
+**Dates.** The two halves of the step read different dates, and that is the
+ruling: the change analysis windows commits by *author* date (`--until` is
+exclusive), while REV is the last commit by *committer* date strictly before
+`T00:00:00`, since "the tree as of T" is a committer-date notion. The two only
+disagree for commits rebased or cherry-picked after they were authored. The
+same helper serves the complexity trend with `end_of_day=True` (`T23:59:59`),
+where a sample means "the code as it stood on that date".
+
+**Evaluation.** In `watch.backtest(report)`: `pool` is every file
+`watch.risks(past)` scored — the source files in the tree at T that had changed
+more than once, which is the population the list is drawn from; `listed` is the
+top 15 of that pool; `fixed` is the set of source files with a fix commit in
 `(T, last_date]` from the current `fixes` table (a file's `last-fix` after T,
-excluding test files); `hits = listed ∩ fixed`. Also the base rate: the share
-of source files in the tree at T that were fixed since, so the reader can see
-the lift. Result: `{"t": T, "listed": 15, "fixed": 23, "hits": 9,
-"base_rate": 0.02}`.
+excluding test files); `hits = |listed ∩ fixed|`. The baseline is a random pick
+of the same size from the same pool: `expected = listed × |fixed ∩ pool| /
+|pool|`, rounded to one decimal. Intersecting `fixed` with the pool is what
+makes the two comparable: a file that did not exist at T could never have been
+listed. Result: `{"t": T, "pool": 120, "listed": 15, "fixed": 23, "hits": 9,
+"expected": 1.9}`.
 
 **Report.** One caption line under the watch list, default and full: `6 months
-ago this list would have named 9 of the 23 files fixed since (a random 15
-would name 0.5)`. In JSON under `watch_backtest`. When skipped: the reason.
+ago this list would have named 9 of the 23 files fixed since (a random 15 of
+the 120 files that had changed more than once would name 1.9)`. Under `--since`
+the line ends with `; whole history`. In JSON under `watch_backtest`; the
+nested sub-report itself is not exported. When skipped: the reason.
 
 **Tests.** `test_maat.py`: `--until`. `test_backtest.py`: a synthetic repository
 with commits across 18 months where a file that churned early is fixed late;
