@@ -304,6 +304,19 @@ class LoadReport(unittest.TestCase):
                 json.dump({"samples": ["2025-01-01"], "files": {"a.py": [["2025-01-01", 3, 10]]}}, fh)
             self.assertEqual(load.load_report(out)["trend"]["files"]["a.py"], [["2025-01-01", 3, 10]])
 
+    def test_malformed_trend_or_activity_json_gives_the_empty_value(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "d", "commits": 1, "identities": []}, fh)
+            with open(os.path.join(out, "trend.json"), "w") as fh:
+                fh.write("{")
+            with open(os.path.join(out, "activity.json"), "w") as fh:
+                fh.write("{")
+            r = load.load_report(out)
+        self.assertEqual(r["trend"], {"samples": [], "files": {}})
+        self.assertEqual(r["activity"], {})
+
     def test_backtest_sub_report_is_loaded_when_present(self):
         import os, tempfile
         with tempfile.TemporaryDirectory() as out:

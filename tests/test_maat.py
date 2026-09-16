@@ -322,6 +322,10 @@ class MonthsBefore(unittest.TestCase):
         self.assertEqual(maat.months_before("2026-01-15", 6), "2025-07-15")
         self.assertEqual(maat.months_before("2026-01-15", 0), "2026-01-15")
 
+    def test_over_a_year_wraps_the_year_boundary_more_than_once(self):
+        self.assertEqual(maat.months_before("2026-01-15", 13), "2024-12-15")
+        self.assertEqual(maat.months_before("2026-01-15", 24), "2024-01-15")
+
 
 class Until(unittest.TestCase):
     def test_until_is_exclusive_and_combines_with_since(self):

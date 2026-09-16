@@ -65,35 +65,12 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     quiet = "-" in (args.json, args.markdown)
     ui = Console(stderr=True) if quiet else console
 
-    now = os.environ.get("GITMOLE_NOW") or None
-    if now:
-        from . import maat
-        try:
-            maat.validate_now(now)
-        except ValueError as e:
-            err.print(f"[red]GITMOLE_NOW:[/red] {e}")
-            return 2
-        ui.print(f"[yellow]reference date fixed by GITMOLE_NOW:[/yellow] {now}")
-    args.since_date = None
-    if args.since:
-        import datetime as _dt
-        try:
-            args.since_date = run.parse_since(args.since, now or _dt.date.today().isoformat())
-        except ValueError as e:
-            err.print(f"[red]{e}[/red]")
-            return 2
+    rc, now = _resolve_time(args, err, ui)
+    if rc is not None:
+        return rc
 
     if args.no_run:
-        if args.since:
-            err.print("[red]--since needs a run:[/red] a re-render cannot narrow an earlier analysis")
-            return 2
-        out_dir = os.path.abspath(args.target)
-        if not os.path.isfile(os.path.join(out_dir, "meta.json")):
-            err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
-            return 2
-        if ui.is_terminal:
-            ui.print(banner.neon())
-        return _render(out_dir, console, ui, args)
+        return _no_run(args, console, ui, err)
 
     try:
         kind, target = run.classify_target(args.target)
@@ -121,8 +98,61 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         return 2
     args.lizard = lizard_check()   # decided once, for every repository this run analyses
 
+    rc, repo_dir, out_dir = _resolve_target(kind, target, args, console, ui, err, planner, estimator, lister, cloner)
+    if rc is not None:
+        return rc
+
+    try:
+        _analyse(repo_dir, out_dir, args, ui, planner, estimator)
+    except Interrupted:
+        return 130
+    except NoCommits as e:
+        err.print(f"[red]{e}[/red]")
+        return 2
+    return _render(out_dir, console, ui, args, err)
+
+
+def _resolve_time(args, err, ui):
+    """Resolve GITMOLE_NOW and --since into (None, now) and args.since_date, or (rc, None) on bad input."""
+    now = os.environ.get("GITMOLE_NOW") or None
+    if now:
+        from . import maat
+        try:
+            maat.validate_now(now)
+        except ValueError as e:
+            err.print(f"[red]GITMOLE_NOW:[/red] {e}")
+            return 2, None
+        ui.print(f"[yellow]reference date fixed by GITMOLE_NOW:[/yellow] {now}")
+    args.since_date = None
+    if args.since:
+        import datetime as _dt
+        try:
+            args.since_date = run.parse_since(args.since, now or _dt.date.today().isoformat())
+        except ValueError as e:
+            err.print(f"[red]{e}[/red]")
+            return 2, None
+    return None, now
+
+
+def _no_run(args, console, ui, err) -> int:
+    """Handle --no-run: re-render an existing output directory instead of running the pipeline."""
+    if args.since:
+        err.print("[red]--since needs a run:[/red] a re-render cannot narrow an earlier analysis")
+        return 2
+    out_dir = os.path.abspath(args.target)
+    if not os.path.isfile(os.path.join(out_dir, "meta.json")):
+        err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
+        return 2
+    if ui.is_terminal:
+        ui.print(banner.neon())
+    return _render(out_dir, console, ui, args, err)
+
+
+def _resolve_target(kind, target, args, console, ui, err, planner, estimator, lister, cloner):
+    """Resolve the classified target to (repo_dir, out_dir) for _analyse, or a final return code for the
+    org and clone-failure paths. Returns (rc, repo_dir, out_dir); rc is None unless main should return early."""
     if kind == "org":
-        return _portfolio(target, args, console, ui, planner, estimator, lister, cloner)
+        return _portfolio(target, args, console, ui, planner, estimator, lister, cloner), None, None
 
     if kind == "remote":
         parent = tempfile.mkdtemp(prefix="gitmole-", dir=os.environ.get("TMPDIR"))
@@ -131,19 +161,12 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
             repo_dir = cloner(target, parent)
         except run.GhError as e:
             err.print(f"[red]could not clone {target}:[/red] {e}", soft_wrap=True)
-            return 2
+            return 2, None, None
     else:
         repo_dir = target
 
     out_dir = run.output_dir(kind, repo_dir, args.out)
-    try:
-        _analyse(repo_dir, out_dir, args, ui, planner, estimator)
-    except Interrupted:
-        return 130
-    except NoCommits as e:
-        err.print(f"[red]{e}[/red]")
-        return 2
-    return _render(out_dir, console, ui, args)
+    return None, repo_dir, out_dir
 
 
 class Interrupted(Exception):
@@ -172,14 +195,8 @@ def _list_file_types(repo_dir: str, args, console: Console) -> int:
     return 0
 
 
-def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator) -> None:
-    """Run the whole pipeline for one repository into out_dir."""
-    os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)
-    log_path = os.path.join(out_dir, "run.log")
-    open(log_path, "w").close()
-
-    ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
-    estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types))
+def _budgets(args, estimate, ui) -> tuple[bool, bool]:
+    """Decide whether code age and plots fit their time/size budgets, printing a skip notice for each one cut."""
     projected = float(estimate.get("seconds", 0.0))
     age_ok = args.deep or projected <= args.time_budget
     plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
@@ -191,7 +208,11 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
                  f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
                  f"Rerun with --deep to force them, or --ignore-data to shrink them.")
-    ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
+    return age_ok, plots_ok
+
+
+def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool) -> tuple[dict, str | None]:
+    """Collect this run's meta.json: repo facts plus a planned status record for every optional step."""
     types_spec = _types_spec(args.file_types)
 
     meta = run.collect_meta(repo_dir, since=args.since_date)
@@ -201,6 +222,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         raise NoCommits(f"no commits since {args.since_date}; widen --since")
     if args.now:
         meta["now"] = args.now
+    projected = float(estimate.get("seconds", 0.0))
     meta["age"] = {"status": "run" if age_ok else "skipped", "method": "blame", "files": estimate.get("code_files", estimate["files"]),
                    "projected_seconds": projected, "time_budget": args.time_budget}
     if args.plots:
@@ -216,6 +238,40 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     else:
         cut = None
         meta["backtest"] = {"status": "skipped", "reason": "too little history to backtest"}
+    return meta, cut
+
+
+def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: bool, cut) -> None:
+    """Turn each planned step's exit code into its final status: run, timeout or failed."""
+    def status(step, default="run"):
+        rc = results.get(step, 0)
+        return default if rc == 0 else ("timeout" if rc == "timeout" else "failed")
+    if age_ok:
+        meta["age"]["status"] = status("code age")
+    if plots_ok:
+        meta["plots"]["status"] = status("git-of-theseus")
+    if lizard_ok:
+        meta["functions"]["status"] = status("functions")
+    if "trend" in results:
+        meta["trend"]["status"] = status("trend")
+    if cut and "backtest" in results:
+        meta["backtest"]["status"] = status("backtest")
+
+
+def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator) -> None:
+    """Run the whole pipeline for one repository into out_dir."""
+    os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)
+    log_path = os.path.join(out_dir, "run.log")
+    open(log_path, "w").close()
+
+    ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
+    estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types))
+    age_ok, plots_ok = _budgets(args, estimate, ui)
+    ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
+
+    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok)
+    types_spec = meta["file_types"]
+    lizard_ok = args.lizard
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
                     since=args.since_date, lizard=lizard_ok, duplicates=args.duplicates, backtest=cut)
@@ -226,19 +282,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         ui.print(f"[red]interrupted:[/red] killed {len(killed)} step(s)")
         raise Interrupted()
 
-    def status(step, default="run"):
-        rc = results.get(step, 0)
-        return default if rc == 0 else ("timeout" if rc == "timeout" else "failed")
-    if age_ok:
-        meta["age"]["status"] = status("code age")
-    if args.plots and plots_ok:
-        meta["plots"]["status"] = status("git-of-theseus")
-    if lizard_ok:
-        meta["functions"]["status"] = status("functions")
-    if "trend" in results:
-        meta["trend"]["status"] = status("trend")
-    if cut and "backtest" in results:
-        meta["backtest"]["status"] = status("backtest")
+    _record_statuses(meta, results, age_ok, plots_ok, lizard_ok, cut)
     run.save_meta(meta, out_dir)
 
     failed = [n for n, rc in results.items() if rc != 0]
@@ -345,7 +389,7 @@ def _write(text: str, target: str, console: Console) -> None:
             fh.write(text)
 
 
-def _render(out_dir: str, console: Console, ui: Console, args) -> int:
+def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> int:
     import json
 
     from . import render
@@ -357,7 +401,7 @@ def _render(out_dir: str, console: Console, ui: Console, args) -> int:
         try:
             files = run.changed_files(report["meta"].get("path") or os.getcwd(), args.risk)
         except ValueError as e:
-            (Console(stderr=True) if console.file is sys.stdout else console).print(f"[red]--risk {args.risk}:[/red] {e}", soft_wrap=True)
+            err.print(f"[red]--risk {args.risk}:[/red] {e}", soft_wrap=True)
             return 2
         from . import watch
         risk = {"base": args.risk, **watch.change_risk(report, files)}

@@ -528,6 +528,23 @@ class ChangedFiles(unittest.TestCase):
                 run.changed_files(d, "nope")
             self.assertIn("nope", str(ctx.exception))
 
+    def test_non_ascii_paths_survive_decoding(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+                         GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q", "-b", "main")
+            with open(os.path.join(d, "a.py"), "w") as fh: fh.write("x\n")
+            git("add", "-A"); git("commit", "-q", "-m", "base")
+            git("switch", "-q", "-c", "feature")
+            # a non-UTF-8 (Latin-1) name, straight into the index: see tests/test_filetypes.py's GitPaths
+            blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=b"y\n", cwd=d, capture_output=True, check=True).stdout.decode().strip()
+            name = "caf\xe9.py".encode("latin-1").decode("utf-8", "surrogateescape")
+            subprocess.run(["git", "update-index", "--add", "--cacheinfo", "100644", blob, name], cwd=d, check=True, capture_output=True)
+            git("commit", "-q", "-m", "add a non-ascii file")
+            self.assertIn(name, run.changed_files(d, "main"))
+
 
 class ClearOutputs(unittest.TestCase):
     def test_removes_every_tool_output_but_keeps_meta_and_the_log(self):

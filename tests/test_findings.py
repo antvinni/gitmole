@@ -397,6 +397,10 @@ class Reverts(unittest.TestCase):
         self.assertEqual(findings.reverts(self._report(0)), [])
         self.assertEqual(findings.reverts(report()), [])
 
+    def test_zero_commits_in_meta_gives_nothing_below_and_at_or_above_min_count(self):
+        self.assertEqual(findings.reverts(self._report(3, commits=0, reverted={"a.py": 3})), [])
+        self.assertEqual(findings.reverts(self._report(6, commits=0, reverted={"a.py": 6})), [])
+
 
 class KnowledgeLoss(unittest.TestCase):
     def _report(self, **over):
@@ -448,6 +452,17 @@ class KnowledgeLoss(unittest.TestCase):
         f = findings.knowledge_loss(r)
         self.assertEqual(f[0]["advice"], "Pair someone on (root files) first; nobody who wrote it is around to ask.")
 
+    def test_areas_beyond_three_are_counted_not_named(self):
+        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
+                         age=[{"entity": "a1/x.py", "age-months": 2}],
+                         ownership=[{"entity": "a1/x.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "a2/x.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "a3/x.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "a4/x.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "app/b.py", "author": "Ann", "added": 900, "deleted": 0}])
+        f = findings.knowledge_loss(r)
+        self.assertIn("Areas mostly theirs: a1/ (100%), a2/ (100%), a3/ (100%) and 1 more.", f[0]["detail"])
+
     def test_info_between_ten_and_thirty_percent(self):
         f = findings.knowledge_loss(self._report(theseus_authors={"Ann": 85, "Bob": 15}))
         self.assertEqual(f[0]["severity"], "info")
@@ -480,6 +495,15 @@ class KnowledgeLoss(unittest.TestCase):
         f = findings.knowledge_loss(r)
         self.assertIn("wrote 28% of the code that survives today: Bob (25%), Cat (2%) and 3 others (1%)", f[0]["detail"])
         self.assertNotIn("Dan", f[0]["detail"])
+
+    def test_everyone_under_one_percent_is_counted_not_named(self):
+        # total 1000; 20 gone people at 5 lines each is exactly the 10% floor, and each rounds to 0% individually.
+        people = {f"P{i}": 5 for i in range(20)}
+        r = self._report(theseus_authors={"Ann": 900, **people})
+        for name in people:
+            r["activity"]["authors"][name] = {"commits": 1, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2024-06-01"}
+        f = findings.knowledge_loss(r)
+        self.assertIn("20 people at under 1% each", f[0]["detail"])
 
 
 class ComplexityGrowth(unittest.TestCase):

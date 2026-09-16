@@ -97,6 +97,18 @@ class Step(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertEqual(err.getvalue(), "backtest: fatal: not a tree object\n")
 
+    def test_missing_inputs_exit_2(self):
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "out")
+            os.makedirs(out)   # neither meta.json nor log.txt written
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = backtest.main([out, "--until", "2025-12-01", "--repo", d])
+        self.assertEqual(rc, 2)
+        self.assertEqual(err.getvalue(), "backtest: meta.json and log.txt are needed\n")
+
     def test_no_commit_before_the_cut_off_exits_2(self):
         with tempfile.TemporaryDirectory() as d:
             history_repo(d)

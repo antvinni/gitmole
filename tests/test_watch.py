@@ -125,6 +125,13 @@ class ChangeRisk(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(watch.change_risk(report(), []), {"files": [], "total": 0.0, "watched": 0, "max_score": 0.0})
 
+    def test_a_file_in_the_tree_with_no_revisions_in_the_window_is_not_scored(self):
+        # in size.files (so not "new file"), not a test path, but no maat-revisions row at all:
+        # 0 revisions in the window, so it is not the "changed once" case either.
+        r = report(size={"files": {**report()["size"]["files"], "core/idle.py": {"code": 50, "complexity": 0}}})
+        out = watch.change_risk(r, ["core/idle.py"])
+        self.assertEqual((out["files"][0]["score"], out["files"][0]["reasons"]), (0, ["not scored"]))
+
 
 class Backtest(unittest.TestCase):
     def test_counts_how_many_files_fixed_since_the_cut_off_were_on_the_list(self):

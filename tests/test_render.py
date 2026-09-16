@@ -90,6 +90,9 @@ class Report(unittest.TestCase):
         r["activity"]["revert_commits"] = 1
         self.assertIn("1 revert", rendered(r, []))                     # 1 of 233 commits rounds to 0%
         self.assertNotIn("% of commits are reverts", rendered(r, []))
+        r["activity"]["by_weekday"] = [1000, 0, 0, 0, 0, 0, 0]
+        r["activity"]["revert_commits"] = 2
+        self.assertIn("2 reverts", rendered(r, []))                    # 2 of 1000 commits still rounds to 0%, and is plural
 
     def test_empty_coupling_collapses_to_one_line(self):
         r = sample_report()

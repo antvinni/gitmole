@@ -205,6 +205,17 @@ def _read(out_dir: str, name: str) -> str:
         return fh.read()
 
 
+def _read_json(out_dir: str, name: str, default):
+    """`default` for a missing file or one a killed step left truncated or malformed."""
+    text = _read(out_dir, name)
+    if not text:
+        return default
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return default
+
+
 def load_report(out_dir: str, nested: bool = True) -> dict:
     """Read every output file gitmole writes. Missing optional files become empty values.
 
@@ -233,10 +244,10 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "cohorts": parse_theseus(cohorts) if cohorts else {},
         "theseus_authors": surviving,
         "secrets": parse_secrets(_read(out_dir, "secrets.json")),
-        "activity": json.loads(_read(out_dir, "activity.json") or "{}"),
+        "activity": _read_json(out_dir, "activity.json", {}),
         "functions": parse_functions(_read(out_dir, "functions.csv")),
         "duplicates": parse_duplicates(_read(out_dir, "duplicates.txt")),
-        "trend": json.loads(_read(out_dir, "trend.json") or '{"samples": [], "files": {}}'),
+        "trend": _read_json(out_dir, "trend.json", {"samples": [], "files": {}}),
         "backtest": load_report(os.path.join(out_dir, "backtest"), nested=False)
                     if nested and os.path.isfile(os.path.join(out_dir, "backtest", "meta.json")) else None,
     }
