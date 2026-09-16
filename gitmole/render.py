@@ -28,12 +28,13 @@ SIDE_BY_SIDE_MIN_WIDTH = 100
 
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
-           "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎"}
+           "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
+           "Change risk": "◈"}
 # the one column to read first in each table; the rest are dimmed
 KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "revs", "Change coupling": "degree",
               "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
               "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "ccn",
-              "Watch list": "why"}
+              "Watch list": "why", "Change risk": "risk"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
@@ -174,6 +175,24 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     since = report["meta"].get("since")
     caption = "ranked by churn × recent fixes × complexity × single ownership" + (f"; commits since {since}" if since else "")
     return _section("Watch list", columns, rows, note=None if rows else watch.why_empty(report), caption=caption if rows else None)
+
+
+RISK_CAP = 15
+
+
+def risk_section(risk: dict, base: str, full=True) -> dict:
+    """The files a change touches, each with its watch score as a bar scaled to the repo's worst file."""
+    rows_all = risk["files"]
+    limit = None if full is True else RISK_CAP
+    top = risk["max_score"] or 1.0
+    rows = [(r["file"], "▰" * round(10 * r["score"] / top) if r["score"] else "", " · ".join(r["reasons"])) for r in rows_all[:limit]]
+    columns = [("file", PATH), ("risk", {}), ("why", {"overflow": "fold", "ratio": 3})]
+    notes = [f"total {risk['total']:.1f}; {risk['watched']} of these files are on the watch list"] if rows else []
+    more = _more(len(rows_all), limit)
+    if more:
+        notes.append(more)
+    return _section(f"Change risk ({len(rows_all)} files since {base})", columns, rows,
+                    note=None if rows else f"no files changed since {base}", caption="\n".join(notes) or None)
 
 
 def size_section(report: dict, full: bool = True, width=None) -> dict:
@@ -536,7 +555,7 @@ def _partners(secs: list) -> dict:
     return out
 
 
-def report(report: dict, findings: list, console: Console, full: bool = False) -> None:
+def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None) -> None:
     console.print(header(report, findings))
     console.print(findings_panel(findings))
     secs = sections(report, full=full, width=console.width)
@@ -556,6 +575,8 @@ def report(report: dict, findings: list, console: Console, full: bool = False) -
                 continue
         print_section(console, sec)   # stacked, with the usual blank line before it
         done.add(sec["id"])
+    if risk is not None:
+        print_section(console, risk_section(risk, base, full))
     console.print(Text(""))
     console.print(Text(secrets_line(report), style="red" if leaks.group(report.get("secrets") or []) else "green"))
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
@@ -578,7 +599,7 @@ def _md_findings(findings: list) -> list:
     return out
 
 
-def markdown(report: dict, findings: list, full: bool = False) -> str:
+def markdown(report: dict, findings: list, full: bool = False, risk: dict = None, base: str = None) -> str:
     s = summary(report)
     out = [f"# {s['name']}", "",
            f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "") + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
@@ -586,7 +607,10 @@ def markdown(report: dict, findings: list, full: bool = False) -> str:
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
            "## Findings", ""]
     out += _md_findings(findings)
-    for sec in sections(report, full=True if full else "markdown"):
+    secs = sections(report, full=True if full else "markdown")
+    if risk is not None:
+        secs = secs + [risk_section(risk, base, full=True if full else "markdown")]
+    for sec in secs:
         out += ["", f"## {sec['title']}", ""]
         if not sec["rows"]:
             out.append(f"_{sec['note'] or 'nothing'}_")
@@ -600,10 +624,13 @@ def markdown(report: dict, findings: list, full: bool = False) -> str:
     return "\n".join(out)
 
 
-def to_json(report: dict, findings: list) -> dict:
-    return {**{k: v for k, v in report.items()}, "findings": findings,
-            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
-                      for r in watch.risks(report)[:WATCH_FULL]]}
+def to_json(report: dict, findings: list, risk: dict = None) -> dict:
+    out = {**{k: v for k, v in report.items()}, "findings": findings,
+           "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
+                     for r in watch.risks(report)[:WATCH_FULL]]}
+    if risk is not None:
+        out["change_risk"] = risk
+    return out
 
 
 # --- portfolio -------------------------------------------------------------
