@@ -517,7 +517,7 @@ class Arguments(unittest.TestCase):
         text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("scc", text)
-        self.assertIn("install.sh", text)
+        self.assertIn("brew install", text)
         self.assertNotIn("jar", text)
 
 

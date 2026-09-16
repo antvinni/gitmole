@@ -149,10 +149,6 @@ that ships with macOS's system Python is older and silently builds an empty
 package called UNKNOWN from modern project files. pipx brings its own current
 pip, and `python3 -m pip install -U pip` fixes a plain venv.
 
-On macOS, `./bin/install.sh` does all of the above the developer way: brew
-tools, the Python packages into your user site, and a symlink of
-`bin/gitmole` into Homebrew's bin directory so the checkout is what runs.
-
 ## Run
 
 ```bash
@@ -513,6 +509,12 @@ directory for a remote target:
 
 ## Development
 
+Developer setup: Homebrew for the three tools, `brew install scc
+git-sizer gitleaks`. Then either a virtual environment with
+`pip install -e .`, or the checkout style: `python3 -m pip install --user
+rich lizard` and `ln -sfn "$PWD/bin/gitmole" "$(brew --prefix)/bin/gitmole"`,
+which makes the checkout what runs.
+
 ```bash
 python3 -m unittest discover -s tests -t .
 ```
@@ -572,9 +574,8 @@ and `render.py` draws the report. `bin/gitmole` is a thin launcher.
 
 gitmole is released under the [MIT License](LICENSE).
 
-It does not bundle any of the tools it wraps. `bin/install.sh` fetches them
-from their own sources, and gitmole runs them as separate processes. Their
-licences:
+It does not bundle any of the tools it wraps; gitmole runs them as
+separate processes. Their licences:
 
 | Tool | Licence |
 |---|---|
