@@ -716,6 +716,15 @@ class Json(unittest.TestCase):
         self.assertEqual(d["watch"][0]["file"], "static/apps-metadata.json")
         self.assertIn("reasons", d["watch"][0])
 
+    def test_the_nested_backtest_sub_report_is_left_out(self):
+        r = sample_report()
+        past = sample_report()
+        past["meta"] = {"now": "2026-03-10"}
+        r["backtest"] = past
+        j = render.to_json(r, [])
+        self.assertNotIn("backtest", j, "a second whole report inside the export helps nobody")
+        self.assertIn("watch_backtest", j, "the numbers drawn from it stay")
+
 
 class ChangeRisk(unittest.TestCase):
     RISK = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times", "fixed 5 times in six months"], "watched": True},
@@ -731,6 +740,32 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(sec["rows"][1][1], "▰▰")
         self.assertEqual(sec["rows"][2][1], "")
         self.assertEqual(sec["caption"], "total 3.6; 2 of these files are on the watch list")
+
+    def test_one_watched_file_reads_as_one_file(self):
+        risk = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times"], "watched": True}],
+                "total": 3.0, "watched": 1, "max_score": 3.0}
+        sec = render.risk_section(risk, "main", full=False)
+        self.assertEqual(sec["caption"], "total 3.0; 1 of these files is on the watch list")
+
+    def test_capped_rows_come_from_the_shared_limit_helper(self):
+        risk = {"files": [{"file": f"f{i}.py", "score": 1.0, "reasons": ["changed 3 times"], "watched": False} for i in range(20)],
+                "total": 20.0, "watched": 0, "max_score": 1.0}
+        self.assertEqual(len(render.risk_section(risk, "main", full=False)["rows"]), render.RISK_CAP)
+        self.assertIn("and 5 more", render.risk_section(risk, "main", full=False)["caption"])
+        self.assertEqual(len(render.risk_section(risk, "main", full="markdown")["rows"]), render.RISK_CAP)
+        self.assertEqual(len(render.risk_section(risk, "main", full=True)["rows"]), 20)
+
+    def test_the_section_follows_the_watch_list_not_the_last_table(self):
+        import io
+        from rich.console import Console
+        console = Console(file=io.StringIO(), width=120, record=True, force_terminal=False, color_system=None)
+        render.report(sample_report(), [], console, full=False, risk={"base": "main", **self.RISK}, base="main")
+        text = console.export_text()
+        self.assertLess(text.index("◈ Change risk"), text.index("◉ People"), "the risk of this change belongs with the watch list")
+        self.assertGreater(text.index("◈ Change risk"), text.index("◎ Watch list"))
+        md = render.markdown(sample_report(), [], risk={"base": "main", **self.RISK}, base="main")
+        self.assertLess(md.index("## Change risk"), md.index("## People"))
+        self.assertGreater(md.index("## Change risk"), md.index("## Watch list"))
 
     def test_empty_change(self):
         sec = render.risk_section({"files": [], "total": 0.0, "watched": 0, "max_score": 0.0}, "main", full=False)
