@@ -82,6 +82,15 @@ class Report(unittest.TestCase):
         self.assertIn("1 identity ", text)
         self.assertNotIn("1 identities", text)
 
+    def test_header_mentions_reverts_only_when_there_are_any(self):
+        r = sample_report()
+        r["activity"]["revert_commits"] = 7
+        self.assertIn("3% of commits are reverts", rendered(r, []))     # 7 of 233 commits in by_weekday
+        self.assertNotIn("reverts", rendered(sample_report(), []))
+        r["activity"]["revert_commits"] = 1
+        self.assertIn("1 revert", rendered(r, []))                     # 1 of 233 commits rounds to 0%
+        self.assertNotIn("% of commits are reverts", rendered(r, []))
+
     def test_empty_coupling_collapses_to_one_line(self):
         r = sample_report()
         r["coupling"] = []

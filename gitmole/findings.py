@@ -197,6 +197,36 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
                f"Review {first} before the next release; expect the next bug there.")]
 
 
+def _times(n: int) -> str:
+    return {1: "once", 2: "twice"}.get(n, f"{n} times")
+
+
+def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_share: float = 0.10) -> list:
+    """Commits backed out with git revert. The file most often reverted is where a check before merge pays."""
+    act = report.get("activity") or {}
+    n = act.get("revert_commits") or 0
+    total = report["meta"].get("commits") or 0
+    if not n or (n < min_count and (not total or n / total < min_share)):
+        return []
+    sev = "warning" if total and n / total >= warn_share else "info"
+    reverted = act.get("reverted") or {}
+    items = list(reverted.items())[:3]
+    parts = []
+    for i, (p, c) in enumerate(items):
+        if i == 0:
+            parts.append(f"{p} was reverted {_times(c)}")
+        else:
+            parts.append(f"{p} {_times(c)}")
+    listed = ", ".join(parts)
+    statement = f"{n} of {total} commits are reverts" + (f"; {listed}." if listed else ".")
+    source = [p for p in reverted if not filetypes.is_test_path(p)]
+    if source:
+        advice = f"Add a check before merge for {source[0]}; it is the file most often backed out."
+    else:
+        advice = "Look at why they were backed out; only test files were touched."
+    return [_f(sev, "Reverts", statement, advice)]
+
+
 def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9) -> list:
     areas = knowledge.areas(_source_ownership(report))
     islands = knowledge.islands(areas, min_lines=min_lines, min_share=min_share)
@@ -254,7 +284,7 @@ def duplication(report: dict, min_lines: int = 30) -> list:
                f"Extract the {first['lines']}-line block {where} first.")]
 
 
-RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, brain_methods, tight_coupling,
+RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, reverts, brain_methods, tight_coupling,
          duplication, stale_files, knowledge_islands]
 
 
