@@ -85,11 +85,13 @@ its own environment and a `gitmole` command.
 ### macOS
 
 Homebrew installs gitmole and the three tools in one go. The tap lives in
-this repository, so the first command names it by URL; after that the short
-name works everywhere, `brew upgrade` included.
+this repository, so the first command names it by URL; the second marks it
+trusted, which Homebrew 7 requires before it will install from a third-party
+tap; after that the short name works everywhere, `brew upgrade` included.
 
 ```bash
 brew tap antvinni/gitmole https://github.com/antvinni/gitmole
+brew trust antvinni/gitmole
 brew install gitmole
 ```
 
@@ -102,7 +104,7 @@ pipx install 'git+https://github.com/antvinni/gitmole@v0.2.3'
 
 ### Linux
 
-With Homebrew on Linux the same two commands work unchanged; all three tools
+With Homebrew on Linux the same three commands work unchanged; all three tools
 are bottled there. Without Homebrew, take the tools from your package manager
 where it has them and from the projects' release pages otherwise; each ships
 a static binary, so dropping it into `~/.local/bin` is enough.
