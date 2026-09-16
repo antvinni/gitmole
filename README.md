@@ -129,7 +129,8 @@ gitmole . --fail-on warning            # exit 3 if any finding is a warning or w
 
 `--fail-on` accepts `critical`, `warning`, or `info`. A CI job that runs
 `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"` blocks
-on leaked secrets and still posts the report. Both exports also work with
+on secrets in source files and still posts the report. Secrets found only in
+test files are a warning, so gate on `warning` to block on those too. Both exports also work with
 `--no-run` against an earlier output directory.
 
 ### Big repositories
@@ -295,7 +296,7 @@ rows unless `--full`.
    the same kind are grouped into one entry with a list, and every finding
    ends with a next step that names the file, area or person to start with,
    on its own line under the facts. Currently:
-   secrets in history, an unconfigured git identity (example.com and the
+   secrets in history (see below), an unconfigured git identity (example.com and the
    like), one author owning most surviving code, git-sizer concerns, one file
    dominating the churn, bug magnets (source files fixed three or more times
    in the last six months; a warning at five), brain methods (functions with
@@ -307,6 +308,15 @@ rows unless `--full`.
    least 200 lines written almost entirely by one person (a warning when
    such areas hold most of the code). An unconfigured identity is only
    flagged when it made at least 1% of the commits.
+
+   Secrets are grouped by value, so one key copied into ten files is one
+   entry with its places counted. A value found in any source file is
+   critical. A value found only in test files, such as fixtures and saved
+   web pages, is a warning. Version strings and tokens shortened with "..."
+   cannot be live secrets, so they are left out and counted on the footer
+   line. Nothing is skipped by prefix. To silence a false positive for
+   good, copy its fingerprint from `secrets.json` into a `.gitleaksignore`
+   at the repository root; gitleaks reads it on the next run.
 
    A commit counts as a fix when its subject starts with `fix:`, `hotfix:` or
    `bugfix:` in the conventional style, or mentions fix, bug, hotfix,
@@ -352,7 +362,7 @@ directory for a remote target:
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
-| `secrets.json` | gitleaks | any secret-looking strings across all history |
+| `secrets.json` | gitleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
 | `log.txt` | git | the numstat log export the change analysis reads |
 | `maat-revisions.csv` | change analysis | change frequency per file |
 | `maat-coupling.csv` | change analysis | files that change together |
@@ -418,6 +428,12 @@ and `render.py` draws the report. `bin/gitmole` is a thin launcher.
   your existing gh auth. None of the tools send data anywhere.
 - Remote targets are cloned into a fresh temp directory. Local clones are
   only read, but the log export and the gitleaks scan touch all branches.
+- Secret values never reach the output directory. gitleaks writes its report
+  to gitmole in memory, and gitmole stores a short keyed hash of each value
+  in place of the value, the matched text and the commit message. The key is
+  random, made for that one report and never saved, so a stored hash cannot
+  be checked against a list of common passwords. It only tells you which
+  hits in one report share a value.
 - Install from the official repos or Homebrew with pinned versions, not from
   forks.
 

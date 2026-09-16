@@ -394,6 +394,16 @@ class Timeline(unittest.TestCase):
         self.assertIn("aliases merged for Ann; a .mailmap makes that permanent", text)
         self.assertNotIn("aliases merged", rendered(sample_report(), []))
 
+    def test_secrets_line_counts_distinct_values_and_the_placeholders_left_out(self):
+        def row(value, file, commit, placeholder=False):
+            return {"rule": "r", "file": file, "commit": commit, "line": 1, "fingerprint": f"{commit}:{file}", "value": value, "placeholder": placeholder}
+        r = sample_report()
+        r["secrets"] = [row("h1", "a.py", "c1"), row("h1", "a.py", "c2"), row("h2", "tests/b.py", "c1"), row("h3", "p.json", "c1", True)]
+        self.assertIn("Secrets: 2 distinct values in 3 places; 1 placeholder-shaped hit left out", render.secrets_line(r))
+        r["secrets"] = [row("h3", "p.json", "c1", True)]
+        self.assertEqual(render.secrets_line(r), "Secrets: none found; 1 placeholder-shaped hit left out")
+        self.assertEqual(render.secrets_line(sample_report()), "Secrets: none found")
+
     def test_timeline_absent_without_data(self):
         r = sample_report()
         r["activity"] = {}

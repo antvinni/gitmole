@@ -30,6 +30,42 @@ class SecretsFound(unittest.TestCase):
     def test_nothing_when_clean(self):
         self.assertEqual(findings.secrets_found(report()), [])
 
+    @staticmethod
+    def row(value, file, commit="c1", line=1, rule="generic-api-key", placeholder=False):
+        return {"rule": rule, "file": file, "commit": commit, "line": line, "fingerprint": f"{commit}:{file}:{rule}:{line}",
+                "value": value, "placeholder": placeholder}
+
+    def test_source_values_are_critical_test_only_values_a_warning_each_counted_once(self):
+        r = report(secrets=[self.row("h1", "app/settings.py", "c1", 9), self.row("h1", "app/settings.py", "c2", 9),
+                            self.row("h2", "tests/data/a.html", "c3", 5), self.row("h2", "tests/data/a.html", "c3", 5),
+                            self.row("h2", "app/tests/data/a.html", "c4", 5, rule="aws-access-token"),
+                            self.row("h3", "tests/t.py", "c5", 2)])
+        found = {f["severity"]: f for f in findings.secrets_found(r)}
+        self.assertEqual(set(found), {"critical", "warning"})
+        crit, warn = found["critical"], found["warning"]
+        self.assertEqual(crit["title"], "1 secret(s) in history")
+        self.assertIn("1 distinct value in 2 places: generic-api-key in app/settings.py (c1, c2)", crit["detail"])
+        self.assertIn("Rotate", crit["advice"])
+        self.assertIn(".gitleaksignore", crit["advice"])
+        self.assertEqual(warn["title"], "2 secret(s) only in test files")
+        self.assertIn("2 distinct values in 3 places", warn["detail"])
+        self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
+        self.assertIn(".gitleaksignore", warn["advice"])
+
+    def test_test_only_secrets_do_not_fail_a_critical_gate(self):
+        r = report(secrets=[self.row("h3", "tests/t.py")])
+        self.assertEqual([f["severity"] for f in findings.secrets_found(r)], ["warning"])
+
+    def test_placeholder_shapes_are_not_a_finding(self):
+        r = report(secrets=[self.row("h4", "web/package.json", placeholder=True)])
+        self.assertEqual(findings.secrets_found(r), [])
+
+    def test_examples_name_at_most_three_values(self):
+        r = report(secrets=[self.row(f"h{i}", f"app/f{i}.py", f"c{i}") for i in range(5)])
+        crit = findings.secrets_found(r)[0]
+        self.assertIn("and 2 more", crit["detail"])
+        self.assertEqual(crit["title"], "5 secret(s) in history")
+
 
 class PlaceholderIdentity(unittest.TestCase):
     def test_warns_on_example_com_email_with_commit_share(self):
