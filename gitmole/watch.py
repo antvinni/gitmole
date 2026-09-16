@@ -13,20 +13,17 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 try:
-    from . import filetypes, hotspots
+    from . import filetypes, hotspots, textfmt
 except ImportError:  # pragma: no cover - not run as a script, but keep the package pattern
     import filetypes
     import hotspots
+    import textfmt
 
 CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function is not worth naming
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership
 SOLO_WEIGHT = 1.5       # how much single ownership lifts the score
 COMPANION_DEGREE = 50   # a coupling worth mentioning
 COMPANION_REVS = 5      # ...over enough shared revisions to be a pattern
-
-
-def _times(n: int) -> str:
-    return {1: "once", 2: "twice"}.get(n, f"{n} times")
 
 
 def _owners(report: dict) -> dict:
@@ -110,11 +107,11 @@ def why_empty(report: dict, min_revs: int = 2) -> str:
 
 
 def _reasons(r: dict) -> list:
-    out = [f"changed {_times(r['revs'])}"]
+    out = [f"changed {textfmt.times(r['revs'])}"]
     if r["recent_fixes"]:
-        out.append(f"fixed {_times(r['recent_fixes'])} in six months")
+        out.append(f"fixed {textfmt.times(r['recent_fixes'])} in six months")
     elif r["fixes"]:
-        out.append(f"fixed {_times(r['fixes'])}")
+        out.append(f"fixed {textfmt.times(r['fixes'])}")
     if r["authors"] == 1:
         out.append(f"only {r['owner']} has touched it" if r["owner"] else "one author only")
     elif r["owner_share"] >= SOLO_SHARE and r["owner"]:
