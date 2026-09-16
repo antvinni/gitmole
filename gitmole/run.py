@@ -109,7 +109,7 @@ def env_path() -> str:
     return os.pathsep.join(parts + [os.environ.get("PATH", "")])
 
 
-REQUIRED_TOOLS = ["scc", "git-sizer", "gitleaks"]
+REQUIRED_TOOLS = ["scc", "git-sizer", "betterleaks"]
 PLOT_TOOLS = ["git-of-theseus-analyze"]
 
 
@@ -168,7 +168,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
     steps = [
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
-        {"name": "gitleaks", "argv": [sys.executable, LEAKS_SCRIPT, o("secrets.json")], "stdout": None, "deps": []},   # hashes the values before anything is written
+        {"name": "betterleaks", "argv": [sys.executable, LEAKS_SCRIPT, o("secrets.json")], "stdout": None, "deps": []},   # hashes the values before anything is written
         {"name": "git-log", "argv": [*filetypes.GIT, "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN--%s", "--no-renames"], "stdout": log, "deps": []},
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]

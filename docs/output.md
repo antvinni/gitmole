@@ -13,7 +13,7 @@ directory for a remote target:
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
-| `secrets.json` | gitleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
+| `secrets.json` | betterleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
 | `log.txt` | git | the numstat log export the change analysis reads |
 | `maat-revisions.csv` | change analysis | change frequency per file |
 | `maat-coupling.csv` | change analysis | files that change together |

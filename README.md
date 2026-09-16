@@ -44,7 +44,7 @@ you about a clone.
 | How old is the surviving code, per year and author | gitmole's own blame pass (one `git blame` per file at HEAD) | built in |
 | Code-age and survival plots over time | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip, opt-in with `--plots` |
 | Per-function complexity, length, parameters; duplicated blocks with `--duplicates` | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
-| Have secrets ever been committed | [gitleaks](https://github.com/gitleaks/gitleaks) | brew |
+| Have secrets ever been committed | [betterleaks](https://github.com/betterleaks/betterleaks) | brew |
 
 Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/blob/main/docs/tools.md).
 
@@ -53,7 +53,7 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 gitmole needs git, Python 3.9 or newer, and three tools on your PATH:
 [scc](https://github.com/boyter/scc) for size,
 [git-sizer](https://github.com/github/git-sizer) for repository health and
-[gitleaks](https://github.com/gitleaks/gitleaks) for secrets. gitmole itself
+[betterleaks](https://github.com/betterleaks/betterleaks) for secrets. gitmole itself
 is a Python package; install it with [pipx](https://pipx.pypa.io) so it gets
 its own environment and a `gitmole` command.
 
@@ -89,23 +89,23 @@ a static binary, so dropping it into `~/.local/bin` is enough.
 sudo apt install git git-sizer pipx
 pipx ensurepath                                  # once; then open a new shell
 
-# scc and gitleaks: one static binary each, from their release pages
-#   https://github.com/boyter/scc/releases        (the Linux x86_64 or arm64 archive)
-#   https://github.com/gitleaks/gitleaks/releases (the linux x64 or arm64 archive)
+# scc and betterleaks: one static binary each, from their release pages
+#   https://github.com/boyter/scc/releases               (the Linux x86_64 or arm64 archive)
+#   https://github.com/betterleaks/betterleaks/releases (the linux x64 or arm64 archive)
 # unpack and move the binary into ~/.local/bin, then:
-chmod +x ~/.local/bin/scc ~/.local/bin/gitleaks
+chmod +x ~/.local/bin/scc ~/.local/bin/betterleaks
 
 pipx install gitmole
 ```
 
 On a distribution without a `pipx` package, `python3 -m pip install --user
-pipx` installs it. Some distributions package scc or gitleaks as well; if
+pipx` installs it. Some distributions package scc or betterleaks as well; if
 yours does, prefer that to a downloaded binary.
 
 ### Check
 
 ```bash
-scc --version && git-sizer --version && gitleaks version && gitmole --version
+scc --version && git-sizer --version && betterleaks version && gitmole --version
 gitmole .                                        # a report of the clone you are in
 ```
 
@@ -306,8 +306,9 @@ The full report is in [docs/example.md](https://github.com/antvinni/gitmole/blob
    web pages, is a warning. Version strings and tokens shortened with "..."
    cannot be live secrets, so they are left out and counted on the footer
    line. Nothing is skipped by prefix. To silence a false positive for
-   good, copy its fingerprint from `secrets.json` into a `.gitleaksignore`
-   at the repository root; gitleaks reads it on the next run.
+   good, copy its fingerprint from `secrets.json` into a `.betterleaksignore`
+   at the repository root; betterleaks reads it on the next run, and an
+   existing `.gitleaksignore` works too.
 
    A commit counts as a fix when its subject starts with `fix:`, `hotfix:` or
    `bugfix:` in the conventional style, or mentions fix, bug, hotfix,
@@ -367,7 +368,7 @@ The files each run writes, and how to read them: [docs/output.md](https://github
 ## Development
 
 Developer setup: Homebrew for the three tools,
-`brew install scc git-sizer gitleaks`. Then either a virtual environment
+`brew install scc git-sizer betterleaks`. Then either a virtual environment
 with `pip install -e .`, or the checkout style:
 `python3 -m pip install --user rich lizard` and
 `ln -sfn "$PWD/bin/gitmole" "$(brew --prefix)/bin/gitmole"`, which makes
@@ -418,8 +419,8 @@ and `render.py` draws the report. `bin/gitmole` is a thin launcher.
 - Everything here is offline except the optional clone step, which uses
   your existing gh auth. None of the tools send data anywhere.
 - Remote targets are cloned into a fresh temp directory. Local clones are
-  only read, but the log export and the gitleaks scan touch all branches.
-- Secret values never reach the output directory. gitleaks writes its report
+  only read, but the log export and the betterleaks scan touch all branches.
+- Secret values never reach the output directory. betterleaks writes its report
   to gitmole in memory, and gitmole stores a short keyed hash of each value
   in place of the value, the matched text and the commit message. The key is
   random, made for that one report and never saved, so a stored hash cannot
@@ -439,7 +440,7 @@ separate processes. Their licences:
 |---|---|
 | scc | MIT |
 | git-sizer | MIT |
-| gitleaks | MIT |
+| betterleaks | MIT |
 | rich | MIT |
 | lizard | MIT |
 | git-of-theseus | Apache-2.0 |

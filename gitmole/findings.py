@@ -45,7 +45,7 @@ def secrets_found(report: dict) -> list:
     groups = leaks.group(report.get("secrets") or [])
     source = [g for g in groups if not g["test"]]
     tests = [g for g in groups if g["test"]]
-    ignore = "Add the fingerprint of any false positive from secrets.json to .gitleaksignore in the repository."
+    ignore = "Add the fingerprint of any false positive from secrets.json to .betterleaksignore in the repository."
     out = []
     if source:
         out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source),

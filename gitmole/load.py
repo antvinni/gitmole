@@ -180,7 +180,7 @@ def parse_duplicates(text: str) -> dict:
 
 
 def parse_secrets(text: str) -> list:
-    """gitleaks rows as rule, file, short commit, line, fingerprint, the hashed value and the placeholder
+    """betterleaks rows as rule, file, short commit, line, fingerprint, the hashed value and the placeholder
     flag. A report written before values were hashed still has them: hash them here, keep nothing raw."""
     rows = json.loads(text) if text.strip() else []
     key = leaks.new_key()   # for an older report with raw values: one key per read, as the wrapper does per run
