@@ -157,13 +157,14 @@ def change_risk(report: dict, files: list) -> dict:
 
 
 def backtest(report: dict):
-    """How the watch list as of the cut-off T (report["backtest"]) did against the fixes that came after."""
+    """How the watch list as of the cut-off T (report["backtest"]) did against the fixes that came after.
+    Expected value is a random pick of listed files from the same pool the list draws from."""
     past = report.get("backtest")
     if not past or not (past.get("size") or {}).get("files"):
         return None
     t = past["meta"]["now"]
-    listed = [r["file"] for r in risks(past)[:WATCH_TOP]]
+    pool = [r["file"] for r in risks(past)]
+    listed = pool[:WATCH_TOP]
     fixed = {f["entity"] for f in report.get("fixes") or [] if f.get("last-fix", "") > t and not filetypes.is_test_path(f["entity"])}
-    source_at_t = [p for p in past["size"]["files"] if not filetypes.is_test_path(p)]
-    expected = round(len(listed) * len(fixed) / len(source_at_t), 1) if source_at_t else 0.0
-    return {"t": t, "listed": len(listed), "fixed": len(fixed), "hits": len(fixed.intersection(listed)), "expected": expected}
+    expected = round(len(listed) * len(fixed.intersection(pool)) / len(pool), 1) if pool else 0.0
+    return {"t": t, "pool": len(pool), "listed": len(listed), "fixed": len(fixed), "hits": len(fixed.intersection(listed)), "expected": expected}
