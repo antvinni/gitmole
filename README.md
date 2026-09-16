@@ -84,18 +84,28 @@ its own environment and a `gitmole` command.
 
 ### macOS
 
+Homebrew installs gitmole and the three tools in one go. The tap lives in
+this repository, so the first command names it by URL; after that the short
+name works everywhere, `brew upgrade` included.
+
 ```bash
-brew install scc git-sizer gitleaks pipx
+brew tap antvinni/gitmole https://github.com/antvinni/gitmole
+brew install gitmole
+```
+
+Without Homebrew, install the three tools yourself and use pipx:
+
+```bash
 pipx ensurepath                                  # once; then open a new shell
 pipx install 'git+https://github.com/antvinni/gitmole@v0.2.2'
 ```
 
 ### Linux
 
-Homebrew on Linux has all three tools, bottled, so the macOS commands work
-unchanged. Without Homebrew, take the tools from your package manager where
-it has them and from the projects' release pages otherwise; each ships a
-static binary, so dropping it into `~/.local/bin` is enough.
+With Homebrew on Linux the same two commands work unchanged; all three tools
+are bottled there. Without Homebrew, take the tools from your package manager
+where it has them and from the projects' release pages otherwise; each ships
+a static binary, so dropping it into `~/.local/bin` is enough.
 
 ```bash
 # Debian and Ubuntu: git-sizer and pipx are packaged
@@ -520,8 +530,10 @@ Versions are git tags. To release: bump `__version__` in `gitmole/__init__.py`,
 merge, then tag that commit `vX.Y.Z` and push the tag. CI runs the tests, checks
 that the tag matches `__version__`, builds the sdist and wheel, and creates the
 GitHub release with notes generated from the merged pull requests and the
-artefacts attached. `pipx install 'git+https://github.com/antvinni/gitmole@vX.Y.Z'`
-installs a release. Releases are listed at
+artefacts attached. The release job then bumps `Formula/gitmole.rb` on main
+to the new release, so `brew upgrade gitmole` follows within minutes.
+`pipx install 'git+https://github.com/antvinni/gitmole@vX.Y.Z'` installs a
+release with pipx. Releases are listed at
 https://github.com/antvinni/gitmole/releases.
 
 `bin/render-banner` regenerates `docs/banner.svg` from the banner code.
