@@ -6,9 +6,10 @@ the repository. Reruns the change analysis over OUT_DIR/log.txt with the window 
 the reference date, exports the tree at the last commit before T and runs scc on it, and writes it
 all under OUT_DIR/backtest/ with a meta.json the loader accepts.
 
-The last commit before T is chosen by committer date (trend.rev_before with end_of_day=False), since
-"the tree as of T" is a committer-date notion. The change analysis windows commits by author date instead, so the two only
-disagree for commits that were rebased or cherry-picked after their original authoring."""
+The last commit before T is chosen by committer date (trend.rev_before with end_of_day=False),
+since "the tree as of T" is a committer-date notion. The change analysis windows commits by author
+date instead, so the two only disagree for commits that were rebased or cherry-picked after their
+original authoring."""
 from __future__ import annotations
 
 import argparse

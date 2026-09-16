@@ -159,7 +159,9 @@ def backtest(report: dict):
     past = report.get("backtest")
     if not past or not (past.get("size") or {}).get("files"):
         return None
-    t = past["meta"]["now"]
+    t = (past.get("meta") or {}).get("now")
+    if not t:
+        return None                       # a sub-report without its cut-off cannot be scored
     pool = [r["file"] for r in risks(past)]
     listed = pool[:WATCH_TOP]
     fixed = {f["entity"] for f in report.get("fixes") or [] if f.get("last-fix", "") > t and not filetypes.is_test_path(f["entity"])}

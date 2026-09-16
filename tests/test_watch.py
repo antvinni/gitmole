@@ -147,6 +147,13 @@ class Backtest(unittest.TestCase):
         self.assertIsNone(watch.backtest(report()))
         self.assertIsNone(watch.backtest(report(backtest={"meta": {"now": "2026-03-01"}, "size": {"files": {}}})))
 
+    def test_none_without_a_cut_off_date(self):
+        past = report()
+        past["meta"] = {}                      # size data, but the sub-report never recorded its cut-off
+        self.assertIsNone(watch.backtest(report(backtest=past)), "no date to compare the fixes against")
+        past["meta"] = {"now": ""}
+        self.assertIsNone(watch.backtest(report(backtest=past)))
+
 
 if __name__ == "__main__":
     unittest.main()
