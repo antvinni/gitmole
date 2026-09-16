@@ -2,11 +2,11 @@
 
 # gitmole
 
-> A toolkit for digging into any cloned git repository: who works on it,
-> where the risk is, how old the code is, whether the repo itself is healthy,
-> and whether anything sensitive was ever committed.
->
-> Any stack. Free. Offline. No token. No AI. Light.
+A toolkit for digging into any cloned git repository: who works on it,
+where the risk is, how old the code is, whether the repo itself is healthy,
+and whether anything sensitive was ever committed.
+
+Any stack. Free. Offline. No token. No AI. Light.
 
 ## Principles
 
