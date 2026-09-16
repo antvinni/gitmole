@@ -341,13 +341,20 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
 
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))
+    hidden = 0
+    if full is not True:
+        hidden = sum(1 for p in pairs if filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))
+        pairs = [p for p in pairs if not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))]
     limit = _limit("Change coupling", full)
     rows = [(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in pairs[:limit]]
     columns = [("file", PATH), ("changes with", PATH), ("degree", RIGHT), ("avg revs", RIGHT)]
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "changes with", "degree"])
         rows = _shorten(rows, width, columns, path_columns=2)
-    return _section("Change coupling", columns, rows, note=None if rows else "no pairs with 5+ shared revisions", caption=_more(len(pairs), limit))
+    notes = [c for c in (_more(len(pairs), limit),) if c]
+    if hidden:
+        notes.append(f"{hidden} test pair{'s' if hidden != 1 else ''} hidden; --full shows them")
+    return _section("Change coupling", columns, rows, note=None if rows else "no pairs with 5+ shared revisions", caption="; ".join(notes) or None)
 
 
 def age_section(report: dict, full: bool = True, width=None) -> dict:

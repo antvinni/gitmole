@@ -255,6 +255,16 @@ class Report(unittest.TestCase):
         full_text = rendered(r, [], full=True)
         self.assertIn("tests/test_a.py", full_text[full_text.index("◆ Hotspots"):])
 
+    def test_default_coupling_hides_test_pairs_and_says_so(self):
+        r = sample_report()
+        r["coupling"].append({"entity": "static/tax.html", "coupled": "tests/test_tax.py", "degree": 100, "average-revs": 11})
+        text = rendered(r, [])
+        coupling = text[text.index("Change coupling"):]
+        self.assertNotIn("tests/test_tax.py", coupling)
+        self.assertIn("1 test pair hidden; --full shows them", coupling)
+        full_text = rendered(r, [], full=True)
+        self.assertIn("tests/test_tax.py", full_text[full_text.index("Change coupling"):])
+
     def test_default_complex_functions_hide_test_files(self):
         r = sample_report()
         r["functions"].append({"file": "tests/test_a.py", "function": "test_thing", "ccn": 40, "nloc": 50, "params": 0, "start": 1, "end": 50})
