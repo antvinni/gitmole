@@ -128,3 +128,32 @@ def _reasons(r: dict) -> list:
         tail = f" and {more} other{'s' if more != 1 else ''}" if more else ""
         out.append(f"changes with {other} ({degree}%){tail}")
     return out
+
+
+WATCH_TOP = 15   # the same cap the report's --full watch list uses
+
+
+def change_risk(report: dict, files: list) -> dict:
+    """The watch score of each touched file, and their sum. Files the watch list never scored get 0
+    and one reason saying why."""
+    ranked = risks(report)
+    by_file = {r["file"]: r for r in ranked}
+    watched = {r["file"] for r in ranked[:WATCH_TOP]}
+    in_tree = (report.get("size") or {}).get("files") or {}
+    revisions_dict = {r["entity"]: r.get("n-revs", 0) for r in (report.get("revisions") or [])}
+    rows = []
+    for f in files:
+        r = by_file.get(f)
+        if r:
+            rows.append({"file": f, "score": r["score"], "reasons": r["reasons"], "watched": f in watched})
+        elif filetypes.is_test_path(f):
+            rows.append({"file": f, "score": 0, "reasons": ["test file"], "watched": False})
+        elif revisions_dict.get(f) == 1:
+            rows.append({"file": f, "score": 0, "reasons": ["changed once"], "watched": False})
+        elif f not in in_tree:
+            rows.append({"file": f, "score": 0, "reasons": ["new file"], "watched": False})
+        else:
+            rows.append({"file": f, "score": 0, "reasons": ["changed once"], "watched": False})
+    rows.sort(key=lambda r: (-r["score"], r["file"]))
+    return {"files": rows, "total": float(sum(r["score"] for r in rows)), "watched": sum(r["watched"] for r in rows),
+            "max_score": max((r["score"] for r in rows), default=0.0)}
