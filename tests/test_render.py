@@ -190,6 +190,24 @@ class ComplexFunctions(unittest.TestCase):
             r["meta"]["functions"] = {"status": status}
             self.assertIn(f"Complex functions: {note}", rendered(r, []), status)
 
+    def test_a_partial_run_says_so_even_with_rows(self):
+        r = sample_report()
+        for status, reason in (("timeout", "function metrics timed out"), ("failed", "function metrics failed (see run.log)")):
+            r["meta"]["functions"] = {"status": status}
+            sec = next(x for x in render.sections(r, full=True) if x["title"] == "Complex functions")
+            self.assertTrue(sec["rows"])
+            self.assertEqual(sec["caption"], f"partial: {reason}", status)
+        r["meta"]["functions"] = {"status": "timeout"}
+        r["functions"] = [{"file": "a.py", "function": "simple", "ccn": 2, "nloc": 5, "params": 0, "start": 1, "end": 5}]
+        self.assertIn("Complex functions: nothing over complexity 10 (1 function measured; partial: function metrics timed out)", rendered(r, []))
+
+    def test_a_partial_run_keeps_the_more_caption(self):
+        r = sample_report()
+        r["meta"]["functions"] = {"status": "timeout"}
+        r["functions"] = [{"file": f"f{i}.py", "function": f"fn{i}", "ccn": 20, "nloc": 30, "params": 0, "start": 1, "end": 30} for i in range(10)]
+        sec = next(x for x in render.sections(r, full=False) if x["title"] == "Complex functions")
+        self.assertEqual(sec["caption"], "and 2 more; partial: function metrics timed out")
+
     def test_long_paths_are_elided_like_every_other_table(self):
         r = sample_report()
         r["functions"] = [{"file": "static/javascript/components/deeply/nested/directory/structure/app.js", "function": "render",

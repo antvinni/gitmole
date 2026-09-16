@@ -48,6 +48,22 @@ def write_duplicates(dup: Duplicates, fh) -> None:
     fh.write(f"Total unique rate: {(dup.unique_rate() or 0.0) * 100:.2f}%\n")
 
 
+def analyze(files: list, procs: int, exts: list):
+    """lizard.analyze_files, with one step between the per-file analysis and the cross-file
+    extensions: a file lizard could not read or finish (gone from disk, RecursionError) comes back
+    without the duplicate finder's hash_nodes, which would stop the whole pass at that file."""
+    def with_hash_nodes(infos):
+        for info in infos:
+            if not hasattr(info, "hash_nodes"):
+                info.hash_nodes = []
+            yield info
+    result = with_hash_nodes(lizard.map_files_to_analyzer(files, lizard.FileAnalyzer(exts), procs))
+    for ext in exts:
+        if hasattr(ext, "cross_file_process"):
+            result = ext.cross_file_process(result)
+    return result
+
+
 def measure(repo: str, files: list, out: str, procs: int) -> int:
     """Stream functions.csv while lizard runs, then write duplicates.txt. Returns 0, or 1 when
     lizard gave up on a file (whatever was measured by then stays on disk)."""
@@ -60,7 +76,7 @@ def measure(repo: str, files: list, out: str, procs: int) -> int:
         with open(os.path.join(out, "functions.csv"), "w", encoding="utf-8", newline="") as fh:
             writer = csv.writer(fh, quoting=csv.QUOTE_NONNUMERIC)
             try:
-                for info in lizard.analyze_files(files, threads=procs, exts=exts):
+                for info in analyze(files, procs, exts):
                     for fn in info.function_list:
                         writer.writerow(csv_row(info, fn))
                     fh.flush()

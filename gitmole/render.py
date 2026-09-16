@@ -287,16 +287,19 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     if full is not True:
         rows = _shorten(rows, width, columns, path_columns=(1,))
     status = (report["meta"].get("functions") or {}).get("status", "skipped" if not measured else "run")
+    reason = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)",
+              "skipped": "no function metrics (install lizard)"}.get(status, "function metrics did not complete")
+    partial = f"partial: {reason}" if measured and status in ("timeout", "failed") else None   # the step streams rows, so a stopped one leaves some
     if not measured and status != "run":
-        note = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)",
-                "skipped": "no function metrics (install lizard)"}.get(status, "function metrics did not complete")
+        note = reason
     elif not measured:
         note = "no functions found in the code files"
     elif not rows:
-        note = f"nothing over complexity {CCN_FLOOR} ({len(measured):,} function{'s' if len(measured) != 1 else ''} measured)"
+        note = f"nothing over complexity {CCN_FLOOR} ({len(measured):,} function{'s' if len(measured) != 1 else ''} measured{'; ' + partial if partial else ''})"
     else:
         note = None
-    return _section("Complex functions", columns, rows, note=note, caption=_more(len(funcs), limit))
+    caption = "; ".join(c for c in (_more(len(funcs), limit), partial) if c) or None
+    return _section("Complex functions", columns, rows, note=note, caption=caption)
 
 
 def knowledge_section(report: dict, full: bool = True, width=None) -> dict:

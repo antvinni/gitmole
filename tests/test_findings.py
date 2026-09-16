@@ -182,6 +182,12 @@ class BrainMethods(unittest.TestCase):
     def test_nothing_without_data(self):
         self.assertEqual(findings.brain_methods(report()), [])
 
+    def test_a_partial_run_says_there_may_be_more(self):
+        r = report(functions=self.FUNCS)
+        self.assertNotIn("part way", findings.brain_methods(r)[0]["detail"])
+        r["meta"]["functions"] = {"status": "timeout"}
+        self.assertIn("Function metrics timed out part way, so there may be more. Split them", findings.brain_methods(r)[0]["detail"])
+
 
 class Duplication(unittest.TestCase):
     def test_large_blocks_are_reported(self):
@@ -197,6 +203,12 @@ class Duplication(unittest.TestCase):
     def test_nothing_without_large_blocks(self):
         self.assertEqual(findings.duplication(report(duplicates={"rate": 0.5, "blocks": [{"lines": 12, "places": [("c.py", 1, 12), ("d.py", 1, 12)]}]})), [])
         self.assertEqual(findings.duplication(report()), [])
+
+    def test_a_partial_run_says_there_may_be_more(self):
+        dup = {"rate": 4.2, "blocks": [{"lines": 71, "places": [("a/x.py", 10, 80), ("b/y.py", 5, 75)]}]}
+        r = report(duplicates=dup)
+        r["meta"]["functions"] = {"status": "failed"}
+        self.assertIn("4.2% of lines are duplicated. Function metrics failed part way, so there may be more. Extract", findings.duplication(r)[0]["detail"])
 
 
 class KnowledgeIslands(unittest.TestCase):

@@ -141,6 +141,13 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                f"That is {_pct(covered, total)} of all lines added. Pair or review across them before that person is unavailable.")]
 
 
+def _partial_functions(report: dict) -> str:
+    """A sentence when the lizard step stopped part way, so what it measured is not the whole code."""
+    status = (report["meta"].get("functions") or {}).get("status")
+    reason = {"timeout": "timed out", "failed": "failed"}.get(status)
+    return f" Function metrics {reason} part way, so there may be more." if reason else ""
+
+
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
     """Functions that are both long and complex. A warning when one sits in a hotspot."""
     big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines]
@@ -152,7 +159,7 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     listed = "; ".join(f"{f['function']} ({f['file']}) complexity {f['ccn']}, {f['nloc']} lines, {f['params']} params" for f in big[:5])
     more = f" and {len(big) - 5} more" if len(big) > 5 else ""
     return [_f(sev, "Brain methods",
-               f"{len(big)} function(s) are both long and complex: {listed}{more}. Split them before the next change lands there.")]
+               f"{len(big)} function(s) are both long and complex: {listed}{more}.{_partial_functions(report)} Split them before the next change lands there.")]
 
 
 def duplication(report: dict, min_lines: int = 30) -> list:
@@ -166,7 +173,7 @@ def duplication(report: dict, min_lines: int = 30) -> list:
     listed = "; ".join(f"{b['lines']} lines in {place(b)}" for b in blocks[:3])
     more = f" and {len(blocks) - 3} more" if len(blocks) > 3 else ""
     rate = f" Overall {dup['rate']}% of lines are duplicated." if dup.get("rate") is not None else ""
-    return [_f("info", "Duplicated code", f"{len(blocks)} block(s) of {min_lines}+ duplicated lines: {listed}{more}.{rate} Extract the shared part.")]
+    return [_f("info", "Duplicated code", f"{len(blocks)} block(s) of {min_lines}+ duplicated lines: {listed}{more}.{rate}{_partial_functions(report)} Extract the shared part.")]
 
 
 RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, brain_methods, tight_coupling,

@@ -89,6 +89,15 @@ class FunctionsScript(unittest.TestCase):
         self.assertIn('"tracked"', csv)
         self.assertNotIn("REPO LIZARD RAN", csv)
 
+    def test_a_file_lizard_cannot_read_does_not_stop_the_files_after_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d, extra={"b_gone.py": "def gone():\n    return 3\n", "c_after.py": "def after(a):\n    return a\n"})
+            os.remove(os.path.join(d, "b_gone.py"))   # still in the index, no longer on disk
+            rc, csv, dup = run(d, "--types", "py", "--ignore", "vendor/**")
+        self.assertEqual(rc, 0)
+        self.assertIn('"after"', csv, "files after the unreadable one are still measured")
+        self.assertIn("Total duplicate rate", dup)
+
     def test_duplicate_blocks_list_places_in_path_order(self):
         body = "def f(x):\n" + "".join(f"    y{i} = x + {i}\n    if y{i} > {i}:\n        x = y{i}\n" for i in range(12)) + "    return x\n"
         with tempfile.TemporaryDirectory() as d:
