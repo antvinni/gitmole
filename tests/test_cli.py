@@ -599,6 +599,20 @@ class Risk(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("--risk-threshold needs --risk", c.export_text())
 
+    def test_threshold_needs_risk_under_no_run_too(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            estimator = lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0}
+            c = console()
+            rc = cli.main([d, "--out", out], console=c, tool_check=lambda **kw: [], planner=planner, estimator=estimator)
+            self.assertEqual(rc, 0)
+            c = console()
+            rc = cli.main([out, "--no-run", "--risk-threshold", "1"], console=c)
+            self.assertEqual(rc, 2)
+            self.assertIn("--risk-threshold needs --risk", c.export_text())
+
 
 class BacktestWindow(unittest.TestCase):
     def _run(self, dates, *extra):

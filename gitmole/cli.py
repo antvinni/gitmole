@@ -62,6 +62,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     args = parse_args(sys.argv[1:] if argv is None else argv)
     console = console or Console()
     err = Console(stderr=True) if console.file is sys.stdout else console
+    if args.risk_threshold is not None and not args.risk:
+        err.print("[red]--risk-threshold needs --risk[/red]")
+        return 2
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
     quiet = "-" in (args.json, args.markdown)
     ui = Console(stderr=True) if quiet else console
@@ -80,9 +83,6 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         return 2
     if args.risk and kind != "path":
         err.print("[red]--risk needs a local path[/red]")
-        return 2
-    if args.risk_threshold is not None and not args.risk:
-        err.print("[red]--risk-threshold needs --risk[/red]")
         return 2
 
     args.now = now
