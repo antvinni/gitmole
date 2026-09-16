@@ -40,6 +40,7 @@ def parse_args(argv):
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
     p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) with the watch list's score; needs a local path")
+    p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the change-risk total exceeds N")
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
     return p.parse_args(argv)
 
@@ -79,6 +80,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         return 2
     if args.risk and kind != "path":
         err.print("[red]--risk needs a local path[/red]")
+        return 2
+    if args.risk_threshold is not None and not args.risk:
+        err.print("[red]--risk-threshold needs --risk[/red]")
         return 2
 
     args.now = now
@@ -412,6 +416,8 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
     if "-" not in (args.json, args.markdown):
         render.report(report, found, console, full=args.full, risk=risk, base=args.risk)
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
+        return 3
+    if risk is not None and args.risk_threshold is not None and risk["total"] > args.risk_threshold:
         return 3
     return 0
 
