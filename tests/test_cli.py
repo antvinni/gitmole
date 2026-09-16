@@ -571,6 +571,12 @@ class Risk(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("--risk needs a local path", c.export_text())
 
+    def test_portfolio_targets_refuse_risk(self):
+        c = console()
+        rc = cli.main(["owner/*", "--risk", "main"], console=c, tool_check=lambda **kw: [])
+        self.assertEqual(rc, 2)
+        self.assertIn("--risk needs a local path", c.export_text())
+
 
 class BacktestWindow(unittest.TestCase):
     def _run(self, dates, *extra):

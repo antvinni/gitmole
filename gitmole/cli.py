@@ -109,7 +109,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     except NoCommits as e:
         err.print(f"[red]{e}[/red]")
         return 2
-    return _render(out_dir, console, ui, args)
+    return _render(out_dir, console, ui, args, err)
 
 
 def _resolve_time(args, err, ui):
@@ -145,7 +145,7 @@ def _no_run(args, console, ui, err) -> int:
         return 2
     if ui.is_terminal:
         ui.print(banner.neon())
-    return _render(out_dir, console, ui, args)
+    return _render(out_dir, console, ui, args, err)
 
 
 def _resolve_target(kind, target, args, console, ui, err, planner, estimator, lister, cloner):
@@ -389,7 +389,7 @@ def _write(text: str, target: str, console: Console) -> None:
             fh.write(text)
 
 
-def _render(out_dir: str, console: Console, ui: Console, args) -> int:
+def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> int:
     import json
 
     from . import render
@@ -401,7 +401,7 @@ def _render(out_dir: str, console: Console, ui: Console, args) -> int:
         try:
             files = run.changed_files(report["meta"].get("path") or os.getcwd(), args.risk)
         except ValueError as e:
-            (Console(stderr=True) if console.file is sys.stdout else console).print(f"[red]--risk {args.risk}:[/red] {e}", soft_wrap=True)
+            err.print(f"[red]--risk {args.risk}:[/red] {e}", soft_wrap=True)
             return 2
         from . import watch
         risk = {"base": args.risk, **watch.change_risk(report, files)}
