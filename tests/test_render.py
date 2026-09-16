@@ -378,6 +378,15 @@ class Timeline(unittest.TestCase):
         self.assertIn("bots left out: renovate[bot] (940 commits), github-actions[bot] (195)", text)
         self.assertNotIn("bots left out", rendered(sample_report(), []))
 
+    def test_a_bot_recognised_only_by_email_has_no_timeline_row_either(self):
+        r = sample_report()
+        r["meta"]["bots"] = [{"name": "GitHub", "commits": 12}]   # actions@github.com: a bot by its address, not its name
+        r["activity"]["timeline"]["GitHub"] = {"2026-08": 30, "2026-09": 40}
+        text = rendered(r, [], width=120)
+        timeline = text.split("▦ Timeline")[1].split("◆ Hotspots")[0]
+        self.assertNotIn("GitHub", timeline)
+        self.assertIn("Ann", timeline)
+
     def test_people_caption_names_who_had_aliases_merged(self):
         r = sample_report()
         r["meta"]["identities"][0]["aliases"] = [{"name": "ann-x", "email": "1@users.noreply.github.com", "commits": 3}]

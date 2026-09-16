@@ -241,7 +241,8 @@ class LoadReport(unittest.TestCase):
                 with open(os.path.join(out, "size.json"), "w") as fh:
                     fh.write(size)
                 return load.load_report(out)["size"]["total_code"]
-        self.assertEqual(total({"name": "d", "commits": 1, "identities": []}), 10, "no record: the default code list, like every other step")
+        self.assertEqual(total({"name": "d", "commits": 1, "identities": []}), 9010,
+                         "no record means a run from before the filter: re-render it as it was measured, not with a guessed list")
         self.assertEqual(total({"name": "d", "commits": 1, "identities": [], "file_types": None}), 10)
         self.assertEqual(total({"name": "d", "commits": 1, "identities": [], "file_types": "all"}), 9010)
         self.assertEqual(total({"name": "d", "commits": 1, "identities": [], "file_types": "json"}), 9000)

@@ -253,7 +253,9 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
         span = [m for m in span if m >= since[:7]] or span[-1:]
     columns = [("author", {"overflow": "fold"})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     in_window = {a: sum(per.get(m, 0) for m in span) for a, per in tl.items()}
-    ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0 and not identity.is_bot(a)]
+    # the run decided who is a bot from name and email; the timeline only has the name, so it asks the run
+    bots = {b["name"] for b in report["meta"].get("bots") or []}
+    ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0 and a not in bots and not identity.is_bot(a)]
     limit = _limit("Timeline", full)
     rows = [(a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
     return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))

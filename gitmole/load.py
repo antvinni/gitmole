@@ -208,7 +208,9 @@ def load_report(out_dir: str) -> dict:
     return {
         "out_dir": out_dir,
         "meta": meta,
-        "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta.get("file_types"))),
+        # a run records its --file-types spec (None for the default list); a run from before that record
+        # was measured unfiltered, so it is re-rendered unfiltered rather than with a guessed list
+        "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta["file_types"]) if "file_types" in meta else None),
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
         "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),
