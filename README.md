@@ -98,22 +98,22 @@ size, and the worst finding per repo. `--markdown` and `--json` write a
 portfolio document with every repo's findings; `--fail-on` looks across all
 of them.
 
-Options: `--full` for every column and every row (the default report keeps
-the columns you read, caps each table, and elides long paths in the
-middle), `--out DIR` to choose the output directory, `--no-run DIR` to
-re-render the report from an earlier run, `--since 2y` (or `18m`, `90d`, a
-date) to bound the history by author date so people, activity, timeline,
-hotspots and coupling describe the current team rather than the founders
-(file ages and code age always cover the whole history; identity aliases
-are still merged over all of it; an empty window is an error), `--plots` to
-also draw
-the git-of-theseus code-age and survival charts, `--file-types py,sql` to choose
+Options: `--full` for every column and every row (the default report keeps the
+columns you read, caps each table, and elides long paths in the middle),
+`--out DIR` to choose the output directory, `--no-run DIR` to re-render the
+report from an earlier run, `--since 2y` (or `18m`, `90d`, a date) to bound
+the history by author date so people, activity, timeline, hotspots and
+coupling describe the current team rather than the founders (file ages and
+code age always cover the whole history; identity aliases are still merged
+over all of it; an empty window is an error), `--plots` to also draw the
+git-of-theseus code-age and survival charts, `--file-types py,sql` to choose
 which files count as code (or `all`; `--list-file-types` shows what is in the
 tree and what the default includes), `--duplicates` to also look for
 duplicated blocks, `--workers N` to change how many tools run at once,
-`--timeout S` to cap any single tool (default 15 minutes).
-Ctrl-C kills every running step, including their child processes, and exits
-with code 130.
+`--timeout S` to cap any single tool (default 15 minutes), `--gone MONTHS` to
+change how long without a commit counts as gone (default 12, measured before
+the last commit). Ctrl-C kills every running step, including their child
+processes, and exits with code 130.
 
 All tools run concurrently, so a run takes about as long as the slowest tool.
 Tool stderr goes to `run.log` in the output directory, not the terminal.
@@ -296,19 +296,22 @@ rows unless `--full`.
    the same kind are grouped into one entry with a list, and every finding
    ends with a next step that names the file, area or person to start with,
    on its own line under the facts. Currently:
-   secrets in history (see below), an unconfigured git identity (example.com and the
-   like), one author owning most surviving code, git-sizer concerns, one file
-   dominating the churn, bug magnets (source files fixed three or more times
-   in the last six months; a warning at five), reverts (5% of commits or five of them; a warning at 10%; names the file most often backed out),
-   brain methods (functions with
+   secrets in history (see below), an unconfigured git identity
+   (example.com and the like), one author owning most surviving code,
+   git-sizer concerns, one file dominating the churn, bug magnets (source
+   files fixed three or more times in the last six months; a warning at
+   five), reverts (5% of commits or five of them; a warning at 10%; names
+   the file most often backed out), brain methods (functions with
    complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
    tightly coupled file pairs (a file and its test are expected to change
    together, so those pairs are left out), duplicated blocks of 30+ lines
    (with `--duplicates`), a large share of stale files (files still in the
-   tree; deleted paths do not count), and knowledge islands: areas of at
-   least 200 lines written almost entirely by one person (a warning when
-   such areas hold most of the code). An unconfigured identity is only
-   flagged when it made at least 1% of the commits.
+   tree; deleted paths do not count), knowledge islands: areas of at least
+   200 lines written almost entirely by one person (a warning when such
+   areas hold most of the code), and knowledge loss (people with no commits
+   in the last twelve months who wrote 10% or more of the surviving code; a
+   warning at 30%). An unconfigured identity is only flagged when it made
+   at least 1% of the commits.
 
    Secrets are grouped by value, so one key copied into ten files is one
    entry with its places counted. A value found in any source file is
@@ -338,13 +341,15 @@ rows unless `--full`.
 4. **Tables**: people (identities merged by name and email similarity on
    top of `.mailmap`, and the caption says whose; bots such as renovate,
    dependabot and GitHub Actions are counted apart in the caption and kept
-   out of the timeline), a knowledge map (lines added per area of the tree and
-   who wrote them), a timeline of commits per author over the last twelve
-   months, hotspots ranked by revisions times lines of code with the number
-   of fix commits alongside, change coupling, the most complex functions,
-   repo health. With `--full`: size by language, activity by weekday with
-   the busiest hour and the share of commits that are fixes, and surviving
-   code by year.
+   out of the timeline), a knowledge map (lines added per area of the tree
+   and who wrote them), a timeline of commits per author over the last
+   twelve months, hotspots ranked by revisions times lines of code with the
+   number of fix commits alongside, change coupling, the most complex
+   functions, repo health. The knowledge map marks owners who have stopped
+   committing with `(gone)`, and under `--full` shows the share of each
+   area's lines that they wrote. With `--full`: size by language, activity
+   by weekday with the busiest hour and the share of commits that are
+   fixes, and surviving code by year.
 
    Size, hotspots, coupling, ownership, code age and the watch list only
    look at source files: a built-in list of code extensions plus names like

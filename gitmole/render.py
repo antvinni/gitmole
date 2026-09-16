@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import hotspots, identity, knowledge, leaks, textfmt, watch
+from . import hotspots, identity, knowledge, leaks, loss, textfmt, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -364,17 +364,22 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
 
 
 def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
-    """Ownership by area of the tree: who wrote most of each directory."""
-    areas = knowledge.areas(report.get("ownership") or [])
+    """Ownership by area of the tree: who wrote most of each directory, gone owners marked."""
+    months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
+    gone = {g["name"] for g in loss.gone(report, months)}
+    areas = loss.areas(report.get("ownership") or [], gone)   # every area the map showed before, tests included
     limit = _limit("Knowledge map", full)
     rows = []
     for a in areas[:limit]:
-        owners = [f"{name} ({_pct(n, a['lines'])})" for name, n in a["owners"][:2]] + ["-"]
-        rows.append((a["area"], f"{a['lines']:,}", a["authors"], owners[0], owners[1]))
-    columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("main owner", {}), ("second", {})]
+        owners = [f"{name}{' (gone)' if name in gone else ''} ({_pct(n, a['lines'])})" for name, n in a["owners"][:2]] + ["-"]
+        rows.append((a["area"], f"{a['lines']:,}", a["authors"], _pct(a["lost"], a["lines"]) if gone else "-", owners[0], owners[1]))
+    columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("second", {})]
     if full is not True:
         columns, rows = _keep(columns, rows, ["area", "lines added", "main owner", "second"])
-    return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption=_more(len(areas), limit))
+    notes = [c for c in (_more(len(areas), limit),) if c]
+    if gone:
+        notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}")
+    return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
 
 
 def health_section(report: dict, full: bool = True, width=None) -> dict:
