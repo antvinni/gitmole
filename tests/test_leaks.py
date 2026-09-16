@@ -45,6 +45,20 @@ class Placeholder(unittest.TestCase):
         for value in [VERSION, "1.2.3", "10.4.0+build.7", "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...", "abcdef…"]:
             self.assertTrue(leaks.is_placeholder(value), value)
 
+    def test_a_key_block_without_key_material_is_a_template(self):
+        # Google's service-account sample: header, a dotted body, footer; a real body is hundreds of base64 characters
+        for body in ["...", "\\n...\\n", "", "…", "xxxx"]:
+            self.assertTrue(leaks.is_placeholder(f"-----BEGIN PRIVATE KEY-----{body}-----END PRIVATE KEY-----"), body)
+        self.assertTrue(leaks.is_placeholder("-----BEGIN RSA PRIVATE KEY-----\\n...\\n-----END RSA PRIVATE KEY-----\\n"))
+        real = "-----BEGIN PRIVATE KEY-----\\n" + "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC" * 4 + "\\n-----END PRIVATE KEY-----"
+        self.assertFalse(leaks.is_placeholder(real))
+
+    def test_template_markers_are_placeholders(self):
+        for value in ["your-project-id", "YOUR_API_KEY", "<your-token-here>", "xxxxxxxxxxxxxxxxxxxx", "XXXX-XXXX-XXXX", "changeme", "CHANGE_ME", "replace-me"]:
+            self.assertTrue(leaks.is_placeholder(value), value)
+        for value in ["AKIA" + "X" * 16, "6L" + "x" * 38, "ghp_" + "a1" * 18, "yourkey" + "9" * 20]:
+            self.assertFalse(leaks.is_placeholder(value), "a marker inside real-looking material is not enough: " + value)
+
     def test_anything_else_is_taken_seriously(self):
         # built at runtime: a literal in these shapes would trip secret scanners on this very file
         key_id, long_key = "AKIA" + "X" * 16, "6L" + "x" * 38
@@ -136,11 +150,21 @@ class Group(unittest.TestCase):
         groups = leaks.group(rows)
         self.assertEqual([g["value"] for g in groups], ["h1", "h2", "h3"], "source first, then by places; placeholders left out")
         self.assertEqual(groups[0], {"value": "h1", "rule": "generic-api-key", "files": ["app/settings.py"], "commits": ["c1", "c2"],
-                                     "places": 2, "test": False})
+                                     "places": 2, "test": False, "docs": False})
         self.assertEqual(groups[1]["files"], ["tests/data/a.html", "app/tests/data/a.html"])
         self.assertEqual(groups[1]["places"], 2)
         self.assertTrue(groups[1]["test"])
         self.assertEqual(leaks.placeholders(rows), 1)
+
+    def test_a_value_only_in_documentation_is_flagged_as_such(self):
+        groups = leaks.group([self.row("h1", "docs/GA4-API-INTEGRATION.md", "c1"), self.row("h1", "README.md", "c2")])
+        self.assertTrue(groups[0]["docs"])
+        self.assertFalse(groups[0]["test"])
+        groups = leaks.group([self.row("h1", "docs/setup.md", "c1"), self.row("h1", "app/a.py", "c2")])
+        self.assertFalse(groups[0]["docs"], "one place in source is enough")
+        groups = leaks.group([self.row("h1", "tests/t.py", "c1")])
+        self.assertFalse(groups[0]["docs"])
+        self.assertTrue(groups[0]["test"])
 
     def test_a_value_seen_in_source_and_tests_counts_as_source(self):
         groups = leaks.group([self.row("h1", "tests/t.py", "c1"), self.row("h1", "app/a.py", "c2")])

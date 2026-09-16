@@ -47,7 +47,7 @@ class SecretsFound(unittest.TestCase):
         self.assertIn("1 distinct value in 2 places: generic-api-key in app/settings.py (c1, c2)", crit["detail"])
         self.assertIn("Rotate", crit["advice"])
         self.assertIn(".betterleaksignore", crit["advice"])
-        self.assertEqual(warn["title"], "2 secret(s) only in test files")
+        self.assertEqual(warn["title"], "2 secret(s) only in test or documentation files")
         self.assertIn("2 distinct values in 3 places", warn["detail"])
         self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
         self.assertIn(".betterleaksignore", warn["advice"])
@@ -55,6 +55,15 @@ class SecretsFound(unittest.TestCase):
     def test_test_only_secrets_do_not_fail_a_critical_gate(self):
         r = report(secrets=[self.row("h3", "tests/t.py")])
         self.assertEqual([f["severity"] for f in findings.secrets_found(r)], ["warning"])
+
+    def test_a_value_only_in_documentation_is_a_warning_that_says_template(self):
+        r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508")])
+        f = findings.secrets_found(r)
+        self.assertEqual([x["severity"] for x in f], ["warning"])
+        self.assertEqual(f[0]["title"], "1 secret(s) only in test or documentation files")
+        self.assertIn("fixtures or templates", f[0]["advice"])
+        r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508"), self.row("h1", "app/config.py", "c2")])
+        self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
 
     def test_placeholder_shapes_are_not_a_finding(self):
         r = report(secrets=[self.row("h4", "web/package.json", placeholder=True)])
@@ -75,6 +84,15 @@ class PlaceholderIdentity(unittest.TestCase):
         f = findings.placeholder_identity(r)
         self.assertEqual(f[0]["severity"], "warning")
         self.assertIn("64%", f[0]["detail"])
+        self.assertIn("Bob <bob@x.com> Your Name <you@example.com>", f[0]["advice"], "the .mailmap line, with the top real identity as the likely owner")
+        self.assertIn(".mailmap", f[0]["advice"])
+
+    def test_advice_without_a_real_identity_to_map_to(self):
+        r = report()
+        r["meta"]["identities"] = [{"name": "Your Name", "email": "you@example.com", "commits": 64}]
+        f = findings.placeholder_identity(r)
+        self.assertIn("Set user.name and user.email", f[0]["advice"])
+        self.assertNotIn("<you@example.com>", f[0]["advice"], "no real identity to suggest, so no invented line")
 
     def test_nothing_for_real_identities(self):
         self.assertEqual(findings.placeholder_identity(report()), [])
@@ -133,6 +151,19 @@ class SizerConcerns(unittest.TestCase):
         self.assertEqual(f[0]["advice"], "Move large files to Git LFS or rewrite them out of history.")
         self.assertEqual(f[1]["advice"], "Split the widest directory into subdirectories; a directory that wide slows every checkout and diff.")
 
+    def test_a_big_blob_that_left_the_tree_says_so(self):
+        r = report(sizer=[{"name": "Blobs: Maximum size", "value": "21.3 MiB", "concern": 2, "ref": "static/old.mp4"}],
+                   size={"files": {"static/coming-soon.mp4": {"code": 0, "complexity": 0}}})
+        f = findings.sizer_concerns(r)[0]
+        self.assertIn("static/old.mp4, no longer in the tree", f["detail"])
+        self.assertIn("a history rewrite is only worth it for clone size", f["advice"])
+        r["size"]["files"]["static/old.mp4"] = {"code": 0, "complexity": 0}
+        f = findings.sizer_concerns(r)[0]
+        self.assertNotIn("no longer", f["detail"])
+        self.assertEqual(f["advice"], "Move large files to Git LFS or rewrite them out of history.")
+        r["size"] = {}
+        self.assertNotIn("no longer", findings.sizer_concerns(r)[0]["detail"], "without a tree listing nothing is claimed")
+
     def test_advice_per_kind_of_concern(self):
         # keyed on the loader's "section: metric" names, which are the only ones that occur
         def advice(name, ref=""):
@@ -187,6 +218,16 @@ class TightCoupling(unittest.TestCase):
         pairs = [{"entity": "gitmole/maat.py", "coupled": "tests/test_maat.py", "degree": 100, "average-revs": 16},
                  {"entity": "src/a.js", "coupled": "src/a.test.js", "degree": 100, "average-revs": 9}]
         self.assertEqual(findings.tight_coupling(report(coupling=pairs)), [])
+
+    def test_pairs_of_files_no_longer_in_the_tree_are_history(self):
+        pairs = [{"entity": "static/financial-reporting.html", "coupled": "static/internal-audit.html", "degree": 100, "average-revs": 10},
+                 {"entity": "sections/a.html", "coupled": "sections/b.html", "degree": 90, "average-revs": 8}]
+        tree = {"files": {"sections/a.html": {"code": 1, "complexity": 0}, "sections/b.html": {"code": 1, "complexity": 0}}}
+        f = findings.tight_coupling(report(coupling=pairs, size=tree))
+        self.assertIn("1 pair changes", f[0]["detail"])
+        self.assertNotIn("financial-reporting", f[0]["detail"])
+        f = findings.tight_coupling(report(coupling=pairs))
+        self.assertIn("2 pairs", f[0]["detail"], "without a tree listing every pair counts")
 
     def test_single_pair_reads_grammatically(self):
         pairs = [{"entity": "a", "coupled": "b", "degree": 100, "average-revs": 10}]

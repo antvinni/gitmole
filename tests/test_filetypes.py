@@ -91,6 +91,12 @@ class TestPaths(unittest.TestCase):
         for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md"):
             self.assertFalse(filetypes.is_test_path(path), path)
 
+    def test_documentation_files_and_directories(self):
+        for path in ("README.md", "docs/GA4-API-INTEGRATION.md", "doc/guide.rst", "NOTES.txt", "a/b/CHANGELOG.markdown", "docs/conf.py", "x.adoc"):
+            self.assertTrue(filetypes.is_doc_path(path), path)
+        for path in ("app/settings.py", "static/index.html", "docsite/app.js", "mdx/a.py", "config.yaml"):
+            self.assertFalse(filetypes.is_doc_path(path), path)
+
 
 if __name__ == "__main__":
     unittest.main()

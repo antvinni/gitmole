@@ -40,19 +40,23 @@ def _secret_statement(groups: list) -> str:
 
 def secrets_found(report: dict) -> list:
     """Secrets grouped by value. A value anywhere in source is critical; one that only ever appears in
-    test files (fixtures, saved pages) is a warning, so a critical gate does not trip on test data.
-    Version strings and shortened tokens were flagged as placeholders and are not a finding."""
+    test files (fixtures, saved pages) or documentation (templates, samples) is a warning, so a
+    critical gate does not trip on test data or a planning document. Version strings, template markers
+    and key blocks without key material were flagged as placeholders and are not a finding."""
     groups = leaks.group(report.get("secrets") or [])
-    source = [g for g in groups if not g["test"]]
-    tests = [g for g in groups if g["test"]]
+
+    def in_source(g):
+        return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f)) for f in g["files"])
+    source = [g for g in groups if in_source(g)]
+    aside = [g for g in groups if not in_source(g)]
     ignore = "Add the fingerprint of any false positive from secrets.json to .betterleaksignore in the repository."
     out = []
     if source:
         out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source),
                       f"Rotate them; deleting the file does not remove them from git. {ignore}"))
-    if tests:
-        out.append(_f("warning", f"{len(tests)} secret(s) only in test files", _secret_statement(tests),
-                      f"Confirm they are fixtures, not live keys. {ignore}"))
+    if aside:
+        out.append(_f("warning", f"{len(aside)} secret(s) only in test or documentation files", _secret_statement(aside),
+                      f"Confirm they are fixtures or templates, not live keys. {ignore}"))
     return out
 
 
@@ -67,15 +71,24 @@ def _all_identities(report: dict):
 def placeholder_identity(report: dict, min_share: float = 0.01) -> list:
     """A placeholder name or mailbox with a real share of the commits. One stray commit in thousands
     is not worth the panel space."""
-    total = sum(i["commits"] for i in report["meta"].get("identities") or [])
+    identities = report["meta"].get("identities") or []
+    total = sum(i["commits"] for i in identities)
+
+    def is_placeholder(i):
+        return i["name"].strip().lower() in PLACEHOLDER_NAMES or bool(PLACEHOLDER_EMAIL.search(i["email"].lower()))
+    real = max((i for i in identities if not is_placeholder(i)), key=lambda i: i["commits"], default=None)
     out = []
     for i in _all_identities(report):
         if total and i["commits"] / total < min_share:
             continue
-        if i["name"].strip().lower() in PLACEHOLDER_NAMES or PLACEHOLDER_EMAIL.search(i["email"].lower()):
+        if is_placeholder(i):
+            # the busiest real identity is the likely owner; the line is offered, never applied
+            advice = (f"Set user.name and user.email. If those commits are {real['name']}'s, add to .mailmap: "
+                      f"{real['name']} <{real['email']}> {i['name']} <{i['email']}>; the people, bus factor and "
+                      f"knowledge findings then describe one person." if real
+                      else "Set user.name and user.email; consider a .mailmap for history.")
             out.append(_f("warning", "Unconfigured git identity",
-                          f"\"{i['name']} <{i['email']}>\" made {i['commits']} commits ({_pct(i['commits'], total)}).",
-                          "Set user.name and user.email; consider a .mailmap for history."))
+                          f"\"{i['name']} <{i['email']}>\" made {i['commits']} commits ({_pct(i['commits'], total)}).", advice))
     return out
 
 
@@ -130,12 +143,22 @@ def _sizer_advice(row: dict) -> str:
     return "Consider a shallow clone for CI; the history is the cost."
 
 
+def _tree(report: dict) -> dict:
+    """The files at HEAD, from scc, or {} when the run has no size listing to judge by."""
+    return (report.get("size") or {}).get("files") or {}
+
+
 def sizer_concerns(report: dict) -> list:
+    tree = _tree(report)
     out = []
     for row in report.get("sizer") or []:
         sev = "warning" if row["concern"] >= 2 else "info"
         where = f" at {row['ref']}" if row.get("ref") else ""
-        out.append(_f(sev, "Repo health", f"{row['name']} is {row['value']}{where}. git-sizer level of concern {row['concern']}.", _sizer_advice(row)))
+        advice = _sizer_advice(row)
+        if row.get("ref") and tree and row["name"].startswith("Blobs: ") and row["ref"] not in tree:
+            where += ", no longer in the tree"   # deleting it did not shrink the clone
+            advice = "It is already gone from the tree; a history rewrite is only worth it for clone size."
+        out.append(_f(sev, "Repo health", f"{row['name']} is {row['value']}{where}. git-sizer level of concern {row['concern']}.", advice))
     return out
 
 
@@ -151,9 +174,12 @@ def hotspot_dominance(report: dict, ratio: float = 2.0, minimum: int = 20) -> li
 
 
 def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> list:
-    """A file and its test are expected to change together, so pairs with a test file on either side are left out."""
+    """A file and its test are expected to change together, so pairs with a test file on either side are
+    left out; so are pairs where either file is no longer in the tree, which are history, not a dependency."""
+    tree = _tree(report)
     pairs = [p for p in report.get("coupling") or [] if p["degree"] >= min_degree and p["average-revs"] >= min_revs
-             and not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))]
+             and not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))
+             and not (tree and (p["entity"] not in tree or p["coupled"] not in tree))]
     if not pairs:
         return []
     pairs.sort(key=lambda p: (-p["degree"], -p["average-revs"]))
@@ -169,7 +195,7 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
     """Files still in the tree that nobody has touched. The age table covers every path in the
     history, so paths that were deleted are left out here; they are not dead code, they are gone."""
     age = report.get("age") or []
-    tree = (report.get("size") or {}).get("files") or {}
+    tree = _tree(report)
     if tree:
         age = [a for a in age if a["entity"] in tree]
     if not age:
