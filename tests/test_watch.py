@@ -137,10 +137,11 @@ class Backtest(unittest.TestCase):
                    backtest=past)
         out = watch.backtest(r)
         self.assertEqual(out["t"], "2026-03-01")
+        self.assertEqual(out["pool"], 3, "the pool has three scorable files")
         self.assertEqual(out["listed"], 3, "the past list has three scorable files")
         self.assertEqual(out["fixed"], 2, "parser and other; util's fix is older, the test file does not count")
         self.assertEqual(out["hits"], 1, "parser was listed; other was not")
-        self.assertAlmostEqual(out["expected"], round(3 * 2 / 3, 1), "3 listed × 2 fixed / 3 source files in the tree at T")
+        self.assertAlmostEqual(out["expected"], 1.0, msg="3 listed × 1 fixed in the pool / 3 in the pool")
 
     def test_none_without_a_backtest(self):
         self.assertIsNone(watch.backtest(report()))
