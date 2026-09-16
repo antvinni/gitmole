@@ -366,6 +366,36 @@ class KnowledgeIslands(unittest.TestCase):
         self.assertEqual(findings.knowledge_islands(report()), [])
 
 
+class Reverts(unittest.TestCase):
+    def _report(self, reverts, commits=100, reverted=None):
+        r = report()
+        r["meta"]["commits"] = commits
+        r["activity"] = {"revert_commits": reverts, "reverted": reverted or {}}
+        return r
+
+    def test_info_at_five_percent_names_the_most_reverted_file(self):
+        f = findings.reverts(self._report(5, reverted={"core/a.py": 3, "core/b.py": 2, "tests/t.py": 4}))
+        self.assertEqual(f[0]["severity"], "info")
+        self.assertEqual(f[0]["title"], "Reverts")
+        self.assertIn("5 of 100 commits are reverts; core/a.py was reverted 3 times, core/b.py twice", f[0]["detail"])
+        self.assertEqual(f[0]["advice"], "Add a check before merge for core/a.py; it is the file most often backed out.")
+
+    def test_five_reverts_fire_even_below_five_percent(self):
+        self.assertEqual(len(findings.reverts(self._report(5, commits=1000, reverted={"a.py": 5}))), 1)
+        self.assertEqual(findings.reverts(self._report(4, commits=1000, reverted={"a.py": 4})), [])
+
+    def test_warning_at_ten_percent(self):
+        self.assertEqual(findings.reverts(self._report(10, reverted={"a.py": 10}))[0]["severity"], "warning")
+
+    def test_only_test_files_reverted_says_so(self):
+        f = findings.reverts(self._report(6, reverted={"tests/t.py": 6}))
+        self.assertEqual(f[0]["advice"], "Look at why they were backed out; only test files were touched.")
+
+    def test_nothing_without_reverts_or_activity(self):
+        self.assertEqual(findings.reverts(self._report(0)), [])
+        self.assertEqual(findings.reverts(report()), [])
+
+
 class Advice(unittest.TestCase):
     def test_every_finding_carries_its_next_step_as_a_field_that_ends_the_detail(self):
         r = report(secrets=[{"rule": "aws", "file": "a.env", "commit": "abc1234"}],
