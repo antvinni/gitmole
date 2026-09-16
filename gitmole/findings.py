@@ -202,7 +202,7 @@ def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_shar
     act = report.get("activity") or {}
     n = act.get("revert_commits") or 0
     total = report["meta"].get("commits") or 0
-    if not n or (n < min_count and (not total or n / total < min_share)):
+    if not n or not total or (n < min_count and n / total < min_share):
         return []
     sev = "warning" if total and n / total >= warn_share else "info"
     reverted = act.get("reverted") or {}

@@ -431,7 +431,7 @@ rows unless `--full`.
    says so. `--full` and the exports show fifteen. With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
    score as a bar and the reasons, or why it has none (new file, changed
-   once, test file).
+   once, test file, not scored).
 
    Under the watch list, one line says how the list would have done:
    gitmole reruns the change analysis as of six months before the last

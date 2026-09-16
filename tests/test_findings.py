@@ -397,8 +397,9 @@ class Reverts(unittest.TestCase):
         self.assertEqual(findings.reverts(self._report(0)), [])
         self.assertEqual(findings.reverts(report()), [])
 
-    def test_zero_commits_in_meta_gives_nothing(self):
+    def test_zero_commits_in_meta_gives_nothing_below_and_at_or_above_min_count(self):
         self.assertEqual(findings.reverts(self._report(3, commits=0, reverted={"a.py": 3})), [])
+        self.assertEqual(findings.reverts(self._report(6, commits=0, reverted={"a.py": 6})), [])
 
 
 class KnowledgeLoss(unittest.TestCase):
