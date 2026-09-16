@@ -64,12 +64,13 @@ def _section(title, columns, rows, note=None, caption=None) -> dict:
 
 
 def _limit(title: str, full, cap=None):
-    """How many rows to keep: None for all. `full` may be False (terminal default), True, or 'markdown'."""
+    """How many rows to keep: None for all. `full` may be False (terminal default), True, or 'markdown'.
+    An explicit `cap` is the section's own cap and holds for Markdown too."""
     if full is True:
         return None
-    if full == "markdown":
-        return MARKDOWN_CAP
-    return cap if cap is not None else CAPS.get(title)
+    if cap is not None:
+        return cap
+    return MARKDOWN_CAP if full == "markdown" else CAPS.get(title)
 
 
 def _more(total: int, limit) -> str:
@@ -194,11 +195,12 @@ RISK_CAP = 15
 def risk_section(risk: dict, base: str, full=True) -> dict:
     """The files a change touches, each with its watch score as a bar scaled to the repo's worst file."""
     rows_all = risk["files"]
-    limit = None if full is True else RISK_CAP
+    limit = _limit("Change risk", full, cap=RISK_CAP)
     top = risk["max_score"] or 1.0
     rows = [(r["file"], "▰" * round(10 * r["score"] / top) if r["score"] else "", " · ".join(r["reasons"])) for r in rows_all[:limit]]
     columns = [("file", PATH), ("risk", {}), ("why", {"overflow": "fold", "ratio": 3})]
-    notes = [f"total {risk['total']:.1f}; {risk['watched']} of these files are on the watch list"] if rows else []
+    watched = risk["watched"]
+    notes = [f"total {risk['total']:.1f}; {watched} of these files {'is' if watched == 1 else 'are'} on the watch list"] if rows else []
     more = _more(len(rows_all), limit)
     if more:
         notes.append(more)
@@ -596,8 +598,8 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
                 continue
         print_section(console, sec)   # stacked, with the usual blank line before it
         done.add(sec["id"])
-    if risk is not None:
-        print_section(console, risk_section(risk, base, full))
+        if risk is not None and sec["id"] == "watch":
+            print_section(console, risk_section(risk, base, full))   # the change, right under the list it is scored against
     console.print(Text(""))
     console.print(Text(secrets_line(report), style="red" if leaks.group(report.get("secrets") or []) else "green"))
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
@@ -630,7 +632,8 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
     out += _md_findings(findings)
     secs = sections(report, full=True if full else "markdown")
     if risk is not None:
-        secs = secs + [risk_section(risk, base, full=True if full else "markdown")]
+        after = next((i for i, sec in enumerate(secs) if sec["id"] == "watch"), len(secs) - 1)
+        secs = secs[:after + 1] + [risk_section(risk, base, full=True if full else "markdown")] + secs[after + 1:]
     for sec in secs:
         out += ["", f"## {sec['title']}", ""]
         if not sec["rows"]:
@@ -646,7 +649,7 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
 
 
 def to_json(report: dict, findings: list, risk: dict = None) -> dict:
-    out = {**{k: v for k, v in report.items()}, "findings": findings,
+    out = {**{k: v for k, v in report.items() if k != "backtest"}, "findings": findings,   # the sub-report is a report of its own
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
     bt = watch.backtest(report)
