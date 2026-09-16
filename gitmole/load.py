@@ -11,6 +11,11 @@ from collections import Counter, OrderedDict
 from . import identity
 
 
+def _rel(path: str) -> str:
+    """Tools started in the repo print './x'; the log and blame say 'x'."""
+    return path[2:] if path.startswith("./") else path
+
+
 def parse_scc(text: str) -> dict:
     rows = json.loads(text) if text.strip() else []
     languages = sorted(
@@ -30,9 +35,7 @@ def parse_scc(text: str) -> dict:
     files = {}
     for r in rows:
         for f in r.get("Files", []) or []:
-            loc = f.get("Location", "")
-            loc = loc[2:] if loc.startswith("./") else loc
-            files[loc] = {"code": f.get("Code", 0), "complexity": f.get("Complexity", 0)}
+            files[_rel(f.get("Location", ""))] = {"code": f.get("Code", 0), "complexity": f.get("Complexity", 0)}
     return {
         "languages": languages,
         "total_code": sum(r["code"] for r in languages),
@@ -120,8 +123,8 @@ def parse_functions(text: str) -> list:
     for r in csv.reader(io.StringIO(text)):
         if len(r) < 11:
             continue
-        loc = r[6][2:] if r[6].startswith("./") else r[6]
-        rows.append({"file": loc, "function": r[7], "ccn": int(r[1]), "nloc": int(r[0]), "params": int(r[3]), "start": int(r[9]), "end": int(r[10])})
+        rows.append({"file": _rel(r[6]), "function": r[7], "ccn": _num(r[1]), "nloc": _num(r[0]), "params": _num(r[3]),
+                     "start": _num(r[9]), "end": _num(r[10])})
     return rows
 
 
@@ -139,8 +142,7 @@ def parse_duplicates(text: str) -> dict:
         elif current is not None:
             m = _DUP_PLACE.match(line)
             if m:
-                path = m.group(1)
-                current.append((path[2:] if path.startswith("./") else path, int(m.group(2)), int(m.group(3))))
+                current.append((_rel(m.group(1)), int(m.group(2)), int(m.group(3))))
             elif line.startswith("^^^"):
                 if current:
                     blocks.append({"lines": current[0][2] - current[0][1] + 1, "places": current})

@@ -181,6 +181,22 @@ class ComplexFunctions(unittest.TestCase):
         r["functions"] = []
         self.assertIn("Complex functions: no function metrics (install lizard)", rendered(r, []))
 
+    def test_note_says_why_there_is_nothing(self):
+        r = sample_report()
+        r["functions"] = []
+        for status, note in (("skipped", "no function metrics (install lizard)"), ("timeout", "function metrics timed out"),
+                             ("failed", "function metrics failed (see run.log)"), ("run", "no functions found in the code files")):
+            r["meta"]["functions"] = {"status": status}
+            self.assertIn(f"Complex functions: {note}", rendered(r, []), status)
+
+    def test_long_paths_are_elided_like_every_other_table(self):
+        r = sample_report()
+        r["functions"] = [{"file": "static/javascript/components/deeply/nested/directory/structure/app.js", "function": "render",
+                           "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200}]
+        text = rendered(r, [], width=80)
+        self.assertRegex(text, r"render\s+static/…/structure/app.js\s+27")
+        self.assertNotIn("component\n", text)
+
     def test_only_functions_over_the_floor(self):
         r = sample_report()
         r["functions"] = [{"file": "a.py", "function": "simple", "ccn": 9, "nloc": 300, "params": 0, "start": 1, "end": 300}]

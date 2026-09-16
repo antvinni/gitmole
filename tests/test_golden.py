@@ -71,7 +71,7 @@ def update_requested() -> bool:
     return os.environ.get("UPDATE_GOLDEN", "").strip().lower() in ("1", "true", "yes")
 
 
-@unittest.skipUnless(run.missing_tools() == [], "external tools not installed")
+@unittest.skipUnless(run.missing_tools() == [] and run.has_lizard(), "external tools or lizard not installed")
 class Golden(unittest.TestCase):
     def test_report_matches_stored_output(self):
         with tempfile.TemporaryDirectory() as work:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import importlib.util
 import json
 import os
 import re
@@ -16,6 +17,7 @@ from . import blame, filetypes, identity
 
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
+FUNCTIONS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "functions.py")
 
 MONTH = 30 * 24 * 3600  # git-of-theseus sampling interval in seconds
 
@@ -114,7 +116,12 @@ def has_tool(name: str, path: str = None) -> bool:
 def missing_tools(plots: bool = False, path: str = None) -> list:
     path = env_path() if path is None else path
     wanted = REQUIRED_TOOLS + (PLOT_TOOLS if plots else [])
-    return [t for t in wanted if not any(os.access(os.path.join(d, t), os.X_OK) for d in path.split(os.pathsep) if d)]
+    return [t for t in wanted if not has_tool(t, path)]
+
+
+def has_lizard(finder=importlib.util.find_spec) -> bool:
+    """lizard is a Python module run with this interpreter, so PATH says nothing about it."""
+    return finder("lizard") is not None
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
@@ -135,11 +142,8 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if lizard:
-        excludes = [x for pattern in ignore for x in ("-x", pattern)]
-        steps += [
-            {"name": "functions", "argv": ["lizard", "--csv", *excludes, "."], "stdout": o("functions.csv"), "deps": []},
-            {"name": "duplicates", "argv": ["lizard", "-Eduplicate", *excludes, "."], "stdout": o("duplicates.txt"), "deps": []},
-        ]
+        steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(procs or blame.default_procs()), *ignores, *type_args],
+                      "stdout": None, "deps": []})
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
     if plots:

@@ -28,8 +28,8 @@ def parse_args(argv):
     p.add_argument("--time-budget", type=float, default=60, metavar="SECONDS", help="skip code age when its projected time exceeds this (default 60)")
     p.add_argument("--budget", type=int, default=50000, help="max git blames before plots are skipped (default 50000)")
     p.add_argument("--timeout", type=float, default=900, help="seconds any single tool may run before being killed (default 900)")
-    p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from code age and plots")
-    p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra ignore pattern for code age and plots (repeatable)")
+    p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from code age, function metrics and plots")
+    p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra ignore pattern for code age, function metrics and plots (repeatable)")
     p.add_argument("--since", metavar="WHEN", help="only analyse history newer than this: 2y, 18m, 90d or YYYY-MM-DD (code age is always the whole tree)")
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
@@ -50,7 +50,7 @@ def interrupt(*_):
 
 
 def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
-         lister=run.list_repos, cloner=run.clone) -> int:
+         lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard) -> int:
     global _control
     _control = run.Control()
     if threading.current_thread() is threading.main_thread():
@@ -113,6 +113,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         err.print("[red]missing tools:[/red] " + ", ".join(missing))
         err.print("run bin/install.sh from the gitmole checkout")
         return 2
+    args.lizard = lizard_check()   # decided once, for every repository this run analyses
 
     if kind == "org":
         return _portfolio(target, args, console, ui, planner, estimator, lister, cloner)
@@ -196,8 +197,13 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
                    "projected_seconds": projected, "time_budget": args.time_budget}
     if args.plots:
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
+    lizard_ok = args.lizard
+    meta["functions"] = {"status": "run" if lizard_ok else "skipped"}
+    for stale in ("functions.csv", "duplicates.txt"):   # written by the functions step; never let a previous run's pass for this one
+        if os.path.exists(os.path.join(out_dir, stale)):
+            os.remove(os.path.join(out_dir, stale))
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
-                    since=args.since_date, lizard=run.has_tool("lizard"))
+                    since=args.since_date, lizard=lizard_ok)
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
     if _control.cancelled.is_set():
@@ -209,6 +215,8 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         meta["age"]["status"] = "timeout"
     if results.get("git-of-theseus") == "timeout":
         meta["plots"]["status"] = "timeout"
+    if lizard_ok and results.get("functions") not in (0, None):
+        meta["functions"]["status"] = "timeout" if results["functions"] == "timeout" else "failed"
     run.save_meta(meta, out_dir)
 
     failed = [n for n, rc in results.items() if rc != 0]

@@ -22,7 +22,7 @@ def shorten_path(path: str, max_len: int) -> str:
     return candidates[-1]
 
 
-_ADVICE_VERBS = ("Add ", "Set ", "Rotate ", "Pair ", "Rerun ", "Expect ", "Consider ", "Use ", "Review ", "Merge ", "Split ", "Move ")
+_ADVICE_VERBS = ("Add ", "Set ", "Rotate ", "Pair ", "Rerun ", "Expect ", "Consider ", "Use ", "Review ", "Merge ", "Split ", "Move ", "Extract ")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 
 

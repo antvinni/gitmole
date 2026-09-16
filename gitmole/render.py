@@ -12,7 +12,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import knowledge, textfmt
+from . import hotspots, knowledge, textfmt
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -76,21 +76,28 @@ def _keep(columns: list, rows: list, names) -> tuple:
     return [columns[i] for i in picked], [tuple(r[i] for i in picked) for r in rows]
 
 
-def _path_room(width, rows: list, columns: list, path_columns: int = 1) -> int:
+def _path_indices(path_columns) -> tuple:
+    """path_columns: the first N columns (an int) or explicit column indices."""
+    return tuple(range(path_columns)) if isinstance(path_columns, int) else tuple(path_columns)
+
+
+def _path_room(width, rows: list, columns: list, path_columns=1) -> int:
     """Characters available to each path column once the other cells and rich's padding are counted."""
     if width is None:
         return None
-    other = [i for i, c in enumerate(columns) if i >= path_columns]
+    paths = _path_indices(path_columns)
+    other = [i for i in range(len(columns)) if i not in paths]
     widest = sum(max([len(str(r[i])) for r in rows] + [len(columns[i][0])]) for i in other)
     padding = 3 * (len(columns) - 1)
-    return max(16, (width - widest - padding) // path_columns)
+    return max(16, (width - widest - padding) // len(paths))
 
 
-def _shorten(rows: list, width, columns: list, path_columns: int = 1) -> list:
+def _shorten(rows: list, width, columns: list, path_columns=1) -> list:
     room = _path_room(width, rows, columns, path_columns)
     if room is None:
         return rows
-    return [tuple(textfmt.shorten_path(str(c), room) if i < path_columns else c for i, c in enumerate(r)) for r in rows]
+    paths = _path_indices(path_columns)
+    return [tuple(textfmt.shorten_path(str(c), room) if i in paths else c for i, c in enumerate(r)) for r in rows]
 
 
 # --- data ------------------------------------------------------------------
@@ -198,18 +205,14 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
-    files = report["size"].get("files") or {}
-    scored = []
-    for r in report.get("revisions") or []:
-        info = files.get(r["entity"])
-        scored.append((r["n-revs"] * info["code"] if info else -1, r, info))
-    scored.sort(key=lambda t: (-t[0], -t[1]["n-revs"], t[1]["entity"]))
+    scored = hotspots.ranked(report)
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
     rows = []
-    for score, r, info in scored[:limit]:
-        rows.append((r["entity"], r["n-revs"], f"{info['code']:,}" if info else "-", info["complexity"] if info else "-",
-                     f"{score:,}" if info else "-", fixes.get(r["entity"], 0), authors.get(r["entity"], "-"), ages.get(r["entity"], "-")))
+    for h in scored[:limit]:
+        gone = h["code"] is None
+        rows.append((h["entity"], h["revs"], "-" if gone else f"{h['code']:,}", "-" if gone else h["complexity"],
+                     "-" if gone else f"{h['score']:,}", fixes.get(h["entity"], 0), authors.get(h["entity"], "-"), ages.get(h["entity"], "-")))
     columns = [("file", PATH), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT), ("fixes", RIGHT), ("authors", RIGHT), ("idle", RIGHT)]
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors"])
@@ -276,9 +279,12 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
     if full is not True:
-        rows = [(r[0], *_shorten([r[1:2]], width, [columns[1]])[0], *r[2:]) for r in rows]
-    if not measured:
-        note = "no function metrics (install lizard)"
+        rows = _shorten(rows, width, columns, path_columns=(1,))
+    status = (report["meta"].get("functions") or {}).get("status", "skipped" if not measured else "run")
+    if not measured and status != "run":
+        note = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)"}.get(status, "no function metrics (install lizard)")
+    elif not measured:
+        note = "no functions found in the code files"
     elif not rows:
         note = f"nothing over complexity {CCN_FLOOR} ({len(measured):,} function{'s' if len(measured) != 1 else ''} measured)"
     else:

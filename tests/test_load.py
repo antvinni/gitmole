@@ -111,6 +111,11 @@ class ParseFunctions(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(load.parse_functions(""), [])
 
+    def test_a_row_cut_short_by_a_killed_step_does_not_abort_the_report(self):
+        rows = load.parse_functions(self.CSV + '5,3,40,1,5,"g@1-5@a.py","a.py","g","g( )",1,\n')
+        self.assertEqual(len(rows), 3)
+        self.assertEqual((rows[2]["function"], rows[2]["end"]), ("g", 0))
+
 
 class ParseDuplicates(unittest.TestCase):
     TEXT = """header junk

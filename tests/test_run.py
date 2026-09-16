@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import tempfile
+import sys
 import unittest
 
 from gitmole import run
@@ -186,22 +187,21 @@ class Plan(unittest.TestCase):
         self.assertIn("--use-mailmap", by["git-log"]["argv"])
         self.assertEqual(by["git-log"]["argv"][:4], ["git", "-c", "core.quotePath=false", "log"], "non-ASCII paths must not be octal-escaped and quoted")
 
-    def test_function_metrics_step_is_optional_and_excludes_ignores(self):
-        by = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, ignore=["vendor/**"])}
-        self.assertEqual(by["functions"]["argv"][:2], ["lizard", "--csv"])
-        self.assertEqual(by["functions"]["stdout"], "/o/functions.csv")
-        self.assertEqual(by["duplicates"]["argv"][:2], ["lizard", "-Eduplicate"])
-        self.assertEqual(by["duplicates"]["stdout"], "/o/duplicates.txt")
-        for step in ("functions", "duplicates"):
-            argv = by[step]["argv"]
-            self.assertEqual(argv[argv.index("-x") + 1], "vendor/**")
-        names = [s["name"] for s in run.plan("/r", "/o", lizard=False)]
-        self.assertNotIn("functions", names)
-        self.assertNotIn("duplicates", names)
+    def test_function_metrics_step_is_optional_and_runs_the_bundled_script(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, ignore=["vendor/**"], types="py,sql", procs=3)}
+        argv = by["functions"]["argv"]
+        self.assertEqual(argv[:4], [sys.executable, run.FUNCTIONS_SCRIPT, "/r", "/o"])
+        self.assertEqual(argv[argv.index("--ignore") + 1], "vendor/**")
+        self.assertEqual(argv[argv.index("--types") + 1], "py,sql")
+        self.assertEqual(argv[argv.index("--procs") + 1], "3")
+        self.assertIsNone(by["functions"]["stdout"], "the script writes functions.csv and duplicates.txt itself")
+        self.assertNotIn("duplicates", by, "one lizard pass produces both")
+        self.assertNotIn("functions", [s["name"] for s in run.plan("/r", "/o", lizard=False)])
 
-    def test_lizard_is_detected_not_required(self):
+    def test_lizard_is_detected_as_a_python_module_not_a_command(self):
         self.assertNotIn("lizard", run.REQUIRED_TOOLS)
-        self.assertIn(run.has_tool("lizard", path="/nonexistent"), (False,))
+        self.assertTrue(run.has_lizard())
+        self.assertFalse(run.has_lizard(finder=lambda name: None))
 
     def test_code_age_runs_the_bundled_blame_script(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", ignore=["*.csv"])}

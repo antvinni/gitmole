@@ -53,6 +53,40 @@ def _tiny_repo(d):
     subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "--allow-empty", "-m", "x"], check=True)
 
 
+class FunctionMetrics(unittest.TestCase):
+    def _main(self, lizard, calls, stale=()):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            out = os.path.join(d, "out")
+            os.makedirs(out)
+            for name in stale:
+                open(os.path.join(out, name), "w").close()
+            def planner(repo, o, branch="HEAD", **kw):
+                calls.append(kw)
+                return [{"name": "quick", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}]
+            rc = cli.main([d, "--out", out], console=console(), tool_check=lambda **kw: [], planner=planner,
+                          estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1}, lizard_check=lambda: lizard)
+            with open(os.path.join(out, "meta.json")) as fh:
+                meta = json.load(fh)
+            left = sorted(n for n in os.listdir(out) if n in ("functions.csv", "duplicates.txt"))
+        return rc, meta, left
+
+    def test_decided_once_and_recorded(self):
+        calls = []
+        rc, meta, _ = self._main(True, calls)
+        self.assertEqual(rc, 0)
+        self.assertTrue(calls[0]["lizard"])
+        self.assertEqual(meta["functions"]["status"], "run")
+
+    def test_skipped_without_lizard_and_stale_outputs_are_removed(self):
+        calls = []
+        rc, meta, left = self._main(False, calls, stale=("functions.csv", "duplicates.txt"))
+        self.assertEqual(rc, 0)
+        self.assertFalse(calls[0]["lizard"])
+        self.assertEqual(meta["functions"]["status"], "skipped")
+        self.assertEqual(left, [], "last run's lizard output must not pass for this run's")
+
+
 class Budget(unittest.TestCase):
     def _main(self, extra, estimate, plan_calls):
         with tempfile.TemporaryDirectory() as d:

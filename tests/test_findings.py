@@ -171,6 +171,14 @@ class BrainMethods(unittest.TestCase):
         self.assertEqual(findings.brain_methods(r)[0]["severity"], "warning")
         self.assertEqual(findings.brain_methods(report(functions=self.FUNCS))[0]["severity"], "info")
 
+    def test_hotspot_means_the_ranking_the_table_shows(self):
+        funcs = [{"file": "big.py", "function": "run", "ccn": 40, "nloc": 300, "params": 1, "start": 1, "end": 300}]
+        revs = [{"entity": f"t{i}.py", "n-revs": 31} for i in range(11)] + [{"entity": "big.py", "n-revs": 30}]
+        files = {f"t{i}.py": {"code": 10, "complexity": 0} for i in range(11)}
+        files["big.py"] = {"code": 5000, "complexity": 40}
+        r = report(functions=funcs, revisions=revs, size={"files": files})
+        self.assertEqual(findings.brain_methods(r)[0]["severity"], "warning", "big.py is the top hotspot by revisions × lines")
+
     def test_nothing_without_data(self):
         self.assertEqual(findings.brain_methods(report()), [])
 

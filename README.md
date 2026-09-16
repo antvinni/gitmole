@@ -22,7 +22,7 @@ analysis can tell you about a repo.
 | Where is the risk: hotspots, coupling, ownership | gitmole's own change analysis over `git log --numstat` | built in |
 | How old is the surviving code, per year and author | gitmole's own blame pass (one `git blame` per file at HEAD) | built in |
 | Code-age and survival plots over time | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip, opt-in with `--plots` |
-| Per-function complexity, length, parameters; duplicated blocks | [lizard](https://github.com/terryyin/lizard) | pip, used when installed |
+| Per-function complexity, length, parameters; duplicated blocks | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
 | Have secrets ever been committed | [gitleaks](https://github.com/gitleaks/gitleaks) | brew |
 | Anything custom the above don't answer | [PyDriller](https://github.com/ishepard/pydriller) | pip |
 
@@ -146,9 +146,9 @@ Blame is the one cost that scales with repo size. gitmole keeps it in check:
   `--budget` (default 50,000 blames);
 - `--deep` forces both regardless of the budgets;
 - `--ignore-data` excludes data-like files (csv, json, lock files, minified
-  and vendored assets) from blame, and `--ignore GLOB` adds your own
-  patterns, repeatable. Both shrink the blame count a lot on repos full of
-  exports and fixtures.
+  and vendored assets) from blame and from the function metrics, and
+  `--ignore GLOB` adds your own patterns, repeatable. Both shrink the blame
+  count a lot on repos full of exports and fixtures.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
 marked in the report, and the rest of the report still renders.

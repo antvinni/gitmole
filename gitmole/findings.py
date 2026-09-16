@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import knowledge
+from . import hotspots, knowledge
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -141,18 +141,13 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                f"That is {_pct(covered, total)} of all lines added. Pair or review across them before that person is unavailable.")]
 
 
-def _hot_files(report: dict, n: int = 10) -> set:
-    revs = sorted(report.get("revisions") or [], key=lambda r: -r["n-revs"])
-    return {r["entity"] for r in revs[:n]}
-
-
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
     """Functions that are both long and complex. A warning when one sits in a hotspot."""
     big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines]
     if not big:
         return []
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"]))
-    hot = _hot_files(report)
+    hot = hotspots.top(report)
     sev = "warning" if any(f["file"] in hot for f in big) else "info"
     listed = "; ".join(f"{f['function']} ({f['file']}) complexity {f['ccn']}, {f['nloc']} lines, {f['params']} params" for f in big[:5])
     more = f" and {len(big) - 5} more" if len(big) > 5 else ""
