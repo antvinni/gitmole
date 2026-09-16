@@ -9,7 +9,7 @@ is healthy, and whether anything sensitive was ever committed.
 ## Principles
 
 - **Free.** MIT licence, no paid tier, no account, nothing to sign up for.
-  The three tools it runs are open source too.
+  The tools it runs are open source too.
 - **Any stack.** It reads what every repository has: the git log, git blame
   and the files themselves. Python, Vue, Terraform or a Makefile get the same
   treatment; there is no language it has to support first.
