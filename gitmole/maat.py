@@ -230,9 +230,9 @@ def validate_now(value: str) -> str:
     return value
 
 
-def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=None, now: str = None, since: str = None, until: str = None) -> None:
+def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None, since: str = None, until: str = None) -> None:
     """`now` (YYYY-MM-DD) is the reference date for file ages; default today. `since` and `until` bound every
-    analysis except file ages, which always describe the whole history. `types` filters file entries (None = keep everything)."""
+    analysis except file ages, which always describe the whole history."""
     # newline="": keep a \r inside a subject as-is instead of turning it into a line break
     with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
         commits = parse_log(fh.read(), aliases_from_meta(aliases_path) if aliases_path else None, types)
