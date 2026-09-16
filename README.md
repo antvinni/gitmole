@@ -99,7 +99,7 @@ Without Homebrew, install the three tools yourself and use pipx:
 
 ```bash
 pipx ensurepath                                  # once; then open a new shell
-pipx install 'git+https://github.com/antvinni/gitmole@v0.2.3'
+pipx install gitmole
 ```
 
 ### Linux
@@ -120,7 +120,7 @@ pipx ensurepath                                  # once; then open a new shell
 # unpack and move the binary into ~/.local/bin, then:
 chmod +x ~/.local/bin/scc ~/.local/bin/gitleaks
 
-pipx install 'git+https://github.com/antvinni/gitmole@v0.2.3'
+pipx install gitmole
 ```
 
 On a distribution without a `pipx` package, `python3 -m pip install --user
@@ -139,7 +139,7 @@ gitmole .                                        # a report of the clone you are
 ### Other ways to install
 
 ```bash
-pipx install 'gitmole[plots] @ git+https://github.com/antvinni/gitmole@v0.2.3'   # adds git-of-theseus for --plots
+pipx install 'gitmole[plots]'                                                # adds git-of-theseus for --plots
 pipx install git+https://github.com/antvinni/gitmole                        # main, unreleased
 ```
 
@@ -539,9 +539,9 @@ merge, then tag that commit `vX.Y.Z` and push the tag. CI runs the tests, checks
 that the tag matches `__version__`, builds the sdist and wheel, and creates the
 GitHub release with notes generated from the merged pull requests and the
 artefacts attached. The release job then bumps `Formula/gitmole.rb` on main
-to the new release, so `brew upgrade gitmole` follows within minutes.
-`pipx install 'git+https://github.com/antvinni/gitmole@vX.Y.Z'` installs a
-release with pipx. Releases are listed at
+to the new release, so `brew upgrade gitmole` follows within minutes; the tag
+also publishes to PyPI. `pipx install gitmole==X.Y.Z` installs a release with
+pipx. Releases are listed at
 https://github.com/antvinni/gitmole/releases.
 
 `bin/render-banner` regenerates `docs/banner.svg` from the banner code.
