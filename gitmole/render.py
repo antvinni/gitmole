@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
+from . import filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -307,6 +307,10 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
     scored = hotspots.ranked(report)
+    hidden = 0
+    if full is not True:
+        hidden = sum(1 for h in scored if filetypes.is_test_path(h["entity"]))
+        scored = [h for h in scored if not filetypes.is_test_path(h["entity"])]
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
     series = (report.get("trend") or {}).get("files") or {}
@@ -328,6 +332,8 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
         rows = _shorten(rows, width, columns)
     notes = [c for c in (_more(len(scored), limit),) if c]
+    if hidden:
+        notes.append(f"{hidden} test file{'s' if hidden != 1 else ''} hidden; --full shows them")
     if series and full is not False:   # the tight report keeps its captions short
         notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
     return _section(title, columns, rows, caption="; ".join(notes) or None)
@@ -387,6 +393,10 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     """Functions at or over the complexity floor, worst first, from lizard when it is installed."""
     measured = report.get("functions") or []
     funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
+    hidden = 0
+    if full is not True:
+        hidden = sum(1 for f in funcs if filetypes.is_test_path(f["file"]))
+        funcs = [f for f in funcs if not filetypes.is_test_path(f["file"])]
     limit = _limit("Complex functions", full)
     rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
@@ -404,7 +414,8 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
         note = f"nothing over complexity {CCN_FLOOR} ({len(measured):,} function{'s' if len(measured) != 1 else ''} measured{'; ' + partial if partial else ''})"
     else:
         note = None
-    caption = "; ".join(c for c in (_more(len(funcs), limit), partial) if c) or None
+    hidden_note = f"{hidden} test file{'s' if hidden != 1 else ''} hidden; --full shows them" if hidden else None
+    caption = "; ".join(c for c in (_more(len(funcs), limit), hidden_note, partial) if c) or None
     return _section("Complex functions", columns, rows, note=note, caption=caption)
 
 
