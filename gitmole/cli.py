@@ -98,7 +98,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     missing = tool_check(plots=args.plots)
     if missing:
         err.print("[red]missing tools:[/red] " + ", ".join(missing))
-        err.print("run bin/install.sh from the gitmole checkout")
+        err.print("brew install scc git-sizer gitleaks; see README.md for other ways")
         return 2
     args.lizard = lizard_check()   # decided once, for every repository this run analyses
 
