@@ -160,6 +160,21 @@ class Report(unittest.TestCase):
         text = rendered(sample_report(), [], width=80)
         self.assertTrue(all(len(line) <= 80 for line in text.splitlines()), "a line exceeds 80 columns")
 
+    def test_knowledge_map_marks_gone_owners_and_full_has_a_lost_column(self):
+        r = sample_report()
+        r["meta"]["last_date"] = "2026-09-10"
+        r["meta"]["bots"] = []
+        r["activity"]["authors"] = {"Ann": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2026-09-01"},
+                                    "Bob": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2025-01-01"}}
+        text = rendered(r, [])
+        self.assertIn("Bob (gone)", text)
+        self.assertIn("gone = no commits in the 12 months before 2026-09-10", text)
+        self.assertNotIn("lost", text.split("⌂ Knowledge map")[1].split("\n")[1], "the lost column is --full only")
+        full = rendered(r, [], full=True)
+        self.assertRegex(full, r"area\s+lines added\s+authors\s+lost\s+main owner")
+        self.assertRegex(full, r"static/\s+1,000\s+2\s+10%")
+        self.assertNotIn("gone", rendered(sample_report(), []))
+
 
 class Activity(unittest.TestCase):
     def test_activity_shows_weekdays_and_busiest_hour(self):
@@ -345,8 +360,8 @@ class KnowledgeMap(unittest.TestCase):
     def test_section_lists_areas_with_owners(self):
         text = rendered(sample_report(), [], full=True)
         self.assertIn("Knowledge map", text)
-        self.assertRegex(text, r"static/\s+1,000\s+2\s+Ann \(90%\)\s+Bob \(10%\)")
-        self.assertRegex(text, r"tests/\s+300\s+1\s+Bob \(100%\)")
+        self.assertRegex(text, r"static/\s+1,000\s+2\s+-\s+Ann \(90%\)\s+Bob \(10%\)")
+        self.assertRegex(text, r"tests/\s+300\s+1\s+-\s+Bob \(100%\)")
 
     def test_absent_without_ownership(self):
         r = sample_report()
