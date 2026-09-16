@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import pathlib
 import tempfile
 import unittest
 
@@ -283,7 +284,7 @@ class Portfolio(unittest.TestCase):
             dirs = sorted(os.listdir(os.path.join(work, "pf")))
             has_meta = all(os.path.isfile(os.path.join(work, "pf", d, "meta.json")) for d in dirs)
             md = os.path.join(work, "pf", "portfolio.md")
-            md_text = open(md).read() if os.path.exists(md) else ""
+            md_text = pathlib.Path(md).read_text() if os.path.exists(md) else ""
         return rc, text, dirs, has_meta, md_text
 
     def test_runs_every_repo_and_prints_one_summary_table(self):
@@ -421,7 +422,7 @@ class ReferenceDate(unittest.TestCase):
             rc = cli.main([d, "--out", os.path.join(d, "out"), *extra], console=c, tool_check=lambda **kw: [], planner=planner,
                           estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
             meta_path = os.path.join(d, "out", "meta.json")
-            meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+            meta = json.loads(pathlib.Path(meta_path).read_text()) if os.path.exists(meta_path) else {}
         return rc, c.export_text(), calls, meta
 
     def test_env_override_is_forwarded_recorded_and_announced(self):
@@ -456,7 +457,7 @@ class Since(unittest.TestCase):
             rc = cli.main([d, "--out", os.path.join(d, "out"), *extra], console=c, tool_check=lambda **kw: [], planner=planner,
                           estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
             meta_path = os.path.join(d, "out", "meta.json")
-            meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+            meta = json.loads(pathlib.Path(meta_path).read_text()) if os.path.exists(meta_path) else {}
         return rc, c.export_text(), calls, meta
 
     def test_since_is_resolved_against_the_reference_date_and_recorded(self):

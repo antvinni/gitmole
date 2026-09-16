@@ -39,7 +39,7 @@ class GitPaths(unittest.TestCase):
     def _repo(self, d):
         subprocess.run(["git", "init", "-q", d], check=True)
         for name in ["a.py", "s\u00e4.py", 'q"uote.py', "tab\tx.py"]:
-            open(os.path.join(d, name), "w").write("x\n")
+            with open(os.path.join(d, name), "w") as fh: fh.write("x\n")
         subprocess.run(["git", "-C", d, "add", "-A"], check=True)
         # a Latin-1 name that is not valid UTF-8, straight into the index
         blob = subprocess.run(["git", "-C", d, "hash-object", "-w", "--stdin"], input=b"x\n", capture_output=True, check=True).stdout.decode().strip()
@@ -77,7 +77,7 @@ class Discover(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             subprocess.run(["git", "init", "-q", d], check=True)
             for name in ["a.py", "b.py", "c.md", "Makefile", "d.CSV"]:
-                open(os.path.join(d, name), "w").write("x\n")
+                with open(os.path.join(d, name), "w") as fh: fh.write("x\n")
             subprocess.run(["git", "-C", d, "add", "-A"], check=True)
             rows = filetypes.discover(d, filetypes.DEFAULT)
         self.assertEqual(rows, [("py", 2, True), ("csv", 1, False), ("makefile", 1, True), ("md", 1, False)])

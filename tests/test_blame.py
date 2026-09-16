@@ -56,7 +56,7 @@ class NonAsciiPaths(unittest.TestCase):
             subprocess.run(["git", "-C", d, "add", "-A"], check=True, capture_output=True)
             self.assertIn("s\u00e4.py", blame.code_files(d))
             self.assertFalse([f for f in blame.code_files(d) if f.startswith('"')])
-            open(os.path.join(d, 'q"uote.py'), "w").write("x\n")
+            with open(os.path.join(d, 'q"uote.py'), "w") as fh: fh.write("x\n")
             subprocess.run(["git", "-C", d, "add", "-A"], check=True, capture_output=True)
             self.assertIn('q"uote.py', blame.code_files(d))
             self.assertEqual(blame.blame_file(d, "s\u00e4.py"), {}, "not committed yet, so no blame, but no crash either")
