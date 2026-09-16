@@ -664,5 +664,31 @@ class Json(unittest.TestCase):
         self.assertIn("reasons", d["watch"][0])
 
 
+class ChangeRisk(unittest.TestCase):
+    RISK = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times", "fixed 5 times in six months"], "watched": True},
+                      {"file": "core/util.py", "score": 0.6, "reasons": ["changed 30 times"], "watched": True},
+                      {"file": "core/new.py", "score": 0, "reasons": ["new file"], "watched": False}],
+            "total": 3.6, "watched": 2, "max_score": 3.0}
+
+    def test_section_has_a_bar_scaled_to_the_worst_file_in_the_repo(self):
+        sec = render.risk_section(self.RISK, "main", full=False)
+        self.assertEqual(sec["title"], "Change risk (3 files since main)")
+        self.assertEqual(sec["columns"], ["file", "risk", "why"])
+        self.assertEqual(sec["rows"][0], ["core/parser.py", "▰▰▰▰▰▰▰▰▰▰", "changed 40 times · fixed 5 times in six months"])
+        self.assertEqual(sec["rows"][1][1], "▰▰")
+        self.assertEqual(sec["rows"][2][1], "")
+        self.assertEqual(sec["caption"], "total 3.6; 2 of these files are on the watch list")
+
+    def test_empty_change(self):
+        sec = render.risk_section({"files": [], "total": 0.0, "watched": 0, "max_score": 0.0}, "main", full=False)
+        self.assertEqual(sec["note"], "no files changed since main")
+
+    def test_json_carries_the_risk_when_given(self):
+        j = render.to_json(sample_report(), [], risk={"base": "main", **self.RISK})
+        self.assertEqual(j["change_risk"]["base"], "main")
+        self.assertEqual(j["change_risk"]["total"], 3.6)
+        self.assertNotIn("change_risk", render.to_json(sample_report(), []))
+
+
 if __name__ == "__main__":
     unittest.main()

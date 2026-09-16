@@ -39,6 +39,7 @@ def parse_args(argv):
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
+    p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) with the watch list's score; needs a local path")
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
     return p.parse_args(argv)
 
@@ -98,6 +99,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         kind, target = run.classify_target(args.target)
     except ValueError as e:
         err.print(f"[red]{e}[/red]")
+        return 2
+    if args.risk and kind != "path":
+        err.print("[red]--risk needs a local path[/red]")
         return 2
 
     args.now = now
@@ -335,12 +339,21 @@ def _render(out_dir: str, console: Console, ui: Console, args) -> int:
 
     report = load.load_report(out_dir)
     found = findings.evaluate(report)
+    risk = None
+    if args.risk:
+        try:
+            files = run.changed_files(report["meta"].get("path") or os.getcwd(), args.risk)
+        except ValueError as e:
+            (Console(stderr=True) if console.file is sys.stdout else console).print(f"[red]--risk {args.risk}:[/red] {e}", soft_wrap=True)
+            return 2
+        from . import watch
+        risk = {"base": args.risk, **watch.change_risk(report, files)}
     if args.json:
-        _write(json.dumps(render.to_json(report, found), indent=2) + "\n", args.json, console)
+        _write(json.dumps(render.to_json(report, found, risk=risk), indent=2) + "\n", args.json, console)
     if args.markdown:
-        _write(render.markdown(report, found, full=args.full), args.markdown, console)
+        _write(render.markdown(report, found, full=args.full, risk=risk, base=args.risk), args.markdown, console)
     if "-" not in (args.json, args.markdown):
-        render.report(report, found, console, full=args.full)
+        render.report(report, found, console, full=args.full, risk=risk, base=args.risk)
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
         return 3
     return 0

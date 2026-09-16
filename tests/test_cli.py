@@ -506,5 +506,56 @@ class Arguments(unittest.TestCase):
         self.assertNotIn("jar", text)
 
 
+class Risk(unittest.TestCase):
+    def _repo(self, d):
+        import subprocess
+        def git(*args):
+            e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+                     GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+            subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+        git("init", "-q", "-b", "main")
+        open(os.path.join(d, "a.py"), "w").write("x\n")
+        git("add", "-A"); git("commit", "-q", "-m", "base")
+        git("switch", "-q", "-c", "feature")
+        open(os.path.join(d, "a.py"), "a").write("y\n")
+        git("commit", "-q", "-am", "work")
+
+    def test_risk_section_after_a_run_and_on_a_re_render(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            c = console()
+            rc = cli.main([d, "--out", out, "--risk", "main"], console=c, tool_check=lambda **kw: [], planner=planner,
+                          estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            self.assertEqual(rc, 0)
+            text = c.export_text()
+            self.assertIn("Change risk (1 files since main)", text)
+            self.assertRegex(text, r"a\.py\s+new file", "the stub planner writes no size.json, so a.py is not in the tree data")
+            c = console()
+            rc = cli.main([out, "--no-run", "--risk", "main"], console=c)
+            self.assertEqual(rc, 0)
+            text = c.export_text()
+            self.assertIn("Change risk (1 files since main)", text)
+            self.assertRegex(text, r"a\.py\s+new file", "the stub planner writes no size.json, so a.py is not in the tree data")
+
+    def test_unknown_base_is_an_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            c = console()
+            rc = cli.main([d, "--out", out, "--risk", "nope"], console=c, tool_check=lambda **kw: [], planner=planner,
+                          estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            self.assertEqual(rc, 2)
+            self.assertIn("nope", c.export_text())
+
+    def test_remote_targets_refuse_risk(self):
+        c = console()
+        rc = cli.main(["owner/repo", "--risk", "main"], console=c, tool_check=lambda **kw: [])
+        self.assertEqual(rc, 2)
+        self.assertIn("--risk needs a local path", c.export_text())
+
+
 if __name__ == "__main__":
     unittest.main()
