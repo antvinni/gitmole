@@ -96,7 +96,7 @@ class Report(unittest.TestCase):
         r["activity"] = {}
         r["age"] = [{"entity": "a", "age-months": 0}, {"entity": "b", "age-months": 2},
                     {"entity": "c", "age-months": 14}, {"entity": "d", "age-months": 30}]
-        text = rendered(r, [])
+        text = rendered(r, [], full=True)
         self.assertIn("Paths in history by year last changed", text)
         self.assertIn("code age skipped", text)
         self.assertNotIn("code-maat", text)
@@ -109,7 +109,7 @@ class Report(unittest.TestCase):
         r["cohorts"] = {}
         r["meta"]["age"] = {"status": "skipped"}
         r["activity"]["net_by_year"] = {"2025": 8000, "2026": 2000}
-        text = rendered(r, [])
+        text = rendered(r, [], full=True)
         self.assertIn("Net lines added by year", text)
         self.assertIn("code age skipped", text)
         self.assertRegex(text, r"2025\s+8,000\s+80%")
@@ -120,13 +120,14 @@ class Report(unittest.TestCase):
         r["cohorts"] = {}
         r["meta"]["age"] = {"status": "timeout"}
         r["activity"] = {}
-        self.assertIn("code age timed out", rendered(r, []))
+        self.assertIn("code age timed out", rendered(r, [], full=True))
 
     def test_hotspots_rank_by_revisions_times_lines_and_show_complexity(self):
         r = sample_report()
         r["revisions"] = [{"entity": "static/apps-metadata.json", "n-revs": 128}, {"entity": "static/index.html", "n-revs": 51},
                           {"entity": "gone.py", "n-revs": 300}]
         text = rendered(r, [], full=True)
+        text = text[text.index("◆ Hotspots"):]
         lines = [l.strip() for l in text.splitlines() if l.strip().startswith(("static/", "gone.py"))]
         # index.html: 51 x 4000 = 204,000 beats metadata.json: 128 x 800 = 102,400; deleted gone.py sorts last
         self.assertTrue(lines[0].startswith("static/index.html"), lines)
@@ -153,7 +154,7 @@ class Report(unittest.TestCase):
 
 class Activity(unittest.TestCase):
     def test_activity_shows_weekdays_and_busiest_hour(self):
-        text = rendered(sample_report(), [])
+        text = rendered(sample_report(), [], full=True)
         self.assertIn("Activity", text)
         self.assertRegex(text, r"Thu\s+60")
         self.assertIn("busiest hour 10:00", text)
@@ -161,12 +162,12 @@ class Activity(unittest.TestCase):
     def test_activity_notes_the_share_of_fix_commits(self):
         r = sample_report()
         r["activity"]["fix_commits"] = 58
-        self.assertIn("25% of commits are fixes", rendered(r, []))
+        self.assertIn("25% of commits are fixes", rendered(r, [], full=True))
 
     def test_activity_absent_when_no_data(self):
         r = sample_report()
         r["activity"] = {}
-        self.assertIn("no activity data", rendered(r, []))
+        self.assertIn("no activity data", rendered(r, [], full=True))
 
 
 class ComplexFunctions(unittest.TestCase):
@@ -245,6 +246,65 @@ class ComplexFunctions(unittest.TestCase):
         self.assertNotIn("more", text, "the caption counts only functions over the floor")
 
 
+class WatchList(unittest.TestCase):
+    def test_leads_the_tables_with_reasons_in_words(self):
+        r = sample_report()
+        r["authors"].append({"entity": "static/index.html", "n-authors": 1, "n-revs": 51})
+        r["ownership"].append({"entity": "static/index.html", "author": "Ann", "added": 4000, "deleted": 0})
+        text = rendered(r, [], width=120)
+        self.assertIn("◎ Watch list", text)
+        self.assertRegex(text, r"static/index.html\s+changed 51 times · only Ann has touched it")
+        self.assertRegex(text, r"static/apps-metadata.json\s+changed 128 times · fixed 4 times in six months")
+        self.assertIn("ranked by churn × recent fixes × complexity × single ownership", text)
+
+    def test_capped_at_five_by_default_and_fifteen_in_full(self):
+        r = sample_report()
+        r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 100 - i} for i in range(20)]
+        r["size"]["files"] = {f"f{i}.py": {"code": 10, "complexity": 0} for i in range(20)}
+        compact = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
+        self.assertEqual(len(compact["rows"]), 5)
+        self.assertNotIn("more", compact["caption"] or "", "a watch list is not a table to page through")
+        full = next(x for x in render.sections(r, full=True) if x["id"] == "watch")
+        self.assertEqual(len(full["rows"]), 15)
+        md = next(x for x in render.sections(r, full="markdown") if x["id"] == "watch")
+        self.assertEqual(len(md["rows"]), 15)
+
+    def test_paths_stay_whole(self):
+        r = sample_report()
+        deep = "static/javascript/components/deeply/nested/directory/structure/app.js"
+        r["revisions"] = [{"entity": deep, "n-revs": 9}, {"entity": "static/index.html", "n-revs": 2}]
+        r["size"]["files"][deep] = {"code": 100, "complexity": 1}
+        text = rendered(r, [], width=100)
+        self.assertIn(deep, text.split("◎ Watch list")[1].split("◉ People")[0])
+
+    def test_note_when_nothing_qualifies(self):
+        r = sample_report()
+        r["revisions"] = []
+        self.assertIn("Watch list: nothing changed more than once", rendered(r, []))
+
+
+class DescriptiveTables(unittest.TestCase):
+    def test_default_report_leaves_them_out_and_full_brings_them_back(self):
+        text = rendered(sample_report(), [])
+        for title in ("Size by language", "Activity", "Surviving code by year written"):
+            self.assertNotIn(title, text, title)
+        full = rendered(sample_report(), [], full=True)
+        for title in ("Size by language", "Activity", "Surviving code by year written"):
+            self.assertIn(title, full, title)
+
+    def test_header_keeps_one_line_of_them(self):
+        r = sample_report()
+        r["activity"]["fix_commits"] = 58
+        text = rendered(r, [])
+        self.assertIn("most commits on Thu at 10:00  ·  25% of commits are fixes  ·  76% of surviving code from 2025", text)
+        r["activity"] = {}
+        r["cohorts"] = {}
+        self.assertNotIn("most commits", rendered(r, []))
+
+    def test_header_line_is_in_markdown_too(self):
+        self.assertIn("most commits on Thu at 10:00 · 76% of surviving code from 2025", render.markdown(sample_report(), []))
+
+
 class KnowledgeMap(unittest.TestCase):
     def test_section_lists_areas_with_owners(self):
         text = rendered(sample_report(), [], full=True)
@@ -309,19 +369,26 @@ class Layout(unittest.TestCase):
         self.assertNotIn("─────", text.split("◉ People")[1].split("\n")[0], "no rule across the width")
 
     def test_small_tables_sit_side_by_side_on_wide_terminals(self):
-        wide = rendered(sample_report(), [], width=120)
+        wide = rendered(sample_report(), [], width=120, full=True)
         line = next(l for l in wide.splitlines() if "▤ Size by language" in l)
         self.assertIn("◉ People", line)
         line = next(l for l in wide.splitlines() if "◔ Activity" in l)
         self.assertIn("◷ Surviving code by year written", line)
-        narrow = rendered(sample_report(), [], width=80)
+        narrow = rendered(sample_report(), [], width=80, full=True)
         line = next(l for l in narrow.splitlines() if "▤ Size by language" in l)
         self.assertNotIn("People", line)
 
+    def test_people_and_knowledge_map_pair_up_in_the_default_report(self):
+        wide = rendered(sample_report(), [], width=120)
+        line = next(l for l in wide.splitlines() if "◉ People" in l)
+        self.assertIn("⌂ Knowledge map", line)
+        self.assertLess(wide.index("◎ Watch list"), wide.index("◉ People"), "the watch list comes first")
+
     def test_share_columns_carry_inline_bars(self):
         text = rendered(sample_report(), [], width=80)
-        people = text[text.index("◉ People"):text.index("◔ Activity")]
+        people = text[text.index("◉ People"):text.index("⌂ Knowledge map")]
         self.assertRegex(people, r"Ann\s+234\s+64% ▰{6}")
+        text = rendered(sample_report(), [], width=80, full=True)
         size = text[text.index("▤ Size by language"):text.index("◉ People")]
         self.assertRegex(size, r"HTML\s+28\s+4,783\s+88% ▰{8}")
 
@@ -334,7 +401,7 @@ class Layout(unittest.TestCase):
 
     def test_default_columns_are_the_ones_you_read(self):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=False)}
-        self.assertEqual(secs["Size by language"]["columns"], ["language", "files", "code", "share"])
+        self.assertNotIn("Size by language", secs)
         self.assertEqual(secs["People"]["columns"], ["author", "commits", "share", "surviving code"])
         self.assertEqual([x for x in secs if x.startswith("Hotspots")], ["Hotspots"])
         self.assertEqual(secs["Hotspots"]["columns"], ["file", "revs", "lines", "fixes", "authors"])
@@ -411,7 +478,7 @@ class ReviewFixes(unittest.TestCase):
         r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 200 - i} for i in range(60)]
         r["size"]["files"] = {f"f{i}.py": {"code": 10, "complexity": 0} for i in range(60)}
         import re as _re
-        rows = lambda md: len(_re.findall(r"^\| f\d+\.py \|", md, _re.M))
+        rows = lambda md: len(_re.findall(r"^\| f\d+\.py \|", md[md.index("## Hotspots"):], _re.M))
         md = render.markdown(r, [])
         self.assertEqual(rows(md), 50)
         self.assertIn("_and 10 more_", md)
@@ -439,13 +506,13 @@ class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report(), full=True)
         titles = [x["title"] for x in secs]
-        self.assertEqual(titles[:3], ["Size by language", "People", "Activity"])
-        self.assertTrue(titles[3].startswith("Timeline"))
-        self.assertEqual(titles[-3], "Complex functions")
-        self.assertEqual(titles[-2], "Knowledge map")
-        self.assertTrue(titles[4].startswith("Hotspots"))
+        self.assertEqual(titles[:5], ["Watch list", "Size by language", "People", "Knowledge map", "Activity"])
+        self.assertTrue(titles[5].startswith("Timeline"))
+        self.assertTrue(titles[6].startswith("Hotspots"))
+        self.assertEqual(titles[-2], "Complex functions")
         self.assertEqual(titles[-1], "Repo health (git-sizer concerns)")
-        size = secs[0]
+        self.assertEqual([x["id"] for x in secs][:4], ["watch", "size", "people", "knowledge"])
+        size = secs[1]
         self.assertEqual(size["columns"][:3], ["language", "files", "code"])
         self.assertEqual(size["rows"][0][0], "HTML")
 
@@ -465,7 +532,8 @@ class Markdown(unittest.TestCase):
         self.assertIn("363 commits", md)
         self.assertIn("## Findings", md)
         self.assertIn("**warning** Bus factor of one", md)
-        self.assertIn("## Size by language", md)
+        self.assertIn("## Watch list", md)
+        self.assertIn("## Size by language", md, "the export keeps every table")
         self.assertIn("| language | files | code |", md)
         self.assertIn("| HTML | 28 | 4,783 |", md)
         self.assertIn("static/apps-metadata.json", md)
@@ -493,6 +561,8 @@ class Json(unittest.TestCase):
         self.assertEqual(d["size"]["total_code"], 5421)
         self.assertIn("revisions", d)
         self.assertIn("cohorts", d)
+        self.assertEqual(d["watch"][0]["file"], "static/apps-metadata.json")
+        self.assertIn("reasons", d["watch"][0])
 
 
 if __name__ == "__main__":

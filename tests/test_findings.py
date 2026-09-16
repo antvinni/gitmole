@@ -50,6 +50,16 @@ class BusFactor(unittest.TestCase):
         self.assertEqual(f[0]["severity"], "warning")
         self.assertIn("Ann", f[0]["detail"])
         self.assertIn("79%", f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Pair someone with Ann before they are unavailable."), f[0]["detail"])
+
+    def test_advice_names_the_areas_that_are_mostly_theirs(self):
+        own = [{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0},
+               {"entity": "core/b.py", "author": "Bob", "added": 50, "deleted": 0},
+               {"entity": "web/i.html", "author": "Ann", "added": 400, "deleted": 0},
+               {"entity": "web/j.html", "author": "Bob", "added": 100, "deleted": 0},
+               {"entity": "docs/x.md", "author": "Bob", "added": 300, "deleted": 0}]
+        f = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}, ownership=own))
+        self.assertTrue(f[0]["detail"].endswith("Pair someone with Ann on core/ and web/ first; they are 95% and 80% theirs."), f[0]["detail"])
 
     def test_nothing_when_spread(self):
         self.assertEqual(findings.bus_factor(report()), [])
@@ -64,6 +74,17 @@ class SizerConcerns(unittest.TestCase):
         self.assertIn("static/v.mp4", f[0]["detail"])
         self.assertEqual({x["title"] for x in f}, {"Repo health"}, "one title so the report can group them")
         self.assertIn("Blobs: Maximum size", f[0]["detail"])
+        self.assertIn("Move large files to Git LFS or rewrite them out of history.", f[0]["detail"])
+        self.assertIn("Consider a shallow clone", f[1]["detail"])
+
+    def test_advice_per_kind_of_concern(self):
+        rows = [{"name": "References: Count", "value": "9.9 k", "concern": 1, "ref": ""},
+                {"name": "Biggest checkouts: Number of files", "value": "300 k", "concern": 2, "ref": ""},
+                {"name": "History structure: Maximum history depth", "value": "1.2 M", "concern": 1, "ref": ""}]
+        f = findings.sizer_concerns(report(sizer=rows))
+        self.assertIn("Consider pruning old branches and tags.", f[0]["detail"])
+        self.assertIn("Consider a sparse checkout", f[1]["detail"])
+        self.assertIn("Consider a shallow clone", f[2]["detail"])
 
 
 class HotspotDominance(unittest.TestCase):
@@ -71,6 +92,7 @@ class HotspotDominance(unittest.TestCase):
         f = findings.hotspot_dominance(report(revisions=[{"entity": "meta.json", "n-revs": 128}, {"entity": "i.html", "n-revs": 51}]))
         self.assertEqual(f[0]["severity"], "info")
         self.assertIn("meta.json", f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Consider splitting meta.json; every change lands there."), f[0]["detail"])
 
     def test_nothing_when_even(self):
         self.assertEqual(findings.hotspot_dominance(report()), [])
@@ -84,6 +106,12 @@ class TightCoupling(unittest.TestCase):
         f = findings.tight_coupling(report(coupling=pairs))
         self.assertIn("2 pairs", f[0]["detail"])
         self.assertIn("a", f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Review a and b first: a shared layout or a hidden dependency links them."), f[0]["detail"])
+
+    def test_a_file_and_its_test_are_expected_to_change_together(self):
+        pairs = [{"entity": "gitmole/maat.py", "coupled": "tests/test_maat.py", "degree": 100, "average-revs": 16},
+                 {"entity": "src/a.js", "coupled": "src/a.test.js", "degree": 100, "average-revs": 9}]
+        self.assertEqual(findings.tight_coupling(report(coupling=pairs)), [])
 
     def test_single_pair_reads_grammatically(self):
         pairs = [{"entity": "a", "coupled": "b", "degree": 100, "average-revs": 10}]
@@ -99,6 +127,7 @@ class StaleFiles(unittest.TestCase):
         age = [{"entity": f"f{i}", "age-months": 12} for i in range(4)] + [{"entity": "g", "age-months": 0} for _ in range(6)]
         f = findings.stale_files(report(age=age))
         self.assertIn("40%", f[0]["detail"])
+        self.assertIn("Consider deleting what nobody has needed; dead code hides in untouched files.", f[0]["detail"])
 
     def test_nothing_when_fresh(self):
         self.assertEqual(findings.stale_files(report()), [])
@@ -142,10 +171,12 @@ class BugMagnets(unittest.TestCase):
         self.assertIn("core/util.py (3", f[0]["detail"])
         self.assertNotIn("tests/", f[0]["detail"])
         self.assertNotIn("core/old.py", f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Review core/parser.py and core/util.py before the next release; expect the next bug there."), f[0]["detail"])
 
     def test_info_below_five_recent_fixes(self):
         f = findings.bug_magnets(report(fixes=self.FIXES[1:2]))
         self.assertEqual(f[0]["severity"], "info")
+        self.assertTrue(f[0]["detail"].endswith("Review core/util.py before the next release; expect the next bug there."), f[0]["detail"])
 
     def test_nothing_without_recent_fixes(self):
         self.assertEqual(findings.bug_magnets(report(fixes=self.FIXES[3:])), [])
@@ -165,6 +196,7 @@ class BrainMethods(unittest.TestCase):
         self.assertIn("tidy (core/util.py)", f[0]["detail"])
         self.assertNotIn("small.py", f[0]["detail"], "complex but short is not a brain method")
         self.assertNotIn("long.py", f[0]["detail"], "long but simple is not a brain method")
+        self.assertTrue(f[0]["detail"].endswith("Split parse in core/parser.py first, before the next change lands there."), f[0]["detail"])
 
     def test_warning_when_a_brain_method_sits_in_a_hotspot(self):
         r = report(functions=self.FUNCS, revisions=[{"entity": "core/parser.py", "n-revs": 90}, {"entity": "x.py", "n-revs": 1}])
@@ -186,7 +218,7 @@ class BrainMethods(unittest.TestCase):
         r = report(functions=self.FUNCS)
         self.assertNotIn("part way", findings.brain_methods(r)[0]["detail"])
         r["meta"]["functions"] = {"status": "timeout"}
-        self.assertIn("Function metrics timed out part way, so there may be more. Split them", findings.brain_methods(r)[0]["detail"])
+        self.assertIn("Function metrics timed out part way, so there may be more. Split parse in core/parser.py first", findings.brain_methods(r)[0]["detail"])
 
 
 class Duplication(unittest.TestCase):
@@ -199,6 +231,7 @@ class Duplication(unittest.TestCase):
         self.assertIn("a/x.py:10", f[0]["detail"])
         self.assertNotIn("c.py", f[0]["detail"], "short blocks are noise")
         self.assertIn("4.2%", f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Extract the 71-line block shared by a/x.py and b/y.py first."), f[0]["detail"])
 
     def test_nothing_without_large_blocks(self):
         self.assertEqual(findings.duplication(report(duplicates={"rate": 0.5, "blocks": [{"lines": 12, "places": [("c.py", 1, 12), ("d.py", 1, 12)]}]})), [])
@@ -224,6 +257,7 @@ class KnowledgeIslands(unittest.TestCase):
         self.assertIn("Ann", f[0]["detail"])
         self.assertIn("95%", f[0]["detail"])
         self.assertNotIn("web/", f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Pair someone with Ann on core/ first; it is the largest at 1,000 lines."), f[0]["detail"])
 
     def test_info_when_islands_are_a_minority(self):
         own = self.OWN + [{"entity": "web/k.html", "author": "Dan", "added": 3000, "deleted": 0}]

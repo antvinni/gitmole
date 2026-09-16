@@ -83,5 +83,14 @@ class Discover(unittest.TestCase):
         self.assertEqual(rows, [("py", 2, True), ("csv", 1, False), ("makefile", 1, True), ("md", 1, False)])
 
 
+
+class TestPaths(unittest.TestCase):
+    def test_test_files_and_directories(self):
+        for path in ("tests/test_a.py", "a/spec/b.rb", "src/__tests__/x.js", "x/y_test.go", "app.spec.ts", "app.test.tsx", "test_x.py"):
+            self.assertTrue(filetypes.is_test_path(path), path)
+        for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md"):
+            self.assertFalse(filetypes.is_test_path(path), path)
+
+
 if __name__ == "__main__":
     unittest.main()

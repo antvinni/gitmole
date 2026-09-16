@@ -3,38 +3,37 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 ╭─ demo ───────────────────────────────────────────────────────────────────────────────────────────╮
 │ 8 commits  ·  2024-01-10 → 2025-05-30  ·  2 identities  ·  branch main                           │
 │ 13 lines in 5 files  ·  Python, CSV, Makefile, Markdown                                          │
+│ most commits on Wed at 09:00  ·  12% of commits are fixes  ·  82% of surviving code from 2024    │
 │ 2 notes                                                                                          │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ● Files that always change together                                                              │
-│   1 pair changes together at least 80% of the time, e.g. app/main.py + app/util.py (83%).        │
-│   Usually a shared layout or a hidden dependency.                                                │
+│   1 pair changes together at least 80% of the time, e.g. app/main.py + app/util.py (83%)         │
+│   ↳ Review app/main.py and app/util.py first: a shared layout or a hidden dependency links them. │
 │ ● One person under several identities                                                            │
 │   bob-example <9999+bob-example@users.noreply.demo.test> merged into Bob Example <bob@demo.test> │
 │   by name and email similarity                                                                   │
 │   ↳ Add a .mailmap to make it permanent.                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-▤ Size by language                        ◉ People
-  language   files   code   share           author        commits   share         surviving code
-  ─────────────────────────────────────     ────────────────────────────────────────────────────
-  Python         2      8    62% ▰▰▰▰▰▰     Ann Example         5    62% ▰▰▰▰▰▰              64%
-  CSV            1      2    15% ▰          Bob Example         3    38% ▰▰▰                 36%
-  Makefile       1      2    15% ▰
-  Markdown       1      1     8% ▰
+◎ Watch list
+  file          why
+  ─────────────────────────────────────────────────────────────────────────────────────────
+  app/main.py   changed 7 times · fixed once in six months · changes with app/util.py (83%)
+  app/util.py   changed 5 times · changes with app/main.py (83%)
+  ranked by churn × recent fixes × complexity × single ownership
 
-◔ Activity                              ◷ Surviving code by year written
-  weekday   commits   share               year   lines   share
-  ───────────────────────────────────     ───────────────────────────────────────────────
-  Mon             0      0%               2024       9     82%   ████████████████████████
-  Tue             0      0%               2025       2     18%   █████
-  Wed             3     38%   ███████
-  Thu             2     25%   █████
-  Fri             1     12%   ██
-  Sat             0      0%
-  Sun             2     25%   █████
-  busiest hour 09:00 (2 commits)
-  12% of commits are fixes
+◉ People
+  author        commits   share         surviving code
+  ────────────────────────────────────────────────────
+  Ann Example         5    62% ▰▰▰▰▰▰              64%
+  Bob Example         3    38% ▰▰▰                 36%
+
+⌂ Knowledge map
+  area           lines added   main owner           second
+  ───────────────────────────────────────────────────────────────────
+  app/                    20   Ann Example (80%)    Bob Example (20%)
+  (root files)             2   Bob Example (100%)   -
 
 ▦ Timeline (Jun 2024 → May 2025)
   author        Jun   Jul   Aug   Sep   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May
@@ -56,12 +55,6 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
   app/main.py   app/util.py       83%
 
 λ Complex functions: nothing over complexity 10 (2 functions measured)
-
-⌂ Knowledge map
-  area           lines added   main owner           second
-  ───────────────────────────────────────────────────────────────────
-  app/                    20   Ann Example (80%)    Bob Example (20%)
-  (root files)             2   Bob Example (100%)   -
 
 ✚ Repo health (git-sizer concerns): nothing flagged
 

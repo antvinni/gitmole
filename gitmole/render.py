@@ -12,7 +12,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import hotspots, knowledge, textfmt
+from . import hotspots, knowledge, textfmt, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -27,11 +27,12 @@ SIDE_BY_SIDE_MIN_WIDTH = 100
 
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
-           "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ"}
+           "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎"}
 # the one column to read first in each table; the rest are dimmed
 KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "revs", "Change coupling": "degree",
               "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
-              "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "ccn"}
+              "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "ccn",
+              "Watch list": "why"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
@@ -40,6 +41,10 @@ PATH = {"overflow": "fold", "no_wrap": False}
 # rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own.
 CAPS = {"People": 6, "Hotspots": 8, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
+WATCH_CAP, WATCH_FULL = 5, 15   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
+
+
+WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 def _pct(part, whole) -> str:
@@ -118,7 +123,37 @@ def summary(report: dict) -> dict:
         "lines": report["size"]["total_code"], "files": report["size"]["total_files"],
         "languages": [l["name"] for l in report["size"]["languages"][:4]],
         "since": m.get("since"),
+        "pulse": pulse(report),
     }
+
+
+def pulse(report: dict) -> list:
+    """One phrase each for the descriptive tables the default report leaves out."""
+    out = []
+    act = report.get("activity") or {}
+    days, hours = act.get("by_weekday") or [], act.get("by_hour") or []
+    if days and max(days):
+        day = WEEKDAYS[max(range(7), key=lambda i: days[i])]
+        when = f" at {max(range(24), key=lambda i: hours[i]):02d}:00" if hours and max(hours) else ""
+        out.append(f"most commits on {day}{when}")
+    total = sum(days)
+    if act.get("fix_commits") is not None and total:
+        out.append(f"{_pct(act['fix_commits'], total)} of commits are fixes")
+    cohorts = report.get("cohorts") or {}
+    if cohorts:
+        label, lines = max(cohorts.items(), key=lambda kv: kv[1])
+        out.append(f"{_pct(lines, sum(cohorts.values()))} of surviving code from {label.replace('Code added in ', '')}")
+    return out
+
+
+def watch_section(report: dict, full: bool = True, width=None) -> dict:
+    """The files to keep an eye on, with the reasons in words. Paths stay whole here."""
+    ranked = watch.risks(report)
+    limit = WATCH_CAP if full is False else WATCH_FULL
+    rows = [(r["file"], " · ".join(r["reasons"])) for r in ranked[:limit]]
+    columns = [("file", PATH), ("why", {"overflow": "fold", "ratio": 3})]
+    return _section("Watch list", columns, rows, note=None if rows else "nothing changed more than once",
+                    caption="ranked by churn × recent fixes × complexity × single ownership" if rows else None)
 
 
 def size_section(report: dict, full: bool = True, width=None) -> dict:
@@ -148,9 +183,6 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if more:
         notes.append(more)
     return _section("People", columns, rows, caption="\n".join(notes) or None)
-
-
-WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 def activity_section(report: dict, full: bool = True, width=None) -> dict:
@@ -322,12 +354,23 @@ def health_section(report: dict, full: bool = True, width=None) -> dict:
                     note=None if rows else "nothing flagged")
 
 
-BUILDERS = [size_section, people_section, activity_section, timeline_section, hotspots_section,
-            coupling_section, age_section, functions_section, knowledge_section, health_section]
+BUILDERS = [watch_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
+            hotspots_section, coupling_section, age_section, functions_section, health_section]
+DESCRIPTIVE = {"size", "activity", "age"}   # interesting once, rarely change what you do next: `--full` only
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
-    return [b(report, full, width) for b in BUILDERS]
+    """Every section as a dict with an `id` (the builder's name without _section). The default terminal
+    report (`full` False) leaves the descriptive ones out; `full` True and Markdown keep them."""
+    out = []
+    for b in BUILDERS:
+        sid = b.__name__[:-len("_section")]
+        if full is False and sid in DESCRIPTIVE:
+            continue
+        sec = b(report, full, width)
+        sec["id"] = sid
+        out.append(sec)
+    return out
 
 
 def secrets_line(report: dict) -> str:
@@ -346,6 +389,8 @@ def header(report: dict, findings: list = ()) -> Panel:
         body.append(f"  ·  since {s['since']}", style="yellow")
     body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}  ·  branch {s['branch']}\n")
     body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}\n")
+    if s["pulse"]:
+        body.append("  ·  ".join(s["pulse"]) + "\n", style="dim")
     tally = textfmt.tally(list(findings))
     worst = next((f["severity"] for f in findings), None)
     body.append(tally, style=SEVERITY_STYLE.get(worst, "green"))
@@ -436,26 +481,40 @@ def print_section(console: Console, sec: dict) -> None:
     console.print(section_block(sec))
 
 
-PAIRS = [(0, 1), (2, 6)]   # size | people, activity | code age, when the terminal is wide enough
+# small tables that sit side by side when the terminal is wide enough, by section id; a section pairs at most once
+PAIRS = [("size", "people"), ("activity", "age"), ("people", "knowledge")]
 PAIR_GAP = 3
+
+
+def _partners(secs: list) -> dict:
+    present, taken, out = {s["id"] for s in secs}, set(), {}
+    for a, b in PAIRS:
+        if a in present and b in present and a not in taken and b not in taken:
+            out[a], out[b] = b, a
+            taken.update((a, b))
+    return out
 
 
 def report(report: dict, findings: list, console: Console, full: bool = False) -> None:
     console.print(header(report, findings))
     console.print(findings_panel(findings))
     secs = sections(report, full=full, width=console.width)
-    order = list(range(len(secs)))
-    if console.width >= SIDE_BY_SIDE_MIN_WIDTH:
-        for a, b in PAIRS:
-            left, right = section_block(secs[a]), section_block(secs[b])
-            needed = console.measure(left).maximum + PAIR_GAP + console.measure(right).maximum
-            if needed > console.width:
-                continue   # stacked, with the usual blank line between them
-            console.print(Text(""))
-            console.print(Columns([left, right], padding=(0, PAIR_GAP), equal=False, expand=False))
-            order = [i for i in order if i not in (a, b)]
-    for i in order:
-        print_section(console, secs[i])
+    by_id = {s["id"]: s for s in secs}
+    partners = _partners(secs) if console.width >= SIDE_BY_SIDE_MIN_WIDTH else {}
+    done = set()
+    for sec in secs:
+        if sec["id"] in done:
+            continue
+        other = partners.get(sec["id"])
+        if other and other not in done:
+            left, right = section_block(sec), section_block(by_id[other])
+            if console.measure(left).maximum + PAIR_GAP + console.measure(right).maximum <= console.width:
+                console.print(Text(""))
+                console.print(Columns([left, right], padding=(0, PAIR_GAP), equal=False, expand=False))
+                done.update((sec["id"], other))
+                continue
+        print_section(console, sec)   # stacked, with the usual blank line before it
+        done.add(sec["id"])
     console.print(Text(""))
     console.print(Text(secrets_line(report), style="red" if report.get("secrets") else "green"))
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
@@ -483,7 +542,8 @@ def markdown(report: dict, findings: list, full: bool = False) -> str:
     s = summary(report)
     out = [f"# {s['name']}", "",
            f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "") + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
-           f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}", "",
+           f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["pulse"] else ""),
+           *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
            "## Findings", ""]
     out += _md_findings(findings)
     for sec in sections(report, full=True if full else "markdown"):
@@ -501,7 +561,9 @@ def markdown(report: dict, findings: list, full: bool = False) -> str:
 
 
 def to_json(report: dict, findings: list) -> dict:
-    return {**{k: v for k, v in report.items()}, "findings": findings}
+    return {**{k: v for k, v in report.items()}, "findings": findings,
+            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
+                      for r in watch.risks(report)[:WATCH_FULL]]}
 
 
 # --- portfolio -------------------------------------------------------------

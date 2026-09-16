@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import hotspots, knowledge
+from . import filetypes, hotspots, knowledge
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -54,8 +54,28 @@ def bus_factor(report: dict, threshold: float = 0.7) -> list:
     name, lines = max(shares.items(), key=lambda kv: kv[1])
     if lines / total <= threshold:
         return []
+    theirs = []
+    for a in knowledge.areas(report.get("ownership") or []):
+        owned = dict(a["owners"]).get(name, 0)
+        if a["lines"] and owned / a["lines"] >= 0.8:
+            theirs.append((a["area"], round(100 * owned / a["lines"])))
+    if theirs:
+        areas = " and ".join(t[0] for t in theirs[:2])
+        shares_ = " and ".join(f"{t[1]}%" for t in theirs[:2])
+        advice = f"Pair someone with {name} on {areas} first; {'they are' if len(theirs) > 1 else 'it is'} {shares_} theirs."
+    else:
+        advice = f"Pair someone with {name} before they are unavailable."
     return [_f("warning", "Bus factor of one",
-               f"{name} wrote {_pct(lines, total)} of the code that survives today.")]
+               f"{name} wrote {_pct(lines, total)} of the code that survives today. {advice}")]
+
+
+_SIZER_ADVICE = [
+    ("Blobs", "Move large files to Git LFS or rewrite them out of history."),
+    ("References", "Consider pruning old branches and tags."),
+    ("tags", "Consider pruning old branches and tags."),
+    ("checkouts", "Consider a sparse checkout for CI; the tree is the cost."),
+]
+_SIZER_DEFAULT = "Consider a shallow clone for CI; the history is the cost."
 
 
 def sizer_concerns(report: dict) -> list:
@@ -63,7 +83,8 @@ def sizer_concerns(report: dict) -> list:
     for row in report.get("sizer") or []:
         sev = "warning" if row["concern"] >= 2 else "info"
         where = f" at {row['ref']}" if row.get("ref") else ""
-        out.append(_f(sev, "Repo health", f"{row['name']} is {row['value']}{where}. git-sizer level of concern {row['concern']}."))
+        advice = next((a for key, a in _SIZER_ADVICE if key.lower() in row["name"].lower()), _SIZER_DEFAULT)
+        out.append(_f(sev, "Repo health", f"{row['name']} is {row['value']}{where}. git-sizer level of concern {row['concern']}. {advice}"))
     return out
 
 
@@ -73,18 +94,23 @@ def hotspot_dominance(report: dict, ratio: float = 2.0, minimum: int = 20) -> li
         return []
     top, nxt = revs[0], revs[1]
     return [_f("info", "One file dominates the churn",
-               f"{top['entity']} changed {top['n-revs']} times, versus {nxt['n-revs']} for the next file ({nxt['entity']}).")]
+               f"{top['entity']} changed {top['n-revs']} times, versus {nxt['n-revs']} for the next file ({nxt['entity']}). "
+               f"Consider splitting {top['entity']}; every change lands there.")]
 
 
 def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> list:
-    pairs = [p for p in report.get("coupling") or [] if p["degree"] >= min_degree and p["average-revs"] >= min_revs]
+    """A file and its test are expected to change together, so pairs with a test file on either side are left out."""
+    pairs = [p for p in report.get("coupling") or [] if p["degree"] >= min_degree and p["average-revs"] >= min_revs
+             and not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))]
     if not pairs:
         return []
     pairs.sort(key=lambda p: (-p["degree"], -p["average-revs"]))
     top = "; ".join(f"{p['entity']} + {p['coupled']} ({p['degree']}%)" for p in pairs[:3])
     count = f"{len(pairs)} pair changes" if len(pairs) == 1 else f"{len(pairs)} pairs change"
+    first = pairs[0]
     return [_f("info", "Files that always change together",
-               f"{count} together at least {min_degree}% of the time, e.g. {top}. Usually a shared layout or a hidden dependency.")]
+               f"{count} together at least {min_degree}% of the time, e.g. {top}. "
+               f"Review {first['entity']} and {first['coupled']} first: a shared layout or a hidden dependency links them.")]
 
 
 def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
@@ -95,7 +121,8 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
     if len(stale) / len(age) <= share:
         return []
     return [_f("info", "A large share of files is untouched",
-               f"{_pct(len(stale), len(age))} of files ({len(stale)}) have not changed in {months} months or more.")]
+               f"{_pct(len(stale), len(age))} of files ({len(stale)}) have not changed in {months} months or more. "
+               f"Consider deleting what nobody has needed; dead code hides in untouched files.")]
 
 
 def duplicate_identities(report: dict) -> list:
@@ -110,20 +137,19 @@ def duplicate_identities(report: dict) -> list:
     return out
 
 
-_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing)(/|$)|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+)$", re.I)
-
-
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     """Source files with a run of recent fix commits. Test files are left out: they change with every fix."""
-    hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and not _TEST_PATH.search(f["entity"])]
+    hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and not filetypes.is_test_path(f["entity"])]
     if not hot:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
     sev = "warning" if hot[0]["recent-fixes"] >= warn_at else "info"
     listed = "; ".join(f"{f['entity']} ({f['recent-fixes']} recent, {f['n-fixes']} total)" for f in hot[:5])
     more = f" and {len(hot) - 5} more" if len(hot) > 5 else ""
+    first = " and ".join(f["entity"] for f in hot[:2])
     return [_f(sev, "Bug magnets",
-               f"{len(hot)} file(s) were fixed {min_recent}+ times in the last six months: {listed}{more}. Expect the next bug there too.")]
+               f"{len(hot)} file(s) were fixed {min_recent}+ times in the last six months: {listed}{more}. "
+               f"Review {first} before the next release; expect the next bug there.")]
 
 
 def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9) -> list:
@@ -136,9 +162,11 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
     sev = "warning" if total and covered / total > 0.5 else "info"
     listed = "; ".join(f"{i['area']} ({i['owner']} {i['share']}%)" for i in islands[:5])
     more = f" and {len(islands) - 5} more" if len(islands) > 5 else ""
+    largest = max(islands, key=lambda i: i["lines"])
     return [_f(sev, "Knowledge islands",
                f"{len(islands)} area(s) with at least {min_lines} lines were written almost entirely by one person: {listed}{more}. "
-               f"That is {_pct(covered, total)} of all lines added. Pair or review across them before that person is unavailable.")]
+               f"That is {_pct(covered, total)} of all lines added. "
+               f"Pair someone with {largest['owner']} on {largest['area']} first; it is the largest at {largest['lines']:,} lines.")]
 
 
 def _partial_functions(report: dict) -> str:
@@ -159,7 +187,8 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     listed = "; ".join(f"{f['function']} ({f['file']}) complexity {f['ccn']}, {f['nloc']} lines, {f['params']} params" for f in big[:5])
     more = f" and {len(big) - 5} more" if len(big) > 5 else ""
     return [_f(sev, "Brain methods",
-               f"{len(big)} function(s) are both long and complex: {listed}{more}.{_partial_functions(report)} Split them before the next change lands there.")]
+               f"{len(big)} function(s) are both long and complex: {listed}{more}.{_partial_functions(report)} "
+               f"Split {big[0]['function']} in {big[0]['file']} first, before the next change lands there.")]
 
 
 def duplication(report: dict, min_lines: int = 30) -> list:
@@ -173,7 +202,10 @@ def duplication(report: dict, min_lines: int = 30) -> list:
     listed = "; ".join(f"{b['lines']} lines in {place(b)}" for b in blocks[:3])
     more = f" and {len(blocks) - 3} more" if len(blocks) > 3 else ""
     rate = f" Overall {dup['rate']}% of lines are duplicated." if dup.get("rate") is not None else ""
-    return [_f("info", "Duplicated code", f"{len(blocks)} block(s) of {min_lines}+ duplicated lines: {listed}{more}.{rate}{_partial_functions(report)} Extract the shared part.")]
+    first = blocks[0]
+    shared = " and ".join(p for p, _, _ in first["places"][:2])
+    return [_f("info", "Duplicated code", f"{len(blocks)} block(s) of {min_lines}+ duplicated lines: {listed}{more}.{rate}{_partial_functions(report)} "
+                                          f"Extract the {first['lines']}-line block shared by {shared} first.")]
 
 
 RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, brain_methods, tight_coupling,
