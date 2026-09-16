@@ -55,9 +55,9 @@ Running `gitmole .` inside this repository:
 
 ```text
 ╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 115 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                           │
-│ 6,944 lines in 44 files  ·  Python, Ruby                                                         │
-│ most commits on Wed at 20:00  ·  3% of commits are fixes  ·  100% of surviving code from 2026    │
+│ 135 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                           │
+│ 7,002 lines in 44 files  ·  Python, Ruby                                                         │
+│ most commits on Wed at 20:00  ·  4% of commits are fixes  ·  100% of surviving code from 2026    │
 │ 3 warnings, 1 note                                                                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Findings (4) ───────────────────────────────────────────────────────────────────────────────────╮
@@ -65,16 +65,21 @@ Running `gitmole .` inside this repository:
 │   vinni wrote 100% of the code that survives today                                               │
 │   ↳ Pair someone with vinni on gitmole/ and build/ first; they are 100% and 100% theirs.         │
 │ ▲ Hotspots getting more complex                                                                  │
-│   4 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+150%),      │
+│   4 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+160%),      │
 │   gitmole/cli.py (+32%), gitmole/findings.py (+266%), gitmole/run.py (+26%)                      │
-│   ↳ Split gitmole/render.py before the next change; its complexity grew 150% in a year.          │
+│   ↳ Split gitmole/render.py before the next change; its complexity grew 160% in a year.          │
 │ ▲ Knowledge islands                                                                              │
 │   2 area(s) with at least 200 lines were written almost entirely by one person: gitmole/ (vinni  │
 │   100%); build/ (vinni 100%). That is 97% of all lines added                                     │
-│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 5,458 lines.                 │
+│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 5,371 lines.                 │
 │ ● Bug magnets                                                                                    │
-│   1 file(s) were fixed 3+ times in the last six months: gitmole/run.py (3 recent, 3 total)       │
-│   ↳ Review gitmole/run.py before the next release; expect the next bug there.                    │
+│   4 file(s) were fixed 3+ times in the last six months: gitmole/cli.py (3 recent, 3 total);      │
+│   gitmole/findings.py (3 recent, 3 total); gitmole/render.py (3 recent, 3 total); gitmole/run.py │
+│   (3 recent, 3 total)                                                                            │
+│   ↳ Review gitmole/cli.py and gitmole/findings.py before the next release; expect the next bug   │
+│   there.                                                                                         │
+│ ✔ No secrets in history                                                                          │
+│   betterleaks scanned every commit on every branch                                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
