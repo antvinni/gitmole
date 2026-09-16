@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import filetypes, hotspots, knowledge, leaks
+from . import filetypes, hotspots, knowledge, leaks, loss
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -244,6 +244,43 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                f"Pair someone with {largest['owner']} on {largest['area']} first; it is the largest at {largest['lines']:,} lines.")]
 
 
+def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.30) -> list:
+    """Code written by people who have stopped committing. Share of surviving code from the blame
+    pass; when that did not run, share of lines added, and the statement says so."""
+    months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
+    gone = loss.gone(report, months)
+    if not gone:
+        return []
+    names = {g["name"] for g in gone}
+    lost, total = loss.surviving(report, names)
+    by_person = {n: v for n, v in (report.get("theseus_authors") or {}).items() if n in names}
+    basis = "of the code that survives today"
+    source_rows = _source_ownership(report)
+    if not total:
+        areas_all = loss.areas(source_rows, names)
+        total = sum(a["lines"] for a in areas_all)
+        lost = sum(a["lost"] for a in areas_all)
+        by_person = {}
+        for r in (r for r in source_rows if r["author"] in names):
+            by_person[r["author"]] = by_person.get(r["author"], 0) + r["added"]
+        basis = "of all lines added (from lines added, not a blame)"
+    if not total or lost / total < min_share:
+        return []
+    sev = "warning" if lost / total >= warn_share else "info"
+    people = sorted(by_person.items(), key=lambda kv: (-kv[1], kv[0]))
+    listed = ", ".join(f"{n} ({_pct(v, total)})" for n, v in people[:3]) + (f" and {len(people) - 3} more" if len(people) > 3 else "")
+    theirs = [a for a in loss.areas(source_rows, names) if a["lines"] >= 200 and a["lost_share"] >= 0.8]
+    theirs.sort(key=lambda a: (-a["lines"], a["area"]))
+    statement = (f"{len(gone)} {'person' if len(gone) == 1 else 'people'} with no commits since {loss.cutoff(report, months)} "
+                 f"wrote {_pct(lost, total)} {basis}: {listed}.")
+    if theirs:
+        statement += " Areas mostly theirs: " + ", ".join(f"{a['area']} ({round(100 * a['lost_share'])}%)" for a in theirs[:3]) + "."
+        advice = f"Pair someone on {theirs[0]['area']} first; nobody who wrote it is around to ask."
+    else:
+        advice = f"Pair someone with the people who worked with {people[0][0]} before the rest of that knowledge goes."
+    return [_f(sev, "Knowledge loss", statement, advice)]
+
+
 def _partial_functions(report: dict) -> str:
     """A sentence when the lizard step stopped part way, so what it measured is not the whole code."""
     status = (report["meta"].get("functions") or {}).get("status")
@@ -285,7 +322,7 @@ def duplication(report: dict, min_lines: int = 30) -> list:
 
 
 RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, reverts, brain_methods, tight_coupling,
-         duplication, stale_files, knowledge_islands]
+         duplication, stale_files, knowledge_islands, knowledge_loss]
 
 
 def evaluate(report: dict) -> list:
