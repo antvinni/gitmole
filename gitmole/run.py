@@ -354,9 +354,10 @@ def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int
 def collect_meta(repo_dir: str, since: str = None) -> dict:
     """Repository facts from git. The window (author date >= since) bounds the commit count, the
     date range and the identity table; aliases are merged over the whole history so blame and
-    ownership keep merging people who have no commits in the window, and `first_date_all` keeps
-    the date of the first commit of all so the backtest can still measure the whole history. Bots (renovate, dependabot,
-    GitHub Actions and anything named *[bot]) are counted apart under "bots", not as identities."""
+    ownership keep merging people who have no commits in the window, and `first_date_all` keeps the
+    date of the first commit of all so the backtest can still measure the whole history. Bots
+    (renovate, dependabot, GitHub Actions and anything named *[bot]) are counted apart under
+    "bots", not as identities."""
     from collections import Counter
 
     from .load import parse_authors_log
