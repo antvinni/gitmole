@@ -207,6 +207,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
     lizard_ok = args.lizard
     meta["functions"] = {"status": "planned" if lizard_ok else "skipped"}   # "run" only once the step has finished
+    meta["trend"] = {"status": "planned"}
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
                     since=args.since_date, lizard=lizard_ok, duplicates=args.duplicates)
@@ -226,6 +227,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         meta["plots"]["status"] = status("git-of-theseus")
     if lizard_ok:
         meta["functions"]["status"] = status("functions")
+    meta["trend"]["status"] = status("trend")
     run.save_meta(meta, out_dir)
 
     failed = [n for n, rc in results.items() if rc != 0]

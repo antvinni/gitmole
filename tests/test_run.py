@@ -282,6 +282,23 @@ class Plan(unittest.TestCase):
         argv = by["git-of-theseus"]["argv"]
         self.assertEqual(argv[argv.index("--branch") + 1], "trunk")
 
+    def test_trend_runs_as_a_module_after_scc_and_the_change_analysis(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o")}
+        self.assertEqual(by["trend"]["argv"][:3], [sys.executable, "-m", "gitmole.trend"])
+        self.assertEqual(by["trend"]["argv"][3], "/o")
+        self.assertEqual(by["trend"]["deps"], ["scc", "change analysis"])
+        self.assertNotIn("trend", [s["name"] for s in run.plan("/r", "/o", trend=False)])
+        self.assertIn("trend.json", run.OUTPUTS)
+
+    def test_execute_puts_the_package_on_pythonpath(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "run.log")
+            steps = [{"name": "p", "argv": [sys.executable, "-c", "import os; print(os.environ['PYTHONPATH'])"], "stdout": os.path.join(d, "out.txt"), "deps": []}]
+            run.execute(steps, log_path=log, cwd=d)
+            with open(os.path.join(d, "out.txt")) as fh:
+                first = fh.read().strip().split(os.pathsep)[0]
+        self.assertEqual(os.path.realpath(first), os.path.realpath(os.path.dirname(os.path.dirname(run.__file__))))
+
 
 class PlanTheseusOptions(unittest.TestCase):
     def argv(self, **kw):

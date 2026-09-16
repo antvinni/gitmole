@@ -294,6 +294,16 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["cohorts"], {})
         self.assertEqual(r["size"]["languages"], [])
 
+    def test_trend_is_read_and_empty_when_missing(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "d", "commits": 1, "identities": []}, fh)
+            self.assertEqual(load.load_report(out)["trend"], {"samples": [], "files": {}})
+            with open(os.path.join(out, "trend.json"), "w") as fh:
+                json.dump({"samples": ["2025-01-01"], "files": {"a.py": [["2025-01-01", 3, 10]]}}, fh)
+            self.assertEqual(load.load_report(out)["trend"]["files"]["a.py"], [["2025-01-01", 3, 10]])
+
 
 if __name__ == "__main__":
     unittest.main()
