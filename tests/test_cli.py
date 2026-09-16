@@ -362,6 +362,22 @@ class FileTypes(unittest.TestCase):
         self.assertEqual(meta_for("--file-types", "all")["file_types"], "all")
 
 
+class GoneWindow(unittest.TestCase):
+    def _meta(self, *extra):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            cli.main([d, "--out", out, *extra], console=console(), tool_check=lambda **kw: [], planner=planner,
+                     estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            with open(os.path.join(out, "meta.json")) as fh:
+                return json.load(fh)
+
+    def test_default_twelve_months_recorded_and_flag_changes_it(self):
+        self.assertEqual(self._meta()["gone_months"], 12)
+        self.assertEqual(self._meta("--gone", "6")["gone_months"], 6)
+
+
 class Duplicates(unittest.TestCase):
     def test_off_by_default_and_on_with_the_flag(self):
         def planned(*extra):
