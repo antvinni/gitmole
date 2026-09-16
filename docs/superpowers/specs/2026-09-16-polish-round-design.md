@@ -77,8 +77,12 @@ The README is 584 lines. Two pages move out to `docs/`:
 - `docs/output.md`: "The output directory" table and "How to read the
   output"; the README's "The terminal report" section stays, with a link.
 
-Target: the README under 400 lines, reading as principles, install, run,
-example, report guide, development, licence.
+A third page, `docs/example.md`, holds the full example report; the README
+keeps its header, findings and watch list. Result: the README at about 450
+lines, from 591, reading as principles, install, run, example, report guide,
+development, licence. The under-400 figure first written here was a target;
+going lower would have moved the report guide out of the front page, which
+is the part a new reader needs most.
 
 ## Constraints shared by all six
 
