@@ -26,15 +26,22 @@ def same_person(a: dict, b: dict) -> bool:
 
 def merge(identities: list) -> list:
     """Group identities by shared name tokens or email. Each row keeps the most-committed
-    variant's name and email, sums the commits, and lists the other variants as aliases."""
+    variant's name and email, sums the commits, and lists the other variants as aliases.
+
+    Grouping is transitive: an identity that matches two groups joins them into one, so
+    "Hayden <h@noreply>" and "hay-kot <h@pm.me>" end up together once "hay-kot <h@noreply>"
+    shows up to link them. Without that the same person appears twice."""
     groups = []
     for i in identities:
-        for g in groups:
-            if any(same_person(i, j) for j in g):
-                g.append(i)
-                break
-        else:
+        matched = [g for g in groups if any(same_person(i, j) for j in g)]
+        if not matched:
             groups.append([i])
+            continue
+        first = matched[0]
+        first.append(i)
+        for other in matched[1:]:
+            first.extend(other)
+            groups.remove(other)
     merged = []
     for g in groups:
         g = sorted(g, key=lambda x: -x["commits"])
