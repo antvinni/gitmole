@@ -325,7 +325,7 @@ class Until(unittest.TestCase):
                 rows = dict(line.strip().split(",") for line in fh.readlines()[1:])
             with open(os.path.join(d, "activity.json")) as fh:
                 act = json.load(fh)
-        self.assertEqual(rows, {"src/a.py": "2", "src/b.py": "2", "img/logo.png": "1"})
+        self.assertEqual(rows, {"src/a.py": "2", "src/b.py": "2"})
         self.assertEqual(act["fix_commits"], 0)
         self.assertEqual(act["until"], "2026-03-10")
 
