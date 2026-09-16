@@ -140,7 +140,6 @@ def change_risk(report: dict, files: list) -> dict:
     by_file = {r["file"]: r for r in ranked}
     watched = {r["file"] for r in ranked[:WATCH_TOP]}
     in_tree = (report.get("size") or {}).get("files") or {}
-    revisions_dict = {r["entity"]: r.get("n-revs", 0) for r in (report.get("revisions") or [])}
     rows = []
     for f in files:
         r = by_file.get(f)
@@ -148,12 +147,10 @@ def change_risk(report: dict, files: list) -> dict:
             rows.append({"file": f, "score": r["score"], "reasons": r["reasons"], "watched": f in watched})
         elif filetypes.is_test_path(f):
             rows.append({"file": f, "score": 0, "reasons": ["test file"], "watched": False})
-        elif revisions_dict.get(f) == 1:
-            rows.append({"file": f, "score": 0, "reasons": ["changed once"], "watched": False})
         elif f not in in_tree:
             rows.append({"file": f, "score": 0, "reasons": ["new file"], "watched": False})
         else:
             rows.append({"file": f, "score": 0, "reasons": ["changed once"], "watched": False})
     rows.sort(key=lambda r: (-r["score"], r["file"]))
     return {"files": rows, "total": float(sum(r["score"] for r in rows)), "watched": sum(r["watched"] for r in rows),
-            "max_score": max((r["score"] for r in rows), default=0.0)}
+            "max_score": float(ranked[0]["score"]) if ranked and rows else 0.0}
