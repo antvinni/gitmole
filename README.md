@@ -119,7 +119,7 @@ Tool stderr goes to `run.log` in the output directory, not the terminal.
 
 ```bash
 gitmole . --markdown report.md         # the same report as a Markdown document
-gitmole . --json report.json           # every table plus the findings, machine-readable
+gitmole . --json report.json           # every table, the watch list and the findings, machine-readable
 gitmole . --markdown - | pbcopy        # - means stdout; banner and progress go to stderr
 gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
 ```
@@ -158,95 +158,101 @@ marked in the report, and the rest of the report still renders.
 Running `gitmole .` inside this repository:
 
 ```text
-╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 51 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                             │
-│ 4,651 lines in 37 files  ·  Python, SVG, Markdown, Plain Text                                    │
-│ 2 warnings, 3 notes                                                                              │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (5) ───────────────────────────────────────────────────────────────────────────────────╮
-│ ▲ Bus factor of one                                                                              │
-│   vinni wrote 100% of the code that survives today.                                              │
-│ ▲ Knowledge islands                                                                              │
-│   3 area(s) with at least 200 lines were written almost entirely by one person: tests/ (vinni    │
-│   100%); gitmole/ (vinni 100%); build/ (vinni 100%). That is 99% of all lines added              │
-│   ↳ Pair or review across them before that person is unavailable.                                │
-│ ● Bug magnets                                                                                    │
-│   1 file(s) were fixed 3+ times in the last six months: gitmole/run.py (3 recent, 3 total)       │
-│   ↳ Expect the next bug there too.                                                               │
-│ ● Files that always change together                                                              │
-│   11 pairs change together at least 80% of the time, e.g. gitmole/maat.py + tests/test_maat.py   │
-│   (100%); gitmole/findings.py + tests/test_findings.py (100%); gitmole/knowledge.py +            │
-│   tests/test_knowledge.py (100%). Usually a shared layout or a hidden dependency.                │
-│ ● One person under several identities                                                            │
-│   antvinni <5262575+antvinni@users.noreply.github.com> merged into vinni                         │
-│   <5262575+antvinni@users.noreply.github.com> by name and email similarity                       │
-│   ↳ Add a .mailmap to make it permanent.                                                         │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ gitmole ──────────────────────────────────────────────────────────────────────────────────────╮
+│ 61 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                          │
+│ 5,750 lines in 43 files  ·  Python, SVG, Markdown, Plain Text                                  │
+│ most commits on Tue at 23:00  ·  5% of commits are fixes  ·  100% of surviving code from 2026  │
+│ 2 warnings, 2 notes                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Findings (4) ─────────────────────────────────────────────────────────────────────────────────╮
+│ ▲ Bus factor of one                                                                            │
+│   vinni wrote 100% of the code that survives today                                             │
+│   ↳ Pair someone with vinni on gitmole/ and build/ first; they are 100% and 100% theirs.       │
+│ ▲ Knowledge islands                                                                            │
+│   2 area(s) with at least 200 lines were written almost entirely by one person: gitmole/       │
+│   (vinni 100%); build/ (vinni 100%). That is 99% of all lines added                            │
+│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 4,888 lines.               │
+│ ● Bug magnets                                                                                  │
+│   1 file(s) were fixed 3+ times in the last six months: gitmole/run.py (3 recent, 3 total)     │
+│   ↳ Review gitmole/run.py before the next release; expect the next bug there.                  │
+│ ● One person under several identities                                                          │
+│   antvinni <5262575+antvinni@users.noreply.github.com> merged into vinni                       │
+│   <5262575+antvinni@users.noreply.github.com> by name and email similarity                     │
+│   ↳ Add a .mailmap to make it permanent.                                                       │
+╰────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-▤ Size by language                             ◉ People
-  language     files    code   share             author   commits   share             surviving code
-  ──────────────────────────────────────────     ───────────────────────────────────────────────────
-  Python          31   3,803    82% ▰▰▰▰▰▰▰▰     vinni         51   100% ▰▰▰▰▰▰▰▰▰▰             100%
-  SVG              1     399     9% ▰
-  Markdown         1     336     7% ▰
-  Plain Text       1      58     1% ▰
-  TOML             1      29     1% ▰
-  License          1      17     0%
-  Shell            1       9     0%
+◎ Watch list
+  file                  why
+  ────────────────────────────────────────────────────────────────────────────────────────────────
+  gitmole/render.py     changed 33 times · fixed twice in six months · only vinni has touched it ·
+                        functions_section() complexity 19 · changes with gitmole/cli.py (77%) and
+                        3 others
+  gitmole/run.py        changed 29 times · fixed 3 times in six months · only vinni has touched it
+                        · execute() complexity 16 · changes with gitmole/cli.py (76%) and 4 others
+  gitmole/cli.py        changed 29 times · fixed once in six months · only vinni has touched it ·
+                        _analyse() complexity 27 · changes with gitmole/render.py (77%) and 1
+                        other
+  gitmole/findings.py   changed 17 times · fixed twice in six months · only vinni has touched it ·
+                        bus_factor() complexity 12 · changes with gitmole/render.py (64%) and 1
+                        other
+  gitmole/maat.py       changed 16 times · fixed twice in six months · only vinni has touched it ·
+                        activity() complexity 12 · changes with gitmole/blame.py (62%) and 2
+                        others
+  ranked by churn × recent fixes × complexity × single ownership
 
-◔ Activity
-  weekday   commits   share
-  ────────────────────────────────────────────
-  Mon             0      0%
-  Tue            43     84%   ████████████████
-  Wed             8     16%   ███
-  Thu             0      0%
-  Fri             0      0%
-  Sat             0      0%
-  Sun             0      0%
-  busiest hour 23:00 (13 commits)
-  6% of commits are fixes
+◉ People
+  author   commits   share             surviving code
+  ───────────────────────────────────────────────────
+  vinni         61   100% ▰▰▰▰▰▰▰▰▰▰             100%
+
+⌂ Knowledge map
+  area       lines added   main owner     second
+  ──────────────────────────────────────────────
+  tests/           5,000   vinni (100%)   -
+  gitmole/         4,888   vinni (100%)   -
+  build/           3,362   vinni (100%)   -
+  bin/                91   vinni (100%)   -
 
 ▦ Timeline (Oct 2025 → Sep 2026)
   author   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep
   ──────────────────────────────────────────────────────────────────────────────
-  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    51
+  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·    61
 
 ◆ Hotspots
-  file                   revs   lines   fixes   authors
-  ─────────────────────────────────────────────────────
-  gitmole/render.py        24     380       2         1
-  tests/test_render.py     23     354       2         1
-  tests/test_cli.py        21     358       0         1
-  tests/test_run.py        22     335       3         1
-  gitmole/cli.py           24     273       1         1
-  gitmole/run.py           23     248       3         1
-  tests/test_maat.py       16     229       2         1
-  gitmole/maat.py          16     195       2         1
-  and 35 more
+  file                     revs   lines   fixes   authors
+  ───────────────────────────────────────────────────────
+  tests/test_render.py       32     517       2         1
+  gitmole/render.py          33     464       2         1
+  tests/test_run.py          28     373       3         1
+  tests/test_cli.py          26     396       0         1
+  gitmole/cli.py             29     283       1         1
+  gitmole/run.py             29     271       3         1
+  tests/test_findings.py     16     296       2         1
+  tests/test_maat.py         16     229       2         1
+  and 41 more
 
 ⟷ Change coupling
   file                   changes with              degree
   ───────────────────────────────────────────────────────
   gitmole/maat.py        tests/test_maat.py          100%
-  gitmole/findings.py    tests/test_findings.py      100%
+  gitmole/filetypes.py   tests/test_filetypes.py     100%
   gitmole/knowledge.py   tests/test_knowledge.py     100%
   gitmole/render.py      tests/test_render.py         98%
   gitmole/run.py         tests/test_run.py            98%
-  and 74 more
+  and 88 more
 
-◷ Surviving code by year written
-  year   lines   share
-  ─────────────────────────────────────────────────────
-  2026   6,334    100%   ██████████████████████████████
-
-⌂ Knowledge map
-  area       lines added   main owner     second
-  ──────────────────────────────────────────────
-  tests/           3,783   vinni (100%)   -
-  gitmole/         3,731   vinni (100%)   -
-  build/           3,362   vinni (100%)   -
-  bin/                89   vinni (100%)   -
+λ Complex functions
+  function            file                ccn   lines   params
+  ────────────────────────────────────────────────────────────
+  _analyse            gitmole/cli.py       27      51        6
+  main                gitmole/cli.py       26      79        8
+  risks               gitmole/watch.py     22      32        2
+  functions_section   gitmole/render.py    19      22        3
+  timeline_section    gitmole/render.py    18      15        4
+  _portfolio          gitmole/cli.py       16      43        8
+  execute             gitmole/run.py       16      35        8
+  parse_git_sizer     gitmole/load.py      15      31        1
+  and 18 more
 
 ✚ Repo health (git-sizer concerns): nothing flagged
 
@@ -262,45 +268,66 @@ the rest dimmed, inline bars on share columns, and values past a threshold
 (a share over 50%, coupling at 90%, five fixes) in pink. On a terminal 100
 columns or wider the small tables sit side by side. Piped output, as above,
 is plain text.
-This is the default report; `--full` adds complexity, score and idle months
-to hotspots, emails to people, average revisions to coupling, the author
-count to the knowledge map, and lifts the row caps. The Markdown export
-keeps every column but caps each table at 50 rows unless `--full`.
+This is the default report: the header, the findings, the watch list, and
+the tables that point at a file or a person. `--full` adds the descriptive
+tables the header summarises in one line (size by language, activity by
+weekday with the busiest hour, surviving code by year), complexity, score
+and idle months to hotspots, emails to people, average revisions to
+coupling, the author count to the knowledge map, and lifts the row caps.
+The Markdown export keeps every table and column but caps each table at 50
+rows unless `--full`.
 
 ### The terminal report
 
 1. **Header**: commits, date span, identities, branch, size, top languages,
+   one line for the busiest day and hour, the share of fix commits and the
+   year most surviving code was written (or why the blame pass did not run),
    and a one-line tally of the findings.
 2. **Findings**: anything the heuristics flagged, worst first. Findings of
-   the same kind are grouped into one entry with a list, and advice sits on
-   its own line under the facts. Currently:
+   the same kind are grouped into one entry with a list, and every finding
+   ends with a next step that names the file, area or person to start with,
+   on its own line under the facts. Currently:
    secrets in history, an unconfigured git identity (example.com and the
    like), one author owning most surviving code, git-sizer concerns, one file
    dominating the churn, bug magnets (source files fixed three or more times
    in the last six months; a warning at five), brain methods (functions with
    complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
-   tightly coupled file pairs, duplicated blocks of 30+ lines, a large share
-   of stale files, one person under several identities, and knowledge
-   islands: areas of at least 200 lines written almost entirely by
+   tightly coupled file pairs (a file and its test are expected to change
+   together, so those pairs are left out), duplicated blocks of 30+ lines, a
+   large share of stale files, one person under several identities, and
+   knowledge islands: areas of at least 200 lines written almost entirely by
    one person (a warning when such areas hold most of the code).
 
    A commit counts as a fix when its subject starts with `fix:`, `hotfix:` or
    `bugfix:` in the conventional style, or mentions fix, bug, hotfix,
-   regression or crash. Test files are left out of bug magnets because they
-   change with every fix.
-3. **Tables**: size by language, people (identities merged by name and
-   email similarity, on top of `.mailmap`), activity by weekday with the
-   busiest hour and the share of commits that are fixes, a timeline of
-   commits per author over the last twelve months, hotspots ranked by
-   revisions times lines of code with complexity and the number of fix
-   commits alongside, change coupling, surviving code by year, the most
-   complex functions, a knowledge map (lines added per area of the tree and
-   who wrote them), repo health.
+   regression or crash. Test files are left out of every finding that names a
+   file, area or function: they change with every fix, and owning the tests is
+   not the knowledge risk. The tables still show them.
+3. **Watch list**: the five files where the next bug is most likely, with
+   the reasons in words. Every source file still in the tree that changed
+   more than once is scored churn × (1 + recent fixes) × (1 + complexity),
+   times 1.5 when one person wrote 90% or more of it, each factor scaled to
+   the worst file in the repo. Churn is the base because a file nobody
+   changes is not where the next bug lands; complexity is scc's per-file
+   total, one scale for every file, while the most complex function lizard
+   found is named in the reasons. The reasons name the fix count, the sole
+   owner, the function and the files it always changes with. Test files are
+   left out. Under `--since`, churn and ownership are windowed and the list
+   says so. `--full` and the exports show fifteen.
+4. **Tables**: people (identities merged by name and email similarity, on
+   top of `.mailmap`), a knowledge map (lines added per area of the tree and
+   who wrote them), a timeline of commits per author over the last twelve
+   months, hotspots ranked by revisions times lines of code with the number
+   of fix commits alongside, change coupling, the most complex functions,
+   repo health. With `--full`: size by language, activity by weekday with
+   the busiest hour and the share of commits that are fixes, and surviving
+   code by year.
 
-   Hotspots, coupling, ownership and code age only look at source files: a
-   built-in list of code extensions plus names like Makefile and Dockerfile.
-   Size by language, activity and the timeline cover the whole repository.
-4. **Footer**: where the files and plots are.
+   Hotspots, coupling, ownership, code age and the watch list only look at
+   source files: a built-in list of code extensions plus names like Makefile
+   and Dockerfile. Size by language, activity and the timeline cover the
+   whole repository.
+5. **Footer**: where the files and plots are.
 
 ### The output directory
 

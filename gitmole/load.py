@@ -76,22 +76,30 @@ def parse_git_sizer(text: str) -> list:
         if m:
             notes[m.group("ref")] = m.group("path")
 
-    rows, section = [], ""
+    # Two shapes of section: "Overall repository size" and "Biggest objects" have sub-headers
+    # ("* Blobs") with their metrics indented under them; "History structure" and "Biggest
+    # checkouts" list their metrics directly ("* Number of files"). A starred line with a value
+    # is a metric, a starred line without one is a sub-header, an unstarred line is a section.
+    rows, section, sub = [], "", ""
     for line in text.splitlines():
         m = _SIZER_ROW.match(line)
         if not m:
             continue
         indent = len(m.group("pad")) - 1
-        name = m.group("name").strip().lstrip("* ").strip()
+        raw = m.group("name").strip()
+        name = raw.lstrip("* ").strip()
         if not name or name == "Name" or name.startswith("---"):
             continue
-        if indent == 0:
-            section = name
+        if indent == 0 and not raw.startswith("*"):
+            section = sub = name
+            continue
+        if indent == 0 and not m.group("value"):
+            sub = name
             continue
         if not m.group("concern"):
             continue
         rows.append({
-            "name": f"{section}: {name}",
+            "name": f"{sub if indent else section}: {name}",
             "value": m.group("value"),
             "concern": len(m.group("concern")),
             "ref": notes.get(m.group("ref") or "", ""),

@@ -2,6 +2,7 @@
 Standalone so blame.py and maat.py can import it as scripts."""
 from __future__ import annotations
 
+import re
 import subprocess
 from collections import Counter
 
@@ -45,6 +46,14 @@ def parse(spec):
     if spec.strip().lower() == "all":
         return None
     return {t.strip().lstrip(".").lower() for t in spec.split(",") if t.strip()}
+
+
+_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing)(/|$)|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+)$", re.I)
+
+
+def is_test_path(path: str) -> bool:
+    """A test file or anything under a tests directory: changes with every fix, so not a signal on its own."""
+    return bool(_TEST_PATH.search(path))
 
 
 def key(path: str) -> str:

@@ -36,21 +36,33 @@ def split_advice(detail: str):
     return statement, sentences[-1]
 
 
+def _statement_and_advice(f: dict):
+    """A finding's facts and its next step. Rules say which part is the advice; for a finding
+    without that field (older JSON, a hand-made dict) the last sentence is taken when it is an
+    instruction."""
+    detail = f["detail"].strip()
+    advice = f.get("advice")
+    if advice:
+        statement = detail[:-len(advice)].rstrip() if detail.endswith(advice) else detail
+        return statement.rstrip("."), advice
+    return split_advice(detail)
+
+
 def group_findings(findings: list) -> list:
-    """Merge findings that share a title into one entry with an item list and one advice line.
-    Order: by severity, then first appearance."""
+    """Merge findings that share a title into one entry with an item list and the distinct next
+    steps its items carry, in first-seen order. Order: by severity, then first appearance."""
     order = {"critical": 0, "warning": 1, "info": 2}
     groups, index = [], {}
     for f in findings:
-        statement, advice = split_advice(f["detail"])
+        statement, advice = _statement_and_advice(f)
         key = f["title"]
         if key not in index:
             index[key] = len(groups)
-            groups.append({"severity": f["severity"], "title": key, "items": [], "advice": None})
+            groups.append({"severity": f["severity"], "title": key, "items": [], "advice": []})
         g = groups[index[key]]
         g["items"].append(statement)
-        if advice and not g["advice"]:
-            g["advice"] = advice
+        if advice and advice not in g["advice"]:
+            g["advice"].append(advice)
         if order[f["severity"]] < order[g["severity"]]:
             g["severity"] = f["severity"]
     for g in groups:
