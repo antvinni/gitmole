@@ -67,8 +67,9 @@ Then install gitmole itself with pipx (or pip) on any platform:
 
 ```bash
 brew install scc git-sizer gitleaks          # or your package manager
-pipx install git+https://github.com/antvinni/gitmole
-pipx install 'gitmole[plots] @ git+https://github.com/antvinni/gitmole'   # adds git-of-theseus for --plots
+pipx install 'git+https://github.com/antvinni/gitmole@v0.2.0'
+pipx install 'gitmole[plots] @ git+https://github.com/antvinni/gitmole@v0.2.0'   # adds git-of-theseus for --plots
+pipx install git+https://github.com/antvinni/gitmole                        # main, unreleased
 ```
 
 `python -m gitmole` works too. From a checkout, `pip install -e .` gives an
@@ -453,6 +454,16 @@ UPDATE_GOLDEN=1 python3 -m unittest tests.test_golden
 what keeps that report stable. gitmole validates it, announces it at the
 start of a run, and records it in `meta.json`, so a forgotten export cannot
 silently skew a real report.
+
+### Releases
+
+Versions are git tags. To release: bump `__version__` in `gitmole/__init__.py`,
+merge, then tag that commit `vX.Y.Z` and push the tag. CI runs the tests, checks
+that the tag matches `__version__`, builds the sdist and wheel, and creates the
+GitHub release with notes generated from the merged pull requests and the
+artefacts attached. `pipx install 'git+https://github.com/antvinni/gitmole@vX.Y.Z'`
+installs a release. Releases are listed at
+https://github.com/antvinni/gitmole/releases.
 
 `bin/render-banner` regenerates `docs/banner.svg` from the banner code.
 The code lives in `gitmole/`: `run.py` plans and executes the tools,
