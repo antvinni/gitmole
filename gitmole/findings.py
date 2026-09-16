@@ -257,19 +257,14 @@ def _is_live(area: str, age_rows: list) -> bool:
     return False
 
 
-def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.30) -> list:
-    """Code written by people who have stopped committing. Share of surviving code from the blame
-    pass; when that did not run, share of lines added, and the statement says so."""
-    months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
-    gone = loss.gone(report, months)
-    if not gone:
-        return []
-    names = {g["name"] for g in gone}
+def _loss_totals(report: dict, names: set) -> tuple:
+    """(lost, total, by_person, basis): share of surviving code from the blame pass; when that did
+    not run, share of lines added instead, with the basis clause that says so."""
     lost, total = loss.surviving(report, names)
     by_person = {n: v for n, v in (report.get("theseus_authors") or {}).items() if n in names}
     basis = "of the code that survives today"
-    source_rows = _source_ownership(report)
     if not total:
+        source_rows = _source_ownership(report)
         areas_all = loss.areas(source_rows, names)
         total = sum(a["lines"] for a in areas_all)
         lost = sum(a["lost"] for a in areas_all)
@@ -277,9 +272,12 @@ def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.
         for r in (r for r in source_rows if r["author"] in names):
             by_person[r["author"]] = by_person.get(r["author"], 0) + r["added"]
         basis = "of all lines added (from lines added, not a blame)"
-    if not total or lost / total < min_share:
-        return []
-    sev = "warning" if lost / total >= warn_share else "info"
+    return lost, total, by_person, basis
+
+
+def _loss_people(by_person: dict, total: int) -> str:
+    """The "Bob (25%), Cat (2%) and 3 others (1%)" clause, or "N people at under 1% each" when
+    nobody's individual share rounds to 1% or more."""
     people = sorted(by_person.items(), key=lambda kv: (-kv[1], kv[0]))
     named = [(n, v) for n, v in people if round(100 * v / total) >= 1][:3]
     if named:
@@ -290,10 +288,33 @@ def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.
             listed += f" and {_plural(len(rest), 'other')} ({_pct(sum(v for _, v in rest), total)})"
     else:
         listed = f"{len(people)} {'person' if len(people) == 1 else 'people'} at under 1% each"
-    theirs = [a for a in loss.areas(source_rows, names) if a["lines"] >= 200 and a["lost_share"] >= 0.8]
+    return listed
+
+
+def _loss_areas(report: dict, names: set) -> list:
+    """Areas at 200+ lines where 80%+ of the surviving code is theirs, tagged live or not and
+    sorted live-first: that is where the gap bites soonest."""
+    theirs = [a for a in loss.areas(_source_ownership(report), names) if a["lines"] >= 200 and a["lost_share"] >= 0.8]
     for a in theirs:
         a["live"] = _is_live(a["area"], report.get("age") or [])
     theirs.sort(key=lambda a: (not a["live"], -a["lines"], a["area"]))   # a live area first: that is where the gap bites
+    return theirs
+
+
+def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.30) -> list:
+    """Code written by people who have stopped committing. Share of surviving code from the blame
+    pass; when that did not run, share of lines added, and the statement says so."""
+    months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
+    gone = loss.gone(report, months)
+    if not gone:
+        return []
+    names = {g["name"] for g in gone}
+    lost, total, by_person, basis = _loss_totals(report, names)
+    if not total or lost / total < min_share:
+        return []
+    sev = "warning" if lost / total >= warn_share else "info"
+    listed = _loss_people(by_person, total)
+    theirs = _loss_areas(report, names)
     statement = (f"People with no commits since {loss.cutoff(report, months)} "
                  f"wrote {_pct(lost, total)} {basis}: {listed}.")
     if theirs:
@@ -301,7 +322,8 @@ def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.
     if theirs and theirs[0]["live"]:
         advice = f"Pair someone on {theirs[0]['area']} first; nobody who wrote it is around to ask."
     else:   # nothing there has been touched in a year: pairing on it would be work nobody has asked for
-        advice = f"Pair someone with the people who worked with {people[0][0]} before the rest of that knowledge goes."
+        top = min(by_person, key=lambda n: (-by_person[n], n))
+        advice = f"Pair someone with the people who worked with {top} before the rest of that knowledge goes."
     return [_f(sev, "Knowledge loss", statement, advice)]
 
 

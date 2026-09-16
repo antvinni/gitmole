@@ -481,6 +481,15 @@ class KnowledgeLoss(unittest.TestCase):
         self.assertIn("wrote 28% of the code that survives today: Bob (25%), Cat (2%) and 3 others (1%)", f[0]["detail"])
         self.assertNotIn("Dan", f[0]["detail"])
 
+    def test_everyone_under_one_percent_is_counted_not_named(self):
+        # total 1000; 20 gone people at 5 lines each is exactly the 10% floor, and each rounds to 0% individually.
+        people = {f"P{i}": 5 for i in range(20)}
+        r = self._report(theseus_authors={"Ann": 900, **people})
+        for name in people:
+            r["activity"]["authors"][name] = {"commits": 1, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2024-06-01"}
+        f = findings.knowledge_loss(r)
+        self.assertIn("20 people at under 1% each", f[0]["detail"])
+
 
 class ComplexityGrowth(unittest.TestCase):
     def _report(self, growth):
