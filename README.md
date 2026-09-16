@@ -58,25 +58,67 @@ not guess at either.
 
 ## Install
 
-gitmole needs three tools on your PATH: [scc](https://github.com/boyter/scc),
-[git-sizer](https://github.com/github/git-sizer) and
-[gitleaks](https://github.com/gitleaks/gitleaks). All three are in Homebrew
-and in most Linux package managers, and each ships static binaries.
+gitmole needs git, Python 3.9 or newer, and three tools on your PATH:
+[scc](https://github.com/boyter/scc) for size,
+[git-sizer](https://github.com/github/git-sizer) for repository health and
+[gitleaks](https://github.com/gitleaks/gitleaks) for secrets. gitmole itself
+is a Python package; install it with [pipx](https://pipx.pypa.io) so it gets
+its own environment and a `gitmole` command.
 
-Then install gitmole itself with pipx (or pip) on any platform:
+### macOS
 
 ```bash
-brew install scc git-sizer gitleaks          # or your package manager
+brew install scc git-sizer gitleaks pipx
+pipx ensurepath                                  # once; then open a new shell
 pipx install 'git+https://github.com/antvinni/gitmole@v0.2.0'
+```
+
+### Linux
+
+Homebrew on Linux has all three tools, bottled, so the macOS commands work
+unchanged. Without Homebrew, take the tools from your package manager where
+it has them and from the projects' release pages otherwise; each ships a
+static binary, so dropping it into `~/.local/bin` is enough.
+
+```bash
+# Debian and Ubuntu: git-sizer and pipx are packaged
+sudo apt install git git-sizer pipx
+pipx ensurepath                                  # once; then open a new shell
+
+# scc and gitleaks: one static binary each, from their release pages
+#   https://github.com/boyter/scc/releases        (the Linux x86_64 or arm64 archive)
+#   https://github.com/gitleaks/gitleaks/releases (the linux x64 or arm64 archive)
+# unpack and move the binary into ~/.local/bin, then:
+chmod +x ~/.local/bin/scc ~/.local/bin/gitleaks
+
+pipx install 'git+https://github.com/antvinni/gitmole@v0.2.0'
+```
+
+On a distribution without a `pipx` package, `python3 -m pip install --user
+pipx` installs it. Some distributions package scc or gitleaks as well; if
+yours does, prefer that to a downloaded binary.
+
+### Check
+
+```bash
+scc --version && git-sizer --version && gitleaks version && gitmole --version
+gitmole .                                        # a report of the clone you are in
+```
+
+`gitmole` reports any tool it cannot find on the first run.
+
+### Other ways to install
+
+```bash
 pipx install 'gitmole[plots] @ git+https://github.com/antvinni/gitmole@v0.2.0'   # adds git-of-theseus for --plots
 pipx install git+https://github.com/antvinni/gitmole                        # main, unreleased
 ```
 
-`python -m gitmole` works too. From a checkout, `pip install -e .` gives an
-editable install. Use pip 22 or newer: the pip that ships with macOS's system
-Python is older and silently builds an empty package called UNKNOWN from
-modern project files. pipx brings its own current pip, and
-`python3 -m pip install -U pip` fixes a plain venv.
+`python -m gitmole` works too. From a checkout, `pip install -e .` in a
+virtual environment gives an editable install. Use pip 22 or newer: the pip
+that ships with macOS's system Python is older and silently builds an empty
+package called UNKNOWN from modern project files. pipx brings its own current
+pip, and `python3 -m pip install -U pip` fixes a plain venv.
 
 On macOS, `./bin/install.sh` does all of the above the developer way: brew
 tools, the Python packages into your user site, and a symlink of
