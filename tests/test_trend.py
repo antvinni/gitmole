@@ -81,9 +81,11 @@ def grow_repo(d):
     os.makedirs(os.path.join(d, "app"))
     for i, date in enumerate(["2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01"], start=1):
         body = "def f(x):\n" + "".join(f"    if x > {k}:\n        return {k}\n" for k in range(i * 3)) + "    return 0\n"
-        open(os.path.join(d, "app", "a.py"), "w").write(body)
+        with open(os.path.join(d, "app", "a.py"), "w") as fh:
+            fh.write(body)
         if i == 4:
-            open(os.path.join(d, "app", "late.py"), "w").write("def g():\n    return 1\n")
+            with open(os.path.join(d, "app", "late.py"), "w") as fh:
+                fh.write("def g():\n    return 1\n")
         git("add", "-A", date=f"{date}T10:00:00")
         git("commit", "-q", "-m", f"step {i}", date=f"{date}T10:00:00")
 

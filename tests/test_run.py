@@ -272,9 +272,19 @@ class Plan(unittest.TestCase):
         self.assertEqual(argv[2:], ["/o/log.txt", "/o", "--aliases", "/o/meta.json"])
 
     def test_only_three_tools_required_by_default_and_theseus_with_plots(self):
+        """Checked against a directory of stub executables, not this machine's PATH."""
         self.assertEqual(run.REQUIRED_TOOLS, ["scc", "git-sizer", "gitleaks"])
-        self.assertEqual(run.missing_tools(), [])
-        self.assertEqual(run.missing_tools(plots=True), [])
+        with tempfile.TemporaryDirectory() as d:
+            for name in run.REQUIRED_TOOLS:
+                stub = os.path.join(d, name)
+                open(stub, "w").close()
+                os.chmod(stub, 0o755)
+            self.assertEqual(run.missing_tools(path=d), [])
+            self.assertEqual(run.missing_tools(plots=True, path=d), ["git-of-theseus-analyze"], "plots need git-of-theseus on top")
+            stub = os.path.join(d, "git-of-theseus-analyze")
+            open(stub, "w").close()
+            os.chmod(stub, 0o755)
+            self.assertEqual(run.missing_tools(plots=True, path=d), [])
         self.assertEqual(run.missing_tools(plots=True, path="/nonexistent"), ["scc", "git-sizer", "gitleaks", "git-of-theseus-analyze"])
 
     def test_theseus_tracks_the_given_branch(self):
@@ -333,8 +343,9 @@ class EstimateBlames(unittest.TestCase):
             git("init", "-q")
             ident = dict(GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
             for i, date in enumerate(["2026-01-01T00:00:00", "2026-02-15T00:00:00", "2026-04-01T00:00:00"]):
-                open(os.path.join(d, f"f{i}.py"), "w").write("x")
-                open(os.path.join(d, f"g{i}.py"), "w").write("x")
+                for name in (f"f{i}.py", f"g{i}.py"):
+                    with open(os.path.join(d, name), "w") as fh:
+                        fh.write("x")
                 git("add", "-A")
                 git("commit", "-q", "-m", str(i), GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date, **ident)
             est = run.estimate_blames(d, interval=run.MONTH, sample=0)
