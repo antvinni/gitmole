@@ -178,7 +178,8 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     status = report["meta"].get("backtest") or {}
     if bt:
         notes.append(f"6 months ago this list would have named {bt['hits']} of the {bt['fixed']} files fixed since "
-                     f"(a random {bt['listed']} of the {bt['pool']} files that had changed more than once would name {bt['expected']})")
+                     f"(a random {bt['listed']} of the {bt['pool']} files that had changed more than once would name {bt['expected']})"
+                     + ("; whole history" if since else ""))   # the backtest ignores the window
     elif status.get("reason"):
         notes.append(status["reason"])
     elif status.get("status") in ("failed", "timeout"):
@@ -416,7 +417,8 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         columns, rows = _keep(columns, rows, ["area", "lines added", "main owner", "second"])
     notes = [c for c in (_more(len(areas), limit),) if c]
     if gone:
-        notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}")
+        notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
+                     + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))
     return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
 
 

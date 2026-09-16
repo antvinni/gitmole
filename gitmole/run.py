@@ -348,7 +348,8 @@ def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int
 def collect_meta(repo_dir: str, since: str = None) -> dict:
     """Repository facts from git. The window (author date >= since) bounds the commit count, the
     date range and the identity table; aliases are merged over the whole history so blame and
-    ownership keep merging people who have no commits in the window. Bots (renovate, dependabot,
+    ownership keep merging people who have no commits in the window, and `first_date_all` keeps
+    the date of the first commit of all so the backtest can still measure the whole history. Bots (renovate, dependabot,
     GitHub Actions and anything named *[bot]) are counted apart under "bots", not as identities."""
     from collections import Counter
 
@@ -360,6 +361,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
     all_windowed = [r for r in all_rows if not since or r[0] >= since]
     windowed = [r for r in all_windowed if not identity.is_bot(r[1], r[2])]
     dates = [r[0] for r in all_windowed]
+    all_dates = [r[0] for r in all_rows]
     bots = Counter(n for _, n, e in all_windowed if identity.is_bot(n, e))
     all_identities = identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in rows)))
     meta = {
@@ -368,6 +370,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
         "branch": _git(repo_dir, "rev-parse", "--abbrev-ref", "HEAD").strip(),
         "commits": len(dates),
         "first_date": min(dates) if dates else "",
+        "first_date_all": min(all_dates) if all_dates else "",   # unwindowed: the backtest asks how long the history is
         "last_date": max(dates) if dates else "",
         "identities": identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in windowed))),
         "bots": [{"name": n, "commits": c} for n, c in sorted(bots.items(), key=lambda kv: (-kv[1], kv[0]))],

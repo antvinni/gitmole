@@ -159,10 +159,22 @@ def entity_ownership(commits: list) -> list:
     return rows
 
 
+def author_totals(commits: list) -> dict:
+    """Per author: commits, lines added and deleted, and the first and last date they committed."""
+    out = {}
+    for c in commits:
+        a = out.setdefault(c["author"], {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
+        a["commits"] += 1
+        a["added"] += sum(x for _, x, _ in c["files"])
+        a["deleted"] += sum(x for _, _, x in c["files"])
+        a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
+    return out
+
+
 def activity(commits: list) -> dict:
     """Commits by weekday (Mon=0) and hour, by month, and per-author totals."""
     by_weekday, by_hour, by_month, net_by_year = [0] * 7, [0] * 24, Counter(), Counter()
-    authors, timeline, fix_commits = {}, defaultdict(Counter), 0
+    timeline, fix_commits = defaultdict(Counter), 0
     revert_commits, reverted = 0, Counter()
     for c in commits:
         when = c.get("time") or c["date"]
@@ -183,13 +195,8 @@ def activity(commits: list) -> dict:
             revert_commits += 1
             for p, _, _ in c["files"]:
                 reverted[p] += 1
-        a = authors.setdefault(c["author"], {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
-        a["commits"] += 1
-        a["added"] += sum(x for _, x, _ in c["files"])
-        a["deleted"] += sum(x for _, _, x in c["files"])
-        a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
     return {"by_weekday": by_weekday, "by_hour": by_hour, "by_month": dict(sorted(by_month.items())),
-            "net_by_year": dict(sorted(net_by_year.items())), "authors": authors,
+            "net_by_year": dict(sorted(net_by_year.items())), "authors": author_totals(commits),
             "timeline": {a: dict(sorted(m.items())) for a, m in timeline.items()}, "fix_commits": fix_commits,
             "revert_commits": revert_commits,
             "reverted": dict(sorted(reverted.items(), key=lambda kv: (-kv[1], kv[0])))}
@@ -232,7 +239,7 @@ def validate_now(value: str) -> str:
 
 def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None, since: str = None, until: str = None) -> None:
     """`now` (YYYY-MM-DD) is the reference date for file ages; default today. `since` and `until` bound every
-    analysis except file ages, which always describe the whole history."""
+    analysis except file ages and activity.json's `authors_all`, which describe the whole history."""
     # newline="": keep a \r inside a subject as-is instead of turning it into a line break
     with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
         commits = parse_log(fh.read(), aliases_from_meta(aliases_path) if aliases_path else None, types)
@@ -245,6 +252,8 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filet
             w.writeheader()
             w.writerows(rows)
     act = activity(windowed)
+    # knowledge loss is a whole-history question, so it reads authors_all, not the windowed table
+    act["authors_all"] = author_totals(commits)
     act["window"] = since
     act["until"] = until
     with open(os.path.join(out_dir, "activity.json"), "w", encoding="utf-8") as fh:

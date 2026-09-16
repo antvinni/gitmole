@@ -461,6 +461,21 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(by["Bob"]["aliases"], [], "mailmap should merge Robert before the heuristic sees it")
         self.assertEqual([a["name"] for a in by["Ann Lee"]["aliases"]], ["ann-lee"])
 
+    def test_first_date_all_spans_the_whole_history_even_when_windowed(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            ident = dict(GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.com", GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="ann@x.com")
+            for date in ["2023-01-01T10:00:00", "2025-01-01T10:00:00", "2026-01-01T10:00:00"]:
+                git("commit", "-q", "--allow-empty", "-m", date, GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date, **ident)
+            windowed = run.collect_meta(d, since="2024-06-01")
+            whole = run.collect_meta(d)
+        self.assertEqual(windowed["first_date"], "2025-01-01")
+        self.assertEqual(windowed["first_date_all"], "2023-01-01", "the backtest measures the whole history")
+        self.assertEqual(whole["first_date_all"], whole["first_date"], "without a window the two are the same date")
+
     def test_bots_are_left_out_of_identities_and_listed_apart(self):
         with tempfile.TemporaryDirectory() as d:
             def git(*args, **env):

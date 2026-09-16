@@ -175,6 +175,18 @@ class Report(unittest.TestCase):
         self.assertRegex(full, r"static/\s+1,000\s+2\s+10%")
         self.assertNotIn("gone", rendered(sample_report(), []))
 
+    def test_knowledge_map_caption_says_gone_is_measured_over_the_whole_history(self):
+        r = sample_report()
+        r["meta"].update({"last_date": "2026-09-10", "bots": []})
+        r["activity"]["authors"] = {"Ann": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2026-09-01"},
+                                    "Bob": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2025-01-01"}}
+        def caption(rep):
+            return next(x for x in render.sections(rep, full=False) if x["id"] == "knowledge")["caption"]
+        self.assertEqual(caption(r), "gone = no commits in the 12 months before 2026-09-10")
+        r["meta"]["since"] = "2026-01-01"
+        self.assertEqual(caption(r), "gone = no commits in the 12 months before 2026-09-10; "
+                                     "gone and lost are measured over the whole history")
+
     def test_hotspots_carry_a_trend_column_and_a_sparkline_under_full(self):
         r = sample_report()
         r["meta"]["last_date"] = "2026-09-10"
@@ -202,6 +214,19 @@ class Report(unittest.TestCase):
                      "(a random 2 of the 2 files that had changed more than once would name 1.0)", text)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["hits"], 1)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["pool"], 2)
+
+
+    def test_backtest_caption_says_whole_history_under_a_window(self):
+        r = sample_report()
+        past = sample_report()
+        past["meta"] = {"now": "2026-03-10"}
+        r["backtest"] = past
+        r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
+                      {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
+        r["meta"]["since"] = "2026-01-01"
+        caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
+        self.assertIn("ranked by churn × recent fixes × complexity × single ownership; commits since 2026-01-01", caption)
+        self.assertTrue(caption.endswith("would name 1.0); whole history"), caption)
 
 
 class Activity(unittest.TestCase):

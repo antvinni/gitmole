@@ -14,7 +14,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 
-from . import __version__, banner, filetypes, findings, load, run
+from . import __version__, banner, filetypes, findings, load, loss, run
 
 
 def parse_args(argv):
@@ -31,7 +31,7 @@ def parse_args(argv):
     p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from code age, function metrics and plots")
     p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra ignore pattern for code age, function metrics and plots (repeatable)")
     p.add_argument("--since", metavar="WHEN", help="only analyse history newer than this: 2y, 18m, 90d or YYYY-MM-DD (code age is always the whole tree)")
-    p.add_argument("--gone", type=int, default=12, metavar="MONTHS", help="a person with no commits this many months before the last commit counts as gone (default 12)")
+    p.add_argument("--gone", type=int, default=loss.DEFAULT_MONTHS, metavar="MONTHS", help="a person with no commits this many months before the last commit counts as gone (default 12)")
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
     p.add_argument("--duplicates", action="store_true", help="also look for duplicated code blocks (minutes and gigabytes on a large repo; function metrics alone take seconds)")
@@ -210,7 +210,8 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     meta["trend"] = {"status": "planned"}
     from . import maat as _maat
     cut = _maat.months_before(meta["last_date"], 6) if meta["last_date"] else None
-    if cut and meta["first_date"] and meta["first_date"] <= _maat.months_before(cut, 6):
+    first = meta.get("first_date_all") or meta["first_date"]   # the backtest reads the whole history, window or not
+    if cut and first and first <= _maat.months_before(cut, 6):
         meta["backtest"] = {"status": "planned", "until": cut}
     else:
         cut = None
@@ -234,7 +235,8 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         meta["plots"]["status"] = status("git-of-theseus")
     if lizard_ok:
         meta["functions"]["status"] = status("functions")
-    meta["trend"]["status"] = status("trend")
+    if "trend" in results:
+        meta["trend"]["status"] = status("trend")
     if cut and "backtest" in results:
         meta["backtest"]["status"] = status("backtest")
     run.save_meta(meta, out_dir)
