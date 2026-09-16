@@ -186,6 +186,23 @@ class Plan(unittest.TestCase):
         self.assertIn("--use-mailmap", by["git-log"]["argv"])
         self.assertEqual(by["git-log"]["argv"][:4], ["git", "-c", "core.quotePath=false", "log"], "non-ASCII paths must not be octal-escaped and quoted")
 
+    def test_function_metrics_step_is_optional_and_excludes_ignores(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, ignore=["vendor/**"])}
+        self.assertEqual(by["functions"]["argv"][:2], ["lizard", "--csv"])
+        self.assertEqual(by["functions"]["stdout"], "/o/functions.csv")
+        self.assertEqual(by["duplicates"]["argv"][:2], ["lizard", "-Eduplicate"])
+        self.assertEqual(by["duplicates"]["stdout"], "/o/duplicates.txt")
+        for step in ("functions", "duplicates"):
+            argv = by[step]["argv"]
+            self.assertEqual(argv[argv.index("-x") + 1], "vendor/**")
+        names = [s["name"] for s in run.plan("/r", "/o", lizard=False)]
+        self.assertNotIn("functions", names)
+        self.assertNotIn("duplicates", names)
+
+    def test_lizard_is_detected_not_required(self):
+        self.assertNotIn("lizard", run.REQUIRED_TOOLS)
+        self.assertIn(run.has_tool("lizard", path="/nonexistent"), (False,))
+
     def test_code_age_runs_the_bundled_blame_script(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", ignore=["*.csv"])}
         argv = by["code age"]["argv"]

@@ -114,6 +114,41 @@ def parse_authors_log(text: str) -> list:
     ]
 
 
+def parse_functions(text: str) -> list:
+    """lizard --csv rows: nloc, ccn, tokens, params, length, location, file, function, long name, start, end."""
+    rows = []
+    for r in csv.reader(io.StringIO(text)):
+        if len(r) < 11:
+            continue
+        loc = r[6][2:] if r[6].startswith("./") else r[6]
+        rows.append({"file": loc, "function": r[7], "ccn": int(r[1]), "nloc": int(r[0]), "params": int(r[3]), "start": int(r[9]), "end": int(r[10])})
+    return rows
+
+
+_DUP_PLACE = re.compile(r"^(.+?):(\d+) ~ (\d+)$")
+_DUP_RATE = re.compile(r"Total duplicate rate:\s*([\d.]+)%")
+
+
+def parse_duplicates(text: str) -> dict:
+    """lizard -Eduplicate output: blocks of 'path:start ~ end' lines and the overall rate."""
+    blocks, current = [], None
+    for line in text.splitlines():
+        line = line.rstrip()
+        if line == "Duplicate block:":
+            current = []
+        elif current is not None:
+            m = _DUP_PLACE.match(line)
+            if m:
+                path = m.group(1)
+                current.append((path[2:] if path.startswith("./") else path, int(m.group(2)), int(m.group(3))))
+            elif line.startswith("^^^"):
+                if current:
+                    blocks.append({"lines": current[0][2] - current[0][1] + 1, "places": current})
+                current = None
+    m = _DUP_RATE.search(text)
+    return {"rate": float(m.group(1)) if m else None, "blocks": blocks}
+
+
 def parse_secrets(text: str) -> list:
     rows = json.loads(text) if text.strip() else []
     return [
@@ -155,4 +190,6 @@ def load_report(out_dir: str) -> dict:
         "theseus_authors": surviving,
         "secrets": parse_secrets(_read(out_dir, "secrets.json")),
         "activity": json.loads(_read(out_dir, "activity.json") or "{}"),
+        "functions": parse_functions(_read(out_dir, "functions.csv")),
+        "duplicates": parse_duplicates(_read(out_dir, "duplicates.txt")),
     }

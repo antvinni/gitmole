@@ -24,6 +24,9 @@ def sample_report():
         "theseus_authors": {"Ann": 9076, "Bob": 2342},
         "secrets": [],
         "fixes": [{"entity": "static/apps-metadata.json", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 4}],
+        "functions": [{"file": "static/js/app.js", "function": "render", "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200},
+                      {"file": "static/js/util.js", "function": "tidy", "ccn": 12, "nloc": 30, "params": 1, "start": 1, "end": 31}],
+        "duplicates": {"rate": 1.5, "blocks": []},
         "ownership": [{"entity": "static/a.html", "author": "Ann", "added": 900, "deleted": 0},
                       {"entity": "static/b.html", "author": "Bob", "added": 100, "deleted": 0},
                       {"entity": "tests/t.py", "author": "Bob", "added": 300, "deleted": 0}],
@@ -164,6 +167,31 @@ class Activity(unittest.TestCase):
         r = sample_report()
         r["activity"] = {}
         self.assertIn("no activity data", rendered(r, []))
+
+
+class ComplexFunctions(unittest.TestCase):
+    def test_section_lists_functions_by_complexity(self):
+        text = rendered(sample_report(), [], full=True)
+        self.assertIn("Complex functions", text)
+        self.assertRegex(text, r"render\s+static/js/app.js\s+27\s+180\s+4")
+        self.assertRegex(text, r"render.*\n.*tidy", "worst first")
+
+    def test_absent_without_data(self):
+        r = sample_report()
+        r["functions"] = []
+        self.assertIn("Complex functions: no function metrics (install lizard)", rendered(r, []))
+
+    def test_only_functions_over_the_floor(self):
+        r = sample_report()
+        r["functions"] = [{"file": "a.py", "function": "simple", "ccn": 9, "nloc": 300, "params": 0, "start": 1, "end": 300}]
+        text = rendered(r, [])
+        self.assertNotIn("simple", text)
+        self.assertIn("Complex functions: nothing over complexity 10 (1 function measured)", text)
+        r["functions"].append({"file": "a.py", "function": "twisty", "ccn": 10, "nloc": 20, "params": 0, "start": 1, "end": 20})
+        text = rendered(r, [])
+        self.assertRegex(text, r"twisty\s+a.py\s+10\s+20")
+        self.assertNotIn("simple", text)
+        self.assertNotIn("more", text, "the caption counts only functions over the floor")
 
 
 class KnowledgeMap(unittest.TestCase):
@@ -362,6 +390,7 @@ class Sections(unittest.TestCase):
         titles = [x["title"] for x in secs]
         self.assertEqual(titles[:3], ["Size by language", "People", "Activity"])
         self.assertTrue(titles[3].startswith("Timeline"))
+        self.assertEqual(titles[-3], "Complex functions")
         self.assertEqual(titles[-2], "Knowledge map")
         self.assertTrue(titles[4].startswith("Hotspots"))
         self.assertEqual(titles[-1], "Repo health (git-sizer concerns)")

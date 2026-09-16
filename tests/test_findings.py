@@ -152,6 +152,45 @@ class BugMagnets(unittest.TestCase):
         self.assertEqual(findings.bug_magnets(report()), [])
 
 
+class BrainMethods(unittest.TestCase):
+    FUNCS = [{"file": "core/parser.py", "function": "parse", "ccn": 41, "nloc": 220, "params": 9, "start": 10, "end": 300},
+             {"file": "core/util.py", "function": "tidy", "ccn": 16, "nloc": 120, "params": 2, "start": 1, "end": 130},
+             {"file": "core/small.py", "function": "ok", "ccn": 30, "nloc": 40, "params": 1, "start": 1, "end": 41},
+             {"file": "core/long.py", "function": "flat", "ccn": 3, "nloc": 400, "params": 1, "start": 1, "end": 401}]
+
+    def test_long_and_complex_functions_worst_first(self):
+        f = findings.brain_methods(report(functions=self.FUNCS))
+        self.assertEqual(len(f), 1)
+        self.assertIn("parse (core/parser.py) complexity 41, 220 lines, 9 params", f[0]["detail"])
+        self.assertIn("tidy (core/util.py)", f[0]["detail"])
+        self.assertNotIn("small.py", f[0]["detail"], "complex but short is not a brain method")
+        self.assertNotIn("long.py", f[0]["detail"], "long but simple is not a brain method")
+
+    def test_warning_when_a_brain_method_sits_in_a_hotspot(self):
+        r = report(functions=self.FUNCS, revisions=[{"entity": "core/parser.py", "n-revs": 90}, {"entity": "x.py", "n-revs": 1}])
+        self.assertEqual(findings.brain_methods(r)[0]["severity"], "warning")
+        self.assertEqual(findings.brain_methods(report(functions=self.FUNCS))[0]["severity"], "info")
+
+    def test_nothing_without_data(self):
+        self.assertEqual(findings.brain_methods(report()), [])
+
+
+class Duplication(unittest.TestCase):
+    def test_large_blocks_are_reported(self):
+        dup = {"rate": 4.2, "blocks": [{"lines": 71, "places": [("a/x.py", 10, 80), ("b/y.py", 5, 75)]},
+                                       {"lines": 12, "places": [("c.py", 1, 12), ("d.py", 1, 12)]}]}
+        f = findings.duplication(report(duplicates=dup))
+        self.assertEqual(len(f), 1)
+        self.assertIn("71 lines", f[0]["detail"])
+        self.assertIn("a/x.py:10", f[0]["detail"])
+        self.assertNotIn("c.py", f[0]["detail"], "short blocks are noise")
+        self.assertIn("4.2%", f[0]["detail"])
+
+    def test_nothing_without_large_blocks(self):
+        self.assertEqual(findings.duplication(report(duplicates={"rate": 0.5, "blocks": [{"lines": 12, "places": [("c.py", 1, 12), ("d.py", 1, 12)]}]})), [])
+        self.assertEqual(findings.duplication(report()), [])
+
+
 class KnowledgeIslands(unittest.TestCase):
     OWN = [{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0},
            {"entity": "core/b.py", "author": "Bob", "added": 50, "deleted": 0},

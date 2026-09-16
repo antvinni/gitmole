@@ -196,7 +196,8 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
                    "projected_seconds": projected, "time_budget": args.time_budget}
     if args.plots:
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
-    steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now, since=args.since_date)
+    steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
+                    since=args.since_date, lizard=run.has_tool("lizard"))
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
     if _control.cancelled.is_set():

@@ -22,15 +22,21 @@ analysis can tell you about a repo.
 | Where is the risk: hotspots, coupling, ownership | gitmole's own change analysis over `git log --numstat` | built in |
 | How old is the surviving code, per year and author | gitmole's own blame pass (one `git blame` per file at HEAD) | built in |
 | Code-age and survival plots over time | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip, opt-in with `--plots` |
+| Per-function complexity, length, parameters; duplicated blocks | [lizard](https://github.com/terryyin/lizard) | pip, used when installed |
 | Have secrets ever been committed | [gitleaks](https://github.com/gitleaks/gitleaks) | brew |
 | Anything custom the above don't answer | [PyDriller](https://github.com/ishepard/pydriller) | pip |
 
-Three external tools, two of them optional in spirit: scc for size, git-sizer
-for repo health, gitleaks for secrets. Everything about history is computed
-by gitmole from `git log`. git-of-theseus only adds the plots, so it is off
-by default and only needed with `--plots`. gitleaks should never be skipped on a repo you did not
-author. PyDriller is optional and only matters if you want to script your own
-metrics.
+Three external tools: scc for size, git-sizer for repo health, gitleaks for
+secrets. Everything about history is computed by gitmole from `git log`.
+lizard adds function-level metrics for two dozen languages when it is
+installed; git-of-theseus only adds the plots, so it is off by default and
+only needed with `--plots`. gitleaks should never be skipped on a repo you did
+not author. PyDriller is optional and only matters if you want to script your
+own metrics.
+
+What gitmole does not do: dead-code detection (that needs a symbol graph per
+language) and test coverage (that needs the project's own test run). It will
+not guess at either.
 
 ### Considered and left out
 
@@ -271,9 +277,11 @@ keeps every column but caps each table at 50 rows unless `--full`.
    secrets in history, an unconfigured git identity (example.com and the
    like), one author owning most surviving code, git-sizer concerns, one file
    dominating the churn, bug magnets (source files fixed three or more times
-   in the last six months; a warning at five), tightly coupled file pairs, a
-   large share of stale files, one person under several identities, and
-   knowledge islands: areas of at least 200 lines written almost entirely by
+   in the last six months; a warning at five), brain methods (functions with
+   complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
+   tightly coupled file pairs, duplicated blocks of 30+ lines, a large share
+   of stale files, one person under several identities, and knowledge
+   islands: areas of at least 200 lines written almost entirely by
    one person (a warning when such areas hold most of the code).
 
    A commit counts as a fix when its subject starts with `fix:`, `hotfix:` or
@@ -285,9 +293,9 @@ keeps every column but caps each table at 50 rows unless `--full`.
    busiest hour and the share of commits that are fixes, a timeline of
    commits per author over the last twelve months, hotspots ranked by
    revisions times lines of code with complexity and the number of fix
-   commits alongside, change coupling, surviving code by year, a
-   knowledge map (lines added per area of the tree and who wrote them),
-   repo health.
+   commits alongside, change coupling, surviving code by year, the most
+   complex functions, a knowledge map (lines added per area of the tree and
+   who wrote them), repo health.
 
    Hotspots, coupling, ownership and code age only look at source files: a
    built-in list of code extensions plus names like Makefile and Dockerfile.
@@ -313,6 +321,8 @@ directory for a remote target:
 | `maat-age.csv` | change analysis | months since last change per file |
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file |
 | `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
+| `functions.csv` | lizard | per-function complexity, length, parameters |
+| `duplicates.txt` | lizard | duplicated blocks and the overall duplicate rate |
 | `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
 | `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |

@@ -27,18 +27,18 @@ SIDE_BY_SIDE_MIN_WIDTH = 100
 
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
-           "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥"}
+           "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ"}
 # the one column to read first in each table; the rest are dimmed
 KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "revs", "Change coupling": "degree",
               "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
-              "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits"}
+              "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "ccn"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
 PATH = {"overflow": "fold", "no_wrap": False}
 
 # rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own.
-CAPS = {"People": 6, "Hotspots": 8, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8}
+CAPS = {"People": 6, "Hotspots": 8, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
 
 
@@ -265,6 +265,27 @@ def age_fallback_section(report: dict) -> dict:
     return _section("Paths in history by year last changed", columns, rows, note=None if rows else f"no age data ({reason})", caption=reason)
 
 
+CCN_FLOOR = 10  # lizard's own "complex" threshold; below it a function is not worth a row
+
+
+def functions_section(report: dict, full: bool = True, width=None) -> dict:
+    """Functions at or over the complexity floor, worst first, from lizard when it is installed."""
+    measured = report.get("functions") or []
+    funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"]))
+    limit = _limit("Complex functions", full)
+    rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
+    columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
+    if full is not True:
+        rows = [(r[0], *_shorten([r[1:2]], width, [columns[1]])[0], *r[2:]) for r in rows]
+    if not measured:
+        note = "no function metrics (install lizard)"
+    elif not rows:
+        note = f"nothing over complexity {CCN_FLOOR} ({len(measured):,} function{'s' if len(measured) != 1 else ''} measured)"
+    else:
+        note = None
+    return _section("Complex functions", columns, rows, note=note, caption=_more(len(funcs), limit))
+
+
 def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     """Ownership by area of the tree: who wrote most of each directory."""
     areas = knowledge.areas(report.get("ownership") or [])
@@ -286,7 +307,7 @@ def health_section(report: dict, full: bool = True, width=None) -> dict:
 
 
 BUILDERS = [size_section, people_section, activity_section, timeline_section, hotspots_section,
-            coupling_section, age_section, knowledge_section, health_section]
+            coupling_section, age_section, functions_section, knowledge_section, health_section]
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
