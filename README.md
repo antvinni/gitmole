@@ -351,8 +351,9 @@ rows unless `--full`.
    gitmole reruns the change analysis as of six months before the last
    commit, with scc on the tree at that time, ranks the watch list from
    that, and counts how many of the files fixed since were on it, next to
-   what a random list of the same size would score. Repositories with
-   under a year of history say `too little history to backtest`.
+   what a random list of the same size, drawn from the files that had
+   changed more than once, would score. Repositories with under a year
+   of history say `too little history to backtest`.
 4. **Tables**: people (identities merged by name and email similarity on
    top of `.mailmap`, and the caption says whose; bots such as renovate,
    dependabot and GitHub Actions are counted apart in the caption and kept
