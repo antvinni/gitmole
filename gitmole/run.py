@@ -18,6 +18,9 @@ from . import blame, filetypes, identity
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
 FUNCTIONS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "functions.py")
+# lizard's duplicate finder keeps a hash node per token, and every pool worker grows to 1.5-2 GB on a
+# large repo; the blame default (cores minus two) exhausted a 16 GB machine. Two workers is the ceiling.
+FUNCTIONS_MAX_PROCS = 2
 
 MONTH = 30 * 24 * 3600  # git-of-theseus sampling interval in seconds
 
@@ -160,7 +163,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     if lizard:
-        steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(procs or blame.default_procs()), *ignores, *type_args],
+        steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(min(procs or blame.default_procs(), FUNCTIONS_MAX_PROCS)), *ignores, *type_args],
                       "stdout": None, "deps": []})
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})

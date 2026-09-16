@@ -5,7 +5,7 @@ import tempfile
 import sys
 import unittest
 
-from gitmole import run
+from gitmole import blame, run
 
 
 class ClassifyTarget(unittest.TestCase):
@@ -193,10 +193,21 @@ class Plan(unittest.TestCase):
         self.assertEqual(argv[:4], [sys.executable, run.FUNCTIONS_SCRIPT, "/r", "/o"])
         self.assertEqual(argv[argv.index("--ignore") + 1], "vendor/**")
         self.assertEqual(argv[argv.index("--types") + 1], "py,sql")
-        self.assertEqual(argv[argv.index("--procs") + 1], "3")
         self.assertIsNone(by["functions"]["stdout"], "the script writes functions.csv and duplicates.txt itself")
         self.assertNotIn("duplicates", by, "one lizard pass produces both")
         self.assertNotIn("functions", [s["name"] for s in run.plan("/r", "/o", lizard=False)])
+
+    def test_function_metrics_workers_are_capped_at_two(self):
+        # lizard's duplicate finder keeps a hash node per token; each worker grows to 1.5-2 GB on a
+        # large repo, and the default worker count exhausted a 16 GB machine.
+        def procs_for(**kw):
+            by = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, **kw)}
+            argv = by["functions"]["argv"]
+            return argv[argv.index("--procs") + 1]
+        self.assertEqual(run.FUNCTIONS_MAX_PROCS, 2)
+        self.assertEqual(procs_for(procs=8), "2", "an explicit larger count is clamped")
+        self.assertEqual(procs_for(procs=1), "1", "a smaller count is kept")
+        self.assertEqual(procs_for(), str(min(2, blame.default_procs())), "the default is clamped too")
 
     def test_lizard_is_detected_as_a_python_module_not_a_command(self):
         self.assertNotIn("lizard", run.REQUIRED_TOOLS)
