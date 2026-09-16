@@ -16,15 +16,15 @@ def history_repo(d):
                  GIT_AUTHOR_DATE=f"{date}T10:00:00", GIT_COMMITTER_DATE=f"{date}T10:00:00")
         subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
     git("init", "-q", date="2025-01-01")
-    open(os.path.join(d, "calm.py"), "w").write("x = 1\n")
-    open(os.path.join(d, "hot.py"), "w").write("def f():\n    return 1\n")
+    with open(os.path.join(d, "calm.py"), "w") as fh: fh.write("x = 1\n")
+    with open(os.path.join(d, "hot.py"), "w") as fh: fh.write("def f():\n    return 1\n")
     git("add", "-A", date="2025-01-01"); git("commit", "-q", "-m", "start", date="2025-01-01")
     for i, date in enumerate(["2025-02-01", "2025-04-01", "2025-06-01", "2025-08-01", "2025-10-01"], start=2):
-        open(os.path.join(d, "hot.py"), "a").write(f"def f{i}():\n    return {i}\n")
+        with open(os.path.join(d, "hot.py"), "a") as fh: fh.write(f"def f{i}():\n    return {i}\n")
         git("commit", "-q", "-am", f"grow {i}", date=date)
-    open(os.path.join(d, "hot.py"), "a").write("# fixed\n")
+    with open(os.path.join(d, "hot.py"), "a") as fh: fh.write("# fixed\n")
     git("commit", "-q", "-am", "fix: crash in hot", date="2026-04-01")
-    open(os.path.join(d, "calm.py"), "a").write("y = 2\n")
+    with open(os.path.join(d, "calm.py"), "a") as fh: fh.write("y = 2\n")
     git("commit", "-q", "-am", "tweak calm", date="2026-06-01")
 
 
@@ -70,7 +70,7 @@ class Step(unittest.TestCase):
                          GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x",
                          GIT_AUTHOR_DATE=f"{date}T10:00:00", GIT_COMMITTER_DATE=f"{date}T10:00:00")
                 subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
-            open(os.path.join(d, ".gitattributes"), "w").write("calm.py export-ignore\n")
+            with open(os.path.join(d, ".gitattributes"), "w") as fh: fh.write("calm.py export-ignore\n")
             git("add", "-A", date="2025-11-01")
             git("commit", "-q", "-m", "ignore calm on export", date="2025-11-01")
             out = os.path.join(d, "out")
