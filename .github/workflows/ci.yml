@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  test:
+    name: tests (python ${{ matrix.python }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the golden test and the self-analysis need history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install the external tools
+        run: brew install scc git-sizer gitleaks
+      - name: Install gitmole
+        run: python -m pip install -e .
+      - name: Run the tests
+        run: python -m unittest discover -s tests -t .
+
+  release:
+    name: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the tag matches __version__
+        run: |
+          python - "$GITHUB_REF_NAME" <<'PY'
+          import re, sys
+          tag = sys.argv[1]
+          version = re.search(r'^__version__ = "([^"]+)"', open("gitmole/__init__.py").read(), re.M).group(1)
+          if tag != f"v{version}":
+              sys.exit(f"tag {tag} does not match __version__ {version}; bump gitmole/__init__.py first")
+          PY
+      - name: Build the sdist and wheel
+        run: |
+          python -m pip install build
+          python -m build
+      - name: Create the GitHub release with the artefacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          fi

@@ -334,7 +334,7 @@ class FileTypes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             _tiny_repo(d)
             for name in ["a.py", "notes.md"]:
-                open(os.path.join(d, name), "w").write("x\n")
+                with open(os.path.join(d, name), "w") as fh: fh.write("x\n")
             import subprocess
             subprocess.run(["git", "-C", d, "add", "-A"], check=True)
             c = console()
@@ -528,10 +528,10 @@ class Risk(unittest.TestCase):
                      GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
             subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
         git("init", "-q", "-b", "main")
-        open(os.path.join(d, "a.py"), "w").write("x\n")
+        with open(os.path.join(d, "a.py"), "w") as fh: fh.write("x\n")
         git("add", "-A"); git("commit", "-q", "-m", "base")
         git("switch", "-q", "-c", "feature")
-        open(os.path.join(d, "a.py"), "a").write("y\n")
+        with open(os.path.join(d, "a.py"), "a") as fh: fh.write("y\n")
         git("commit", "-q", "-am", "work")
 
     def test_risk_section_after_a_run_and_on_a_re_render(self):
