@@ -6,8 +6,27 @@ A local, offline toolkit for digging into any cloned git repository: who
 works on it, where the risk is, how old the code is, whether the repo itself
 is healthy, and whether anything sensitive was ever committed.
 
-Everything runs against a clone on your machine. No tool here needs a GitHub
-token, uploads data, or phones home.
+## Principles
+
+- **Free.** MIT licence, no paid tier, no account, nothing to sign up for.
+  The three tools it runs are open source too.
+- **Any stack.** It reads what every repository has: the git log, git blame
+  and the files themselves. Python, Vue, Terraform or a Makefile get the same
+  treatment; there is no language it has to support first.
+- **Offline.** Everything runs against a clone on your machine. Nothing is
+  uploaded, nothing is fetched, nothing phones home. Pull the network cable
+  and every number comes out the same.
+- **No token.** A local clone needs no GitHub token, no API access, no
+  credentials of any kind. The optional `owner/repo` shortcut clones with the
+  `gh` login you already have; that is the one network call, and you ask for
+  it.
+- **No AI.** Every finding is a plain rule over counts you can recompute by
+  hand: revisions, lines, dates, names. No model, no prompt, no guessing. The
+  same clone gives the same report every time, and the report says what each
+  number is.
+- **Light.** A run on a 4,400-commit repository takes under thirty seconds.
+  The package is a few thousand lines of Python plus two libraries, and
+  nothing new gets in unless it changes what you do next.
 
 ## The tool set
 
