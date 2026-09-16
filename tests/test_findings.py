@@ -464,7 +464,7 @@ class ComplexityGrowth(unittest.TestCase):
         f = findings.complexity_growth(self._report([3, 3, 3, 0, 0]))
         self.assertEqual(f[0]["severity"], "warning", "core/f0.py is the top hotspot and grew")
         self.assertEqual(f[0]["title"], "Hotspots getting more complex")
-        self.assertIn("3 of the 10 top hotspots grew by 25% or more in a year: core/f0.py (+30%), core/f1.py (+30%), core/f2.py (+30%)", f[0]["detail"])
+        self.assertIn("3 of the 5 top hotspots grew by 25% or more in a year: core/f0.py (+30%), core/f1.py (+30%), core/f2.py (+30%)", f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Split core/f0.py before the next change; its complexity grew 30% in a year.")
         f = findings.complexity_growth(self._report([0, 3, 3, 3, 0]))
         self.assertEqual(f[0]["severity"], "info")

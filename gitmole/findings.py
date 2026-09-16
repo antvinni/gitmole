@@ -329,7 +329,7 @@ def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = 25, top
     listed = ", ".join(f"{p} (+{g}%)" for p, g in grown[:5]) + (f" and {len(grown) - 5} more" if len(grown) > 5 else "")
     first = grown[0]
     return [_f(sev, "Hotspots getting more complex",
-               f"{len(grown)} of the {top_n} top hotspots grew by {min_pct}% or more in a year: {listed}.",
+               f"{len(grown)} of the {len(top)} top hotspots grew by {min_pct}% or more in a year: {listed}.",
                f"Split {first[0]} before the next change; its complexity grew {first[1]}% in a year.")]
 
 
