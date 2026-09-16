@@ -368,6 +368,14 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
     return meta
 
 
+def changed_files(repo_dir: str, base: str) -> list:
+    """Paths that differ between the merge base with `base` and HEAD, sorted. ValueError when git refuses."""
+    proc = subprocess.run([*filetypes.GIT, "diff", "-z", "--name-only", f"{base}...HEAD"], cwd=repo_dir, capture_output=True)
+    if proc.returncode != 0:
+        raise ValueError((proc.stderr.decode("utf-8", "replace").strip() or f"git diff {base}...HEAD failed"))
+    return sorted(p.decode("utf-8", "surrogateescape") for p in proc.stdout.split(b"\0") if p)
+
+
 def save_meta(meta: dict, out_dir: str) -> None:
     with open(os.path.join(out_dir, "meta.json"), "w") as fh:
         json.dump(meta, fh, indent=2)
