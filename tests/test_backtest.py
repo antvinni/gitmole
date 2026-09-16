@@ -59,6 +59,27 @@ class Step(unittest.TestCase):
         self.assertEqual(hot["Code"], 12, "hot.py as it was on 2025-10-01: six two-line functions")
         self.assertEqual(meta, {"now": "2025-12-01", "last_date": "2025-12-01", "file_types": None, "aliases": {}})
 
+    def test_export_ignored_files_are_still_measured(self):
+        with tempfile.TemporaryDirectory() as d:
+            history_repo(d)
+
+            def git(*args, date):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+                         GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x",
+                         GIT_AUTHOR_DATE=f"{date}T10:00:00", GIT_COMMITTER_DATE=f"{date}T10:00:00")
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            open(os.path.join(d, ".gitattributes"), "w").write("calm.py export-ignore\n")
+            git("add", "-A", date="2025-11-01")
+            git("commit", "-q", "-m", "ignore calm on export", date="2025-11-01")
+            out = os.path.join(d, "out")
+            export(d, out)
+            rc = backtest.main([out, "--until", "2025-12-01", "--repo", d])
+            self.assertEqual(rc, 0)
+            with open(os.path.join(out, "backtest", "size.json")) as fh:
+                size = json.load(fh)
+        self.assertIn("calm.py", [f["Location"] for r in size for f in r["Files"]],
+                       "export-ignore in .gitattributes must not thin the tree scc measures")
+
     def test_no_commit_before_the_cut_off_exits_2(self):
         with tempfile.TemporaryDirectory() as d:
             history_repo(d)
