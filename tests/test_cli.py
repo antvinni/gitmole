@@ -347,6 +347,12 @@ class FileTypes(unittest.TestCase):
         self.assertRegex(text, r"md\s+1\s+no")
         self.assertNotIn("Findings", text)
 
+    def test_list_file_types_refuses_a_remote_target(self):
+        c = console()
+        rc = cli.main(["owner/repo", "--list-file-types"], console=c, tool_check=lambda **kw: [])
+        self.assertEqual(rc, 2)
+        self.assertIn("--list-file-types needs a local path", c.export_text())
+
     def test_file_types_reach_the_planner(self):
         calls = []
         with tempfile.TemporaryDirectory() as d:

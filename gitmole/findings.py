@@ -81,7 +81,7 @@ def placeholder_identity(report: dict, min_share: float = 0.01) -> list:
 
 def _source_ownership(report: dict) -> list:
     """Ownership rows for source files. Test files are left out of every rule that names a next
-    step: owning the tests is not the knowledge risk, and the tables still show them."""
+    step: owning the tests is not the knowledge risk. The default tables leave them out too."""
     return [r for r in report.get("ownership") or [] if not filetypes.is_test_path(r["entity"])]
 
 
@@ -257,14 +257,13 @@ def _is_live(area: str, age_rows: list) -> bool:
     return False
 
 
-def _loss_totals(report: dict, names: set) -> tuple:
+def _loss_totals(report: dict, names: set, source_rows: list) -> tuple[int, int, dict, str]:
     """(lost, total, by_person, basis): share of surviving code from the blame pass; when that did
     not run, share of lines added instead, with the basis clause that says so."""
     lost, total = loss.surviving(report, names)
     by_person = {n: v for n, v in (report.get("theseus_authors") or {}).items() if n in names}
     basis = "of the code that survives today"
     if not total:
-        source_rows = _source_ownership(report)
         areas_all = loss.areas(source_rows, names)
         total = sum(a["lines"] for a in areas_all)
         lost = sum(a["lost"] for a in areas_all)
@@ -291,10 +290,10 @@ def _loss_people(by_person: dict, total: int) -> str:
     return listed
 
 
-def _loss_areas(report: dict, names: set) -> list:
+def _loss_areas(report: dict, names: set, source_rows: list) -> list:
     """Areas at 200+ lines where 80%+ of the surviving code is theirs, tagged live or not and
     sorted live-first: that is where the gap bites soonest."""
-    theirs = [a for a in loss.areas(_source_ownership(report), names) if a["lines"] >= 200 and a["lost_share"] >= 0.8]
+    theirs = [a for a in loss.areas(source_rows, names) if a["lines"] >= 200 and a["lost_share"] >= 0.8]
     for a in theirs:
         a["live"] = _is_live(a["area"], report.get("age") or [])
     theirs.sort(key=lambda a: (not a["live"], -a["lines"], a["area"]))   # a live area first: that is where the gap bites
@@ -309,12 +308,13 @@ def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.
     if not gone:
         return []
     names = {g["name"] for g in gone}
-    lost, total, by_person, basis = _loss_totals(report, names)
+    source_rows = _source_ownership(report)
+    lost, total, by_person, basis = _loss_totals(report, names, source_rows)
     if not total or lost / total < min_share:
         return []
     sev = "warning" if lost / total >= warn_share else "info"
     listed = _loss_people(by_person, total)
-    theirs = _loss_areas(report, names)
+    theirs = _loss_areas(report, names, source_rows)
     statement = (f"People with no commits since {loss.cutoff(report, months)} "
                  f"wrote {_pct(lost, total)} {basis}: {listed}.")
     if theirs:
