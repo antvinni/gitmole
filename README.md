@@ -362,7 +362,7 @@ directory for a remote target:
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
-| `secrets.json` | gitleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short hash |
+| `secrets.json` | gitleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
 | `log.txt` | git | the numstat log export the change analysis reads |
 | `maat-revisions.csv` | change analysis | change frequency per file |
 | `maat-coupling.csv` | change analysis | files that change together |
@@ -429,8 +429,11 @@ and `render.py` draws the report. `bin/gitmole` is a thin launcher.
 - Remote targets are cloned into a fresh temp directory. Local clones are
   only read, but the log export and the gitleaks scan touch all branches.
 - Secret values never reach the output directory. gitleaks writes its report
-  to gitmole in memory, and gitmole stores a short hash of each value in
-  place of the value, the matched text and the commit message.
+  to gitmole in memory, and gitmole stores a short keyed hash of each value
+  in place of the value, the matched text and the commit message. The key is
+  random, made for that one report and never saved, so a stored hash cannot
+  be checked against a list of common passwords. It only tells you which
+  hits in one report share a value.
 - Install from the official repos or Homebrew with pinned versions, not from
   forks.
 

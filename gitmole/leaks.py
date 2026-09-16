@@ -3,8 +3,10 @@
 
 gitmole runs this as the gitleaks step: `python3 leaks.py OUT_JSON`, from inside the repository.
 gitleaks writes its JSON report to our stdout, so the raw report is never a file; each value is
-replaced by a short hash (enough to tell one value repeated in many places from many values) and a
-flag for shapes that cannot be a live secret, and only that is written. The report never needed the
+replaced by a short keyed hash (enough to tell one value repeated in many places from many values)
+and a flag for shapes that cannot be a live secret, and only that is written. The key is random,
+made for one report and never stored, so a hash in secrets.json cannot be checked against a list of
+likely values; the price is that hashes from two runs cannot be compared, which nothing does. The report never needed the
 values: it names the rule, the file and the commit. Standalone, like maat.py and blame.py.
 
 The same module groups the loaded rows for the findings and the report footer.
@@ -12,6 +14,7 @@ The same module groups the loaded rows for the findings and the report footer.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -32,8 +35,15 @@ RAW_FIELDS = ("Secret", "Match", "Line", "Message")   # the value, the text arou
 _VERSION = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 
 
-def digest(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8", "surrogateescape")).hexdigest()[:12]
+def new_key() -> bytes:
+    """A random key for one report. Never written anywhere."""
+    return os.urandom(32)
+
+
+def digest(value: str, key: bytes) -> str:
+    """HMAC-SHA256 of the value under the report's key, cut to 12 hex characters: equal values in one
+    report share it, and without the key it says nothing about the value."""
+    return hmac.new(key, value.encode("utf-8", "surrogateescape"), hashlib.sha256).hexdigest()[:12]
 
 
 def is_placeholder(value: str) -> bool:
@@ -42,11 +52,12 @@ def is_placeholder(value: str) -> bool:
 
 
 def sanitise(rows: list) -> list:
+    key = new_key()   # one key for the whole report, so repeats of a value still group
     out = []
     for r in rows:
         value = r.get("Secret") or ""
         clean = {k: v for k, v in r.items() if k not in RAW_FIELDS}
-        clean["SecretHash"] = digest(value)
+        clean["SecretHash"] = digest(value, key)
         clean["Placeholder"] = is_placeholder(value)
         out.append(clean)
     return out

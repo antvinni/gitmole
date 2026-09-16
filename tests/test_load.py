@@ -1,3 +1,4 @@
+import hashlib
 import json
 import unittest
 
@@ -193,8 +194,10 @@ class ParseSecrets(unittest.TestCase):
         version = "5.0.0-" + "1667386184.dfbbb54"   # built at runtime so secret scanners do not flag this file
         text = json.dumps([{"RuleID": "generic-api-key", "File": "web/package.json", "Commit": "d2d2d2d", "StartLine": 21,
                             "Secret": version, "Match": "x"}])
-        row = load.parse_secrets(text)[0]
-        self.assertEqual(row["value"], leaks.digest(version))
+        rows = load.parse_secrets(json.dumps(json.loads(text) * 2))
+        row = rows[0]
+        self.assertEqual(rows[0]["value"], rows[1]["value"], "one key per file read: repeats still group")
+        self.assertNotEqual(row["value"], hashlib.sha256(version.encode()).hexdigest()[:12], "keyed, like the wrapper")
         self.assertTrue(row["placeholder"])
         self.assertNotIn("dfbbb54", json.dumps(row))
 

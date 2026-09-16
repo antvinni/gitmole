@@ -25,9 +25,18 @@ RAW = [
 
 
 class Digest(unittest.TestCase):
-    def test_short_stable_and_distinct(self):
-        self.assertEqual(leaks.digest("abc"), hashlib.sha256(b"abc").hexdigest()[:12])
-        self.assertNotEqual(leaks.digest("abc"), leaks.digest("abd"))
+    def test_keyed_short_stable_under_one_key_and_distinct(self):
+        key = b"k" * 32
+        self.assertEqual(len(leaks.digest("abc", key)), 12)
+        self.assertEqual(leaks.digest("abc", key), leaks.digest("abc", key))
+        self.assertNotEqual(leaks.digest("abc", key), leaks.digest("abd", key))
+
+    def test_a_stored_hash_cannot_be_checked_against_a_word_list(self):
+        key = leaks.new_key()
+        plain = hashlib.sha256(b"hunter2").hexdigest()[:12]
+        self.assertNotEqual(leaks.digest("hunter2", key), plain, "an unkeyed hash of a weak value is a dictionary lookup away")
+        self.assertNotEqual(leaks.digest("hunter2", key), leaks.digest("hunter2", leaks.new_key()), "a fresh key per report")
+        self.assertGreaterEqual(len(key), 32)
 
 
 class Placeholder(unittest.TestCase):
@@ -50,7 +59,10 @@ class Sanitise(unittest.TestCase):
         self.assertNotIn("dfbbb54", text)
         for row in rows:
             self.assertFalse({"Secret", "Match", "Line", "Message"} & set(row), row)
-        self.assertEqual(rows[0]["SecretHash"], leaks.digest(FAKE))
+        self.assertEqual(len(rows[0]["SecretHash"]), 12)
+        again = leaks.sanitise(RAW + RAW)
+        self.assertEqual(again[0]["SecretHash"], again[2]["SecretHash"], "one key per report: repeats still group")
+        self.assertNotEqual(again[0]["SecretHash"], rows[0]["SecretHash"], "a new report gets a new key")
         self.assertEqual([r["Placeholder"] for r in rows], [False, True])
         self.assertEqual(rows[0]["Fingerprint"], RAW[0]["Fingerprint"])
         self.assertEqual(rows[0]["Author"], "Ann")
