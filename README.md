@@ -30,9 +30,6 @@ is healthy, and whether anything sensitive was ever committed.
 
 ## The tool set
 
-One tool per question. Together they cover most of what a single-command
-analysis can tell you about a repo.
-
 | Question | Tool | Install |
 |---|---|---|
 | What is this repo, at a glance; who commits, when, how much churn | gitmole itself, from the git log | built in |
@@ -44,34 +41,7 @@ analysis can tell you about a repo.
 | Per-function complexity, length, parameters; duplicated blocks with `--duplicates` | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
 | Have secrets ever been committed | [gitleaks](https://github.com/gitleaks/gitleaks) | brew |
 
-Three external tools: scc for size, git-sizer for repo health, gitleaks for
-secrets. Everything about history is computed by gitmole from `git log`.
-lizard adds function-level metrics for two dozen languages when it is
-installed, in well under a second per thousand files; its duplicate finder
-is minutes and gigabytes on a large repo, so it is off unless you pass
-`--duplicates`. git-of-theseus only adds the plots, so it is off by default
-and only needed with `--plots`. gitleaks should never be skipped on a repo you did
-not author.
-
-What gitmole does not do: dead-code detection (that needs a symbol graph per
-language) and test coverage (that needs the project's own test run). It will
-not guess at either.
-
-### Considered and left out
-
-- **hercules**: overlaps the change analysis and git-of-theseus, and the project is
-  archived. Add it only if you want its burndown charts specifically.
-- **tokei**: duplicates scc without the effort estimate.
-- **git-extras**, **onefetch**, **git-quick-stats**: convenient summaries, but
-  everything they report is now computed from the log by gitmole itself, so
-  they were dropped to shrink the install.
-- **GrimoireLab**: a community-analytics platform (Elasticsearch, Kibana,
-  scheduled collectors across GitHub, mailing lists, chat). Not a
-  point-at-a-clone tool, and it does not cover code age, hotspots, size,
-  repo health, or secrets.
-- **trufflehog**: duplicates gitleaks for this purpose. gitleaks is lighter
-  and faster on history.
-- **GitLens**: useful in the editor, but it has telemetry and paid tiers.
+Why these and not others: [docs/tools.md](docs/tools.md).
 
 ## Install
 
@@ -294,84 +264,9 @@ Running `gitmole .` inside this repository:
                         others
   ranked by churn × recent fixes × complexity × single ownership
   too little history to backtest
-
-◉ People
-  author      commits   share                surviving code
-  ─────────────────────────────────────────────────────────
-  vinni           105   100% ▰▰▰▰▰▰▰▰▰▰                100%
-  aliases merged for vinni; a .mailmap makes that permanent
-
-⌂ Knowledge map
-  area       lines added   main owner     second
-  ──────────────────────────────────────────────
-  tests/           7,489   vinni (100%)   -
-  gitmole/         6,800   vinni (100%)   -
-  build/           3,362   vinni (100%)   -
-  bin/                91   vinni (100%)   -
-
-▦ Timeline (Oct 2025 → Sep 2026)
-  author   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep
-  ──────────────────────────────────────────────────────────────────────────────
-  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·   105
-
-◆ Hotspots
-  file                     revs   lines   fixes   authors   trend
-  ───────────────────────────────────────────────────────────────
-  tests/test_render.py       49     684       4         1   +738%
-  gitmole/render.py          50     545       4         1   +134%
-  tests/test_run.py          38     476       3         1    +46%
-  tests/test_cli.py          34     522       0         1    +58%
-  tests/test_findings.py     28     460       3         1   +400%
-  gitmole/run.py             39     302       3         1    +26%
-  gitmole/cli.py             37     313       1         1    +24%
-  gitmole/findings.py        29     293       3         1   +262%
-  and 49 more
-
-⟷ Change coupling
-  file                   changes with              degree
-  ───────────────────────────────────────────────────────
-  gitmole/maat.py        tests/test_maat.py          100%
-  gitmole/filetypes.py   tests/test_filetypes.py     100%
-  gitmole/functions.py   tests/test_functions.py     100%
-  gitmole/knowledge.py   tests/test_knowledge.py     100%
-  gitmole/render.py      tests/test_render.py         99%
-  and 85 more
-
-λ Complex functions
-  function           file                  ccn   lines   params
-  ─────────────────────────────────────────────────────────────
-  _analyse           gitmole/cli.py         35      66        6
-  knowledge_loss     gitmole/findings.py    34      44        3
-  main               gitmole/cli.py         28      82        8
-  collect_meta       gitmole/run.py         23      27        2
-  risks              gitmole/watch.py       22      32        2
-  timeline_section   gitmole/render.py      22      16        4
-  hotspots_section   gitmole/render.py      21      25        3
-  markdown           gitmole/render.py      19      24        5
-  and 34 more
-
-✚ Repo health (git-sizer concerns): nothing flagged
-
-Secrets: none found
-Full results and plots in analysis-gitmole
 ```
 
-In a terminal the banner above heads the run: the letters pulse in neon,
-the pixel mole beside them glances side to side while the tools work, and
-the findings and tables are coloured: section headings in the banner's cyan,
-column headers in its violet, one key column per table in full white with
-the rest dimmed, inline bars on share columns, and values past a threshold
-(a share over 50%, coupling at 90%, five fixes) in pink. On a terminal 100
-columns or wider the small tables sit side by side. Piped output, as above,
-is plain text.
-This is the default report: the header, the findings, the watch list, and
-the tables that point at a file or a person. `--full` adds the descriptive
-tables the header summarises in one line (size by language, activity by
-weekday with the busiest hour, surviving code by year), complexity, score
-and idle months to hotspots, emails to people, average revisions to
-coupling, the author count to the knowledge map, and lifts the row caps.
-The Markdown export keeps every table and column but caps each table at 50
-rows unless `--full`.
+The full report is in [docs/example.md](docs/example.md).
 
 ### The terminal report
 
@@ -464,48 +359,7 @@ rows unless `--full`.
    timeline cover the whole history.
 5. **Footer**: where the files and plots are.
 
-### The output directory
-
-Lands in `analysis-<repo>/` next to a local clone, or in the current
-directory for a remote target:
-
-| File | From | What it is |
-|---|---|---|
-| `meta.json` | git | name, branch, commit count, date span, identities |
-| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
-| `size.json` | scc | lines per language, COCOMO estimate |
-| `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
-| `secrets.json` | gitleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
-| `log.txt` | git | the numstat log export the change analysis reads |
-| `maat-revisions.csv` | change analysis | change frequency per file |
-| `maat-coupling.csv` | change analysis | files that change together |
-| `maat-authors.csv` | change analysis | authors per file |
-| `maat-age.csv` | change analysis | months since last change per file |
-| `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file |
-| `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
-| `functions.csv` | lizard | per-function complexity, length, parameters |
-| `duplicates.txt` | lizard, `--duplicates` only | duplicated blocks and the overall duplicate rate |
-| `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
-| `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
-| `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |
-| `trend.json` | trend step | complexity and lines of the top hotspots at sampled commits |
-| `backtest/` | backtest step | the change analysis and size as of six months before the last commit |
-| `run.log` | gitmole | every command run and its stderr |
-
-## How to read the output
-
-1. Start with the header and the findings.
-2. The hotspots table is `maat-revisions.csv` joined with scc's per-file
-   size and complexity, author count, and age, ranked by revisions times
-   lines. Large files that change constantly are your risk.
-3. Change coupling shows files that always change together. That usually
-   means a hidden dependency or copy-pasted layout.
-4. People and the surviving-code table tell you whether knowledge is
-   concentrated in one or two people; the knowledge map says where. Areas
-   are top-level directories, or the subdirectories of a lone top-level one
-   such as `src/`.
-5. Repo health and secrets are pass or fail checks. Read them only if they
-   flag something.
+The files each run writes, and how to read them: [docs/output.md](docs/output.md).
 
 ## Development
 
