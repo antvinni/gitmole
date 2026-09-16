@@ -73,6 +73,7 @@ jobs:
         with:
           name: dist
           path: dist/
+          overwrite: true
       - name: Create the GitHub release with the artefacts
         env:
           GH_TOKEN: ${{ github.token }}
