@@ -11,7 +11,7 @@ SCRIPT_MODULE = "gitmole.trend"
 
 
 class SampleDates(unittest.TestCase):
-    def test_evenly_spread_and_at_most_one_per_month(self):
+    def test_evenly_spread_across_the_span(self):
         dates = trend.sample_dates("2025-01-01", "2026-01-01", 12)
         self.assertEqual(dates[0], "2025-01-01")
         self.assertEqual(dates[-1], "2026-01-01")
