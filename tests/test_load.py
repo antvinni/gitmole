@@ -67,6 +67,12 @@ class ParseGitSizer(unittest.TestCase):
 |   * Maximum size         [4] |  21.3 MiB | **                             |
 | * Trees                      |           |                                |
 |   * Maximum entries      [3] |    24     |                                |
+| History structure            |           |                                |
+| * Maximum history depth      |   136 k   | *                              |
+| * Maximum tag depth          |     1     |                                |
+| Biggest checkouts            |           |                                |
+| * Number of files        [8] |  62.3 k   | *                              |
+| * Total size of files        |   747 MiB |                                |
 
 [3]  d2afdbc (e5d1b8f:static)
 [4]  b2ad626 (986027f:static/video/clip.mp4)
@@ -76,7 +82,9 @@ class ParseGitSizer(unittest.TestCase):
         rows = load.parse_git_sizer(self.TEXT)
         self.assertEqual(rows, [
             {"name": "Blobs: Maximum size", "value": "21.3 MiB", "concern": 2, "ref": "static/video/clip.mp4"},
-        ])
+            {"name": "History structure: Maximum history depth", "value": "136 k", "concern": 1, "ref": ""},
+            {"name": "Biggest checkouts: Number of files", "value": "62.3 k", "concern": 1, "ref": ""},
+        ], "single-level sections (history structure, biggest checkouts) are rows too, not headers")
 
 
 class ParseTheseus(unittest.TestCase):

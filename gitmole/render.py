@@ -143,7 +143,18 @@ def pulse(report: dict) -> list:
     if cohorts:
         label, lines = max(cohorts.items(), key=lambda kv: kv[1])
         out.append(f"{_pct(lines, sum(cohorts.values()))} of surviving code from {label.replace('Code added in ', '')}")
+    elif _age_status(report) != "run":
+        out.append(_age_reason(report))   # the age table is --full only, so this is where a timeout shows
     return out
+
+
+def _age_status(report: dict) -> str:
+    return (report["meta"].get("age") or {}).get("status", "run")
+
+
+def _age_reason(report: dict) -> str:
+    status = _age_status(report)
+    return {"timeout": "code age timed out", "skipped": "code age skipped"}.get(status, f"code age {status}")
 
 
 def watch_section(report: dict, full: bool = True, width=None) -> dict:
@@ -152,8 +163,9 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     limit = WATCH_CAP if full is False else WATCH_FULL
     rows = [(r["file"], " · ".join(r["reasons"])) for r in ranked[:limit]]
     columns = [("file", PATH), ("why", {"overflow": "fold", "ratio": 3})]
-    return _section("Watch list", columns, rows, note=None if rows else "nothing changed more than once",
-                    caption="ranked by churn × recent fixes × complexity × single ownership" if rows else None)
+    since = report["meta"].get("since")
+    caption = "ranked by churn × recent fixes × complexity × single ownership" + (f"; commits since {since}" if since else "")
+    return _section("Watch list", columns, rows, note=None if rows else watch.why_empty(report), caption=caption if rows else None)
 
 
 def size_section(report: dict, full: bool = True, width=None) -> dict:
@@ -271,7 +283,7 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
 
 def age_section(report: dict, full: bool = True, width=None) -> dict:
     cohorts = report.get("cohorts") or {}
-    if not cohorts and report["meta"].get("age", {}).get("status", "run") != "run":
+    if not cohorts and _age_status(report) != "run":
         return age_fallback_section(report)
     total = sum(cohorts.values())
     rows = [(label.replace("Code added in ", ""), f"{lines:,}", _pct(lines, total), _bar(lines, total)) for label, lines in cohorts.items()]
@@ -282,8 +294,7 @@ def age_section(report: dict, full: bool = True, width=None) -> dict:
 def age_fallback_section(report: dict) -> dict:
     """When the blame pass did not run: net lines added per year from the log, or failing that,
     paths by the year they were last changed."""
-    status = (report["meta"].get("age") or {}).get("status", "skipped")
-    reason = {"timeout": "code age timed out", "skipped": "code age skipped"}.get(status, f"code age {status}")
+    reason = _age_reason(report)
     net = (report.get("activity") or {}).get("net_by_year") or {}
     if net:
         total = sum(v for v in net.values() if v > 0)
@@ -408,8 +419,8 @@ def findings_panel(findings: list) -> Panel:
         body = Text(g["title"], style=style)
         for item in g["items"]:
             body.append(f"\n{item}", style="dim" if len(g["items"]) == 1 else "")
-        if g["advice"]:
-            body.append(f"\n↳ {g['advice']}", style="dim italic")
+        for advice in g["advice"]:
+            body.append(f"\n↳ {advice}", style="dim italic")
         grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
     return Panel(grid, title=f"Findings ({len(findings)})", title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]])
 
@@ -532,8 +543,7 @@ def _md_findings(findings: list) -> list:
     out = []
     for g in textfmt.group_findings(findings):
         line = f"- **{g['severity']}** {g['title']} — " + "; ".join(g["items"])
-        if g["advice"]:
-            line += f" _{g['advice']}_"
+        line += "".join(f" _{advice}_" for advice in g["advice"])
         out.append(line)
     return out
 

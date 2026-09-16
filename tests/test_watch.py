@@ -69,6 +69,29 @@ class Risks(unittest.TestCase):
         self.assertEqual(watch.risks(report(revisions=[])), [])
         self.assertEqual(watch.risks({"meta": {}, "size": {}}), [])
 
+    def test_complexity_is_scc_file_total_for_every_file_lizard_names_the_function(self):
+        # lizard has no reader for shell, Terraform, Makefiles...; with lizard rows present those
+        # files used to score complexity 0. One scale (scc's per-file total) for the score,
+        # lizard's worst function for the wording.
+        r = report()
+        r["size"]["files"]["ops/deploy.sh"] = {"code": 300, "complexity": 80}
+        r["revisions"].append({"entity": "ops/deploy.sh", "n-revs": 40})
+        by = {x["file"]: x for x in watch.risks(r)}
+        self.assertEqual(by["ops/deploy.sh"]["complexity"], 80)
+        self.assertEqual(by["core/parser.py"]["complexity"], 40, "scc's total, not lizard's worst function")
+        self.assertIn("parse() complexity 41", by["core/parser.py"]["reasons"])
+        self.assertGreater(by["ops/deploy.sh"]["score"], by["core/util.py"]["score"])
+
+
+class WhyEmpty(unittest.TestCase):
+    def test_says_what_kept_the_list_empty(self):
+        self.assertEqual(watch.why_empty(report(revisions=[])), "nothing changed more than once")
+        self.assertEqual(watch.why_empty(report(revisions=[{"entity": "core/once.py", "n-revs": 1}])), "nothing changed more than once")
+        self.assertEqual(watch.why_empty(report(revisions=[{"entity": "tests/test_a.py", "n-revs": 40}])), "only test files changed more than once")
+        r = report(); r["size"] = {"files": {}}
+        self.assertEqual(watch.why_empty(r), "no size data for the files that changed")
+        self.assertEqual(watch.why_empty(report(revisions=[{"entity": "core/gone.py", "n-revs": 50}])), "the files that changed more than once are no longer in the tree")
+
 
 if __name__ == "__main__":
     unittest.main()

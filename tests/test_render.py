@@ -282,6 +282,22 @@ class WatchList(unittest.TestCase):
         r["revisions"] = []
         self.assertIn("Watch list: nothing changed more than once", rendered(r, []))
 
+    def test_note_names_the_real_reason_when_files_did_change(self):
+        r = sample_report()
+        r["size"]["files"] = {}
+        text = rendered(r, [])
+        self.assertIn("Watch list: no size data for the files that changed", text)
+        self.assertNotIn("nothing changed more than once", text)
+        r = sample_report()
+        r["revisions"] = [{"entity": "tests/test_a.py", "n-revs": 40}]
+        self.assertIn("Watch list: only test files changed more than once", rendered(r, []))
+
+    def test_caption_says_when_ownership_and_churn_are_windowed(self):
+        r = sample_report()
+        r["meta"]["since"] = "2025-01-01"
+        sec = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
+        self.assertEqual(sec["caption"], "ranked by churn × recent fixes × complexity × single ownership; commits since 2025-01-01")
+
 
 class DescriptiveTables(unittest.TestCase):
     def test_default_report_leaves_them_out_and_full_brings_them_back(self):
@@ -300,6 +316,17 @@ class DescriptiveTables(unittest.TestCase):
         r["activity"] = {}
         r["cohorts"] = {}
         self.assertNotIn("most commits", rendered(r, []))
+
+    def test_header_line_says_when_code_age_did_not_run(self):
+        # the age table is --full only now, so the header is where the timeout has to show
+        r = sample_report()
+        r["cohorts"] = {}
+        for status, phrase in (("timeout", "code age timed out"), ("skipped", "code age skipped"), ("failed", "code age failed")):
+            r["meta"]["age"] = {"status": status}
+            self.assertIn(phrase, rendered(r, []), status)
+            self.assertIn(phrase, render.markdown(r, []), status)
+        r["meta"]["age"] = {"status": "run"}
+        self.assertNotIn("code age", rendered(r, []), "an empty table after a normal run is not a header phrase")
 
     def test_header_line_is_in_markdown_too(self):
         self.assertIn("most commits on Thu at 10:00 · 76% of surviving code from 2025", render.markdown(sample_report(), []))
@@ -489,6 +516,17 @@ class ReviewFixes(unittest.TestCase):
              {"severity": "info", "title": "Repo health", "detail": "Trees: Maximum entries is 2.1 k. git-sizer level of concern 1."}]
         text = rendered(sample_report(), f)
         self.assertIn("Repo health (2)", text)
+
+    def test_a_group_shows_every_distinct_next_step(self):
+        f = [{"severity": "warning", "title": "Repo health", "detail": "Commits: Count is 900 k. git-sizer level of concern 2. Consider a shallow clone for CI; the history is the cost.",
+              "advice": "Consider a shallow clone for CI; the history is the cost."},
+             {"severity": "warning", "title": "Repo health", "detail": "Blobs: Maximum size is 240 MiB at static/v.mp4. git-sizer level of concern 3. Move large files to Git LFS or rewrite them out of history.",
+              "advice": "Move large files to Git LFS or rewrite them out of history."}]
+        text = rendered(sample_report(), f)
+        self.assertIn("↳ Consider a shallow clone for CI; the history is the cost.", text)
+        self.assertIn("↳ Move large files to Git LFS or rewrite them out of history.", text)
+        md = render.markdown(sample_report(), f)
+        self.assertIn("_Consider a shallow clone for CI; the history is the cost._ _Move large files to Git LFS or rewrite them out of history._", md)
 
     def test_fixes_threshold_has_no_dead_recent_branch(self):
         self.assertIsNone(render.cell_style("recent", "9"))

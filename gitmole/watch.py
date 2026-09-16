@@ -1,10 +1,13 @@
 """The watch list: where the next bug is most likely, from every per-file signal gitmole has.
 
-Each file that is still in the tree and changed more than once gets a score of
+Each source file that is still in the tree and changed more than once gets a score of
 churn × (1 + recent fixes) × (1 + complexity) × (1.5 if single-owned), churn, fixes and
 complexity each scaled to the worst file in the repo, plus a list of reasons in plain
 words. Churn is the base because a file nobody changes is not where the next bug lands;
-ownership is the weakest of the four predictors, so it weighs the least."""
+ownership is the weakest of the four predictors, so it weighs the least. Complexity is
+scc's per-file total, which exists for every file on one scale; lizard's most complex
+function in the file is named in the reasons but does not enter the score, since lizard
+has no reader for shell, Terraform, Makefiles and the like."""
 from __future__ import annotations
 
 from collections import Counter, defaultdict
@@ -63,7 +66,6 @@ def risks(report: dict, min_revs: int = 2) -> list:
     worst = _worst_function(report)
     fixes = {f["entity"]: f for f in report.get("fixes") or []}
     n_authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
-    have_functions = bool(report.get("functions"))
 
     rows = []
     for h in hotspots.ranked(report):
@@ -76,7 +78,7 @@ def risks(report: dict, min_revs: int = 2) -> list:
         fn = worst.get(h["entity"])
         rows.append({"file": h["entity"], "revs": h["revs"], "recent_fixes": fx.get("recent-fixes", 0), "fixes": fx.get("n-fixes", 0),
                      "authors": n_authors.get(h["entity"]), "owner": owner, "owner_share": share,
-                     "complexity": fn["ccn"] if fn else (0 if have_functions else h["complexity"] or 0),
+                     "complexity": h["complexity"] or 0,
                      "function": fn, "companions": companions.get(h["entity"], [])})
     if not rows:
         return []
@@ -92,6 +94,19 @@ def risks(report: dict, min_revs: int = 2) -> list:
         r["reasons"] = _reasons(r)
     rows.sort(key=lambda r: (-r["score"], -r["revs"], r["file"]))
     return rows
+
+
+def why_empty(report: dict, min_revs: int = 2) -> str:
+    """Why risks() came back empty, for the report's one-line note: the honest reason, since
+    "nothing changed" above a hotspots table full of revisions would be a lie."""
+    churned = [h for h in hotspots.ranked(report) if h["revs"] >= min_revs]
+    if not churned:
+        return "nothing changed more than once"
+    if all(filetypes.is_test_path(h["entity"]) for h in churned):
+        return "only test files changed more than once"
+    if not (report.get("size") or {}).get("files"):
+        return "no size data for the files that changed"
+    return "the files that changed more than once are no longer in the tree"
 
 
 def _reasons(r: dict) -> list:

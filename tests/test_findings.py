@@ -61,6 +61,18 @@ class BusFactor(unittest.TestCase):
         f = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}, ownership=own))
         self.assertTrue(f[0]["detail"].endswith("Pair someone with Ann on core/ and web/ first; they are 95% and 80% theirs."), f[0]["detail"])
 
+    def test_areas_come_from_source_files_of_some_size_and_say_when_windowed(self):
+        own = [{"entity": "tests/t.py", "author": "Ann", "added": 5000, "deleted": 0},
+               {"entity": "docs/readme.md", "author": "Ann", "added": 3, "deleted": 0},
+               {"entity": "core/a.py", "author": "Ann", "added": 900, "deleted": 0},
+               {"entity": "core/b.py", "author": "Bob", "added": 50, "deleted": 0}]
+        r = report(theseus_authors={"Ann": 79, "Bob": 21}, ownership=own)
+        self.assertEqual(findings.bus_factor(r)[0]["advice"], "Pair someone with Ann on core/ first; it is 95% theirs.",
+                         "tests/ is not a knowledge risk and a 3-line docs/ is too small to name")
+        r["meta"]["since"] = "2025-01-01"
+        self.assertEqual(findings.bus_factor(r)[0]["advice"], "Pair someone with Ann on core/ first; it is 95% theirs since 2025-01-01.",
+                         "ownership is windowed while the headline share is not")
+
     def test_nothing_when_spread(self):
         self.assertEqual(findings.bus_factor(report()), [])
 
@@ -74,17 +86,31 @@ class SizerConcerns(unittest.TestCase):
         self.assertIn("static/v.mp4", f[0]["detail"])
         self.assertEqual({x["title"] for x in f}, {"Repo health"}, "one title so the report can group them")
         self.assertIn("Blobs: Maximum size", f[0]["detail"])
-        self.assertIn("Move large files to Git LFS or rewrite them out of history.", f[0]["detail"])
-        self.assertIn("Consider a shallow clone", f[1]["detail"])
+        self.assertEqual(f[0]["advice"], "Move large files to Git LFS or rewrite them out of history.")
+        self.assertEqual(f[1]["advice"], "Split the widest directory into subdirectories; a directory that wide slows every checkout and diff.")
 
     def test_advice_per_kind_of_concern(self):
-        rows = [{"name": "References: Count", "value": "9.9 k", "concern": 1, "ref": ""},
-                {"name": "Biggest checkouts: Number of files", "value": "300 k", "concern": 2, "ref": ""},
-                {"name": "History structure: Maximum history depth", "value": "1.2 M", "concern": 1, "ref": ""}]
-        f = findings.sizer_concerns(report(sizer=rows))
-        self.assertIn("Consider pruning old branches and tags.", f[0]["detail"])
-        self.assertIn("Consider a sparse checkout", f[1]["detail"])
-        self.assertIn("Consider a shallow clone", f[2]["detail"])
+        # keyed on the loader's "section: metric" names, which are the only ones that occur
+        def advice(name, ref=""):
+            return findings.sizer_concerns(report(sizer=[{"name": name, "value": "1", "concern": 1, "ref": ref}]))[0]["advice"]
+        lfs = "Move large files to Git LFS or rewrite them out of history."
+        prune = "Consider pruning old branches and tags."
+        shallow = "Consider a shallow clone for CI; the history is the cost."
+        self.assertEqual(advice("Blobs: Maximum size", "static/v.mp4"), lfs)
+        self.assertEqual(advice("Blobs: Total size"), lfs)
+        self.assertEqual(advice("Blobs: Count"), shallow, "many small blobs: history, not file size")
+        self.assertEqual(advice("References: Count"), prune)
+        self.assertEqual(advice("Annotated tags: Count"), prune)
+        self.assertEqual(advice("Commits: Count"), shallow)
+        self.assertEqual(advice("Commits: Total size"), shallow)
+        self.assertEqual(advice("Trees: Count"), shallow)
+        self.assertEqual(advice("Trees: Total tree entries"), shallow)
+        self.assertEqual(advice("History structure: Maximum history depth"), shallow)
+        self.assertEqual(advice("Trees: Maximum entries", "static"), "Split static into subdirectories; a directory that wide slows every checkout and diff.")
+        self.assertEqual(advice("Commits: Maximum size"), "Look at that commit; oversized commits are usually imports or octopus merges.")
+        self.assertEqual(advice("Commits: Maximum parents"), "Look at that commit; oversized commits are usually imports or octopus merges.")
+        self.assertEqual(advice("Biggest checkouts: Number of files"), "Consider a sparse checkout for CI; the tree is the cost.")
+        self.assertEqual(advice("Biggest checkouts: Total size of files"), "Consider a sparse checkout for CI; the tree is the cost.")
 
 
 class HotspotDominance(unittest.TestCase):
@@ -93,6 +119,11 @@ class HotspotDominance(unittest.TestCase):
         self.assertEqual(f[0]["severity"], "info")
         self.assertIn("meta.json", f[0]["detail"])
         self.assertTrue(f[0]["detail"].endswith("Consider splitting meta.json; every change lands there."), f[0]["detail"])
+
+    def test_a_test_file_is_not_a_hotspot_to_split(self):
+        r = report(revisions=[{"entity": "tests/test_render.py", "n-revs": 60}, {"entity": "gitmole/render.py", "n-revs": 20}, {"entity": "gitmole/cli.py", "n-revs": 5}])
+        f = findings.hotspot_dominance(r)
+        self.assertEqual(f[0]["advice"], "Consider splitting gitmole/render.py; every change lands there.")
 
     def test_nothing_when_even(self):
         self.assertEqual(findings.hotspot_dominance(report()), [])
@@ -214,6 +245,14 @@ class BrainMethods(unittest.TestCase):
     def test_nothing_without_data(self):
         self.assertEqual(findings.brain_methods(report()), [])
 
+    def test_functions_in_test_files_are_not_brain_methods(self):
+        fns = [{"file": "tests/test_all.py", "function": "test_all", "ccn": 20, "nloc": 400, "params": 1, "start": 1, "end": 400},
+               {"file": "core/parser.py", "function": "parse", "ccn": 16, "nloc": 120, "params": 3, "start": 1, "end": 120}]
+        f = findings.brain_methods(report(functions=fns))
+        self.assertEqual(f[0]["advice"], "Split parse in core/parser.py first, before the next change lands there.")
+        self.assertNotIn("test_all", f[0]["detail"])
+        self.assertEqual(findings.brain_methods(report(functions=fns[:1])), [])
+
     def test_a_partial_run_says_there_may_be_more(self):
         r = report(functions=self.FUNCS)
         self.assertNotIn("part way", findings.brain_methods(r)[0]["detail"])
@@ -232,6 +271,13 @@ class Duplication(unittest.TestCase):
         self.assertNotIn("c.py", f[0]["detail"], "short blocks are noise")
         self.assertIn("4.2%", f[0]["detail"])
         self.assertTrue(f[0]["detail"].endswith("Extract the 71-line block shared by a/x.py and b/y.py first."), f[0]["detail"])
+
+    def test_advice_names_each_file_once_and_says_within_for_one_file(self):
+        block = lambda places: {"rate": 3.1, "blocks": [{"lines": 45, "places": places}]}
+        f = findings.duplication(report(duplicates=block([("core/parser.py", 10, 54), ("core/parser.py", 200, 244)])))
+        self.assertEqual(f[0]["advice"], "Extract the 45-line block repeated within core/parser.py first.")
+        f = findings.duplication(report(duplicates=block([("a.py", 1, 45), ("a.py", 50, 94), ("b.py", 1, 45)])))
+        self.assertEqual(f[0]["advice"], "Extract the 45-line block shared by a.py and b.py first.")
 
     def test_nothing_without_large_blocks(self):
         self.assertEqual(findings.duplication(report(duplicates={"rate": 0.5, "blocks": [{"lines": 12, "places": [("c.py", 1, 12), ("d.py", 1, 12)]}]})), [])
@@ -264,9 +310,41 @@ class KnowledgeIslands(unittest.TestCase):
         f = findings.knowledge_islands(report(ownership=own))
         self.assertEqual(f[0]["severity"], "info")
 
+    def test_test_directories_are_not_islands(self):
+        own = [{"entity": "tests/test_a.py", "author": "Ann", "added": 4000, "deleted": 0},
+               {"entity": "core/a.py", "author": "Bob", "added": 300, "deleted": 0}]
+        f = findings.knowledge_islands(report(ownership=own))
+        self.assertEqual(f[0]["advice"], "Pair someone with Bob on core/ first; it is the largest at 300 lines.")
+        self.assertNotIn("tests/", f[0]["detail"])
+
     def test_nothing_when_shared(self):
         self.assertEqual(findings.knowledge_islands(report(ownership=self.OWN[2:])), [])
         self.assertEqual(findings.knowledge_islands(report()), [])
+
+
+class Advice(unittest.TestCase):
+    def test_every_finding_carries_its_next_step_as_a_field_that_ends_the_detail(self):
+        r = report(secrets=[{"rule": "aws", "file": "a.env", "commit": "abc1234"}],
+                   theseus_authors={"Ann": 79, "Bob": 21},
+                   sizer=[{"name": "Blobs: Maximum size", "value": "21.3 MiB", "concern": 2, "ref": "static/v.mp4"}],
+                   revisions=[{"entity": "a.py", "n-revs": 128}, {"entity": "b.py", "n-revs": 51}],
+                   fixes=[{"entity": "a.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5}],
+                   functions=[{"file": "a.py", "function": "go", "ccn": 20, "nloc": 150, "params": 2, "start": 1, "end": 150}],
+                   coupling=[{"entity": "a.py", "coupled": "b.py", "degree": 90, "average-revs": 11}],
+                   duplicates={"rate": 4.2, "blocks": [{"lines": 71, "places": [("a.py", 10, 80), ("b.py", 5, 75)]}]},
+                   age=[{"entity": "a.py", "age-months": 30}, {"entity": "b.py", "age-months": 0}],
+                   ownership=[{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0}])
+        r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 5, "aliases": [{"name": "root", "email": "root@localhost", "commits": 1}]}]
+        found = findings.evaluate(r)
+        self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Repo health", "Bug magnets", "Brain methods", "Duplicated code",
+                                                      "A large share of files is untouched", "One person under several identities", "Knowledge islands"}, True)
+        for f in found:
+            self.assertTrue(f.get("advice"), f["title"])
+            self.assertTrue(f["detail"].endswith(" " + f["advice"]), f["detail"])
+
+    def test_a_name_with_an_initial_keeps_its_advice(self):
+        f = findings.bus_factor(report(theseus_authors={"Robert C. Martin": 90, "Bob": 10}))[0]
+        self.assertEqual(f["advice"], "Pair someone with Robert C. Martin before they are unavailable.")
 
 
 class Evaluate(unittest.TestCase):

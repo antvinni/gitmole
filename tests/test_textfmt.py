@@ -34,9 +34,30 @@ class GroupFindings(unittest.TestCase):
         self.assertEqual([g["title"] for g in grouped], ["Bus factor of one", "One person under several identities (2)"])
         self.assertEqual(grouped[1]["items"], ["a <a@x> merged into A <A@x> by name and email similarity",
                                                "b <b@x> merged into B <B@x> by name and email similarity"])
-        self.assertEqual(grouped[1]["advice"], "Add a .mailmap to make it permanent.")
+        self.assertEqual(grouped[1]["advice"], ["Add a .mailmap to make it permanent."])
         self.assertEqual(grouped[0]["items"], ["Ann wrote 80% of the code that survives today."])
-        self.assertIsNone(grouped[0]["advice"])
+        self.assertEqual(grouped[0]["advice"], [])
+
+    def test_an_explicit_advice_field_is_used_as_is_and_every_distinct_advice_is_kept(self):
+        # Re-detecting advice from prose breaks on a name with an initial and keeps only the first
+        # item's advice per group; the field carries what the rule meant.
+        found = [
+            {"severity": "warning", "title": "Repo health", "detail": "Blobs: Maximum size is 240 MiB at v.mp4. Move large files to Git LFS.",
+             "advice": "Move large files to Git LFS."},
+            {"severity": "info", "title": "Repo health", "detail": "Commits: Count is 900 k. Consider a shallow clone for CI.",
+             "advice": "Consider a shallow clone for CI."},
+            {"severity": "info", "title": "Repo health", "detail": "Blobs: Total size is 3 GiB. Move large files to Git LFS.",
+             "advice": "Move large files to Git LFS."},
+            {"severity": "warning", "title": "Bus factor of one", "detail": "Robert C. Martin wrote 90% of the code that survives today. Pair someone with Robert C. Martin before they are unavailable.",
+             "advice": "Pair someone with Robert C. Martin before they are unavailable."},
+        ]
+        grouped = {g["title"]: g for g in textfmt.group_findings(found)}
+        health = grouped["Repo health (3)"]
+        self.assertEqual(health["items"], ["Blobs: Maximum size is 240 MiB at v.mp4", "Commits: Count is 900 k", "Blobs: Total size is 3 GiB"])
+        self.assertEqual(health["advice"], ["Move large files to Git LFS.", "Consider a shallow clone for CI."], "distinct advice, first-seen order")
+        bus = grouped["Bus factor of one"]
+        self.assertEqual(bus["items"], ["Robert C. Martin wrote 90% of the code that survives today"])
+        self.assertEqual(bus["advice"], ["Pair someone with Robert C. Martin before they are unavailable."])
 
     def test_tally_line(self):
         found = [{"severity": s, "title": s, "detail": ""} for s in ["critical", "warning", "warning", "info", "info", "info"]]
