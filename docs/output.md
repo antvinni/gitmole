@@ -1,6 +1,108 @@
-# The output files
+# The report and the output files
 
-What each run writes to disk, and how to read the report it produces; back to [the README](https://github.com/antvinni/gitmole#readme).
+How to read each part of the terminal report, and what each run writes to disk; back to [the README](https://github.com/antvinni/gitmole#readme).
+
+## The terminal report
+
+1. **Header**: commits, date span, identities, branch, size, top languages,
+   one line for the busiest day and hour, the share of fix commits, the
+   share that are reverts when there are any, and the year most surviving
+   code was written (or why the blame pass did not run), and a one-line
+   tally of the findings.
+2. **Findings**: anything the heuristics flagged, worst first. Findings of
+   the same kind are grouped into one entry with a list, and every finding
+   ends with a next step that names the file, area or person to start with,
+   on its own line under the facts. Currently:
+   secrets in history (see below), an unconfigured git identity
+   (example.com and the like), one author owning most surviving code,
+   git-sizer concerns, one file dominating the churn, bug magnets (source
+   files fixed three or more times in the last six months; a warning at
+   five), reverts (5% of commits or five of them; a warning at 10%; names
+   the file most often backed out), brain methods (functions with
+   complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
+   hotspots getting more complex (three or more of the top ten hotspots
+   grew by a quarter in a year; a warning when the top one did),
+   tightly coupled file pairs (a file and its test are expected to change
+   together, so those pairs are left out), duplicated blocks of 30+ lines
+   (with `--duplicates`), a large share of stale files (files still in the
+   tree; deleted paths do not count), knowledge islands: areas of at least
+   200 lines written almost entirely by one person (a warning when such
+   areas hold most of the code), and knowledge loss (people with no commits
+   in the twelve months before the last commit who wrote 10% or more of the
+   surviving code; a warning at 30%). An unconfigured identity is only
+   flagged when it made at least 1% of the commits.
+
+   Secrets are grouped by value, so one key copied into ten files is one
+   entry with its places counted. A value found in any source file is
+   critical. A value found only in test files, such as fixtures and saved
+   web pages, is a warning. Version strings and tokens shortened with "..."
+   cannot be live secrets, so they are left out and counted on the footer
+   line. Nothing is skipped by prefix. To silence a false positive for
+   good, copy its fingerprint from `secrets.json` into a `.betterleaksignore`
+   at the repository root; betterleaks reads it on the next run, and an
+   existing `.gitleaksignore` works too.
+
+   The values themselves are never written. `secrets.json` holds a short
+   keyed hash in place of each value, the matched text and the commit
+   message; the key is random, made for that one report and never saved, so
+   a stored hash cannot be checked against a list of common passwords. It
+   only tells you which hits in one report share a value.
+
+   A commit counts as a fix when its subject starts with `fix:`, `hotfix:` or
+   `bugfix:` in the conventional style, or mentions fix, bug, hotfix,
+   regression or crash. Test files are left out of every finding that names a
+   file, area or function: they change with every fix, and owning the tests is
+   not the knowledge risk. The default tables leave them out too; `--full`
+   shows them.
+3. **Watch list**: the five files where the next bug is most likely, with
+   the reasons in words. Every source file still in the tree that changed
+   more than once is scored churn × (1 + recent fixes) × (1 + complexity),
+   times 1.5 when one person wrote 90% or more of it, each factor scaled to
+   the worst file in the repo. Churn is the base because a file nobody
+   changes is not where the next bug lands; complexity is scc's per-file
+   total, one scale for every file, while the most complex function lizard
+   found is named in the reasons. The reasons name the fix count, the sole
+   owner, the function and the files it always changes with. Test files are
+   left out. Under `--since`, churn and ownership are windowed and the list
+   says so. `--full` and the exports show fifteen. With `--risk BASE`, a
+   Change risk section follows: every file changed since BASE with its watch
+   score as a bar and the reasons, or why it has none (new file, changed
+   once, test file, not scored).
+
+   Under the watch list, one line says how the list would have done:
+   gitmole reruns the change analysis as of six months before the last
+   commit, with scc on the tree at that time, ranks the watch list from
+   that, and counts how many of the files fixed since were on it, next to
+   what a random list of the same size, drawn from the files that had
+   changed more than once, would score. Repositories with under a year
+   of history say `too little history to backtest`.
+4. **Tables**: people (identities merged by name and email similarity on
+   top of `.mailmap`, and the caption says whose; bots such as renovate,
+   dependabot and GitHub Actions are counted apart in the caption and kept
+   out of the timeline), a knowledge map (lines added per area of the tree
+   and who wrote them), a timeline of commits per author over the last
+   twelve months, hotspots ranked by revisions times lines of code with the
+   number of fix commits alongside, change coupling, the most complex
+   functions, repo health. Hotspots carry a `trend` column, sampled for the
+   top ten hotspots: the change in complexity over the last year from scc on
+   the file at sampled commits (`--full` shows the whole series as a
+   sparkline). The knowledge map marks owners who have stopped committing
+   with `(gone)`, and under `--full` shows the share of each area's lines
+   that they wrote. With `--full`: size by language, activity by weekday
+   with the busiest hour and the share of commits that are fixes, and
+   surviving code by year.
+
+   Size, hotspots, coupling, ownership, code age and the watch list analyse
+   source files: a built-in list of code extensions plus names like Makefile
+   and Dockerfile (`--file-types all` counts everything). In the default
+   report, the hotspots and complex functions tables hide test files, and
+   the change coupling table hides pairs with a test file; the captions
+   show how many are hidden, and `--full` shows them. Activity and the
+   timeline cover the whole history.
+5. **Footer**: where the files and plots are.
+
+The complete report for the gitmole repository itself is in
+[example.md](https://github.com/antvinni/gitmole/blob/main/docs/example.md).
 
 ## The output directory
 

@@ -39,3 +39,17 @@ not guess at either.
 - **trufflehog**: duplicates betterleaks for this purpose. betterleaks is
   lighter and faster on history.
 - **GitLens**: useful in the editor, but it has telemetry and paid tiers.
+
+## Licences
+
+gitmole does not bundle any of the tools it wraps; it runs them as separate
+processes. gitmole itself is MIT.
+
+| Tool | Licence |
+|---|---|
+| scc | MIT |
+| git-sizer | MIT |
+| betterleaks | MIT |
+| rich | MIT |
+| lizard | MIT |
+| git-of-theseus | Apache-2.0 |
