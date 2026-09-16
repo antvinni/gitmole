@@ -27,6 +27,24 @@ class ParseSccByFile(unittest.TestCase):
         self.assertEqual(result["files"], {"src/a.py": {"code": 60, "complexity": 5}, "src/b.py": {"code": 40, "complexity": 2}})
         self.assertEqual(result["total_code"], 100)
 
+    def test_file_types_filter_the_files_and_the_language_totals_are_rebuilt_from_what_is_left(self):
+        text = json.dumps([
+            {"Name": "Python", "Count": 2, "Code": 100, "Comment": 5, "Blank": 3, "Complexity": 7,
+             "Files": [{"Location": "src/a.py", "Code": 60, "Comment": 5, "Blank": 3, "Complexity": 5}, {"Location": "src/b.py", "Code": 40, "Comment": 0, "Blank": 0, "Complexity": 2}]},
+            {"Name": "JSON", "Count": 1, "Code": 9000, "Comment": 0, "Blank": 0, "Complexity": 0,
+             "Files": [{"Location": "data/big.json", "Code": 9000, "Comment": 0, "Blank": 0, "Complexity": 0}]},
+            {"Name": "Makefile", "Count": 1, "Code": 8, "Comment": 0, "Blank": 0, "Complexity": 0,
+             "Files": [{"Location": "Makefile", "Code": 8, "Comment": 0, "Blank": 0, "Complexity": 0}]},
+        ])
+        result = load.parse_scc(text, types=load.filetypes.DEFAULT)
+        self.assertEqual([r["name"] for r in result["languages"]], ["Python", "Makefile"], "JSON is data; Makefile is code by name")
+        self.assertEqual(result["languages"][0], {"name": "Python", "files": 2, "code": 100, "comment": 5, "blank": 3, "complexity": 7})
+        self.assertEqual(result["total_code"], 108)
+        self.assertEqual(result["total_files"], 3)
+        self.assertEqual(set(result["files"]), {"src/a.py", "src/b.py", "Makefile"})
+        self.assertEqual(load.parse_scc(text, types={"json"})["total_code"], 9000)
+        self.assertEqual(load.parse_scc(text, types=None)["total_code"], 9108, "None means no filter")
+
     def test_files_key_is_empty_without_by_file_data(self):
         self.assertEqual(load.parse_scc(json.dumps([{"Name": "Go", "Count": 1, "Code": 1, "Comment": 0, "Blank": 0, "Complexity": 0}]))["files"], {})
 
@@ -209,6 +227,24 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["functions"][0]["function"], "f")
         self.assertEqual(r["duplicates"]["rate"], 5.0)
         self.assertEqual(r["out_dir"], out)
+
+    def test_size_is_filtered_by_the_file_types_recorded_in_meta(self):
+        import os, tempfile
+        size = json.dumps([{"Name": "JSON", "Count": 1, "Code": 9000, "Comment": 0, "Blank": 0, "Complexity": 0,
+                            "Files": [{"Location": "d.json", "Code": 9000, "Comment": 0, "Blank": 0, "Complexity": 0}]},
+                           {"Name": "Python", "Count": 1, "Code": 10, "Comment": 0, "Blank": 0, "Complexity": 1,
+                            "Files": [{"Location": "a.py", "Code": 10, "Comment": 0, "Blank": 0, "Complexity": 1}]}])
+        def total(meta):
+            with tempfile.TemporaryDirectory() as out:
+                with open(os.path.join(out, "meta.json"), "w") as fh:
+                    json.dump(meta, fh)
+                with open(os.path.join(out, "size.json"), "w") as fh:
+                    fh.write(size)
+                return load.load_report(out)["size"]["total_code"]
+        self.assertEqual(total({"name": "d", "commits": 1, "identities": []}), 10, "no record: the default code list, like every other step")
+        self.assertEqual(total({"name": "d", "commits": 1, "identities": [], "file_types": None}), 10)
+        self.assertEqual(total({"name": "d", "commits": 1, "identities": [], "file_types": "all"}), 9010)
+        self.assertEqual(total({"name": "d", "commits": 1, "identities": [], "file_types": "json"}), 9000)
 
     def test_surviving_lines_are_re_keyed_to_merged_identities(self):
         import os, tempfile

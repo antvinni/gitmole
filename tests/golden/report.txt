@@ -2,18 +2,14 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 
 ╭─ demo ───────────────────────────────────────────────────────────────────────────────────────────╮
 │ 8 commits  ·  2024-01-10 → 2025-05-30  ·  2 identities  ·  branch main                           │
-│ 13 lines in 5 files  ·  Python, CSV, Makefile, Markdown                                          │
+│ 10 lines in 3 files  ·  Python, Makefile                                                         │
 │ most commits on Wed at 09:00  ·  12% of commits are fixes  ·  82% of surviving code from 2024    │
-│ 2 notes                                                                                          │
+│ 1 note                                                                                           │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
+╭─ Findings (1) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ● Files that always change together                                                              │
 │   1 pair changes together at least 80% of the time, e.g. app/main.py + app/util.py (83%)         │
 │   ↳ Review app/main.py and app/util.py first: a shared layout or a hidden dependency links them. │
-│ ● One person under several identities                                                            │
-│   bob-example <9999+bob-example@users.noreply.demo.test> merged into Bob Example <bob@demo.test> │
-│   by name and email similarity                                                                   │
-│   ↳ Add a .mailmap to make it permanent.                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ◎ Watch list
@@ -24,10 +20,11 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
   ranked by churn × recent fixes × complexity × single ownership
 
 ◉ People
-  author        commits   share         surviving code
-  ────────────────────────────────────────────────────
-  Ann Example         5    62% ▰▰▰▰▰▰              64%
-  Bob Example         3    38% ▰▰▰                 36%
+  author             commits   share               surviving code
+  ───────────────────────────────────────────────────────────────
+  Ann Example              5    62% ▰▰▰▰▰▰                    64%
+  Bob Example              3    38% ▰▰▰                       36%
+  aliases merged for Bob Example; a .mailmap makes that permanent
 
 ⌂ Knowledge map
   area           lines added   main owner           second

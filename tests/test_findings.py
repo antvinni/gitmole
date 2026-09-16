@@ -43,6 +43,14 @@ class PlaceholderIdentity(unittest.TestCase):
     def test_nothing_for_real_identities(self):
         self.assertEqual(findings.placeholder_identity(report()), [])
 
+    def test_a_stray_commit_below_one_percent_is_not_worth_a_warning(self):
+        r = report()
+        r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 4405},
+                                   {"name": "Elegant", "email": "user@elegant996.net", "commits": 1}]
+        self.assertEqual(findings.placeholder_identity(r), [])
+        r["meta"]["identities"][1]["commits"] = 45
+        self.assertEqual(findings.placeholder_identity(r)[0]["severity"], "warning")
+
 
 class BusFactor(unittest.TestCase):
     def test_warns_when_one_author_owns_most_surviving_code(self):
@@ -163,19 +171,22 @@ class StaleFiles(unittest.TestCase):
     def test_nothing_when_fresh(self):
         self.assertEqual(findings.stale_files(report()), [])
 
+    def test_files_no_longer_in_the_tree_do_not_count(self):
+        age = [{"entity": f"f{i}", "age-months": 12} for i in range(4)] + [{"entity": f"g{i}", "age-months": 0} for i in range(6)]
+        in_tree = {f"f{i}": {"code": 1, "complexity": 0} for i in range(2)} | {f"g{i}": {"code": 1, "complexity": 0} for i in range(6)}
+        self.assertEqual(findings.stale_files(report(age=age, size={"files": in_tree})), [], "2 of 8 files in the tree are stale")
+        in_tree = {f"f{i}": {"code": 1, "complexity": 0} for i in range(4)} | {f"g{i}": {"code": 1, "complexity": 0} for i in range(6)}
+        f = findings.stale_files(report(age=age, size={"files": in_tree}))
+        self.assertIn("40% of files (4)", f[0]["detail"])
 
-class DuplicateIdentities(unittest.TestCase):
-    def test_reports_merged_aliases_and_suggests_a_mailmap(self):
+
+class IdentityMerges(unittest.TestCase):
+    def test_are_not_a_finding(self):
         r = report()
         r["meta"]["identities"] = [{"name": "Grzegorz Bankosz", "email": "g@thg.com", "commits": 41,
-                                    "aliases": [{"name": "thg-grzegorz-bankosz", "email": "1@users.noreply.github.com", "commits": 16}]},
-                                   {"name": "Bob", "email": "bob@x.com", "commits": 1, "aliases": []}]
-        f = findings.duplicate_identities(r)
-        self.assertEqual(len(f), 1)
-        self.assertIn("Grzegorz Bankosz", f[0]["detail"])
-        self.assertIn("thg-grzegorz-bankosz", f[0]["detail"])
-        self.assertIn("mailmap", f[0]["detail"])
-        self.assertIn("merged", f[0]["detail"])
+                                    "aliases": [{"name": "thg-grzegorz-bankosz", "email": "1@users.noreply.github.com", "commits": 16}]}]
+        self.assertEqual([f["title"] for f in findings.evaluate(r)], [], "merged aliases are a People caption, not a finding")
+        self.assertFalse(hasattr(findings, "duplicate_identities"))
 
     def test_placeholder_identity_is_found_inside_aliases_too(self):
         r = report()
@@ -184,9 +195,6 @@ class DuplicateIdentities(unittest.TestCase):
         f = findings.placeholder_identity(r)
         self.assertEqual(len(f), 1)
         self.assertIn("60%", f[0]["detail"])
-
-    def test_nothing_when_distinct(self):
-        self.assertEqual(findings.duplicate_identities(report()), [])
 
 
 class BugMagnets(unittest.TestCase):
@@ -337,7 +345,7 @@ class Advice(unittest.TestCase):
         r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 5, "aliases": [{"name": "root", "email": "root@localhost", "commits": 1}]}]
         found = findings.evaluate(r)
         self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Repo health", "Bug magnets", "Brain methods", "Duplicated code",
-                                                      "A large share of files is untouched", "One person under several identities", "Knowledge islands"}, True)
+                                                      "A large share of files is untouched", "Unconfigured git identity", "Knowledge islands"}, True)
         for f in found:
             self.assertTrue(f.get("advice"), f["title"])
             self.assertTrue(f["detail"].endswith(" " + f["advice"]), f["detail"])

@@ -367,6 +367,24 @@ class Timeline(unittest.TestCase):
         text = rendered(r, [])
         self.assertIn("commits since 2026-07-15; surviving code is for the whole tree", text)
 
+    def test_bots_are_left_out_of_the_timeline_and_named_under_people(self):
+        r = sample_report()
+        r["meta"]["bots"] = [{"name": "renovate[bot]", "commits": 940}, {"name": "github-actions[bot]", "commits": 195}]
+        r["activity"]["timeline"]["renovate[bot]"] = {"2026-08": 30, "2026-09": 40}
+        text = rendered(r, [], width=120)
+        self.assertNotIn("renovate[bot]", text.split("◉ People")[0], "the panel and findings do not mention bots")
+        self.assertRegex(text, r"Ann\s+3(\s+·){9}\s+12\s+7")
+        self.assertNotIn("renovate[bot]   ", text, "no timeline row for a bot")
+        self.assertIn("bots left out: renovate[bot] (940 commits), github-actions[bot] (195)", text)
+        self.assertNotIn("bots left out", rendered(sample_report(), []))
+
+    def test_people_caption_names_who_had_aliases_merged(self):
+        r = sample_report()
+        r["meta"]["identities"][0]["aliases"] = [{"name": "ann-x", "email": "1@users.noreply.github.com", "commits": 3}]
+        text = rendered(r, [])
+        self.assertIn("aliases merged for Ann; a .mailmap makes that permanent", text)
+        self.assertNotIn("aliases merged", rendered(sample_report(), []))
+
     def test_timeline_absent_without_data(self):
         r = sample_report()
         r["activity"] = {}

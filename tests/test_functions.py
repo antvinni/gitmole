@@ -31,14 +31,16 @@ def make_repo(d, extra=()):
         fh.write("def untracked():\n    return 2\n")
 
 
-def run(d, *args):
+def run(d, *args, duplicates=True):
     out = os.path.join(d, "out")
     os.makedirs(out, exist_ok=True)
-    rc = functions.main([d, out, "--procs", "1", *args])
+    rc = functions.main([d, out, "--procs", "1", *(["--duplicates"] if duplicates else []), *args])
     with open(os.path.join(out, "functions.csv")) as fh:
         csv = fh.read()
-    with open(os.path.join(out, "duplicates.txt")) as fh:
-        dup = fh.read()
+    dup = None
+    if os.path.exists(os.path.join(out, "duplicates.txt")):
+        with open(os.path.join(out, "duplicates.txt")) as fh:
+            dup = fh.read()
     return rc, csv, dup
 
 
@@ -56,6 +58,14 @@ class FunctionsScript(unittest.TestCase):
         self.assertNotIn("shelled", csv, "no lizard reader for shell: no guessing with the C-like fallback")
         self.assertNotIn("Duplicates", csv, "the two outputs are separate files")
         self.assertIn("Total duplicate rate", dup)
+
+    def test_duplicate_finder_is_opt_in(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            rc, csv, dup = run(d, "--types", "py", "--ignore", "vendor/**", duplicates=False)
+        self.assertEqual(rc, 0)
+        self.assertIn('"tracked"', csv, "functions are still measured")
+        self.assertIsNone(dup, "no duplicates.txt: the finder did not run, so nothing pretends it did")
 
     def test_csv_matches_lizards_own_layout(self):
         with tempfile.TemporaryDirectory() as d:

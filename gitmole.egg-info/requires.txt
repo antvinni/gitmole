@@ -1,7 +1,0 @@
-rich>=13
-
-[plots]
-git-of-theseus
-
-[scripting]
-pydriller

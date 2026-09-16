@@ -37,5 +37,18 @@ class Merge(unittest.TestCase):
         self.assertEqual(identity.merge([]), [])
 
 
+class IsBot(unittest.TestCase):
+    def test_bracketed_bot_suffix_and_the_well_known_names(self):
+        for name, email in [("renovate[bot]", "29139614+renovate[bot]@users.noreply.github.com"),
+                            ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"),
+                            ("dependabot[bot]", "support@github.com"), ("Dependabot", "dependabot@example.com"),
+                            ("Renovate Bot", "bot@renovateapp.com"), ("GitHub Actions", "actions@github.com")]:
+            self.assertTrue(identity.is_bot(name, email), (name, email))
+
+    def test_people_are_not_bots(self):
+        for name, email in [("Ann", "ann@x.com"), ("Bob Otte", "bot@x.com"), ("Robot Lee", "r@x.com"), ("hay-kot", "hay-kot@pm.me")]:
+            self.assertFalse(identity.is_bot(name, email), (name, email))
+
+
 if __name__ == "__main__":
     unittest.main()

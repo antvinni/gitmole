@@ -347,6 +347,36 @@ class FileTypes(unittest.TestCase):
                      planner=planner, estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
         self.assertEqual(calls[0]["types"], "py,sql")
 
+    def test_meta_records_the_file_types_so_a_re_render_filters_the_same_way(self):
+        def meta_for(*extra):
+            with tempfile.TemporaryDirectory() as d:
+                _tiny_repo(d)
+                out = os.path.join(d, "out")
+                planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+                cli.main([d, "--out", out, *extra], console=console(), tool_check=lambda **kw: [], planner=planner,
+                         estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+                with open(os.path.join(out, "meta.json")) as fh:
+                    return json.load(fh)
+        self.assertIsNone(meta_for()["file_types"])
+        self.assertEqual(meta_for("--file-types", "py, sql")["file_types"], "py,sql")
+        self.assertEqual(meta_for("--file-types", "all")["file_types"], "all")
+
+
+class Duplicates(unittest.TestCase):
+    def test_off_by_default_and_on_with_the_flag(self):
+        def planned(*extra):
+            calls = []
+            with tempfile.TemporaryDirectory() as d:
+                _tiny_repo(d)
+                def planner(repo, out, branch="HEAD", **kw):
+                    calls.append(kw)
+                    return [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+                cli.main([d, "--out", os.path.join(d, "out"), *extra], console=console(), tool_check=lambda **kw: [], planner=planner,
+                         estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            return calls[0]["duplicates"]
+        self.assertFalse(planned())
+        self.assertTrue(planned("--duplicates"))
+
 
 class ReferenceDate(unittest.TestCase):
     def _main(self, env, extra=()):

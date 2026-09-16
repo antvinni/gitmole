@@ -8,7 +8,7 @@ import os
 import re
 from collections import Counter, OrderedDict
 
-from . import identity
+from . import filetypes, identity
 
 
 def _rel(path: str) -> str:
@@ -16,8 +16,28 @@ def _rel(path: str) -> str:
     return path[2:] if path.startswith("./") else path
 
 
-def parse_scc(text: str) -> dict:
+def _only(rows: list, types) -> list:
+    """scc's language rows with the files outside `types` dropped and the totals rebuilt from what is
+    left. A row without per-file data (an older size.json) is kept as it is."""
+    out = []
+    for r in rows:
+        files = r.get("Files")
+        if files is None:
+            out.append(r)
+            continue
+        kept = [f for f in files if filetypes.matches(_rel(f.get("Location", "")), types)]
+        if kept:
+            out.append({**r, "Count": len(kept), "Files": kept,
+                        **{k: sum(f.get(k, 0) for f in kept) for k in ("Code", "Comment", "Blank", "Complexity")}})
+    return out
+
+
+def parse_scc(text: str, types=None) -> dict:
+    """scc --by-file JSON as languages and per-file rows. `types` (as filetypes.parse gives it: a
+    set, or None for everything) keeps only the code files, so the size matches the other tables."""
     rows = json.loads(text) if text.strip() else []
+    if types is not None:
+        rows = _only(rows, types)
     languages = sorted(
         (
             {
@@ -188,7 +208,7 @@ def load_report(out_dir: str) -> dict:
     return {
         "out_dir": out_dir,
         "meta": meta,
-        "size": parse_scc(_read(out_dir, "size.json")),
+        "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta.get("file_types"))),
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
         "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),

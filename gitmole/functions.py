@@ -64,11 +64,11 @@ def analyze(files: list, procs: int, exts: list):
     return result
 
 
-def measure(repo: str, files: list, out: str, procs: int) -> int:
-    """Stream functions.csv while lizard runs, then write duplicates.txt. Returns 0, or 1 when
-    lizard gave up on a file (whatever was measured by then stays on disk)."""
-    exts = lizard.get_extensions(["duplicate"])   # lizard's metric extensions plus the duplicate finder
-    dup = next(e for e in exts if isinstance(e, Duplicates))
+def measure(repo: str, files: list, out: str, procs: int, duplicates: bool = False) -> int:
+    """Stream functions.csv while lizard runs, then duplicates.txt when the finder was on. Returns 0,
+    or 1 when lizard gave up on a file (whatever was measured by then stays on disk)."""
+    exts = lizard.get_extensions(["duplicate"] if duplicates else [])   # lizard's metric extensions, plus the duplicate finder on request
+    dup = next((e for e in exts if isinstance(e, Duplicates)), None)
     rc = 0
     cwd = os.getcwd()
     os.chdir(repo)   # lizard opens the paths as given; relative ones keep the CSV repo-relative
@@ -83,8 +83,9 @@ def measure(repo: str, files: list, out: str, procs: int) -> int:
             except Exception as e:  # lizard re-raises its parse failures; keep what we have
                 print(f"lizard stopped: {e!r}", file=sys.stderr)
                 rc = 1
-        with open(os.path.join(out, "duplicates.txt"), "w", encoding="utf-8") as fh:
-            write_duplicates(dup, fh)
+        if dup is not None:
+            with open(os.path.join(out, "duplicates.txt"), "w", encoding="utf-8") as fh:
+                write_duplicates(dup, fh)
     finally:
         os.chdir(cwd)
     return rc
@@ -97,9 +98,10 @@ def main(argv=None) -> int:
     p.add_argument("--procs", type=int, default=1)
     p.add_argument("--ignore", action="append", default=[])
     p.add_argument("--types", default=None, help="file types spec as for gitmole --file-types")
+    p.add_argument("--duplicates", action="store_true", help="also run the duplicate finder (slow and memory-hungry on a large repo)")
     args = p.parse_args(argv)
     files = select_files(args.repo, args.ignore, args.types)
-    return measure(os.path.abspath(args.repo), files, os.path.abspath(args.out), max(1, args.procs))
+    return measure(os.path.abspath(args.repo), files, os.path.abspath(args.out), max(1, args.procs), args.duplicates)
 
 
 if __name__ == "__main__":
