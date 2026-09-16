@@ -154,3 +154,16 @@ def change_risk(report: dict, files: list) -> dict:
     rows.sort(key=lambda r: (-r["score"], r["file"]))
     return {"files": rows, "total": float(sum(r["score"] for r in rows)), "watched": sum(r["watched"] for r in rows),
             "max_score": float(ranked[0]["score"]) if ranked and rows else 0.0}
+
+
+def backtest(report: dict):
+    """How the watch list as of the cut-off T (report["backtest"]) did against the fixes that came after."""
+    past = report.get("backtest")
+    if not past or not (past.get("size") or {}).get("files"):
+        return None
+    t = past["meta"]["now"]
+    listed = [r["file"] for r in risks(past)[:WATCH_TOP]]
+    fixed = {f["entity"] for f in report.get("fixes") or [] if f.get("last-fix", "") > t and not filetypes.is_test_path(f["entity"])}
+    source_at_t = [p for p in past["size"]["files"] if not filetypes.is_test_path(p)]
+    expected = round(len(listed) * len(fixed) / len(source_at_t), 1) if source_at_t else 0.0
+    return {"t": t, "listed": len(listed), "fixed": len(fixed), "hits": len(fixed.intersection(listed)), "expected": expected}
