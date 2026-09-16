@@ -135,6 +135,9 @@ def has_lizard(finder=importlib.util.find_spec) -> bool:
 OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "log.txt", "activity.json", "functions.csv", "duplicates.txt",
            "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]
+# directories a run writes: the backtest sub-report, and the temporary checkouts the trend and
+# backtest steps make under the output directory (a SIGKILL leaves those behind).
+OUTPUT_DIR_GLOBS = ["backtest", ".backtest-tree-*", ".trend-*"]
 
 
 def clear_outputs(out_dir: str) -> None:
@@ -143,10 +146,13 @@ def clear_outputs(out_dir: str) -> None:
     paths = [os.path.join(out_dir, n) for n in OUTPUTS]
     for g in OUTPUT_GLOBS:
         paths += glob.glob(os.path.join(out_dir, g))
+    for g in OUTPUT_DIR_GLOBS:
+        paths += glob.glob(os.path.join(out_dir, g))
     for path in paths:
-        if os.path.isfile(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        elif os.path.isfile(path):
             os.remove(path)
-    shutil.rmtree(os.path.join(out_dir, "backtest"), ignore_errors=True)
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,

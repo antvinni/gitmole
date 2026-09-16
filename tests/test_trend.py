@@ -44,6 +44,31 @@ class Sparkline(unittest.TestCase):
         self.assertEqual(trend.sparkline([["d", 7, 1], ["d", 7, 1]]), "▁▁")
         self.assertEqual(trend.sparkline([]), "")
 
+    def test_a_single_sample_is_not_a_line(self):
+        self.assertEqual(trend.sparkline([["d", 7, 1]]), "", "one point draws no trend; the cell reads -")
+
+
+class RevBefore(unittest.TestCase):
+    def _repo(self, d):
+        e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+                 GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x",
+                 GIT_AUTHOR_DATE="2025-06-01T10:00:00", GIT_COMMITTER_DATE="2025-06-01T10:00:00")
+        subprocess.run(["git", "init", "-q", d], check=True, capture_output=True, env=e)
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "one"], cwd=d, check=True, capture_output=True, env=e)
+
+    def test_the_two_boundaries_of_a_day(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            self.assertTrue(trend.rev_before(d, "2025-06-01", end_of_day=True), "the trend samples include the day itself")
+            self.assertIsNone(trend.rev_before(d, "2025-06-01", end_of_day=False), "the backtest cuts off as the day begins")
+            self.assertTrue(trend.rev_before(d, "2025-06-02", end_of_day=False))
+
+    def test_a_git_failure_raises_with_gits_own_message(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(RuntimeError) as ctx:
+                trend.rev_before(d, "2025-06-01")
+        self.assertIn("not a git repository", str(ctx.exception).lower())
+
 
 def grow_repo(d):
     """One file whose complexity grows over four commits a month apart; a second file that appears late."""
@@ -80,6 +105,7 @@ class Step(unittest.TestCase):
                 data = json.load(fh)
             listing = sorted(os.listdir(out))
         self.assertEqual(rc, 0)
+        self.assertFalse([n for n in listing if n.startswith(".trend-")], "the checkout directory lives under the output directory and is cleaned up")
         self.assertEqual(len(data["samples"]), 4)
         self.assertEqual((data["samples"][0], data["samples"][-1]), ("2025-01-01", "2025-04-01"))
         a = data["files"]["app/a.py"]

@@ -43,6 +43,7 @@ PATH = {"overflow": "fold", "no_wrap": False}
 # rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own.
 CAPS = {"People": 6, "Hotspots": 8, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
+TREND_TOP = 10   # the trend step's own --top default: only those files have samples
 WATCH_CAP, WATCH_FULL = 5, 15   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
 
 
@@ -326,7 +327,10 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
         rows = _shorten(rows, width, columns)
-    return _section(title, columns, rows, caption=_more(len(scored), limit))
+    notes = [c for c in (_more(len(scored), limit),) if c]
+    if series and full is not False:   # the tight report keeps its captions short
+        notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
+    return _section(title, columns, rows, caption="; ".join(notes) or None)
 
 
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:

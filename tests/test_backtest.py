@@ -53,6 +53,8 @@ class Step(unittest.TestCase):
                 size = json.load(fh)
             with open(os.path.join(sub, "meta.json")) as fh:
                 meta = json.load(fh)
+            listing = sorted(os.listdir(out))
+        self.assertEqual(listing, ["backtest", "log.txt", "meta.json"], "the exported tree is cleaned up")
         self.assertEqual(revs, {"hot.py": "6", "calm.py": "1"}, "the fix and the tweak are after the cut-off")
         self.assertEqual(sorted(f["Location"] for r in size for f in r["Files"]), ["calm.py", "hot.py"])
         hot = next(f for r in size for f in r["Files"] if f["Location"] == "hot.py")
@@ -79,6 +81,21 @@ class Step(unittest.TestCase):
                 size = json.load(fh)
         self.assertIn("calm.py", [f["Location"] for r in size for f in r["Files"]],
                        "export-ignore in .gitattributes must not thin the tree scc measures")
+
+    def test_a_failed_git_or_scc_exits_2_with_one_line(self):
+        import contextlib
+        import io
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as d:
+            history_repo(d)
+            out = os.path.join(d, "out")
+            export(d, out)
+            boom = subprocess.CalledProcessError(128, ["git", "read-tree"], stderr="fatal: not a tree object\nsecond line\n")
+            err = io.StringIO()
+            with patch.object(backtest, "size_at", side_effect=boom), contextlib.redirect_stderr(err):
+                rc = backtest.main([out, "--until", "2025-12-01", "--repo", d])
+        self.assertEqual(rc, 2)
+        self.assertEqual(err.getvalue(), "backtest: fatal: not a tree object\n")
 
     def test_no_commit_before_the_cut_off_exits_2(self):
         with tempfile.TemporaryDirectory() as d:
