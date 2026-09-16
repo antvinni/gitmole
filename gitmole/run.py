@@ -139,17 +139,19 @@ OUTPUT_GLOBS = ["maat-*.csv"]
 
 def clear_outputs(out_dir: str) -> None:
     import glob
+    import shutil
     paths = [os.path.join(out_dir, n) for n in OUTPUTS]
     for g in OUTPUT_GLOBS:
         paths += glob.glob(os.path.join(out_dir, g))
     for path in paths:
         if os.path.isfile(path):
             os.remove(path)
+    shutil.rmtree(os.path.join(out_dir, "backtest"), ignore_errors=True)
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
-         lizard: bool = False, duplicates: bool = False, trend: bool = True, samples: int = 12) -> list:
+         lizard: bool = False, duplicates: bool = False, trend: bool = True, samples: int = 12, backtest: str = None) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
@@ -174,6 +176,9 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
     if trend:
         steps.append({"name": "trend", "argv": [sys.executable, "-m", "gitmole.trend", out_dir, "--samples", str(samples)],
                       "stdout": None, "deps": ["scc", "change analysis"]})
+    if backtest:
+        steps.append({"name": "backtest", "argv": [sys.executable, "-m", "gitmole.backtest", out_dir, "--until", backtest],
+                      "stdout": None, "deps": ["git-log", "change analysis"]})
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
     if plots:

@@ -205,8 +205,10 @@ def _read(out_dir: str, name: str) -> str:
         return fh.read()
 
 
-def load_report(out_dir: str) -> dict:
-    """Read every output file gitmole writes. Missing optional files become empty values."""
+def load_report(out_dir: str, nested: bool = True) -> dict:
+    """Read every output file gitmole writes. Missing optional files become empty values.
+
+    `nested`: also load the backtest sub-report (out_dir/backtest), one level deep only."""
     meta = json.loads(_read(out_dir, "meta.json") or "{}")
     cohorts = _read(out_dir, "theseus/cohorts.json")
     authors = _read(out_dir, "theseus/authors.json")
@@ -235,4 +237,6 @@ def load_report(out_dir: str) -> dict:
         "functions": parse_functions(_read(out_dir, "functions.csv")),
         "duplicates": parse_duplicates(_read(out_dir, "duplicates.txt")),
         "trend": json.loads(_read(out_dir, "trend.json") or '{"samples": [], "files": {}}'),
+        "backtest": load_report(os.path.join(out_dir, "backtest"), nested=False)
+                    if nested and os.path.isfile(os.path.join(out_dir, "backtest", "meta.json")) else None,
     }

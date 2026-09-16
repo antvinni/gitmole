@@ -290,6 +290,13 @@ class Plan(unittest.TestCase):
         self.assertNotIn("trend", [s["name"] for s in run.plan("/r", "/o", trend=False)])
         self.assertIn("trend.json", run.OUTPUTS)
 
+    def test_backtest_step_runs_after_the_change_analysis_when_a_cut_off_is_given(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", backtest="2025-12-01")}
+        self.assertEqual(by["backtest"]["argv"][:3], [sys.executable, "-m", "gitmole.backtest"])
+        self.assertEqual(by["backtest"]["argv"][3:], ["/o", "--until", "2025-12-01"])
+        self.assertEqual(by["backtest"]["deps"], ["git-log", "change analysis"])
+        self.assertNotIn("backtest", [s["name"] for s in run.plan("/r", "/o")])
+
     def test_execute_puts_the_package_on_pythonpath(self):
         with tempfile.TemporaryDirectory() as d:
             log = os.path.join(d, "run.log")
@@ -512,6 +519,13 @@ class ClearOutputs(unittest.TestCase):
     def test_missing_files_are_fine(self):
         with tempfile.TemporaryDirectory() as out:
             run.clear_outputs(out)
+
+    def test_clear_outputs_removes_the_backtest_directory(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "backtest"))
+            open(os.path.join(d, "backtest", "size.json"), "w").close()
+            run.clear_outputs(d)
+            self.assertFalse(os.path.exists(os.path.join(d, "backtest")))
 
 
 if __name__ == "__main__":

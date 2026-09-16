@@ -187,6 +187,20 @@ class Report(unittest.TestCase):
         self.assertRegex(rendered(r, [], full=True), r"static/index\.html.*▁▃█")
         self.assertRegex(rendered(sample_report(), []), r"static/index\.html\s+51\s+4,000\s+0\s+-\s+-")
 
+    def test_watch_list_caption_reports_the_backtest_or_why_not(self):
+        r = sample_report()
+        r["meta"]["backtest"] = {"status": "skipped", "reason": "too little history to backtest"}
+        self.assertIn("too little history to backtest", rendered(r, []))
+        r = sample_report()
+        past = sample_report()
+        past["meta"] = {"now": "2026-03-10"}
+        r["backtest"] = past
+        r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
+                      {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
+        text = rendered(r, [])
+        self.assertIn("6 months ago this list would have named 1 of the 2 files fixed since (a random 2 would name 1.0)", text)
+        self.assertEqual(render.to_json(r, [])["watch_backtest"]["hits"], 1)
+
 
 class Activity(unittest.TestCase):
     def test_activity_shows_weekdays_and_busiest_hour(self):
