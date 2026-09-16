@@ -500,6 +500,19 @@ def secrets_line(report: dict) -> str:
     return line
 
 
+def secrets_pass(report: dict):
+    """The one check worth saying out loud when it passes: (title, detail) when the scan ran and found no
+    secret value, else None. Found values are findings already; a scan that did not run says nothing."""
+    rows = report.get("secrets") or []
+    if not report.get("secrets_scanned") or leaks.group(rows):
+        return None
+    detail = "betterleaks scanned every commit on every branch"
+    skipped = leaks.placeholders(rows)
+    if skipped:
+        detail += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
+    return "No secrets in history", detail
+
+
 # --- rich ------------------------------------------------------------------
 
 def header(report: dict, findings: list = ()) -> Panel:
@@ -519,8 +532,9 @@ def header(report: dict, findings: list = ()) -> Panel:
     return Panel(body, title=f"[bold]{s['name']}[/bold]", title_align="left", border_style="blue")
 
 
-def findings_panel(findings: list) -> Panel:
-    if not findings:
+def findings_panel(findings: list, report: dict = None) -> Panel:
+    passed = secrets_pass(report or {})
+    if not findings and not passed:
         return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
     grid = Table.grid(padding=(0, 1))
     grid.add_column(no_wrap=True)
@@ -533,7 +547,12 @@ def findings_panel(findings: list) -> Panel:
         for advice in g["advice"]:
             body.append(f"\n↳ {advice}", style="dim italic")
         grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
-    return Panel(grid, title=f"Findings ({len(findings)})", title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]])
+    if passed:   # last: problems first, then the check that passed
+        if not findings:
+            grid.add_row(Text(""), Text("Nothing flagged.", style="green"))
+        grid.add_row(Text("✔", style="green"), Text(passed[0], style="green").append(f"\n{passed[1]}", style="dim"))
+    title = f"Findings ({len(findings)})" if findings else "Findings"
+    return Panel(grid, title=title, title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]] if findings else "green")
 
 
 def cell_style(column: str, value: str):
@@ -619,7 +638,7 @@ def _partners(secs: list) -> dict:
 
 def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None) -> None:
     console.print(header(report, findings))
-    console.print(findings_panel(findings))
+    console.print(findings_panel(findings, report))
     secs = sections(report, full=full, width=console.width)
     by_id = {s["id"]: s for s in secs}
     partners = _partners(secs) if console.width >= SIDE_BY_SIDE_MIN_WIDTH else {}
@@ -650,14 +669,15 @@ def _md_cell(cell: str) -> str:
     return cell.replace("|", "\\|").replace("\n", " ")
 
 
-def _md_findings(findings: list) -> list:
-    if not findings:
-        return ["Nothing flagged."]
-    out = []
+def _md_findings(findings: list, report: dict = None) -> list:
+    out = [] if findings else ["Nothing flagged."]
     for g in textfmt.group_findings(findings):
         line = f"- **{g['severity']}** {g['title']} — " + "; ".join(g["items"])
         line += "".join(f" _{advice}_" for advice in g["advice"])
         out.append(line)
+    passed = secrets_pass(report or {})
+    if passed:
+        out.append(f"- **ok** {passed[0]} — {passed[1]}")
     return out
 
 
@@ -668,7 +688,7 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
            f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["pulse"] else ""),
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
            "## Findings", ""]
-    out += _md_findings(findings)
+    out += _md_findings(findings, report)
     secs = sections(report, full=True if full else "markdown")
     if risk is not None:
         after = next((i for i, sec in enumerate(secs) if sec["id"] == "watch"), len(secs) - 1)
@@ -728,7 +748,7 @@ def portfolio_markdown(owner: str, reports: list) -> str:
         out.append(f"_{sec['note']}_")
     for name, rep, found in reports:
         out += ["", f"## {name}", ""]
-        out += _md_findings(found)
+        out += _md_findings(found, rep)
     return "\n".join(out) + "\n"
 
 

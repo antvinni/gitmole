@@ -32,6 +32,14 @@ How to read each part of the terminal report, and what each run writes to disk; 
    surviving code; a warning at 30%). An unconfigured identity is only
    flagged when it made at least 1% of the commits.
 
+   One check is also reported when it passes: a green `No secrets in
+   history` line closes the panel whenever the betterleaks scan ran and
+   found no secret value, so a clean result is said out loud rather than
+   left to silence. It is not counted as a finding. When the scan did not
+   run, because the step was killed or `--no-run` points at an output
+   directory without `secrets.json`, the line is absent. The Markdown
+   export carries it as `**ok**`.
+
    Secrets are grouped by value, so one key copied into ten files is one
    entry with its places counted. A value found in any source file is
    critical. A value found only in test files, such as fixtures and saved

@@ -10,6 +10,8 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 │ ● Files that always change together                                                              │
 │   1 pair changes together at least 80% of the time, e.g. app/main.py + app/util.py (83%)         │
 │   ↳ Review app/main.py and app/util.py first: a shared layout or a hidden dependency links them. │
+│ ✔ No secrets in history                                                                          │
+│   betterleaks scanned every commit on every branch                                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ◎ Watch list

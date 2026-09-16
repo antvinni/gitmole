@@ -244,6 +244,9 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "cohorts": parse_theseus(cohorts) if cohorts else {},
         "theseus_authors": surviving,
         "secrets": parse_secrets(_read(out_dir, "secrets.json")),
+        # the wrapper writes the file only when the scan finished, so a killed step or an old output
+        # directory leaves it missing, and the report must not claim a clean scan
+        "secrets_scanned": os.path.exists(os.path.join(out_dir, "secrets.json")),
         "activity": _read_json(out_dir, "activity.json", {}),
         "functions": parse_functions(_read(out_dir, "functions.csv")),
         "duplicates": parse_duplicates(_read(out_dir, "duplicates.txt")),
