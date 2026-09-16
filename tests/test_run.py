@@ -535,6 +535,16 @@ class ClearOutputs(unittest.TestCase):
         with tempfile.TemporaryDirectory() as out:
             run.clear_outputs(out)
 
+    def test_clear_outputs_removes_temporary_checkouts_a_kill_left_behind(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name in (".backtest-tree-ab12", ".trend-cd34"):
+                os.makedirs(os.path.join(d, name, "app"))
+                open(os.path.join(d, name, "app", "a.py"), "w").close()
+            open(os.path.join(d, ".trend-ef56.json"), "w").close()   # an interrupted atomic write
+            open(os.path.join(d, "meta.json"), "w").close()
+            run.clear_outputs(d)
+            self.assertEqual(sorted(os.listdir(d)), ["meta.json"])
+
     def test_clear_outputs_removes_the_backtest_directory(self):
         with tempfile.TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, "backtest"))

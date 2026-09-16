@@ -199,6 +199,19 @@ class Report(unittest.TestCase):
         self.assertRegex(rendered(r, [], full=True), r"static/index\.html.*▁▃█")
         self.assertRegex(rendered(sample_report(), []), r"static/index\.html\s+51\s+4,000\s+0\s+-\s+-")
 
+    def test_full_hotspots_say_the_trend_column_covers_the_top_ten(self):
+        r = sample_report()
+        r["meta"]["last_date"] = "2026-09-10"
+        def caption(rep, full):
+            return next(x for x in render.sections(rep, full=full) if x["id"] == "hotspots")["caption"]
+        self.assertIsNone(caption(r, True), "no trend data, nothing to explain")
+        r["trend"] = {"samples": ["2025-09-10", "2026-09-10"],
+                      "files": {"static/index.html": [["2025-09-10", 10, 4000], ["2026-09-10", 16, 4000]]}}
+        self.assertEqual(caption(r, True), "trend sampled for the top 10 hotspots")
+        self.assertIsNone(caption(r, False), "the tight report keeps its captions short")
+        r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 100 - i} for i in range(60)]
+        self.assertEqual(caption(r, "markdown"), "and 10 more; trend sampled for the top 10 hotspots")
+
     def test_watch_list_caption_reports_the_backtest_or_why_not(self):
         r = sample_report()
         r["meta"]["backtest"] = {"status": "skipped", "reason": "too little history to backtest"}
