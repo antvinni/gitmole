@@ -279,6 +279,20 @@ class SinceWindow(unittest.TestCase):
             self.assertEqual(sum(a["by_weekday"]), 3)
             self.assertEqual(a["window"], "2026-04-01")
 
+    def test_authors_all_keeps_everyone_while_authors_stays_windowed(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                fh.write(LOG)
+            maat.write_all(log, d, now="2026-09-15", since="2026-04-01")
+            with open(os.path.join(d, "activity.json")) as fh:
+                act = json.load(fh)
+        self.assertEqual(sorted(act["authors"]), ["Ann", "Cat"], "only the people who committed in the window")
+        self.assertEqual(act["authors"]["Ann"]["first"], "2026-04-01")
+        self.assertEqual(sorted(act["authors_all"]), ["Ann", "Bob", "Cat"], "knowledge loss needs everyone")
+        self.assertEqual(act["authors_all"]["Ann"], {"commits": 5, "added": 16, "deleted": 1, "first": "2026-01-10", "last": "2026-04-02"})
+        self.assertEqual(act["authors_all"]["Bob"], {"commits": 1, "added": 6, "deleted": 6, "first": "2026-02-10", "last": "2026-02-10"})
+
     def test_empty_window_is_reported(self):
         commits = maat.parse_log(LOG)
         self.assertEqual(maat.in_window(commits, "2030-01-01"), [])
@@ -307,6 +321,27 @@ class MonthsBefore(unittest.TestCase):
         self.assertEqual(maat.months_before("2026-03-31", 1), "2026-02-28")
         self.assertEqual(maat.months_before("2026-01-15", 6), "2025-07-15")
         self.assertEqual(maat.months_before("2026-01-15", 0), "2026-01-15")
+
+
+class Until(unittest.TestCase):
+    def test_until_is_exclusive_and_combines_with_since(self):
+        commits = maat.parse_log(LOG)
+        self.assertEqual([c["hash"] for c in maat.in_window(commits, until="2026-03-10")], ["a1", "b2"])
+        self.assertEqual([c["hash"] for c in maat.in_window(commits, since="2026-02-10", until="2026-04-01")], ["b2", "c3", "d4"])
+
+    def test_write_all_takes_until(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                fh.write(LOG)
+            maat.write_all(log, d, now="2026-03-10", until="2026-03-10")
+            with open(os.path.join(d, "maat-revisions.csv")) as fh:
+                rows = dict(line.strip().split(",") for line in fh.readlines()[1:])
+            with open(os.path.join(d, "activity.json")) as fh:
+                act = json.load(fh)
+        self.assertEqual(rows, {"src/a.py": "2", "src/b.py": "2"})
+        self.assertEqual(act["fix_commits"], 0)
+        self.assertEqual(act["until"], "2026-03-10")
 
 
 if __name__ == "__main__":

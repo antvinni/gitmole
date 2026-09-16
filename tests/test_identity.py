@@ -33,6 +33,27 @@ class Merge(unittest.TestCase):
         self.assertEqual(m["Robert"], "Bob")
         self.assertEqual(m["Ann"], "Ann")
 
+    def test_merging_is_transitive_through_a_third_identity(self):
+        # A and B share nothing; C matches A by email and B by name tokens, so all three are one person.
+        ids = [{"name": "Hayden", "email": "a@x.com", "commits": 10},
+               {"name": "hay-kot", "email": "b@x.com", "commits": 5},
+               {"name": "hay kot", "email": "a@x.com", "commits": 1}]
+        merged = identity.merge(ids)
+        self.assertEqual(len(merged), 1, "the third identity joins the first two groups")
+        self.assertEqual(merged[0]["name"], "Hayden")
+        self.assertEqual(merged[0]["commits"], 16)
+        self.assertEqual(sorted(a["name"] for a in merged[0]["aliases"]), ["hay kot", "hay-kot"])
+
+    def test_the_mealie_shape_is_one_person(self):
+        ids = [{"name": "Hayden", "email": "1+hay-kot@users.noreply.github.com", "commits": 1495},
+               {"name": "hay-kot", "email": "hay-kot@pm.me", "commits": 312},
+               {"name": "hay-kot", "email": "1+hay-kot@users.noreply.github.com", "commits": 40},
+               {"name": "Hayden", "email": "hay-kot@pm.me", "commits": 30}]
+        merged = identity.merge(ids)
+        self.assertEqual([m["name"] for m in merged], ["Hayden"])
+        self.assertEqual(merged[0]["commits"], 1877)
+        self.assertEqual(len(merged[0]["aliases"]), 3)
+
     def test_empty(self):
         self.assertEqual(identity.merge([]), [])
 

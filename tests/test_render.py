@@ -175,6 +175,18 @@ class Report(unittest.TestCase):
         self.assertRegex(full, r"static/\s+1,000\s+2\s+10%")
         self.assertNotIn("gone", rendered(sample_report(), []))
 
+    def test_knowledge_map_caption_says_gone_is_measured_over_the_whole_history(self):
+        r = sample_report()
+        r["meta"].update({"last_date": "2026-09-10", "bots": []})
+        r["activity"]["authors"] = {"Ann": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2026-09-01"},
+                                    "Bob": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2025-01-01"}}
+        def caption(rep):
+            return next(x for x in render.sections(rep, full=False) if x["id"] == "knowledge")["caption"]
+        self.assertEqual(caption(r), "gone = no commits in the 12 months before 2026-09-10")
+        r["meta"]["since"] = "2026-01-01"
+        self.assertEqual(caption(r), "gone = no commits in the 12 months before 2026-09-10; "
+                                     "gone and lost are measured over the whole history")
+
     def test_hotspots_carry_a_trend_column_and_a_sparkline_under_full(self):
         r = sample_report()
         r["meta"]["last_date"] = "2026-09-10"
@@ -186,6 +198,48 @@ class Report(unittest.TestCase):
         self.assertRegex(text, r"static/apps-metadata\.json\s+128\s+800\s+9\s+4\s+-")
         self.assertRegex(rendered(r, [], full=True), r"static/index\.html.*▁▃█")
         self.assertRegex(rendered(sample_report(), []), r"static/index\.html\s+51\s+4,000\s+0\s+-\s+-")
+
+    def test_full_hotspots_say_the_trend_column_covers_the_top_ten(self):
+        r = sample_report()
+        r["meta"]["last_date"] = "2026-09-10"
+        def caption(rep, full):
+            return next(x for x in render.sections(rep, full=full) if x["id"] == "hotspots")["caption"]
+        self.assertIsNone(caption(r, True), "no trend data, nothing to explain")
+        r["trend"] = {"samples": ["2025-09-10", "2026-09-10"],
+                      "files": {"static/index.html": [["2025-09-10", 10, 4000], ["2026-09-10", 16, 4000]]}}
+        self.assertEqual(caption(r, True), "trend sampled for the top 10 hotspots")
+        self.assertIsNone(caption(r, False), "the tight report keeps its captions short")
+        r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 100 - i} for i in range(60)]
+        self.assertEqual(caption(r, "markdown"), "and 10 more; trend sampled for the top 10 hotspots")
+
+    def test_watch_list_caption_reports_the_backtest_or_why_not(self):
+        r = sample_report()
+        r["meta"]["backtest"] = {"status": "skipped", "reason": "too little history to backtest"}
+        self.assertIn("too little history to backtest", rendered(r, []))
+        r = sample_report()
+        past = sample_report()
+        past["meta"] = {"now": "2026-03-10"}
+        r["backtest"] = past
+        r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
+                      {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
+        text = rendered(r, [], width=150)
+        self.assertIn("6 months ago this list would have named 1 of the 2 files fixed since "
+                     "(a random 2 of the 2 files that had changed more than once would name 1.0)", text)
+        self.assertEqual(render.to_json(r, [])["watch_backtest"]["hits"], 1)
+        self.assertEqual(render.to_json(r, [])["watch_backtest"]["pool"], 2)
+
+
+    def test_backtest_caption_says_whole_history_under_a_window(self):
+        r = sample_report()
+        past = sample_report()
+        past["meta"] = {"now": "2026-03-10"}
+        r["backtest"] = past
+        r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
+                      {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
+        r["meta"]["since"] = "2026-01-01"
+        caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
+        self.assertIn("ranked by churn × recent fixes × complexity × single ownership; commits since 2026-01-01", caption)
+        self.assertTrue(caption.endswith("would name 1.0); whole history"), caption)
 
 
 class Activity(unittest.TestCase):
@@ -675,6 +729,15 @@ class Json(unittest.TestCase):
         self.assertEqual(d["watch"][0]["file"], "static/apps-metadata.json")
         self.assertIn("reasons", d["watch"][0])
 
+    def test_the_nested_backtest_sub_report_is_left_out(self):
+        r = sample_report()
+        past = sample_report()
+        past["meta"] = {"now": "2026-03-10"}
+        r["backtest"] = past
+        j = render.to_json(r, [])
+        self.assertNotIn("backtest", j, "a second whole report inside the export helps nobody")
+        self.assertIn("watch_backtest", j, "the numbers drawn from it stay")
+
 
 class ChangeRisk(unittest.TestCase):
     RISK = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times", "fixed 5 times in six months"], "watched": True},
@@ -690,6 +753,32 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(sec["rows"][1][1], "▰▰")
         self.assertEqual(sec["rows"][2][1], "")
         self.assertEqual(sec["caption"], "total 3.6; 2 of these files are on the watch list")
+
+    def test_one_watched_file_reads_as_one_file(self):
+        risk = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times"], "watched": True}],
+                "total": 3.0, "watched": 1, "max_score": 3.0}
+        sec = render.risk_section(risk, "main", full=False)
+        self.assertEqual(sec["caption"], "total 3.0; 1 of these files is on the watch list")
+
+    def test_capped_rows_come_from_the_shared_limit_helper(self):
+        risk = {"files": [{"file": f"f{i}.py", "score": 1.0, "reasons": ["changed 3 times"], "watched": False} for i in range(20)],
+                "total": 20.0, "watched": 0, "max_score": 1.0}
+        self.assertEqual(len(render.risk_section(risk, "main", full=False)["rows"]), render.RISK_CAP)
+        self.assertIn("and 5 more", render.risk_section(risk, "main", full=False)["caption"])
+        self.assertEqual(len(render.risk_section(risk, "main", full="markdown")["rows"]), render.RISK_CAP)
+        self.assertEqual(len(render.risk_section(risk, "main", full=True)["rows"]), 20)
+
+    def test_the_section_follows_the_watch_list_not_the_last_table(self):
+        import io
+        from rich.console import Console
+        console = Console(file=io.StringIO(), width=120, record=True, force_terminal=False, color_system=None)
+        render.report(sample_report(), [], console, full=False, risk={"base": "main", **self.RISK}, base="main")
+        text = console.export_text()
+        self.assertLess(text.index("◈ Change risk"), text.index("◉ People"), "the risk of this change belongs with the watch list")
+        self.assertGreater(text.index("◈ Change risk"), text.index("◎ Watch list"))
+        md = render.markdown(sample_report(), [], risk={"base": "main", **self.RISK}, base="main")
+        self.assertLess(md.index("## Change risk"), md.index("## People"))
+        self.assertGreater(md.index("## Change risk"), md.index("## Watch list"))
 
     def test_empty_change(self):
         sec = render.risk_section({"files": [], "total": 0.0, "watched": 0, "max_score": 0.0}, "main", full=False)

@@ -43,6 +43,7 @@ PATH = {"overflow": "fold", "no_wrap": False}
 # rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own.
 CAPS = {"People": 6, "Hotspots": 8, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
+TREND_TOP = 10   # the trend step's own --top default: only those files have samples
 WATCH_CAP, WATCH_FULL = 5, 15   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
 
 
@@ -64,12 +65,13 @@ def _section(title, columns, rows, note=None, caption=None) -> dict:
 
 
 def _limit(title: str, full, cap=None):
-    """How many rows to keep: None for all. `full` may be False (terminal default), True, or 'markdown'."""
+    """How many rows to keep: None for all. `full` may be False (terminal default), True, or 'markdown'.
+    An explicit `cap` is the section's own cap and holds for Markdown too."""
     if full is True:
         return None
-    if full == "markdown":
-        return MARKDOWN_CAP
-    return cap if cap is not None else CAPS.get(title)
+    if cap is not None:
+        return cap
+    return MARKDOWN_CAP if full == "markdown" else CAPS.get(title)
 
 
 def _more(total: int, limit) -> str:
@@ -173,7 +175,18 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     rows = [(r["file"], " · ".join(r["reasons"])) for r in ranked[:limit]]
     columns = [("file", PATH), ("why", {"overflow": "fold", "ratio": 3})]
     since = report["meta"].get("since")
-    caption = "ranked by churn × recent fixes × complexity × single ownership" + (f"; commits since {since}" if since else "")
+    notes = ["ranked by churn × recent fixes × complexity × single ownership" + (f"; commits since {since}" if since else "")]
+    bt = watch.backtest(report)
+    status = report["meta"].get("backtest") or {}
+    if bt:
+        notes.append(f"6 months ago this list would have named {bt['hits']} of the {bt['fixed']} files fixed since "
+                     f"(a random {bt['listed']} of the {bt['pool']} files that had changed more than once would name {bt['expected']})"
+                     + ("; whole history" if since else ""))   # the backtest ignores the window
+    elif status.get("reason"):
+        notes.append(status["reason"])
+    elif status.get("status") in ("failed", "timeout"):
+        notes.append(f"backtest {status['status']}")
+    caption = "\n".join(notes)
     return _section("Watch list", columns, rows, note=None if rows else watch.why_empty(report), caption=caption if rows else None)
 
 
@@ -183,11 +196,12 @@ RISK_CAP = 15
 def risk_section(risk: dict, base: str, full=True) -> dict:
     """The files a change touches, each with its watch score as a bar scaled to the repo's worst file."""
     rows_all = risk["files"]
-    limit = None if full is True else RISK_CAP
+    limit = _limit("Change risk", full, cap=RISK_CAP)
     top = risk["max_score"] or 1.0
     rows = [(r["file"], "▰" * round(10 * r["score"] / top) if r["score"] else "", " · ".join(r["reasons"])) for r in rows_all[:limit]]
     columns = [("file", PATH), ("risk", {}), ("why", {"overflow": "fold", "ratio": 3})]
-    notes = [f"total {risk['total']:.1f}; {risk['watched']} of these files are on the watch list"] if rows else []
+    watched = risk["watched"]
+    notes = [f"total {risk['total']:.1f}; {watched} of these files {'is' if watched == 1 else 'are'} on the watch list"] if rows else []
     more = _more(len(rows_all), limit)
     if more:
         notes.append(more)
@@ -313,7 +327,10 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
         rows = _shorten(rows, width, columns)
-    return _section(title, columns, rows, caption=_more(len(scored), limit))
+    notes = [c for c in (_more(len(scored), limit),) if c]
+    if series and full is not False:   # the tight report keeps its captions short
+        notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
+    return _section(title, columns, rows, caption="; ".join(notes) or None)
 
 
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:
@@ -406,7 +423,8 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         columns, rows = _keep(columns, rows, ["area", "lines added", "main owner", "second"])
     notes = [c for c in (_more(len(areas), limit),) if c]
     if gone:
-        notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}")
+        notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
+                     + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))
     return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
 
 
@@ -584,8 +602,8 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
                 continue
         print_section(console, sec)   # stacked, with the usual blank line before it
         done.add(sec["id"])
-    if risk is not None:
-        print_section(console, risk_section(risk, base, full))
+        if risk is not None and sec["id"] == "watch":
+            print_section(console, risk_section(risk, base, full))   # the change, right under the list it is scored against
     console.print(Text(""))
     console.print(Text(secrets_line(report), style="red" if leaks.group(report.get("secrets") or []) else "green"))
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
@@ -618,7 +636,8 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
     out += _md_findings(findings)
     secs = sections(report, full=True if full else "markdown")
     if risk is not None:
-        secs = secs + [risk_section(risk, base, full=True if full else "markdown")]
+        after = next((i for i, sec in enumerate(secs) if sec["id"] == "watch"), len(secs) - 1)
+        secs = secs[:after + 1] + [risk_section(risk, base, full=True if full else "markdown")] + secs[after + 1:]
     for sec in secs:
         out += ["", f"## {sec['title']}", ""]
         if not sec["rows"]:
@@ -634,9 +653,12 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
 
 
 def to_json(report: dict, findings: list, risk: dict = None) -> dict:
-    out = {**{k: v for k, v in report.items()}, "findings": findings,
+    out = {**{k: v for k, v in report.items() if k != "backtest"}, "findings": findings,   # the sub-report is a report of its own
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
+    bt = watch.backtest(report)
+    if bt is not None:
+        out["watch_backtest"] = bt
     if risk is not None:
         out["change_risk"] = risk
     return out

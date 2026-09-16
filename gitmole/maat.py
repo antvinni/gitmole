@@ -159,10 +159,22 @@ def entity_ownership(commits: list) -> list:
     return rows
 
 
+def author_totals(commits: list) -> dict:
+    """Per author: commits, lines added and deleted, and the first and last date they committed."""
+    out = {}
+    for c in commits:
+        a = out.setdefault(c["author"], {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
+        a["commits"] += 1
+        a["added"] += sum(x for _, x, _ in c["files"])
+        a["deleted"] += sum(x for _, _, x in c["files"])
+        a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
+    return out
+
+
 def activity(commits: list) -> dict:
     """Commits by weekday (Mon=0) and hour, by month, and per-author totals."""
     by_weekday, by_hour, by_month, net_by_year = [0] * 7, [0] * 24, Counter(), Counter()
-    authors, timeline, fix_commits = {}, defaultdict(Counter), 0
+    timeline, fix_commits = defaultdict(Counter), 0
     revert_commits, reverted = 0, Counter()
     for c in commits:
         when = c.get("time") or c["date"]
@@ -183,13 +195,8 @@ def activity(commits: list) -> dict:
             revert_commits += 1
             for p, _, _ in c["files"]:
                 reverted[p] += 1
-        a = authors.setdefault(c["author"], {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
-        a["commits"] += 1
-        a["added"] += sum(x for _, x, _ in c["files"])
-        a["deleted"] += sum(x for _, _, x in c["files"])
-        a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
     return {"by_weekday": by_weekday, "by_hour": by_hour, "by_month": dict(sorted(by_month.items())),
-            "net_by_year": dict(sorted(net_by_year.items())), "authors": authors,
+            "net_by_year": dict(sorted(net_by_year.items())), "authors": author_totals(commits),
             "timeline": {a: dict(sorted(m.items())) for a, m in timeline.items()}, "fix_commits": fix_commits,
             "revert_commits": revert_commits,
             "reverted": dict(sorted(reverted.items(), key=lambda kv: (-kv[1], kv[0])))}
@@ -218,9 +225,9 @@ def aliases_from_meta(path: str) -> dict:
     return out
 
 
-def in_window(commits: list, since: str = None) -> list:
-    """Commits authored on or after `since` (YYYY-MM-DD); all of them when since is None."""
-    return [c for c in commits if not since or c["date"] >= since]
+def in_window(commits: list, since: str = None, until: str = None) -> list:
+    """Commits authored on or after `since` and before `until` (YYYY-MM-DD); all of them when both are None."""
+    return [c for c in commits if (not since or c["date"] >= since) and (not until or c["date"] < until)]
 
 
 def validate_now(value: str) -> str:
@@ -230,13 +237,13 @@ def validate_now(value: str) -> str:
     return value
 
 
-def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None, since: str = None) -> None:
-    """`now` (YYYY-MM-DD) is the reference date for file ages; default today. `since` bounds every
-    analysis except file ages, which always describe the whole history."""
+def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None, since: str = None, until: str = None) -> None:
+    """`now` (YYYY-MM-DD) is the reference date for file ages; default today. `since` and `until` bound every
+    analysis except file ages and activity.json's `authors_all`, which describe the whole history."""
     # newline="": keep a \r inside a subject as-is instead of turning it into a line break
     with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
         commits = parse_log(fh.read(), aliases_from_meta(aliases_path) if aliases_path else None, types)
-    windowed = in_window(commits, since)
+    windowed = in_window(commits, since, until)
     for name, (fn, header) in ANALYSES.items():
         source = commits if name == "age" else windowed   # ages describe the whole history
         rows = fn(source, now=now) if name in NEEDS_NOW else fn(source)
@@ -245,18 +252,28 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filet
             w.writeheader()
             w.writerows(rows)
     act = activity(windowed)
+    # knowledge loss is a whole-history question, so it reads authors_all, not the windowed table
+    act["authors_all"] = author_totals(commits)
     act["window"] = since
+    act["until"] = until
     with open(os.path.join(out_dir, "activity.json"), "w", encoding="utf-8") as fh:
         json.dump(act, fh)
 
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    aliases, types, now, since = None, filetypes.DEFAULT, None, None
+    aliases, types, now, since, until = None, filetypes.DEFAULT, None, None, None
     while "--since" in args:
         i = args.index("--since")
         try:
             since = validate_now(args[i + 1])
+        except (ValueError, IndexError) as e:
+            sys.exit(f"maat.py: {e}")
+        del args[i:i + 2]
+    while "--until" in args:
+        i = args.index("--until")
+        try:
+            until = validate_now(args[i + 1])
         except (ValueError, IndexError) as e:
             sys.exit(f"maat.py: {e}")
         del args[i:i + 2]
@@ -274,5 +291,5 @@ if __name__ == "__main__":
         aliases = args[i + 1]
         del args[i:i + 2]
     if len(args) != 2:
-        sys.exit("usage: maat.py LOG OUT_DIR [--aliases META_JSON] [--types LIST|all] [--now YYYY-MM-DD] [--since YYYY-MM-DD]")
-    write_all(args[0], args[1], aliases, types, now, since)
+        sys.exit("usage: maat.py LOG OUT_DIR [--aliases META_JSON] [--types LIST|all] [--now YYYY-MM-DD] [--since YYYY-MM-DD] [--until YYYY-MM-DD]")
+    write_all(args[0], args[1], aliases, types, now, since, until)

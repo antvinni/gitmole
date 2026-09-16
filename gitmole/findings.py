@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import filetypes, hotspots, knowledge, leaks, loss, trend
+from . import filetypes, hotspots, knowledge, leaks, loss, textfmt, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -197,10 +197,6 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
                f"Review {first} before the next release; expect the next bug there.")]
 
 
-def _times(n: int) -> str:
-    return {1: "once", 2: "twice"}.get(n, f"{n} times")
-
-
 def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_share: float = 0.10) -> list:
     """Commits backed out with git revert. The file most often reverted is where a check before merge pays."""
     act = report.get("activity") or {}
@@ -210,13 +206,14 @@ def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_shar
         return []
     sev = "warning" if total and n / total >= warn_share else "info"
     reverted = act.get("reverted") or {}
-    items = list(reverted.items())[:3]
+    # source files lead: a test file at the top of the table would otherwise be the one named first
+    items = sorted(reverted.items(), key=lambda kv: filetypes.is_test_path(kv[0]))[:3]
     parts = []
     for i, (p, c) in enumerate(items):
         if i == 0:
-            parts.append(f"{p} was reverted {_times(c)}")
+            parts.append(f"{p} was reverted {textfmt.times(c)}")
         else:
-            parts.append(f"{p} {_times(c)}")
+            parts.append(f"{p} {textfmt.times(c)}")
     listed = ", ".join(parts)
     statement = f"{n} of {total} commits are reverts" + (f"; {listed}." if listed else ".")
     source = [p for p in reverted if not filetypes.is_test_path(p)]
@@ -242,6 +239,22 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                f"{len(islands)} area(s) with at least {min_lines} lines were written almost entirely by one person: {listed}{more}. "
                f"That is {_pct(covered, total)} of all lines added.",
                f"Pair someone with {largest['owner']} on {largest['area']} first; it is the largest at {largest['lines']:,} lines.")]
+
+
+LIVE_MONTHS = 12
+
+
+def _is_live(area: str, age_rows: list) -> bool:
+    """Has anything in this area changed in the last year? `age` covers every path in the history,
+    so an area whose files are all idle is knowledge about code nobody is touching."""
+    for row in age_rows:
+        if row["age-months"] >= LIVE_MONTHS:
+            continue
+        entity = row["entity"]
+        in_area = "/" not in entity if area == knowledge.ROOT else entity.startswith(area)
+        if in_area:
+            return True
+    return False
 
 
 def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.30) -> list:
@@ -278,13 +291,16 @@ def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.
     else:
         listed = f"{len(people)} {'person' if len(people) == 1 else 'people'} at under 1% each"
     theirs = [a for a in loss.areas(source_rows, names) if a["lines"] >= 200 and a["lost_share"] >= 0.8]
-    theirs.sort(key=lambda a: (-a["lines"], a["area"]))
+    for a in theirs:
+        a["live"] = _is_live(a["area"], report.get("age") or [])
+    theirs.sort(key=lambda a: (not a["live"], -a["lines"], a["area"]))   # a live area first: that is where the gap bites
     statement = (f"People with no commits since {loss.cutoff(report, months)} "
                  f"wrote {_pct(lost, total)} {basis}: {listed}.")
     if theirs:
         statement += " Areas mostly theirs: " + ", ".join(f"{a['area']} ({round(100 * a['lost_share'])}%)" for a in theirs[:3]) + "."
+    if theirs and theirs[0]["live"]:
         advice = f"Pair someone on {theirs[0]['area']} first; nobody who wrote it is around to ask."
-    else:
+    else:   # nothing there has been touched in a year: pairing on it would be work nobody has asked for
         advice = f"Pair someone with the people who worked with {people[0][0]} before the rest of that knowledge goes."
     return [_f(sev, "Knowledge loss", statement, advice)]
 
@@ -312,12 +328,14 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
 
 
 def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = 25, top_n: int = 10) -> list:
-    """The top_n hotspots whose complexity grew over the last year, from the trend samples."""
+    """The top_n source hotspots whose complexity grew over the last year, from the trend samples.
+    Test files are left out: a growing test file is not the problem the finding is about."""
     series = (report.get("trend") or {}).get("files") or {}
     last = report["meta"].get("last_date") or ""
     if not series or not last:
         return []
-    top = [h["entity"] for h in hotspots.ranked(report) if h["code"] is not None][:top_n]
+    top = [h["entity"] for h in hotspots.ranked(report)
+           if h["code"] is not None and not filetypes.is_test_path(h["entity"])][:top_n]
     grown = []
     for path in top:
         change = trend.change_over_year(series.get(path) or [], last)
@@ -329,7 +347,7 @@ def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = 25, top
     listed = ", ".join(f"{p} (+{g}%)" for p, g in grown[:5]) + (f" and {len(grown) - 5} more" if len(grown) > 5 else "")
     first = grown[0]
     return [_f(sev, "Hotspots getting more complex",
-               f"{len(grown)} of the {len(top)} top hotspots grew by {min_pct}% or more in a year: {listed}.",
+               f"{len(grown)} of the {len(top)} top source hotspots grew by {min_pct}% or more in a year: {listed}.",
                f"Split {first[0]} before the next change; its complexity grew {first[1]}% in a year.")]
 
 

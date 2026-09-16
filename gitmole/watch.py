@@ -13,20 +13,17 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 try:
-    from . import filetypes, hotspots
+    from . import filetypes, hotspots, textfmt
 except ImportError:  # pragma: no cover - not run as a script, but keep the package pattern
     import filetypes
     import hotspots
+    import textfmt
 
 CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function is not worth naming
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership
 SOLO_WEIGHT = 1.5       # how much single ownership lifts the score
 COMPANION_DEGREE = 50   # a coupling worth mentioning
 COMPANION_REVS = 5      # ...over enough shared revisions to be a pattern
-
-
-def _times(n: int) -> str:
-    return {1: "once", 2: "twice"}.get(n, f"{n} times")
 
 
 def _owners(report: dict) -> dict:
@@ -110,11 +107,11 @@ def why_empty(report: dict, min_revs: int = 2) -> str:
 
 
 def _reasons(r: dict) -> list:
-    out = [f"changed {_times(r['revs'])}"]
+    out = [f"changed {textfmt.times(r['revs'])}"]
     if r["recent_fixes"]:
-        out.append(f"fixed {_times(r['recent_fixes'])} in six months")
+        out.append(f"fixed {textfmt.times(r['recent_fixes'])} in six months")
     elif r["fixes"]:
-        out.append(f"fixed {_times(r['fixes'])}")
+        out.append(f"fixed {textfmt.times(r['fixes'])}")
     if r["authors"] == 1:
         out.append(f"only {r['owner']} has touched it" if r["owner"] else "one author only")
     elif r["owner_share"] >= SOLO_SHARE and r["owner"]:
@@ -154,3 +151,19 @@ def change_risk(report: dict, files: list) -> dict:
     rows.sort(key=lambda r: (-r["score"], r["file"]))
     return {"files": rows, "total": float(sum(r["score"] for r in rows)), "watched": sum(r["watched"] for r in rows),
             "max_score": float(ranked[0]["score"]) if ranked and rows else 0.0}
+
+
+def backtest(report: dict):
+    """How the watch list as of the cut-off T (report["backtest"]) did against the fixes that came after.
+    Expected value is a random pick of listed files from the same pool the list draws from."""
+    past = report.get("backtest")
+    if not past or not (past.get("size") or {}).get("files"):
+        return None
+    t = (past.get("meta") or {}).get("now")
+    if not t:
+        return None                       # a sub-report without its cut-off cannot be scored
+    pool = [r["file"] for r in risks(past)]
+    listed = pool[:WATCH_TOP]
+    fixed = {f["entity"] for f in report.get("fixes") or [] if f.get("last-fix", "") > t and not filetypes.is_test_path(f["entity"])}
+    expected = round(len(listed) * len(fixed.intersection(pool)) / len(pool), 1) if pool else 0.0
+    return {"t": t, "pool": len(pool), "listed": len(listed), "fixed": len(fixed), "hits": len(fixed.intersection(listed)), "expected": expected}

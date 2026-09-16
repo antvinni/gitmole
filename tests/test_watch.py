@@ -126,5 +126,34 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(watch.change_risk(report(), []), {"files": [], "total": 0.0, "watched": 0, "max_score": 0.0})
 
 
+class Backtest(unittest.TestCase):
+    def test_counts_how_many_files_fixed_since_the_cut_off_were_on_the_list(self):
+        past = report()   # the same synthetic repo, taken as the state at T
+        past["meta"] = {"now": "2026-03-01"}
+        r = report(fixes=[{"entity": "core/parser.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5},
+                          {"entity": "core/other.py", "n-fixes": 1, "last-fix": "2026-05-01", "recent-fixes": 1},
+                          {"entity": "core/util.py", "n-fixes": 2, "last-fix": "2025-01-01", "recent-fixes": 0},
+                          {"entity": "tests/test_parser.py", "n-fixes": 3, "last-fix": "2026-08-01", "recent-fixes": 3}],
+                   backtest=past)
+        out = watch.backtest(r)
+        self.assertEqual(out["t"], "2026-03-01")
+        self.assertEqual(out["pool"], 3, "the pool has three scorable files")
+        self.assertEqual(out["listed"], 3, "the past list has three scorable files")
+        self.assertEqual(out["fixed"], 2, "parser and other; util's fix is older, the test file does not count")
+        self.assertEqual(out["hits"], 1, "parser was listed; other was not")
+        self.assertAlmostEqual(out["expected"], 1.0, msg="3 listed × 1 fixed in the pool / 3 in the pool")
+
+    def test_none_without_a_backtest(self):
+        self.assertIsNone(watch.backtest(report()))
+        self.assertIsNone(watch.backtest(report(backtest={"meta": {"now": "2026-03-01"}, "size": {"files": {}}})))
+
+    def test_none_without_a_cut_off_date(self):
+        past = report()
+        past["meta"] = {}                      # size data, but the sub-report never recorded its cut-off
+        self.assertIsNone(watch.backtest(report(backtest=past)), "no date to compare the fixes against")
+        past["meta"] = {"now": ""}
+        self.assertIsNone(watch.backtest(report(backtest=past)))
+
+
 if __name__ == "__main__":
     unittest.main()

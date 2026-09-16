@@ -304,6 +304,22 @@ class LoadReport(unittest.TestCase):
                 json.dump({"samples": ["2025-01-01"], "files": {"a.py": [["2025-01-01", 3, 10]]}}, fh)
             self.assertEqual(load.load_report(out)["trend"]["files"]["a.py"], [["2025-01-01", 3, 10]])
 
+    def test_backtest_sub_report_is_loaded_when_present(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "d", "commits": 1, "identities": []}, fh)
+            self.assertIsNone(load.load_report(out)["backtest"])
+            os.makedirs(os.path.join(out, "backtest"))
+            with open(os.path.join(out, "backtest", "meta.json"), "w") as fh:
+                json.dump({"now": "2025-09-01", "last_date": "2025-09-01"}, fh)
+            with open(os.path.join(out, "backtest", "maat-revisions.csv"), "w") as fh:
+                fh.write("entity,n-revs\na.py,3\n")
+            past = load.load_report(out)["backtest"]
+        self.assertEqual(past["meta"]["now"], "2025-09-01")
+        self.assertEqual(past["revisions"], [{"entity": "a.py", "n-revs": 3}])
+        self.assertIsNone(past["backtest"], "no recursion")
+
 
 if __name__ == "__main__":
     unittest.main()

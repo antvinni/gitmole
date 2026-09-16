@@ -135,21 +135,29 @@ def has_lizard(finder=importlib.util.find_spec) -> bool:
 OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "log.txt", "activity.json", "functions.csv", "duplicates.txt",
            "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]
+# directories a run writes: the backtest sub-report, and the temporary checkouts the trend and
+# backtest steps make under the output directory (a SIGKILL leaves those behind).
+OUTPUT_DIR_GLOBS = ["backtest", ".backtest-tree-*", ".trend-*"]
 
 
 def clear_outputs(out_dir: str) -> None:
     import glob
+    import shutil
     paths = [os.path.join(out_dir, n) for n in OUTPUTS]
     for g in OUTPUT_GLOBS:
         paths += glob.glob(os.path.join(out_dir, g))
+    for g in OUTPUT_DIR_GLOBS:
+        paths += glob.glob(os.path.join(out_dir, g))
     for path in paths:
-        if os.path.isfile(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        elif os.path.isfile(path):
             os.remove(path)
 
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
-         lizard: bool = False, duplicates: bool = False, trend: bool = True, samples: int = 12) -> list:
+         lizard: bool = False, duplicates: bool = False, trend: bool = True, samples: int = 12, backtest: str = None) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
@@ -174,6 +182,9 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
     if trend:
         steps.append({"name": "trend", "argv": [sys.executable, "-m", "gitmole.trend", out_dir, "--samples", str(samples)],
                       "stdout": None, "deps": ["scc", "change analysis"]})
+    if backtest:
+        steps.append({"name": "backtest", "argv": [sys.executable, "-m", "gitmole.backtest", out_dir, "--until", backtest],
+                      "stdout": None, "deps": ["git-log", "change analysis"]})
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
     if plots:
@@ -343,8 +354,10 @@ def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int
 def collect_meta(repo_dir: str, since: str = None) -> dict:
     """Repository facts from git. The window (author date >= since) bounds the commit count, the
     date range and the identity table; aliases are merged over the whole history so blame and
-    ownership keep merging people who have no commits in the window. Bots (renovate, dependabot,
-    GitHub Actions and anything named *[bot]) are counted apart under "bots", not as identities."""
+    ownership keep merging people who have no commits in the window, and `first_date_all` keeps the
+    date of the first commit of all so the backtest can still measure the whole history. Bots
+    (renovate, dependabot, GitHub Actions and anything named *[bot]) are counted apart under
+    "bots", not as identities."""
     from collections import Counter
 
     from .load import parse_authors_log
@@ -355,6 +368,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
     all_windowed = [r for r in all_rows if not since or r[0] >= since]
     windowed = [r for r in all_windowed if not identity.is_bot(r[1], r[2])]
     dates = [r[0] for r in all_windowed]
+    all_dates = [r[0] for r in all_rows]
     bots = Counter(n for _, n, e in all_windowed if identity.is_bot(n, e))
     all_identities = identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in rows)))
     meta = {
@@ -363,6 +377,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
         "branch": _git(repo_dir, "rev-parse", "--abbrev-ref", "HEAD").strip(),
         "commits": len(dates),
         "first_date": min(dates) if dates else "",
+        "first_date_all": min(all_dates) if all_dates else "",   # unwindowed: the backtest asks how long the history is
         "last_date": max(dates) if dates else "",
         "identities": identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in windowed))),
         "bots": [{"name": n, "commits": c} for n, c in sorted(bots.items(), key=lambda kv: (-kv[1], kv[0]))],

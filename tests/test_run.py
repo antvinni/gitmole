@@ -290,6 +290,13 @@ class Plan(unittest.TestCase):
         self.assertNotIn("trend", [s["name"] for s in run.plan("/r", "/o", trend=False)])
         self.assertIn("trend.json", run.OUTPUTS)
 
+    def test_backtest_step_runs_after_the_change_analysis_when_a_cut_off_is_given(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", backtest="2025-12-01")}
+        self.assertEqual(by["backtest"]["argv"][:3], [sys.executable, "-m", "gitmole.backtest"])
+        self.assertEqual(by["backtest"]["argv"][3:], ["/o", "--until", "2025-12-01"])
+        self.assertEqual(by["backtest"]["deps"], ["git-log", "change analysis"])
+        self.assertNotIn("backtest", [s["name"] for s in run.plan("/r", "/o")])
+
     def test_execute_puts_the_package_on_pythonpath(self):
         with tempfile.TemporaryDirectory() as d:
             log = os.path.join(d, "run.log")
@@ -454,6 +461,21 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(by["Bob"]["aliases"], [], "mailmap should merge Robert before the heuristic sees it")
         self.assertEqual([a["name"] for a in by["Ann Lee"]["aliases"]], ["ann-lee"])
 
+    def test_first_date_all_spans_the_whole_history_even_when_windowed(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            ident = dict(GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.com", GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="ann@x.com")
+            for date in ["2023-01-01T10:00:00", "2025-01-01T10:00:00", "2026-01-01T10:00:00"]:
+                git("commit", "-q", "--allow-empty", "-m", date, GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date, **ident)
+            windowed = run.collect_meta(d, since="2024-06-01")
+            whole = run.collect_meta(d)
+        self.assertEqual(windowed["first_date"], "2025-01-01")
+        self.assertEqual(windowed["first_date_all"], "2023-01-01", "the backtest measures the whole history")
+        self.assertEqual(whole["first_date_all"], whole["first_date"], "without a window the two are the same date")
+
     def test_bots_are_left_out_of_identities_and_listed_apart(self):
         with tempfile.TemporaryDirectory() as d:
             def git(*args, **env):
@@ -512,6 +534,23 @@ class ClearOutputs(unittest.TestCase):
     def test_missing_files_are_fine(self):
         with tempfile.TemporaryDirectory() as out:
             run.clear_outputs(out)
+
+    def test_clear_outputs_removes_temporary_checkouts_a_kill_left_behind(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name in (".backtest-tree-ab12", ".trend-cd34"):
+                os.makedirs(os.path.join(d, name, "app"))
+                open(os.path.join(d, name, "app", "a.py"), "w").close()
+            open(os.path.join(d, ".trend-ef56.json"), "w").close()   # an interrupted atomic write
+            open(os.path.join(d, "meta.json"), "w").close()
+            run.clear_outputs(d)
+            self.assertEqual(sorted(os.listdir(d)), ["meta.json"])
+
+    def test_clear_outputs_removes_the_backtest_directory(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "backtest"))
+            open(os.path.join(d, "backtest", "size.json"), "w").close()
+            run.clear_outputs(d)
+            self.assertFalse(os.path.exists(os.path.join(d, "backtest")))
 
 
 if __name__ == "__main__":
