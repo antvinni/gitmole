@@ -299,7 +299,8 @@ rows unless `--full`.
    secrets in history (see below), an unconfigured git identity (example.com and the
    like), one author owning most surviving code, git-sizer concerns, one file
    dominating the churn, bug magnets (source files fixed three or more times
-   in the last six months; a warning at five), brain methods (functions with
+   in the last six months; a warning at five), reverts (5% of commits or five of them; a warning at 10%; names the file most often backed out),
+   brain methods (functions with
    complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
    tightly coupled file pairs (a file and its test are expected to change
    together, so those pairs are left out), duplicated blocks of 30+ lines

@@ -140,6 +140,13 @@ def pulse(report: dict) -> list:
     total = sum(days)
     if act.get("fix_commits") is not None and total:
         out.append(f"{_pct(act['fix_commits'], total)} of commits are fixes")
+    if act.get("revert_commits") and total:
+        pct = _pct(act['revert_commits'], total)
+        if pct == "0%":
+            reverts = act['revert_commits']
+            out.append(f"{reverts} revert" if reverts == 1 else f"{reverts} reverts")
+        else:
+            out.append(f"{pct} of commits are reverts")
     cohorts = report.get("cohorts") or {}
     if cohorts:
         label, lines = max(cohorts.items(), key=lambda kv: kv[1])
