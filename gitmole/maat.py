@@ -221,8 +221,22 @@ def activity(commits: list) -> dict:
             "reverted": dict(sorted(reverted.items(), key=lambda kv: (-kv[1], kv[0])))}
 
 
+def plumbing(commits: list, min_revs: int = 20, share: float = 0.8, max_lines: int = 2) -> list:
+    """Files whose commits nearly always change a line or two: a version constant in __init__.py, a
+    date in a header. Their churn is the release cadence, not where the next bug lands. Needs enough
+    commits to judge by."""
+    revs, tiny = Counter(), Counter()
+    for c in commits:
+        for path, added, deleted in c["files"]:
+            revs[path] += 1
+            if added + deleted <= max_lines:
+                tiny[path] += 1
+    return [{"entity": e, "n-revs": n, "tiny-revs": tiny[e]} for e, n in sorted(revs.items()) if n >= min_revs and tiny[e] / n >= share]
+
+
 ANALYSES = {
     "revisions": (revisions, ["entity", "n-revs"]),
+    "plumbing": (plumbing, ["entity", "n-revs", "tiny-revs"]),
     "coupling": (coupling, ["entity", "coupled", "degree", "average-revs"]),
     "authors": (authors, ["entity", "n-authors", "n-revs"]),
     "age": (age, ["entity", "age-months"]),

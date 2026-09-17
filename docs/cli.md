@@ -7,7 +7,7 @@ Every target form and option, the exports, the CI gates, and what gitmole does t
 ```bash
 gitmole .                          # the clone you are in
 gitmole /path/to/clone             # any local clone
-gitmole owner/repo                 # clones with gh into a temp dir first
+gitmole owner/repo                 # clones into a temp dir first, with gh or plain git
 gitmole https://github.com/o/r     # same, from a URL
 gitmole 'owner/*'                  # every non-archived repo of a user or org
 ```

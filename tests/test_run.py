@@ -77,11 +77,36 @@ class GhErrors(unittest.TestCase):
             run.list_repos("acme", lister=lister)
         self.assertIn("failed to verify certificate", str(ctx.exception))
 
-    def test_clone_wraps_gh_failure_with_its_stderr(self):
+    def test_clone_falls_back_to_plain_git_when_gh_is_missing_or_fails(self):
+        # a public repository needs no gh and no token: git alone can clone it
+        calls = []
+        def no_gh(argv):
+            raise FileNotFoundError("gh")
+        def git(argv):
+            calls.append(argv)
+            return ""
+        with tempfile.TemporaryDirectory() as d:
+            dest = run.clone("acme/widgets", d, runner=no_gh, git_runner=git)
+            self.assertEqual(dest, os.path.join(d, "widgets"))
+            self.assertEqual(calls, [["git", "-c", "core.quotePath=false", "clone", "--quiet", "https://github.com/acme/widgets.git", dest]])
+            calls.clear()
+            run.clone("https://github.com/acme/widgets.git", d, runner=lambda argv: (_ for _ in ()).throw(subprocess.CalledProcessError(1, argv, stderr="tls")), git_runner=git)
+            self.assertEqual(calls[0][5], "https://github.com/acme/widgets.git", "a URL is cloned as given")
+
+    def test_clone_reports_both_failures_when_git_fails_too(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(run.GhError) as ctx:
-                run.clone("acme/definitely-missing-repo-xyz", d, runner=lambda argv: (_ for _ in ()).throw(subprocess.CalledProcessError(1, argv, stderr="repository not found")))
+                run.clone("acme/definitely-missing-repo-xyz", d,
+                          runner=lambda argv: (_ for _ in ()).throw(subprocess.CalledProcessError(1, argv, stderr="repository not found")),
+                          git_runner=lambda argv: (_ for _ in ()).throw(subprocess.CalledProcessError(128, argv, stderr="fatal: not found")))
         self.assertIn("repository not found", str(ctx.exception))
+        self.assertIn("git clone also failed: fatal: not found", str(ctx.exception))
+
+    def test_clone_does_not_touch_git_when_gh_succeeds(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            run.clone("acme/widgets", d, runner=lambda argv: "", git_runner=lambda argv: calls.append(argv))
+        self.assertEqual(calls, [])
 
 
 class ParseSince(unittest.TestCase):

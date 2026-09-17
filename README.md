@@ -35,7 +35,7 @@ Linux package names, the release binaries, `--plots` and the pip caveats:
 ```bash
 gitmole .                              # the clone you are in
 gitmole /path/to/clone                 # any local clone
-gitmole owner/repo                     # clones with gh into a temp dir first
+gitmole owner/repo                     # clones into a temp dir first, with gh or plain git
 gitmole 'owner/*'                      # every non-archived repo of a user or org, one summary table
 
 gitmole . --markdown report.md         # the same report as a Markdown document

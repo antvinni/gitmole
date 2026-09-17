@@ -86,15 +86,18 @@ class Discover(unittest.TestCase):
 
 class TestPaths(unittest.TestCase):
     def test_test_files_and_directories(self):
-        for path in ("tests/test_a.py", "a/spec/b.rb", "src/__tests__/x.js", "x/y_test.go", "app.spec.ts", "app.test.tsx", "test_x.py"):
+        for path in ("tests/test_a.py", "a/spec/b.rb", "src/__tests__/x.js", "x/y_test.go", "app.spec.ts", "app.test.tsx", "test_x.py",
+                     "pending_tests/main.py", "e2e-tests/login.ts", "src/test_utils/helpers.py", "crates/x/snapshots/rule__S105.py.snap",
+                     "src/__snapshots__/a.js.snap", "lib/render.snap"):
             self.assertTrue(filetypes.is_test_path(path), path)
-        for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md"):
+        for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md", "src/testimony.py", "snapshot.py"):
             self.assertFalse(filetypes.is_test_path(path), path)
 
     def test_documentation_files_and_directories(self):
-        for path in ("README.md", "docs/GA4-API-INTEGRATION.md", "doc/guide.rst", "NOTES.txt", "a/b/CHANGELOG.markdown", "docs/conf.py", "x.adoc"):
+        for path in ("README.md", "docs/GA4-API-INTEGRATION.md", "doc/guide.rst", "NOTES.txt", "a/b/CHANGELOG.markdown", "docs/conf.py", "x.adoc",
+                     "docs_src/security/tutorial004.py", "docs-site/app.js", "doc_examples/x.py"):
             self.assertTrue(filetypes.is_doc_path(path), path)
-        for path in ("app/settings.py", "static/index.html", "docsite/app.js", "mdx/a.py", "config.yaml"):
+        for path in ("app/settings.py", "static/index.html", "docsite/app.js", "mdx/a.py", "config.yaml", "doctor/a.py"):
             self.assertFalse(filetypes.is_doc_path(path), path)
 
     def test_example_fixture_and_rule_directories(self):

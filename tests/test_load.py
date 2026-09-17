@@ -237,6 +237,7 @@ class LoadReport(unittest.TestCase):
                 "meta.json": json.dumps({"name": "demo", "commits": 3, "identities": []}),
                 "size.json": json.dumps([{"Name": "Python", "Count": 1, "Code": 10, "Comment": 0, "Blank": 0, "Complexity": 1}]),
                 "maat-revisions.csv": "entity,n-revs\na.py,3\n",
+                "maat-plumbing.csv": "entity,n-revs,tiny-revs\npkg/__init__.py,25,24\n",
                 "maat-coupling.csv": "entity,coupled,degree,average-revs\n",
                 "maat-age.csv": "entity,age-months\na.py,0\n",
                 "maat-authors.csv": "entity,n-authors,n-revs\na.py,1,3\n",
@@ -256,6 +257,7 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["meta"]["name"], "demo")
         self.assertEqual(r["size"]["total_code"], 10)
         self.assertEqual(r["revisions"][0]["entity"], "a.py")
+        self.assertEqual(r["plumbing"], [{"entity": "pkg/__init__.py", "n-revs": 25, "tiny-revs": 24}])
         self.assertEqual(r["coupling"], [])
         self.assertEqual(r["fixes"][0]["recent-fixes"], 1)
         self.assertEqual(r["cohorts"], {"Code added in 2026": 10})

@@ -61,6 +61,13 @@ class Risks(unittest.TestCase):
         files = sorted(x["file"] for x in watch.risks(r))
         self.assertEqual(files, ["Makefile", "core/parser.py"], "a version file or a manifest changes on every release, not where the next bug lands")
 
+    def test_a_file_the_change_log_shows_as_plumbing_is_not_on_the_list(self):
+        r = report()
+        r["size"]["files"]["pkg/__init__.py"] = {"code": 40, "complexity": 0}
+        r["revisions"] = [{"entity": "pkg/__init__.py", "n-revs": 331}, {"entity": "core/parser.py", "n-revs": 40}]
+        r["plumbing"] = [{"entity": "pkg/__init__.py", "n-revs": 331, "tiny-revs": 300}]
+        self.assertEqual([x["file"] for x in watch.risks(r)], ["core/parser.py"])
+
     def test_test_companions_and_weak_pairs_are_not_reasons(self):
         top = watch.risks(report())[0]
         coupling = [r for r in top["reasons"] if r.startswith("changes with")][0]

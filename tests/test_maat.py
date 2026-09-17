@@ -99,6 +99,29 @@ class Revisions(unittest.TestCase):
         self.assertEqual(dict((r["entity"], r["n-revs"]) for r in rows)["src/c.py"], 1)
 
 
+class Plumbing(unittest.TestCase):
+    def _commits(self, path, tiny, big):
+        out = [{"hash": f"t{i}", "date": "2026-01-01", "time": "", "author": "A", "subject": "bump", "files": [(path, 1, 1)]} for i in range(tiny)]
+        out += [{"hash": f"b{i}", "date": "2026-01-01", "time": "", "author": "A", "subject": "work", "files": [(path, 40, 12)]} for i in range(big)]
+        return out
+
+    def test_a_file_whose_commits_nearly_always_change_a_line_or_two_is_plumbing(self):
+        commits = self._commits("fastapi/__init__.py", tiny=300, big=31) + self._commits("fastapi/routing.py", tiny=10, big=90) + self._commits("VERSION", tiny=5, big=0)
+        rows = maat.plumbing(commits)
+        self.assertEqual(rows, [{"entity": "fastapi/__init__.py", "n-revs": 331, "tiny-revs": 300}],
+                         "routing.py has real edits; VERSION has too few commits to judge")
+
+    def test_written_alongside_the_other_analyses(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w", encoding="utf-8") as fh:
+                fh.write("".join(f"--h{i}--2026-01-{1 + i % 28:02d}T10:00:00+00:00--Ann--bump\n1\t1\tpkg/__init__.py\n" for i in range(25)))
+            maat.write_all(log, d, types=None)
+            with open(os.path.join(d, "maat-plumbing.csv"), encoding="utf-8") as fh:
+                text = fh.read()
+        self.assertEqual(text.splitlines(), ["entity,n-revs,tiny-revs", "pkg/__init__.py,25,25"])
+
+
 class Coupling(unittest.TestCase):
     def test_degree_is_shared_over_average_revisions(self):
         rows = maat.coupling(maat.parse_log(LOG))
@@ -311,14 +334,15 @@ class SinceWindow(unittest.TestCase):
 
 
 class WriteAll(unittest.TestCase):
-    def test_writes_the_five_csv_files_in_code_maat_layout(self):
+    def test_writes_the_csv_files_in_code_maat_layout_plus_plumbing(self):
         with tempfile.TemporaryDirectory() as d:
             log = os.path.join(d, "log.txt")
             with open(log, "w") as fh:
                 fh.write(LOG)
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
-            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-fixes.csv", "maat-revisions.csv"])
+            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-fixes.csv",
+                                     "maat-plumbing.csv", "maat-revisions.csv"])
             self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))
             with open(os.path.join(d, "maat-revisions.csv")) as fh:
                 self.assertEqual(fh.readline().strip(), "entity,n-revs")

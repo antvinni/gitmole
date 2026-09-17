@@ -65,7 +65,7 @@ def parse_scc(text: str, types=None) -> dict:
     }
 
 
-NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes"}
+NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs"}
 
 
 def parse_maat_csv(text: str) -> list:
@@ -244,6 +244,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         # was measured unfiltered, so it is re-rendered unfiltered rather than with a guessed list
         "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta["file_types"]) if "file_types" in meta else None),
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
+        "plumbing": parse_maat_csv(_read(out_dir, "maat-plumbing.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
         "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),

@@ -96,10 +96,22 @@ def list_repos(owner: str, lister=_gh) -> list:
     return sorted(set(out.split()))
 
 
-def clone(target: str, dest_parent: str, runner=_gh) -> str:
-    """Clone a remote target with gh (so private repos use the existing auth). Raises GhError."""
+def clone_url(target: str) -> str:
+    """The URL plain git can clone: a URL as given, owner/repo on github.com."""
+    return target if _URL.match(target) else f"https://github.com/{target}.git"
+
+
+def clone(target: str, dest_parent: str, runner=_gh, git_runner=_gh) -> str:
+    """Clone a remote target with gh (so private repos use the existing auth), or with plain git when
+    gh is missing or fails: a public repository needs no token. Raises GhError naming both failures."""
     dest = os.path.join(dest_parent, repo_name(target))
-    _wrap(runner, ["gh", "repo", "clone", target, dest, "--", "--quiet"])
+    try:
+        _wrap(runner, ["gh", "repo", "clone", target, dest, "--", "--quiet"])
+    except GhError as gh_error:
+        try:
+            _wrap(git_runner, [*filetypes.GIT, "clone", "--quiet", clone_url(target), dest])
+        except GhError as git_error:
+            raise GhError(f"{gh_error}; git clone also failed: {git_error}") from None
     return dest
 
 
