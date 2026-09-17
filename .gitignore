@@ -4,3 +4,4 @@ analysis-*/
 build/
 dist/
 *.egg-info/
+.superpowers/
