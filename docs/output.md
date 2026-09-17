@@ -118,10 +118,11 @@ How to read each part of the terminal report, and what each run writes to disk; 
    name the fix count (the last six months' when there are any), the sole
    owner, the most complex function lizard found (a nameless one by its
    line; a span marked `?` in the complex functions table is passed over)
-   and the files it always changes with, none of them entering the rank.
-   Test files are
-   left out. Under `--since`, churn and ownership are windowed and the list
-   says so. `--full` and the exports show fifteen. With `--risk BASE`, a
+   and, when its complexity grew by a quarter or more in a year, by how
+   much, and the files it always changes with, none of them entering the
+   rank. Test files are left out. Under `--since`, churn and ownership are
+   windowed and the list says so. `--full` and the exports show fifteen.
+   With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
    score as a bar and the reasons, or why it has none (new file, changed
    once, test file, not scored).
@@ -151,9 +152,14 @@ How to read each part of the terminal report, and what each run writes to disk; 
    timeline; their lines are left out of ownership and surviving code
    too, so a deploy job that commits a built site owns nothing), a knowledge map (lines added per area of the tree
    and who wrote them), a timeline of commits per author over the last
-   twelve months, hotspots ranked by revisions times lines of code with the
-   number of fix commits alongside, change coupling, the most complex
-   functions, repo health. Change coupling hides pairs where either file is
+   twelve months, change coupling, the most complex functions, repo
+   health. On a narrow terminal the timeline shows fewer of those months,
+   dropping the oldest, rather than folding an author's name; the title
+   names the months shown. Hotspots, ranked by revisions times lines of
+   code with the number of fix commits alongside, rank the same files the
+   watch list leads with, and so appear under `--full` and in the Markdown
+   export, next to size by language, activity and surviving code by year.
+   Change coupling hides pairs where either file is
    no longer in the tree, since they describe a layout that no longer
    exists, and shows a directory whose files all change together (generated
    tables, one file per version) as one row with the file count and the
