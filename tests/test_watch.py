@@ -193,6 +193,23 @@ class Backtest(unittest.TestCase):
         past["meta"] = {"now": ""}
         self.assertIsNone(watch.backtest(report(backtest=past)))
 
+    def test_baselines_are_scored_over_the_same_pool_and_the_same_fixes(self):
+        past = report()
+        past["meta"] = {"now": "2026-03-01"}
+        r = report(fixes=[{"entity": "core/parser.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5}], backtest=past)
+        out = watch.backtest(r, top=1)
+        self.assertEqual((out["listed"], out["hits"]), (1, 1), "the list leads with parser.py, which was fixed")
+        self.assertEqual(out["baselines"], {"churn": 0, "size": 0, "hotspot": 0}, "all three lead with index.html, which was not")
+        self.assertEqual(watch.backtest(r)["baselines"], {"churn": 1, "size": 1, "hotspot": 1}, "fifteen names cover a pool of three")
+
+
+class RankedBy(unittest.TestCase):
+    def test_best_first_ties_by_file_name_and_rows_carry_their_size(self):
+        rows = watch.risks(report())
+        self.assertEqual({r["file"]: r["code"] for r in rows}, {"core/parser.py": 800, "core/util.py": 200, "web/index.html": 4000})
+        self.assertEqual(watch.ranked_by(rows, watch.BASELINES["churn"]), ["web/index.html", "core/parser.py", "core/util.py"])
+        self.assertEqual(watch.ranked_by(rows, lambda r: 0), ["core/parser.py", "core/util.py", "web/index.html"])
+
 
 if __name__ == "__main__":
     unittest.main()

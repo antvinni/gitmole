@@ -79,7 +79,7 @@ def risks(report: dict, min_revs: int = 2) -> list:
         fn = worst.get(h["entity"])
         rows.append({"file": h["entity"], "revs": h["revs"], "recent_fixes": fx.get("recent-fixes", 0), "fixes": fx.get("n-fixes", 0),
                      "authors": n_authors.get(h["entity"]), "owner": owner, "owner_share": share,
-                     "complexity": h["complexity"] or 0,
+                     "complexity": h["complexity"] or 0, "code": h["code"],
                      "function": fn, "companions": companions.get(h["entity"], [])})
     if not rows:
         return []
@@ -161,17 +161,31 @@ def change_risk(report: dict, files: list) -> dict:
             "max_score": float(ranked[0]["score"]) if ranked and rows else 0.0}
 
 
-def backtest(report: dict):
+# What a simpler list would rank by. Churn alone is the one to beat: a file's past changes predict
+# its next fix better than most of what can be measured about its contents.
+BASELINES = {"churn": lambda r: r["revs"], "size": lambda r: r["code"], "hotspot": lambda r: r["revs"] * r["code"]}
+
+
+def ranked_by(rows: list, key) -> list:
+    """File names, the highest `key` first, ties by file name."""
+    return [r["file"] for r in sorted(sorted(rows, key=lambda r: r["file"]), key=key, reverse=True)]
+
+
+def backtest(report: dict, top: int = WATCH_TOP):
     """How the watch list as of the cut-off T (report["backtest"]) did against the fixes that came after.
-    Expected value is a random pick of listed files from the same pool the list draws from."""
+    Expected value is a random pick of listed files from the same pool the list draws from; `baselines`
+    is what the same number of files ranked by churn, by size and by their product would have named."""
     past = report.get("backtest")
     if not past or not (past.get("size") or {}).get("files"):
         return None
     t = (past.get("meta") or {}).get("now")
     if not t:
         return None                       # a sub-report without its cut-off cannot be scored
-    pool = [r["file"] for r in risks(past)]
-    listed = pool[:WATCH_TOP]
+    rows = risks(past)
+    pool = [r["file"] for r in rows]
+    listed = pool[:top]
     fixed = {f["entity"] for f in report.get("fixes") or [] if f.get("last-fix", "") > t and not filetypes.is_test_path(f["entity"])}
     expected = round(len(listed) * len(fixed.intersection(pool)) / len(pool), 1) if pool else 0.0
-    return {"t": t, "pool": len(pool), "listed": len(listed), "fixed": len(fixed), "hits": len(fixed.intersection(listed)), "expected": expected}
+    baselines = {name: len(fixed.intersection(ranked_by(rows, key)[:top])) for name, key in BASELINES.items()}
+    return {"t": t, "pool": len(pool), "listed": len(listed), "fixed": len(fixed), "hits": len(fixed.intersection(listed)),
+            "expected": expected, "baselines": baselines}

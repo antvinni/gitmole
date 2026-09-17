@@ -291,11 +291,12 @@ class Report(unittest.TestCase):
         r["backtest"] = past
         r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
-        text = rendered(r, [], width=150)
+        text = rendered(r, [], width=200)
         self.assertIn("6 months ago this list would have named 1 of the 2 files fixed since "
-                     "(a random 2 of the 2 files that had changed more than once would name 1.0)", text)
+                      "(a random 2 of the 2 files that had changed more than once would name 1.0; the 2 most changed would name 1)", text)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["hits"], 1)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["pool"], 2)
+        self.assertEqual(render.to_json(r, [])["watch_backtest"]["baselines"]["churn"], 1)
 
 
     def test_backtest_caption_says_whole_history_under_a_window(self):
@@ -308,7 +309,7 @@ class Report(unittest.TestCase):
         r["meta"]["since"] = "2026-01-01"
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
         self.assertIn("ranked by churn × recent fixes × complexity × single ownership; commits since 2026-01-01", caption)
-        self.assertTrue(caption.endswith("would name 1.0); whole history"), caption)
+        self.assertTrue(caption.endswith("the 2 most changed would name 1); whole history"), caption)
 
     def test_default_hotspots_hide_test_files_and_say_so(self):
         r = sample_report()
