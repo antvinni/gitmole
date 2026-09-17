@@ -179,14 +179,23 @@ def _clean(args, console: Console, ask) -> int:
     """Handle --clean: list what gitmole left behind, ask once, remove. ask(prompt) returns the answer."""
     from . import clean, render
 
-    found = clean.find(args.target or ".", clean.temp_dir())
+    tmp = clean.temp_dir()
+    found = clean.find(args.target or ".", tmp)
     if not found:
         console.print("nothing to clean")
         return 0
     total = sum(size for _, size, _ in found)
-    rows = [(path, clean.human(size), time.strftime("%Y-%m-%d", time.localtime(mtime))) for path, size, mtime in found]
-    sec = render._section("Left behind", [("directory", render.PATH), ("size", render.RIGHT), ("modified", {})], rows,
-                          caption=f"{_dirs(len(found))}, {clean.human(total)} in all")
+    columns = [("directory", {"no_wrap": True}), ("size", render.RIGHT), ("modified", {})]
+    clones = [r for r in found if os.path.dirname(r[0]) == tmp]
+    listed = found
+    if clones and not args.full:
+        # one row for the temp folder: the clones differ only in their random suffix; --full lists them all
+        label = f"{clean.TEMP_PREFIX}* ({len(clones)} temp clone{'s' if len(clones) > 1 else ''})"
+        listed = [(os.path.join(tmp, label), sum(s for _, s, _ in clones), max(m for _, _, m in clones))]
+        listed += [r for r in found if os.path.dirname(r[0]) != tmp]
+    rows = [(path, clean.human(size), time.strftime("%Y-%m-%d", time.localtime(mtime))) for path, size, mtime in listed]
+    rows = render._shorten(rows, console.width, columns)   # middle-elided paths, one line per row; the last segment stays whole
+    sec = render._section("Left behind", columns, rows, caption=f"{_dirs(len(found))}, {clean.human(total)} in all")
     render.print_section(console, sec)
     console.print(Text(""))
     if not args.yes:
