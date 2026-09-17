@@ -810,9 +810,9 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
 
 
 def excerpt(report: dict, findings: list, console: Console, full: bool = False) -> None:
-    """The top of the report on its own: header, findings and the watch list. What a screenshot shows."""
+    """The report's opening on its own: the header, whose tally counts the findings, and the watch
+    list. What the README's picture shows; the findings themselves are in the full report."""
     console.print(header(report, findings))
-    console.print(findings_panel(findings, report))
     print_section(console, watch_section(report, full=full, width=console.width))
 
 
