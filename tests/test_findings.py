@@ -261,6 +261,16 @@ class TightCoupling(unittest.TestCase):
         f = findings.tight_coupling(report(coupling=pairs))
         self.assertIn("2 pairs", f[0]["detail"], "without a tree listing every pair counts")
 
+    def test_generated_pairs_are_the_generators_coupling(self):
+        pairs = [{"entity": "js/greet.bundle.js", "coupled": "js/renderkatex.bundle.js", "degree": 83, "average-revs": 10},
+                 {"entity": "js/renderkatex.bundle.js", "coupled": "js/renderkatex.js", "degree": 83, "average-revs": 10},
+                 {"entity": "src/a.js", "coupled": "src/b.js", "degree": 85, "average-revs": 10}]
+        r = report(coupling=pairs)
+        r["meta"]["generated"] = ["js/greet.bundle.js", "js/renderkatex.bundle.js"]
+        f = findings.tight_coupling(r)
+        self.assertIn("1 pair changes together", f[0]["detail"])
+        self.assertIn("src/a.js", f[0]["detail"])
+
     def test_vendored_pairs_are_somebody_elses_coupling(self):
         pairs = [{"entity": "deps/hiredis/adapters/ae.h", "coupled": "deps/hiredis/adapters/libev.h", "degree": 84, "average-revs": 10},
                  {"entity": "src/ae.c", "coupled": "deps/hiredis/net.h", "degree": 85, "average-revs": 10},

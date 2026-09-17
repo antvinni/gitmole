@@ -190,6 +190,7 @@ def is_release(path: str, plumbing=frozenset()) -> bool:
 # What a generated file says about itself in its first lines: protoc, ajv, code generators of every kind.
 _GENERATED = re.compile(r"auto[- ]?generated|generated (by|from|file|code|automatically|with)|do not (edit|modify)|@generated|code generated", re.I)
 GENERATED_HEAD_LINES = 5
+_GENERATED_NAME = re.compile(r"\.(min\.js|min\.css|bundle\.js|map)$", re.I)   # a build output by name: nobody edits a bundle or a source map
 
 
 def _generated_patterns(repo: str) -> list:
@@ -219,7 +220,7 @@ def generated_files(repo: str, paths: list) -> list:
     patterns = _generated_patterns(repo)
     out = []
     for path in paths:
-        if any(_attribute_match(path, p) for p in patterns):
+        if _GENERATED_NAME.search(path) or any(_attribute_match(path, p) for p in patterns):
             out.append(path)
             continue
         try:

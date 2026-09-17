@@ -39,7 +39,8 @@ RAW_FIELDS = ("Secret", "Match", "Line", "Message", "Attributes")
 _VERSION = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 _MARKER = re.compile(r"^(<[^<>]+>|x+|(?:x{2,}[-_ ]?)+|your[-_][\w-]+|change[-_]?me|replace[-_]?me)$", re.I)
 _EXAMPLE_WORDS = {"password", "passwd", "pass", "secret", "hello", "hey", "test", "example", "sample", "dummy", "foo", "bar",
-                  "baz", "admin", "root", "user", "123456", "12345678", "123456789", "abc123", "qwerty", "letmein", "welcome"}
+                  "baz", "admin", "root", "user", "123456", "12345678", "123456789", "abc123", "qwerty", "letmein", "welcome",
+                  "x-oauth-basic", "x-access-token", "x-token-auth"}   # documented literals for the password slot of token auth
 # A whole value that refers to an environment variable or a template field is where the secret will be
 # read from, not the secret: `@env:AC_PASSWORD`, `${DB_PASSWORD}`, `{{.Env.X}}`, `process.env.X`, `<%= ENV['X'] %>`.
 _ENV_REF = re.compile(r"^(@env:\w+|\$\{[^{}]+\}|\$[A-Za-z_]\w*|\$\([^()]+\)|%[A-Za-z_]\w*%|\{\{.*\}\}|<%=?.*%>"
@@ -78,14 +79,20 @@ def _made_up(value: str) -> bool:
     return letters == sorted(letters) and digits == sorted(digits) and len(set(letters)) >= 4 or (not letters and digits == sorted(digits))
 
 
+# A template field anywhere inside the value: {token}, ${X}, ${{ X }}, %(name)s, {{ x }}, <user>.
+_TEMPLATE_FIELD = re.compile(r"\{[A-Za-z_][\w.]*\}|\$\{[^{}]*\}|\$\{\{.*?\}\}|%\([A-Za-z_]\w*\)s|\{\{.*?\}\}|<[A-Za-z_][\w-]*>")
+# Five or more words of letters: a description of the secret, not the secret.
+_PROSE = re.compile(r"^[A-Za-z][A-Za-z'-]*(\s+[A-Za-z][A-Za-z'-]*){4,}\s*$")
+
+
 def is_placeholder(value: str, line: str = "") -> bool:
     """Whether `value` has a shape that cannot be a live secret. `line` is the source line the value
     sat on, read from the clone at scan time and never written."""
     value = (value or "").strip()
     if (_VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value) or value.lower() in _EXAMPLE_WORDS
-            or _ENV_REF.match(value) or _made_up(value)):
+            or _ENV_REF.match(value) or _made_up(value) or _TEMPLATE_FIELD.search(value) or _PROSE.match(value)):
         return True
-    if line and _EXAMPLE_LINE.search(line):
+    if line and (_EXAMPLE_LINE.search(line) or _TEMPLATE_FIELD.search(line)):   # the line is an example, or a template being filled in
         return True
     m = _KEY_BLOCK.search(value)
     if m:

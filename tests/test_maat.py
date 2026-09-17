@@ -111,6 +111,14 @@ class Plumbing(unittest.TestCase):
         self.assertEqual(rows, [{"entity": "fastapi/__init__.py", "n-revs": 331, "tiny-revs": 300}],
                          "routing.py has real edits; VERSION has too few commits to judge")
 
+    def test_a_bump_that_swaps_three_lines_is_tiny_but_growth_is_not(self):
+        # hugo's version_current.go: every release edits Major, Minor and PatchLevel, 3 lines out and 3 in
+        bumps = [{"hash": f"b{i}", "date": "2026-01-01", "time": "", "author": "A", "subject": "release", "files": [("common/hugo/version_current.go", 3, 3)]}
+                 for i in range(30)]
+        growth = [{"hash": f"g{i}", "date": "2026-01-01", "time": "", "author": "A", "subject": "add", "files": [("lib/list.py", 3, 0)]} for i in range(30)]
+        rows = maat.plumbing(bumps + growth)
+        self.assertEqual([r["entity"] for r in rows], ["common/hugo/version_current.go"], "three lines added with nothing removed is growth, not a bump")
+
     def test_written_alongside_the_other_analyses(self):
         with tempfile.TemporaryDirectory() as d:
             log = os.path.join(d, "log.txt")

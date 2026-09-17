@@ -5,7 +5,7 @@ import re
 
 
 _BOT_WORDS = ("dependabot", "renovate", "github-actions", "github actions", "copilot", "cursor agent", "cursor-agent", "cursoragent")
-_BOT_NAME = re.compile(r"\bbot\b|\bci\b|deploy|automation", re.I)   # "Deploy from CI", "Release Bot", "Homebrew Automation"
+_BOT_NAME = re.compile(r"\bbot\b|\bci\b|deploy|automation|releaser|release-bot", re.I)   # "Deploy from CI", "Release Bot", "hugoreleaser"
 
 
 def is_bot(name: str, email: str = "") -> bool:

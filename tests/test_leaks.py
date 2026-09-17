@@ -61,8 +61,11 @@ class Placeholder(unittest.TestCase):
 
     def test_common_example_words_are_placeholders(self):
         # `password: 'hello'` in a doc comment, `secret` in a sample config: the words every example uses
-        for value in ["hello", "Hello", "secret", "password", "PASSWORD", "example", "123456", "qwerty", "letmein", "foo", "dummy"]:
+        for value in ["hello", "Hello", "secret", "password", "PASSWORD", "example", "123456", "qwerty", "letmein", "foo", "dummy",
+                      "x-oauth-basic", "x-access-token"]:   # GitHub's documented literals for the password slot of token auth
             self.assertTrue(leaks.is_placeholder(value), value)
+        self.assertTrue(leaks.is_placeholder("hunter2", line='url = f"https://{token}:hunter2@github.com/{SLUG}.git"'),
+                        "a line with a template field is a template being filled in")
         for value in ["hello123", "secret-9f8a7b6c5d4e", "s3cr3t!Passw0rd", "foobarbaz2024"]:
             self.assertFalse(leaks.is_placeholder(value), "a word inside other material is not a placeholder: " + value)
 
@@ -109,6 +112,21 @@ class Placeholder(unittest.TestCase):
             self.assertTrue(leaks.is_placeholder(value), value)
         for value in ["nz5ej2kypkvcw0rn5cvhs6qxtm", "abcdefg", "zyxwvutsrq", "ghp_" + "a1" * 18]:
             self.assertFalse(leaks.is_placeholder(value), value)
+
+    def test_a_value_with_a_template_field_inside_it_is_a_template(self):
+        # pytest's release script: oauth_url = f"https://{token}:x-oauth-basic@github.com/{SLUG}.git"
+        for value in ["https://{token}:x-oauth-basic@github.com/pytest-dev/pytest.git", "Bearer ${TOKEN}", "key-%(api_key)s", "sk_live_{{ secret }}",
+                      "${{ secrets.CODECOV_TOKEN }}", "https://<user>:<pass>@host/db"]:
+            self.assertTrue(leaks.is_placeholder(value), value)
+        for value in ["https://x:hunter2@host/db", "ghp_" + "a1" * 18, "{" + "a1" * 10]:
+            self.assertFalse(leaks.is_placeholder(value), value)
+
+    def test_a_sentence_of_prose_is_a_description_not_a_secret(self):
+        # pytest's devpi task: 'password': 'user password on devpi to stage the generated package '
+        for value in ["user password on devpi to stage the generated package", "The API key used to talk to the billing service"]:
+            self.assertTrue(leaks.is_placeholder(value), value)
+        for value in ["correct horse battery", "nz5ej2kypkvcw0rn5cvhs6qxtm", "one two 3 four five"]:
+            self.assertFalse(leaks.is_placeholder(value), "under five words, or a digit among them: not prose")
 
     def test_anything_else_is_taken_seriously(self):
         # built at runtime: a literal in these shapes would trip secret scanners on this very file
