@@ -116,13 +116,13 @@ How to read each part of the terminal report, and what each run writes to disk; 
    share an email, two name words, the same name spelled identically
    unless it is a bare common first name, a one-word handle that is a
    distinctive word of the fuller name, the fuller name run together
-   (RobinMalfait), or an initial plus the surname (nlohmann); the caption says whose; bots and
-   coding agents such as renovate, Copilot, Cursor Agent, and any author
-   whose name says bot, CI, deploy or automation; their lines are left
-   out of ownership and surviving code too, so a deploy job that commits
-   a built site owns nothing,
-   dependabot and GitHub Actions are counted apart in the caption and kept
-   out of the timeline), a knowledge map (lines added per area of the tree
+   (RobinMalfait), or an initial plus the surname (nlohmann); the caption says whose; bots,
+   which are any author named `*[bot]`, any identity that merges with
+   one (`github-actions` beside `github-actions[bot]` is one account),
+   and any author whose name says bot, CI, deploy or automation, no
+   product names, are counted apart in the caption and kept out of the
+   timeline; their lines are left out of ownership and surviving code
+   too, so a deploy job that commits a built site owns nothing), a knowledge map (lines added per area of the tree
    and who wrote them), a timeline of commits per author over the last
    twelve months, hotspots ranked by revisions times lines of code with the
    number of fix commits alongside, change coupling, the most complex

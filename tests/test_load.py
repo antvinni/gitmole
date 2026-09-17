@@ -277,9 +277,10 @@ class LoadReport(unittest.TestCase):
             os.makedirs(os.path.join(out, "theseus"))
             files = {
                 "meta.json": json.dumps({"name": "demo", "commits": 3, "identities": [{"name": "Ann", "email": "a@x", "commits": 2}],
-                                         "bots": [{"name": "Deploy from CI", "commits": 40}]}),
-                "maat-entity-ownership.csv": "entity,author,added,deleted\nindex.html,Deploy from CI,6000,0\nsrc/a.rs,Ann,300,0\nsrc/b.rs,dependabot[bot],20,0\n",
-                "theseus/authors.json": json.dumps({"labels": ["Ann", "Deploy from CI"], "ts": ["t"], "y": [[300], [6000]]}),
+                                         "bots": [{"name": "Deploy from CI", "commits": 40}, {"name": "github-actions", "commits": 2237}]}),
+                "maat-entity-ownership.csv": "entity,author,added,deleted\nindex.html,Deploy from CI,6000,0\nsrc/a.rs,Ann,300,0\nsrc/b.rs,dependabot[bot],20,0\n"
+                                             "docs/x.md,github-actions,900,0\n",   # a bot the run knew by its alias's [bot] suffix, not by name
+                "theseus/authors.json": json.dumps({"labels": ["Ann", "Deploy from CI", "github-actions"], "ts": ["t"], "y": [[300], [6000], [900]]}),
             }
             for name, text in files.items():
                 with open(os.path.join(out, name), "w") as fh:

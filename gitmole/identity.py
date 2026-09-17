@@ -4,18 +4,29 @@ from __future__ import annotations
 import re
 
 
-_BOT_WORDS = ("dependabot", "renovate", "github-actions", "github actions", "copilot", "cursor agent", "cursor-agent", "cursoragent")
 _BOT_NAME = re.compile(r"\bbot\b|\bci\b|deploy|automation|releaser|release-bot", re.I)   # "Deploy from CI", "Release Bot", "hugoreleaser"
 
 
 def is_bot(name: str, email: str = "") -> bool:
-    """A commit author that is a service, not a person: GitHub's *[bot] suffix, one of the common
-    automation names in the name or the mailbox, or a name that says bot, CI, deploy or automation."""
+    """A commit author that is a service, not a person: GitHub's *[bot] suffix on the name or the
+    mailbox, or a name that says bot, CI, deploy or automation. No product names: a service that
+    declares nothing is a person until an alias of it declares otherwise (see bot_names)."""
     n, local = name.strip().lower(), email.strip().lower().split("@")[0]
     if n.endswith("[bot]") or local.endswith("[bot]"):
         return True
-    return (any(w in n for w in _BOT_WORDS) or any(w in local for w in _BOT_WORDS) or email.strip().lower() == "actions@github.com"
-            or bool(_BOT_NAME.search(name)))
+    return bool(_BOT_NAME.search(name))
+
+
+def bot_names(identities: list) -> set:
+    """The names that belong to bots, declaration included: an identity that merges with one that
+    is a bot (github-actions <github-actions@github.com> beside github-actions[bot]) is the same
+    account, and the [bot] suffix on one variant speaks for all of them."""
+    out = set()
+    for m in merge(identities):
+        variants = [m, *m.get("aliases", [])]
+        if any(is_bot(v["name"], v["email"]) for v in variants):
+            out |= {v["name"] for v in variants}
+    return out
 
 
 def _tokens(name: str) -> set:

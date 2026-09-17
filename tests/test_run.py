@@ -550,6 +550,21 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(meta["commits"], 4, "the commit count is the whole history")
         self.assertEqual(meta["bots"], [{"name": "renovate[bot]", "commits": 2}, {"name": "dependabot[bot]", "commits": 1}])
 
+    def test_an_alias_of_a_declared_bot_is_a_bot_too(self):
+        # fastapi: "github-actions <github-actions@github.com>" beside github-actions[bot]; same account, one declaration
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            base = dict(GIT_COMMITTER_NAME="x", GIT_COMMITTER_EMAIL="x@x")
+            for name, email in [("Ann", "ann@x.com"), ("github-actions", "github-actions@github.com"), ("github-actions", "github-actions@github.com"),
+                                ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com")]:
+                git("commit", "-q", "--allow-empty", "-m", name, GIT_AUTHOR_NAME=name, GIT_AUTHOR_EMAIL=email, **base)
+            meta = run.collect_meta(d)
+        self.assertEqual([i["name"] for i in meta["identities"]], ["Ann"])
+        self.assertEqual(meta["bots"], [{"name": "github-actions", "commits": 2}, {"name": "github-actions[bot]", "commits": 1}])
+
 
 class ChangedFiles(unittest.TestCase):
     def test_lists_paths_changed_since_the_merge_base(self):
