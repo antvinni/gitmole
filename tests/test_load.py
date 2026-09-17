@@ -138,6 +138,11 @@ class ParseFunctions(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(load.parse_functions(""), [])
 
+    def test_a_nameless_function_is_called_anonymous(self):
+        # lizard names Go function literals with an empty string where it names JavaScript's "(anonymous)"
+        rows = load.parse_functions('136,47,926,1,270,"@316-585@completions.go","completions.go",""," c * Command",316,585\n')
+        self.assertEqual((rows[0]["function"], rows[0]["start"]), ("(anonymous)", 316))
+
     def test_a_row_cut_short_by_a_killed_step_does_not_abort_the_report(self):
         rows = load.parse_functions(self.CSV + '5,3,40,1,5,"g@1-5@a.py","a.py","g","g( )",1,\n')
         self.assertEqual(len(rows), 3)

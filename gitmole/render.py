@@ -111,6 +111,24 @@ def _hide_vendor(rows: list, path_of, full, noun="file in vendored code", plural
     return _hide_rows(rows, path_of, full, filetypes.is_vendor_path, noun, plural)
 
 
+def _hide_generated(rows: list, path_of, report: dict, full, noun="generated file", plural=None) -> tuple:
+    """Generated files (a header marker or a linguist-generated attribute, found at run time): the
+    generator's churn and complexity, not the repository's."""
+    generated = set((report.get("meta") or {}).get("generated") or [])
+    return _hide_rows(rows, path_of, full, lambda p: p in generated, noun, plural)
+
+
+def _hide_release(pairs: list, full) -> tuple:
+    """Coupled pairs where both files are release plumbing (version files, manifests, lock files,
+    changelogs): they change together because a release touches them all, not because one depends on
+    the other. A version file paired with real code stays."""
+    if full is True:
+        return pairs, None
+    kept = [p for p in pairs if not (filetypes.is_release_path(p["entity"]) and filetypes.is_release_path(p["coupled"]))]
+    hidden = len(pairs) - len(kept)
+    return kept, (f"{hidden} release pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
+
+
 def _join_hidden(*notes) -> str:
     """Several hidden-row notes as one caption phrase: 'A hidden; B hidden; --full shows them'."""
     parts = [n[:-len(HIDDEN_SUFFIX)] if n.endswith(HIDDEN_SUFFIX) else n for n in notes if n]
@@ -376,7 +394,8 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     scored = hotspots.ranked(report)
     scored, hidden_note = _hide_tests(scored, lambda h: h["entity"], full)
     scored, deleted_note = _hide_deleted(scored, report, full)
-    hidden_note = _join_hidden(hidden_note, deleted_note)
+    scored, generated_note = _hide_generated(scored, lambda h: h["entity"], report, full)
+    hidden_note = _join_hidden(hidden_note, deleted_note, generated_note)
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
     series = (report.get("trend") or {}).get("files") or {}
@@ -408,6 +427,8 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))
     pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair")
     pairs, gone_note = _hide_gone(pairs, report, full)
+    pairs, release_note = _hide_release(pairs, full)
+    gone_note = _join_hidden(gone_note, release_note)
     groups, cluster_note = [], None
     if full is not True:
         # a directory whose files all change together is one row; --full lists every pair
@@ -474,7 +495,8 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full, noun="function in a test file", plural="functions in test files")
     funcs, vendor_note = _hide_vendor(funcs, lambda f: f["file"], full, noun="function in vendored code", plural="functions in vendored code")
-    hidden_note = _join_hidden(hidden_note, vendor_note)
+    funcs, generated_note = _hide_generated(funcs, lambda f: f["file"], report, full, noun="function in a generated file", plural="functions in generated files")
+    hidden_note = _join_hidden(hidden_note, vendor_note, generated_note)
     limit = _limit("Complex functions", full)
     rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]

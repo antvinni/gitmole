@@ -2,6 +2,8 @@
 Standalone so blame.py and maat.py can import it as scripts."""
 from __future__ import annotations
 
+import fnmatch
+import os
 import re
 import subprocess
 from collections import Counter
@@ -81,6 +83,63 @@ def is_vendor_path(path: str) -> bool:
     """Vendored and third-party trees: somebody else's code, so its complexity and its single
     importer are not this repository's risk."""
     return bool(_VENDOR_PATH.search(path))
+
+
+_RELEASE_NAMES = {"version", "version.rb", "version.py", "version.go", "version.rs", "version.txt", "__version__.py", "package.json",
+                  "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "gemfile", "gemfile.lock", "cargo.toml", "cargo.lock",
+                  "pyproject.toml", "setup.py", "setup.cfg", "poetry.lock", "uv.lock", "go.mod", "go.sum", "composer.json", "composer.lock"}
+
+
+def is_release_path(path: str) -> bool:
+    """Release plumbing: version files, manifests, lock files and changelogs. Two of them changing
+    together is a release commit, not a dependency between them."""
+    name = path.rsplit("/", 1)[-1].lower()
+    return name in _RELEASE_NAMES or name.endswith(".gemspec") or name.startswith(("changelog", "changes.", "history.", "news."))
+
+
+# What a generated file says about itself in its first lines: protoc, ajv, code generators of every kind.
+_GENERATED = re.compile(r"auto[- ]?generated|generated (by|from|file|code|automatically|with)|do not (edit|modify)|@generated|code generated", re.I)
+GENERATED_HEAD_LINES = 5
+
+
+def _generated_patterns(repo: str) -> list:
+    """The .gitattributes patterns marked linguist-generated at the repository root."""
+    try:
+        with open(os.path.join(repo, ".gitattributes"), encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return []
+    out = []
+    for line in lines:
+        parts = line.split()
+        if len(parts) >= 2 and any(p in ("linguist-generated", "linguist-generated=true") for p in parts[1:]):
+            out.append(parts[0].lstrip("/"))
+    return out
+
+
+def _attribute_match(path: str, pattern: str) -> bool:
+    if "/" in pattern:
+        return fnmatch.fnmatchcase(path, pattern) or fnmatch.fnmatchcase(path, pattern.rstrip("/") + "/*")
+    return fnmatch.fnmatchcase(path.rsplit("/", 1)[-1], pattern)
+
+
+def generated_files(repo: str, paths: list) -> list:
+    """The tracked files that are generated: marked linguist-generated in .gitattributes, or saying so
+    in their first lines. Their complexity and churn are the generator's, not the repository's."""
+    patterns = _generated_patterns(repo)
+    out = []
+    for path in paths:
+        if any(_attribute_match(path, p) for p in patterns):
+            out.append(path)
+            continue
+        try:
+            with open(os.path.join(repo, path), "rb") as fh:
+                head = fh.read(2048)
+        except OSError:
+            continue
+        if any(_GENERATED.search(line) for line in head.decode("utf-8", "replace").splitlines()[:GENERATED_HEAD_LINES]):
+            out.append(path)
+    return sorted(out)
 
 
 def key(path: str) -> str:

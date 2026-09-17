@@ -18,6 +18,19 @@ class Merge(unittest.TestCase):
         names = [m["name"] for m in merged]
         self.assertEqual(names, ["Bob", "Grzegorz Bankosz", "Ann"])
 
+    def test_an_identical_handle_under_several_emails_is_one_person(self):
+        ids = [{"name": "KaKa", "email": "kaka@a.com", "commits": 57}, {"name": "KaKa", "email": "23028015+climba@users.noreply.github.com", "commits": 56},
+               {"name": "kaka", "email": "climba@b.com", "commits": 10}, {"name": "namusyaka", "email": "n@a.com", "commits": 180},
+               {"name": "namusyaka", "email": "n@b.com", "commits": 8}, {"name": "Li Yu", "email": "li@a.com", "commits": 5},
+               {"name": "Li Yu", "email": "li@b.com", "commits": 3}]
+        merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
+        self.assertEqual(merged, {"KaKa": 123, "namusyaka": 188, "Li Yu": 8})
+
+    def test_a_bare_common_first_name_is_not_enough(self):
+        ids = [{"name": "Jean", "email": "jean@a.com", "commits": 24}, {"name": "Jean", "email": "jean@b.com", "commits": 18},
+               {"name": "Alex", "email": "alex@a.com", "commits": 3}, {"name": "alex", "email": "alex@b.com", "commits": 2}]
+        self.assertEqual(len(identity.merge(ids)), 4, "two Jeans and two Alexes may be four people")
+
     def test_merged_row_sums_commits_and_lists_aliases(self):
         merged = {m["name"]: m for m in identity.merge(IDS)}
         self.assertEqual(merged["Grzegorz Bankosz"]["commits"], 41)

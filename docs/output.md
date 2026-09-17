@@ -95,8 +95,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    what a random list of the same size, drawn from the files that had
    changed more than once, would score. Repositories with under a year
    of history say `too little history to backtest`.
-4. **Tables**: people (identities merged by name and email similarity on
-   top of `.mailmap`, and the caption says whose; bots such as renovate,
+4. **Tables**: people (identities merged on top of `.mailmap` when they
+   share an email, two name words, or the same name spelled identically
+   unless it is a bare common first name; the caption says whose; bots such as renovate,
    dependabot and GitHub Actions are counted apart in the caption and kept
    out of the timeline), a knowledge map (lines added per area of the tree
    and who wrote them), a timeline of commits per author over the last
@@ -119,14 +120,20 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Size, hotspots, coupling, ownership, code age and the watch list analyse
    source files: a built-in list of code extensions plus names like Makefile
    and Dockerfile (`--file-types all` counts everything). In the default
-   report, the hotspots and complex functions tables hide test files, the
-   complex functions table also hides vendored code (`vendor/`,
-   `node_modules/`, `third_party/`, `external/`), and the change coupling
-   table hides pairs with a test file; the captions show how many are
-   hidden, and `--full` shows them. Vendored code is left out of the brain
-   methods, knowledge islands and bus factor findings too: somebody else's
-   code is not this repository's risk. Activity and the timeline cover the
-   whole history.
+   report, the hotspots and complex functions tables hide test files and
+   generated files (a file whose first lines say it was generated or must
+   not be edited, or that `.gitattributes` marks `linguist-generated`;
+   the run records them in `meta.json`), the complex functions table also
+   hides vendored code (`vendor/`, `node_modules/`, `third_party/`,
+   `external/`), and the change coupling table hides pairs with a test
+   file and pairs of release plumbing (two version files, a manifest and
+   its lock file, changelogs); the captions show how many are hidden, and
+   `--full` shows them. Vendored and generated code is left out of the
+   brain methods finding, vendored code out of the knowledge islands and
+   bus factor findings too: somebody else's code, or a generator's, is not
+   this repository's risk. A function lizard cannot name (a Go function
+   literal) is called `(anonymous)` and the advice names its file and
+   line. Activity and the timeline cover the whole history.
 5. **Footer**: where the files and plots are.
 
 The complete report for the gitmole repository itself is in
