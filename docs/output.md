@@ -115,10 +115,11 @@ How to read each part of the terminal report, and what each run writes to disk; 
    it named more of them than any weighting of fixes, complexity and
    ownership did. A file's score, which `--risk` adds up, is the share of
    scored files whose product is no larger, between 0 and 1; the reasons
-   name the recent fix count, the sole owner, the most complex function
-   lizard found (a nameless one by its line; a span marked `?` in the
-   complex functions table is passed over) and the files it always changes
-   with, none of them entering the rank. Test files are
+   name the fix count (the last six months' when there are any), the sole
+   owner, the most complex function lizard found (a nameless one by its
+   line; a span marked `?` in the complex functions table is passed over)
+   and the files it always changes with, none of them entering the rank.
+   Test files are
    left out. Under `--since`, churn and ownership are windowed and the list
    says so. `--full` and the exports show fifteen. With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch

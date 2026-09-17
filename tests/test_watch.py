@@ -108,8 +108,8 @@ class Risks(unittest.TestCase):
 
     def test_complexity_is_scc_file_total_for_every_file_lizard_names_the_function(self):
         # lizard has no reader for shell, Terraform, Makefiles...; with lizard rows present those
-        # files used to score complexity 0. One scale (scc's per-file total) for the score,
-        # lizard's worst function for the wording.
+        # files used to score complexity 0. The row's `complexity` field is scc's per-file total
+        # for every file; lizard's worst function is only what the reasons name.
         r = report()
         r["size"]["files"]["ops/deploy.sh"] = {"code": 300, "complexity": 80}
         r["revisions"].append({"entity": "ops/deploy.sh", "n-revs": 40})
@@ -117,7 +117,9 @@ class Risks(unittest.TestCase):
         self.assertEqual(by["ops/deploy.sh"]["complexity"], 80)
         self.assertEqual(by["core/parser.py"]["complexity"], 40, "scc's total, not lizard's worst function")
         self.assertIn("parse() complexity 41", by["core/parser.py"]["reasons"])
-        self.assertGreater(by["ops/deploy.sh"]["score"], by["core/util.py"]["score"])
+        by_rank = {x["file"]: x for x in watch.risks(r, scoring="rank")}
+        self.assertGreater(by_rank["ops/deploy.sh"]["score"], by_rank["core/util.py"]["score"],
+                            "under the factor product, deploy.sh's higher complexity lifts its score")
 
 
     def test_rank_scaling_keeps_the_order_of_the_synthetic_repo(self):

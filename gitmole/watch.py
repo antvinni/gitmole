@@ -66,8 +66,8 @@ def _worst_function(report: dict) -> dict:
 
 
 def _by_max(values: list, inclusive: bool):
-    """x as a share of the largest value: the scaling the list has always had. One outlier moves everyone;
-    inclusive is ignored here, since a share of the largest value has no edge to choose."""
+    """x as a share of the largest value: the scaling the factor product first shipped with. One outlier
+    moves everyone; inclusive is ignored here, since a share of the largest value has no edge to choose."""
     top = max(values)
     return lambda x: x / top if top else 0.0
 
@@ -75,7 +75,8 @@ def _by_max(values: list, inclusive: bool):
 def _by_rank(values: list, inclusive: bool):
     """x as the share of the scored files at or below it (inclusive), or strictly below it. Churn is
     inclusive, so the most-changed file is 1 and no file is 0; fixes and complexity are strict, so a
-    file with none of either gets no lift, as under _by_max. An outlier is one more file, not a new scale."""
+    file with none of either gets no lift, as under _by_max. The hotspot product is ranked inclusively
+    too, so the top file always scores 1. An outlier is one more file, not a new scale."""
     ordered = sorted(values)
     cut = bisect.bisect_right if inclusive else bisect.bisect_left
     return lambda x: cut(ordered, x) / len(ordered)
