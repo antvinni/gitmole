@@ -30,6 +30,18 @@ class NoRun(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("/nonexistent/analysis-x", c.export_text())
 
+    def test_terminal_no_run_prints_the_banner_with_the_version(self):
+        from gitmole import __version__
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "demo", "commits": 5, "identities": []}, fh)
+            c = Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system="truecolor")
+            rc = cli.main([out, "--no-run"], console=c)
+            text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertIn("███╗   ███╗", text)
+        self.assertIn(f"v{__version__}", text)
+
 
 class LiveRun(unittest.TestCase):
     def test_full_run_on_a_terminal_console_prints_banner_and_report(self):
@@ -44,6 +56,8 @@ class LiveRun(unittest.TestCase):
             text = c.export_text()
         self.assertEqual(rc, 0)
         self.assertIn("███╗   ███╗", text)
+        from gitmole import __version__
+        self.assertIn(f"v{__version__}", text)
         self.assertIn("1 steps in", text)
         self.assertIn(os.path.basename(d), text)
 
