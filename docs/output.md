@@ -260,25 +260,27 @@ directory for a remote target:
 ## How to read the output
 
 1. Start with the header and the findings.
-2. The watch list is the source files ranked by revisions × lines of code,
-   from `maat-revisions.csv` joined with scc's per-file size. The change log
-   follows renames, so a moved file is one entity under its new path and a pure
-   move adds no lines: whoever moved a tree to `src/` did not write it, and the
+2. The watch list is the source files ranked by revisions × lines of code, from
+   `maat-revisions.csv` joined with scc's per-file size. The change log follows
+   renames, so a moved file is one entity under its new path and a pure move
+   adds no lines: whoever moved a tree to `src/` did not write it, and the
    knowledge map says so. Large files that change constantly are your risk; the
    reasons say what else counts against each file, and the backtest line says
    how the same list would have done six months ago. The hotspots table behind
-   it, with every file and the trend column, is what `--full` and the Markdown
-   export add; by default the tables leave test files and deleted files out and
-   say how many, and `--full` shows them.
+   it, which `--full` and the Markdown export add, ranks every file by the same
+   product and carries the trend column; the Markdown export caps it and leaves
+   test files, deleted files, generated files and release plumbing out, saying
+   how many, and `--full` shows them all. The default report's own tables,
+   change coupling and complex functions, leave test files out the same way.
 3. Change coupling shows files that always change together. That usually
    means a hidden dependency or copy-pasted layout. A whole directory that
    changes as one is a generator or a shared layout, and shows as one row.
-4. People and the surviving-code table tell you whether knowledge is
-   concentrated in one or two people; the knowledge map says where. Areas
-   are top-level directories, or the subdirectories of a lone top-level one
-   such as `src/`. A directory the history knows but the tree no longer has
-   (the layout before a move to `src/` or `crates/`) is hidden from the map
-   with a count, and left out of the islands, bus-factor and knowledge-loss
-   findings; `--full` shows it.
+4. The People table's surviving-code column and the bus-factor and knowledge
+   findings tell you whether knowledge is concentrated in one or two people;
+   the knowledge map says where. Areas are top-level directories, or the
+   subdirectories of a lone top-level one such as `src/`. A directory the
+   history knows but the tree no longer has (the layout before a move to `src/`
+   or `crates/`) is hidden from the map with a count, and left out of the
+   islands, bus-factor and knowledge-loss findings; `--full` shows it.
 5. Repo health and secrets are pass or fail checks. Read them only if they
    flag something.
