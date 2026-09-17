@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Function-level metrics and duplicated blocks from lizard, over the tracked code files only.
+"""Function-level metrics from lizard, over the tracked code files only.
 
 Runs as its own process (a pipeline step) and drives lizard through its Python API rather
 than its command line: the file list never touches a shell or a list file, the analysed
 repository is never on sys.path, only files lizard has a reader for are measured, and the
-CSV is streamed so a killed step still leaves what was measured."""
+CSV is streamed so a killed step still leaves what was measured. Duplicated blocks are
+jscpd's job (duplicates.py); lizard's own finder kept a hash node per token and ran to gigabytes."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +14,6 @@ import os
 import sys
 
 import lizard
-from lizard_ext.lizardduplicate import LizardExtension as Duplicates
 
 try:
     from . import blame, filetypes
@@ -46,39 +46,15 @@ def csv_row(info, fn) -> list:
             f"{name}@{fn.start_line}-{fn.end_line}@{info.filename}", info.filename, name, _cut(fn.long_name, LONG_NAME_CAP), fn.start_line, fn.end_line]
 
 
-def write_duplicates(dup: Duplicates, fh) -> None:
-    """The layout `lizard -Eduplicate` prints, snippets in a stable order."""
-    fh.write("Duplicates\n===================================\n")
-    for block in dup.get_duplicates():
-        fh.write("Duplicate block:\n--------------------------\n")
-        for s in sorted(block, key=lambda s: (s.file_name, s.start_line)):
-            fh.write(f"{s.file_name}:{s.start_line} ~ {s.end_line}\n")
-        fh.write("^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n")
-    fh.write(f"Total duplicate rate: {(dup.duplicate_rate() or 0.0) * 100:.2f}%\n")
-    fh.write(f"Total unique rate: {(dup.unique_rate() or 0.0) * 100:.2f}%\n")
-
-
 def analyze(files: list, procs: int, exts: list):
-    """lizard.analyze_files, with one step between the per-file analysis and the cross-file
-    extensions: a file lizard could not read or finish (gone from disk, RecursionError) comes back
-    without the duplicate finder's hash_nodes, which would stop the whole pass at that file."""
-    def with_hash_nodes(infos):
-        for info in infos:
-            if not hasattr(info, "hash_nodes"):
-                info.hash_nodes = []
-            yield info
-    result = with_hash_nodes(lizard.map_files_to_analyzer(files, lizard.FileAnalyzer(exts), procs))
-    for ext in exts:
-        if hasattr(ext, "cross_file_process"):
-            result = ext.cross_file_process(result)
-    return result
+    """lizard.analyze_files without its extension bookkeeping: per-file analysis over `procs` workers."""
+    return lizard.map_files_to_analyzer(files, lizard.FileAnalyzer(exts), procs)
 
 
-def measure(repo: str, files: list, out: str, procs: int, duplicates: bool = False) -> int:
-    """Stream functions.csv while lizard runs, then duplicates.txt when the finder was on. Returns 0,
-    or 1 when lizard gave up on a file (whatever was measured by then stays on disk)."""
-    exts = lizard.get_extensions(["duplicate"] if duplicates else [])   # lizard's metric extensions, plus the duplicate finder on request
-    dup = next((e for e in exts if isinstance(e, Duplicates)), None)
+def measure(repo: str, files: list, out: str, procs: int) -> int:
+    """Stream functions.csv while lizard runs. Returns 0, or 1 when lizard gave up on a file (whatever
+    was measured by then stays on disk)."""
+    exts = lizard.get_extensions([])   # lizard's metric extensions
     rc = 0
     cwd = os.getcwd()
     os.chdir(repo)   # lizard opens the paths as given; relative ones keep the CSV repo-relative
@@ -93,9 +69,6 @@ def measure(repo: str, files: list, out: str, procs: int, duplicates: bool = Fal
             except Exception as e:  # lizard re-raises its parse failures; keep what we have
                 print(f"lizard stopped: {e!r}", file=sys.stderr)
                 rc = 1
-        if dup is not None:
-            with open(os.path.join(out, "duplicates.txt"), "w", encoding="utf-8") as fh:
-                write_duplicates(dup, fh)
     finally:
         os.chdir(cwd)
     return rc
@@ -108,10 +81,9 @@ def main(argv=None) -> int:
     p.add_argument("--procs", type=int, default=1)
     p.add_argument("--ignore", action="append", default=[])
     p.add_argument("--types", default=None, help="file types spec as for gitmole --file-types")
-    p.add_argument("--duplicates", action="store_true", help="also run the duplicate finder (slow and memory-hungry on a large repo)")
     args = p.parse_args(argv)
     files = select_files(args.repo, args.ignore, args.types)
-    return measure(os.path.abspath(args.repo), files, os.path.abspath(args.out), max(1, args.procs), args.duplicates)
+    return measure(os.path.abspath(args.repo), files, os.path.abspath(args.out), max(1, args.procs))
 
 
 if __name__ == "__main__":

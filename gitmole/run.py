@@ -18,11 +18,13 @@ from . import blame, filetypes, identity
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
 FUNCTIONS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "functions.py")
+DUPLICATES_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "duplicates.py")
 LEAKS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "leaks.py")
-# lizard's duplicate finder keeps a hash node per token, and every pool worker grows to 1.5-2 GB on a
-# large repo; the blame default (cores minus two) exhausted a 16 GB machine. Two workers is the ceiling
-# when it runs. Without it lizard is fast (well under a second per thousand files) and uses the blame workers.
-FUNCTIONS_MAX_PROCS = 2
+DEPS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "deps.py")
+# jscpd holds every token of every file it scans: about a gigabyte of memory per 25 MB of tracked text
+# (a 34 MB tree took 0.9 GB, a 171 MB tree of generated SQL took 4 GB, both in seconds). Past this much
+# text the duplicates step is skipped unless --deep asks for it.
+DUPLICATES_BUDGET_MB = 80
 
 MONTH = 30 * 24 * 3600  # git-of-theseus sampling interval in seconds
 
@@ -124,7 +126,7 @@ def env_path() -> str:
     return os.pathsep.join(parts + [os.environ.get("PATH", "")])
 
 
-REQUIRED_TOOLS = ["scc", "git-sizer", "betterleaks"]
+REQUIRED_TOOLS = ["scc", "git-sizer", "betterleaks", "jscpd", "osv-scanner"]
 PLOT_TOOLS = ["git-of-theseus-analyze"]
 
 
@@ -147,12 +149,13 @@ def has_lizard(finder=importlib.util.find_spec) -> bool:
 # Everything a run writes besides meta.json and run.log. Removed before each run so a reused
 # --out directory never shows a previous run's data as this run's (a step skipped or killed
 # this time would otherwise leave last time's file in place).
-OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "log.txt", "activity.json", "functions.csv", "duplicates.txt",
+OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "dependencies.json", "log.txt", "activity.json", "functions.csv",
+           "duplicates.json", "duplicates.txt",   # duplicates.txt: what lizard's finder wrote before jscpd
            "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]
 # directories a run writes: the backtest sub-report, and the temporary checkouts the trend and
-# backtest steps make under the output directory (a SIGKILL leaves those behind).
-OUTPUT_DIR_GLOBS = ["backtest", ".backtest-tree-*", ".trend-*"]
+# backtest steps make under the output directory, and jscpd's raw report (a SIGKILL leaves those behind).
+OUTPUT_DIR_GLOBS = ["backtest", ".backtest-tree-*", ".trend-*", ".jscpd-*"]
 
 
 def clear_outputs(out_dir: str) -> None:
@@ -172,7 +175,7 @@ def clear_outputs(out_dir: str) -> None:
 
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
-         lizard: bool = False, duplicates: bool = False, trend: bool = True, samples: int = 12, backtest: str = None) -> list:
+         lizard: bool = False, duplicates: bool = True, trend: bool = True, samples: int = 12, backtest: str = None) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
@@ -184,15 +187,16 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "betterleaks", "argv": [sys.executable, LEAKS_SCRIPT, o("secrets.json")], "stdout": None, "deps": []},   # hashes the values before anything is written
+        {"name": "osv-scanner", "argv": [sys.executable, DEPS_SCRIPT, o("dependencies.json")], "stdout": None, "deps": []},   # offline, against the local database
         {"name": "git-log", "argv": [*filetypes.GIT, "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN--%s", "-M"], "stdout": log, "deps": []},   # -M: a move is not an edit
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
+    workers = procs or blame.default_procs()
     if lizard:
-        workers = procs or blame.default_procs()
-        if duplicates:
-            workers = min(workers, FUNCTIONS_MAX_PROCS)
-        steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args,
-                                                    *(["--duplicates"] if duplicates else [])],
+        steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args],
+                      "stdout": None, "deps": []})
+    if duplicates:
+        steps.append({"name": "duplicates", "argv": [sys.executable, DUPLICATES_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args],
                       "stdout": None, "deps": []})
     if trend:
         steps.append({"name": "trend", "argv": [sys.executable, "-m", "gitmole.trend", out_dir, "--samples", str(samples)],
@@ -356,15 +360,26 @@ def _git(repo_dir: str, *args) -> str:
 
 
 def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int = 25, types=filetypes.DEFAULT) -> dict:
-    """Cost of the blame passes: a timed projection for the HEAD pass (seconds) and
-    tracked files times sampled commits for git-of-theseus (blames)."""
+    """Cost of the blame passes: a timed projection for the HEAD pass (seconds) and tracked files times
+    sampled commits for git-of-theseus (blames); and the bytes of tracked text jscpd would hold (text_bytes)."""
     files = len(_git(repo_dir, "ls-files").splitlines())
     times = [int(t) for t in _git(repo_dir, "log", "--format=%ct").split()]
     span = (max(times) - min(times)) if times else 0
     samples = min(len(times), span // interval + 1) if times else 0
     projection = blame.estimate(repo_dir, ignore=ignore, sample=sample, types=types)
     return {"files": files, "samples": samples, "blames": files * samples,
-            "seconds": projection["seconds"], "code_files": projection["files"]}
+            "seconds": projection["seconds"], "code_files": projection["files"], "text_bytes": text_bytes(repo_dir, ignore)}
+
+
+def text_bytes(repo_dir: str, ignore=()) -> int:
+    """Size on disk of the tracked text files, after the ignore globs: what the duplicates step scans."""
+    total = 0
+    for f in blame.text_files(repo_dir, ignore):
+        try:
+            total += os.path.getsize(os.path.join(repo_dir, f))
+        except OSError:
+            pass
+    return total
 
 
 def collect_meta(repo_dir: str, since: str = None) -> dict:

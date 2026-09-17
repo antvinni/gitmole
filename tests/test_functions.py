@@ -31,24 +31,20 @@ def make_repo(d, extra=()):
         fh.write("def untracked():\n    return 2\n")
 
 
-def run(d, *args, duplicates=True):
+def run(d, *args):
     out = os.path.join(d, "out")
     os.makedirs(out, exist_ok=True)
-    rc = functions.main([d, out, "--procs", "1", *(["--duplicates"] if duplicates else []), *args])
+    rc = functions.main([d, out, "--procs", "1", *args])
     with open(os.path.join(out, "functions.csv")) as fh:
         csv = fh.read()
-    dup = None
-    if os.path.exists(os.path.join(out, "duplicates.txt")):
-        with open(os.path.join(out, "duplicates.txt")) as fh:
-            dup = fh.read()
-    return rc, csv, dup
+    return rc, csv, sorted(os.listdir(out))
 
 
 class FunctionsScript(unittest.TestCase):
-    def test_measures_tracked_files_lizard_can_read_and_writes_both_outputs(self):
+    def test_measures_tracked_files_lizard_can_read(self):
         with tempfile.TemporaryDirectory() as d:
             make_repo(d)
-            rc, csv, dup = run(d, "--ignore", "vendor/**")
+            rc, csv, written = run(d, "--ignore", "vendor/**")
         self.assertEqual(rc, 0)
         self.assertIn('"tracked"', csv)
         self.assertIn('"fortran_sub"', csv, "every language lizard knows, not only gitmole's default code list")
@@ -56,16 +52,7 @@ class FunctionsScript(unittest.TestCase):
         self.assertNotIn("vendored", csv, "--ignore applies")
         self.assertNotIn("not_code", csv, "markdown is not code")
         self.assertNotIn("shelled", csv, "no lizard reader for shell: no guessing with the C-like fallback")
-        self.assertNotIn("Duplicates", csv, "the two outputs are separate files")
-        self.assertIn("Total duplicate rate", dup)
-
-    def test_duplicate_finder_is_opt_in(self):
-        with tempfile.TemporaryDirectory() as d:
-            make_repo(d)
-            rc, csv, dup = run(d, "--types", "py", "--ignore", "vendor/**", duplicates=False)
-        self.assertEqual(rc, 0)
-        self.assertIn('"tracked"', csv, "functions are still measured")
-        self.assertIsNone(dup, "no duplicates.txt: the finder did not run, so nothing pretends it did")
+        self.assertEqual(written, ["functions.csv"], "duplicates are jscpd's step, not lizard's")
 
     def test_a_huge_nested_name_is_cut_before_it_is_written(self):
         from types import SimpleNamespace
@@ -93,13 +80,12 @@ class FunctionsScript(unittest.TestCase):
         self.assertNotIn("tracked", csv)
         self.assertNotIn("fortran", csv)
 
-    def test_no_code_files_still_writes_empty_outputs(self):
+    def test_no_code_files_still_writes_an_empty_csv(self):
         with tempfile.TemporaryDirectory() as d:
             make_repo(d)
-            rc, csv, dup = run(d, "--ignore", "*.py", "--ignore", "*.js", "--ignore", "*.f90")
+            rc, csv, _ = run(d, "--ignore", "*.py", "--ignore", "*.js", "--ignore", "*.f90")
         self.assertEqual(rc, 0)
         self.assertEqual(csv, "")
-        self.assertIn("Total duplicate rate: 0.00%", dup)
 
     def test_a_lizard_module_in_the_analysed_repo_is_data_not_code_to_run(self):
         bomb = "import sys\nsys.stderr.write('REPO LIZARD RAN')\nsys.exit(7)\n"
@@ -114,19 +100,9 @@ class FunctionsScript(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             make_repo(d, extra={"b_gone.py": "def gone():\n    return 3\n", "c_after.py": "def after(a):\n    return a\n"})
             os.remove(os.path.join(d, "b_gone.py"))   # still in the index, no longer on disk
-            rc, csv, dup = run(d, "--types", "py", "--ignore", "vendor/**")
+            rc, csv, _ = run(d, "--types", "py", "--ignore", "vendor/**")
         self.assertEqual(rc, 0)
         self.assertIn('"after"', csv, "files after the unreadable one are still measured")
-        self.assertIn("Total duplicate rate", dup)
-
-    def test_duplicate_blocks_list_places_in_path_order(self):
-        body = "def f(x):\n" + "".join(f"    y{i} = x + {i}\n    if y{i} > {i}:\n        x = y{i}\n" for i in range(12)) + "    return x\n"
-        with tempfile.TemporaryDirectory() as d:
-            make_repo(d, extra={"z_copy.py": body, "a_copy.py": body})
-            rc, _, dup = run(d, "--types", "py", "--ignore", "vendor/**")
-        self.assertEqual(rc, 0)
-        self.assertIn("Duplicate block:", dup)
-        self.assertLess(dup.index("a_copy.py:"), dup.index("z_copy.py:"))
 
 
 if __name__ == "__main__":

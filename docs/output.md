@@ -29,7 +29,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    grew by a quarter in a year; a warning when the top one did),
    tightly coupled file pairs (a file and its test are expected to change
    together, so those pairs are left out), duplicated blocks of 30+ lines
-   (with `--duplicates`), a large share of stale files (files still in the
+   (jscpd, over the tracked code files; a block whose every copy is vendored
+   or generated is left out), vulnerable dependencies (see below), a large share of stale files (files still in the
    tree; deleted paths do not count), knowledge islands: areas of at least
    200 lines and 1% of the code written almost entirely by one person (a
    warning when such areas hold most of the code), and knowledge loss (people with no commits
@@ -37,13 +38,28 @@ How to read each part of the terminal report, and what each run writes to disk; 
    surviving code; a warning at 30%). An unconfigured identity is only
    flagged when it made at least 1% of the commits.
 
-   One check is also reported when it passes: a green `No secrets in
+   Two checks are also reported when they pass: a green `No secrets in
    history` line closes the panel whenever the betterleaks scan ran and
-   found no secret value, so a clean result is said out loud rather than
-   left to silence. It is not counted as a finding. When the scan did not
-   run, because the step was killed or `--no-run` points at an output
-   directory without `secrets.json`, the line is absent. The Markdown
-   export carries it as `**ok**`.
+   found no secret value, and a green `No known vulnerabilities in
+   dependencies` line whenever osv-scanner checked the lock files and found
+   nothing, so a clean result is said out loud rather than left to silence.
+   Neither is counted as a finding. When a scan did not run, because the
+   step was killed or `--no-run` points at an output directory without its
+   file, the line is absent. The Markdown export carries them as `**ok**`.
+
+   Vulnerable dependencies come from osv-scanner over the lock files,
+   offline against the local copy of the OSV database (see
+   [install.md](https://github.com/antvinni/gitmole/blob/main/docs/install.md#the-vulnerability-database)
+   for the one-time download). One row per package with an advisory: the
+   CVE or advisory id, the worst CVSS score, and the version that fixes it.
+   A package pinned by a lock file in the source tree is a warning, critical
+   when an advisory scores 9.0 or more; a package pinned only by a lock file
+   under tests, examples, docs or vendored code is a note. The advice names
+   the package to upgrade first. An advisory that does not apply to your
+   code is silenced in `osv-scanner.toml` at the repository root. The footer
+   line says how many packages in how many lock files were checked and how
+   old the database copy is; without lock files, or without the database, it
+   says that instead.
 
    Secrets are grouped by value, so one key copied into ten files is one
    entry with its places counted. A value found in any source file is
@@ -192,6 +208,7 @@ directory for a remote target:
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | betterleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
+| `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version), the database date; or a status: no lock files, no local database |
 | `log.txt` | git | the numstat log export the change analysis reads |
 | `maat-revisions.csv` | change analysis | change frequency per file |
 | `maat-coupling.csv` | change analysis | files that change together |
@@ -200,7 +217,7 @@ directory for a remote target:
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file |
 | `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
 | `functions.csv` | lizard | per-function complexity, length, parameters |
-| `duplicates.txt` | lizard, `--duplicates` only | duplicated blocks and the overall duplicate rate |
+| `duplicates.json` | jscpd | duplicated blocks over the tracked code files, largest first (the thousand largest), each with every place it appears, and the share of lines inside a block; no source text |
 | `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
 | `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |

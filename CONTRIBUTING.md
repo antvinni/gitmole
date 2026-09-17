@@ -51,9 +51,9 @@ The suite has conventions worth copying:
   `"AKIA" + "X" * 16`), never written as literals. betterleaks and GitHub
   push protection scan this repository too.
 - The external tools are not called in unit tests. A stub script on a
-  temporary `PATH` stands in for scc, git-sizer or betterleaks, records the
+  temporary `PATH` stands in for scc, git-sizer, betterleaks, jscpd or osv-scanner, records the
   arguments it was called with and prints a canned report; see the
-  `Script` class in `tests/test_leaks.py`.
+  `Script` classes in `tests/test_leaks.py`, `tests/test_duplicates.py` and `tests/test_deps.py`.
 - Only `tests/test_golden.py` runs the real tools, and it skips itself when
   they are not installed.
 - `GITMOLE_NOW=YYYY-MM-DD` fixes the reference date, so tests that depend on

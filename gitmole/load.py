@@ -169,8 +169,19 @@ _DUP_PLACE = re.compile(r"^(.+?):(\d+) ~ (\d+)$")
 _DUP_RATE = re.compile(r"Total duplicate rate:\s*([\d.]+)%")
 
 
+def parse_duplicates_json(data) -> dict | None:
+    """duplicates.json as the jscpd step writes it: the rate over the kept files and the blocks, largest
+    first, each place a (path, start, end) tuple. None when there is no such file."""
+    if not isinstance(data, dict):
+        return None
+    blocks = [{"lines": _num(b.get("lines")), "places": sorted(tuple(p[:3]) for p in b.get("places") or [] if len(p) >= 3)}
+              for b in data.get("blocks") or []]
+    rate = data.get("rate")
+    return {"rate": float(rate) if rate is not None else None, "blocks": blocks, "files": _num(data.get("files"))}
+
+
 def parse_duplicates(text: str) -> dict:
-    """lizard -Eduplicate output: blocks of 'path:start ~ end' lines and the overall rate."""
+    """lizard -Eduplicate output, which runs before 0.7 wrote: blocks of 'path:start ~ end' lines and the overall rate."""
     blocks, current = [], None
     for line in text.splitlines():
         line = line.rstrip()
@@ -203,6 +214,20 @@ def parse_secrets(text: str) -> list:
             value, placeholder = None, False
         out.append({"rule": r.get("RuleID", ""), "file": r.get("File", ""), "commit": r.get("Commit", "")[:7], "line": r.get("StartLine"),
                     "fingerprint": r.get("Fingerprint", ""), "value": value, "placeholder": placeholder})
+    return out
+
+
+def parse_dependencies(data) -> dict:
+    """dependencies.json as the osv-scanner step writes it, with a status: scanned (sources, packages,
+    vulnerable rows, database_date), no-sources, no-database, or not-run when there is no file."""
+    if not isinstance(data, dict) or not data.get("status"):
+        return {"status": "not-run"}
+    out = {"status": data["status"]}
+    if data["status"] == "scanned":
+        out.update({"sources": data.get("sources") or [], "packages": _num(data.get("packages")),
+                    "vulnerable": data.get("vulnerable") or [], "database_date": data.get("database_date")})
+    elif data["status"] == "no-database":
+        out["download"] = data.get("download") or ""
     return out
 
 
@@ -266,7 +291,10 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "secrets_scanned": os.path.exists(os.path.join(out_dir, "secrets.json")),
         "activity": _read_json(out_dir, "activity.json", {}),
         "functions": parse_functions(_read(out_dir, "functions.csv")),
-        "duplicates": parse_duplicates(_read(out_dir, "duplicates.txt")),
+        "duplicates": parse_duplicates_json(_read_json(out_dir, "duplicates.json", None)) or parse_duplicates(_read(out_dir, "duplicates.txt")),
+        # the osv-scanner step writes the file whatever it found (no lock files, no local database, a
+        # scan); a missing file means the step did not finish or the run predates it
+        "dependencies": parse_dependencies(_read_json(out_dir, "dependencies.json", None)),
         "trend": _read_json(out_dir, "trend.json", {"samples": [], "files": {}}),
         "backtest": load_report(os.path.join(out_dir, "backtest"), nested=False)
                     if nested and os.path.isfile(os.path.join(out_dir, "backtest", "meta.json")) else None,

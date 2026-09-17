@@ -4,7 +4,7 @@ Setting up a checkout, running the tests, cutting a release, and where the code 
 
 ## Setup
 
-Homebrew for the three tools, `brew install scc git-sizer betterleaks`.
+Homebrew for the five tools, `brew install scc git-sizer betterleaks jscpd osv-scanner`.
 Then either a virtual environment with `pip install -e .`, or the checkout
 style: `python3 -m pip install --user rich lizard` and
 `ln -sfn "$PWD/bin/gitmole" "$(brew --prefix)/bin/gitmole"`, which makes
@@ -83,7 +83,9 @@ age, ownership over the numstat log; the file names still say maat because
 the layout matches what code-maat produced), `blame.py` is the standalone
 code-age pass (its output mimics git-of-theseus so one loader serves both),
 `leaks.py` runs betterleaks and hashes the values before anything is
-written, `identity.py` merges author aliases, `load.py` parses the outputs,
+written, `duplicates.py` runs jscpd and keeps the blocks without their text,
+`deps.py` runs osv-scanner offline and keeps one row per vulnerable package,
+`identity.py` merges author aliases, `load.py` parses the outputs,
 `findings.py` holds the heuristics, `coupling.py` folds a directory that
 changes as one into a cluster, `clean.py` finds and removes what gitmole
 left behind, and `render.py` draws the report.

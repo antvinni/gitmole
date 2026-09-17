@@ -37,7 +37,7 @@ def parse_args(argv):
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
     p.add_argument("--clean", action="store_true", help="list the directories gitmole created (temp clones, analysis-* under the target) and delete them after a y/N question, then exit")
     p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
-    p.add_argument("--duplicates", action="store_true", help="also look for duplicated code blocks (minutes and gigabytes on a large repo; function metrics alone take seconds)")
+    p.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
     p.add_argument("--full", action="store_true", help="every column and every row in the terminal report, and the test files the default tables hide (the default is the tighter, readable one)")
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
@@ -100,7 +100,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     missing = tool_check(plots=args.plots)
     if missing:
         err.print("[red]missing tools:[/red] " + ", ".join(missing))
-        err.print("brew install scc git-sizer betterleaks; see README.md for other ways")
+        err.print(f"brew install {' '.join(run.REQUIRED_TOOLS)}; see README.md for other ways")
         return 2
     args.lizard = lizard_check()   # decided once, for every repository this run analyses
 
@@ -269,12 +269,17 @@ def _list_file_types(repo_dir: str, args, console: Console) -> int:
     return 0
 
 
-def _budgets(args, estimate, ui) -> tuple[bool, bool, float]:
-    """Decide whether code age and plots fit their time/size budgets, printing a skip notice for each
-    one cut. The projected blame time comes back with them: meta.json records it."""
+def _budgets(args, estimate, ui) -> tuple[bool, bool, float, bool]:
+    """Decide whether code age, plots and the duplicates step fit their time/size budgets, printing a
+    skip notice for each one cut. The projected blame time comes back with them: meta.json records it."""
     projected = float(estimate.get("seconds", 0.0))
     age_ok = args.deep or projected <= args.time_budget
     plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
+    text_mb = estimate.get("text_bytes", 0) / 1e6
+    duplicates_ok = args.deep or text_mb <= run.DUPLICATES_BUDGET_MB
+    if not duplicates_ok:
+        ui.print(f"[yellow]duplicates skipped:[/yellow] {text_mb:,.0f} MB of tracked text is over the {run.DUPLICATES_BUDGET_MB} MB budget; "
+                 f"jscpd would need about {text_mb / 25:,.0f} GB of memory. Rerun with --deep to force it, or --ignore-data to shrink it.")
     if not age_ok:
         ui.print(f"[yellow]code age skipped:[/yellow] a blame pass over {estimate.get('code_files', estimate['files']):,} files is projected "
                  f"to take about {projected:,.0f}s, over the {args.time_budget:,.0f}s time budget. "
@@ -283,10 +288,10 @@ def _budgets(args, estimate, ui) -> tuple[bool, bool, float]:
         ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
                  f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
                  f"Rerun with --deep to force them, or --ignore-data to shrink them.")
-    return age_ok, plots_ok, projected
+    return age_ok, plots_ok, projected, duplicates_ok
 
 
-def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, projected: float) -> tuple[dict, str | None]:
+def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, projected: float, duplicates_ok: bool = True) -> tuple[dict, str | None]:
     """Collect this run's meta.json: repo facts plus a planned status record for every optional step.
     Raises NoCommits when --since leaves no commits to analyse."""
     types_spec = _types_spec(args.file_types)
@@ -308,6 +313,8 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
     lizard_ok = args.lizard
     meta["functions"] = {"status": "planned" if lizard_ok else "skipped"}   # "run" only once the step has finished
+    meta["duplicates"] = {"status": "planned" if duplicates_ok else "skipped", "text_mb": round(estimate.get("text_bytes", 0) / 1e6, 1),
+                          "budget_mb": run.DUPLICATES_BUDGET_MB}
     meta["trend"] = {"status": "planned"}
     from . import maat as _maat
     cut = _maat.months_before(meta["last_date"], 6) if meta["last_date"] else None
@@ -320,7 +327,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     return meta, cut
 
 
-def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: bool, cut) -> None:
+def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: bool, cut, duplicates_ok: bool = True) -> None:
     """Turn each planned step's exit code into its final status: run, timeout or failed."""
     def status(step, default="run"):
         rc = results.get(step, 0)
@@ -331,6 +338,8 @@ def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: boo
         meta["plots"]["status"] = status("git-of-theseus")
     if lizard_ok:
         meta["functions"]["status"] = status("functions")
+    if duplicates_ok and "duplicates" in results:
+        meta["duplicates"]["status"] = status("duplicates")
     if "trend" in results:
         meta["trend"]["status"] = status("trend")
     if cut and "backtest" in results:
@@ -345,14 +354,14 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
 
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
     estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types))
-    age_ok, plots_ok, projected = _budgets(args, estimate, ui)
+    age_ok, plots_ok, projected, duplicates_ok = _budgets(args, estimate, ui)
 
-    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected)
+    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected, duplicates_ok)
     types_spec = meta["file_types"]
     lizard_ok = args.lizard
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
-                    since=args.since_date, lizard=lizard_ok, duplicates=args.duplicates, backtest=cut)
+                    since=args.since_date, lizard=lizard_ok, duplicates=duplicates_ok, backtest=cut)
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
     if _control.cancelled.is_set():
@@ -360,7 +369,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         ui.print(f"[red]interrupted:[/red] killed {len(killed)} step(s)")
         raise Interrupted()
 
-    _record_statuses(meta, results, age_ok, plots_ok, lizard_ok, cut)
+    _record_statuses(meta, results, age_ok, plots_ok, lizard_ok, cut, duplicates_ok)
     run.save_meta(meta, out_dir)
 
     failed = [n for n, rc in results.items() if rc != 0]

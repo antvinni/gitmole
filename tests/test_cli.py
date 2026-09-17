@@ -93,7 +93,7 @@ class FunctionMetrics(unittest.TestCase):
         self.assertEqual(meta["age"]["status"], "failed")
 
     def test_every_previous_output_is_cleared_before_a_run(self):
-        stale = ("functions.csv", "duplicates.txt", "theseus/cohorts.json", "maat-revisions.csv", "size.json")
+        stale = ("functions.csv", "duplicates.json", "dependencies.json", "theseus/cohorts.json", "maat-revisions.csv", "size.json")
         _, _, left = self._main(False, [], stale=stale)
         self.assertEqual(left, ["meta.json", "run.log"], "last run's outputs must not pass for this run's")
 
@@ -453,19 +453,49 @@ class GoneWindow(unittest.TestCase):
 
 
 class Duplicates(unittest.TestCase):
-    def test_off_by_default_and_on_with_the_flag(self):
-        def planned(*extra):
-            calls = []
-            with tempfile.TemporaryDirectory() as d:
-                _tiny_repo(d)
-                def planner(repo, out, branch="HEAD", **kw):
-                    calls.append(kw)
-                    return [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
-                cli.main([d, "--out", os.path.join(d, "out"), *extra], console=console(), tool_check=lambda **kw: [], planner=planner,
-                         estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
-            return calls[0]["duplicates"]
-        self.assertFalse(planned())
-        self.assertTrue(planned("--duplicates"))
+    def _main(self, extra, estimate, plan_calls):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = console()
+            def planner(repo, out, branch="HEAD", **kw):
+                plan_calls.append(kw)
+                return [{"name": "duplicates", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}]
+            rc = cli.main([d, "--out", os.path.join(d, "out"), *extra], console=c, tool_check=lambda **kw: [], planner=planner,
+                          estimator=lambda repo, interval, **kw: estimate)
+            with open(os.path.join(d, "out", "meta.json")) as fh:
+                meta = json.load(fh)
+        return rc, c.export_text(), meta
+
+    SMALL = {"files": 100, "samples": 5, "blames": 500, "seconds": 0.4, "text_bytes": 34_000_000}
+    HUGE = {"files": 40000, "samples": 5, "blames": 500, "seconds": 0.4, "text_bytes": 171_000_000}
+
+    def test_on_by_default_and_recorded(self):
+        calls = []
+        _, text, meta = self._main([], self.SMALL, calls)
+        self.assertTrue(calls[0]["duplicates"])
+        self.assertEqual(meta["duplicates"], {"status": "run", "text_mb": 34.0, "budget_mb": run.DUPLICATES_BUDGET_MB})
+        self.assertNotIn("duplicates skipped", text)
+
+    def test_skipped_over_the_text_budget_unless_deep(self):
+        calls = []
+        _, text, meta = self._main([], self.HUGE, calls)
+        self.assertFalse(calls[0]["duplicates"])
+        self.assertEqual(meta["duplicates"]["status"], "skipped")
+        self.assertIn("duplicates skipped: 171 MB of tracked text is over the 80 MB budget", text)
+        self.assertIn("jscpd would need about 7 GB", text)
+        self.assertIn("--deep", text)
+        calls = []
+        _, text, meta = self._main(["--deep"], self.HUGE, calls)
+        self.assertTrue(calls[0]["duplicates"])
+        self.assertEqual(meta["duplicates"]["status"], "run")
+
+    def test_an_estimate_without_a_text_size_runs_it(self):
+        calls = []
+        self._main([], {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0}, calls)
+        self.assertTrue(calls[0]["duplicates"])
+
+    def test_the_old_flag_still_parses(self):
+        self.assertTrue(cli.parse_args(["x", "--duplicates"]).duplicates, "an older CI line must not break")
 
 
 class ReferenceDate(unittest.TestCase):
@@ -588,7 +618,7 @@ class Arguments(unittest.TestCase):
         text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("scc", text)
-        self.assertIn("brew install", text)
+        self.assertIn("brew install scc git-sizer betterleaks jscpd osv-scanner", text)
         self.assertNotIn("jar", text)
 
 

@@ -29,6 +29,8 @@ def sample_report():
         "functions": [{"file": "static/js/app.js", "function": "render", "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200},
                       {"file": "static/js/util.js", "function": "tidy", "ccn": 12, "nloc": 30, "params": 1, "start": 1, "end": 31}],
         "duplicates": {"rate": 1.5, "blocks": []},
+        "dependencies": {"status": "scanned", "sources": [{"path": "package-lock.json", "packages": 120}, {"path": "uv.lock", "packages": 31}],
+                         "packages": 151, "vulnerable": [], "database_date": "2026-09-16"},
         "ownership": [{"entity": "static/a.html", "author": "Ann", "added": 900, "deleted": 0},
                       {"entity": "static/b.html", "author": "Bob", "added": 100, "deleted": 0},
                       {"entity": "tests/t.py", "author": "Bob", "added": 300, "deleted": 0}],
@@ -91,6 +93,36 @@ class Report(unittest.TestCase):
         r["secrets"] = [{"rule": "r", "file": "a.py", "commit": "c1", "line": 1, "fingerprint": "c1:a.py", "value": "h1", "placeholder": False}]
         f = [{"severity": "critical", "title": "1 secret(s) in history", "detail": "x"}]
         self.assertNotIn("No secrets in history", rendered(r, f))
+
+    def test_a_clean_dependency_scan_is_said_out_loud_and_in_the_footer(self):
+        text = rendered(sample_report(), [])
+        self.assertIn("✔ No known vulnerabilities in dependencies", text)
+        self.assertIn("osv-scanner checked 151 packages in 2 lock files against the local database from 2026-09-16", text)
+        self.assertIn("Dependencies: 151 packages in 2 lock files, none vulnerable (database from 2026-09-16)", text)
+        self.assertLess(text.index("No secrets in history"), text.index("No known vulnerabilities"), "secrets first")
+
+    def test_vulnerable_packages_drop_the_pass_line_and_count_in_the_footer(self):
+        r = sample_report()
+        r["dependencies"]["vulnerable"] = [{"name": "lodash", "version": "4.17.15", "source": "package-lock.json", "score": 7.2, "fixed": "4.17.21",
+                                            "ids": ["GHSA-1"], "aliases": ["CVE-2021-23337"], "severity": "high", "ecosystem": "npm", "advisories": 1, "summary": ""}]
+        text = rendered(r, [])
+        self.assertNotIn("No known vulnerabilities", text)
+        self.assertIn("Dependencies: 151 packages in 2 lock files, 1 vulnerable (database from 2026-09-16)", text)
+
+    def test_the_footer_says_why_dependencies_were_not_scanned(self):
+        r = sample_report()
+        r["dependencies"] = {"status": "no-sources"}
+        text = rendered(r, [])
+        self.assertIn("Dependencies: no lock files found", text)
+        self.assertNotIn("No known vulnerabilities", text, "nothing was checked")
+        r["dependencies"] = {"status": "no-database", "download": "osv-scanner scan source -r --offline-vulnerabilities --download-offline-databases ."}
+        text = rendered(r, [])
+        self.assertIn("Dependencies: not scanned, no offline vulnerability database; run once in the clone: osv-scanner scan source -r", text)
+        self.assertIn("--offline-vulnerabilities --download-offline-databases .", text)
+        r["dependencies"] = {"status": "not-run"}
+        text = rendered(r, [])
+        self.assertNotIn("Dependencies:", text, "an output directory from before the step says nothing")
+        self.assertIn("Secrets: none found", text)
 
     def test_tables_show_people_hotspots_coupling_age_and_health(self):
         text = rendered(sample_report(), [], full=True)
