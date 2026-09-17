@@ -10,7 +10,7 @@ Any stack. Free. Offline. No token. No AI. Light.
 
 - **Free.** MIT licence, no paid tier, no account. The tools it runs are open source too.
 - **Any stack.** It reads what every repository has: the git log, git blame and the files themselves.
-- **Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home.
+- **Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home; the vulnerability database is a copy you download once.
 - **No token.** A local clone needs no credentials. The optional `owner/repo` shortcut uses the `gh` login you already have, and you ask for it.
 - **No AI.** Every finding is a plain rule over counts you can recompute by hand. The same clone gives the same report every time.
 - **Light.** A 4,400-commit repository takes under thirty seconds. A few thousand lines of Python plus two libraries.
@@ -18,12 +18,12 @@ Any stack. Free. Offline. No token. No AI. Light.
 ## Install
 
 ```bash
-# macOS, or Linux with Homebrew: gitmole and the three tools it runs
+# macOS, or Linux with Homebrew: gitmole and the five tools it runs
 brew tap antvinni/gitmole https://github.com/antvinni/gitmole
 brew trust antvinni/gitmole
 brew install gitmole
 
-# anywhere else: scc, git-sizer and betterleaks on your PATH, then
+# anywhere else: scc, git-sizer, betterleaks, jscpd and osv-scanner on your PATH, then
 pipx install gitmole
 ```
 
@@ -56,31 +56,31 @@ Running `gitmole .` inside this repository:
 
 ```text
 ╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 135 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                           │
-│ 7,002 lines in 44 files  ·  Python, Ruby                                                         │
+│ 185 commits  ·  2026-09-15 → 2026-09-17  ·  1 identity  ·  branch main                           │
+│ 9,475 lines in 52 files  ·  Python, Ruby                                                         │
 │ most commits on Wed at 20:00  ·  4% of commits are fixes  ·  100% of surviving code from 2026    │
 │ 3 warnings, 1 note                                                                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Findings (4) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ▲ Bus factor of one                                                                              │
 │   vinni wrote 100% of the code that survives today                                               │
-│   ↳ Pair someone with vinni on gitmole/ and build/ first; they are 100% and 100% theirs.         │
+│   ↳ Pair someone with vinni on gitmole/ first; it is 100% theirs.                                │
 │ ▲ Hotspots getting more complex                                                                  │
-│   4 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+160%),      │
-│   gitmole/cli.py (+32%), gitmole/findings.py (+266%), gitmole/run.py (+26%)                      │
-│   ↳ Split gitmole/render.py before the next change; its complexity grew 160% in a year.          │
+│   4 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+194%),      │
+│   gitmole/findings.py (+360%), gitmole/cli.py (+64%), gitmole/run.py (+34%)                      │
+│   ↳ Split gitmole/render.py before the next change; its complexity grew 194% in a year.          │
 │ ▲ Knowledge islands                                                                              │
-│   2 area(s) with at least 200 lines were written almost entirely by one person: gitmole/ (vinni  │
-│   100%); build/ (vinni 100%). That is 97% of all lines added                                     │
-│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 5,371 lines.                 │
+│   1 area(s) with at least 200 lines were written almost entirely by one person: gitmole/ (vinni  │
+│   100%). That is 98% of all lines added                                                          │
+│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 7,607 lines.                 │
 │ ● Bug magnets                                                                                    │
-│   4 file(s) were fixed 3+ times in the last six months: gitmole/cli.py (3 recent, 3 total);      │
-│   gitmole/findings.py (3 recent, 3 total); gitmole/render.py (3 recent, 3 total); gitmole/run.py │
-│   (3 recent, 3 total)                                                                            │
-│   ↳ Review gitmole/cli.py and gitmole/findings.py before the next release; expect the next bug   │
+│   5 file(s) were fixed 3+ times in the last six months: gitmole/load.py (4 recent, 4 total);     │
+│   gitmole/cli.py (3 recent, 3 total); gitmole/findings.py (3 recent, 3 total); gitmole/render.py │
+│   (3 recent, 3 total); gitmole/run.py (3 recent, 3 total)                                        │
+│   ↳ Review gitmole/load.py and gitmole/cli.py before the next release; expect the next bug       │
 │   there.                                                                                         │
 │ ✔ No secrets in history                                                                          │
-│   betterleaks scanned every commit on every branch                                               │
+│   betterleaks scanned every commit on every branch; 28 placeholder-shaped hits left out          │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -106,8 +106,10 @@ you about a clone.
 | Where is the risk: hotspots, coupling, ownership | gitmole's own change analysis over `git log --numstat` | built in |
 | How old is the surviving code, per year and author | gitmole's own blame pass (one `git blame` per file at HEAD) | built in |
 | Code-age and survival plots over time | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip, opt-in with `--plots` |
-| Per-function complexity, length, parameters; duplicated blocks with `--duplicates` | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
+| Per-function complexity, length, parameters | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
+| Which blocks of code appear more than once | [jscpd](https://github.com/kucherenko/jscpd) | brew |
 | Have secrets ever been committed | [betterleaks](https://github.com/betterleaks/betterleaks) | brew |
+| Do the dependencies have known vulnerabilities | [osv-scanner](https://github.com/google/osv-scanner), offline against a local copy of the OSV database | brew, plus a one-time database download |
 
 Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/blob/main/docs/tools.md).
 
@@ -124,7 +126,9 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 ## Safety
 
 - Everything is offline except the optional clone step, which uses your
-  existing gh auth. None of the tools send data anywhere.
+  existing gh auth. None of the tools send data anywhere; osv-scanner runs
+  against a local copy of its database that you download once, and gitmole
+  never downloads it for you.
 - Remote targets are cloned into a fresh temp directory that is removed when
   the run ends. Local clones are only read, but the log export and the
   secrets scan touch all branches. `gitmole --clean` lists every directory

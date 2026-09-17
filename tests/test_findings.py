@@ -540,8 +540,70 @@ class Duplication(unittest.TestCase):
     def test_a_partial_run_says_there_may_be_more(self):
         dup = {"rate": 4.2, "blocks": [{"lines": 71, "places": [("a/x.py", 10, 80), ("b/y.py", 5, 75)]}]}
         r = report(duplicates=dup)
+        r["meta"]["duplicates"] = {"status": "failed"}
+        self.assertIn("4.2% of lines are duplicated. Duplicate detection failed part way, so there may be more. Extract", findings.duplication(r)[0]["detail"])
+        r["meta"]["duplicates"] = {"status": "run"}
         r["meta"]["functions"] = {"status": "failed"}
-        self.assertIn("4.2% of lines are duplicated. Function metrics failed part way, so there may be more. Extract", findings.duplication(r)[0]["detail"])
+        self.assertNotIn("part way", findings.duplication(r)[0]["detail"], "lizard's status says nothing about jscpd's step")
+
+    def test_a_block_whose_every_copy_is_vendored_or_generated_is_not_this_repositorys(self):
+        dup = {"rate": 4.2, "blocks": [{"lines": 71, "places": [("vendor/a.py", 10, 80), ("vendor/b.py", 5, 75)]},
+                                       {"lines": 50, "places": [("dist/app.js", 1, 50), ("dist/app.min.js", 1, 50)]},
+                                       {"lines": 40, "places": [("src/mine.py", 1, 40), ("vendor/a.py", 100, 139)]}]}   # sorted, as the loader gives them
+        r = report(duplicates=dup)
+        r["meta"]["generated"] = ["dist/app.js", "dist/app.min.js"]   # as the run records them
+        f = findings.duplication(r)
+        self.assertEqual(f[0]["advice"], "Extract the 40-line block shared by src/mine.py and vendor/a.py first.")
+        self.assertIn("1 block(s)", f[0]["detail"])
+
+
+class VulnerableDependencies(unittest.TestCase):
+    def row(self, name, version, source, score=7.5, fixed="9.9.9", aliases=("CVE-2024-1",), ids=("GHSA-x",)):
+        sev = "critical" if score is not None and score >= 9 else "high" if score is not None and score >= 7 else "unknown"
+        return {"name": name, "version": version, "ecosystem": "npm", "source": source, "ids": list(ids), "aliases": list(aliases),
+                "advisories": 1, "score": score, "severity": sev, "summary": "", "fixed": fixed}
+
+    def deps(self, rows):
+        return {"status": "scanned", "sources": [{"path": r["source"], "packages": 10} for r in rows], "packages": 10 * len(rows),
+                "vulnerable": rows, "database_date": "2026-09-17"}
+
+    def test_a_vulnerable_package_in_a_source_lock_file_is_a_warning_naming_the_fix(self):
+        r = report(dependencies=self.deps([self.row("lodash", "4.17.15", "frontend/yarn.lock", score=7.2, fixed="4.17.21")]))
+        [f] = findings.vulnerable_dependencies(r)
+        self.assertEqual((f["severity"], f["title"]), ("warning", "Vulnerable dependencies"))
+        self.assertIn("1 vulnerable package in 1 lock file: lodash 4.17.15 (CVE-2024-1, 7.2, fixed in 4.17.21) in frontend/yarn.lock.", f["detail"])
+        self.assertEqual(f["advice"], "Upgrade lodash to 4.17.21 in frontend/yarn.lock first; it scores 7.2. " + findings.IGNORE_DEPS)
+
+    def test_a_critical_score_makes_it_critical_and_the_worst_leads(self):
+        rows = [self.row("minimist", "0.0.8", "package-lock.json", score=9.8, fixed="1.2.6"), self.row("lodash", "4.17.15", "package-lock.json", score=7.2)]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        self.assertEqual(f["severity"], "critical")
+        self.assertTrue(f["advice"].startswith("Upgrade minimist to 1.2.6 in package-lock.json first; it scores 9.8."), f["advice"])
+        self.assertIn("2 vulnerable packages in 1 lock file", f["detail"])
+
+    def test_test_example_and_vendored_lock_files_are_a_note_apart(self):
+        rows = [self.row("a", "1", "tests/e2e/yarn.lock", score=9.8), self.row("b", "1", "examples/demo/Cargo.lock", score=None, fixed=None, aliases=()),
+                self.row("c", "1", "uv.lock", score=5.0)]
+        found = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        self.assertEqual([f["severity"] for f in found], ["warning", "info"])
+        self.assertIn("only in test, example or vendored lock files", found[1]["title"])
+        self.assertIn("b 1 (GHSA-x, no fix yet) in examples/demo/Cargo.lock", found[1]["detail"])
+        self.assertIn("a 1 (CVE-2024-1, 9.8, fixed in 9.9.9) in tests/e2e/yarn.lock", found[1]["detail"])
+
+    def test_no_fix_yet_changes_the_advice(self):
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps([self.row("x", "1", "go.sum", score=None, fixed=None)])))
+        self.assertEqual(f["severity"], "warning")
+        self.assertTrue(f["advice"].startswith("Look at x in go.sum first, which has no fixed version yet."), f["advice"])
+
+    def test_more_than_three_are_counted(self):
+        rows = [self.row(f"p{i}", "1", "package-lock.json", score=5.0) for i in range(5)]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        self.assertIn("p2 1 (CVE-2024-1, 5.0, fixed in 9.9.9) in package-lock.json and 2 more.", f["detail"])
+
+    def test_nothing_without_a_scan_or_without_vulnerable_packages(self):
+        self.assertEqual(findings.vulnerable_dependencies(report()), [])
+        self.assertEqual(findings.vulnerable_dependencies(report(dependencies={"status": "no-database"})), [])
+        self.assertEqual(findings.vulnerable_dependencies(report(dependencies=self.deps([]))), [])
 
 
 class KnowledgeIslands(unittest.TestCase):
@@ -812,12 +874,16 @@ class Advice(unittest.TestCase):
                    functions=[{"file": "a.py", "function": "go", "ccn": 20, "nloc": 150, "params": 2, "start": 1, "end": 150}],
                    coupling=[{"entity": "a.py", "coupled": "b.py", "degree": 90, "average-revs": 11}],
                    duplicates={"rate": 4.2, "blocks": [{"lines": 71, "places": [("a.py", 10, 80), ("b.py", 5, 75)]}]},
+                   dependencies={"status": "scanned", "sources": [{"path": "uv.lock", "packages": 3}], "packages": 3, "database_date": None,
+                                 "vulnerable": [{"name": "x", "version": "1", "ecosystem": "PyPI", "source": "uv.lock", "ids": ["GHSA-1"], "aliases": [],
+                                                 "advisories": 1, "score": 8.0, "severity": "high", "summary": "", "fixed": "2"}]},
                    age=[{"entity": "a.py", "age-months": 30}, {"entity": "b.py", "age-months": 0}],
                    ownership=[{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0}])
         r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 5, "aliases": [{"name": "root", "email": "root@localhost", "commits": 1}]}]
         found = findings.evaluate(r)
         self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Repo health", "Bug magnets", "Brain methods", "Duplicated code",
-                                                      "A large share of files is untouched", "Unconfigured git identity", "Knowledge islands"}, True)
+                                                      "A large share of files is untouched", "Unconfigured git identity", "Knowledge islands",
+                                                      "Vulnerable dependencies"}, True)
         for f in found:
             self.assertTrue(f.get("advice"), f["title"])
             self.assertTrue(f["detail"].endswith(" " + f["advice"]), f["detail"])

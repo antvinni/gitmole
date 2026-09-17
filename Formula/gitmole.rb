@@ -10,6 +10,8 @@ class Gitmole < Formula
 
   depends_on "betterleaks"
   depends_on "git-sizer"
+  depends_on "jscpd"
+  depends_on "osv-scanner"
   depends_on "python@3.14"
   depends_on "scc"
 

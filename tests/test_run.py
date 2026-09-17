@@ -227,30 +227,39 @@ class Plan(unittest.TestCase):
         self.assertEqual(argv[:4], [sys.executable, run.FUNCTIONS_SCRIPT, "/r", "/o"])
         self.assertEqual(argv[argv.index("--ignore") + 1], "vendor/**")
         self.assertEqual(argv[argv.index("--types") + 1], "py,sql")
-        self.assertIsNone(by["functions"]["stdout"], "the script writes functions.csv and duplicates.txt itself")
-        self.assertNotIn("duplicates", by, "one lizard pass produces both")
+        self.assertIsNone(by["functions"]["stdout"], "the script writes functions.csv itself")
+        self.assertNotIn("--duplicates", argv, "lizard's finder is gone; jscpd has its own step")
         self.assertNotIn("functions", [s["name"] for s in run.plan("/r", "/o", lizard=False)])
 
-    def test_function_metrics_use_the_blame_workers_without_the_duplicate_finder(self):
+    def test_function_metrics_use_the_blame_workers(self):
         def step(**kw):
             return {s["name"]: s for s in run.plan("/r", "/o", lizard=True, **kw)}["functions"]["argv"]
         argv = step(procs=8)
         self.assertEqual(argv[argv.index("--procs") + 1], "8")
-        self.assertNotIn("--duplicates", argv, "duplicate detection is opt-in")
         argv = step()
         self.assertEqual(argv[argv.index("--procs") + 1], str(blame.default_procs()))
 
-    def test_duplicate_finder_is_forwarded_and_caps_the_workers_at_two(self):
-        # lizard's duplicate finder keeps a hash node per token; each worker grows to 1.5-2 GB on a
-        # large repo, and the default worker count exhausted a 16 GB machine.
-        def procs_for(**kw):
-            argv = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, duplicates=True, **kw)}["functions"]["argv"]
-            self.assertIn("--duplicates", argv)
-            return argv[argv.index("--procs") + 1]
-        self.assertEqual(run.FUNCTIONS_MAX_PROCS, 2)
-        self.assertEqual(procs_for(procs=8), "2", "an explicit larger count is clamped")
-        self.assertEqual(procs_for(procs=1), "1", "a smaller count is kept")
-        self.assertEqual(procs_for(), str(min(2, blame.default_procs())), "the default is clamped too")
+    def test_duplicates_step_runs_the_jscpd_wrapper_by_default_with_the_same_selection_as_lizard(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", ignore=["vendor/**"], types="py,sql", procs=3)}
+        argv = by["duplicates"]["argv"]
+        self.assertEqual(argv[:4], [sys.executable, run.DUPLICATES_SCRIPT, "/r", "/o"])
+        self.assertEqual(argv[argv.index("--procs") + 1], "3")
+        self.assertEqual(argv[argv.index("--ignore") + 1], "vendor/**")
+        self.assertEqual(argv[argv.index("--types") + 1], "py,sql")
+        self.assertEqual(by["duplicates"]["deps"], [], "independent of lizard: it runs without it")
+        self.assertIsNone(by["duplicates"]["stdout"], "the wrapper writes duplicates.json itself")
+        self.assertNotIn("duplicates", [s["name"] for s in run.plan("/r", "/o", duplicates=False)], "the size budget can switch it off")
+        self.assertIn("duplicates.json", run.OUTPUTS)
+        self.assertIn(".jscpd-*", run.OUTPUT_DIR_GLOBS, "jscpd's raw report directory, when a kill leaves it behind")
+
+    def test_osv_scanner_runs_through_the_bundled_wrapper(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o")}
+        argv = by["osv-scanner"]["argv"]
+        self.assertEqual(argv[0], sys.executable)
+        self.assertTrue(argv[1].endswith("gitmole/deps.py"), argv)
+        self.assertEqual(argv[2:], ["/o/dependencies.json"])
+        self.assertEqual(by["osv-scanner"]["deps"], [])
+        self.assertIn("dependencies.json", run.OUTPUTS)
 
     def test_betterleaks_runs_through_the_bundled_wrapper_so_raw_secrets_never_reach_disk(self):
         by = {s["name"]: s for s in run.plan("/r", "/o")}
@@ -305,9 +314,9 @@ class Plan(unittest.TestCase):
         self.assertTrue(argv[1].endswith("gitmole/maat.py"), argv)
         self.assertEqual(argv[2:], ["/o/log.txt", "/o", "--aliases", "/o/meta.json"])
 
-    def test_only_three_tools_required_by_default_and_theseus_with_plots(self):
+    def test_five_tools_required_by_default_and_theseus_with_plots(self):
         """Checked against a directory of stub executables, not this machine's PATH."""
-        self.assertEqual(run.REQUIRED_TOOLS, ["scc", "git-sizer", "betterleaks"])
+        self.assertEqual(run.REQUIRED_TOOLS, ["scc", "git-sizer", "betterleaks", "jscpd", "osv-scanner"])
         with tempfile.TemporaryDirectory() as d:
             for name in run.REQUIRED_TOOLS:
                 stub = os.path.join(d, name)
@@ -319,7 +328,7 @@ class Plan(unittest.TestCase):
             open(stub, "w").close()
             os.chmod(stub, 0o755)
             self.assertEqual(run.missing_tools(plots=True, path=d), [])
-        self.assertEqual(run.missing_tools(plots=True, path="/nonexistent"), ["scc", "git-sizer", "betterleaks", "git-of-theseus-analyze"])
+        self.assertEqual(run.missing_tools(plots=True, path="/nonexistent"), ["scc", "git-sizer", "betterleaks", "jscpd", "osv-scanner", "git-of-theseus-analyze"])
 
     def test_theseus_tracks_the_given_branch(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", branch="trunk", plots=True)}
@@ -386,6 +395,7 @@ class EstimateBlames(unittest.TestCase):
         # 6 files; 90 days at a 30-day interval would be 4 samples, capped at the 3 commits that exist
         self.assertEqual({k: est[k] for k in ("files", "samples", "blames")}, {"files": 6, "samples": 3, "blames": 18})
         self.assertIn("seconds", est)
+        self.assertEqual(est["text_bytes"], 6, "one byte per tracked text file: what jscpd would hold")
 
 
 class Execute(unittest.TestCase):
@@ -613,11 +623,13 @@ class ClearOutputs(unittest.TestCase):
     def test_removes_every_tool_output_but_keeps_meta_and_the_log(self):
         with tempfile.TemporaryDirectory() as out:
             os.makedirs(os.path.join(out, "theseus"))
-            names = ["size.json", "repo-health.txt", "secrets.json", "log.txt", "maat-revisions.csv", "maat-fixes.csv", "activity.json",
-                     "functions.csv", "duplicates.txt", "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json",
+            names = ["size.json", "repo-health.txt", "secrets.json", "dependencies.json", "log.txt", "maat-revisions.csv", "maat-fixes.csv", "activity.json",
+                     "functions.csv", "duplicates.json", "duplicates.txt", "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json",
                      "code-age.png", "survival.png", "meta.json", "run.log", "notes.txt"]
             for n in names:
                 open(os.path.join(out, n), "w").close()
+            os.makedirs(os.path.join(out, ".jscpd-ab12"))
+            open(os.path.join(out, ".jscpd-ab12", "jscpd-report.json"), "w").close()
             run.clear_outputs(out)
             left = sorted(os.path.relpath(os.path.join(r, f), out) for r, _, fs in os.walk(out) for f in fs)
         self.assertEqual(left, ["meta.json", "notes.txt", "run.log"])

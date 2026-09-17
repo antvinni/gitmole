@@ -43,14 +43,13 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--list-file-types` | List the file types in the tree with counts and whether each counts as code, then exit. |
 | `--clean [DIR]` | List the directories gitmole created, temp clones and `analysis-*` outputs under DIR, with their sizes, and delete them after a y/N question. The temp clones show as one row with their count; `--full` lists each one. Exit 0 whether you answer yes or no, 2 without a terminal. |
 | `--yes` | With `--clean`: delete without asking. For scripts and pipes. |
-| `--duplicates` | Also look for duplicated blocks. Minutes and gigabytes on a large repo; see below. |
-| `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics and plots. |
+| `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics, duplicates and plots. |
 | `--ignore GLOB` | An extra ignore pattern for the same steps. Repeatable. |
 | `--workers N` | How many tools run at once. |
 | `--timeout S` | Seconds any single tool may run before it is killed. Default 900. A killed tool is marked in the report and the rest still renders. |
 | `--time-budget S` | Skip the code-age pass when its projected time exceeds this. Default 60. |
 | `--budget N` | Skip the plots above this many git blames. Default 50,000. |
-| `--deep` | Run code age and plots regardless of the two budgets. |
+| `--deep` | Run code age, plots and the duplicates step regardless of their budgets. |
 | `--gone MONTHS` | How long without a commit counts as gone, measured before the last commit. Default 12. |
 | `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
@@ -79,8 +78,8 @@ Change risk caption.
 
 ## Big repositories
 
-Blame and lizard's duplicate finder are the two costs that scale with repo
-size. gitmole keeps them in check:
+Blame and the duplicate finder are the two costs that scale with repo size.
+gitmole keeps them in check:
 
 - the code-age table comes from one `git blame` per tracked code file at
   HEAD, run on all but two CPU cores at low priority so the machine stays
@@ -94,14 +93,15 @@ size. gitmole keeps them in check:
   sampling (tracked files × samples blames) on top, skipped above
   `--budget` (default 50,000 blames);
 - `--deep` forces both regardless of the budgets;
-- the duplicate finder is off by default. It keeps a hash node per token,
-  so on a repo of a few thousand files it runs for minutes at one or two
-  gigabytes per worker, which is why `--duplicates` also caps that step at
-  two workers. Function metrics without it take a second or two;
+- the duplicates step runs jscpd over the tracked code files, in seconds,
+  but jscpd holds every token in memory: about a gigabyte per 25 MB of
+  tracked text. Above 80 MB of tracked text the step is skipped with a
+  message that says how much memory it would need; `--deep` forces it. Older
+  scripts that pass `--duplicates` still parse; the flag does nothing now;
 - `--ignore-data` excludes data-like files (csv, json, lock files, minified
-  and vendored assets) from blame and from the function metrics, and
-  `--ignore GLOB` adds your own patterns, repeatable. Both shrink the blame
-  count a lot on repos full of exports and fixtures.
+  and vendored assets) from blame, from the function metrics and from the
+  duplicates step, and `--ignore GLOB` adds your own patterns, repeatable.
+  Both shrink the blame count a lot on repos full of exports and fixtures.
 
 Two steps read history rather than the working tree, and both are bounded.
 The trend behind the hotspots' `trend` column runs scc over the ten top

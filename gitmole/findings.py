@@ -429,11 +429,15 @@ def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.
     return [_f(sev, "Knowledge loss", statement, advice)]
 
 
-def _partial_functions(report: dict) -> str:
-    """A sentence when the lizard step stopped part way, so what it measured is not the whole code."""
-    status = (report["meta"].get("functions") or {}).get("status")
+def _partial(report: dict, step: str, label: str) -> str:
+    """A sentence when a step stopped part way, so what it measured is not the whole code."""
+    status = (report["meta"].get(step) or {}).get("status")
     reason = {"timeout": "timed out", "failed": "failed"}.get(status)
-    return f" Function metrics {reason} part way, so there may be more." if reason else ""
+    return f" {label} {reason} part way, so there may be more." if reason else ""
+
+
+def _partial_functions(report: dict) -> str:
+    return _partial(report, "functions", "Function metrics")
 
 
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
@@ -496,8 +500,14 @@ def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = 25, top
 
 
 def duplication(report: dict, min_lines: int = 30) -> list:
+    """Blocks of min_lines+ lines that appear more than once in this repository's own code. A block
+    whose every copy sits in vendored or generated code is somebody else's, or a generator's, duplication."""
     dup = report.get("duplicates") or {}
-    blocks = [b for b in dup.get("blocks") or [] if b["lines"] >= min_lines]
+    generated, vendored = _generated(report), filetypes.vendor_dirs(report)
+
+    def own(b):
+        return any(not (filetypes.is_vendored(p, vendored) or p in generated) for p, _, _ in b["places"])
+    blocks = [b for b in dup.get("blocks") or [] if b["lines"] >= min_lines and own(b)]
     if not blocks:
         return []
     blocks.sort(key=lambda b: (-b["lines"], b["places"]))
@@ -509,11 +519,56 @@ def duplication(report: dict, min_lines: int = 30) -> list:
     first = blocks[0]
     files = list(dict.fromkeys(p for p, _, _ in first["places"]))   # each file once, in place order
     where = f"repeated within {files[0]}" if len(files) == 1 else f"shared by {files[0]} and {files[1]}"
-    return [_f("info", "Duplicated code", f"{len(blocks)} block(s) of {min_lines}+ duplicated lines: {listed}{more}.{rate}{_partial_functions(report)}",
+    return [_f("info", "Duplicated code", f"{len(blocks)} block(s) of {min_lines}+ duplicated lines: {listed}{more}.{rate}{_partial(report, 'duplicates', 'Duplicate detection')}",
                f"Extract the {first['lines']}-line block {where} first.")]
 
 
-RULES = [dormant, secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, reverts, brain_methods,
+CRITICAL_SCORE = 9.0   # CVSS: the band the advisories themselves call critical
+IGNORE_DEPS = "A vulnerability that does not apply to this code can be ignored in osv-scanner.toml at the repository root."
+
+
+def _vuln_statement(rows: list, sources: int) -> str:
+    def one(r):
+        ref = r["aliases"][0] if r.get("aliases") else (r["ids"][0] if r.get("ids") else "")
+        score = f", {r['score']:.1f}" if r.get("score") is not None else (f", {r['severity']}" if r.get("severity") not in (None, "unknown") else "")
+        fixed = f", fixed in {r['fixed']}" if r.get("fixed") else ", no fix yet"
+        return f"{r['name']} {r['version']} ({ref}{score}{fixed}) in {r['source']}"
+    listed = "; ".join(one(r) for r in rows[:3])
+    more = f" and {len(rows) - 3} more" if len(rows) > 3 else ""
+    return f"{_plural(len(rows), 'vulnerable package')} in {_plural(sources, 'lock file')}: {listed}{more}."
+
+
+def vulnerable_dependencies(report: dict) -> list:
+    """Packages in the lock files with a known vulnerability, from the offline osv-scanner scan. A package
+    a lock file in the source tree pins is critical when an advisory scores in the critical band, else a
+    warning; one pinned only by a lock file under tests, examples, docs or vendored code is a note. The
+    advice names the package to upgrade first and the version that fixes it."""
+    deps = report.get("dependencies") or {}
+    rows = deps.get("vulnerable") or []
+    if not rows:
+        return []
+    vendored = filetypes.vendor_dirs(report)
+
+    def aside(r):
+        p = r.get("source") or ""
+        return filetypes.is_test_path(p) or filetypes.is_sample_path(p) or filetypes.is_doc_path(p) or filetypes.is_vendored(p, vendored)
+    source = [r for r in rows if not aside(r)]
+    other = [r for r in rows if aside(r)]
+    out = []
+    for group, sev_default, title in ((source, "warning", "Vulnerable dependencies"),
+                                      (other, "info", "Vulnerable dependencies only in test, example or vendored lock files")):
+        if not group:
+            continue
+        worst = group[0]   # the rows come sorted by score, highest first
+        sev = "critical" if group is source and worst.get("score") is not None and worst["score"] >= CRITICAL_SCORE else sev_default
+        sources = len({r["source"] for r in group})
+        target = f"Upgrade {worst['name']} to {worst['fixed']} in {worst['source']} first" if worst.get("fixed") else f"Look at {worst['name']} in {worst['source']} first, which has no fixed version yet"
+        why = f"; it scores {worst['score']:.1f}." if worst.get("score") is not None else "."
+        out.append(_f(sev, title, _vuln_statement(group, sources), f"{target}{why} {IGNORE_DEPS}"))
+    return out
+
+
+RULES = [dormant, secrets_found, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, reverts, brain_methods,
          complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss]
 
 

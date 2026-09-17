@@ -605,7 +605,7 @@ def secrets_line(report: dict) -> str:
 
 
 def secrets_pass(report: dict):
-    """The one check worth saying out loud when it passes: (title, detail) when the scan ran and found no
+    """A check worth saying out loud when it passes: (title, detail) when the scan ran and found no
     secret value, else None. Found values are findings already; a scan that did not run says nothing."""
     rows = report.get("secrets") or []
     if not report.get("secrets_scanned") or leaks.group(rows):
@@ -615,6 +615,44 @@ def secrets_pass(report: dict):
     if skipped:
         detail += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
     return "No secrets in history", detail
+
+
+def dependencies_pass(report: dict):
+    """(title, detail) when the lock files were scanned and no package has a known vulnerability, else None."""
+    deps = report.get("dependencies") or {}
+    if deps.get("status") != "scanned" or deps.get("vulnerable") or not deps.get("packages"):
+        return None
+    n = len(deps.get("sources") or [])
+    detail = f"osv-scanner checked {deps['packages']:,} packages in {n} lock file{'s' if n != 1 else ''} against the local database"
+    if deps.get("database_date"):
+        detail += f" from {deps['database_date']}"
+    return "No known vulnerabilities in dependencies", detail
+
+
+def checks_passed(report: dict) -> list:
+    """The checks that ran and passed, secrets first: said out loud rather than left to silence."""
+    return [p for p in (secrets_pass(report), dependencies_pass(report)) if p]
+
+
+def dependencies_line(report: dict):
+    """(text, style) for the footer: what the osv-scanner step found, or why it found nothing; None
+    for an output directory from before the step existed."""
+    deps = report.get("dependencies") or {}
+    status = deps.get("status")
+    if status == "scanned":
+        n = len(deps.get("sources") or [])
+        bad = len(deps.get("vulnerable") or [])
+        line = f"Dependencies: {deps.get('packages', 0):,} packages in {n} lock file{'s' if n != 1 else ''}, "
+        line += f"{bad} vulnerable" if bad else "none vulnerable"
+        if deps.get("database_date"):
+            line += f" (database from {deps['database_date']})"
+        return line, ("red" if bad else "green")
+    if status == "no-sources":
+        return "Dependencies: no lock files found", "dim"
+    if status == "no-database":
+        from . import deps as _deps
+        return f"Dependencies: not scanned, no offline vulnerability database; run once in the clone: {deps.get('download') or _deps.DOWNLOAD}", "yellow"
+    return None
 
 
 # --- rich ------------------------------------------------------------------
@@ -637,7 +675,7 @@ def header(report: dict, findings: list = ()) -> Panel:
 
 
 def findings_panel(findings: list, report: dict = None) -> Panel:
-    passed = secrets_pass(report or {})
+    passed = checks_passed(report or {})
     if not findings and not passed:
         return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
     grid = Table.grid(padding=(0, 1))
@@ -651,10 +689,11 @@ def findings_panel(findings: list, report: dict = None) -> Panel:
         for advice in g["advice"]:
             body.append(f"\n↳ {advice}", style="dim italic")
         grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
-    if passed:   # last: problems first, then the check that passed
+    if passed:   # last: problems first, then the checks that passed
         if not findings:
             grid.add_row(Text(""), Text("Nothing flagged.", style="green"))
-        grid.add_row(Text("✔", style="green"), Text(passed[0], style="green").append(f"\n{passed[1]}", style="dim"))
+        for title, detail in passed:
+            grid.add_row(Text("✔", style="green"), Text(title, style="green").append(f"\n{detail}", style="dim"))
     title = f"Findings ({len(findings)})" if findings else "Findings"
     return Panel(grid, title=title, title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]] if findings else "green")
 
@@ -764,6 +803,9 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
             print_section(console, risk_section(risk, base, full))   # the change, right under the list it is scored against
     console.print(Text(""))
     console.print(Text(secrets_line(report), style="red" if leaks.group(report.get("secrets") or []) else "green"))
+    deps_line = dependencies_line(report)
+    if deps_line:
+        console.print(Text(deps_line[0], style=deps_line[1]))
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
 
 
@@ -779,9 +821,8 @@ def _md_findings(findings: list, report: dict = None) -> list:
         line = f"- **{g['severity']}** {g['title']} — " + "; ".join(g["items"])
         line += "".join(f" _{advice}_" for advice in g["advice"])
         out.append(line)
-    passed = secrets_pass(report or {})
-    if passed:
-        out.append(f"- **ok** {passed[0]} — {passed[1]}")
+    for title, detail in checks_passed(report or {}):
+        out.append(f"- **ok** {title} — {detail}")
     return out
 
 
@@ -807,7 +848,8 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
         out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sec["rows"]]
         if sec.get("caption"):
             out += ["", f"_{sec['caption']}_"]
-    out += ["", secrets_line(report), "", f"Full results and plots in {report['out_dir']}", ""]
+    deps_line = dependencies_line(report)
+    out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "", f"Full results and plots in {report['out_dir']}", ""]
     return "\n".join(out)
 
 

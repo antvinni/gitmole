@@ -1,17 +1,20 @@
 # Install
 
-Every way to install gitmole and the three tools it runs; back to [the README](https://github.com/antvinni/gitmole#readme).
+Every way to install gitmole and the five tools it runs; back to [the README](https://github.com/antvinni/gitmole#readme).
 
-gitmole needs git, Python 3.9 or newer, and three tools on your PATH:
+gitmole needs git, Python 3.9 or newer, and five tools on your PATH:
 [scc](https://github.com/boyter/scc) for size,
-[git-sizer](https://github.com/github/git-sizer) for repository health and
-[betterleaks](https://github.com/betterleaks/betterleaks) for secrets. gitmole itself
+[git-sizer](https://github.com/github/git-sizer) for repository health,
+[betterleaks](https://github.com/betterleaks/betterleaks) for secrets,
+[jscpd](https://github.com/kucherenko/jscpd) for duplicated blocks and
+[osv-scanner](https://github.com/google/osv-scanner) for known vulnerabilities
+in the dependencies. gitmole itself
 is a Python package; install it with [pipx](https://pipx.pypa.io) so it gets
 its own environment and a `gitmole` command.
 
 ## macOS
 
-Homebrew installs gitmole and the three tools in one go. The tap lives in
+Homebrew installs gitmole and the five tools in one go. The tap lives in
 the gitmole repository, so the first command names it by URL; the second marks it
 trusted, which Homebrew 7 requires before it will install from a third-party
 tap; after that the short name works everywhere, `brew upgrade` included.
@@ -22,7 +25,7 @@ brew trust antvinni/gitmole
 brew install gitmole
 ```
 
-Without Homebrew, install the three tools yourself and use pipx:
+Without Homebrew, install the five tools yourself and use pipx:
 
 ```bash
 pipx ensurepath                                  # once; then open a new shell
@@ -31,7 +34,7 @@ pipx install gitmole
 
 ## Linux
 
-With Homebrew on Linux the same three commands work unchanged; all three tools
+With Homebrew on Linux the same three commands work unchanged; all five tools
 are bottled there. Without Homebrew, take the tools from your package manager
 where it has them and from the projects' release pages otherwise; each ships
 a static binary, so dropping it into `~/.local/bin` is enough.
@@ -41,27 +44,47 @@ a static binary, so dropping it into `~/.local/bin` is enough.
 sudo apt install git git-sizer pipx
 pipx ensurepath                                  # once; then open a new shell
 
-# scc and betterleaks: one static binary each, from their release pages
+# scc, betterleaks, jscpd and osv-scanner: one static binary each, from their release pages
 #   https://github.com/boyter/scc/releases               (the Linux x86_64 or arm64 archive)
 #   https://github.com/betterleaks/betterleaks/releases (the linux x64 or arm64 archive)
+#   https://github.com/kucherenko/jscpd/releases        (the linux x64 or arm64 gnu archive; or pip install jscpd)
+#   https://github.com/google/osv-scanner/releases      (the linux_amd64 or linux_arm64 binary)
 # unpack and move the binary into ~/.local/bin, then:
-chmod +x ~/.local/bin/scc ~/.local/bin/betterleaks
+chmod +x ~/.local/bin/scc ~/.local/bin/betterleaks ~/.local/bin/jscpd ~/.local/bin/osv-scanner
 
 pipx install gitmole
 ```
 
 On a distribution without a `pipx` package, `python3 -m pip install --user
-pipx` installs it. Some distributions package scc or betterleaks as well; if
-yours does, prefer that to a downloaded binary.
+pipx` installs it. Some distributions package scc, betterleaks or osv-scanner
+as well; if yours does, prefer that to a downloaded binary.
 
 ## Check
 
 ```bash
-scc --version && git-sizer --version && betterleaks version && gitmole --version
+scc --version && git-sizer --version && betterleaks version && jscpd --version && osv-scanner --version && gitmole --version
 gitmole .                                        # a report of the clone you are in
 ```
 
 `gitmole` reports any tool it cannot find on the first run.
+
+## The vulnerability database
+
+osv-scanner matches the lock files against a copy of the
+[OSV](https://osv.dev) database kept on this machine, and gitmole runs it
+offline: nothing leaves the machine, and gitmole never downloads anything.
+Fetch the copy once, inside a clone, and the download covers the ecosystems
+that clone uses (npm, PyPI, Go, crates.io and so on); run it again to refresh
+it, or in a clone of another ecosystem:
+
+```bash
+osv-scanner scan source -r --offline-vulnerabilities --download-offline-databases .
+```
+
+Until then the report footer says the dependencies were not scanned and
+prints that command. The copy lives in osv-scanner's cache directory
+(`~/Library/Caches/osv-scalibr` on macOS, `~/.cache/osv-scalibr` on Linux, or
+`OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY`), and the report says how old it is.
 
 ## Other ways to install
 

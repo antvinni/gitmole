@@ -6,113 +6,113 @@ Running `gitmole .` inside this repository:
 
 ```text
 ╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 135 commits  ·  2026-09-15 → 2026-09-16  ·  1 identity  ·  branch main                           │
-│ 7,002 lines in 44 files  ·  Python, Ruby                                                         │
+│ 185 commits  ·  2026-09-15 → 2026-09-17  ·  1 identity  ·  branch main                           │
+│ 9,475 lines in 52 files  ·  Python, Ruby                                                         │
 │ most commits on Wed at 20:00  ·  4% of commits are fixes  ·  100% of surviving code from 2026    │
 │ 3 warnings, 1 note                                                                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Findings (4) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ▲ Bus factor of one                                                                              │
 │   vinni wrote 100% of the code that survives today                                               │
-│   ↳ Pair someone with vinni on gitmole/ and build/ first; they are 100% and 100% theirs.         │
+│   ↳ Pair someone with vinni on gitmole/ first; it is 100% theirs.                                │
 │ ▲ Hotspots getting more complex                                                                  │
-│   4 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+160%),      │
-│   gitmole/cli.py (+32%), gitmole/findings.py (+266%), gitmole/run.py (+26%)                      │
-│   ↳ Split gitmole/render.py before the next change; its complexity grew 160% in a year.          │
+│   4 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+194%),      │
+│   gitmole/findings.py (+360%), gitmole/cli.py (+64%), gitmole/run.py (+34%)                      │
+│   ↳ Split gitmole/render.py before the next change; its complexity grew 194% in a year.          │
 │ ▲ Knowledge islands                                                                              │
-│   2 area(s) with at least 200 lines were written almost entirely by one person: gitmole/ (vinni  │
-│   100%); build/ (vinni 100%). That is 97% of all lines added                                     │
-│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 5,371 lines.                 │
+│   1 area(s) with at least 200 lines were written almost entirely by one person: gitmole/ (vinni  │
+│   100%). That is 98% of all lines added                                                          │
+│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 7,607 lines.                 │
 │ ● Bug magnets                                                                                    │
-│   4 file(s) were fixed 3+ times in the last six months: gitmole/cli.py (3 recent, 3 total);      │
-│   gitmole/findings.py (3 recent, 3 total); gitmole/render.py (3 recent, 3 total); gitmole/run.py │
-│   (3 recent, 3 total)                                                                            │
-│   ↳ Review gitmole/cli.py and gitmole/findings.py before the next release; expect the next bug   │
+│   5 file(s) were fixed 3+ times in the last six months: gitmole/load.py (4 recent, 4 total);     │
+│   gitmole/cli.py (3 recent, 3 total); gitmole/findings.py (3 recent, 3 total); gitmole/render.py │
+│   (3 recent, 3 total); gitmole/run.py (3 recent, 3 total)                                        │
+│   ↳ Review gitmole/load.py and gitmole/cli.py before the next release; expect the next bug       │
 │   there.                                                                                         │
 │ ✔ No secrets in history                                                                          │
-│   betterleaks scanned every commit on every branch                                               │
+│   betterleaks scanned every commit on every branch; 28 placeholder-shaped hits left out          │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ◎ Watch list
   file                  why
   ──────────────────────────────────────────────────────────────────────────────────────────────────
-  gitmole/render.py     changed 39 times · fixed 3 times in six months · only vinni has touched it ·
-                        hotspots_section() complexity 23 · changes with gitmole/cli.py (59%) and 3
-                        others
-  gitmole/cli.py        changed 39 times · fixed 3 times in six months · only vinni has touched it ·
-                        main() complexity 17 · changes with gitmole/run.py (63%) and 1 other
-  gitmole/findings.py   changed 26 times · fixed 3 times in six months · only vinni has touched it ·
-                        complexity_growth() complexity 18 · changes with gitmole/load.py (58%) and 1
+  gitmole/render.py     changed 57 times · fixed 3 times in six months · only vinni has touched it ·
+                        knowledge_section() complexity 25 · changes with gitmole/findings.py (69%)
+                        and 1 other
+  gitmole/findings.py   changed 48 times · fixed 3 times in six months · only vinni has touched it ·
+                        tight_coupling() complexity 26 · changes with gitmole/render.py (69%) and 1
                         other
-  gitmole/run.py        changed 25 times · fixed 3 times in six months · only vinni has touched it ·
-                        collect_meta() complexity 23 · changes with gitmole/load.py (64%) and 2
-                        others
-  gitmole/load.py       changed 19 times · fixed twice in six months · only vinni has touched it ·
-                        parse_git_sizer() complexity 15 · changes with gitmole/run.py (64%) and 2
-                        others
+  gitmole/cli.py        changed 47 times · fixed 3 times in six months · only vinni has touched it ·
+                        _clean() complexity 24 · changes with gitmole/render.py (52%) and 1 other
+  gitmole/run.py        changed 35 times · fixed 3 times in six months · only vinni has touched it ·
+                        collect_meta() complexity 24 · changes with gitmole/load.py (56%) and 1
+                        other
+  gitmole/load.py       changed 29 times · fixed 4 times in six months · only vinni has touched it ·
+                        load_report() complexity 17 · changes with gitmole/run.py (56%)
   ranked by churn × recent fixes × complexity × single ownership
   too little history to backtest
 
 ◉ People
   author      commits   share                surviving code
   ─────────────────────────────────────────────────────────
-  vinni           132   100% ▰▰▰▰▰▰▰▰▰▰                100%
-  bots left out: github-actions[bot] (3 commits)
+  vinni           166   100% ▰▰▰▰▰▰▰▰▰▰                100%
+  bots left out: github-actions[bot] (19 commits)
   aliases merged for vinni; a .mailmap makes that permanent
 
 ⌂ Knowledge map
   area       lines added   main owner     second
-  ────────────────────────────────────────────────────────────────
-  tests/           5,918   vinni (100%)   -
-  gitmole/         5,371   vinni (100%)   -
-  build/           1,681   vinni (100%)   -
-  Formula/           129   vinni (95%)    github-actions[bot] (5%)
-  bin/                94   vinni (100%)   -
+  ──────────────────────────────────────────────
+  tests/           8,746   vinni (100%)   -
+  gitmole/         7,607   vinni (100%)   -
+  Formula/           123   vinni (100%)   -
+  2 historical areas hidden; --full shows them
 
 ▦ Timeline (Oct 2025 → Sep 2026)
   author   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep
   ──────────────────────────────────────────────────────────────────────────────
-  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·   132
+  vinni      ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·   166
 
 ◆ Hotspots
-  file                  revs   lines   fixes   authors   trend
-  ────────────────────────────────────────────────────────────
-  gitmole/render.py       39     585       3         1   +160%
-  gitmole/cli.py          39     349       3         1    +32%
-  gitmole/findings.py     26     305       3         1   +266%
-  gitmole/run.py          25     302       3         1    +26%
-  gitmole/load.py         19     195       2         1       -
-  gitmole/maat.py         15     228       2         1       -
-  gitmole/watch.py         7     132       1         1       -
-  gitmole/banner.py        8      84       1         1       -
-  and 28 more; 22 test files hidden; --full shows them
+  file                                     revs        lines        fixes         authors      trend
+  ──────────────────────────────────────────────────────────────────────────────────────────────────
+  gitmole/render.py                          57          686            3               1      +194%
+  gitmole/findings.py                        48          420            3               1      +360%
+  gitmole/cli.py                             47          415            3               1       +64%
+  gitmole/run.py                             35          326            3               1       +34%
+  gitmole/load.py                            29          225            4               1          -
+  gitmole/maat.py                            21          244            2               1          -
+  gitmole/filetypes.py                       21          145            0               1          -
+  gitmole/leaks.py                           17          128            0               1          -
+  and 15 more; 24 test files hidden; 14 deleted files hidden; 1 release file hidden; --full shows
+  them
 
 ⟷ Change coupling
-  file                    changes with          degree
-  ────────────────────────────────────────────────────
-  gitmole/load.py         gitmole/run.py           64%
-  gitmole/cli.py          gitmole/run.py           63%
-  gitmole/cli.py          gitmole/render.py        59%
-  gitmole/findings.py     gitmole/load.py          58%
-  gitmole/render.py       gitmole/run.py           56%
-  and 11 more; 54 test pairs hidden; --full shows them
+  file                    changes with           degree
+  ─────────────────────────────────────────────────────
+  gitmole/findings.py     gitmole/render.py         69%
+  gitmole/load.py         gitmole/run.py            56%
+  gitmole/filetypes.py    gitmole/findings.py       55%
+  gitmole/__init__.py     gitmole/filetypes.py      55%
+  gitmole/filetypes.py    gitmole/identity.py       53%
+  and 33 more; 108 test pairs hidden; --full shows them
 
 λ Complex functions
-  function              file                  ccn   lines   params
+  function             file                   ccn   lines   params
   ────────────────────────────────────────────────────────────────
-  hotspots_section      gitmole/render.py      23      27        3
-  collect_meta          gitmole/run.py         23      27        2
-  risks                 gitmole/watch.py       22      32        2
-  timeline_section      gitmole/render.py      22      16        4
-  functions_section     gitmole/render.py      20      25        3
-  markdown              gitmole/render.py      19      24        5
-  execute               gitmole/run.py         18      37        8
-  people_section        gitmole/render.py      18      24        3
-  and 36 more; 2 functions in test files hidden; --full shows them
+  tight_coupling       gitmole/findings.py     26      27        3
+  knowledge_section    gitmole/render.py       25      25        3
+  _clean               gitmole/cli.py          24      37        3
+  risks                gitmole/watch.py        24      34        2
+  collect_meta         gitmole/run.py          24      28        2
+  hotspots_section     gitmole/render.py       23      32        3
+  timeline_section     gitmole/render.py       22      16        4
+  main                 gitmole/cli.py          21      54        9
+  and 51 more; 2 functions in test files hidden; --full shows them
 
 ✚ Repo health (git-sizer concerns): nothing flagged
 
-Secrets: none found
+Secrets: none found; 28 placeholder-shaped hits left out
+Dependencies: no lock files found
 Full results and plots in analysis-gitmole
 ```
 

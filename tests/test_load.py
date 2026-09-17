@@ -246,7 +246,9 @@ class LoadReport(unittest.TestCase):
                 "secrets.json": "[]",
                 "activity.json": json.dumps({"by_weekday": [1, 0, 0, 0, 0, 0, 0], "by_hour": [0] * 24, "by_month": {"2026-01": 1}, "authors": {}}),
                 "functions.csv": '3,2,20,1,3,"f@1-3@a.py","a.py","f","f( x )",1,3\n',
-                "duplicates.txt": "Duplicate block:\n---\na.py:1 ~ 40\nb.py:1 ~ 40\n^^^\nTotal duplicate rate: 5.00%\n",
+                "duplicates.json": json.dumps({"tool": "jscpd", "files": 2, "clones": 1, "rate": 5.0, "blocks": [{"lines": 40, "places": [["b.py", 1, 40], ["a.py", 1, 40]]}]}),
+                "dependencies.json": json.dumps({"status": "scanned", "sources": [{"path": "uv.lock", "packages": 4}], "packages": 4, "vulnerable": [],
+                                                 "database_date": "2026-09-17"}),
                 "theseus/cohorts.json": json.dumps({"labels": ["Code added in 2026"], "ts": ["t"], "y": [[10]]}),
                 "theseus/authors.json": json.dumps({"labels": ["Ann"], "ts": ["t"], "y": [[10]]}),
             }
@@ -267,8 +269,27 @@ class LoadReport(unittest.TestCase):
         self.assertTrue(r["secrets_scanned"], "secrets.json was written, empty")
         self.assertEqual(r["activity"]["by_month"], {"2026-01": 1})
         self.assertEqual(r["functions"][0]["function"], "f")
-        self.assertEqual(r["duplicates"]["rate"], 5.0)
+        self.assertEqual(r["duplicates"], {"rate": 5.0, "files": 2, "blocks": [{"lines": 40, "places": [("a.py", 1, 40), ("b.py", 1, 40)]}]})
+        self.assertEqual(r["dependencies"], {"status": "scanned", "sources": [{"path": "uv.lock", "packages": 4}], "packages": 4, "vulnerable": [],
+                                             "database_date": "2026-09-17"})
         self.assertEqual(r["out_dir"], out)
+
+    def test_an_older_output_directory_still_reads_lizards_duplicates_and_has_no_dependency_scan(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "d", "commits": 1, "identities": []}, fh)
+            with open(os.path.join(out, "duplicates.txt"), "w") as fh:
+                fh.write("Duplicate block:\n---\na.py:1 ~ 40\nb.py:1 ~ 40\n^^^\nTotal duplicate rate: 5.00%\n")
+            r = load.load_report(out)
+        self.assertEqual(r["duplicates"], {"rate": 5.0, "blocks": [{"lines": 40, "places": [("a.py", 1, 40), ("b.py", 1, 40)]}]})
+        self.assertEqual(r["dependencies"], {"status": "not-run"})
+
+    def test_dependency_statuses_short_of_a_scan(self):
+        self.assertEqual(load.parse_dependencies({"status": "no-sources"}), {"status": "no-sources"})
+        self.assertEqual(load.parse_dependencies({"status": "no-database", "download": "osv-scanner ..."}), {"status": "no-database", "download": "osv-scanner ..."})
+        self.assertEqual(load.parse_dependencies(None), {"status": "not-run"})
+        self.assertEqual(load.parse_dependencies({}), {"status": "not-run"}, "a truncated file is no scan")
 
     def test_bot_authors_are_dropped_from_ownership_and_surviving_code(self):
         # mdBook: a gh-pages deploy job committed the built site under the root, so "Deploy from CI" owned the root files
@@ -331,6 +352,7 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["fixes"], [])
         self.assertEqual(r["functions"], [])
         self.assertEqual(r["duplicates"], {"rate": None, "blocks": []})
+        self.assertEqual(r["dependencies"], {"status": "not-run"})
         self.assertEqual(r["cohorts"], {})
         self.assertEqual(r["size"]["languages"], [])
 
