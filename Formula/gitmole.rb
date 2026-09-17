@@ -3,8 +3,8 @@ class Gitmole < Formula
 
   desc "Offline git repository analysis with a terminal report"
   homepage "https://github.com/antvinni/gitmole"
-  url "https://github.com/antvinni/gitmole/releases/download/v0.6.12/gitmole-0.6.12.tar.gz"
-  sha256 "ddef0904f2a07c010a3c2b2057489f3d42aaa38f3992f8967cccb9276b2e0a46"
+  url "https://github.com/antvinni/gitmole/releases/download/v0.6.13/gitmole-0.6.13.tar.gz"
+  sha256 "c85ef9d350a4b19b4d0c4801695a7b5ded2d28436b0e7e98da840eacaf9a0603"
   license "MIT"
   head "https://github.com/antvinni/gitmole.git", branch: "main"
 
