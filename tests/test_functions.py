@@ -112,6 +112,14 @@ class FunctionsScript(unittest.TestCase):
         self.assertIn('"Panel","Panel ( title , onClose , PanelProps )",1,7,"",""', csv)
         self.assertIn('"summary","summary ( filters siteId )",9,14,"",""', csv)
 
+    def test_a_c_function_with_its_brace_on_its_own_line_and_a_goto_label_is_not_a_sibling(self):
+        # curl's style: the body brace alone at column 0, labels at column 0
+        src = "static int opt_bool(int a)\n{\n  if(a) {\n    return 1;\n  }\nout:\n  return 0;\n}\n"
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d, extra={"tool.c": src})
+            rc, csv, _ = run(d, "--types", "c")
+        self.assertIn('"opt_bool","opt_bool( int a)",1,8,"",""', csv)
+
     def test_jsx_children_on_their_own_lines_do_not_shift_the_line_numbers(self):
         # lizard 1.24 merges the newline before a JSX child with its indentation into one whitespace token,
         # and its preprocessing drops whitespace tokens other than a bare newline: one line lost per child

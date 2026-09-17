@@ -113,8 +113,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    the worst file in the repo. Churn is the base because a file nobody
    changes is not where the next bug lands; complexity is scc's per-file
    total, one scale for every file, while the most complex function lizard
-   found is named in the reasons. The reasons name the fix count, the sole
-   owner, the function and the files it always changes with. Test files are
+   found is named in the reasons (a nameless one by its line; a span marked
+   `?` in the complex functions table is passed over). The reasons name the
+   fix count, the sole owner, the function and the files it always changes
+   with. Test files are
    left out. Under `--since`, churn and ownership are windowed and the list
    says so. `--full` and the exports show fifteen. With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
