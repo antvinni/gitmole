@@ -52,15 +52,19 @@ How to read each part of the terminal report, and what each run writes to disk; 
    code (upstream's own specimens), or only in documentation (`.md`,
    `.rst`, `.txt`, `.adoc`, or anything under `docs/`), where it is
    usually a template, is a warning.
-   Six shapes cannot be a live secret and are left out, counted on the
+   Nine shapes cannot be a live secret and are left out, counted on the
    footer line: version strings, tokens shortened with "...", whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
    or `changeme`, a whole value that is one of the words every example
-   uses (`hello`, `secret`, `password`, `123456`), a whole value that
+   uses (`hello`, `secret`, `password`, `123456`), a run up the alphabet
+   and the digits (`qr6stu789vwxyz`, `abcd1234`), a whole value that
    refers to an environment variable or a template field (`@env:X`,
-   `${X}`, `{{.Env.X}}`, `process.env.X`), and a `BEGIN ... KEY`
+   `${X}`, `{{.Env.X}}`, `process.env.X`), a bare `BEGIN ... KEY` header
+   with nothing after it (a pattern a script greps for), a `BEGIN ... KEY`
    block whose body holds no key material, like the dotted sample in
-   Google's service-account docs. Every
+   Google's service-account docs, and a value on a line that calls itself
+   an example, sample, dummy, fake or placeholder (the line is read from
+   the clone at scan time, one `git show` per finding, and never written). Every
    rule is about the whole value; nothing is skipped by prefix. To silence a
    false positive for good, copy its fingerprint from `secrets.json` into a
    `.betterleaksignore` at the repository root; betterleaks reads it on the
@@ -105,7 +109,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    unless it is a bare common first name, a one-word handle that is a
    distinctive word of the fuller name, or the fuller name run together
    (RobinMalfait); the caption says whose; bots and
-   coding agents such as renovate, Copilot, Cursor Agent,
+   coding agents such as renovate, Copilot, Cursor Agent, and any author
+   whose name says bot, CI, deploy or automation; their lines are left
+   out of ownership and surviving code too, so a deploy job that commits
+   a built site owns nothing,
    dependabot and GitHub Actions are counted apart in the caption and kept
    out of the timeline), a knowledge map (lines added per area of the tree
    and who wrote them), a timeline of commits per author over the last
@@ -133,10 +140,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    not be edited, or that `.gitattributes` marks `linguist-generated`;
    the run records them in `meta.json`), the complex functions table also
    hides vendored code (`vendor/`, `vendored/`, `node_modules/`,
-   `third_party/`, `external/`, and a `packages/` inside a package such as
-   `requests/packages/`), and the change coupling table hides pairs with a test
-   file and pairs of release plumbing (two version files, a manifest and
-   its lock file, changelogs); the captions show how many are hidden, and
+   `third_party/`, `external/`, `deps/`, and a `packages/` inside a package
+   such as `requests/packages/`), and the change coupling table hides pairs
+   with a test file, pairs of release plumbing (two version files, a
+   manifest and its lock file, changelogs), header pairs (a C-family
+   source file and its own header) and pairs with a vendored file on
+   either side; the captions show how many are hidden, and
    `--full` shows them. Release plumbing is also hidden from the hotspots
    table and left out of the watch list, the churn-dominance and the
    bug-magnet findings: a version file or a manifest changes on every

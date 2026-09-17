@@ -355,6 +355,31 @@ class Report(unittest.TestCase):
         self.assertNotIn("pkg/__init__.py", hot)
         self.assertIn("1 release file hidden; --full shows them", hot)
 
+    def test_default_coupling_hides_vendored_pairs_and_says_so(self):
+        r = sample_report()
+        for f in ("deps/lua/a.c", "deps/lua/b.c", "src/x.c", "src/y.c"):
+            r["size"]["files"][f] = {"code": 30, "complexity": 1}
+        r["coupling"] = [{"entity": "deps/lua/a.c", "coupled": "deps/lua/b.c", "degree": 90, "average-revs": 20},
+                         {"entity": "deps/lua/a.c", "coupled": "src/x.c", "degree": 70, "average-revs": 9},
+                         {"entity": "src/x.c", "coupled": "src/y.c", "degree": 60, "average-revs": 9}]
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("src/y.c", coupling)
+        self.assertNotIn("deps/", coupling)
+        self.assertIn("2 vendored pairs hidden; --full shows them", coupling)
+
+    def test_default_coupling_hides_header_pairs_and_says_so(self):
+        r = sample_report()
+        for f in ("src/vector.c", "src/vector.h", "src/list.c"):
+            r["size"]["files"][f] = {"code": 30, "complexity": 1}
+        r["coupling"] = [{"entity": "src/vector.c", "coupled": "src/vector.h", "degree": 100, "average-revs": 20},
+                         {"entity": "src/list.c", "coupled": "src/vector.h", "degree": 60, "average-revs": 9}]
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("src/list.c", coupling)
+        self.assertNotIn("100%", coupling)
+        self.assertIn("1 header pair hidden; --full shows them", coupling)
+        full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
+        self.assertIn("100%", full)
+
     def test_default_coupling_hides_release_plumbing_pairs_and_says_so(self):
         r = sample_report()
         for f in ("lib/version.rb", "contrib/version.rb", "Gemfile", "Gemfile.lock"):

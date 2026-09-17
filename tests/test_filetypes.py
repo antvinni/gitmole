@@ -107,6 +107,13 @@ class TestPaths(unittest.TestCase):
         for path in ("app/settings.py", "examplesite/app.py", "src/rulesets/a.go", "sampler/x.py", "config/betterleaks.toml"):
             self.assertFalse(filetypes.is_sample_path(path), path)
 
+    def test_a_source_file_and_its_own_header_are_a_header_pair(self):
+        for a, b in (("src/vector.c", "src/vector.h"), ("src/vector.h", "src/vector.c"), ("lib/x.cpp", "lib/x.hpp"), ("lib/x.cc", "lib/x.hh"),
+                     ("ui/view.m", "ui/view.h"), ("ui/view.mm", "ui/view.h")):
+            self.assertTrue(filetypes.is_header_pair(a, b), (a, b))
+        for a, b in (("src/vector.c", "src/list.h"), ("src/vector.c", "include/vector.h"), ("src/a.py", "src/a.pyi"), ("src/vector.c", "src/vector.c")):
+            self.assertFalse(filetypes.is_header_pair(a, b), (a, b))
+
     def test_release_plumbing_files(self):
         for path in ("lib/sinatra/version.rb", "VERSION", "src/pkg/__version__.py", "package.json", "package-lock.json", "Gemfile.lock",
                      "Cargo.toml", "pyproject.toml", "go.sum", "CHANGELOG.md", "CHANGES.rst", "sinatra.gemspec", "uv.lock"):
@@ -136,7 +143,8 @@ class TestPaths(unittest.TestCase):
 
     def test_vendored_trees(self):
         for path in ("vendor/github.com/x/y.go", "web/node_modules/a/index.js", "third_party/z/a.c", "thirdparty/a.c", "_vendor/a.py",
-                     "external/lib/a.cpp", "requests/packages/urllib3/a.py", "pip/_vendor/six.py", "botocore/vendored/requests/a.py"):
+                     "external/lib/a.cpp", "requests/packages/urllib3/a.py", "pip/_vendor/six.py", "botocore/vendored/requests/a.py",
+                     "deps/lua/src/strbuf.c", "deps/jemalloc/Makefile"):
             self.assertTrue(filetypes.is_vendor_path(path), path)
         for path in ("vendors.py", "src/vendoring/a.py", "node/a.js", "externals.txt", "app/main.go",
                      "packages/runtime-core/src/renderer.ts", "packages-private/x.ts"):   # a monorepo's own packages/ at the root

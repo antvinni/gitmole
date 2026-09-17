@@ -261,6 +261,21 @@ class TightCoupling(unittest.TestCase):
         f = findings.tight_coupling(report(coupling=pairs))
         self.assertIn("2 pairs", f[0]["detail"], "without a tree listing every pair counts")
 
+    def test_vendored_pairs_are_somebody_elses_coupling(self):
+        pairs = [{"entity": "deps/hiredis/adapters/ae.h", "coupled": "deps/hiredis/adapters/libev.h", "degree": 84, "average-revs": 10},
+                 {"entity": "src/ae.c", "coupled": "deps/hiredis/net.h", "degree": 85, "average-revs": 10},
+                 {"entity": "src/ae.c", "coupled": "src/networking.c", "degree": 85, "average-revs": 10}]
+        f = findings.tight_coupling(report(coupling=pairs))
+        self.assertIn("1 pair changes together", f[0]["detail"], "a pair with a vendored file on either side is not this repository's dependency")
+
+    def test_a_source_file_and_its_header_are_expected_to_change_together(self):
+        pairs = [{"entity": "src/vector.c", "coupled": "src/vector.h", "degree": 100, "average-revs": 20},
+                 {"entity": "deps/lua/src/strbuf.c", "coupled": "deps/lua/src/strbuf.h", "degree": 94, "average-revs": 8},
+                 {"entity": "src/ae.c", "coupled": "src/networking.c", "degree": 85, "average-revs": 10}]
+        f = findings.tight_coupling(report(coupling=pairs))
+        self.assertIn("1 pair changes together", f[0]["detail"])
+        self.assertIn("src/ae.c", f[0]["detail"])
+
     def test_release_plumbing_pairs_are_not_a_dependency(self):
         pairs = [{"entity": "lib/sinatra/version.rb", "coupled": "rack-protection/lib/rack/protection/version.rb", "degree": 100, "average-revs": 60},
                  {"entity": "package.json", "coupled": "package-lock.json", "degree": 95, "average-revs": 40},
