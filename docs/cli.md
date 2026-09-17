@@ -41,7 +41,7 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--plots` | Also draw the git-of-theseus code-age and survival charts. Needs `gitmole[plots]`. |
 | `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile. |
 | `--list-file-types` | List the file types in the tree with counts and whether each counts as code, then exit. |
-| `--clean [DIR]` | List the directories gitmole created, temp clones and `analysis-*` outputs under DIR, with their sizes, and delete them after a y/N question. Exit 0 whether you answer yes or no, 2 without a terminal. |
+| `--clean [DIR]` | List the directories gitmole created, temp clones and `analysis-*` outputs under DIR, with their sizes, and delete them after a y/N question. The temp clones show as one row with their count; `--full` lists each one. Exit 0 whether you answer yes or no, 2 without a terminal. |
 | `--yes` | With `--clean`: delete without asking. For scripts and pipes. |
 | `--duplicates` | Also look for duplicated blocks. Minutes and gigabytes on a large repo; see below. |
 | `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics and plots. |

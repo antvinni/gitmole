@@ -634,12 +634,41 @@ class Clean(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("Left behind", text)
         self.assertIn("analysis-a", text)
-        self.assertIn("gitmole-x", text)
+        self.assertIn("gitmole-* (1 temp clone)", text, "temp clones collapse to one row per temp folder")
+        self.assertNotIn("gitmole-x", text)
         self.assertEqual(len(asked), 1)
         self.assertIn("Delete 2 directories", asked[0])
         self.assertIn("kept", text)
         self.assertTrue(out_kept)
         self.assertTrue(tmp_kept)
+
+    def test_full_lists_every_temp_clone(self):
+        def go(work, tmp):
+            os.makedirs(os.path.join(tmp, "gitmole-x"))
+            os.makedirs(os.path.join(tmp, "gitmole-y"))
+            c = Console(file=io.StringIO(), width=120, record=True, force_terminal=True, color_system=None)
+            rc = cli.main(["--clean", work, "--full"], console=c, ask=lambda q: "n")
+            return rc, c.export_text()
+        rc, text = self._with_tmp(go)
+        self.assertEqual(rc, 0)
+        self.assertIn("gitmole-x", text)
+        self.assertIn("gitmole-y", text)
+        self.assertNotIn("temp clones", text)
+
+    def test_rows_stay_on_one_line_at_a_narrow_width(self):
+        def go(work, tmp):
+            deep = os.path.join(work, "some", "rather", "long", "chain", "of", "directories")
+            self._output(os.path.join(deep, "analysis-widgets"))
+            os.makedirs(os.path.join(tmp, "gitmole-x"))
+            c = Console(file=io.StringIO(), width=60, record=True, force_terminal=True, color_system=None)
+            rc = cli.main(["--clean", deep], console=c, ask=lambda q: "n")
+            return rc, c.export_text()
+        rc, text = self._with_tmp(go)
+        self.assertEqual(rc, 0)
+        rows = [line for line in text.splitlines() if line.strip().startswith("/")]
+        self.assertEqual(len(rows), 2, text)
+        self.assertTrue(any("analysis-widgets" in r and "…/" in r for r in rows), text)
+        self.assertTrue(all(" B " in r and "2026-" in r for r in rows), "each row carries its size and date on the same line:\n" + text)
 
     def test_yes_answer_removes_and_reports(self):
         def go(work, tmp):
