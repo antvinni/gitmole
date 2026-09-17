@@ -328,7 +328,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
 
 
 def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: bool, cut, duplicates_ok: bool = True) -> None:
-    """Turn each planned step's exit code into its final status: run, timeout or failed."""
+    """Turn each step's exit code into its final status: run, skipped, timeout or failed."""
     def status(step, default="run"):
         rc = results.get(step, 0)
         return default if rc == 0 else ("timeout" if rc == "timeout" else "failed")
@@ -344,6 +344,8 @@ def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: boo
         meta["trend"]["status"] = status("trend")
     if cut and "backtest" in results:
         meta["backtest"]["status"] = status("backtest")
+    # every step, not only the optional ones above: a killed scc is otherwise a report of "0 lines" with no reason
+    meta["steps"] = {name: "run" if rc == 0 else (rc if isinstance(rc, str) else "failed") for name, rc in results.items()}
 
 
 def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator) -> None:
@@ -484,7 +486,11 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
 
     from . import render
 
-    report = load.load_report(out_dir)
+    try:
+        report = load.load_report(out_dir)
+    except load.Unreadable as e:
+        err.print(f"[red]{e}[/red]", soft_wrap=True)
+        return 2
     found = findings.evaluate(report)
     risk = None
     if args.risk:

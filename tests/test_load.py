@@ -17,6 +17,9 @@ class ParseScc(unittest.TestCase):
         self.assertEqual(result["total_code"], 500)
         self.assertEqual(result["total_files"], 6)
 
+    def test_truncated_json_is_no_data(self):
+        self.assertEqual(load.parse_scc('[{"Name": "Py')["languages"], [])
+
 
 class ParseSccByFile(unittest.TestCase):
     def test_collects_per_file_code_and_complexity_with_clean_paths(self):
@@ -114,6 +117,9 @@ class ParseTheseus(unittest.TestCase):
             "y": [[100, 80], [0, 20]],
         })
         self.assertEqual(load.parse_theseus(text), {"Code added in 2025": 80, "Code added in 2026": 20})
+
+    def test_truncated_json_is_no_data(self):
+        self.assertEqual(load.parse_theseus('{"labels": ["Code ad'), {})
 
 
 class ParseAuthorsLog(unittest.TestCase):
@@ -402,6 +408,42 @@ class LoadReport(unittest.TestCase):
             r = load.load_report(out)
         self.assertEqual(r["trend"], {"samples": [], "files": {}})
         self.assertEqual(r["activity"], {})
+
+    def test_output_a_killed_tool_left_truncated_gives_the_empty_value(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "d", "commits": 1, "identities": []}, fh)
+            os.makedirs(os.path.join(out, "theseus"))
+            for name in ("size.json", "theseus/cohorts.json", "theseus/authors.json", "secrets.json"):
+                with open(os.path.join(out, name), "w") as fh:
+                    fh.write('[{"Name": "Python", "Cou')   # scc's stdout when the timeout killed it
+            r = load.load_report(out)
+        self.assertEqual(r["size"], {"languages": [], "total_code": 0, "total_files": 0, "files": {}})
+        self.assertEqual(r["cohorts"], {})
+        self.assertEqual(r["theseus_authors"], {})
+        self.assertEqual(r["secrets"], [])
+        self.assertFalse(r["secrets_scanned"], "half a secrets file is not a clean scan")
+
+    def test_an_unreadable_meta_json_is_one_clear_error(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                fh.write('{"name": "d", "comm')
+            with self.assertRaises(load.Unreadable) as ctx:
+                load.load_report(out)
+        self.assertIn("meta.json", str(ctx.exception))
+        self.assertIn("run gitmole again", str(ctx.exception))
+
+    def test_an_unreadable_backtest_sub_report_is_no_backtest(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "d", "commits": 1, "identities": []}, fh)
+            os.makedirs(os.path.join(out, "backtest"))
+            with open(os.path.join(out, "backtest", "meta.json"), "w") as fh:
+                fh.write("{")
+            self.assertIsNone(load.load_report(out)["backtest"])
 
     def test_backtest_sub_report_is_loaded_when_present(self):
         import os, tempfile

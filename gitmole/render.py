@@ -227,9 +227,21 @@ def summary(report: dict) -> dict:
     }
 
 
+# The steps every table leans on, by what the reader loses without them. The optional steps (code age,
+# functions, duplicates, trend, backtest) say so in their own sections.
+CORE_STEPS = {"scc": "size", "git-sizer": "repo health", "git-log": "change log", "change analysis": "change analysis",
+              "betterleaks": "secrets scan", "osv-scanner": "dependency scan"}
+
+
+def _unfinished(report: dict) -> list:
+    steps = report["meta"].get("steps") or {}
+    words = {"timeout": "timed out", "failed": "failed", "skipped": "skipped", "cancelled": "cancelled"}
+    return [f"{label} {words.get(steps[name], steps[name])}" for name, label in CORE_STEPS.items() if steps.get(name) not in (None, "run")]
+
+
 def pulse(report: dict) -> list:
     """One phrase each for the descriptive tables the default report leaves out."""
-    out = []
+    out = _unfinished(report)   # first: every number below may be missing because of it
     act = report.get("activity") or {}
     days, hours = act.get("by_weekday") or [], act.get("by_hour") or []
     if days and max(days):

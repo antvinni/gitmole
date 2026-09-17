@@ -33,10 +33,26 @@ def _only(rows: list, types) -> list:
     return out
 
 
+class Unreadable(ValueError):
+    """meta.json is missing its end or is not JSON: nothing else in the directory can be trusted."""
+
+
+def _json_or(text: str, default):
+    """The parsed document, or `default` for no text or for text a killed step left truncated."""
+    if not text.strip():
+        return default
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return default
+
+
 def parse_scc(text: str, types=None) -> dict:
     """scc --by-file JSON as languages and per-file rows. `types` (as filetypes.parse gives it: a
     set, or None for everything) keeps only the code files, so the size matches the other tables."""
-    rows = json.loads(text) if text.strip() else []
+    rows = _json_or(text, [])
+    if not isinstance(rows, list):
+        rows = []
     if types is not None:
         rows = _only(rows, types)
     languages = sorted(
@@ -129,7 +145,9 @@ def parse_git_sizer(text: str) -> list:
 
 
 def parse_theseus(text: str) -> dict:
-    d = json.loads(text)
+    d = _json_or(text, {})
+    if not isinstance(d, dict) or not d.get("labels"):
+        return OrderedDict()
     return OrderedDict((label, d["y"][i][-1]) for i, label in enumerate(d["labels"]))
 
 
@@ -207,7 +225,9 @@ def parse_duplicates(text: str) -> dict:
 def parse_secrets(text: str) -> list:
     """betterleaks rows as rule, file, short commit, line, fingerprint, the hashed value and the placeholder
     flag. A report written before values were hashed still has them: hash them here, keep nothing raw."""
-    rows = json.loads(text) if text.strip() else []
+    rows = _json_or(text, [])
+    if not isinstance(rows, list):
+        rows = []
     key = leaks.new_key()   # for an older report with raw values: one key per read, as the wrapper does per run
     out = []
     for r in rows:
@@ -246,20 +266,27 @@ def _read(out_dir: str, name: str) -> str:
 
 def _read_json(out_dir: str, name: str, default):
     """`default` for a missing file or one a killed step left truncated or malformed."""
-    text = _read(out_dir, name)
-    if not text:
-        return default
+    return _json_or(_read(out_dir, name), default)
+
+
+def _nested(out_dir: str):
+    """The backtest sub-report, or None when there is none or its meta.json cannot be read."""
+    sub = os.path.join(out_dir, "backtest")
+    if not os.path.isfile(os.path.join(sub, "meta.json")):
+        return None
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return default
+        return load_report(sub, nested=False)
+    except Unreadable:
+        return None
 
 
 def load_report(out_dir: str, nested: bool = True) -> dict:
     """Read every output file gitmole writes. Missing optional files become empty values.
 
     `nested`: also load the backtest sub-report (out_dir/backtest), one level deep only."""
-    meta = json.loads(_read(out_dir, "meta.json") or "{}")
+    meta = _read_json(out_dir, "meta.json", None) if os.path.exists(os.path.join(out_dir, "meta.json")) else {}
+    if not isinstance(meta, dict):
+        raise Unreadable(f"{os.path.join(out_dir, 'meta.json')} is truncated or not JSON; run gitmole again")
     cohorts = _read(out_dir, "theseus/cohorts.json")
     authors = _read(out_dir, "theseus/authors.json")
     canonical = dict(meta["aliases"]) if "aliases" in meta else identity.canonical_names(meta.get("identities") or [])
@@ -293,7 +320,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "secrets": parse_secrets(_read(out_dir, "secrets.json")),
         # the wrapper writes the file only when the scan finished, so a killed step or an old output
         # directory leaves it missing, and the report must not claim a clean scan
-        "secrets_scanned": os.path.exists(os.path.join(out_dir, "secrets.json")),
+        "secrets_scanned": isinstance(_read_json(out_dir, "secrets.json", None), list),
         "activity": _read_json(out_dir, "activity.json", {}),
         "functions": parse_functions(_read(out_dir, "functions.csv")),
         "duplicates": parse_duplicates_json(_read_json(out_dir, "duplicates.json", None)) or parse_duplicates(_read(out_dir, "duplicates.txt")),
@@ -301,6 +328,5 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         # scan); a missing file means the step did not finish or the run predates it
         "dependencies": parse_dependencies(_read_json(out_dir, "dependencies.json", None)),
         "trend": _read_json(out_dir, "trend.json", {"samples": [], "files": {}}),
-        "backtest": load_report(os.path.join(out_dir, "backtest"), nested=False)
-                    if nested and os.path.isfile(os.path.join(out_dir, "backtest", "meta.json")) else None,
+        "backtest": _nested(out_dir) if nested else None,
     }

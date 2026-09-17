@@ -776,6 +776,16 @@ class DescriptiveTables(unittest.TestCase):
     def test_header_line_is_in_markdown_too(self):
         self.assertIn("most commits on Thu at 10:00 · 76% of surviving code from 2025", render.markdown(sample_report(), []))
 
+    def test_header_line_names_the_core_steps_that_did_not_finish(self):
+        r = sample_report()
+        r["meta"]["steps"] = {"scc": "timeout", "git-sizer": "failed", "change analysis": "skipped", "betterleaks": "run", "trend": "failed"}
+        text = rendered(r, [], width=160)
+        self.assertIn("size timed out  ·  repo health failed  ·  change analysis skipped", text)
+        self.assertNotIn("trend failed", text, "the optional steps say so in their own sections")
+        self.assertIn("size timed out · repo health failed", render.markdown(r, []))
+        r["meta"]["steps"] = {"scc": "run"}
+        self.assertNotIn("size", render.pulse(r)[0])
+
 
 class KnowledgeMap(unittest.TestCase):
     def test_section_lists_areas_with_owners(self):

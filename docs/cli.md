@@ -112,4 +112,6 @@ last commit, plus one checkout of the tree as it was then, exported under
 the output directory and removed again when the step ends.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
-marked in the report, and the rest of the report still renders.
+and the rest of the report still renders: whatever the tool had written is
+read as no data, the header's second line names the step (`size timed out`),
+and `meta.json` records every step's outcome under `steps`.
