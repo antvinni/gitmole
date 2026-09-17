@@ -113,13 +113,21 @@ class Risks(unittest.TestCase):
         r = report()
         r["size"]["files"]["ops/deploy.sh"] = {"code": 300, "complexity": 80}
         r["revisions"].append({"entity": "ops/deploy.sh", "n-revs": 40})
+        # ops/plain.sh matches deploy.sh in everything the factor product reads except
+        # complexity: same revisions, same lines of code, no fixes or ownership rows for
+        # either. So any score difference between the two is complexity's doing, nothing else.
+        r["size"]["files"]["ops/plain.sh"] = {"code": 300, "complexity": 0}
+        r["revisions"].append({"entity": "ops/plain.sh", "n-revs": 40})
         by = {x["file"]: x for x in watch.risks(r)}
         self.assertEqual(by["ops/deploy.sh"]["complexity"], 80)
         self.assertEqual(by["core/parser.py"]["complexity"], 40, "scc's total, not lizard's worst function")
         self.assertIn("parse() complexity 41", by["core/parser.py"]["reasons"])
+        # revs × code is 40 × 300 for both, so the hotspot rank does not see complexity at all.
+        self.assertEqual(by["ops/deploy.sh"]["score"], by["ops/plain.sh"]["score"],
+                          "complexity does not enter the hotspot rank")
         by_rank = {x["file"]: x for x in watch.risks(r, scoring="rank")}
-        self.assertGreater(by_rank["ops/deploy.sh"]["score"], by_rank["core/util.py"]["score"],
-                            "under the factor product, deploy.sh's higher complexity lifts its score")
+        self.assertGreater(by_rank["ops/deploy.sh"]["score"], by_rank["ops/plain.sh"]["score"],
+                            "the two differ only in complexity, and the factor product lifts the more complex one")
 
 
     def test_rank_scaling_keeps_the_order_of_the_synthetic_repo(self):
