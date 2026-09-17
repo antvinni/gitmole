@@ -244,6 +244,7 @@ class Report(unittest.TestCase):
         self.assertEqual(caption(r, True), "trend sampled for the top 10 hotspots")
         self.assertIsNone(caption(r, False), "the tight report keeps its captions short")
         r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 100 - i} for i in range(60)]
+        r["size"]["files"].update({f"f{i}.py": {"code": 10, "complexity": 0} for i in range(60)})   # in the tree, so not hidden as deleted
         self.assertEqual(caption(r, "markdown"), "and 10 more; trend sampled for the top 10 hotspots")
 
     def test_watch_list_caption_reports_the_backtest_or_why_not(self):
@@ -289,10 +290,10 @@ class Report(unittest.TestCase):
     def test_default_coupling_hides_test_pairs_and_says_so(self):
         r = sample_report()
         r["coupling"].append({"entity": "static/tax.html", "coupled": "tests/test_tax.py", "degree": 100, "average-revs": 11})
-        text = rendered(r, [])
+        text = rendered(r, [], width=200)
         coupling = text[text.index("Change coupling"):]
         self.assertNotIn("tests/test_tax.py", coupling)
-        self.assertIn("1 test pair hidden; --full shows them", coupling)
+        self.assertIn("1 test pair hidden; 1 historical pair hidden; --full shows them", coupling, "one suffix for every hidden count")
         full_text = rendered(r, [], full=True)
         self.assertIn("tests/test_tax.py", full_text[full_text.index("Change coupling"):])
 
@@ -305,6 +306,16 @@ class Report(unittest.TestCase):
         self.assertIn("1 function in a test file hidden; --full shows them", fn)
         full_text = rendered(r, [], full=True)
         self.assertIn("tests/test_a.py", full_text[full_text.index("Complex functions"):])
+
+    def test_default_complex_functions_hide_vendored_code_and_say_so(self):
+        r = sample_report()
+        r["functions"].append({"file": "vendor/github.com/x/y.go", "function": "validate", "ccn": 179, "nloc": 424, "params": 3, "start": 1, "end": 424})
+        r["functions"].append({"file": "tests/test_a.py", "function": "test_thing", "ccn": 40, "nloc": 50, "params": 0, "start": 1, "end": 50})
+        fn = _section_text(rendered(r, [], width=200), "Complex functions")
+        self.assertNotIn("vendor/", fn)
+        self.assertIn("1 function in a test file hidden; 1 function in vendored code hidden; --full shows them", fn)
+        full = _section_text(rendered(r, [], width=200, full=True), "Complex functions")
+        self.assertIn("vendor/github.com/x/y.go", full)
 
     def test_hotspots_with_only_test_files_say_what_was_hidden(self):
         r = sample_report()
@@ -324,6 +335,41 @@ class Report(unittest.TestCase):
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
         self.assertIn("static/tax.html", full)
         self.assertNotIn("hidden", full)
+
+    def test_default_hotspots_hide_deleted_files_and_say_so(self):
+        r = sample_report()   # the tree holds static/index.html and static/apps-metadata.json only
+        r["revisions"].append({"entity": "src/sizes/old.go", "n-revs": 40})
+        hot = _section_text(rendered(r, [], width=200), "◆ Hotspots")
+        self.assertNotIn("src/sizes/old.go", hot)
+        self.assertIn("1 deleted file hidden; --full shows them", hot)
+        full = _section_text(rendered(r, [], width=200, full=True), "◆ Hotspots")
+        self.assertIn("src/sizes/old.go", full)
+        self.assertNotIn("hidden", full)
+
+    def test_hotspots_without_a_tree_listing_hide_nothing(self):
+        r = sample_report()
+        r["size"]["files"] = {}
+        hot = _section_text(rendered(r, [], width=200), "◆ Hotspots")
+        self.assertIn("static/index.html", hot)
+        self.assertNotIn("deleted", hot)
+
+    def test_default_coupling_collapses_a_directory_that_changes_as_one(self):
+        r = sample_report()
+        files = [f"rich/_unicode_data/unicode{n}.py" for n in ("10", "11", "12", "13")]
+        for f in files:
+            r["size"]["files"][f] = {"code": 600, "complexity": 0}
+        r["coupling"] = [{"entity": a, "coupled": b, "degree": 100, "average-revs": 5} for i, a in enumerate(files) for b in files[i + 1:]]
+        r["coupling"].append({"entity": "static/index.html", "coupled": "static/apps-metadata.json", "degree": 90, "average-revs": 11})
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("rich/_unicode_data/ (4 files)", coupling)
+        self.assertIn("each other", coupling)
+        self.assertIn("≥100%", coupling)
+        self.assertNotIn("unicode10", coupling)
+        self.assertIn("static/index.html", coupling)
+        self.assertIn("6 pairs in 1 directory shown as one row; --full shows them", coupling)
+        full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
+        self.assertIn("unicode10", full)
+        self.assertNotIn("each other", full)
 
     def test_coupling_with_only_test_pairs_says_what_was_hidden(self):
         r = sample_report()
@@ -866,6 +912,7 @@ class Markdown(unittest.TestCase):
         r = sample_report()
         r["coupling"] = []
         r["revisions"] = [{"entity": "weird|name.py", "n-revs": 3}]
+        r["size"]["files"]["weird|name.py"] = {"code": 5, "complexity": 0}   # in the tree, so not hidden as deleted
         md = render.markdown(r, [])
         self.assertIn("weird\\|name.py", md)
         self.assertIn("_no pairs with 5+ shared revisions_", md)

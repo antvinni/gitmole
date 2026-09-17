@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import filetypes, hotspots, knowledge, leaks, loss, textfmt, trend
+from . import coupling, filetypes, hotspots, knowledge, leaks, loss, textfmt, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -40,13 +40,14 @@ def _secret_statement(groups: list) -> str:
 
 def secrets_found(report: dict) -> list:
     """Secrets grouped by value. A value anywhere in source is critical; one that only ever appears in
-    test files (fixtures, saved pages) or documentation (templates, samples) is a warning, so a
-    critical gate does not trip on test data or a planning document. Version strings, template markers
-    and key blocks without key material were flagged as placeholders and are not a finding."""
+    test files (fixtures, saved pages), example or rule directories (language samples, a scanner's own
+    rules) or documentation (templates) is a warning, so a critical gate does not trip on test data or a
+    planning document. Version strings, template markers and key blocks without key material were
+    flagged as placeholders and are not a finding."""
     groups = leaks.group(report.get("secrets") or [])
 
     def in_source(g):
-        return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f)) for f in g["files"])
+        return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f)) for f in g["files"])
     source = [g for g in groups if in_source(g)]
     aside = [g for g in groups if not in_source(g)]
     ignore = "Add the fingerprint of any false positive from secrets.json to .betterleaksignore in the repository."
@@ -55,7 +56,7 @@ def secrets_found(report: dict) -> list:
         out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source),
                       f"Rotate them; deleting the file does not remove them from git. {ignore}"))
     if aside:
-        out.append(_f("warning", f"{len(aside)} secret(s) only in test or documentation files", _secret_statement(aside),
+        out.append(_f("warning", f"{len(aside)} secret(s) only in test, example or documentation files", _secret_statement(aside),
                       f"Confirm they are fixtures or templates, not live keys. {ignore}"))
     return out
 
@@ -93,9 +94,10 @@ def placeholder_identity(report: dict, min_share: float = 0.01) -> list:
 
 
 def _source_ownership(report: dict) -> list:
-    """Ownership rows for source files. Test files are left out of every rule that names a next
-    step: owning the tests is not the knowledge risk. The default tables leave them out too."""
-    return [r for r in report.get("ownership") or [] if not filetypes.is_test_path(r["entity"])]
+    """Ownership rows for source files. Test files and vendored trees are left out of every rule that
+    names a next step: owning the tests is not the knowledge risk, and whoever imported vendor/ did
+    not write it. The default tables leave test files out too."""
+    return [r for r in report.get("ownership") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_vendor_path(r["entity"]))]
 
 
 def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> list:
@@ -183,11 +185,21 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
     if not pairs:
         return []
     pairs.sort(key=lambda p: (-p["degree"], -p["average-revs"]))
+    groups, pairs = coupling.clusters(pairs)
+    when = f"together at least {min_degree}% of the time"
     top = "; ".join(f"{p['entity']} + {p['coupled']} ({p['degree']}%)" for p in pairs[:3])
+    if groups:
+        # a directory of files that change as one is a generator or a shared layout, said once
+        named = ", ".join(f"{g['files']} files in {g['dir']}" for g in groups[:2]) + (f" and {len(groups) - 2} more directories" if len(groups) > 2 else "")
+        rest = (f", and {_plural(len(pairs), 'more pair')} {'does' if len(pairs) == 1 else 'do'}: {top}." if pairs
+                else f", {_plural(sum(g['pairs'] for g in groups), 'pair')} in all.")
+        first = groups[0]
+        return [_f("info", "Files that always change together", f"{named} change {when}{rest}",
+                   f"Review {first['dir']} first: {first['files']} files change as one; a generator or a shared layout links them.")]
     count = f"{len(pairs)} pair changes" if len(pairs) == 1 else f"{len(pairs)} pairs change"
     first = pairs[0]
     return [_f("info", "Files that always change together",
-               f"{count} together at least {min_degree}% of the time, e.g. {top}.",
+               f"{count} {when}, e.g. {top}.",
                f"Review {first['entity']} and {first['coupled']} first: a shared layout or a hidden dependency links them.")]
 
 
@@ -363,8 +375,10 @@ def _partial_functions(report: dict) -> str:
 
 
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
-    """Functions that are both long and complex, in source files. A warning when one sits in a hotspot."""
-    big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not filetypes.is_test_path(f["file"])]
+    """Functions that are both long and complex, in this repository's own source files: test files and
+    vendored code are left out. A warning when one sits in a hotspot."""
+    big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines
+           and not (filetypes.is_test_path(f["file"]) or filetypes.is_vendor_path(f["file"]))]
     if not big:
         return []
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))

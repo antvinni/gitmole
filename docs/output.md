@@ -45,8 +45,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Secrets are grouped by value, so one key copied into ten files is one
    entry with its places counted. A value found in any source file is
    critical. A value found only in test files, such as fixtures and saved
-   web pages, or only in documentation (`.md`, `.rst`, `.txt`, `.adoc`, or
-   anything under `docs/`), where it is usually a template, is a warning.
+   web pages, only in example, sample, fixture, demo or rules directories
+   (a language sample, a scanner's own rule definitions), or only in
+   documentation (`.md`, `.rst`, `.txt`, `.adoc`, or anything under
+   `docs/`), where it is usually a template, is a warning.
    Four shapes cannot be a live secret and are left out, counted on the
    footer line: version strings, tokens shortened with "...", whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
@@ -100,7 +102,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    number of fix commits alongside, change coupling, the most complex
    functions, repo health. Change coupling hides pairs where either file is
    no longer in the tree, since they describe a layout that no longer
-   exists; the caption counts them and `--full` shows them. Hotspots carry a `trend` column, sampled for the
+   exists, and shows a directory whose files all change together (generated
+   tables, one file per version) as one row with the file count and the
+   weakest degree; the caption counts both and `--full` shows every pair.
+   Hotspots hide files no longer in the tree the same way. Hotspots carry a `trend` column, sampled for the
    top ten hotspots: the change in complexity over the last year from scc on
    the file at sampled commits (`--full` shows the whole series as a
    sparkline). The knowledge map marks owners who have stopped committing
@@ -112,10 +117,14 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Size, hotspots, coupling, ownership, code age and the watch list analyse
    source files: a built-in list of code extensions plus names like Makefile
    and Dockerfile (`--file-types all` counts everything). In the default
-   report, the hotspots and complex functions tables hide test files, and
-   the change coupling table hides pairs with a test file; the captions
-   show how many are hidden, and `--full` shows them. Activity and the
-   timeline cover the whole history.
+   report, the hotspots and complex functions tables hide test files, the
+   complex functions table also hides vendored code (`vendor/`,
+   `node_modules/`, `third_party/`, `external/`), and the change coupling
+   table hides pairs with a test file; the captions show how many are
+   hidden, and `--full` shows them. Vendored code is left out of the brain
+   methods, knowledge islands and bus factor findings too: somebody else's
+   code is not this repository's risk. Activity and the timeline cover the
+   whole history.
 5. **Footer**: where the files and plots are.
 
 The complete report for the gitmole repository itself is in
@@ -155,9 +164,11 @@ directory for a remote target:
 2. The hotspots table is `maat-revisions.csv` joined with scc's per-file
    size and complexity, author count, and age, ranked by revisions times
    lines. Large files that change constantly are your risk. By default the
-   tables leave test files out and say how many; `--full` shows them.
+   tables leave test files and deleted files out and say how many; `--full`
+   shows them.
 3. Change coupling shows files that always change together. That usually
-   means a hidden dependency or copy-pasted layout.
+   means a hidden dependency or copy-pasted layout. A whole directory that
+   changes as one is a generator or a shared layout, and shows as one row.
 4. People and the surviving-code table tell you whether knowledge is
    concentrated in one or two people; the knowledge map says where. Areas
    are top-level directories, or the subdirectories of a lone top-level one

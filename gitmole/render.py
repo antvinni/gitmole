@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
+from . import coupling, filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -78,8 +78,11 @@ def _more(total: int, limit) -> str:
     return f"and {total - limit} more" if limit is not None and total > limit else None
 
 
-def _hide_tests(rows: list, path_of, full, noun="test file", plural=None) -> tuple:
-    """Drop rows whose path (or any of whose paths) is a test path, unless `full` is True.
+HIDDEN_SUFFIX = "; --full shows them"
+
+
+def _hide_rows(rows: list, path_of, full, pred, noun: str, plural=None) -> tuple:
+    """Drop rows whose path (or any of whose paths) satisfies `pred`, unless `full` is True.
     `path_of(row)` returns a single path or a tuple of paths to check. `noun` names one hidden row
     and `plural` names several, `noun + "s"` by default (a multi-word noun gives its own plural:
     "function in a test file" -> "functions in test files"). Returns (rows, note), `note` being
@@ -90,12 +93,39 @@ def _hide_tests(rows: list, path_of, full, noun="test file", plural=None) -> tup
     for row in rows:
         paths = path_of(row)
         paths = (paths,) if isinstance(paths, str) else paths
-        if any(filetypes.is_test_path(p) for p in paths):
+        if any(pred(p) for p in paths):
             hidden += 1
         else:
             kept.append(row)
-    note = f"{hidden} {noun if hidden == 1 else plural or noun + 's'} hidden; --full shows them" if hidden else None
+    note = f"{hidden} {noun if hidden == 1 else plural or noun + 's'} hidden{HIDDEN_SUFFIX}" if hidden else None
     return kept, note
+
+
+def _hide_tests(rows: list, path_of, full, noun="test file", plural=None) -> tuple:
+    """Test files: they change with every fix, so they are not a signal on their own."""
+    return _hide_rows(rows, path_of, full, filetypes.is_test_path, noun, plural)
+
+
+def _hide_vendor(rows: list, path_of, full, noun="file in vendored code", plural="files in vendored code") -> tuple:
+    """Vendored trees: somebody else's code, not this repository's risk."""
+    return _hide_rows(rows, path_of, full, filetypes.is_vendor_path, noun, plural)
+
+
+def _join_hidden(*notes) -> str:
+    """Several hidden-row notes as one caption phrase: 'A hidden; B hidden; --full shows them'."""
+    parts = [n[:-len(HIDDEN_SUFFIX)] if n.endswith(HIDDEN_SUFFIX) else n for n in notes if n]
+    return "; ".join(parts) + HIDDEN_SUFFIX if parts else None
+
+
+def _hide_deleted(rows: list, report: dict, full) -> tuple:
+    """Drop hotspot rows for files no longer in the tree, unless `full` is True or there is no tree
+    listing to judge by: a deleted file's churn is history. Returns (rows, note) like _hide_tests."""
+    tree = (report.get("size") or {}).get("files") or {}
+    if full is True or not tree:
+        return rows, None
+    kept = [h for h in rows if h["code"] is not None]
+    hidden = len(rows) - len(kept)
+    return kept, (f"{hidden} deleted file{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
 def _hide_gone(pairs: list, report: dict, full) -> tuple:
@@ -345,6 +375,8 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
     scored = hotspots.ranked(report)
     scored, hidden_note = _hide_tests(scored, lambda h: h["entity"], full)
+    scored, deleted_note = _hide_deleted(scored, report, full)
+    hidden_note = _join_hidden(hidden_note, deleted_note)
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
     series = (report.get("trend") or {}).get("files") or {}
@@ -376,9 +408,18 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))
     pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair")
     pairs, gone_note = _hide_gone(pairs, report, full)
-    hidden_note = "; ".join(n for n in (hidden_note, gone_note) if n) or None
+    groups, cluster_note = [], None
+    if full is not True:
+        # a directory whose files all change together is one row; --full lists every pair
+        groups, pairs = coupling.clusters(pairs)
+        if groups:
+            n_pairs, n_dirs = sum(g["pairs"] for g in groups), len(groups)
+            cluster_note = (f"{n_pairs} pairs in {n_dirs} director{'y' if n_dirs == 1 else 'ies'} shown as "
+                            f"{'one row' if n_dirs == 1 else 'one row each'}{HIDDEN_SUFFIX}")
+    hidden_note = _join_hidden(hidden_note, gone_note, cluster_note)
     limit = _limit("Change coupling", full)
-    rows = [(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in pairs[:limit]]
+    rows = [(f"{g['dir']} ({g['files']} files)", "each other", f"≥{g['degree']}%", g["average-revs"]) for g in groups]
+    rows += [(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in pairs[:max(limit - len(groups), 0) if limit else None]]
     columns = [("file", PATH), ("changes with", PATH), ("degree", RIGHT), ("avg revs", RIGHT)]
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "changes with", "degree"])
@@ -432,6 +473,8 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     measured = report.get("functions") or []
     funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full, noun="function in a test file", plural="functions in test files")
+    funcs, vendor_note = _hide_vendor(funcs, lambda f: f["file"], full, noun="function in vendored code", plural="functions in vendored code")
+    hidden_note = _join_hidden(hidden_note, vendor_note)
     limit = _limit("Complex functions", full)
     rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]

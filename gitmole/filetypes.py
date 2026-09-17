@@ -65,6 +65,24 @@ def is_doc_path(path: str) -> bool:
     return bool(_DOC_PATH.search(path))
 
 
+_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules)(/|$)", re.I)
+
+
+def is_sample_path(path: str) -> bool:
+    """Example, sample, fixture, demo and rule directories: a value there is a specimen (a language
+    sample, a scanner's own rule definitions), not a credential in use."""
+    return bool(_SAMPLE_PATH.search(path))
+
+
+_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|node_modules|third_?party|external)(/|$)", re.I)
+
+
+def is_vendor_path(path: str) -> bool:
+    """Vendored and third-party trees: somebody else's code, so its complexity and its single
+    importer are not this repository's risk."""
+    return bool(_VENDOR_PATH.search(path))
+
+
 def key(path: str) -> str:
     """The lowercased extension, or the whole lowercased name when there is none."""
     name = path.rsplit("/", 1)[-1].lower()

@@ -48,7 +48,7 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
   app/main.py      7       6       1         2       =
   app/util.py      5       2       0         2       -
   Makefile         1       2       0         1       -
-  app/old.py       2       -       1         2       -
+  1 deleted file hidden; --full shows them
 
 ⟷ Change coupling
   file          changes with   degree
