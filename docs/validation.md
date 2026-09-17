@@ -105,9 +105,9 @@ django and ten on react. Beyond that:
   much, and size alone (207) does as well. The fix, complexity and ownership
   factors are better read as the reasons a file is on the list than as
   evidence that the list is sharper for them.
-- **curl is saturated.** Between a quarter and two thirds of its scored
-  files get a fix-labelled commit in any six months, so almost any sensible
-  fifteen hit; size alone scores 90 of 90 there. The backtest line under a
+- **curl is saturated.** Between 23% and 63% of its scored files get a
+  fix-labelled commit in any six months, so almost any sensible fifteen
+  hit; size alone scores 90 of 90 there. The backtest line under a
   report's watch list has the same limit: on a repository where most files
   are fixed often, "named 15 of 15" says little.
 
