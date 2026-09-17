@@ -291,11 +291,12 @@ class Report(unittest.TestCase):
         r["backtest"] = past
         r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
-        text = rendered(r, [], width=150)
+        text = rendered(r, [], width=200)
         self.assertIn("6 months ago this list would have named 1 of the 2 files fixed since "
-                     "(a random 2 of the 2 files that had changed more than once would name 1.0)", text)
+                      "(a random 2 of the 2 files that had changed more than once would name 1.0; the 2 most changed would name 1)", text)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["hits"], 1)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["pool"], 2)
+        self.assertEqual(render.to_json(r, [])["watch_backtest"]["baselines"]["churn"], 1)
 
 
     def test_backtest_caption_says_whole_history_under_a_window(self):
@@ -307,8 +308,8 @@ class Report(unittest.TestCase):
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
         r["meta"]["since"] = "2026-01-01"
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("ranked by churn × recent fixes × complexity × single ownership; commits since 2026-01-01", caption)
-        self.assertTrue(caption.endswith("would name 1.0); whole history"), caption)
+        self.assertIn("ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2026-01-01", caption)
+        self.assertTrue(caption.endswith("the 2 most changed would name 1); whole history"), caption)
 
     def test_default_hotspots_hide_test_files_and_say_so(self):
         r = sample_report()
@@ -700,7 +701,7 @@ class WatchList(unittest.TestCase):
         self.assertIn("◎ Watch list", text)
         self.assertRegex(text, r"static/index.html\s+changed 51 times · only Ann has touched it")
         self.assertRegex(text, r"static/apps-metadata.json\s+changed 128 times · fixed 4 times in six months")
-        self.assertIn("ranked by churn × recent fixes × complexity × single ownership", text)
+        self.assertIn("ranked by revisions × lines of code; the reasons say what else counts against each file", text)
 
     def test_capped_at_five_by_default_and_fifteen_in_full(self):
         r = sample_report()
@@ -741,7 +742,7 @@ class WatchList(unittest.TestCase):
         r = sample_report()
         r["meta"]["since"] = "2025-01-01"
         sec = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
-        self.assertEqual(sec["caption"], "ranked by churn × recent fixes × complexity × single ownership; commits since 2025-01-01")
+        self.assertEqual(sec["caption"], "ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2025-01-01")
 
 
 class DescriptiveTables(unittest.TestCase):
@@ -775,6 +776,23 @@ class DescriptiveTables(unittest.TestCase):
 
     def test_header_line_is_in_markdown_too(self):
         self.assertIn("most commits on Thu at 10:00 · 76% of surviving code from 2025", render.markdown(sample_report(), []))
+
+    def test_header_line_names_the_core_steps_that_did_not_finish(self):
+        r = sample_report()
+        r["meta"]["steps"] = {"scc": "timeout", "git-sizer": "failed", "change analysis": "skipped", "betterleaks": "run", "trend": "failed"}
+        text = rendered(r, [], width=160)
+        self.assertIn("size timed out  ·  repo health failed  ·  change analysis skipped", text)
+        self.assertNotIn("trend failed", text, "the optional steps say so in their own sections")
+        self.assertIn("size timed out · repo health failed", render.markdown(r, []))
+        r["meta"]["steps"] = {"scc": "run"}
+        self.assertNotIn("size", render.pulse(r)[0])
+
+    def test_core_steps_are_still_step_names_the_planner_emits(self):
+        # a step renamed in run.plan without a matching rename here would silently drop out of the
+        # header's "did not finish" line instead of failing loudly, so this pins the two together.
+        from gitmole import run
+        self.assertLessEqual(set(render.CORE_STEPS), {s["name"] for s in run.plan("/r", "/o")},
+                             "a renamed step would otherwise stop being named in the header")
 
 
 class KnowledgeMap(unittest.TestCase):
@@ -1109,7 +1127,7 @@ class Json(unittest.TestCase):
         self.assertEqual(d["size"]["total_code"], 5421)
         self.assertIn("revisions", d)
         self.assertIn("cohorts", d)
-        self.assertEqual(d["watch"][0]["file"], "static/apps-metadata.json")
+        self.assertEqual(d["watch"][0]["file"], "static/index.html")   # 51 × 4000 beats 128 × 800
         self.assertIn("reasons", d["watch"][0])
 
     def test_the_nested_backtest_sub_report_is_left_out(self):
@@ -1135,13 +1153,13 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(sec["rows"][0], ["core/parser.py", "▰▰▰▰▰▰▰▰▰▰", "changed 40 times · fixed 5 times in six months"])
         self.assertEqual(sec["rows"][1][1], "▰▰")
         self.assertEqual(sec["rows"][2][1], "")
-        self.assertEqual(sec["caption"], "total 3.6; 2 of these files are on the watch list")
+        self.assertEqual(sec["caption"], "total 3.6% of the repository's revisions × lines of code; 2 of these files are on the watch list")
 
     def test_one_watched_file_reads_as_one_file(self):
         risk = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times"], "watched": True}],
                 "total": 3.0, "watched": 1, "max_score": 3.0}
         sec = render.risk_section(risk, "main", full=False)
-        self.assertEqual(sec["caption"], "total 3.0; 1 of these files is on the watch list")
+        self.assertEqual(sec["caption"], "total 3.0% of the repository's revisions × lines of code; 1 of these files is on the watch list")
 
     def test_capped_rows_come_from_the_shared_limit_helper(self):
         risk = {"files": [{"file": f"f{i}.py", "score": 1.0, "reasons": ["changed 3 times"], "watched": False} for i in range(20)],
@@ -1185,7 +1203,7 @@ class Excerpt(unittest.TestCase):
         self.assertIn("demo", text)                     # header panel title
         self.assertIn("363 commits", text)
         self.assertIn("Watch list", text)
-        self.assertIn("static/apps-metadata.json", text)   # the top watch row: 128 revisions
+        self.assertIn("static/apps-metadata.json", text)   # both scored files fit under the excerpt's cap of 5
 
     def test_prints_nothing_else(self):
         text = self._text()

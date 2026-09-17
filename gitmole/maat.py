@@ -3,7 +3,7 @@
 
 Standalone on purpose: gitmole runs it as a pipeline step with
 `python3 maat.py LOG OUT_DIR [--aliases META_JSON]` and it must not need the
-package on sys.path. Input is `git log --all --numstat --date=short
+package on sys.path. Input is `git log HEAD --numstat --date=short
 --pretty=format:--%h--%ad--%aN -M`: renames are followed, so a moved file
 is one entity under its new path and a pure move adds and deletes nothing.
 Whoever moved a directory to src/ did not write it.
@@ -223,9 +223,9 @@ def activity(commits: list) -> dict:
 
 def plumbing(commits: list, min_revs: int = 20, share: float = 0.8, max_lines: int = 3) -> list:
     """Files whose commits nearly always swap a few lines for as many: a version constant in
-    __init__.py, the three fields of a version struct. Their churn is the release cadence, not where
-    the next bug lands. A commit that adds lines without removing any is growth, not a bump. Needs
-    enough commits to judge by."""
+    __init__.py, the three fields of a version struct. Their churn is the release cadence and says
+    nothing about their quality. A commit that adds lines without removing any is growth, not a
+    bump. Needs enough commits to judge by."""
     revs, tiny = Counter(), Counter()
     for c in commits:
         for path, added, deleted in c["files"]:

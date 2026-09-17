@@ -42,6 +42,15 @@ class NoRun(unittest.TestCase):
         self.assertIn("███╗   ███╗", text)
         self.assertIn(f"v{__version__}", text)
 
+    def test_a_truncated_meta_json_is_an_error_not_a_traceback(self):
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                fh.write('{"name": "d", "comm')
+            c = console()
+            rc = cli.main([out, "--no-run"], console=c)
+        self.assertEqual(rc, 2)
+        self.assertIn("run gitmole again", c.export_text())
+
 
 class LiveRun(unittest.TestCase):
     def test_full_run_on_a_terminal_console_prints_banner_and_report(self):
@@ -120,6 +129,12 @@ class FunctionMetrics(unittest.TestCase):
     def test_a_plan_without_a_trend_step_leaves_the_status_alone(self):
         _, meta, _ = self._main(True, [], name="quick")
         self.assertEqual(meta["trend"]["status"], "planned", "a step that never ran did not run")
+
+    def test_every_steps_outcome_is_recorded_not_only_the_optional_ones(self):
+        _, meta, _ = self._main(True, [], step=("sh", "-c", "exit 3"), name="scc")
+        self.assertEqual(meta["steps"], {"scc": "failed"})
+        _, meta, _ = self._main(True, [], name="git-sizer")
+        self.assertEqual(meta["steps"], {"git-sizer": "run"})
 
 
 class Budget(unittest.TestCase):
@@ -238,6 +253,16 @@ class Timeout(unittest.TestCase):
             text = c.export_text()
         self.assertIn("sleepy (timeout)", text)
 
+    def test_a_timed_out_step_is_recorded_in_meta(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "scc", "argv": ["sh", "-c", "sleep 3"], "stdout": None, "deps": []}]
+            cli.main([d, "--out", out, "--timeout", "0.3"], console=console(), tool_check=lambda **kw: [], planner=planner,
+                     estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1})
+            with open(os.path.join(out, "meta.json")) as fh:
+                self.assertEqual(json.load(fh)["steps"], {"scc": "timeout"})
+
 
 def _report_dir(out, identities=None):
     with open(os.path.join(out, "meta.json"), "w") as fh:
@@ -320,6 +345,24 @@ class Portfolio(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue(md.startswith("# acme"), md[:40])
         self.assertIn("| repo |", md)
+
+    def test_an_unreadable_repo_is_reported_and_skipped_not_a_traceback(self):
+        from unittest.mock import patch
+
+        from gitmole import load
+        real_load_report = load.load_report
+
+        def flaky(out_dir, *a, **kw):
+            if os.path.basename(out_dir) == "one":
+                raise load.Unreadable("x is truncated or not JSON; run gitmole again")
+            return real_load_report(out_dir, *a, **kw)
+
+        with patch("gitmole.cli.load.load_report", side_effect=flaky):
+            rc, text, dirs, has_meta, _ = self._run()
+        self.assertEqual(rc, 0)
+        self.assertEqual(dirs, ["one", "two"], "one's meta.json was still written to disk; only re-loading it failed")
+        self.assertIn("x is truncated or not JSON; run gitmole again; skipped", text)
+        self.assertIn("two", text, "the other repository still appears in the summary table")
 
 
 class GhFailures(unittest.TestCase):

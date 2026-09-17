@@ -32,14 +32,36 @@ def report(**overrides):
 
 
 class Risks(unittest.TestCase):
-    def test_combines_churn_fixes_complexity_and_ownership(self):
+    def test_ranks_by_revisions_times_lines_of_code(self):
         ranked = watch.risks(report())
-        self.assertEqual(ranked[0]["file"], "core/parser.py", "fewer revisions than index.html, but fixed, complex and single-owned")
-        self.assertEqual([r["file"] for r in ranked], ["core/parser.py", "web/index.html", "core/util.py"],
-                         "twice the churn still beats single ownership plus old fixes")
+        self.assertEqual([r["file"] for r in ranked], ["web/index.html", "core/parser.py", "core/util.py"],
+                         "60 × 4000, then 40 × 800, then 30 × 200; fixes, complexity and ownership are reasons, not rank")
+        # products 240,000 / 32,000 / 6,000, sum 278,000: 100 × each ÷ 278,000.
+        self.assertEqual([round(r["score"], 2) for r in ranked], [86.33, 11.51, 2.16],
+                         "each file's percentage share of the pool's revisions × lines of code")
+        self.assertAlmostEqual(sum(r["score"] for r in ranked), 100.0, msg="the whole list's scores add up to 100")
+
+    def test_a_single_scored_file_holds_the_whole_pool_and_scores_100(self):
+        r = report(revisions=[{"entity": "core/parser.py", "n-revs": 40}])
+        ranked = watch.risks(r)
+        self.assertEqual([x["file"] for x in ranked], ["core/parser.py"])
+        self.assertEqual(ranked[0]["score"], 100.0, "one file is the whole pool, so it holds all of it")
+
+    def test_a_pool_whose_products_are_all_zero_does_not_divide_by_zero(self):
+        # a scored file's code is not itself filtered for 0 (only None is); scc can total 0 code
+        # for a file of blank lines and comments alone that it still recognises.
+        r = report()
+        for f in ("core/parser.py", "core/util.py", "web/index.html"):
+            r["size"]["files"][f]["code"] = 0
+        ranked = watch.risks(r)
+        self.assertEqual([x["score"] for x in ranked], [0.0, 0.0, 0.0], "revs × 0 is 0 for every row, so the sum is 0 and every score falls back to 0.0")
+
+    def test_the_factor_products_stay_selectable_for_the_evaluation(self):
+        for scoring in ("rank", "max"):
+            self.assertEqual(watch.risks(report(), scoring=scoring)[0]["file"], "core/parser.py", scoring)
 
     def test_reasons_in_plain_words(self):
-        top = watch.risks(report())[0]
+        top = {r["file"]: r for r in watch.risks(report())}["core/parser.py"]
         self.assertEqual(top["reasons"], ["changed 40 times", "fixed 5 times in six months",
                                           "only Ann has touched it", "parse() complexity 41",
                                           "changes with core/ast.py (72%) and 1 other"])
@@ -53,7 +75,7 @@ class Risks(unittest.TestCase):
                            "ccn": 125, "nloc": 500, "params": 0, "start": 1162, "end": 1891, "suspect": "opens a block at line 1214 no deeper than its own start"},
                           {"file": "core/parser.py", "function": 'router.get("/x", (req, res) => {', "anonymous": True,
                            "ccn": 41, "nloc": 220, "params": 0, "start": 10, "end": 300, "suspect": ""}]
-        top = watch.risks(r)[0]
+        top = {r["file"]: r for r in watch.risks(r)}["core/parser.py"]
         self.assertIn("the function at line 10 complexity 41", top["reasons"], "a label is not a name to put () after; a suspect span is not this file's complexity")
         self.assertNotIn("complexity 125", " ".join(top["reasons"]))
 
@@ -69,7 +91,7 @@ class Risks(unittest.TestCase):
         r["revisions"] = [{"entity": "setup.py", "n-revs": 184}, {"entity": "version.go", "n-revs": 29}, {"entity": "Makefile", "n-revs": 131},
                           {"entity": "core/parser.py", "n-revs": 40}]
         files = sorted(x["file"] for x in watch.risks(r))
-        self.assertEqual(files, ["Makefile", "core/parser.py"], "a version file or a manifest changes on every release, not where the next bug lands")
+        self.assertEqual(files, ["Makefile", "core/parser.py"], "a version file or a manifest changes on every release, not because anything is wrong with it")
 
     def test_a_file_the_change_log_shows_as_plumbing_is_not_on_the_list(self):
         r = report()
@@ -86,7 +108,7 @@ class Risks(unittest.TestCase):
         self.assertEqual([x["file"] for x in watch.risks(r)], ["core/parser.py"])
 
     def test_test_companions_and_weak_pairs_are_not_reasons(self):
-        top = watch.risks(report())[0]
+        top = {r["file"]: r for r in watch.risks(report())}["core/parser.py"]
         coupling = [r for r in top["reasons"] if r.startswith("changes with")][0]
         self.assertNotIn("test_parser", coupling)
         self.assertNotIn("rare", coupling, "2 shared revisions is not a pattern")
@@ -94,8 +116,9 @@ class Risks(unittest.TestCase):
     def test_scc_complexity_stands_in_when_lizard_is_absent(self):
         r = report(functions=[])
         ranked = watch.risks(r)
-        self.assertEqual(ranked[0]["file"], "core/parser.py")
-        self.assertFalse(any("complexity" in x for x in ranked[0]["reasons"]), "scc's file total is not worded")
+        by = {x["file"]: x for x in ranked}
+        self.assertIn("core/parser.py", by)
+        self.assertFalse(any("complexity" in x for x in by["core/parser.py"]["reasons"]), "scc's file total is not worded")
 
     def test_empty_without_change_data(self):
         self.assertEqual(watch.risks(report(revisions=[])), [])
@@ -103,16 +126,52 @@ class Risks(unittest.TestCase):
 
     def test_complexity_is_scc_file_total_for_every_file_lizard_names_the_function(self):
         # lizard has no reader for shell, Terraform, Makefiles...; with lizard rows present those
-        # files used to score complexity 0. One scale (scc's per-file total) for the score,
-        # lizard's worst function for the wording.
+        # files used to score complexity 0. The row's `complexity` field is scc's per-file total
+        # for every file; lizard's worst function is only what the reasons name.
         r = report()
         r["size"]["files"]["ops/deploy.sh"] = {"code": 300, "complexity": 80}
         r["revisions"].append({"entity": "ops/deploy.sh", "n-revs": 40})
+        # ops/plain.sh matches deploy.sh in everything the factor product reads except
+        # complexity: same revisions, same lines of code, no fixes or ownership rows for
+        # either. So any score difference between the two is complexity's doing, nothing else.
+        r["size"]["files"]["ops/plain.sh"] = {"code": 300, "complexity": 0}
+        r["revisions"].append({"entity": "ops/plain.sh", "n-revs": 40})
         by = {x["file"]: x for x in watch.risks(r)}
         self.assertEqual(by["ops/deploy.sh"]["complexity"], 80)
         self.assertEqual(by["core/parser.py"]["complexity"], 40, "scc's total, not lizard's worst function")
         self.assertIn("parse() complexity 41", by["core/parser.py"]["reasons"])
-        self.assertGreater(by["ops/deploy.sh"]["score"], by["core/util.py"]["score"])
+        # revs × code is 40 × 300 for both, so the hotspot rank does not see complexity at all.
+        self.assertEqual(by["ops/deploy.sh"]["score"], by["ops/plain.sh"]["score"],
+                          "complexity does not enter the hotspot rank")
+        by_rank = {x["file"]: x for x in watch.risks(r, scoring="rank")}
+        self.assertGreater(by_rank["ops/deploy.sh"]["score"], by_rank["ops/plain.sh"]["score"],
+                            "the two differ only in complexity, and the factor product lifts the more complex one")
+
+
+    def test_rank_scaling_keeps_the_order_of_the_synthetic_repo(self):
+        self.assertEqual([r["file"] for r in watch.risks(report(), scoring="rank")], ["core/parser.py", "web/index.html", "core/util.py"])
+
+    def test_under_rank_scaling_an_outlier_does_not_rescale_the_other_files(self):
+        def scores(outlier_revs, scoring):
+            r = report()
+            r["size"]["files"]["core/big.py"] = {"code": 10, "complexity": 0}
+            r["revisions"].append({"entity": "core/big.py", "n-revs": outlier_revs})
+            return {x["file"]: x["score"] for x in watch.risks(r, scoring=scoring)}
+        self.assertEqual(scores(100, "rank")["core/util.py"], scores(10000, "rank")["core/util.py"])
+        self.assertNotEqual(scores(100, "max")["core/util.py"], scores(10000, "max")["core/util.py"], "what the rank scaling is for")
+
+    def test_a_file_never_fixed_gets_no_lift_from_fixes_under_either_scaling(self):
+        for scoring in ("max", "rank"):
+            by = {r["file"]: r for r in watch.risks(report(), scoring=scoring)}
+            self.assertEqual(by["web/index.html"]["score"], 1.0, f"{scoring}: most changed, no fixes, no complexity, shared")
+
+    def test_an_unknown_scaling_is_refused(self):
+        with self.assertRaises(ValueError):
+            watch.risks(report(), scoring="median")
+
+    def test_hotspot_is_the_default_scoring(self):
+        r = report()
+        self.assertEqual([x["score"] for x in watch.risks(r)], [x["score"] for x in watch.risks(r, scoring="hotspot")])
 
 
 class WhyEmpty(unittest.TestCase):
@@ -192,6 +251,27 @@ class Backtest(unittest.TestCase):
         self.assertIsNone(watch.backtest(report(backtest=past)), "no date to compare the fixes against")
         past["meta"] = {"now": ""}
         self.assertIsNone(watch.backtest(report(backtest=past)))
+
+    def test_baselines_are_scored_over_the_same_pool_and_the_same_fixes(self):
+        def with_big(**over):
+            r = report(**over)
+            r["size"]["files"]["core/big.py"] = {"code": 9000, "complexity": 3}
+            r["revisions"].append({"entity": "core/big.py", "n-revs": 35})
+            return r
+        past = with_big()
+        past["meta"] = {"now": "2026-03-01"}
+        r = with_big(fixes=[{"entity": "core/big.py", "n-fixes": 1, "last-fix": "2026-09-01", "recent-fixes": 1}], backtest=past)
+        out = watch.backtest(r, top=1)
+        self.assertEqual((out["listed"], out["hits"]), (1, 1), "35 × 9000 leads the list, and big.py was fixed")
+        self.assertEqual(out["baselines"], {"churn": 0, "size": 1}, "the most changed file is index.html; the largest is big.py")
+
+
+class RankedBy(unittest.TestCase):
+    def test_best_first_ties_by_file_name_and_rows_carry_their_size(self):
+        rows = watch.risks(report())
+        self.assertEqual({r["file"]: r["code"] for r in rows}, {"core/parser.py": 800, "core/util.py": 200, "web/index.html": 4000})
+        self.assertEqual(watch.ranked_by(rows, watch.BASELINES["churn"]), ["web/index.html", "core/parser.py", "core/util.py"])
+        self.assertEqual(watch.ranked_by(rows, lambda r: 0), ["core/parser.py", "core/util.py", "web/index.html"])
 
 
 if __name__ == "__main__":

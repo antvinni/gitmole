@@ -54,8 +54,8 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
 | `--fail-on LEVEL` | Exit 3 if any finding is at `critical`, `warning` or `info` or worse. |
-| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score, in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
-| `--risk-threshold N` | With `--risk`: exit 3 when the change-risk total exceeds N. |
+| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
+| `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent. |
 
 ## Exports and CI
 
@@ -64,7 +64,19 @@ gitmole . --markdown report.md         # the same report as a Markdown document
 gitmole . --json report.json           # every table, the watch list and the findings, machine-readable
 gitmole . --markdown - | pbcopy        # - means stdout; banner and progress go to stderr
 gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
-gitmole . --risk main --risk-threshold 5   # exit 3 if the changed files are too risky
+gitmole . --risk main --risk-threshold 10  # exit 3 if the changed files hold over 10% of the repo's revisions × lines
+```
+
+Each finding in the JSON carries, next to its severity, title, detail and
+advice, a `rule` (the rule's `id` and the thresholds it fired on) and its
+`evidence` (the numbers those thresholds were compared with, lists capped
+at ten), so a finding can be checked, filtered or tracked over time without
+parsing its sentence:
+
+```json
+{"severity": "warning", "title": "Bug magnets",
+ "rule": {"id": "bug_magnets", "min_recent": 3, "warn_at": 5, "window_months": 6, "fix": "the commit subject says so"},
+ "evidence": {"count": 2, "files": [{"file": "lib/url.c", "recent_fixes": 5, "fixes": 41}]}}
 ```
 
 A CI job that runs
@@ -72,9 +84,14 @@ A CI job that runs
 on secrets in source files and still posts the report. Secrets found only in
 test files are a warning, so gate on `warning` to block on those too. Both
 exports also work with `--no-run` against an earlier output directory.
-`--risk-threshold` needs `--risk`: it exits 3 when the files changed since
-main add up to more than 5 on the watch-list scale; the total prints in the
-Change risk caption.
+`--risk-threshold` needs `--risk`; it exits 3 when the files changed since
+main hold more than 10% of the repository's revisions × lines of code, and
+the total prints in the Change risk caption.
+
+The scale changed in 0.8.0: before, the total was a sum of factor-product
+scores with no fixed unit. A threshold chosen for 0.7 has to be chosen
+again; run `gitmole . --risk main` on a few merged changes and read the
+totals.
 
 ## Big repositories
 
@@ -112,4 +129,6 @@ last commit, plus one checkout of the tree as it was then, exported under
 the output directory and removed again when the step ends.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
-marked in the report, and the rest of the report still renders.
+and the rest of the report still renders: whatever the tool had written is
+read as no data, the header's second line names the step (`size timed out`),
+and `meta.json` records every step's outcome under `steps`.

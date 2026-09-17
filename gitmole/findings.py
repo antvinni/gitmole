@@ -11,10 +11,13 @@ PLACEHOLDER_NAMES = {"your name", "unknown", "root", "user"}
 PLACEHOLDER_EMAIL = re.compile(r"(@example\.(com|org|net)$|^you@|^user@|^root@|@localhost$)")
 
 
-def _f(severity: str, title: str, statement: str, advice: str) -> dict:
+def _f(severity: str, title: str, statement: str, advice: str, rule: dict, evidence: dict) -> dict:
     """A finding: the facts, then the next step. `detail` is the two joined for anyone reading the
-    JSON; `advice` says which part is the step so the report can show it on its own line."""
-    return {"severity": severity, "title": title, "detail": f"{statement.rstrip()} {advice}", "advice": advice}
+    JSON; `advice` says which part is the step so the report can show it on its own line. `rule` is
+    the rule's id and the thresholds it fired on, `evidence` the numbers they were compared with:
+    between them a reader of the JSON can check the finding without reading this file."""
+    return {"severity": severity, "title": title, "detail": f"{statement.rstrip()} {advice}", "advice": advice,
+            "rule": rule, "evidence": evidence}
 
 
 def _pct(part, whole) -> str:
@@ -38,6 +41,10 @@ def _secret_statement(groups: list) -> str:
     return f"{_plural(len(groups), 'distinct value')} in {_plural(places, 'place')}: {sample}{more}."
 
 
+def _secret_evidence(groups: list) -> dict:
+    return {"values": len(groups), "places": sum(g["places"] for g in groups), "files": sorted({f for g in groups for f in g["files"]})[:10]}
+
+
 def secrets_found(report: dict) -> list:
     """Secrets grouped by value. A value anywhere in source is critical; one that only ever appears in
     test files (fixtures, saved pages), example or rule directories (language samples, a scanner's own
@@ -57,10 +64,12 @@ def secrets_found(report: dict) -> list:
     out = []
     if source:
         out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source),
-                      f"Rotate them; deleting the file does not remove them from git. {ignore}"))
+                      f"Rotate them; deleting the file does not remove them from git. {ignore}",
+                      rule={"id": "secrets_in_source", "scanner": "betterleaks", "placeholders": "left out"}, evidence=_secret_evidence(source)))
     if aside:
         out.append(_f("warning", f"{len(aside)} secret(s) only in test, example, vendored or documentation files", _secret_statement(aside),
-                      f"Confirm they are fixtures or templates, not live keys. {ignore}"))
+                      f"Confirm they are fixtures or templates, not live keys. {ignore}",
+                      rule={"id": "secrets_aside", "scanner": "betterleaks", "placeholders": "left out"}, evidence=_secret_evidence(aside)))
     return out
 
 
@@ -92,7 +101,9 @@ def placeholder_identity(report: dict, min_share: float = 0.01) -> list:
                       f"knowledge findings then describe one person." if real
                       else "Set user.name and user.email; consider a .mailmap for history.")
             out.append(_f("warning", "Unconfigured git identity",
-                          f"\"{i['name']} <{i['email']}>\" made {i['commits']} commits ({_pct(i['commits'], total)}).", advice))
+                          f"\"{i['name']} <{i['email']}>\" made {i['commits']} commits ({_pct(i['commits'], total)}).", advice,
+                          rule={"id": "placeholder_identity", "min_share": min_share},
+                          evidence={"name": i["name"], "email": i["email"], "commits": i["commits"], "total_commits": total}))
     return out
 
 
@@ -135,7 +146,9 @@ def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> li
                   f"{f' since {since}' if since else ''}.")
     else:
         advice = f"Pair someone with {name} before they are unavailable."
-    return [_f("warning", "Bus factor of one", f"{name} wrote {_pct(lines, total)} of the code that survives today.", advice)]
+    return [_f("warning", "Bus factor of one", f"{name} wrote {_pct(lines, total)} of the code that survives today.", advice,
+               rule={"id": "bus_factor", "threshold": threshold, "min_lines": min_lines},
+               evidence={"author": name, "lines": lines, "total_lines": total, "areas": [{"area": a, "share_pct": s} for a, s in theirs[:10]]})]
 
 
 def _sizer_advice(row: dict) -> str:
@@ -172,7 +185,9 @@ def sizer_concerns(report: dict) -> list:
         if row.get("ref") and tree and row["name"].startswith("Blobs: ") and row["ref"] not in tree:
             where += ", no longer in the tree"   # deleting it did not shrink the clone
             advice = "It is already gone from the tree; a history rewrite is only worth it for clone size."
-        out.append(_f(sev, "Repo health", f"{row['name']} is {row['value']}{where}. git-sizer level of concern {row['concern']}.", advice))
+        out.append(_f(sev, "Repo health", f"{row['name']} is {row['value']}{where}. git-sizer level of concern {row['concern']}.", advice,
+                      rule={"id": "repo_health", "source": "git-sizer", "warning_at_concern": 2},
+                      evidence={"metric": row["name"], "value": row["value"], "concern": row["concern"], "ref": row.get("ref") or None}))
     return out
 
 
@@ -187,7 +202,9 @@ def hotspot_dominance(report: dict, ratio: float = 2.0, minimum: int = 20) -> li
     top, nxt = revs[0], revs[1]
     return [_f("info", "One file dominates the churn",
                f"{top['entity']} changed {top['n-revs']} times, versus {nxt['n-revs']} for the next file ({nxt['entity']}).",
-               f"Consider splitting {top['entity']}; every change lands there.")]
+               f"Consider splitting {top['entity']}; every change lands there.",
+               rule={"id": "hotspot_dominance", "ratio": ratio, "minimum": minimum},
+               evidence={"file": top["entity"], "revs": top["n-revs"], "next_file": nxt["entity"], "next_revs": nxt["n-revs"]})]
 
 
 def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> list:
@@ -206,6 +223,9 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
         return []
     pairs.sort(key=lambda p: (-p["degree"], -p["average-revs"]))
     groups, pairs = coupling.clusters(pairs)
+    rule = {"id": "tight_coupling", "min_degree": min_degree, "min_revs": min_revs}
+    evidence = {"clusters": [{"dir": g["dir"], "files": g["files"], "pairs": g["pairs"], "degree": g["degree"]} for g in groups[:10]],
+                "pairs": [{"a": p["entity"], "b": p["coupled"], "degree": p["degree"], "revs": p["average-revs"]} for p in pairs[:10]]}
     when = f"together at least {min_degree}% of the time"
     top = "; ".join(f"{p['entity']} + {p['coupled']} ({p['degree']}%)" for p in pairs[:3])
     if groups:
@@ -215,12 +235,14 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
                 else f", {_plural(sum(g['pairs'] for g in groups), 'pair')} in all.")
         first = groups[0]
         return [_f("info", "Files that always change together", f"{named} change {when}{rest}",
-                   f"Review {first['dir']} first: {first['files']} files change as one; a generator or a shared layout links them.")]
+                   f"Review {first['dir']} first: {first['files']} files change as one; a generator or a shared layout links them.",
+                   rule=rule, evidence=evidence)]
     count = f"{len(pairs)} pair changes" if len(pairs) == 1 else f"{len(pairs)} pairs change"
     first = pairs[0]
     return [_f("info", "Files that always change together",
                f"{count} {when}, e.g. {top}.",
-               f"Review {first['entity']} and {first['coupled']} first: a shared layout or a hidden dependency links them.")]
+               f"Review {first['entity']} and {first['coupled']} first: a shared layout or a hidden dependency links them.",
+               rule=rule, evidence=evidence)]
 
 
 def _months_apart(earlier: str, later: str) -> int:
@@ -247,7 +269,8 @@ def dormant(report: dict, months: int = 12) -> list:
     if idle < months:
         return []
     return [_f("warning", "Dormant repository", f"No commits since {report['meta']['last_date']}, {idle} months ago.",
-               "The rest of the report describes a repository that has stopped; look for a successor or an archive notice before depending on it.")]
+               "The rest of the report describes a repository that has stopped; look for a successor or an archive notice before depending on it.",
+               rule={"id": "dormant", "months": months}, evidence={"last_date": report["meta"]["last_date"], "idle_months": idle})]
 
 
 def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
@@ -267,7 +290,8 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
         return []
     return [_f("info", "A large share of files is untouched",
                f"{_pct(len(stale), len(age))} of files ({len(stale)}) have not changed in {months} months or more.",
-               "Consider deleting what nobody has needed; dead code hides in untouched files.")]
+               "Consider deleting what nobody has needed; dead code hides in untouched files.",
+               rule={"id": "stale_files", "months": months, "share": share}, evidence={"stale": len(stale), "files": len(age)})]
 
 
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
@@ -285,7 +309,9 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     first = " and ".join(f["entity"] for f in hot[:2])
     return [_f(sev, "Bug magnets",
                f"{len(hot)} file(s) were fixed {min_recent}+ times in the last six months: {listed}{more}.",
-               f"Review {first} before the next release; expect the next bug there.")]
+               f"Review {first} before the next release; fixes keep landing there.",
+               rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so"},
+               evidence={"count": len(hot), "files": [{"file": f["entity"], "recent_fixes": f["recent-fixes"], "fixes": f["n-fixes"]} for f in hot[:10]]})]
 
 
 def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_share: float = 0.10) -> list:
@@ -295,12 +321,14 @@ def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_shar
     total = report["meta"].get("commits") or 0
     if not n or not total or (n < min_count and n / total < min_share):
         return []
+    rule = {"id": "reverts", "min_share": min_share, "min_count": min_count, "warn_share": warn_share}
     sev = "warning" if total and n / total >= warn_share else "info"
     reverted = act.get("reverted") or {}
     repeat = {p: c for p, c in reverted.items() if c >= 2}
     if reverted and not repeat:   # every reverted file was reverted once: no file keeps coming back
         return [_f(sev, "Reverts", f"{n} of {total} commits are reverts, spread over {len(reverted)} files, none backed out twice.",
-                   "Look at why they were backed out; no single file keeps coming back.")]
+                   "Look at why they were backed out; no single file keeps coming back.",
+                   rule=rule, evidence={"reverts": n, "commits": total, "files": len(reverted), "reverted": {}})]
     reverted = repeat
     # source files lead: a test file at the top of the table would otherwise be the one named first
     items = sorted(reverted.items(), key=lambda kv: filetypes.is_test_path(kv[0]))[:3]
@@ -317,7 +345,8 @@ def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_shar
         advice = f"Add a check before merge for {source[0]}; it is the file most often backed out."
     else:
         advice = "Look at why they were backed out; only test files were touched."
-    return [_f(sev, "Reverts", statement, advice)]
+    return [_f(sev, "Reverts", statement, advice,
+               rule=rule, evidence={"reverts": n, "commits": total, "reverted": dict(list(reverted.items())[:10])})]
 
 
 def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9, min_fraction: float = 0.01) -> list:
@@ -337,7 +366,10 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
     return [_f(sev, "Knowledge islands",
                f"{len(islands)} area(s) with at least {min_lines} lines were written almost entirely by one person: {listed}{more}. "
                f"That is {_pct(covered, total)} of all lines added.",
-               f"Pair someone with {largest['owner']} on {largest['area']} first; it is the largest at {largest['lines']:,} lines.")]
+               f"Pair someone with {largest['owner']} on {largest['area']} first; it is the largest at {largest['lines']:,} lines.",
+               rule={"id": "knowledge_islands", "min_lines": min_lines, "min_share": min_share, "min_fraction": min_fraction},
+               evidence={"covered_lines": covered, "total_lines": total,
+                         "islands": [{"area": i["area"], "owner": i["owner"], "share_pct": i["share"], "lines": i["lines"]} for i in islands[:10]]})]
 
 
 LIVE_MONTHS = 12
@@ -426,7 +458,11 @@ def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.
     else:   # nothing there has been touched in a year: pairing on it would be work nobody has asked for
         top = min(by_person, key=lambda n: (-by_person[n], n))
         advice = f"Pair someone with the people who worked with {top} before the rest of that knowledge goes."
-    return [_f(sev, "Knowledge loss", statement, advice)]
+    return [_f(sev, "Knowledge loss", statement, advice,
+               rule={"id": "knowledge_loss", "gone_months": months, "min_share": min_share, "warn_share": warn_share},
+               evidence={"lost_lines": lost, "total_lines": total, "basis": "surviving code" if basis.startswith("of the code") else "lines added",
+                         "people": dict(sorted(by_person.items(), key=lambda kv: (-kv[1], kv[0]))[:10]),
+                         "areas": [{"area": a["area"], "share_pct": round(100 * a["lost_share"]), "live": a["live"]} for a in theirs[:10]]})]
 
 
 def _partial(report: dict, step: str, label: str) -> str:
@@ -460,7 +496,10 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     which = f"the anonymous function at {_place(first)}" if _anonymous(first) else f"{first['function']} in {first['file']}"
     return [_f(sev, "Brain methods",
                f"{len(big)} function(s) are both long and complex: {listed}{more}.{_partial_functions(report)}",
-               f"Split {which} first, before the next change lands there.")]
+               f"Split {which} first, before the next change lands there.",
+               rule={"id": "brain_methods", "min_ccn": min_ccn, "min_lines": min_lines},
+               evidence={"count": len(big), "partial": bool(_partial_functions(report)),
+                         "functions": [{"file": f["file"], "function": f["function"], "start": f["start"], "ccn": f["ccn"], "lines": f["nloc"], "params": f["params"]} for f in big[:10]]})]
 
 
 ANONYMOUS = "(anonymous)"
@@ -503,7 +542,9 @@ def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = 25, top
     first = grown[0]
     return [_f(sev, "Hotspots getting more complex",
                f"{len(grown)} of the {len(top)} top source hotspots grew by {min_pct}% or more in a year: {listed}.",
-               f"Split {first[0]} before the next change; its complexity grew {first[1]}% in a year.")]
+               f"Split {first[0]} before the next change; its complexity grew {first[1]}% in a year.",
+               rule={"id": "complexity_growth", "min_growers": min_growers, "min_pct": min_pct, "top_n": top_n},
+               evidence={"hotspots": len(top), "grown": [{"file": p, "growth_pct": g} for p, g in grown[:10]]})]
 
 
 def duplication(report: dict, min_lines: int = 30) -> list:
@@ -527,7 +568,10 @@ def duplication(report: dict, min_lines: int = 30) -> list:
     files = list(dict.fromkeys(p for p, _, _ in first["places"]))   # each file once, in place order
     where = f"repeated within {files[0]}" if len(files) == 1 else f"shared by {files[0]} and {files[1]}"
     return [_f("info", "Duplicated code", f"{len(blocks)} block(s) of {min_lines}+ duplicated lines: {listed}{more}.{rate}{_partial(report, 'duplicates', 'Duplicate detection')}",
-               f"Extract the {first['lines']}-line block {where} first.")]
+               f"Extract the {first['lines']}-line block {where} first.",
+               rule={"id": "duplication", "min_lines": min_lines},
+               evidence={"blocks": len(blocks), "rate_pct": dup.get("rate"), "partial": bool(_partial(report, "duplicates", "Duplicate detection")),
+                         "largest": [{"lines": b["lines"], "places": [list(p) for p in b["places"][:3]]} for b in blocks[:3]]})]
 
 
 CRITICAL_SCORE = 9.0   # CVSS: the band the advisories themselves call critical
@@ -571,7 +615,12 @@ def vulnerable_dependencies(report: dict) -> list:
         sources = len({r["source"] for r in group})
         target = f"Upgrade {worst['name']} to {worst['fixed']} in {worst['source']} first" if worst.get("fixed") else f"Look at {worst['name']} in {worst['source']} first, which has no fixed version yet"
         why = f"; it scores {worst['score']:.1f}." if worst.get("score") is not None else "."
-        out.append(_f(sev, title, _vuln_statement(group, sources), f"{target}{why} {IGNORE_DEPS}"))
+        out.append(_f(sev, title, _vuln_statement(group, sources), f"{target}{why} {IGNORE_DEPS}",
+                      rule={"id": "vulnerable_dependencies" if group is source else "vulnerable_dependencies_aside", "critical_score": CRITICAL_SCORE},
+                      evidence={"lock_files": sources,
+                                "packages": [{"name": r["name"], "version": r["version"], "source": r["source"], "score": r.get("score"),
+                                              "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
+                                              "aliases": list(r.get("aliases") or [])} for r in group[:10]]}))
     return out
 
 

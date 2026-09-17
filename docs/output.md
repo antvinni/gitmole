@@ -106,17 +106,20 @@ How to read each part of the terminal report, and what each run writes to disk; 
    file, area or function: they change with every fix, and owning the tests is
    not the knowledge risk. The default tables leave them out too; `--full`
    shows them.
-3. **Watch list**: the five files where the next bug is most likely, with
+3. **Watch list**: the five source files most likely to need a fix next, with
    the reasons in words. Every source file still in the tree that changed
-   more than once is scored churn × (1 + recent fixes) × (1 + complexity),
-   times 1.5 when one person wrote 90% or more of it, each factor scaled to
-   the worst file in the repo. Churn is the base because a file nobody
-   changes is not where the next bug lands; complexity is scc's per-file
-   total, one scale for every file, while the most complex function lizard
-   found is named in the reasons (a nameless one by its line; a span marked
-   `?` in the complex functions table is passed over). The reasons name the
-   fix count, the sole owner, the function and the files it always changes
-   with. Test files are
+   more than once is ranked by revisions × lines of code, the Hotspots
+   table's product, over source files only: measured against the fixes
+   that followed at six cut-offs on three repositories
+   ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md)),
+   it named more of them than any weighting of fixes, complexity and
+   ownership did. A file's score, which `--risk` adds up, is its share, in
+   percent, of all scored files' revisions × lines of code; the reasons
+   name the fix count (the last six months' when there are any), the sole
+   owner, the most complex function lizard found (a nameless one by its
+   line; a span marked `?` in the complex functions table is passed over)
+   and the files it always changes with, none of them entering the rank.
+   Test files are
    left out. Under `--since`, churn and ownership are windowed and the list
    says so. `--full` and the exports show fifteen. With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
@@ -130,6 +133,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    what a random list of the same size, drawn from the files that had
    changed more than once, would score. Repositories with under a year
    of history say `too little history to backtest`.
+
+   That line is one cut-off on one repository. How the list does over six
+   cut-offs on curl, django and react, next to lists ranked by churn alone,
+   by size alone and by the factor product the list used to rank by, is in
+   [validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md).
+   "Fixed" means a commit whose subject says so, which is a proxy for a bug.
 4. **Tables**: people (identities merged on top of `.mailmap` when they
    share an email, two name words, the same name spelled identically
    unless it is a bare common first name, a one-word handle that is a
@@ -182,7 +191,7 @@ How to read each part of the terminal report, and what each run writes to disk; 
    `--full` shows them. Release plumbing is also hidden from the hotspots
    table and left out of the watch list, the churn-dominance and the
    bug-magnet findings: a version file or a manifest changes on every
-   release by design, not because the next bug lands there. Plumbing is
+   release by design, not because anything is wrong with it. Plumbing is
    known by name (`version.py`, `package.json`, lock files, changelogs)
    and by behaviour: `maat-plumbing.csv` lists files with twenty commits
    or more where at least four in five swapped no more than three lines
@@ -216,7 +225,7 @@ directory for a remote target:
 
 | File | From | What it is |
 |---|---|---|
-| `meta.json` | git | name, branch, commit count, date span, identities |
+| `meta.json` | git | name, branch, commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps` |
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |

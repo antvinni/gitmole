@@ -42,8 +42,8 @@ def parse_args(argv):
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
-    p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) with the watch list's score; needs a local path")
-    p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the change-risk total exceeds N")
+    p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) by their share of the repository's revisions × lines of code; needs a local path")
+    p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the changed files hold more than N percent of the repository's revisions × lines of code")
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
     return p.parse_args(argv)
 
@@ -328,7 +328,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
 
 
 def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: bool, cut, duplicates_ok: bool = True) -> None:
-    """Turn each planned step's exit code into its final status: run, timeout or failed."""
+    """Turn each step's exit code into its final status: run, skipped, timeout or failed."""
     def status(step, default="run"):
         rc = results.get(step, 0)
         return default if rc == 0 else ("timeout" if rc == "timeout" else "failed")
@@ -344,6 +344,8 @@ def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: boo
         meta["trend"]["status"] = status("trend")
     if cut and "backtest" in results:
         meta["backtest"]["status"] = status("backtest")
+    # every step, not only the optional ones above: a killed scc is otherwise a report of "0 lines" with no reason
+    meta["steps"] = {name: "run" if rc == 0 else (rc if isinstance(rc, str) else "failed") for name, rc in results.items()}
 
 
 def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator) -> None:
@@ -411,7 +413,11 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
             except NoCommits as e:
                 ui.print(f"[yellow]{name}:[/yellow] {e}; skipped")
                 continue
-            report = load.load_report(out_dir)
+            try:
+                report = load.load_report(out_dir)
+            except load.Unreadable as e:
+                ui.print(f"[yellow]{name}:[/yellow] {e}; skipped", soft_wrap=True)
+                continue
             reports.append((name, report, findings.evaluate(report)))
     finally:
         shutil.rmtree(parent, ignore_errors=True)   # the temp clones; nothing reads them after the run
@@ -484,7 +490,11 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
 
     from . import render
 
-    report = load.load_report(out_dir)
+    try:
+        report = load.load_report(out_dir)
+    except load.Unreadable as e:
+        err.print(f"[red]{e}[/red]", soft_wrap=True)
+        return 2
     found = findings.evaluate(report)
     risk = None
     if args.risk:

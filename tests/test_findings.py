@@ -417,12 +417,12 @@ class BugMagnets(unittest.TestCase):
         self.assertIn("core/util.py (3", f[0]["detail"])
         self.assertNotIn("tests/", f[0]["detail"])
         self.assertNotIn("core/old.py", f[0]["detail"])
-        self.assertTrue(f[0]["detail"].endswith("Review core/parser.py and core/util.py before the next release; expect the next bug there."), f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Review core/parser.py and core/util.py before the next release; fixes keep landing there."), f[0]["detail"])
 
     def test_info_below_five_recent_fixes(self):
         f = findings.bug_magnets(report(fixes=self.FIXES[1:2]))
         self.assertEqual(f[0]["severity"], "info")
-        self.assertTrue(f[0]["detail"].endswith("Review core/util.py before the next release; expect the next bug there."), f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Review core/util.py before the next release; fixes keep landing there."), f[0]["detail"])
 
     def test_nothing_without_recent_fixes(self):
         self.assertEqual(findings.bug_magnets(report(fixes=self.FIXES[3:])), [])
@@ -589,6 +589,7 @@ class VulnerableDependencies(unittest.TestCase):
         self.assertEqual((f["severity"], f["title"]), ("warning", "Vulnerable dependencies"))
         self.assertIn("1 vulnerable package in 1 lock file: lodash 4.17.15 (CVE-2024-1, 7.2, fixed in 4.17.21) in frontend/yarn.lock.", f["detail"])
         self.assertEqual(f["advice"], "Upgrade lodash to 4.17.21 in frontend/yarn.lock first; it scores 7.2. " + findings.IGNORE_DEPS)
+        self.assertIn("CVE-2024-1", f["evidence"]["packages"][0]["aliases"], "the identifier the sentence quotes is in the evidence too")
 
     def test_a_critical_score_makes_it_critical_and_the_worst_leads(self):
         rows = [self.row("minimist", "0.0.8", "package-lock.json", score=9.8, fixed="1.2.6"), self.row("lodash", "4.17.15", "package-lock.json", score=7.2)]
@@ -708,6 +709,7 @@ class Reverts(unittest.TestCase):
         f = findings.reverts(self._report(16, commits=5008, reverted={f"src/f{i}.rs": 1 for i in range(16)}))
         self.assertEqual(f[0]["detail"].split(" Look")[0], "16 of 5008 commits are reverts, spread over 16 files, none backed out twice.")
         self.assertEqual(f[0]["advice"], "Look at why they were backed out; no single file keeps coming back.")
+        self.assertEqual(f[0]["evidence"]["files"], 16, "the file count the sentence quotes is in the evidence too")
 
     def test_five_reverts_fire_even_below_five_percent(self):
         self.assertEqual(len(findings.reverts(self._report(5, commits=1000, reverted={"a.py": 5}))), 1)
@@ -903,10 +905,29 @@ class Advice(unittest.TestCase):
         for f in found:
             self.assertTrue(f.get("advice"), f["title"])
             self.assertTrue(f["detail"].endswith(" " + f["advice"]), f["detail"])
+        import json
+        for f in found:
+            self.assertTrue(f["rule"].get("id"), f["title"])
+            self.assertIsInstance(f["evidence"], dict, f["title"])
+            json.dumps(f)   # tuples and sets would not survive the export
+        self.assertEqual(len({f["rule"]["id"] for f in found}), len({f["title"] for f in found}), "one id per kind of finding")
 
     def test_a_name_with_an_initial_keeps_its_advice(self):
         f = findings.bus_factor(report(theseus_authors={"Robert C. Martin": 90, "Bob": 10}))[0]
         self.assertEqual(f["advice"], "Pair someone with Robert C. Martin before they are unavailable.")
+
+    def test_a_bug_magnet_can_be_rechecked_from_its_own_rule_and_evidence(self):
+        f = findings.bug_magnets(report(fixes=[{"entity": "a.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5},
+                                               {"entity": "b.py", "n-fixes": 3, "last-fix": "2026-08-01", "recent-fixes": 3}]))[0]
+        self.assertEqual(f["rule"], {"id": "bug_magnets", "min_recent": 3, "warn_at": 5, "window_months": 6, "fix": "the commit subject says so"})
+        self.assertEqual(f["evidence"], {"count": 2, "files": [{"file": "a.py", "recent_fixes": 5, "fixes": 9}, {"file": "b.py", "recent_fixes": 3, "fixes": 3}]})
+        self.assertTrue(all(x["recent_fixes"] >= f["rule"]["min_recent"] for x in f["evidence"]["files"]))
+
+    def test_a_bus_factor_can_be_rechecked_from_its_own_rule_and_evidence(self):
+        f = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}))[0]
+        self.assertEqual(f["rule"], {"id": "bus_factor", "threshold": 0.7, "min_lines": 200})
+        self.assertEqual(f["evidence"], {"author": "Ann", "lines": 79, "total_lines": 100, "areas": []})
+        self.assertGreater(f["evidence"]["lines"] / f["evidence"]["total_lines"], f["rule"]["threshold"])
 
 
 class Evaluate(unittest.TestCase):

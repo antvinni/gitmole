@@ -30,7 +30,7 @@ def history_repo(d):
 
 def export(d, out):
     os.makedirs(out, exist_ok=True)
-    log = subprocess.run(["git", "-c", "core.quotePath=false", "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict",
+    log = subprocess.run(["git", "-c", "core.quotePath=false", "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict",
                           "--pretty=format:--%h--%ad--%aN--%s", "--no-renames"], cwd=d, capture_output=True, text=True, check=True).stdout
     with open(os.path.join(out, "log.txt"), "w") as fh:
         fh.write(log)

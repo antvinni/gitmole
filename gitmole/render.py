@@ -227,9 +227,22 @@ def summary(report: dict) -> dict:
     }
 
 
+# The steps every table leans on, by what the reader loses without them. The optional steps (code age,
+# functions, duplicates, trend, backtest) say so in their own sections.
+CORE_STEPS = {"scc": "size", "git-sizer": "repo health", "git-log": "change log", "change analysis": "change analysis",
+              "betterleaks": "secrets scan", "osv-scanner": "dependency scan"}
+
+
+def _unfinished(report: dict) -> list:
+    steps = report["meta"].get("steps") or {}
+    # "cancelled" is kept here for completeness, though an interrupted run never records its steps.
+    words = {"timeout": "timed out", "failed": "failed", "skipped": "skipped", "cancelled": "cancelled"}
+    return [f"{label} {words.get(steps[name], steps[name])}" for name, label in CORE_STEPS.items() if steps.get(name) not in (None, "run")]
+
+
 def pulse(report: dict) -> list:
     """One phrase each for the descriptive tables the default report leaves out."""
-    out = []
+    out = _unfinished(report)   # first: every number below may be missing because of it
     act = report.get("activity") or {}
     days, hours = act.get("by_weekday") or [], act.get("by_hour") or []
     if days and max(days):
@@ -271,12 +284,13 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     rows = [(r["file"], " · ".join(r["reasons"])) for r in ranked[:limit]]
     columns = [("file", PATH), ("why", {"overflow": "fold", "ratio": 3})]
     since = report["meta"].get("since")
-    notes = ["ranked by churn × recent fixes × complexity × single ownership" + (f"; commits since {since}" if since else "")]
+    notes = ["ranked by revisions × lines of code; the reasons say what else counts against each file" + (f"; commits since {since}" if since else "")]
     bt = watch.backtest(report)
     status = report["meta"].get("backtest") or {}
     if bt:
         notes.append(f"6 months ago this list would have named {bt['hits']} of the {bt['fixed']} files fixed since "
-                     f"(a random {bt['listed']} of the {bt['pool']} files that had changed more than once would name {bt['expected']})"
+                     f"(a random {bt['listed']} of the {bt['pool']} files that had changed more than once would name {bt['expected']}; "
+                     f"the {bt['listed']} most changed would name {bt['baselines']['churn']})"
                      + ("; whole history" if since else ""))   # the backtest ignores the window
     elif status.get("reason"):
         notes.append(status["reason"])
@@ -297,7 +311,8 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
     rows = [(r["file"], "▰" * round(10 * r["score"] / top) if r["score"] else "", " · ".join(r["reasons"])) for r in rows_all[:limit]]
     columns = [("file", PATH), ("risk", {}), ("why", {"overflow": "fold", "ratio": 3})]
     watched = risk["watched"]
-    notes = [f"total {risk['total']:.1f}; {watched} of these files {'is' if watched == 1 else 'are'} on the watch list"] if rows else []
+    notes = [f"total {risk['total']:.1f}% of the repository's revisions × lines of code; "
+             f"{watched} of these files {'is' if watched == 1 else 'are'} on the watch list"] if rows else []
     more = _more(len(rows_all), limit)
     if more:
         notes.append(more)
