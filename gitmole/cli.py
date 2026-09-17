@@ -295,7 +295,9 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     meta["gone_months"] = args.gone
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
-    meta["generated"] = filetypes.generated_files(repo_dir, blame.text_files(repo_dir, ignore))   # hidden from the tables, out of the findings
+    tracked = blame.text_files(repo_dir, ignore)
+    meta["generated"] = filetypes.generated_files(repo_dir, tracked)   # hidden from the tables, out of the findings
+    meta["vendored"] = filetypes.vendored_dirs(repo_dir, tracked)     # somebody else's code, by the licence it carries
     if args.since_date and meta["commits"] == 0:
         raise NoCommits(f"no commits since {args.since_date}; widen --since")
     if args.now:

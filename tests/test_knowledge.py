@@ -64,17 +64,19 @@ class InTree(unittest.TestCase):
     def test_no_tree_listing_means_every_area_counts(self):
         self.assertTrue(knowledge.in_tree("src/", {}))
 
-    def test_present_rows_drop_vanished_top_level_directories_so_the_survivor_can_dominate(self):
+    def test_present_rows_keep_only_files_still_in_the_tree_so_the_survivor_can_dominate(self):
         rows = [{"entity": "src/a.rs", "author": "Ann", "added": 30000, "deleted": 0},          # the layout before crates/
                 {"entity": "crates/core/a.rs", "author": "Ann", "added": 9000, "deleted": 0},
                 {"entity": "crates/ignore/b.rs", "author": "Bob", "added": 900, "deleted": 0},
-                {"entity": "ci/x.sh", "author": "Ann", "added": 500, "deleted": 0}]
-        tree = {"crates/core/a.rs": {}, "crates/ignore/b.rs": {}, "ci/x.sh": {}}
+                {"entity": "ci/x.sh", "author": "Ann", "added": 500, "deleted": 0},
+                {"entity": "old_root_file.py", "author": "Ann", "added": 36000, "deleted": 0}]   # a root file deleted years ago
+        tree = {"crates/core/a.rs": {}, "crates/ignore/b.rs": {}, "ci/x.sh": {}, "setup.py": {}}
         kept = knowledge.present_rows(rows, tree)
-        self.assertEqual([r["entity"] for r in kept], ["crates/core/a.rs", "crates/ignore/b.rs", "ci/x.sh"])
+        self.assertEqual([r["entity"] for r in kept], ["crates/core/a.rs", "crates/ignore/b.rs", "ci/x.sh"],
+                         "a deleted root file's lines do not make (root files) anyone's island")
         self.assertEqual([a["area"] for a in knowledge.areas(kept)], ["crates/core/", "crates/ignore/", "ci/"],
                          "with src/ gone, crates/ holds over 80% and the map descends into it")
-        self.assertEqual([a["area"] for a in knowledge.areas(rows)], ["src/", "crates/", "ci/"], "the vanished src/ used to hide that")
+        self.assertEqual([a["area"] for a in knowledge.areas(rows)], [knowledge.ROOT, "src/", "crates/", "ci/"], "the vanished files used to hide that")
         self.assertEqual(knowledge.present_rows(rows, {}), rows)
 
 

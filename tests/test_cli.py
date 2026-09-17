@@ -612,6 +612,29 @@ class GeneratedFiles(unittest.TestCase):
                 meta = json.load(fh)
         self.assertEqual(rc, 0)
         self.assertEqual(meta["generated"], ["lib/validator.js"])
+        self.assertEqual(meta["vendored"], [], "no nested licence, nothing vendored by licence")
+
+    def test_a_run_records_the_vendored_dirs_in_meta(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            os.makedirs(os.path.join(d, "ext", "gtest"))
+            with open(os.path.join(d, "LICENSE"), "w") as fh:
+                fh.write("Copyright (c) 2020 Ann Example\n")
+            with open(os.path.join(d, "ext", "gtest", "LICENSE"), "w") as fh:
+                fh.write("Copyright 2008, Google Inc.\n")
+            with open(os.path.join(d, "ext", "gtest", "gtest.cc"), "w") as fh:
+                fh.write("int x;\n")
+            import subprocess
+            subprocess.run(["git", "-C", d, "add", "-A"], check=True)
+            subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "-m", "files"], check=True)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            rc = cli.main([d, "--out", out], console=console(), tool_check=lambda **kw: [], planner=planner,
+                          estimator=lambda repo, interval, **kw: {"files": 2, "samples": 1, "blames": 2})
+            with open(os.path.join(out, "meta.json")) as fh:
+                meta = json.load(fh)
+        self.assertEqual(rc, 0)
+        self.assertEqual(meta["vendored"], ["ext/gtest/"])
 
 
 class Clean(unittest.TestCase):

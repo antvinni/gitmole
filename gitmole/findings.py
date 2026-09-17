@@ -46,8 +46,10 @@ def secrets_found(report: dict) -> list:
     flagged as placeholders and are not a finding."""
     groups = leaks.group(report.get("secrets") or [])
 
+    vendored = filetypes.vendor_dirs(report)
+
     def in_source(g):
-        return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f) or filetypes.is_vendor_path(f))
+        return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f) or filetypes.is_vendored(f, vendored))
                    for f in g["files"])
     source = [g for g in groups if in_source(g)]
     aside = [g for g in groups if not in_source(g)]
@@ -98,7 +100,8 @@ def _source_ownership(report: dict) -> list:
     """Ownership rows for source files. Test files and vendored trees are left out of every rule that
     names a next step: owning the tests is not the knowledge risk, and whoever imported vendor/ did
     not write it. The default tables leave test files out too."""
-    return [r for r in report.get("ownership") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_vendor_path(r["entity"]))]
+    vendored = filetypes.vendor_dirs(report)
+    return [r for r in report.get("ownership") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_vendored(r["entity"], vendored))]
 
 
 def _present_areas(report: dict, rows: list, build=knowledge.areas) -> list:
@@ -191,12 +194,12 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
     """A file and its test are expected to change together, so pairs with a test file on either side are
     left out; so are pairs where either file is no longer in the tree, which are history, not a dependency,
     and pairs of release plumbing (two version files, a manifest and its lock file), which are a release."""
-    tree = _tree(report)
+    tree, vendored = _tree(report), filetypes.vendor_dirs(report)
     pairs = [p for p in report.get("coupling") or [] if p["degree"] >= min_degree and p["average-revs"] >= min_revs
              and not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))
              and not (filetypes.is_release_path(p["entity"]) and filetypes.is_release_path(p["coupled"]))
              and not filetypes.is_header_pair(p["entity"], p["coupled"])
-             and not (filetypes.is_vendor_path(p["entity"]) or filetypes.is_vendor_path(p["coupled"]))
+             and not (filetypes.is_vendored(p["entity"], vendored) or filetypes.is_vendored(p["coupled"], vendored))
              and not (tree and (p["entity"] not in tree or p["coupled"] not in tree))]
     if not pairs:
         return []
@@ -269,9 +272,9 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     """Source files with a run of recent fix commits. Test files are left out: they change with every fix.
     So is release plumbing: a manifest touched by every fix release is not where the bug was."""
-    plumb = filetypes.plumbing_paths(report)
+    plumb, derived = filetypes.plumbing_paths(report), _generated(report)
     hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent
-           and not (filetypes.is_test_path(f["entity"]) or filetypes.is_release(f["entity"], plumb))]
+           and not (filetypes.is_test_path(f["entity"]) or filetypes.is_release(f["entity"], plumb) or f["entity"] in derived)]
     if not hot:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
@@ -293,6 +296,11 @@ def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_shar
         return []
     sev = "warning" if total and n / total >= warn_share else "info"
     reverted = act.get("reverted") or {}
+    repeat = {p: c for p, c in reverted.items() if c >= 2}
+    if reverted and not repeat:   # every reverted file was reverted once: no file keeps coming back
+        return [_f(sev, "Reverts", f"{n} of {total} commits are reverts, spread over {len(reverted)} files, none backed out twice.",
+                   "Look at why they were backed out; no single file keeps coming back.")]
+    reverted = repeat
     # source files lead: a test file at the top of the table would otherwise be the one named first
     items = sorted(reverted.items(), key=lambda kv: filetypes.is_test_path(kv[0]))[:3]
     parts = []
@@ -428,10 +436,12 @@ def _partial_functions(report: dict) -> str:
 
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
     """Functions that are both long and complex, in this repository's own source files: test files,
-    vendored code and generated files are left out. A warning when one sits in a hotspot."""
-    generated = _generated(report)
+    example code, vendored code and generated files (amalgamations included) are left out. A warning
+    when one sits in a hotspot."""
+    generated, vendored = _generated(report), filetypes.vendor_dirs(report)
     big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines
-           and not (filetypes.is_test_path(f["file"]) or filetypes.is_vendor_path(f["file"]) or f["file"] in generated)]
+           and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
+                    or f["file"] in generated)]
     if not big:
         return []
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
@@ -455,8 +465,8 @@ def _place(f: dict) -> str:
 
 
 def _generated(report: dict) -> set:
-    """Files the run found to be generated (a header marker or a linguist-generated attribute)."""
-    return set((report.get("meta") or {}).get("generated") or [])
+    """Build outputs: generated files and amalgamations (see hotspots.derived)."""
+    return hotspots.derived(report)
 
 
 def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = 25, top_n: int = 10) -> list:

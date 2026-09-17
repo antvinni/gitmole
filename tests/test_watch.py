@@ -68,6 +68,13 @@ class Risks(unittest.TestCase):
         r["plumbing"] = [{"entity": "pkg/__init__.py", "n-revs": 331, "tiny-revs": 300}]
         self.assertEqual([x["file"] for x in watch.risks(r)], ["core/parser.py"])
 
+    def test_a_generated_file_is_not_on_the_list(self):
+        r = report()
+        r["size"]["files"]["dist/all.js"] = {"code": 9000, "complexity": 200}
+        r["revisions"] = [{"entity": "dist/all.js", "n-revs": 400}, {"entity": "core/parser.py", "n-revs": 40}]
+        r["meta"]["generated"] = ["dist/all.js"]
+        self.assertEqual([x["file"] for x in watch.risks(r)], ["core/parser.py"])
+
     def test_test_companions_and_weak_pairs_are_not_reasons(self):
         top = watch.risks(report())[0]
         coupling = [r for r in top["reasons"] if r.startswith("changes with")][0]

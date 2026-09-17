@@ -95,7 +95,8 @@ class TestPaths(unittest.TestCase):
 
     def test_documentation_files_and_directories(self):
         for path in ("README.md", "docs/GA4-API-INTEGRATION.md", "doc/guide.rst", "NOTES.txt", "a/b/CHANGELOG.markdown", "docs/conf.py", "x.adoc",
-                     "docs_src/security/tutorial004.py", "docs-site/app.js", "doc_examples/x.py"):
+                     "docs_src/security/tutorial004.py", "docs-site/app.js", "doc_examples/x.py",
+                     "mypy/typeshed/stdlib/_hashlib.pyi", "types/request.d.ts"):   # type stubs declare shapes, they hold no runtime values
             self.assertTrue(filetypes.is_doc_path(path), path)
         for path in ("app/settings.py", "static/index.html", "docsite/app.js", "mdx/a.py", "config.yaml", "doctor/a.py"):
             self.assertFalse(filetypes.is_doc_path(path), path)
@@ -104,7 +105,8 @@ class TestPaths(unittest.TestCase):
         for path in ("examples/language/bru.bru", "example/app.py", "samples/x.json", "sample/x.json", "fixtures/keys.pem",
                      "src/fixture/a.txt", "pkg/testdata/creds.yaml", "demo/x.py", "demos/x.py", "config/generate/rules/slack.go"):
             self.assertTrue(filetypes.is_sample_path(path), path)
-        for path in ("app/settings.py", "examplesite/app.py", "src/rulesets/a.go", "sampler/x.py", "config/betterleaks.toml"):
+        for path in ("app/settings.py", "examplesite/app.py", "src/rulesets/a.go", "sampler/x.py", "config/betterleaks.toml",
+                     "src/main/java/com/example/service/impl/AccountServiceImpl.java", "org/example/App.kt"):   # a reverse-domain package
             self.assertFalse(filetypes.is_sample_path(path), path)
 
     def test_a_source_file_and_its_own_header_are_a_header_pair(self):
@@ -140,6 +142,32 @@ class TestPaths(unittest.TestCase):
                 fh.write("* text=auto\ndist/* linguist-generated=true\n*.min.js linguist-generated\n")
             found = filetypes.generated_files(d, sorted(files))
         self.assertEqual(found, ["dist/bundle.js", "gen/schema.py", "lib/config-validator.js", "pb/api.pb.go"])
+
+    def test_a_nested_licence_with_other_copyright_holders_marks_a_vendored_tree(self):
+        with tempfile.TemporaryDirectory() as d:
+            files = {
+                "LICENSE": "MIT License\n\nCopyright (c) 2012-2023 Jukka Lehtosalo and contributors\nCopyright (c) 2015-2023 Dropbox, Inc.\n",
+                "mypy/typeshed/LICENSE": "Apache License\nVersion 2.0\n\"Licensor\" shall mean the copyright owner or entity\n",   # no holder named: not ours
+                "mypyc/external/googletest/LICENSE": "Copyright 2008, Google Inc.\nAll rights reserved.\n",
+                "packages/core/LICENSE": "MIT License\n\nCopyright (c) 2012-present Jukka Lehtosalo\n",   # our own package: same holder
+                "mypy/checker.py": "x = 1\n",
+            }
+            for path, text in files.items():
+                os.makedirs(os.path.join(d, os.path.dirname(path)) or d, exist_ok=True)
+                with open(os.path.join(d, path), "w") as fh:
+                    fh.write(text)
+            found = filetypes.vendored_dirs(d, sorted(files))
+        self.assertEqual(found, ["mypy/typeshed/", "mypyc/external/googletest/"])
+        self.assertTrue(filetypes.is_vendored("mypy/typeshed/stdlib/_hashlib.pyi", found))
+        self.assertFalse(filetypes.is_vendored("mypy/checker.py", found))
+        self.assertTrue(filetypes.is_vendored("deps/lua/a.c", found), "the name rule still applies")
+
+    def test_no_root_licence_means_no_vendored_dirs_by_licence(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "lib", "x"))
+            with open(os.path.join(d, "lib", "x", "LICENSE"), "w") as fh:
+                fh.write("Copyright 2008, Google Inc.\n")
+            self.assertEqual(filetypes.vendored_dirs(d, ["lib/x/LICENSE"]), [], "nothing to compare against")
 
     def test_vendored_trees(self):
         for path in ("vendor/github.com/x/y.go", "web/node_modules/a/index.js", "third_party/z/a.c", "thirdparty/a.c", "_vendor/a.py",

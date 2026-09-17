@@ -30,12 +30,13 @@ def top_area(entity: str) -> str:
 
 
 def present_rows(rows: list, tree: dict) -> list:
-    """Ownership rows for files whose top-level directory still exists in the tree. Filtering the rows
-    before areas are built keeps a vanished layout (the src/ before a move to crates/) from inflating
-    the total and hiding that one directory now holds almost everything."""
+    """Ownership rows for files still in the tree. Filtering the rows before areas are built keeps a
+    vanished layout (the src/ before a move to crates/, a root file deleted years ago) from inflating
+    the total, hiding that one directory now holds almost everything, or making a vanished file's
+    author the owner of what remains."""
     if not tree:
         return rows
-    return [r for r in rows if in_tree(top_area(r["entity"]), tree)]
+    return [r for r in rows if r["entity"] in tree]
 
 
 def _aggregate(rows: list, depth: int) -> list:

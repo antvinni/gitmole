@@ -22,7 +22,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    the tree says so, since deleting it did not shrink the clone), one file dominating the churn, bug magnets (source
    files fixed three or more times in the last six months; a warning at
    five), reverts (5% of commits or five of them; a warning at 10%; names
-   the file most often backed out), brain methods (functions with
+   the file most often backed out when any file was backed out twice,
+   otherwise says the reverts are spread), brain methods (functions with
    complexity 15+ and 100+ lines; a warning when one sits in a hotspot),
    hotspots getting more complex (three or more of the top ten hotspots
    grew by a quarter in a year; a warning when the top one did),
@@ -50,8 +51,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    web pages, only in example, sample, fixture, demo or rules directories
    (a language sample, a scanner's own rule definitions), only in vendored
    code (upstream's own specimens), or only in documentation (`.md`,
-   `.rst`, `.txt`, `.adoc`, or anything under `docs/`), where it is
-   usually a template, is a warning.
+   `.rst`, `.txt`, `.adoc`, anything under `docs/`, and type stubs, `.pyi`
+   and `.d.ts`, which declare shapes and hold no runtime values), where it
+   is usually a template, is a warning.
    Nine shapes cannot be a live secret and are left out, counted on the
    footer line: version strings, tokens shortened with "...", whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
@@ -107,8 +109,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
 4. **Tables**: people (identities merged on top of `.mailmap` when they
    share an email, two name words, the same name spelled identically
    unless it is a bare common first name, a one-word handle that is a
-   distinctive word of the fuller name, or the fuller name run together
-   (RobinMalfait); the caption says whose; bots and
+   distinctive word of the fuller name, the fuller name run together
+   (RobinMalfait), or an initial plus the surname (nlohmann); the caption says whose; bots and
    coding agents such as renovate, Copilot, Cursor Agent, and any author
    whose name says bot, CI, deploy or automation; their lines are left
    out of ownership and surviving code too, so a deploy job that commits
@@ -137,11 +139,16 @@ How to read each part of the terminal report, and what each run writes to disk; 
    and Dockerfile (`--file-types all` counts everything). In the default
    report, the hotspots and complex functions tables hide test files and
    generated files (a file whose first lines say it was generated or must
-   not be edited, or that `.gitattributes` marks `linguist-generated`;
-   the run records them in `meta.json`), the complex functions table also
+   not be edited, or that `.gitattributes` marks `linguist-generated`, the
+   run records them in `meta.json`; and an amalgamation, a file every one
+   of whose functions also appears identically in other files, found from
+   the function metrics), the complex functions table also
    hides vendored code (`vendor/`, `vendored/`, `node_modules/`,
-   `third_party/`, `external/`, `deps/`, and a `packages/` inside a package
-   such as `requests/packages/`), and the change coupling table hides pairs
+   `third_party/`, `external/`, `deps/`, a `packages/` inside a package
+   such as `requests/packages/`, and any directory whose own `LICENSE` or
+   `COPYING` names none of the copyright holders the root licence names,
+   which the run records in `meta.json`) and example code (`examples/`),
+   and the change coupling table hides pairs
    with a test file, pairs of release plumbing (two version files, a
    manifest and its lock file, changelogs), header pairs (a C-family
    source file and its own header) and pairs with a vendored file on

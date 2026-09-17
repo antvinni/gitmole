@@ -60,22 +60,25 @@ def is_test_path(path: str) -> bool:
     return bool(_TEST_PATH.search(path))
 
 
-_DOC_PATH = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|\.(md|markdown|rst|txt|adoc)$", re.I)
+_DOC_PATH = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|\.(md|markdown|rst|txt|adoc|pyi|d\.ts)$", re.I)
 
 
 def is_doc_path(path: str) -> bool:
-    """Documentation: prose formats anywhere, or anything under docs/, doc/, docs_src/, docs-site/. A
-    key in a planning document or a tutorial is far more often a template than a leak."""
+    """Documentation: prose formats anywhere, anything under docs/, doc/, docs_src/, docs-site/, and
+    type stubs (.pyi, .d.ts), which declare shapes and carry no runtime values. A key in a planning
+    document, a tutorial or a stub's default is far more often a specimen than a leak."""
     return bool(_DOC_PATH.search(path))
 
 
 _SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules)(/|$)", re.I)
+_PACKAGE_EXAMPLE = re.compile(r"(^|/)(com|org|net|io|dev|me|co)/examples?(/|$)", re.I)   # Java's com.example.* is a package, not a sample
 
 
 def is_sample_path(path: str) -> bool:
     """Example, sample, fixture, demo and rule directories: a value there is a specimen (a language
-    sample, a scanner's own rule definitions), not a credential in use."""
-    return bool(_SAMPLE_PATH.search(path))
+    sample, a scanner's own rule definitions), not a credential in use; code there is not the
+    product. A reverse-domain package such as com/example/ is neither."""
+    return bool(_SAMPLE_PATH.search(path)) and not _PACKAGE_EXAMPLE.search(path)
 
 
 _VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps)(/|$)|^[^/]+/packages/", re.I)
@@ -98,6 +101,60 @@ def is_release_path(path: str) -> bool:
     together is a release commit, not a dependency between them."""
     name = path.rsplit("/", 1)[-1].lower()
     return name in _RELEASE_NAMES or name.endswith(".gemspec") or name.startswith(("changelog", "changes.", "history.", "news."))
+
+
+_LICENCE_NAME = re.compile(r"^(LICEN[CS]E|COPYING)(\.|-|_|$)", re.I)
+_HOLDER_STOP = {"copyright", "the", "and", "all", "rights", "reserved", "inc", "llc", "ltd", "contributors", "present", "authors",
+                "owner", "owners", "holder", "holders", "notice", "this", "above", "shall", "mean", "entity", "licensor"}
+
+
+_NOTICE = re.compile(r"^\W*copyright\b|\(c\)|©", re.I)   # a notice line, not legal prose that mentions copyright
+
+
+def _holders(text: str) -> set:
+    """The words that name whoever a licence's copyright notices belong to."""
+    out = set()
+    for line in text.splitlines():
+        if _NOTICE.search(line):
+            out |= {t.lower() for t in re.findall(r"[A-Za-z]{3,}", line) if t.lower() not in _HOLDER_STOP}
+    return out
+
+
+def _read_head(repo: str, path: str, size: int = 20_000) -> str:
+    try:
+        with open(os.path.join(repo, path), "rb") as fh:
+            return fh.read(size).decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
+def vendored_dirs(repo: str, paths: list) -> list:
+    """Directories holding somebody else's code, by licence: a nested LICENSE or COPYING whose
+    copyright lines name none of the holders the root licence names (mypy/typeshed/, a bundled
+    googletest). A monorepo's own packages carry the same holder and stay. Without a root licence
+    naming anyone there is nothing to compare against."""
+    ours = set()
+    for p in paths:
+        if "/" not in p and _LICENCE_NAME.match(p):
+            ours |= _holders(_read_head(repo, p))
+    if not ours:
+        return []
+    out = set()
+    for p in paths:
+        head, _, name = p.rpartition("/")
+        if head and _LICENCE_NAME.match(name) and not (_holders(_read_head(repo, p)) & ours):
+            out.add(head + "/")
+    return sorted(out)
+
+
+def vendor_dirs(report: dict) -> tuple:
+    """The vendored directories a run found by licence (see vendored_dirs)."""
+    return tuple((report.get("meta") or {}).get("vendored") or [])
+
+
+def is_vendored(path: str, dirs=()) -> bool:
+    """is_vendor_path, or under a directory the run found to be vendored by licence."""
+    return is_vendor_path(path) or any(path.startswith(d) for d in dirs)
 
 
 _SOURCE_EXT = {"c", "cc", "cpp", "cxx", "m", "mm"}
