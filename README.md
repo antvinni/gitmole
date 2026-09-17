@@ -6,6 +6,8 @@ A toolkit for digging into any cloned git repository: who works on it,
 where the risk is, how old the code is, whether the repo itself is healthy,
 and whether anything sensitive was ever committed.
 
+<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/report.svg" width="912" alt="gitmole on react: the summary, and the watch list of files where the next bug is likely, with a backtest">
+
 Any stack. Free. Offline. No token. No AI. Light.
 
 - **Free.** MIT licence, no paid tier, no account. The tools it runs are open source too.
@@ -52,46 +54,61 @@ blocks on secrets in source files and still posts the report. Every option:
 
 ## What you get
 
-Running `gitmole .` inside this repository:
+The opening of the report for [react](https://github.com/facebook/react), 35,263 commits
+since 2013, at a pinned commit:
 
 ```text
-╭─ gitmole ────────────────────────────────────────────────────────────────────────────────────────╮
-│ 185 commits  ·  2026-09-15 → 2026-09-17  ·  1 identity  ·  branch main                           │
-│ 9,475 lines in 52 files  ·  Python, Ruby                                                         │
-│ most commits on Wed at 20:00  ·  4% of commits are fixes  ·  100% of surviving code from 2026    │
-│ 3 warnings, 1 note                                                                               │
+╭─ react ──────────────────────────────────────────────────────────────────────────────────────────╮
+│ 35263 commits  ·  2013-05-28 → 2026-09-16  ·  1880 identities  ·  branch main                    │
+│ 681,078 lines in 4781 files  ·  JavaScript, TypeScript, Rust, CSS                                │
+│ most commits on Wed at 16:00  ·  13% of commits are fixes  ·  1% of commits are reverts  ·  19%  │
+│ of surviving code from 2026                                                                      │
+│ 1 critical, 6 warnings, 8 notes                                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (4) ───────────────────────────────────────────────────────────────────────────────────╮
-│ ▲ Bus factor of one                                                                              │
-│   vinni wrote 100% of the code that survives today                                               │
-│   ↳ Pair someone with vinni on gitmole/ first; it is 100% theirs.                                │
-│ ▲ Hotspots getting more complex                                                                  │
-│   4 of the 10 top source hotspots grew by 25% or more in a year: gitmole/render.py (+194%),      │
-│   gitmole/findings.py (+360%), gitmole/cli.py (+64%), gitmole/run.py (+34%)                      │
-│   ↳ Split gitmole/render.py before the next change; its complexity grew 194% in a year.          │
-│ ▲ Knowledge islands                                                                              │
-│   1 area(s) with at least 200 lines were written almost entirely by one person: gitmole/ (vinni  │
-│   100%). That is 98% of all lines added                                                          │
-│   ↳ Pair someone with vinni on gitmole/ first; it is the largest at 7,607 lines.                 │
-│ ● Bug magnets                                                                                    │
-│   5 file(s) were fixed 3+ times in the last six months: gitmole/load.py (4 recent, 4 total);     │
-│   gitmole/cli.py (3 recent, 3 total); gitmole/findings.py (3 recent, 3 total); gitmole/render.py │
-│   (3 recent, 3 total); gitmole/run.py (3 recent, 3 total)                                        │
-│   ↳ Review gitmole/load.py and gitmole/cli.py before the next release; expect the next bug       │
-│   there.                                                                                         │
-│ ✔ No secrets in history                                                                          │
-│   betterleaks scanned every commit on every branch; 28 placeholder-shaped hits left out          │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+◎ Watch list
+  file                                              why                                             
+  ──────────────────────────────────────────────────────────────────────────────────────────────────
+  compiler/packages/babel-plugin-react-compiler/s   changed 331 times · fixed twice in six months · 
+  rc/Inference/InferMutationAliasingEffects.ts      Joe Savona wrote 98% of it ·                    
+                                                    findNonMutatedDestructureSpreads() complexity 39
+  packages/react-server/src/ReactFlightServer.js    changed 377 times · fixed once in six months ·  
+                                                    renderModelDestructive() complexity 544         
+  packages/shared/forks/ReactFeatureFlags.www.js    changed 583 times · fixed once in six months ·  
+                                                    changes with                                    
+                                                    packages/shared/forks/ReactFeatureFlags.test-ren
+                                                    derer.www.js (77%) and 5 others                 
+  packages/shared/ReactFeatureFlags.js              changed 575 times · fixed 6 times · changes with
+                                                    packages/shared/forks/ReactFeatureFlags.test-ren
+                                                    derer.js (80%) and 4 others                     
+  packages/react-reconciler/src/ReactFiberWorkLoo   changed 342 times · fixed 4 times in six months 
+  p.js                                              · flushSpawnedWork() complexity 48              
+  ranked by churn × recent fixes × complexity × single ownership                                    
+  6 months ago this list would have named 6 of the 211 files fixed since (a random 15 of the 1979   
+  files that had changed more than once would name 0.3)                                             
 ```
 
-Below that: a watch list of the five files where the next bug is most
-likely, with the reasons in words and a backtest of how the list would have
-done; then tables for people, the knowledge map, the timeline, hotspots with
-their complexity trend, change coupling, complex functions and repo health.
-The full report is in
-[docs/example.md](https://github.com/antvinni/gitmole/blob/main/docs/example.md),
-and every section is explained in
+The watch list is the point: the five files where the next bug is most
+likely, the reasons in words, and a backtest that says how the same list,
+drawn six months earlier, would have done against the fixes that followed.
+Between the header and that list the full report puts its findings, 15 for
+react (1 critical, 6 warnings, 8 notes); below it, tables for people, the
+knowledge map, the timeline, hotspots with their complexity trend, change
+coupling, complex functions and repo health. Every section is explained in
 [docs/output.md](https://github.com/antvinni/gitmole/blob/main/docs/output.md).
+
+Reports on repositories you know, each at a pinned commit with a fixed
+reference date so the file is reproducible:
+
+| Repository | Commits | Lines | Watch list backtest |
+|---|---:|---:|---|
+| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | 39,894 | 247,179 | named 15 of the 239 files fixed in the next six months; a random pick would name 5 |
+| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | 52,832 | 431,749 | named 13 of the 213 files fixed; random would name 2.8 |
+| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | 35,263 | 681,078 | named 6 of the 211 files fixed; random would name 0.3 |
+| [kubernetes](https://github.com/antvinni/gitmole/blob/main/docs/examples/kubernetes.md) | 161,803 | 4,180,715 | named 7 of the 338 files fixed; random would name 0.4 |
+
+kubernetes's code-age and duplicates steps were skipped on gitmole's default
+budgets; its report says so in its own text.
 
 ## The tool set
 
@@ -118,7 +135,7 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 - [Install](https://github.com/antvinni/gitmole/blob/main/docs/install.md): macOS, Linux, pipx, the check, pinned releases.
 - [Command line](https://github.com/antvinni/gitmole/blob/main/docs/cli.md): every option, portfolio mode, exports and CI gates, big repositories.
 - [The report and the output files](https://github.com/antvinni/gitmole/blob/main/docs/output.md): what each section and each file means.
-- [Full example report](https://github.com/antvinni/gitmole/blob/main/docs/example.md): the whole `gitmole .` output for this repository.
+- [Example reports](https://github.com/antvinni/gitmole/tree/main/docs/examples): curl, django, react and kubernetes at pinned commits, regenerated by `bin/render-examples`.
 - [Why these tools](https://github.com/antvinni/gitmole/blob/main/docs/tools.md): the rationale, what was left out, licences.
 - [Development](https://github.com/antvinni/gitmole/blob/main/docs/development.md): setup, tests, releases, code layout.
 - [Contributing](https://github.com/antvinni/gitmole/blob/main/CONTRIBUTING.md): bugs, ideas, pull requests, security reports.

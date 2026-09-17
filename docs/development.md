@@ -75,6 +75,12 @@ an external tool keeps the old dependency in the formula through the version
 bump and the tag, and removes it in a separate commit after the release job
 has bumped the formula.
 
+The example reports name the gitmole version that made them. When a release
+changes the report, run `bin/render-examples` and commit the new
+`docs/examples/*.md`, `docs/report.svg` and README text block together.
+Bumping a pin is a separate decision: it changes the repository's history,
+not gitmole's output.
+
 ## Code layout
 
 The code lives in `gitmole/`: `run.py` plans and executes the tools,
@@ -91,6 +97,12 @@ changes as one into a cluster, `clean.py` finds and removes what gitmole
 left behind, and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates
 `docs/banner.svg` from the banner code.
+`bin/render-examples` clones the repositories listed in the script under
+`$TMPDIR/gitmole-examples/`, pins each to its recorded commit, runs gitmole
+with the recorded reference date and writes `docs/examples/<repo>.md` and,
+for the featured one, `docs/report.svg` plus the README's text block on
+stdout. Clones and outputs are reused on a rerun; delete the directory to
+start clean.
 
 The change analysis (hotspots, coupling, ownership, age) is gitmole's own
 code, written after the ideas in Adam Tornhill's code-maat but sharing no
