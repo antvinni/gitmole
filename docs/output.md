@@ -54,10 +54,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    `.rst`, `.txt`, `.adoc`, anything under `docs/`, and type stubs, `.pyi`
    and `.d.ts`, which declare shapes and hold no runtime values), where it
    is usually a template, is a warning.
-   Nine shapes cannot be a live secret and are left out, counted on the
+   Eleven shapes cannot be a live secret and are left out, counted on the
    footer line: version strings, tokens shortened with "...", whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
-   or `changeme`, a whole value that is one of the words every example
+   or `changeme`, a template field anywhere inside the value (`{token}`,
+   `${X}`, `%(name)s`, `<user>`), five or more words of prose, a whole
+   value that is one of the words every example
    uses (`hello`, `secret`, `password`, `123456`), a run up the alphabet
    and the digits (`qr6stu789vwxyz`, `abcd1234`), a whole value that
    refers to an environment variable or a template field (`@env:X`,
@@ -139,7 +141,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    and Dockerfile (`--file-types all` counts everything). In the default
    report, the hotspots and complex functions tables hide test files and
    generated files (a file whose first lines say it was generated or must
-   not be edited, or that `.gitattributes` marks `linguist-generated`, the
+   not be edited, that `.gitattributes` marks `linguist-generated`, or that
+   is a bundle, a minified file or a source map by name, the
    run records them in `meta.json`; and an amalgamation, a file every one
    of whose functions also appears identically in other files, found from
    the function metrics), the complex functions table also
@@ -159,8 +162,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    release by design, not because the next bug lands there. Plumbing is
    known by name (`version.py`, `package.json`, lock files, changelogs)
    and by behaviour: `maat-plumbing.csv` lists files with twenty commits
-   or more where at least four in five changed no more than two lines, a
-   version constant in `__init__.py` being the usual case. Vendored and generated code is left out of the
+   or more where at least four in five swapped no more than three lines
+   for as many, a version constant in `__init__.py` or the three fields
+   of a version struct being the usual case. Vendored and generated code is left out of the
    brain methods finding, vendored code out of the knowledge islands and
    bus factor findings too: somebody else's code, or a generator's, is not
    this repository's risk. A function lizard cannot name (a Go function

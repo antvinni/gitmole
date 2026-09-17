@@ -194,9 +194,10 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
     """A file and its test are expected to change together, so pairs with a test file on either side are
     left out; so are pairs where either file is no longer in the tree, which are history, not a dependency,
     and pairs of release plumbing (two version files, a manifest and its lock file), which are a release."""
-    tree, vendored = _tree(report), filetypes.vendor_dirs(report)
+    tree, vendored, derived = _tree(report), filetypes.vendor_dirs(report), _generated(report)
     pairs = [p for p in report.get("coupling") or [] if p["degree"] >= min_degree and p["average-revs"] >= min_revs
              and not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))
+             and not (p["entity"] in derived or p["coupled"] in derived)
              and not (filetypes.is_release_path(p["entity"]) and filetypes.is_release_path(p["coupled"]))
              and not filetypes.is_header_pair(p["entity"], p["coupled"])
              and not (filetypes.is_vendored(p["entity"], vendored) or filetypes.is_vendored(p["coupled"], vendored))

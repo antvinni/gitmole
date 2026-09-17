@@ -443,7 +443,8 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs, release_note = _hide_release(pairs, full)
     pairs, header_note = _hide_header_pairs(pairs, full)
     pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs", report=report)
-    gone_note = _join_hidden(gone_note, release_note, header_note, vendor_note)
+    pairs, generated_note = _hide_generated(pairs, lambda p: (p["entity"], p["coupled"]), report, full, noun="generated pair", plural="generated pairs")
+    gone_note = _join_hidden(gone_note, release_note, header_note, vendor_note, generated_note)
     groups, cluster_note = [], None
     if full is not True:
         # a directory whose files all change together is one row; --full lists every pair

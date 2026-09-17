@@ -368,6 +368,19 @@ class Report(unittest.TestCase):
         self.assertNotIn("deps/", coupling)
         self.assertIn("2 vendored pairs hidden; --full shows them", coupling)
 
+    def test_default_coupling_hides_generated_pairs_and_says_so(self):
+        r = sample_report()
+        r["meta"]["generated"] = ["js/a.bundle.js", "js/b.bundle.js"]
+        for f in ("js/a.bundle.js", "js/b.bundle.js", "js/b.js", "src/x.js", "src/y.js"):
+            r["size"]["files"][f] = {"code": 30, "complexity": 1}
+        r["coupling"] = [{"entity": "js/a.bundle.js", "coupled": "js/b.bundle.js", "degree": 83, "average-revs": 20},
+                         {"entity": "js/b.bundle.js", "coupled": "js/b.js", "degree": 83, "average-revs": 20},
+                         {"entity": "src/x.js", "coupled": "src/y.js", "degree": 60, "average-revs": 9}]
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("src/y.js", coupling)
+        self.assertNotIn("bundle", coupling)
+        self.assertIn("2 generated pairs hidden; --full shows them", coupling)
+
     def test_default_coupling_hides_header_pairs_and_says_so(self):
         r = sample_report()
         for f in ("src/vector.c", "src/vector.h", "src/list.c"):
