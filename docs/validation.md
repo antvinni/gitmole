@@ -90,23 +90,25 @@ Of 270 possible: three repositories, six cut-offs, fifteen files.
 
 ## What the numbers say
 
-Every list beats a random pick: by about three times on curl, between four
-and five on django and between eight and twelve on react. Beyond that:
+Every list beats a random pick: by about three times on curl, four to five
+times on django and eight to twelve times on react. Beyond that:
 
 - **Revisions × lines of code does best**, 226 of 270: first on django (84,
   two ahead of recent fixes) and on react (56, five ahead of the rank-scaled
-  factor product), and level with most lists on curl. That is why the watch
-  list ranks by it, and why fixes, complexity and ownership are the reasons
-  printed beside a file and not part of its rank.
+  factor product), and on curl level with the max-scaled factor product, one
+  ahead of churn and of recent fixes, and four behind size alone. That is
+  why the watch list ranks by it, and why fixes, complexity and ownership
+  are the reasons printed beside a file and not part of its rank.
 - **Recent fixes alone come second**, 216. A file fixed lately is likely to
-  be fixed again; the list shows that count first among its reasons.
-- **The factor products trail the ranking they replaced**: 212 rank-scaled,
-  204 max-scaled. Rank scaling is the better of the two, mostly on react (51
-  against 42).
+  be fixed again; the list prints that count beside the file, right after
+  how often it changed.
+- **The factor products trail the ranking that replaced them**: 212
+  rank-scaled, 204 max-scaled. Rank scaling is the better of the two, mostly
+  on react (51 against 42).
 - **Churn alone does worst**, 190, and size alone (207) does better than
-  churn: on these repositories how much code a file holds says more about
-  its next fix than how often it changed, and the product says more than
-  either.
+  churn: ahead on curl and react, level on django. Their product does
+  better than either in total, though not on curl, where size alone is
+  ahead.
 - **curl is saturated.** Between 23% and 63% of its scored files get a
   fix-labelled commit in any six months, so almost any sensible fifteen
   hit; size alone scores 90 of 90 there. The backtest line under a
