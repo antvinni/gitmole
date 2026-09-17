@@ -108,18 +108,17 @@ How to read each part of the terminal report, and what each run writes to disk; 
    shows them.
 3. **Watch list**: the five files where the next bug is most likely, with
    the reasons in words. Every source file still in the tree that changed
-   more than once is scored churn × (1 + recent fixes) × (1 + complexity),
-   times 1.5 when one person wrote 90% or more of it. Each factor is the
-   file's rank among the scored files (the share that changed no more often;
-   the share with strictly fewer recent fixes, strictly less complexity), so
-   one outlier does not rescale every other file and a `--risk` total means
-   the same from run to run. Churn is the base because a file nobody
-   changes is rarely the one fixed next; complexity is scc's per-file
-   total, one scale for every file, while the most complex function lizard
-   found is named in the reasons (a nameless one by its line; a span marked
-   `?` in the complex functions table is passed over). The reasons name the
-   fix count, the sole owner, the function and the files it always changes
-   with. Test files are
+   more than once is ranked by revisions × lines of code, the Hotspots
+   table's product, over source files only: measured against the fixes
+   that followed at six cut-offs on three repositories
+   ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md)),
+   it named more of them than any weighting of fixes, complexity and
+   ownership did. A file's score, which `--risk` adds up, is the share of
+   scored files whose product is no larger, between 0 and 1; the reasons
+   name the recent fix count, the sole owner, the most complex function
+   lizard found (a nameless one by its line; a span marked `?` in the
+   complex functions table is passed over) and the files it always changes
+   with, none of them entering the rank. Test files are
    left out. Under `--since`, churn and ownership are windowed and the list
    says so. `--full` and the exports show fifteen. With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch

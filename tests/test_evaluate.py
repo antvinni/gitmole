@@ -43,7 +43,7 @@ class Score(unittest.TestCase):
     def test_every_variant_is_scored_over_one_pool_next_to_a_random_pick(self):
         r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {})
         out = evaluate.score(r, {"core/b.py"}, top=1)
-        self.assertEqual(set(out), {"watch (max-scaled)", "watch (rank-scaled)", "churn", "size", "hotspot", "recent fixes", "random (expected)"})
+        self.assertEqual(set(out), {"watch list (hotspot)", "factor product (max-scaled)", "factor product (rank-scaled)", "churn", "size", "recent fixes", "random (expected)"})
         self.assertEqual(out["churn"], 0, "a.py changed more and was not the file fixed")
         self.assertEqual(out["random (expected)"], 0.5)
         self.assertEqual(evaluate.score(r, {"core/b.py"}, top=2)["churn"], 1)

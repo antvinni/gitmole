@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""How the watch list would have done at several cut-off dates, next to simpler lists.
+"""How the watch list would have done at several cut-off dates, next to the factor products it
+replaced and the simpler baselines.
 
 A development tool, not a pipeline step: `python -m gitmole.evaluate REPO OUT_DIR [--windows 6]
 [--horizon 6] [--top 15]`, where OUT_DIR is a finished gitmole output directory for REPO (its log.txt
@@ -53,9 +54,10 @@ def report_at(commits: list, t: str, size: dict, meta: dict) -> dict:
 
 def variants(report: dict) -> dict:
     """variant -> file names, best first, every one drawn from the pool the watch list draws from."""
-    rows = watch.risks(report, scoring="max")
-    out = {"watch (max-scaled)": [r["file"] for r in rows],
-           "watch (rank-scaled)": [r["file"] for r in watch.risks(report, scoring="rank")]}
+    rows = watch.risks(report)
+    out = {"watch list (hotspot)": [r["file"] for r in rows],
+           "factor product (max-scaled)": [r["file"] for r in watch.risks(report, scoring="max")],
+           "factor product (rank-scaled)": [r["file"] for r in watch.risks(report, scoring="rank")]}
     for name, key in watch.BASELINES.items():
         out[name] = watch.ranked_by(rows, key)
     out["recent fixes"] = watch.ranked_by(rows, lambda r: (r["recent_fixes"], r["revs"]))

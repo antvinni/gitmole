@@ -1,16 +1,18 @@
-"""The watch list: the files with the most going against them, from every per-file signal gitmole has.
+"""The watch list: the source files most likely to be fixed next, and what else counts against each.
 
-Each source file that is still in the tree and changed more than once gets a score of
-churn × (1 + recent fixes) × (1 + complexity) × (1.5 if single-owned), plus a list of reasons in
-plain words. Churn, fixes and complexity each enter as the file's rank among the scored files: the
-share of them that changed no more often than it did, and the share with strictly fewer recent
-fixes, strictly less complexity. A rank does not move when one outlier does, so a score means the
-same in a run with a 10,000-revision changelog as in one without. Churn is the base because a file
-nobody changes is rarely the one fixed next; ownership is the weakest of the four signals, so it
-weighs the least. How the list does against churn alone is measured in docs/validation.md.
+Each source file that is still in the tree and changed more than once is ranked by revisions × lines
+of code, the product the Hotspots table uses: measured at six cut-offs on three repositories
+(docs/validation.md), that product named more of the files fixed in the following six months than
+any weighting of fixes, complexity and ownership did. Those signals are the reasons printed beside
+each file: how often it was fixed lately, who alone owns it, its most complex function, what it
+always changes with. A file's score is the share of scored files whose product is no larger than its
+own, so it lies between 0 and 1, the top file scores 1, and one enormous file is one more file, not a
+new scale. The two factor-product scorings the list used to rank by, churn × (1 + recent fixes) ×
+(1 + complexity) × (1.5 if single-owned) with each factor a share of the largest value ("max") or a
+rank among the scored files ("rank"), stay selectable so gitmole.evaluate can keep comparing them.
 Complexity is scc's per-file total, which exists for every file on one scale; lizard's most complex
-function in the file is named in the reasons but does not enter the score, since lizard has no
-reader for shell, Terraform, Makefiles and the like."""
+function in the file is what the reasons name, since lizard has no reader for shell, Terraform,
+Makefiles and the like."""
 from __future__ import annotations
 
 import bisect
@@ -25,7 +27,7 @@ except ImportError:  # pragma: no cover - not run as a script, but keep the pack
 
 CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function is not worth naming
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership
-SOLO_WEIGHT = 1.5       # how much single ownership lifts the score
+SOLO_WEIGHT = 1.5       # how much single ownership lifts the factor-product scores
 COMPANION_DEGREE = 50   # a coupling worth mentioning
 COMPANION_REVS = 5      # ...over enough shared revisions to be a pattern
 
@@ -80,13 +82,15 @@ def _by_rank(values: list, inclusive: bool):
 
 
 SCALINGS = {"max": _by_max, "rank": _by_rank}
+SCORINGS = ("hotspot", *SCALINGS)
 
 
-def risks(report: dict, min_revs: int = 2, scoring: str = "rank") -> list:
-    """The watch list: every scored file with its reasons, worst first. `scoring` selects the scaling
-    behind each factor, "rank" (the default) or "max", kept so gitmole.evaluate can compare the two."""
-    if scoring not in SCALINGS:
-        raise ValueError(f"scoring must be one of {', '.join(SCALINGS)}, got {scoring!r}")
+def risks(report: dict, min_revs: int = 2, scoring: str = "hotspot") -> list:
+    """The watch list: every scored file with its reasons, worst first. `scoring` is "hotspot" (the
+    default: revisions × lines of code, as a rank among the scored files), or one of the two factor
+    products, "rank" and "max", kept so gitmole.evaluate can compare them with it."""
+    if scoring not in SCORINGS:
+        raise ValueError(f"scoring must be one of {', '.join(SCORINGS)}, got {scoring!r}")
     owners = _owners(report)
     companions = _companions(report)
     worst = _worst_function(report)
@@ -111,14 +115,22 @@ def risks(report: dict, min_revs: int = 2, scoring: str = "rank") -> list:
     if not rows:
         return []
 
-    scale = SCALINGS[scoring]
-    churn = scale([r["revs"] for r in rows], True)
-    fixed = scale([r["recent_fixes"] for r in rows], False)
-    cplx = scale([r["complexity"] for r in rows], False)
+    if scoring == "hotspot":
+        place = _by_rank([r["revs"] * r["code"] for r in rows], True)
+
+        def score(r):
+            return place(r["revs"] * r["code"])
+    else:
+        scale = SCALINGS[scoring]
+        churn = scale([r["revs"] for r in rows], True)
+        fixed = scale([r["recent_fixes"] for r in rows], False)
+        cplx = scale([r["complexity"] for r in rows], False)
+
+        def score(r):
+            return churn(r["revs"]) * (1 + fixed(r["recent_fixes"])) * (1 + cplx(r["complexity"])) * (SOLO_WEIGHT if r["solo"] else 1)
     for r in rows:
-        solo = r["authors"] == 1 or r["owner_share"] >= SOLO_SHARE
-        r["solo"] = solo
-        r["score"] = churn(r["revs"]) * (1 + fixed(r["recent_fixes"])) * (1 + cplx(r["complexity"])) * (SOLO_WEIGHT if solo else 1)
+        r["solo"] = r["authors"] == 1 or r["owner_share"] >= SOLO_SHARE
+        r["score"] = score(r)
         r["reasons"] = _reasons(r)
     rows.sort(key=lambda r: (-r["score"], -r["revs"], r["file"]))
     return rows
@@ -189,8 +201,9 @@ def change_risk(report: dict, files: list) -> dict:
 
 
 # What a simpler list would rank by. Churn alone is the one to beat: a file's past changes predict
-# its next fix better than most of what can be measured about its contents.
-BASELINES = {"churn": lambda r: r["revs"], "size": lambda r: r["code"], "hotspot": lambda r: r["revs"] * r["code"]}
+# its next fix better than most of what can be measured about its contents. Their product is the
+# list itself.
+BASELINES = {"churn": lambda r: r["revs"], "size": lambda r: r["code"]}
 
 
 def ranked_by(rows: list, key) -> list:
@@ -201,7 +214,7 @@ def ranked_by(rows: list, key) -> list:
 def backtest(report: dict, top: int = WATCH_TOP):
     """How the watch list as of the cut-off T (report["backtest"]) did against the fixes that came after.
     Expected value is a random pick of listed files from the same pool the list draws from; `baselines`
-    is what the same number of files ranked by churn, by size and by their product would have named."""
+    is what the same number of files ranked by churn alone and by size alone would have named."""
     past = report.get("backtest")
     if not past or not (past.get("size") or {}).get("files"):
         return None

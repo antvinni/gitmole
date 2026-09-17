@@ -308,7 +308,7 @@ class Report(unittest.TestCase):
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
         r["meta"]["since"] = "2026-01-01"
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("ranked by churn × recent fixes × complexity × single ownership; commits since 2026-01-01", caption)
+        self.assertIn("ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2026-01-01", caption)
         self.assertTrue(caption.endswith("the 2 most changed would name 1); whole history"), caption)
 
     def test_default_hotspots_hide_test_files_and_say_so(self):
@@ -701,7 +701,7 @@ class WatchList(unittest.TestCase):
         self.assertIn("◎ Watch list", text)
         self.assertRegex(text, r"static/index.html\s+changed 51 times · only Ann has touched it")
         self.assertRegex(text, r"static/apps-metadata.json\s+changed 128 times · fixed 4 times in six months")
-        self.assertIn("ranked by churn × recent fixes × complexity × single ownership", text)
+        self.assertIn("ranked by revisions × lines of code; the reasons say what else counts against each file", text)
 
     def test_capped_at_five_by_default_and_fifteen_in_full(self):
         r = sample_report()
@@ -742,7 +742,7 @@ class WatchList(unittest.TestCase):
         r = sample_report()
         r["meta"]["since"] = "2025-01-01"
         sec = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
-        self.assertEqual(sec["caption"], "ranked by churn × recent fixes × complexity × single ownership; commits since 2025-01-01")
+        self.assertEqual(sec["caption"], "ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2025-01-01")
 
 
 class DescriptiveTables(unittest.TestCase):
@@ -1120,7 +1120,7 @@ class Json(unittest.TestCase):
         self.assertEqual(d["size"]["total_code"], 5421)
         self.assertIn("revisions", d)
         self.assertIn("cohorts", d)
-        self.assertEqual(d["watch"][0]["file"], "static/apps-metadata.json")
+        self.assertEqual(d["watch"][0]["file"], "static/index.html")   # 51 × 4000 beats 128 × 800
         self.assertIn("reasons", d["watch"][0])
 
     def test_the_nested_backtest_sub_report_is_left_out(self):
@@ -1196,7 +1196,7 @@ class Excerpt(unittest.TestCase):
         self.assertIn("demo", text)                     # header panel title
         self.assertIn("363 commits", text)
         self.assertIn("Watch list", text)
-        self.assertIn("static/apps-metadata.json", text)   # the top watch row: 128 revisions
+        self.assertIn("static/apps-metadata.json", text)   # both scored files fit under the excerpt's cap of 5
 
     def test_prints_nothing_else(self):
         text = self._text()

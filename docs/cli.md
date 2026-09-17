@@ -54,7 +54,7 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
 | `--fail-on LEVEL` | Exit 3 if any finding is at `critical`, `warning` or `info` or worse. |
-| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score, in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
+| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (0 to 1 per file), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
 | `--risk-threshold N` | With `--risk`: exit 3 when the change-risk total exceeds N. |
 
 ## Exports and CI
@@ -85,8 +85,8 @@ on secrets in source files and still posts the report. Secrets found only in
 test files are a warning, so gate on `warning` to block on those too. Both
 exports also work with `--no-run` against an earlier output directory.
 `--risk-threshold` needs `--risk`: it exits 3 when the files changed since
-main add up to more than 5 on the watch-list scale; the total prints in the
-Change risk caption.
+main add up to more than 5, each file counting between 0 and 1 by where it
+stands on the watch list; the total prints in the Change risk caption.
 
 ## Big repositories
 

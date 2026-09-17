@@ -283,7 +283,7 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     rows = [(r["file"], " · ".join(r["reasons"])) for r in ranked[:limit]]
     columns = [("file", PATH), ("why", {"overflow": "fold", "ratio": 3})]
     since = report["meta"].get("since")
-    notes = ["ranked by churn × recent fixes × complexity × single ownership" + (f"; commits since {since}" if since else "")]
+    notes = ["ranked by revisions × lines of code; the reasons say what else counts against each file" + (f"; commits since {since}" if since else "")]
     bt = watch.backtest(report)
     status = report["meta"].get("backtest") or {}
     if bt:
