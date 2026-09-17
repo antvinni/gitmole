@@ -24,6 +24,12 @@ Tool stderr goes to `run.log` in the output directory, not the terminal.
 Ctrl-C kills every running step, including their child processes, and exits
 with code 130.
 
+A remote or portfolio target is cloned into a temp directory that is removed
+when the run ends. `gitmole --clean [DIR]` lists what gitmole left behind,
+temp clones from earlier versions and `analysis-*` output directories under
+DIR (default the current directory; a clone as DIR includes its own output
+next to it), with sizes, and deletes them after one y/N question.
+
 ## Options
 
 | Option | What it does |
@@ -35,6 +41,8 @@ with code 130.
 | `--plots` | Also draw the git-of-theseus code-age and survival charts. Needs `gitmole[plots]`. |
 | `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile. |
 | `--list-file-types` | List the file types in the tree with counts and whether each counts as code, then exit. |
+| `--clean [DIR]` | List the directories gitmole created, temp clones and `analysis-*` outputs under DIR, with their sizes, and delete them after a y/N question. Exit 0 whether you answer yes or no, 2 without a terminal. |
+| `--yes` | With `--clean`: delete without asking. For scripts and pipes. |
 | `--duplicates` | Also look for duplicated blocks. Minutes and gigabytes on a large repo; see below. |
 | `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics and plots. |
 | `--ignore GLOB` | An extra ignore pattern for the same steps. Repeatable. |

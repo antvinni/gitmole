@@ -1,8 +1,9 @@
-"""Command line entry point: gitmole <path | owner/repo | url> [--out DIR] [--no-run]."""
+"""Command line entry point: gitmole <path | owner/repo | url> [--out DIR] [--no-run], or gitmole --clean [DIR]."""
 from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import signal
 import sys
 import tempfile
@@ -19,7 +20,7 @@ from . import __version__, banner, filetypes, findings, load, loss, run
 
 def parse_args(argv):
     p = argparse.ArgumentParser(prog="gitmole", description="Analyse a git repository offline and print a report.")
-    p.add_argument("target", help="local clone path, owner/repo, or git URL")
+    p.add_argument("target", nargs="?", help="local clone path, owner/repo, or git URL; with --clean, the directory to look in (default .)")
     p.add_argument("--out", help="output directory (default: analysis-<repo> next to the clone, or in cwd for remote targets)")
     p.add_argument("--no-run", action="store_true", help="skip the tools; re-render the report from an existing output directory")
     p.add_argument("--workers", type=int, default=6, help="how many tools to run at once")
@@ -34,6 +35,8 @@ def parse_args(argv):
     p.add_argument("--gone", type=int, default=loss.DEFAULT_MONTHS, metavar="MONTHS", help="a person with no commits this many months before the last commit counts as gone (default 12)")
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
+    p.add_argument("--clean", action="store_true", help="list the directories gitmole created (temp clones, analysis-* under the target) and delete them after a y/N question, then exit")
+    p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
     p.add_argument("--duplicates", action="store_true", help="also look for duplicated code blocks (minutes and gigabytes on a large repo; function metrics alone take seconds)")
     p.add_argument("--full", action="store_true", help="every column and every row in the terminal report, and the test files the default tables hide (the default is the tighter, readable one)")
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
@@ -54,7 +57,7 @@ def interrupt(*_):
 
 
 def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
-         lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard) -> int:
+         lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard, ask=None) -> int:
     global _control
     _control = run.Control()
     if threading.current_thread() is threading.main_thread():
@@ -65,6 +68,8 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     rc = _check_args(args, err)
     if rc is not None:
         return rc
+    if args.clean:
+        return _clean(args, console, ask or (lambda q: console.input(q, markup=False)))
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
     quiet = "-" in (args.json, args.markdown)
     ui = Console(stderr=True) if quiet else console
@@ -110,6 +115,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     except NoCommits as e:
         err.print(f"[red]{e}[/red]")
         return 2
+    finally:
+        if kind == "remote":
+            shutil.rmtree(os.path.dirname(repo_dir), ignore_errors=True)   # the temp clone; nothing reads it after the run
     return _render(out_dir, console, ui, args, err)
 
 
@@ -117,7 +125,9 @@ def _check_args(args, err, kind=None) -> int | None:
     """The argument combinations that cannot work, in one place: 2 and a message, or None. Called
     once on the arguments alone, then again with the target's `kind` for the checks that need it."""
     if kind is None:
-        bad = "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk else None
+        bad = ("--yes needs --clean" if args.yes and not args.clean else
+               "target required" if args.target is None and not args.clean else
+               "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk else None)
     elif kind == "path":
         bad = None
     else:
@@ -165,6 +175,43 @@ def _no_run(args, console, ui, err) -> int:
     return _render(out_dir, console, ui, args, err)
 
 
+def _clean(args, console: Console, ask) -> int:
+    """Handle --clean: list what gitmole left behind, ask once, remove. ask(prompt) returns the answer."""
+    from . import clean, render
+
+    found = clean.find(args.target or ".", clean.temp_dir())
+    if not found:
+        console.print("nothing to clean")
+        return 0
+    total = sum(size for _, size, _ in found)
+    rows = [(path, clean.human(size), time.strftime("%Y-%m-%d", time.localtime(mtime))) for path, size, mtime in found]
+    sec = render._section("Left behind", [("directory", render.PATH), ("size", render.RIGHT), ("modified", {})], rows,
+                          caption=f"{_dirs(len(found))}, {clean.human(total)} in all")
+    render.print_section(console, sec)
+    console.print(Text(""))
+    if not args.yes:
+        if not console.is_terminal:
+            console.print("[red]--clean needs a terminal to confirm;[/red] pass --yes to skip the question")
+            return 2
+        try:
+            answer = ask(f"Delete {_dirs(len(found))} ({clean.human(total)})? [y/N] ")
+        except EOFError:
+            answer = ""
+        if answer.strip().lower() not in ("y", "yes"):
+            console.print("kept")
+            return 0
+    failed = clean.remove([p for p, _, _ in found])
+    removed = [(p, size) for p, size, _ in found if p not in failed]
+    console.print(f"removed {_dirs(len(removed))} ({clean.human(sum(s for _, s in removed))})")
+    for p in failed:
+        console.print(f"[red]could not remove[/red] {p}", soft_wrap=True)
+    return 1 if failed else 0
+
+
+def _dirs(n: int) -> str:
+    return f"{n} director{'y' if n == 1 else 'ies'}"
+
+
 def _resolve_target(kind, target, args, console, ui, err, planner, estimator, lister, cloner):
     """Resolve the classified target to (repo_dir, out_dir) for _analyse, or a final return code for the
     org and clone-failure paths. Returns (rc, repo_dir, out_dir); rc is None unless main should return early."""
@@ -177,6 +224,7 @@ def _resolve_target(kind, target, args, console, ui, err, planner, estimator, li
         try:
             repo_dir = cloner(target, parent)
         except run.GhError as e:
+            shutil.rmtree(parent, ignore_errors=True)
             err.print(f"[red]could not clone {target}:[/red] {e}", soft_wrap=True)
             return 2, None, None
     else:
@@ -325,23 +373,26 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
         return 2
     parent = tempfile.mkdtemp(prefix="gitmole-", dir=os.environ.get("TMPDIR"))
     reports = []
-    for i, name in enumerate(repos, 1):
-        ui.print(f"[bold]{name}[/bold] [dim]({i}/{len(repos)})[/dim]")
-        try:
-            repo_dir = cloner(f"{owner}/{name}", parent)
-        except run.GhError as e:
-            ui.print(f"[red]could not clone {owner}/{name}:[/red] {e}", soft_wrap=True)
-            continue
-        out_dir = os.path.join(base, name)
-        try:
-            _analyse(repo_dir, out_dir, args, ui, planner, estimator)
-        except Interrupted:
-            return 130
-        except NoCommits as e:
-            ui.print(f"[yellow]{name}:[/yellow] {e}; skipped")
-            continue
-        report = load.load_report(out_dir)
-        reports.append((name, report, findings.evaluate(report)))
+    try:
+        for i, name in enumerate(repos, 1):
+            ui.print(f"[bold]{name}[/bold] [dim]({i}/{len(repos)})[/dim]")
+            try:
+                repo_dir = cloner(f"{owner}/{name}", parent)
+            except run.GhError as e:
+                ui.print(f"[red]could not clone {owner}/{name}:[/red] {e}", soft_wrap=True)
+                continue
+            out_dir = os.path.join(base, name)
+            try:
+                _analyse(repo_dir, out_dir, args, ui, planner, estimator)
+            except Interrupted:
+                return 130
+            except NoCommits as e:
+                ui.print(f"[yellow]{name}:[/yellow] {e}; skipped")
+                continue
+            report = load.load_report(out_dir)
+            reports.append((name, report, findings.evaluate(report)))
+    finally:
+        shutil.rmtree(parent, ignore_errors=True)   # the temp clones; nothing reads them after the run
 
     def export_path(p):
         return p if p == "-" or os.path.isabs(p) else os.path.join(base, p)

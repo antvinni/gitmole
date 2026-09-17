@@ -37,6 +37,9 @@ _URL = re.compile(r"^(https?://|git@|ssh://)")
 
 def classify_target(target: str) -> tuple:
     if os.path.isdir(target):
+        probe = subprocess.run(["git", "-C", target, "rev-parse", "--git-dir"], capture_output=True, text=True)
+        if probe.returncode != 0:
+            raise ValueError(f"{target} is not a git repository; pass a clone, owner/repo or owner/*")
         return ("path", os.path.abspath(target))
     if _ORG.match(target):
         return ("org", target[:-2])

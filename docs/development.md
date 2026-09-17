@@ -63,7 +63,8 @@ the layout matches what code-maat produced), `blame.py` is the standalone
 code-age pass (its output mimics git-of-theseus so one loader serves both),
 `leaks.py` runs betterleaks and hashes the values before anything is
 written, `identity.py` merges author aliases, `load.py` parses the outputs,
-`findings.py` holds the heuristics, and `render.py` draws the report.
+`findings.py` holds the heuristics, `clean.py` finds and removes what gitmole
+left behind, and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates
 `docs/banner.svg` from the banner code.
 

@@ -9,9 +9,16 @@ from gitmole import blame, run
 
 
 class ClassifyTarget(unittest.TestCase):
-    def test_existing_directory_is_a_path(self):
+    def test_existing_repository_is_a_path(self):
         with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "init", "-q", d], check=True)
             self.assertEqual(run.classify_target(d), ("path", os.path.abspath(d)))
+
+    def test_directory_that_is_not_a_repository_raises(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ValueError) as cm:
+                run.classify_target(d)
+        self.assertIn("not a git repository", str(cm.exception))
 
     def test_owner_slash_repo_is_remote(self):
         self.assertEqual(run.classify_target("acme/widgets"), ("remote", "acme/widgets"))
