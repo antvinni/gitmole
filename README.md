@@ -6,8 +6,6 @@ A toolkit for digging into any cloned git repository: who works on it,
 where the risk is, how old the code is, whether the repo itself is healthy,
 and whether anything sensitive was ever committed.
 
-<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/report.svg" width="912" alt="gitmole on react: the summary, and the watch list of files where the next bug is likely, with a backtest">
-
 Free. Any Stack. Local. Offline. Deterministic. Fast. 
 
 - **Free.** MIT licence, no paid tier, no account, no token. A local clone needs no credentials, and a public `owner/repo` is cloned with plain git. Your `gh` login is only used for private repositories and for `owner/*`, and only when you ask for them. The tools it runs are open source too.
@@ -54,7 +52,7 @@ blocks on secrets in source files and still posts the report. Every option:
 ## What you get
 
 The opening of the report for [react](https://github.com/facebook/react), 35,263 commits
-since 2013, at a pinned commit; the picture above, as text:
+since 2013, at a pinned commit:
 
 ```text
 ╭─ react ──────────────────────────────────────────────────────────────────────────────────────────╮
