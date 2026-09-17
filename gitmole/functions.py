@@ -76,7 +76,8 @@ def suspect(lines: list, fn) -> str:
     JSX) and swallowing what follows into one function, so a swallowed span is long with little code
     in it, or holds a line that opens a block at the indentation of the function's own start: a
     sibling that should have ended it. A line that starts by closing a bracket (`}: Props) {`)
-    continues the function's own signature and does not count. It also reads a JSX ternary as a
+    continues the function's own signature, and a bare `{` is the function's own body brace in
+    the C styles that put it on its own line; neither counts. It also reads a JSX ternary as a
     nameless function: all code, all deeper than its start, and nothing near the start line opens a
     function."""
     if fn.length >= SPARSE_LINES and fn.nloc < SPARSE_SHARE * fn.length:
@@ -89,7 +90,7 @@ def suspect(lines: list, fn) -> str:
     depth = _indent(span[0])
     for number, line in enumerate(span[1:-1], start=fn.start_line + 1):
         text = line.rstrip()
-        if text.endswith(("{", ":")) and _indent(text) <= depth and text.lstrip()[0] not in ")]}":
+        if text.endswith("{") and _indent(text) <= depth and text.lstrip()[0] not in "{)]}":
             return f"opens a block at line {number} no deeper than its own start"
     return ""
 
