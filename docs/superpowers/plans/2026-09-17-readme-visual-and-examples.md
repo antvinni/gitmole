@@ -606,6 +606,131 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ---
 
+### Task 5: The version under the terminal banner
+
+Added on 2026-09-17 at the user's request: "print gitmole version right below the banner, this way it will be evident what version can reproduce given examples". Chosen scope: the terminal banner only. The README picture, the README text block and the example reports do not change (the reports already carry the version in their provenance line).
+
+**Files:**
+- Modify: `gitmole/banner.py` (`neon()` at line 86, `frames()` at line 102)
+- Modify: `gitmole/cli.py` (`_no_run` line 174, `_execute` lines 440 and 469)
+- Test: `tests/test_banner.py`, `tests/test_cli.py`
+
+**Interfaces:**
+- Consumes: `gitmole.__version__` (already imported in `cli.py` line 18), `banner.neon(offset, look) -> Text`, `banner.frames()`.
+- Produces: `banner.neon(offset: int = 0, look: int = 0, version: str = None) -> Text`: when `version` is given, one extra row `v<version>` in style `dim` after the six banner rows, ending with a newline like the rows above it. `banner.frames(version: str = None)`: every frame carries the same row. Without `version`, both are unchanged, so every existing banner test still holds.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `tests/test_banner.py`:
+
+```python
+class VersionLine(unittest.TestCase):
+    def test_version_row_sits_under_the_letters(self):
+        rows = banner.neon(version="1.2.3").plain.rstrip("\n").split("\n")
+        self.assertEqual(len(rows), 7)
+        self.assertEqual(rows[6], "v1.2.3")
+
+    def test_version_row_is_dim(self):
+        text = banner.neon(version="1.2.3")
+        start = text.plain.index("v1.2.3")
+        style = next(str(sp.style) for sp in text.spans if sp.start == start)
+        self.assertIn("dim", style)
+
+    def test_without_a_version_nothing_changes(self):
+        self.assertEqual(banner.neon().plain, banner.neon(version=None).plain)
+        self.assertNotIn("v", banner.neon().plain.split("\n")[-2])
+
+    def test_every_frame_carries_the_version(self):
+        gen = banner.frames(version="1.2.3")
+        for _ in range(3):
+            self.assertTrue(next(gen).plain.rstrip("\n").endswith("v1.2.3"))
+```
+
+In `tests/test_cli.py`, class `LiveRun`, extend the existing test `test_full_run_on_a_terminal_console_prints_banner_and_report` with one assertion after `self.assertIn("███╗   ███╗", text)`:
+
+```python
+        from gitmole import __version__
+        self.assertIn(f"v{__version__}", text)
+```
+
+and add to class `NoRun`:
+
+```python
+    def test_terminal_no_run_prints_the_banner_with_the_version(self):
+        from gitmole import __version__
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "demo", "commits": 5, "identities": []}, fh)
+            c = Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system="truecolor")
+            rc = cli.main([out, "--no-run"], console=c)
+            text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertIn("███╗   ███╗", text)
+        self.assertIn(f"v{__version__}", text)
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `python3 -m unittest tests.test_banner.VersionLine tests.test_cli.NoRun tests.test_cli.LiveRun -v`
+Expected: the four `VersionLine` tests error with `TypeError: neon() got an unexpected keyword argument 'version'` (or `frames()` likewise); the two CLI assertions fail with `'v0.7.0' not found`.
+
+- [ ] **Step 3: Implement**
+
+In `gitmole/banner.py`, replace `neon` and `frames`:
+
+```python
+def neon(offset: int = 0, look: int = 0, version: str = None) -> Text:
+    """The banner with the palette rotated down by `offset` rows, and the mole beside it.
+    With `version`, a dim `v1.2.3` row underneath: the report's reproducibility stamp."""
+    text = Text()
+    sprite = _sprite_rows(look)
+    for i, row in enumerate(ART.split("\n")):
+        colour = NEON[(i - offset) % len(NEON)]
+        text.append(row, style=Style(color=Color.parse(colour), bold=True))
+        text.append(" " * GAP)
+        text.append_text(sprite[i])
+        text.append("\n")
+    if version:
+        text.append(f"v{version}\n", style="dim")
+    return text
+
+
+LOOK_EVERY = 5  # frames per glance; at 10 fps the eyes move every half second
+
+
+def frames(version: str = None):
+    """Endless generator of banner frames: gradient flowing down, eyes glancing side to side."""
+    n = 0
+    while True:
+        yield neon(offset=n % len(NEON), look=(n // LOOK_EVERY) % 2, version=version)
+        n += 1
+```
+
+In `gitmole/cli.py`:
+- `_no_run`: `ui.print(banner.neon())` becomes `ui.print(banner.neon(version=__version__))`.
+- `_execute`: `frame = banner.frames()` becomes `frame = banner.frames(version=__version__)`, and the final `live.update(Group(banner.neon(), Text("")) ...` becomes `live.update(Group(banner.neon(version=__version__), Text("")) if console.is_terminal else Text(""))`.
+
+Nothing else prints the banner: `grep -n "banner\." gitmole/cli.py` must show exactly those three call sites afterwards.
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `python3 -m unittest tests.test_banner tests.test_cli -v`
+Expected: all pass.
+
+- [ ] **Step 5: Run the whole suite and commit**
+
+Run: `python3 -m unittest discover -s tests -t .`
+Expected: OK. The golden report is unaffected: the banner prints only on a terminal console.
+
+```bash
+git add gitmole/banner.py gitmole/cli.py tests/test_banner.py tests/test_cli.py
+git commit -m "The version prints under the banner, so a screenshot says what made it
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```
+
+---
+
 ## Self-review notes
 
 - Feedback (3), a visual at the top: Task 1 and Task 2 produce it, Task 4 Step 1 places it.
