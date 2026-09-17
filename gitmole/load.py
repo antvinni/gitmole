@@ -233,13 +233,17 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
     cohorts = _read(out_dir, "theseus/cohorts.json")
     authors = _read(out_dir, "theseus/authors.json")
     canonical = dict(meta["aliases"]) if "aliases" in meta else identity.canonical_names(meta.get("identities") or [])
+    bots = {b["name"] for b in meta.get("bots") or []}   # the run decided from name, email and aliases; the tables only have the name
+
+    def is_bot(name):
+        return name in bots or identity.is_bot(name)
     surviving = OrderedDict()
     for name, lines in (parse_theseus(authors) if authors else {}).items():
         key = canonical.get(name, name)
-        if identity.is_bot(key):   # a deploy job that committed a built site owns nothing anyone needs to know
+        if is_bot(key):   # a deploy job that committed a built site owns nothing anyone needs to know
             continue
         surviving[key] = surviving.get(key, 0) + lines
-    ownership = [r for r in parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")) if not identity.is_bot(r.get("author") or "")]
+    ownership = [r for r in parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")) if not is_bot(r.get("author") or "")]
     return {
         "out_dir": out_dir,
         "meta": meta,

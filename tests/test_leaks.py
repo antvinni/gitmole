@@ -61,9 +61,10 @@ class Placeholder(unittest.TestCase):
 
     def test_common_example_words_are_placeholders(self):
         # `password: 'hello'` in a doc comment, `secret` in a sample config: the words every example uses
-        for value in ["hello", "Hello", "secret", "password", "PASSWORD", "example", "123456", "qwerty", "letmein", "foo", "dummy",
-                      "x-oauth-basic", "x-access-token"]:   # GitHub's documented literals for the password slot of token auth
+        for value in ["hello", "Hello", "secret", "password", "PASSWORD", "example", "123456", "qwerty", "letmein", "foo", "dummy"]:
             self.assertTrue(leaks.is_placeholder(value), value)
+        for value in ["x-oauth-basic", "x-access-token", "x-token-auth"]:   # one service's documented literals are vocabulary, not a shape
+            self.assertFalse(leaks.is_placeholder(value), value)
         self.assertTrue(leaks.is_placeholder("hunter2", line='url = f"https://{token}:hunter2@github.com/{SLUG}.git"'),
                         "a line with a template field is a template being filled in")
         for value in ["hello123", "secret-9f8a7b6c5d4e", "s3cr3t!Passw0rd", "foobarbaz2024"]:

@@ -39,8 +39,7 @@ RAW_FIELDS = ("Secret", "Match", "Line", "Message", "Attributes")
 _VERSION = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 _MARKER = re.compile(r"^(<[^<>]+>|x+|(?:x{2,}[-_ ]?)+|your[-_][\w-]+|change[-_]?me|replace[-_]?me)$", re.I)
 _EXAMPLE_WORDS = {"password", "passwd", "pass", "secret", "hello", "hey", "test", "example", "sample", "dummy", "foo", "bar",
-                  "baz", "admin", "root", "user", "123456", "12345678", "123456789", "abc123", "qwerty", "letmein", "welcome",
-                  "x-oauth-basic", "x-access-token", "x-token-auth"}   # documented literals for the password slot of token auth
+                  "baz", "admin", "root", "user", "123456", "12345678", "123456789", "abc123", "qwerty", "letmein", "welcome"}
 # A whole value that refers to an environment variable or a template field is where the secret will be
 # read from, not the secret: `@env:AC_PASSWORD`, `${DB_PASSWORD}`, `{{.Env.X}}`, `process.env.X`, `<%= ENV['X'] %>`.
 _ENV_REF = re.compile(r"^(@env:\w+|\$\{[^{}]+\}|\$[A-Za-z_]\w*|\$\([^()]+\)|%[A-Za-z_]\w*%|\{\{.*\}\}|<%=?.*%>"

@@ -372,20 +372,21 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
     date range and the identity table; aliases are merged over the whole history so blame and
     ownership keep merging people who have no commits in the window, and `first_date_all` keeps the
     date of the first commit of all so the backtest can still measure the whole history. Bots
-    (renovate, dependabot, GitHub Actions and anything named *[bot]) are counted apart under
-    "bots", not as identities."""
+    (anything named *[bot], anything merging with such a name, and names that say bot, CI, deploy
+    or automation) are counted apart under "bots", not as identities."""
     from collections import Counter
 
     from .load import parse_authors_log
 
     lines = _git(repo_dir, "log", "--all", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").splitlines()
     all_rows = [l.split("\t", 2) for l in lines if l.count("\t") == 2]
-    rows = [r for r in all_rows if not identity.is_bot(r[1], r[2])]
+    bot_names = identity.bot_names(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in all_rows)))
+    rows = [r for r in all_rows if r[1] not in bot_names]
     all_windowed = [r for r in all_rows if not since or r[0] >= since]
-    windowed = [r for r in all_windowed if not identity.is_bot(r[1], r[2])]
+    windowed = [r for r in all_windowed if r[1] not in bot_names]
     dates = [r[0] for r in all_windowed]
     all_dates = [r[0] for r in all_rows]
-    bots = Counter(n for _, n, e in all_windowed if identity.is_bot(n, e))
+    bots = Counter(n for _, n, e in all_windowed if n in bot_names)
     all_identities = identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in rows)))
     meta = {
         "name": repo_name(repo_dir),

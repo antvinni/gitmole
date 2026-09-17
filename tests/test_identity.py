@@ -92,19 +92,29 @@ class Merge(unittest.TestCase):
 
 
 class IsBot(unittest.TestCase):
-    def test_bracketed_bot_suffix_and_the_well_known_names(self):
+    def test_bracketed_bot_suffix_and_names_that_say_bot_ci_deploy_or_automation(self):
         for name, email in [("renovate[bot]", "29139614+renovate[bot]@users.noreply.github.com"),
                             ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"),
-                            ("dependabot[bot]", "support@github.com"), ("Dependabot", "dependabot@example.com"),
-                            ("Renovate Bot", "bot@renovateapp.com"), ("GitHub Actions", "actions@github.com"),
-                            ("Copilot", "198982749+Copilot@users.noreply.github.com"), ("Cursor Agent", "cursoragent@cursor.com"),
+                            ("dependabot[bot]", "support@github.com"), ("Renovate Bot", "bot@renovateapp.com"),
                             ("Deploy from CI", ""), ("Release Bot", "release@x.com"), ("CI", "ci@x.com"), ("Homebrew Automation", "a@x.com"),
                             ("hugoreleaser", "hugoreleaser@x.com"), ("semantic-release-bot", "s@x.com")]:
             self.assertTrue(identity.is_bot(name, email), (name, email))
 
-    def test_people_are_not_bots(self):
-        for name, email in [("Ann", "ann@x.com"), ("Bob Otte", "bot@x.com"), ("Robot Lee", "r@x.com"), ("hay-kot", "hay-kot@pm.me")]:
+    def test_people_and_bare_product_names_are_not_bots(self):
+        # a product name is not a rule: GitHub declares its bots with the [bot] suffix, and a name that
+        # declares nothing is a person until an alias of it declares otherwise
+        for name, email in [("Ann", "ann@x.com"), ("Bob Otte", "bot@x.com"), ("Robot Lee", "r@x.com"), ("hay-kot", "hay-kot@pm.me"),
+                            ("Dependabot", "dependabot@example.com"), ("Copilot", "198982749+Copilot@users.noreply.github.com"),
+                            ("Cursor Agent", "cursoragent@cursor.com"), ("GitHub Actions", "actions@github.com")]:
             self.assertFalse(identity.is_bot(name, email), (name, email))
+
+    def test_an_identity_that_merges_with_a_declared_bot_is_a_bot(self):
+        # fastapi: 2237 commits as "github-actions <github-actions@github.com>" beside 828 as github-actions[bot]
+        rows = [{"name": "github-actions", "email": "github-actions@github.com", "commits": 2237},
+                {"name": "github-actions[bot]", "email": "41898282+github-actions[bot]@users.noreply.github.com", "commits": 828},
+                {"name": "Ann", "email": "a@x.com", "commits": 5}, {"name": "Copilot", "email": "c@x.com", "commits": 1}]
+        self.assertEqual(identity.bot_names(rows), {"github-actions", "github-actions[bot]"})
+        self.assertEqual(identity.bot_names([]), set())
 
 
 if __name__ == "__main__":
