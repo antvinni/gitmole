@@ -18,7 +18,7 @@ def load():
 
 MARKDOWN = """# curl
 
-35000 commits · 1999-12-29 → 2026-09-17 · 900 identities · branch master
+35000 commits · 1999-12-29 → 2026-09-17 · 900 identities · branch master  
 200,000 lines in 1,200 files · C
 
 ## Findings
