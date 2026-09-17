@@ -309,7 +309,7 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     first = " and ".join(f["entity"] for f in hot[:2])
     return [_f(sev, "Bug magnets",
                f"{len(hot)} file(s) were fixed {min_recent}+ times in the last six months: {listed}{more}.",
-               f"Review {first} before the next release; expect the next bug there.",
+               f"Review {first} before the next release; fixes keep landing there.",
                rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so"},
                evidence={"count": len(hot), "files": [{"file": f["entity"], "recent_fixes": f["recent-fixes"], "fixes": f["n-fixes"]} for f in hot[:10]]})]
 

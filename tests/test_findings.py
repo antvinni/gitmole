@@ -417,12 +417,12 @@ class BugMagnets(unittest.TestCase):
         self.assertIn("core/util.py (3", f[0]["detail"])
         self.assertNotIn("tests/", f[0]["detail"])
         self.assertNotIn("core/old.py", f[0]["detail"])
-        self.assertTrue(f[0]["detail"].endswith("Review core/parser.py and core/util.py before the next release; expect the next bug there."), f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Review core/parser.py and core/util.py before the next release; fixes keep landing there."), f[0]["detail"])
 
     def test_info_below_five_recent_fixes(self):
         f = findings.bug_magnets(report(fixes=self.FIXES[1:2]))
         self.assertEqual(f[0]["severity"], "info")
-        self.assertTrue(f[0]["detail"].endswith("Review core/util.py before the next release; expect the next bug there."), f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Review core/util.py before the next release; fixes keep landing there."), f[0]["detail"])
 
     def test_nothing_without_recent_fixes(self):
         self.assertEqual(findings.bug_magnets(report(fixes=self.FIXES[3:])), [])

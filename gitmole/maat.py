@@ -223,9 +223,9 @@ def activity(commits: list) -> dict:
 
 def plumbing(commits: list, min_revs: int = 20, share: float = 0.8, max_lines: int = 3) -> list:
     """Files whose commits nearly always swap a few lines for as many: a version constant in
-    __init__.py, the three fields of a version struct. Their churn is the release cadence, not where
-    the next bug lands. A commit that adds lines without removing any is growth, not a bump. Needs
-    enough commits to judge by."""
+    __init__.py, the three fields of a version struct. Their churn is the release cadence and says
+    nothing about their quality. A commit that adds lines without removing any is growth, not a
+    bump. Needs enough commits to judge by."""
     revs, tiny = Counter(), Counter()
     for c in commits:
         for path, added, deleted in c["files"]:

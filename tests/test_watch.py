@@ -73,7 +73,7 @@ class Risks(unittest.TestCase):
         r["revisions"] = [{"entity": "setup.py", "n-revs": 184}, {"entity": "version.go", "n-revs": 29}, {"entity": "Makefile", "n-revs": 131},
                           {"entity": "core/parser.py", "n-revs": 40}]
         files = sorted(x["file"] for x in watch.risks(r))
-        self.assertEqual(files, ["Makefile", "core/parser.py"], "a version file or a manifest changes on every release, not where the next bug lands")
+        self.assertEqual(files, ["Makefile", "core/parser.py"], "a version file or a manifest changes on every release, not because anything is wrong with it")
 
     def test_a_file_the_change_log_shows_as_plumbing_is_not_on_the_list(self):
         r = report()

@@ -103,7 +103,7 @@ def risks(report: dict, min_revs: int = 2, scoring: str = "hotspot") -> list:
     for h in hotspots.ranked(report):
         if (h["code"] is None or h["revs"] < min_revs or filetypes.is_test_path(h["entity"]) or filetypes.is_release(h["entity"], plumb)
                 or h["entity"] in derived):
-            continue   # a version file, a manifest or a build output changes for reasons that are not the next bug
+            continue   # a version file, a manifest or a build output changes for reasons that say nothing about its quality
         fx = fixes.get(h["entity"], {})
         own = owners.get(h["entity"]) or Counter()
         owner, owner_lines = (own.most_common(1)[0] if own else (None, 0))
