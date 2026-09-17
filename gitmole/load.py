@@ -155,13 +155,18 @@ def _cut(name: str, cap: int = NAME_CAP) -> str:
 
 
 def parse_functions(text: str) -> list:
-    """lizard --csv rows: nloc, ccn, tokens, params, length, location, file, function, long name, start, end."""
+    """lizard --csv rows: nloc, ccn, tokens, params, length, location, file, function, long name, start, end;
+    then, from gitmole's own step, a label for a nameless function (its start line) and why the span
+    looks mis-parsed. A nameless function goes by its label, or "(anonymous)" in an older file, and
+    stays marked anonymous so the report can say where it is."""
     rows = []
     for r in csv.reader(io.StringIO(text)):
         if len(r) < 11:
             continue
-        rows.append({"file": _rel(r[6]), "function": _cut(r[7]) or "(anonymous)", "ccn": _num(r[1]), "nloc": _num(r[0]), "params": _num(r[3]),
-                     "start": _num(r[9]), "end": _num(r[10])})
+        name, label, suspect = r[7], r[11] if len(r) > 11 else "", r[12] if len(r) > 12 else ""
+        anonymous = name in ("", "(anonymous)")
+        rows.append({"file": _rel(r[6]), "function": _cut(label if anonymous and label else name) or "(anonymous)", "anonymous": anonymous,
+                     "ccn": _num(r[1]), "nloc": _num(r[0]), "params": _num(r[3]), "start": _num(r[9]), "end": _num(r[10]), "suspect": suspect})
     return rows
 
 

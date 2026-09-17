@@ -474,6 +474,22 @@ class BrainMethods(unittest.TestCase):
         self.assertIn("(anonymous) (completions.go:316) complexity 47, 136 lines, 1 params", f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Split the anonymous function at completions.go:316 first, before the next change lands there.")
 
+    def test_a_labelled_nameless_function_is_listed_by_its_label_and_placed_by_its_line(self):
+        fns = [{"file": "server/routes.ts", "function": 'app.post("/api/x", async (req, res) => {', "anonymous": True,
+                "ccn": 47, "nloc": 136, "params": 1, "start": 316, "end": 585, "suspect": ""}]
+        f = findings.brain_methods(report(functions=fns))
+        self.assertIn('app.post("/api/x", async (req, res) => { (server/routes.ts:316) complexity 47, 136 lines, 1 params', f[0]["detail"])
+        self.assertEqual(f[0]["advice"], "Split the anonymous function at server/routes.ts:316 first, before the next change lands there.")
+
+    def test_a_suspect_span_is_not_a_brain_method(self):
+        fns = [{"file": "core/parser.py", "function": "parse", "ccn": 41, "nloc": 220, "params": 9, "start": 10, "end": 300,
+                "suspect": "opens a block at line 120 no deeper than its own start"},
+               {"file": "core/util.py", "function": "tidy", "ccn": 16, "nloc": 120, "params": 2, "start": 1, "end": 130, "suspect": ""}]
+        f = findings.brain_methods(report(functions=fns))
+        self.assertNotIn("parse", f[0]["detail"], "a span lizard may have mis-parsed is not advice")
+        self.assertEqual(f[0]["advice"], "Split tidy in core/util.py first, before the next change lands there.")
+        self.assertEqual(findings.brain_methods(report(functions=fns[:1])), [])
+
     def test_generated_files_are_not_brain_methods(self):
         fns = [{"file": "lib/config-validator.js", "function": "validate10", "ccn": 373, "nloc": 1150, "params": 5, "start": 1, "end": 1150},
                {"file": "lib/reply.js", "function": "onSendEnd", "ccn": 34, "nloc": 180, "params": 2, "start": 1, "end": 180}]

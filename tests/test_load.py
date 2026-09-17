@@ -131,7 +131,8 @@ class ParseFunctions(unittest.TestCase):
 
     def test_rows_with_clean_paths(self):
         rows = load.parse_functions(self.CSV)
-        self.assertEqual(rows[0], {"file": "gitmole/findings.py", "function": "_f", "ccn": 1, "nloc": 2, "params": 3, "start": 14, "end": 15})
+        self.assertEqual(rows[0], {"file": "gitmole/findings.py", "function": "_f", "anonymous": False, "ccn": 1, "nloc": 2, "params": 3,
+                                   "start": 14, "end": 15, "suspect": ""})
         self.assertEqual(rows[1]["file"], "src/parser.py")
         self.assertEqual((rows[1]["ccn"], rows[1]["nloc"], rows[1]["params"]), (41, 120, 9))
 
@@ -154,7 +155,18 @@ class ParseFunctions(unittest.TestCase):
     def test_a_nameless_function_is_called_anonymous(self):
         # lizard names Go function literals with an empty string where it names JavaScript's "(anonymous)"
         rows = load.parse_functions('136,47,926,1,270,"@316-585@completions.go","completions.go",""," c * Command",316,585\n')
-        self.assertEqual((rows[0]["function"], rows[0]["start"]), ("(anonymous)", 316))
+        self.assertEqual((rows[0]["function"], rows[0]["start"], rows[0]["anonymous"], rows[0]["suspect"]), ("(anonymous)", 316, True, ""))
+
+    def test_a_nameless_function_goes_by_its_label_and_stays_marked_anonymous(self):
+        rows = load.parse_functions('136,47,926,1,270,"@316-585@completions.go","completions.go",""," c * Command",316,585,"Run: func(c *Command) {",""\n'
+                                    '4,2,36,0,4,"(anonymous)@1-4@routes.js","routes.js","(anonymous)","(anonymous)",1,4,"app.post(""/api/x"", async (req, res) => {",""\n'
+                                    '4,2,14,2,4,"tracked@1-4@app.py","app.py","tracked","tracked( a , b )",1,4,"",""\n')
+        self.assertEqual([(r["function"], r["anonymous"]) for r in rows],
+                         [("Run: func(c *Command) {", True), ('app.post("/api/x", async (req, res) => {', True), ("tracked", False)])
+
+    def test_a_suspect_span_carries_its_reason(self):
+        rows = load.parse_functions('9,1,21,1,9,"tpl@1-9@tpl.js","tpl.js","tpl","tpl ( name )",1,9,"","opens a block at line 8 no deeper than its own start"\n')
+        self.assertEqual(rows[0]["suspect"], "opens a block at line 8 no deeper than its own start")
 
     def test_a_row_cut_short_by_a_killed_step_does_not_abort_the_report(self):
         rows = load.parse_functions(self.CSV + '5,3,40,1,5,"g@1-5@a.py","a.py","g","g( )",1,\n')
