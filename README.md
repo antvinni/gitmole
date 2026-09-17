@@ -8,14 +8,13 @@ and whether anything sensitive was ever committed.
 
 <img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/report.svg" width="912" alt="gitmole on react: the summary, and the watch list of files where the next bug is likely, with a backtest">
 
-Any stack. Free. Offline. No token. No AI. Light.
+Free. Any Stack. Local. Offline. Deterministic. Fast. 
 
-- **Free.** MIT licence, no paid tier, no account. The tools it runs are open source too.
+- **Free.** MIT licence, no paid tier, no account, no token. A local clone needs no credentials, and a public `owner/repo` is cloned with plain git. Your `gh` login is only used for private repositories and for `owner/*`, and only when you ask for them. The tools it runs are open source too.
 - **Any stack.** It reads what every repository has: the git log, git blame and the files themselves.
-- **Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home; the vulnerability database is a copy you download once.
-- **No token.** A local clone needs no credentials. The optional `owner/repo` shortcut uses the `gh` login you already have, and you ask for it.
-- **No AI.** Every finding is a plain rule over counts you can recompute by hand. The same clone gives the same report every time.
-- **Light.** A 4,400-commit repository takes under thirty seconds. A few thousand lines of Python plus two libraries.
+- **Local & Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home; the vulnerability database is a copy you download once.
+- **Deterministic.** No AI at runtime. Every finding is a plain rule over counts you can recompute by hand. The same clone gives the same report every time. 
+- **Fast.** A 4,400-commit repository takes under thirty seconds.
 
 ## Install
 
