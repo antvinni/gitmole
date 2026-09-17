@@ -521,7 +521,7 @@ def _generated(report: dict) -> set:
     return hotspots.derived(report)
 
 
-def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = 25, top_n: int = 10) -> list:
+def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = trend.GROWTH_FLOOR, top_n: int = 10) -> list:
     """The top_n source hotspots whose complexity grew over the last year, from the trend samples.
     Test files are left out: a growing test file is not the problem the finding is about."""
     series = (report.get("trend") or {}).get("files") or {}

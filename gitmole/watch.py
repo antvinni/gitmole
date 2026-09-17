@@ -4,12 +4,12 @@ Each source file that is still in the tree and changed more than once is ranked 
 of code, the product the Hotspots table uses: measured at six cut-offs on three repositories
 (docs/validation.md), that product named more of the files fixed in the following six months than
 any weighting of fixes, complexity and ownership did. Those signals are the reasons printed beside
-each file: how often it was fixed lately, who alone owns it, its most complex function, what it
-always changes with. A file's score is its share, in percent, of all scored files' revisions × lines
-of code, so the scores of the whole list add up to 100 and a change's `--risk` total is the share of
-that mass the change touches; one enormous file takes a large share, as it should, and lowers the
-others' only by what it adds to the whole. The factor products the list used to rank by live in
-gitmole.evaluate, which still compares them with it.
+each file: how often it was fixed lately, who alone owns it, its most complex function, how much its
+complexity grew in the last year, what it always changes with. A file's score is its share, in
+percent, of all scored files' revisions × lines of code, so the scores of the whole list add up to
+100 and a change's `--risk` total is the share of that mass the change touches; one enormous file
+takes a large share, as it should, and lowers the others' only by what it adds to the whole. The
+factor products the list used to rank by live in gitmole.evaluate, which still compares them with it.
 Complexity is scc's per-file total, which exists for every file on one scale; lizard's most complex
 function in the file is what the reasons name, since lizard has no reader for shell, Terraform,
 Makefiles and the like."""
@@ -18,11 +18,12 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 try:
-    from . import filetypes, hotspots, textfmt
+    from . import filetypes, hotspots, textfmt, trend
 except ImportError:  # pragma: no cover - not run as a script, but keep the package pattern
     import filetypes
     import hotspots
     import textfmt
+    import trend
 
 CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function is not worth naming
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership
@@ -71,6 +72,8 @@ def risks(report: dict, min_revs: int = 2) -> list:
     worst = _worst_function(report)
     fixes = {f["entity"]: f for f in report.get("fixes") or []}
     n_authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
+    series = (report.get("trend") or {}).get("files") or {}
+    last = (report.get("meta") or {}).get("last_date") or ""
 
     plumb, derived = filetypes.plumbing_paths(report), hotspots.derived(report)
     rows = []
@@ -86,7 +89,8 @@ def risks(report: dict, min_revs: int = 2) -> list:
         rows.append({"file": h["entity"], "revs": h["revs"], "recent_fixes": fx.get("recent-fixes", 0), "fixes": fx.get("n-fixes", 0),
                      "authors": n_authors.get(h["entity"]), "owner": owner, "owner_share": share,
                      "complexity": h["complexity"] or 0, "code": h["code"],
-                     "function": fn, "companions": companions.get(h["entity"], [])})
+                     "function": fn, "companions": companions.get(h["entity"], []),
+                     "trend": trend.change_over_year(series[h["entity"]], last) if last and h["entity"] in series else None})
     if not rows:
         return []
 
@@ -126,6 +130,9 @@ def _reasons(r: dict) -> list:
     if fn and fn["ccn"] >= CCN_FLOOR:
         named = f"the function at line {fn['start']}" if fn.get("anonymous") else f"{fn['function']}()"
         out.append(f"{named} complexity {fn['ccn']}")
+    grown = r.get("trend") or ""
+    if grown.startswith("+") and int(grown[1:-1]) >= trend.GROWTH_FLOOR:
+        out.append(f"complexity {grown} in a year")   # the Hotspots table's trend column, which the default report no longer shows
     if r["companions"]:
         other, degree = r["companions"][0]
         more = len(r["companions"]) - 1

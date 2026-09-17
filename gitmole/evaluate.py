@@ -98,7 +98,7 @@ def factor_product(rows: list, scaling: str) -> list:
 
 def variants(report: dict) -> dict:
     """variant -> file names, best first, every one drawn from the pool the watch list draws from. The
-    factor products it used to be ranked by are computed here, next to watch list's own ranking."""
+    factor products it used to be ranked by are computed here, next to the watch list's own ranking."""
     rows = watch.risks(report)
     out = {"watch list (hotspot)": [r["file"] for r in rows],
            "factor product (max-scaled)": factor_product(rows, "max"),

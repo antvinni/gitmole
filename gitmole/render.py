@@ -602,16 +602,18 @@ def health_section(report: dict, full: bool = True, width=None) -> dict:
 
 BUILDERS = [watch_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
             hotspots_section, coupling_section, age_section, functions_section, health_section]
-DESCRIPTIVE = {"size", "activity", "age"}   # interesting once, rarely change what you do next: `--full` only
+# `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
+# do next; Hotspots ranks the files the watch list already leads with, by the same product.
+FULL_ONLY = {"size", "activity", "age", "hotspots"}
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
     """Every section as a dict with an `id` (the builder's name without _section). The default terminal
-    report (`full` False) leaves the descriptive ones out; `full` True and Markdown keep them."""
+    report (`full` False) leaves these out; `full` True and Markdown keep them."""
     out = []
     for b in BUILDERS:
         sid = b.__name__[:-len("_section")]
-        if full is False and sid in DESCRIPTIVE:
+        if full is False and sid in FULL_ONLY:
             continue
         sec = b(report, full, width)
         sec["id"] = sid

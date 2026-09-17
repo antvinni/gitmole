@@ -52,6 +52,15 @@ def rendered(report, findings, width=120, full=False):
     return console.export_text()
 
 
+def _rendered_section(sec: dict, width=120) -> str:
+    """One section drawn on its own, the way `rendered` draws a whole report: for Hotspots, which
+    the default terminal report no longer carries, but whose drawing (folding, eliding, hiding) is
+    still worth checking directly."""
+    console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
+    render.print_section(console, sec)
+    return console.export_text()
+
+
 class Report(unittest.TestCase):
     def test_header_shows_name_commits_span_and_languages(self):
         text = rendered(sample_report(), [])
@@ -260,18 +269,19 @@ class Report(unittest.TestCase):
         r["meta"]["last_date"] = "2026-09-10"
         r["trend"] = {"samples": ["2025-09-10", "2026-03-10", "2026-09-10"],
                       "files": {"static/index.html": [["2025-09-10", 10, 4000], ["2026-03-10", 12, 4000], ["2026-09-10", 16, 4000]]}}
-        text = rendered(r, [])
+        text = _rendered_section(render.hotspots_section(r, full=False, width=120))
         self.assertRegex(text, r"file\s+revs\s+lines\s+fixes\s+authors\s+trend")
         self.assertRegex(text, r"static/index\.html\s+51\s+4,000\s+0\s+-\s+\+60%")
         self.assertRegex(text, r"static/apps-metadata\.json\s+128\s+800\s+9\s+4\s+-")
         self.assertRegex(rendered(r, [], full=True), r"static/index\.html.*▁▃█")
-        self.assertRegex(rendered(sample_report(), []), r"static/index\.html\s+51\s+4,000\s+0\s+-\s+-")
+        self.assertRegex(_rendered_section(render.hotspots_section(sample_report(), full=False, width=120)),
+                         r"static/index\.html\s+51\s+4,000\s+0\s+-\s+-")
 
     def test_full_hotspots_say_the_trend_column_covers_the_top_ten(self):
         r = sample_report()
         r["meta"]["last_date"] = "2026-09-10"
         def caption(rep, full):
-            return next(x for x in render.sections(rep, full=full) if x["id"] == "hotspots")["caption"]
+            return render.hotspots_section(rep, full=full, width=None)["caption"]
         self.assertIsNone(caption(r, True), "no trend data, nothing to explain")
         r["trend"] = {"samples": ["2025-09-10", "2026-09-10"],
                       "files": {"static/index.html": [["2025-09-10", 10, 4000], ["2026-09-10", 16, 4000]]}}
@@ -315,8 +325,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["revisions"].append({"entity": "tests/test_a.py", "n-revs": 200})
         r["size"]["files"]["tests/test_a.py"] = {"code": 50, "complexity": 1}
-        text = rendered(r, [])
-        hot = text[text.index("◆ Hotspots"):]
+        hot = _rendered_section(render.hotspots_section(r, full=False, width=120))
         self.assertNotIn("tests/test_a.py", hot)
         self.assertIn("1 test file hidden; --full shows them", hot)
         full_text = rendered(r, [], full=True)
@@ -378,7 +387,7 @@ class Report(unittest.TestCase):
         r["revisions"].append({"entity": "lib/config-validator.js", "n-revs": 8})
         r["functions"].append({"file": "lib/config-validator.js", "function": "validate10", "ccn": 373, "nloc": 1150, "params": 5, "start": 1, "end": 1150})
         text = rendered(r, [], width=200)
-        hot = text[text.index("◆ Hotspots"):text.index("Change coupling")]
+        hot = _rendered_section(render.hotspots_section(r, full=False, width=200))
         self.assertNotIn("config-validator", hot)
         self.assertIn("1 generated file hidden; --full shows them", hot)
         fn = _section_text(text, "Complex functions")
@@ -391,8 +400,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["size"]["files"].update({"setup.py": {"code": 6, "complexity": 0}, "version.go": {"code": 2, "complexity": 0}})
         r["revisions"] += [{"entity": "setup.py", "n-revs": 184}, {"entity": "version.go", "n-revs": 29}]
-        hot = rendered(r, [], width=200)
-        hot = hot[hot.index("◆ Hotspots"):hot.index("Change coupling")]
+        hot = _rendered_section(render.hotspots_section(r, full=False, width=200))
         self.assertNotIn("setup.py", hot)
         self.assertIn("2 release files hidden; --full shows them", hot)
         full = rendered(r, [], width=200, full=True)
@@ -403,8 +411,7 @@ class Report(unittest.TestCase):
         r["size"]["files"]["pkg/__init__.py"] = {"code": 40, "complexity": 0}
         r["revisions"].append({"entity": "pkg/__init__.py", "n-revs": 331})
         r["plumbing"] = [{"entity": "pkg/__init__.py", "n-revs": 331, "tiny-revs": 300}]
-        hot = rendered(r, [], width=200)
-        hot = hot[hot.index("◆ Hotspots"):hot.index("Change coupling")]
+        hot = _rendered_section(render.hotspots_section(r, full=False, width=200))
         self.assertNotIn("pkg/__init__.py", hot)
         self.assertIn("1 release file hidden; --full shows them", hot)
 
@@ -475,7 +482,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["revisions"] = [{"entity": "tests/test_a.py", "n-revs": 200}]
         r["size"]["files"] = {"tests/test_a.py": {"code": 50, "complexity": 1}}
-        hot = _section_text(rendered(r, [], width=200), "\u25c6 Hotspots")
+        hot = _rendered_section(render.hotspots_section(r, full=False, width=200))
         self.assertIn("no source hotspots; 1 test file hidden; --full shows them", hot)
 
     def test_default_coupling_hides_pairs_of_deleted_files_and_says_so(self):
@@ -493,7 +500,7 @@ class Report(unittest.TestCase):
     def test_default_hotspots_hide_deleted_files_and_say_so(self):
         r = sample_report()   # the tree holds static/index.html and static/apps-metadata.json only
         r["revisions"].append({"entity": "src/sizes/old.go", "n-revs": 40})
-        hot = _section_text(rendered(r, [], width=200), "◆ Hotspots")
+        hot = _rendered_section(render.hotspots_section(r, full=False, width=200))
         self.assertNotIn("src/sizes/old.go", hot)
         self.assertIn("1 deleted file hidden; --full shows them", hot)
         full = _section_text(rendered(r, [], width=200, full=True), "◆ Hotspots")
@@ -503,7 +510,7 @@ class Report(unittest.TestCase):
     def test_hotspots_without_a_tree_listing_hide_nothing(self):
         r = sample_report()
         r["size"]["files"] = {}
-        hot = _section_text(rendered(r, [], width=200), "◆ Hotspots")
+        hot = _rendered_section(render.hotspots_section(r, full=False, width=200))
         self.assertIn("static/index.html", hot)
         self.assertNotIn("deleted", hot)
 
@@ -754,6 +761,14 @@ class DescriptiveTables(unittest.TestCase):
         for title in ("Size by language", "Activity", "Surviving code by year written"):
             self.assertIn(title, full, title)
 
+    def test_hotspots_moved_to_full_and_markdown_alongside_the_other_descriptive_tables(self):
+        self.assertIn("hotspots", render.FULL_ONLY)
+        text = rendered(sample_report(), [])
+        self.assertNotIn("◆ Hotspots", text)
+        full = rendered(sample_report(), [], full=True)
+        self.assertIn("◆ Hotspots", full)
+        self.assertIn("## Hotspots", render.markdown(sample_report(), []))
+
     def test_header_keeps_one_line_of_them(self):
         r = sample_report()
         r["activity"]["fix_commits"] = 58
@@ -869,7 +884,7 @@ class Timeline(unittest.TestCase):
         r["meta"]["bots"] = [{"name": "GitHub", "commits": 12}]   # actions@github.com: a bot by its address, not its name
         r["activity"]["timeline"]["GitHub"] = {"2026-08": 30, "2026-09": 40}
         text = rendered(r, [], width=120)
-        timeline = text.split("▦ Timeline")[1].split("◆ Hotspots")[0]
+        timeline = text.split("▦ Timeline")[1].split("⟷ Change coupling")[0]
         self.assertNotIn("GitHub", timeline)
         self.assertIn("Ann", timeline)
 
@@ -915,7 +930,8 @@ class Layout(unittest.TestCase):
     def test_sections_open_with_a_symbol_and_a_title(self):
         text = rendered(sample_report(), [], width=80)
         self.assertRegex(text, r"\n\n◉ People\n")
-        self.assertRegex(text, r"\n\n◆ Hotspots\n")
+        full = rendered(sample_report(), [], width=80, full=True)
+        self.assertRegex(full, r"\n\n◆ Hotspots")
         self.assertNotIn("─────", text.split("◉ People")[1].split("\n")[0], "no rule across the width")
 
     def test_small_tables_sit_side_by_side_on_wide_terminals(self):
@@ -952,9 +968,11 @@ class Layout(unittest.TestCase):
     def test_default_columns_are_the_ones_you_read(self):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=False)}
         self.assertNotIn("Size by language", secs)
+        self.assertNotIn("Hotspots", secs, "hotspots is --full and Markdown only")
         self.assertEqual(secs["People"]["columns"], ["author", "commits", "share", "surviving code"])
-        self.assertEqual([x for x in secs if x.startswith("Hotspots")], ["Hotspots"])
-        self.assertEqual(secs["Hotspots"]["columns"], ["file", "revs", "lines", "fixes", "authors", "trend"])
+        hot = render.hotspots_section(sample_report(), full=False, width=None)
+        self.assertEqual(hot["title"], "Hotspots")
+        self.assertEqual(hot["columns"], ["file", "revs", "lines", "fixes", "authors", "trend"])
         self.assertEqual(secs["Change coupling"]["columns"], ["file", "changes with", "degree"])
         self.assertEqual(secs["Knowledge map"]["columns"], ["area", "lines added", "main owner", "second"])
 
@@ -969,7 +987,7 @@ class Layout(unittest.TestCase):
         r = sample_report()
         r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 100 - i} for i in range(12)]
         r["size"]["files"] = {f"f{i}.py": {"code": 10, "complexity": 0} for i in range(12)}
-        compact = {x["title"]: x for x in render.sections(r, full=False)}["Hotspots"]
+        compact = render.hotspots_section(r, full=False, width=None)
         self.assertEqual(len(compact["rows"]), 8)
         self.assertEqual(compact["caption"], "and 4 more")
         full = {x["title"]: x for x in render.sections(r, full=True)}["Hotspots (score = revisions × lines of code)"]
@@ -981,10 +999,9 @@ class Layout(unittest.TestCase):
         long = "packages/core/src/repowise/core/pipeline/persist_and_more_words.py"
         r["revisions"] = [{"entity": long, "n-revs": 50}]
         r["size"]["files"] = {long: {"code": 100, "complexity": 1}}
-        text = rendered(r, [], width=80)
-        self.assertIn("…/pipeline/persist_and_more_words.py", text)
-        self.assertNotIn(long, text)
-        hot = text[text.index("\n◆ Hotspots"):]
+        hot = _rendered_section(render.hotspots_section(r, full=False, width=80), width=80)
+        self.assertIn("…/pipeline/persist_and_more_words.py", hot)
+        self.assertNotIn(long, hot)
         self.assertNotRegex(hot, r"\n\s*[a-z_]+\.py\s*\n", "no folded file-name tails")
 
     def test_threshold_styles(self):
@@ -1018,8 +1035,7 @@ class ReviewFixes(unittest.TestCase):
         r["size"]["files"] = {long: {"code": 1234567, "complexity": 9}}
         # 75 is the narrowest width where the 31-character file name fits beside these numbers
         for width in (75, 76, 84):
-            text = rendered(r, [], width=width)
-            hot = text[text.index("\n◆ Hotspots"):]
+            hot = _rendered_section(render.hotspots_section(r, full=False, width=width), width=width)
             self.assertNotRegex(hot, r"\n\s*[a-z_0-9]+\.py\s*\n", f"folded tail at width {width}")
             self.assertNotRegex(hot, r"\.p\s*\n", f"file name cut at width {width}")
 

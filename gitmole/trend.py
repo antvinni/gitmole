@@ -33,6 +33,9 @@ def sample_dates(first: str, last: str, n: int) -> list:
     return out
 
 
+GROWTH_FLOOR = 25   # percent in a year: below it a hotspot's complexity is not said to be growing
+
+
 def change_over_year(series: list, last_date: str) -> str:
     if len(series) < 2:
         return "-"
