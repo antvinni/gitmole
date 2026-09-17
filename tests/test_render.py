@@ -909,6 +909,29 @@ class Timeline(unittest.TestCase):
         r["activity"] = {}
         self.assertIn("no timeline data", rendered(r, []))
 
+    def test_a_name_is_never_folded_the_oldest_months_go_instead(self):
+        r = sample_report()
+        r["activity"]["timeline"] = {"antvinni": {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
+        text = rendered(r, [], width=80)
+        body = _section_text(text, "Timeline")
+        self.assertIn("antvinni", body, "the name on one line")
+        sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
+        self.assertLess(len(sec["columns"]) - 1, 12, "fewer months than the year, since the year does not fit")
+        self.assertTrue(sec["title"].endswith("→ Sep 2026)"), sec["title"])
+        self.assertNotIn("Oct 2025", sec["title"], "the title names the months shown")
+        wide = next(s for s in render.sections(r, full=False, width=120) if s["id"] == "timeline")
+        self.assertEqual(len(wide["columns"]) - 1, 12, "room for the whole year at 120")
+
+    def test_a_very_long_name_still_leaves_at_least_three_months(self):
+        r = sample_report()
+        name = "a" * 70   # long enough that the width arithmetic alone would want fewer than three months
+        r["activity"]["timeline"] = {name: {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
+        text = rendered(r, [], width=80)
+        body = _section_text(text, "Timeline")
+        self.assertIn(name, body, "the name on one line, not split, even when it is very long")
+        sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
+        self.assertEqual(len(sec["columns"]) - 1, 3, "the floor: three months even though the name leaves almost no room")
+
 
 class Layout(unittest.TestCase):
     def test_header_carries_the_findings_tally(self):

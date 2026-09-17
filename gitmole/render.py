@@ -26,6 +26,13 @@ WARM = "#ff9ee0"            # values worth a glance
 ROW_STYLES = ["", "on #1c2230"]
 SIDE_BY_SIDE_MIN_WIDTH = 100
 
+# the Timeline's month columns: each is 3 characters wide plus 2 of column padding, plus the 1-column
+# gap rich reserves between every pair of columns even with the box's edges hidden (verified against
+# rich.table.Table._calculate_column_widths, whose "n columns - 1" extra width cancels the gap saved
+# on the last column, leaving a clean 6 per month). The section itself is indented by 2. FLOOR is the
+# fewest months shown even when a name leaves almost no room.
+MONTH_WIDTH, INDENT, FLOOR = 6, 2, 3
+
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
            "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
@@ -395,6 +402,9 @@ def _month_label(ym: str) -> str:
 
 
 def timeline_section(report: dict, full: bool = True, width=None, months: int = 12) -> dict:
+    """Commits per author, one column per month. Names never fold: when the year does not fit the
+    terminal width, the oldest months are dropped (down to FLOOR) instead, and the title names the
+    months actually shown. With no width (the Markdown export) the whole span is kept."""
     tl = (report.get("activity") or {}).get("timeline") or {}
     if not tl:
         return _section("Timeline", [("author", {})], [], note="no timeline data")
@@ -403,12 +413,15 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     since = report["meta"].get("since")
     if since:
         span = [m for m in span if m >= since[:7]] or span[-1:]
-    columns = [("author", {"overflow": "fold"})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     in_window = {a: sum(per.get(m, 0) for m in span) for a, per in tl.items()}
     # the run decided who is a bot from name and email; the timeline only has the name, so it asks the run
     bots = {b["name"] for b in report["meta"].get("bots") or []}
     ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0 and a not in bots and not identity.is_bot(a)]
     limit = _limit("Timeline", full)
+    if width:
+        name = max([len("author")] + [len(a) for a in ranked[:limit]])
+        span = span[-max(FLOOR, min(len(span), (width - INDENT - name) // MONTH_WIDTH)):]
+    columns = [("author", {"no_wrap": True})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     rows = [(a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
     return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))
 
