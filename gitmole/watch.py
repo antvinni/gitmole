@@ -64,9 +64,10 @@ def risks(report: dict, min_revs: int = 2) -> list:
     fixes = {f["entity"]: f for f in report.get("fixes") or []}
     n_authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
 
+    plumb = filetypes.plumbing_paths(report)
     rows = []
     for h in hotspots.ranked(report):
-        if h["code"] is None or h["revs"] < min_revs or filetypes.is_test_path(h["entity"]) or filetypes.is_release_path(h["entity"]):
+        if h["code"] is None or h["revs"] < min_revs or filetypes.is_test_path(h["entity"]) or filetypes.is_release(h["entity"], plumb):
             continue   # a version file or a manifest changes on every release, not where the next bug lands
         fx = fixes.get(h["entity"], {})
         own = owners.get(h["entity"]) or Counter()

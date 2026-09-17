@@ -102,8 +102,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    of history say `too little history to backtest`.
 4. **Tables**: people (identities merged on top of `.mailmap` when they
    share an email, two name words, the same name spelled identically
-   unless it is a bare common first name, or a one-word handle that is a
-   distinctive word of the fuller name; the caption says whose; bots and
+   unless it is a bare common first name, a one-word handle that is a
+   distinctive word of the fuller name, or the fuller name run together
+   (RobinMalfait); the caption says whose; bots and
    coding agents such as renovate, Copilot, Cursor Agent,
    dependabot and GitHub Actions are counted apart in the caption and kept
    out of the timeline), a knowledge map (lines added per area of the tree
@@ -139,7 +140,11 @@ How to read each part of the terminal report, and what each run writes to disk; 
    `--full` shows them. Release plumbing is also hidden from the hotspots
    table and left out of the watch list, the churn-dominance and the
    bug-magnet findings: a version file or a manifest changes on every
-   release by design, not because the next bug lands there. Vendored and generated code is left out of the
+   release by design, not because the next bug lands there. Plumbing is
+   known by name (`version.py`, `package.json`, lock files, changelogs)
+   and by behaviour: `maat-plumbing.csv` lists files with twenty commits
+   or more where at least four in five changed no more than two lines, a
+   version constant in `__init__.py` being the usual case. Vendored and generated code is left out of the
    brain methods finding, vendored code out of the knowledge islands and
    bus factor findings too: somebody else's code, or a generator's, is not
    this repository's risk. A function lizard cannot name (a Go function

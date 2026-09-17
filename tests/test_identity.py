@@ -34,6 +34,12 @@ class Merge(unittest.TestCase):
         self.assertEqual(merged, {"Junegunn Choi": 3047, "Sam Altman": 5, "sam": 2, "Kevin Brown": 76, "Kevin": 21},
                          "a short or common first name is not distinctive enough")
 
+    def test_a_handle_that_is_the_full_name_run_together_is_the_same_person(self):
+        ids = [{"name": "Robin Malfait", "email": "malfait.robin@a.com", "commits": 1271}, {"name": "RobinMalfait", "email": "1834413+RobinMalfait@users.noreply.github.com", "commits": 4},
+               {"name": "Jo Li", "email": "jo@a.com", "commits": 3}, {"name": "joli", "email": "x@b.com", "commits": 1}]
+        merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
+        self.assertEqual(merged, {"Robin Malfait": 1275, "Jo Li": 3, "joli": 1}, "a run-together name shorter than six letters could be anyone")
+
     def test_a_bare_common_first_name_is_not_enough(self):
         ids = [{"name": "Jean", "email": "jean@a.com", "commits": 24}, {"name": "Jean", "email": "jean@b.com", "commits": 18},
                {"name": "Alex", "email": "alex@a.com", "commits": 3}, {"name": "alex", "email": "alex@b.com", "commits": 2}]

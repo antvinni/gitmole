@@ -50,20 +50,22 @@ def parse(spec):
     return {t.strip().lstrip(".").lower() for t in spec.split(",") if t.strip()}
 
 
-_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing)(/|$)|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+)$", re.I)
+_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|snapshots?|__snapshots__|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
+                        r"|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+|[^/]*\.snap)$", re.I)
 
 
 def is_test_path(path: str) -> bool:
-    """A test file or anything under a tests directory: changes with every fix, so not a signal on its own."""
+    """A test file or anything under a tests directory (tests/, pending_tests/, e2e-tests/, test_utils/,
+    snapshots/ and .snap files): changes with every fix, so not a signal on its own."""
     return bool(_TEST_PATH.search(path))
 
 
-_DOC_PATH = re.compile(r"(^|/)docs?(/|$)|\.(md|markdown|rst|txt|adoc)$", re.I)
+_DOC_PATH = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|\.(md|markdown|rst|txt|adoc)$", re.I)
 
 
 def is_doc_path(path: str) -> bool:
-    """Documentation: prose formats anywhere, or anything under docs/. A key in a planning document
-    is far more often a template than a leak."""
+    """Documentation: prose formats anywhere, or anything under docs/, doc/, docs_src/, docs-site/. A
+    key in a planning document or a tutorial is far more often a template than a leak."""
     return bool(_DOC_PATH.search(path))
 
 
@@ -96,6 +98,17 @@ def is_release_path(path: str) -> bool:
     together is a release commit, not a dependency between them."""
     name = path.rsplit("/", 1)[-1].lower()
     return name in _RELEASE_NAMES or name.endswith(".gemspec") or name.startswith(("changelog", "changes.", "history.", "news."))
+
+
+def plumbing_paths(report: dict) -> set:
+    """Files the change log showed to be release plumbing by behaviour rather than by name: nearly
+    every commit touching them changed a line or two (a version constant in __init__.py)."""
+    return {r["entity"] for r in report.get("plumbing") or []}
+
+
+def is_release(path: str, plumbing=frozenset()) -> bool:
+    """is_release_path, or a path the change log showed to be plumbing (see plumbing_paths)."""
+    return is_release_path(path) or path in plumbing
 
 
 # What a generated file says about itself in its first lines: protoc, ajv, code generators of every kind.

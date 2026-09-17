@@ -53,7 +53,13 @@ def same_person(a: dict, b: dict) -> bool:
     for handle, full in ((na, tb), (nb, ta)):
         if " " not in handle and handle in full and len(full) >= 2 and _distinctive(handle):
             return True
-    return False
+    # RobinMalfait and Robin Malfait: the full name run together, six letters or more so it is not anyone
+    sa, sb = _squash(a["name"]), _squash(b["name"])
+    return bool(sa) and sa == sb and len(sa) >= 6 and (len(ta) >= 2 or len(tb) >= 2)
+
+
+def _squash(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
 def merge(identities: list) -> list:

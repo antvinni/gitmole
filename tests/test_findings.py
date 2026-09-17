@@ -297,6 +297,12 @@ class ReleasePlumbing(unittest.TestCase):
         self.assertIn("requests/models.py changed 60 times", f[0]["detail"])
         self.assertNotIn("setup.py", f[0]["detail"])
 
+    def test_a_file_the_change_log_shows_as_plumbing_does_not_dominate_the_churn(self):
+        revs = [{"entity": "fastapi/__init__.py", "n-revs": 331}, {"entity": "fastapi/routing.py", "n-revs": 187}, {"entity": "fastapi/utils.py", "n-revs": 70}]
+        r = report(revisions=revs, plumbing=[{"entity": "fastapi/__init__.py", "n-revs": 331, "tiny-revs": 300}])
+        f = findings.hotspot_dominance(r)
+        self.assertIn("fastapi/routing.py changed 187 times", f[0]["detail"])
+
     def test_a_manifest_is_not_a_bug_magnet(self):
         fixes = [{"entity": "package.json", "n-fixes": 20, "last-fix": "2026-09-01", "recent-fixes": 6},
                  {"entity": "lib/reply.js", "n-fixes": 10, "last-fix": "2026-09-01", "recent-fixes": 4}]

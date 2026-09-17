@@ -176,7 +176,8 @@ def sizer_concerns(report: dict) -> list:
 def hotspot_dominance(report: dict, ratio: float = 2.0, minimum: int = 20) -> list:
     """One source file takes most of the churn. Test files are left out: they change with everything.
     So is release plumbing: a version file or a manifest changes on every release by design."""
-    revs = sorted((r for r in report.get("revisions") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_release_path(r["entity"]))),
+    plumb = filetypes.plumbing_paths(report)
+    revs = sorted((r for r in report.get("revisions") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_release(r["entity"], plumb))),
                   key=lambda r: -r["n-revs"])
     if len(revs) < 2 or revs[0]["n-revs"] < minimum or revs[0]["n-revs"] < ratio * revs[1]["n-revs"]:
         return []
@@ -266,8 +267,9 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     """Source files with a run of recent fix commits. Test files are left out: they change with every fix.
     So is release plumbing: a manifest touched by every fix release is not where the bug was."""
+    plumb = filetypes.plumbing_paths(report)
     hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent
-           and not (filetypes.is_test_path(f["entity"]) or filetypes.is_release_path(f["entity"]))]
+           and not (filetypes.is_test_path(f["entity"]) or filetypes.is_release(f["entity"], plumb))]
     if not hot:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
