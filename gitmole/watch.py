@@ -66,8 +66,8 @@ def risks(report: dict, min_revs: int = 2) -> list:
 
     rows = []
     for h in hotspots.ranked(report):
-        if h["code"] is None or h["revs"] < min_revs or filetypes.is_test_path(h["entity"]):
-            continue
+        if h["code"] is None or h["revs"] < min_revs or filetypes.is_test_path(h["entity"]) or filetypes.is_release_path(h["entity"]):
+            continue   # a version file or a manifest changes on every release, not where the next bug lands
         fx = fixes.get(h["entity"], {})
         own = owners.get(h["entity"]) or Counter()
         owner, owner_lines = (own.most_common(1)[0] if own else (None, 0))

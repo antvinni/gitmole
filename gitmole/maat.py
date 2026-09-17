@@ -4,7 +4,9 @@
 Standalone on purpose: gitmole runs it as a pipeline step with
 `python3 maat.py LOG OUT_DIR [--aliases META_JSON]` and it must not need the
 package on sys.path. Input is `git log --all --numstat --date=short
---pretty=format:--%h--%ad--%aN --no-renames`.
+--pretty=format:--%h--%ad--%aN -M`: renames are followed, so a moved file
+is one entity under its new path and a pure move adds and deletes nothing.
+Whoever moved a directory to src/ did not write it.
 """
 from __future__ import annotations
 
@@ -40,11 +42,24 @@ def parse_log(text: str, aliases: dict = None, types=None) -> list:
             commits.append(current)
         elif line.strip() and current is not None:
             added, deleted, path = line.split("\t", 2)
-            path = filetypes.unquote(path)
+            path = _renamed_to(filetypes.unquote(path))
             if not filetypes.matches(path, types):
                 continue
             current["files"].append((path, int(added) if added.isdigit() else 0, int(deleted) if deleted.isdigit() else 0))
     return commits
+
+
+_BRACED_RENAME = re.compile(r"\{([^{}]*) => ([^{}]*)\}")
+
+
+def _renamed_to(path: str) -> str:
+    """The new path of a rename as `git log -M --numstat` spells it: `{old => new}/rest`,
+    `dir/{a => b}` or `old => new` for a whole path. A path without ' => ' is itself."""
+    if " => " not in path:
+        return path
+    if "{" in path:
+        return _BRACED_RENAME.sub(lambda m: m.group(2), path).replace("//", "/")
+    return path.split(" => ", 1)[1]
 
 
 _FIX_CONVENTIONAL = re.compile(r"^(fix|hotfix|bugfix)(\([^)]*\))?!?:", re.I)

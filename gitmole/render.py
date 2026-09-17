@@ -395,7 +395,8 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     scored, hidden_note = _hide_tests(scored, lambda h: h["entity"], full)
     scored, deleted_note = _hide_deleted(scored, report, full)
     scored, generated_note = _hide_generated(scored, lambda h: h["entity"], report, full)
-    hidden_note = _join_hidden(hidden_note, deleted_note, generated_note)
+    scored, release_note = _hide_rows(scored, lambda h: h["entity"], full, filetypes.is_release_path, "release file")
+    hidden_note = _join_hidden(hidden_note, deleted_note, generated_note, release_note)
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
     series = (report.get("trend") or {}).get("files") or {}

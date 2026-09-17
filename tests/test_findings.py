@@ -47,7 +47,7 @@ class SecretsFound(unittest.TestCase):
         self.assertIn("1 distinct value in 2 places: generic-api-key in app/settings.py (c1, c2)", crit["detail"])
         self.assertIn("Rotate", crit["advice"])
         self.assertIn(".betterleaksignore", crit["advice"])
-        self.assertEqual(warn["title"], "2 secret(s) only in test, example or documentation files")
+        self.assertEqual(warn["title"], "2 secret(s) only in test, example, vendored or documentation files")
         self.assertIn("2 distinct values in 3 places", warn["detail"])
         self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
         self.assertIn(".betterleaksignore", warn["advice"])
@@ -62,15 +62,22 @@ class SecretsFound(unittest.TestCase):
                             self.row("h3", "pkg/testdata/creds.yaml", "c3")])
         f = findings.secrets_found(r)
         self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertEqual(f[0]["title"], "3 secret(s) only in test, example or documentation files")
+        self.assertEqual(f[0]["title"], "3 secret(s) only in test, example, vendored or documentation files")
         r = report(secrets=[self.row("h1", "examples/app.py", "c1"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
+
+    def test_a_value_only_in_vendored_code_is_a_warning(self):
+        # oauthlib's RFC test vectors inside requests/packages/: upstream's specimen, not this repository's credential
+        r = report(secrets=[self.row("h1", "requests/packages/oauthlib/oauth1/rfc5849/parameters.py", "9576518")])
+        f = findings.secrets_found(r)
+        self.assertEqual([x["severity"] for x in f], ["warning"])
+        self.assertIn("vendored", f[0]["title"])
 
     def test_a_value_only_in_documentation_is_a_warning_that_says_template(self):
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508")])
         f = findings.secrets_found(r)
         self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertEqual(f[0]["title"], "1 secret(s) only in test, example or documentation files")
+        self.assertEqual(f[0]["title"], "1 secret(s) only in test, example, vendored or documentation files")
         self.assertIn("fixtures or templates", f[0]["advice"])
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
@@ -281,6 +288,21 @@ class TightCoupling(unittest.TestCase):
 
     def test_nothing_when_no_tight_pairs(self):
         self.assertEqual(findings.tight_coupling(report()), [])
+
+
+class ReleasePlumbing(unittest.TestCase):
+    def test_a_version_file_or_manifest_does_not_dominate_the_churn(self):
+        revs = [{"entity": "setup.py", "n-revs": 184}, {"entity": "requests/models.py", "n-revs": 60}, {"entity": "requests/api.py", "n-revs": 20}]
+        f = findings.hotspot_dominance(report(revisions=revs))
+        self.assertIn("requests/models.py changed 60 times", f[0]["detail"])
+        self.assertNotIn("setup.py", f[0]["detail"])
+
+    def test_a_manifest_is_not_a_bug_magnet(self):
+        fixes = [{"entity": "package.json", "n-fixes": 20, "last-fix": "2026-09-01", "recent-fixes": 6},
+                 {"entity": "lib/reply.js", "n-fixes": 10, "last-fix": "2026-09-01", "recent-fixes": 4}]
+        f = findings.bug_magnets(report(fixes=fixes))
+        self.assertIn("lib/reply.js", f[0]["detail"])
+        self.assertNotIn("package.json", f[0]["detail"])
 
 
 class StaleFiles(unittest.TestCase):

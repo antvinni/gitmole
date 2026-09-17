@@ -133,9 +133,10 @@ class TestPaths(unittest.TestCase):
 
     def test_vendored_trees(self):
         for path in ("vendor/github.com/x/y.go", "web/node_modules/a/index.js", "third_party/z/a.c", "thirdparty/a.c", "_vendor/a.py",
-                     "external/lib/a.cpp"):
+                     "external/lib/a.cpp", "requests/packages/urllib3/a.py", "pip/_vendor/six.py", "botocore/vendored/requests/a.py"):
             self.assertTrue(filetypes.is_vendor_path(path), path)
-        for path in ("vendors.py", "src/vendoring/a.py", "node/a.js", "externals.txt", "app/main.go"):
+        for path in ("vendors.py", "src/vendoring/a.py", "node/a.js", "externals.txt", "app/main.go",
+                     "packages/runtime-core/src/renderer.ts", "packages-private/x.ts"):   # a monorepo's own packages/ at the root
             self.assertFalse(filetypes.is_vendor_path(path), path)
 
 

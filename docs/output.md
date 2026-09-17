@@ -46,9 +46,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    entry with its places counted. A value found in any source file is
    critical. A value found only in test files, such as fixtures and saved
    web pages, only in example, sample, fixture, demo or rules directories
-   (a language sample, a scanner's own rule definitions), or only in
-   documentation (`.md`, `.rst`, `.txt`, `.adoc`, or anything under
-   `docs/`), where it is usually a template, is a warning.
+   (a language sample, a scanner's own rule definitions), only in vendored
+   code (upstream's own specimens), or only in documentation (`.md`,
+   `.rst`, `.txt`, `.adoc`, or anything under `docs/`), where it is
+   usually a template, is a warning.
    Five shapes cannot be a live secret and are left out, counted on the
    footer line: version strings, tokens shortened with "...", whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
@@ -124,11 +125,15 @@ How to read each part of the terminal report, and what each run writes to disk; 
    generated files (a file whose first lines say it was generated or must
    not be edited, or that `.gitattributes` marks `linguist-generated`;
    the run records them in `meta.json`), the complex functions table also
-   hides vendored code (`vendor/`, `node_modules/`, `third_party/`,
-   `external/`), and the change coupling table hides pairs with a test
+   hides vendored code (`vendor/`, `vendored/`, `node_modules/`,
+   `third_party/`, `external/`, and a `packages/` inside a package such as
+   `requests/packages/`), and the change coupling table hides pairs with a test
    file and pairs of release plumbing (two version files, a manifest and
    its lock file, changelogs); the captions show how many are hidden, and
-   `--full` shows them. Vendored and generated code is left out of the
+   `--full` shows them. Release plumbing is also hidden from the hotspots
+   table and left out of the watch list, the churn-dominance and the
+   bug-magnet findings: a version file or a manifest changes on every
+   release by design, not because the next bug lands there. Vendored and generated code is left out of the
    brain methods finding, vendored code out of the knowledge islands and
    bus factor findings too: somebody else's code, or a generator's, is not
    this repository's risk. A function lizard cannot name (a Go function
@@ -172,7 +177,9 @@ directory for a remote target:
 1. Start with the header and the findings.
 2. The hotspots table is `maat-revisions.csv` joined with scc's per-file
    size and complexity, author count, and age, ranked by revisions times
-   lines. Large files that change constantly are your risk. By default the
+   lines. The change log follows renames, so a moved file is one entity
+   under its new path and a pure move adds no lines: whoever moved a tree
+   to `src/` did not write it, and the knowledge map says so. Large files that change constantly are your risk. By default the
    tables leave test files and deleted files out and say how many; `--full`
    shows them.
 3. Change coupling shows files that always change together. That usually

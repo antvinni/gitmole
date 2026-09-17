@@ -76,12 +76,13 @@ def is_sample_path(path: str) -> bool:
     return bool(_SAMPLE_PATH.search(path))
 
 
-_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|node_modules|third_?party|external)(/|$)", re.I)
+_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external)(/|$)|^[^/]+/packages/", re.I)
 
 
 def is_vendor_path(path: str) -> bool:
     """Vendored and third-party trees: somebody else's code, so its complexity and its single
-    importer are not this repository's risk."""
+    importer are not this repository's risk. A `packages/` inside a package (requests/packages/,
+    the Python vendoring convention) counts; a monorepo's own `packages/` at the root does not."""
     return bool(_VENDOR_PATH.search(path))
 
 

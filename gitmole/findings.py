@@ -47,7 +47,8 @@ def secrets_found(report: dict) -> list:
     groups = leaks.group(report.get("secrets") or [])
 
     def in_source(g):
-        return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f)) for f in g["files"])
+        return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f) or filetypes.is_vendor_path(f))
+                   for f in g["files"])
     source = [g for g in groups if in_source(g)]
     aside = [g for g in groups if not in_source(g)]
     ignore = "Add the fingerprint of any false positive from secrets.json to .betterleaksignore in the repository."
@@ -56,7 +57,7 @@ def secrets_found(report: dict) -> list:
         out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source),
                       f"Rotate them; deleting the file does not remove them from git. {ignore}"))
     if aside:
-        out.append(_f("warning", f"{len(aside)} secret(s) only in test, example or documentation files", _secret_statement(aside),
+        out.append(_f("warning", f"{len(aside)} secret(s) only in test, example, vendored or documentation files", _secret_statement(aside),
                       f"Confirm they are fixtures or templates, not live keys. {ignore}"))
     return out
 
@@ -173,8 +174,10 @@ def sizer_concerns(report: dict) -> list:
 
 
 def hotspot_dominance(report: dict, ratio: float = 2.0, minimum: int = 20) -> list:
-    """One source file takes most of the churn. Test files are left out: they change with everything."""
-    revs = sorted((r for r in report.get("revisions") or [] if not filetypes.is_test_path(r["entity"])), key=lambda r: -r["n-revs"])
+    """One source file takes most of the churn. Test files are left out: they change with everything.
+    So is release plumbing: a version file or a manifest changes on every release by design."""
+    revs = sorted((r for r in report.get("revisions") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_release_path(r["entity"]))),
+                  key=lambda r: -r["n-revs"])
     if len(revs) < 2 or revs[0]["n-revs"] < minimum or revs[0]["n-revs"] < ratio * revs[1]["n-revs"]:
         return []
     top, nxt = revs[0], revs[1]
@@ -231,8 +234,10 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
 
 
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
-    """Source files with a run of recent fix commits. Test files are left out: they change with every fix."""
-    hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and not filetypes.is_test_path(f["entity"])]
+    """Source files with a run of recent fix commits. Test files are left out: they change with every fix.
+    So is release plumbing: a manifest touched by every fix release is not where the bug was."""
+    hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent
+           and not (filetypes.is_test_path(f["entity"]) or filetypes.is_release_path(f["entity"]))]
     if not hot:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
