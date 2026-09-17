@@ -26,6 +26,18 @@ WARM = "#ff9ee0"            # values worth a glance
 ROW_STYLES = ["", "on #1c2230"]
 SIDE_BY_SIDE_MIN_WIDTH = 100
 
+# the Timeline's month columns: each is 3 characters wide plus 2 of column padding, plus the 1-column
+# gap rich reserves between every pair of columns even with the box's edges hidden (verified against
+# rich.table.Table._calculate_column_widths, whose "n columns - 1" extra width cancels the gap saved
+# on the last column, leaving a clean 6 per month). The section itself is indented by 2. FLOOR is the
+# fewest months shown even when a name leaves almost no room. Once FLOOR is reached the months keep
+# their full width and the name gives way instead, cut to whatever room is left; NAME_FLOOR is the
+# fewest characters of a name still shown before the ellipsis, even if the months leave less room than
+# that (eight is enough to keep most short names, and the start of longer ones, still recognisable).
+# The section needs INDENT + NAME_FLOOR + FLOOR × MONTH_WIDTH = 28 columns; below that rich starves
+# the month cells, which no real terminal reaches.
+MONTH_WIDTH, INDENT, FLOOR, NAME_FLOOR = 6, 2, 3, 8
+
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
            "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
@@ -40,8 +52,9 @@ RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
 PATH = {"overflow": "fold", "no_wrap": False}
 
-# rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own.
-CAPS = {"People": 6, "Hotspots": 8, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
+# rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own. Hotspots has
+# no entry: it is `--full`/Markdown only now, so its row count is never decided by this table.
+CAPS = {"People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
 TREND_TOP = 10   # the trend step's own --top default: only those files have samples
 WATCH_CAP, WATCH_FULL = 5, 15   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
@@ -394,6 +407,12 @@ def _month_label(ym: str) -> str:
 
 
 def timeline_section(report: dict, full: bool = True, width=None, months: int = 12) -> dict:
+    """Commits per author, one column per month. Names never fold: when the year does not fit the
+    terminal width, the oldest months are dropped (down to FLOOR) instead. If a name is still too long
+    for the room FLOOR leaves, the name gives way, not the months: it is shown cut with an ellipsis
+    (never fewer than NAME_FLOOR characters), so the months a reader came for stay full width. The
+    title names the months actually shown; ranking, bots filtering and the row's key are all still the
+    real name, only the displayed cell is cut. With no width (the Markdown export) nothing is trimmed."""
     tl = (report.get("activity") or {}).get("timeline") or {}
     if not tl:
         return _section("Timeline", [("author", {})], [], note="no timeline data")
@@ -402,18 +421,25 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     since = report["meta"].get("since")
     if since:
         span = [m for m in span if m >= since[:7]] or span[-1:]
-    columns = [("author", {"overflow": "fold"})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     in_window = {a: sum(per.get(m, 0) for m in span) for a, per in tl.items()}
     # the run decided who is a bot from name and email; the timeline only has the name, so it asks the run
     bots = {b["name"] for b in report["meta"].get("bots") or []}
     ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0 and a not in bots and not identity.is_bot(a)]
     limit = _limit("Timeline", full)
-    rows = [(a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
+    if width:
+        name = max([len("author")] + [len(a) for a in ranked[:limit]])
+        span = span[-max(FLOOR, min(len(span), (width - INDENT - name) // MONTH_WIDTH)):]
+    columns = [("author", {"no_wrap": True})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
+    room = width - INDENT - MONTH_WIDTH * len(span) if width else None
+    rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
     return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))
 
 
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
-    """Change frequency times size, Tornhill-style. Files no longer in the tree sort last."""
+    """Change frequency times size, Tornhill-style. Files no longer in the tree sort last. Drawn
+    under `--full` and in the Markdown export only; the default terminal report leaves it to the
+    watch list, which ranks the same files. Built only for those two, it has no row cap of its
+    own outside Markdown's."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
@@ -443,10 +469,9 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
                ("trend", RIGHT)]
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
-        rows = _shorten(rows, width, columns)
     note = None if rows else _empty_note(None, hidden_note, "no source hotspots")
     notes = [c for c in (_more(len(scored), limit), None if note else hidden_note) if c]
-    if series and full is not False:   # the tight report keeps its captions short
+    if series:
         notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
     return _section(title, columns, rows, note=note, caption="; ".join(notes) or None)
 
@@ -602,16 +627,19 @@ def health_section(report: dict, full: bool = True, width=None) -> dict:
 
 BUILDERS = [watch_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
             hotspots_section, coupling_section, age_section, functions_section, health_section]
-DESCRIPTIVE = {"size", "activity", "age"}   # interesting once, rarely change what you do next: `--full` only
+# `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
+# do next; Hotspots ranks the files the watch list already leads with, by the same product.
+FULL_ONLY = {"size", "activity", "age", "hotspots"}
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
     """Every section as a dict with an `id` (the builder's name without _section). The default terminal
-    report (`full` False) leaves the descriptive ones out; `full` True and Markdown keep them."""
+    report (`full` False) leaves out the sections in FULL_ONLY (size, activity, code age and
+    hotspots); `full` True and Markdown keep them."""
     out = []
     for b in BUILDERS:
         sid = b.__name__[:-len("_section")]
-        if full is False and sid in DESCRIPTIVE:
+        if full is False and sid in FULL_ONLY:
             continue
         sec = b(report, full, width)
         sec["id"] = sid

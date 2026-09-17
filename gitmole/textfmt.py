@@ -22,6 +22,11 @@ def shorten_path(path: str, max_len: int) -> str:
     return candidates[-1]
 
 
+def cut(name: str, cap: int) -> str:
+    """`name`, unchanged if it fits in `cap` characters, else cut to exactly `cap` ending in the ellipsis."""
+    return name if len(name) <= cap else name[:cap - 1] + ELLIPSIS
+
+
 def times(n: int) -> str:
     """How often something happened, in words for the small numbers: once, twice, 3 times."""
     return {1: "once", 2: "twice"}.get(n, f"{n} times")

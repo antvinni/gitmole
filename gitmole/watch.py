@@ -4,32 +4,23 @@ Each source file that is still in the tree and changed more than once is ranked 
 of code, the product the Hotspots table uses: measured at six cut-offs on three repositories
 (docs/validation.md), that product named more of the files fixed in the following six months than
 any weighting of fixes, complexity and ownership did. Those signals are the reasons printed beside
-each file: how often it was fixed lately, who alone owns it, its most complex function, what it
-always changes with. A file's score is its share, in percent, of all scored files' revisions × lines
-of code, so the scores of the whole list add up to 100 and a change's `--risk` total is the share of
-that mass the change touches; one enormous file takes a large share, as it should, and lowers the
-others' only by what it adds to the whole. The two factor-product scorings the list used to rank by,
-churn × (1 + recent fixes) × (1 + complexity) × (1.5 if single-owned) with each factor a share of the
-largest value ("max") or a rank among the scored files ("rank"), stay selectable so gitmole.evaluate
-can keep comparing them.
+each file: how often it was fixed lately, who alone owns it, its most complex function, how much its
+complexity grew in the last year, what it always changes with. A file's score is its share, in
+percent, of all scored files' revisions × lines of code, so the scores of the whole list add up to
+100 and a change's `--risk` total is the share of that mass the change touches; one enormous file
+takes a large share, as it should, and lowers the others' only by what it adds to the whole. The
+factor products the list used to rank by live in gitmole.evaluate, which still compares them with it.
 Complexity is scc's per-file total, which exists for every file on one scale; lizard's most complex
 function in the file is what the reasons name, since lizard has no reader for shell, Terraform,
 Makefiles and the like."""
 from __future__ import annotations
 
-import bisect
 from collections import Counter, defaultdict
 
-try:
-    from . import filetypes, hotspots, textfmt
-except ImportError:  # pragma: no cover - not run as a script, but keep the package pattern
-    import filetypes
-    import hotspots
-    import textfmt
+from . import filetypes, hotspots, textfmt, trend
 
 CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function is not worth naming
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership
-SOLO_WEIGHT = 1.5       # how much single ownership lifts the factor-product scores
 COMPANION_DEGREE = 50   # a coupling worth mentioning
 COMPANION_REVS = 5      # ...over enough shared revisions to be a pattern
 
@@ -67,39 +58,16 @@ def _worst_function(report: dict) -> dict:
     return worst
 
 
-def _by_max(values: list, inclusive: bool):
-    """x as a share of the largest value: the scaling the factor product first shipped with. One outlier
-    moves everyone; inclusive is ignored here, since a share of the largest value has no edge to choose."""
-    top = max(values)
-    return lambda x: x / top if top else 0.0
-
-
-def _by_rank(values: list, inclusive: bool):
-    """x as the share of the scored files at or below it (inclusive), or strictly below it. Churn is
-    inclusive, so the most-changed file is 1 and no file is 0; fixes and complexity are strict, so a
-    file with none of either gets no lift, as under _by_max. An outlier is one more file, not a new
-    scale."""
-    ordered = sorted(values)
-    cut = bisect.bisect_right if inclusive else bisect.bisect_left
-    return lambda x: cut(ordered, x) / len(ordered)
-
-
-SCALINGS = {"max": _by_max, "rank": _by_rank}
-SCORINGS = ("hotspot", *SCALINGS)
-
-
-def risks(report: dict, min_revs: int = 2, scoring: str = "hotspot") -> list:
-    """The watch list: every scored file with its reasons, worst first. `scoring` is "hotspot" (the
-    default: each file's score is its percentage share of the pool's revisions × lines of code), or
-    one of the two factor products, "rank" and "max", kept so gitmole.evaluate can compare them with
-    it."""
-    if scoring not in SCORINGS:
-        raise ValueError(f"scoring must be one of {', '.join(SCORINGS)}, got {scoring!r}")
+def risks(report: dict, min_revs: int = 2) -> list:
+    """The watch list: every scored file with its reasons, worst first. A file's score is its
+    percentage share of the pool's revisions × lines of code."""
     owners = _owners(report)
     companions = _companions(report)
     worst = _worst_function(report)
     fixes = {f["entity"]: f for f in report.get("fixes") or []}
     n_authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
+    series = (report.get("trend") or {}).get("files") or {}
+    last = (report.get("meta") or {}).get("last_date") or ""
 
     plumb, derived = filetypes.plumbing_paths(report), hotspots.derived(report)
     rows = []
@@ -115,34 +83,24 @@ def risks(report: dict, min_revs: int = 2, scoring: str = "hotspot") -> list:
         rows.append({"file": h["entity"], "revs": h["revs"], "recent_fixes": fx.get("recent-fixes", 0), "fixes": fx.get("n-fixes", 0),
                      "authors": n_authors.get(h["entity"]), "owner": owner, "owner_share": share,
                      "complexity": h["complexity"] or 0, "code": h["code"],
-                     "function": fn, "companions": companions.get(h["entity"], [])})
+                     "function": fn, "companions": companions.get(h["entity"], []),
+                     "trend": trend.change_over_year(series[h["entity"]], last) if last and h["entity"] in series else None})
     if not rows:
         return []
 
-    if scoring == "hotspot":
-        pool = sum(r["revs"] * r["code"] for r in rows)
-
-        def score(r):
-            return 100 * (r["revs"] * r["code"]) / pool if pool else 0.0
-    else:
-        scale = SCALINGS[scoring]
-        churn = scale([r["revs"] for r in rows], True)
-        fixed = scale([r["recent_fixes"] for r in rows], False)
-        cplx = scale([r["complexity"] for r in rows], False)
-
-        def score(r):
-            return churn(r["revs"]) * (1 + fixed(r["recent_fixes"])) * (1 + cplx(r["complexity"])) * (SOLO_WEIGHT if r["solo"] else 1)
+    pool = sum(r["revs"] * r["code"] for r in rows)
     for r in rows:
         r["solo"] = r["authors"] == 1 or r["owner_share"] >= SOLO_SHARE
-        r["score"] = score(r)
+        r["score"] = 100 * (r["revs"] * r["code"]) / pool if pool else 0.0
         r["reasons"] = _reasons(r)
     rows.sort(key=lambda r: (-r["score"], -r["revs"], r["file"]))
     return rows
 
 
 def why_empty(report: dict, min_revs: int = 2) -> str:
-    """Why risks() came back empty, for the report's one-line note: the honest reason, since
-    "nothing changed" above a hotspots table full of revisions would be a lie."""
+    """Why risks() came back empty, for the report's one-line note: the honest reason, since files
+    can well have changed even though none of them scored, and a flat "nothing changed" would be
+    a lie about them."""
     churned = [h for h in hotspots.ranked(report) if h["revs"] >= min_revs]
     if not churned:
         return "nothing changed more than once"
@@ -167,6 +125,9 @@ def _reasons(r: dict) -> list:
     if fn and fn["ccn"] >= CCN_FLOOR:
         named = f"the function at line {fn['start']}" if fn.get("anonymous") else f"{fn['function']}()"
         out.append(f"{named} complexity {fn['ccn']}")
+    grown = r.get("trend") or ""
+    if grown.startswith("+") and int(grown[1:-1]) >= trend.GROWTH_FLOOR:
+        out.append(f"complexity {grown} in a year")   # the Hotspots table's trend column, which the default report no longer shows
     if r["companions"]:
         other, degree = r["companions"][0]
         more = len(r["companions"]) - 1
@@ -179,9 +140,9 @@ WATCH_TOP = 15   # the same cap the report's --full watch list uses
 
 
 def change_risk(report: dict, files: list) -> dict:
-    """The watch score of each touched file, and their sum: under the default "hotspot" scoring, that
-    total is a percentage of the repository's revisions × lines of code. Files the watch list never
-    scored get 0 and one reason saying why."""
+    """The watch score of each touched file, and their sum: that total is a percentage of the
+    repository's revisions × lines of code. Files the watch list never scored get 0 and one reason
+    saying why."""
     ranked = risks(report)
     by_file = {r["file"]: r for r in ranked}
     watched = {r["file"] for r in ranked[:WATCH_TOP]}

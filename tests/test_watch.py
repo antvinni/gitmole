@@ -56,10 +56,6 @@ class Risks(unittest.TestCase):
         ranked = watch.risks(r)
         self.assertEqual([x["score"] for x in ranked], [0.0, 0.0, 0.0], "revs × 0 is 0 for every row, so the sum is 0 and every score falls back to 0.0")
 
-    def test_the_factor_products_stay_selectable_for_the_evaluation(self):
-        for scoring in ("rank", "max"):
-            self.assertEqual(watch.risks(report(), scoring=scoring)[0]["file"], "core/parser.py", scoring)
-
     def test_reasons_in_plain_words(self):
         top = {r["file"]: r for r in watch.risks(report())}["core/parser.py"]
         self.assertEqual(top["reasons"], ["changed 40 times", "fixed 5 times in six months",
@@ -131,9 +127,9 @@ class Risks(unittest.TestCase):
         r = report()
         r["size"]["files"]["ops/deploy.sh"] = {"code": 300, "complexity": 80}
         r["revisions"].append({"entity": "ops/deploy.sh", "n-revs": 40})
-        # ops/plain.sh matches deploy.sh in everything the factor product reads except
-        # complexity: same revisions, same lines of code, no fixes or ownership rows for
-        # either. So any score difference between the two is complexity's doing, nothing else.
+        # ops/plain.sh differs from deploy.sh only in complexity: same revisions, same lines of
+        # code, no fixes or ownership rows for either. The test below compares only the list's
+        # own ranking, which is revisions × lines of code and does not read complexity at all.
         r["size"]["files"]["ops/plain.sh"] = {"code": 300, "complexity": 0}
         r["revisions"].append({"entity": "ops/plain.sh", "n-revs": 40})
         by = {x["file"]: x for x in watch.risks(r)}
@@ -143,35 +139,36 @@ class Risks(unittest.TestCase):
         # revs × code is 40 × 300 for both, so the hotspot rank does not see complexity at all.
         self.assertEqual(by["ops/deploy.sh"]["score"], by["ops/plain.sh"]["score"],
                           "complexity does not enter the hotspot rank")
-        by_rank = {x["file"]: x for x in watch.risks(r, scoring="rank")}
-        self.assertGreater(by_rank["ops/deploy.sh"]["score"], by_rank["ops/plain.sh"]["score"],
-                            "the two differ only in complexity, and the factor product lifts the more complex one")
 
+    def test_there_is_one_ranking_and_no_scoring_to_choose(self):
+        import inspect
+        self.assertEqual(list(inspect.signature(watch.risks).parameters), ["report", "min_revs"])
 
-    def test_rank_scaling_keeps_the_order_of_the_synthetic_repo(self):
-        self.assertEqual([r["file"] for r in watch.risks(report(), scoring="rank")], ["core/parser.py", "web/index.html", "core/util.py"])
+    def test_a_year_of_growing_complexity_is_a_reason_and_anything_less_is_not(self):
+        def reasons(series):
+            r = report(trend={"samples": [], "files": {"core/parser.py": series}})
+            r["meta"]["last_date"] = "2026-09-10"
+            return {x["file"]: x for x in watch.risks(r)}["core/parser.py"]
+        grown = reasons([["2025-09-01", 10, 300], ["2026-09-01", 32, 800]])
+        self.assertEqual(grown["trend"], "+220%")
+        self.assertIn("complexity +220% in a year", grown["reasons"])
+        self.assertEqual(grown["reasons"].index("complexity +220% in a year"), grown["reasons"].index("parse() complexity 41") + 1, "right after the function it is about")
+        for series in ([["2025-09-01", 10, 300], ["2026-09-01", 12, 800]],      # +20%: under the floor
+                       [["2025-09-01", 40, 300], ["2026-09-01", 10, 800]],      # shrinking is not a reason
+                       []):                                                     # sampled, but with nothing to compare
+            self.assertFalse([x for x in reasons(series)["reasons"] if "in a year" in x], series)
 
-    def test_under_rank_scaling_an_outlier_does_not_rescale_the_other_files(self):
-        def scores(outlier_revs, scoring):
-            r = report()
-            r["size"]["files"]["core/big.py"] = {"code": 10, "complexity": 0}
-            r["revisions"].append({"entity": "core/big.py", "n-revs": outlier_revs})
-            return {x["file"]: x["score"] for x in watch.risks(r, scoring=scoring)}
-        self.assertEqual(scores(100, "rank")["core/util.py"], scores(10000, "rank")["core/util.py"])
-        self.assertNotEqual(scores(100, "max")["core/util.py"], scores(10000, "max")["core/util.py"], "what the rank scaling is for")
+    def test_a_file_the_trend_step_did_not_sample_has_no_trend(self):
+        by = {x["file"]: x for x in watch.risks(report())}
+        self.assertIsNone(by["core/parser.py"]["trend"])
 
-    def test_a_file_never_fixed_gets_no_lift_from_fixes_under_either_scaling(self):
-        for scoring in ("max", "rank"):
-            by = {r["file"]: r for r in watch.risks(report(), scoring=scoring)}
-            self.assertEqual(by["web/index.html"]["score"], 1.0, f"{scoring}: most changed, no fixes, no complexity, shared")
-
-    def test_an_unknown_scaling_is_refused(self):
-        with self.assertRaises(ValueError):
-            watch.risks(report(), scoring="median")
-
-    def test_hotspot_is_the_default_scoring(self):
-        r = report()
-        self.assertEqual([x["score"] for x in watch.risks(r)], [x["score"] for x in watch.risks(r, scoring="hotspot")])
+    def test_the_floor_is_inclusive_at_exactly_25_percent(self):
+        def reasons(now):
+            r = report(trend={"samples": [], "files": {"core/parser.py": [["2025-09-01", 100, 300], ["2026-09-01", now, 800]]}})
+            r["meta"]["last_date"] = "2026-09-10"
+            return {x["file"]: x for x in watch.risks(r)}["core/parser.py"]["reasons"]
+        self.assertIn("complexity +25% in a year", reasons(125), "125 is a 25% rise over 100: right at the floor")
+        self.assertFalse([x for x in reasons(124) if "in a year" in x], "124 is a 24% rise over 100: just under the floor")
 
 
 class WhyEmpty(unittest.TestCase):

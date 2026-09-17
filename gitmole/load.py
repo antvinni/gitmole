@@ -9,7 +9,7 @@ import os
 import re
 from collections import Counter, OrderedDict
 
-from . import filetypes, identity, leaks
+from . import filetypes, identity, leaks, textfmt
 
 
 def _rel(path: str) -> str:
@@ -168,10 +168,6 @@ NAME_CAP = 200   # a function name a table can show; deeply nested fixtures give
 csv.field_size_limit(min(sys.maxsize, 2**31 - 1))   # an older functions.csv may still carry such a name
 
 
-def _cut(name: str, cap: int = NAME_CAP) -> str:
-    return name if len(name) <= cap else name[:cap - 1] + "…"
-
-
 def parse_functions(text: str) -> list:
     """lizard --csv rows: nloc, ccn, tokens, params, length, location, file, function, long name, start, end;
     then, from gitmole's own step, a label for a nameless function (its start line) and why the span
@@ -183,7 +179,7 @@ def parse_functions(text: str) -> list:
             continue
         name, label, suspect = r[7], r[11] if len(r) > 11 else "", r[12] if len(r) > 12 else ""
         anonymous = name in ("", "(anonymous)")
-        rows.append({"file": _rel(r[6]), "function": _cut(label if anonymous and label else name) or "(anonymous)", "anonymous": anonymous,
+        rows.append({"file": _rel(r[6]), "function": textfmt.cut(label if anonymous and label else name, NAME_CAP) or "(anonymous)", "anonymous": anonymous,
                      "ccn": _num(r[1]), "nloc": _num(r[0]), "params": _num(r[3]), "start": _num(r[9]), "end": _num(r[10]), "suspect": suspect})
     return rows
 

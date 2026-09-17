@@ -54,6 +54,40 @@ class Score(unittest.TestCase):
         self.assertEqual(evaluate.report_at(commits, "2025-06-01", SIZE, {})["ownership"], [])
 
 
+ROWS = [
+    {"file": "core/parser.py", "revs": 40, "recent_fixes": 5, "complexity": 40, "solo": True, "code": 800},
+    {"file": "web/index.html", "revs": 60, "recent_fixes": 0, "complexity": 0, "solo": False, "code": 4000},
+    {"file": "core/util.py", "revs": 30, "recent_fixes": 0, "complexity": 5, "solo": True, "code": 200},
+]
+
+
+class FactorProduct(unittest.TestCase):
+    def test_both_scalings_lead_with_the_fixed_complex_single_owned_file(self):
+        for scaling in ("max", "rank"):
+            self.assertEqual(evaluate.factor_product(ROWS, scaling), ["core/parser.py", "web/index.html", "core/util.py"], scaling)
+
+    def test_a_file_never_fixed_gets_no_lift_from_fixes_under_either_scaling(self):
+        for scaling in ("max", "rank"):
+            self.assertEqual(evaluate.factor_scores(ROWS, scaling)["web/index.html"], 1.0, f"{scaling}: most changed, no fixes, no complexity, shared")
+
+    def test_under_rank_scaling_an_outlier_does_not_rescale_the_other_files(self):
+        def util(outlier_revs, scaling):
+            big = {"file": "core/big.py", "revs": outlier_revs, "recent_fixes": 0, "complexity": 0, "solo": False, "code": 10}
+            return evaluate.factor_scores(ROWS + [big], scaling)["core/util.py"]
+        self.assertEqual(util(100, "rank"), util(10000, "rank"))
+        self.assertNotEqual(util(100, "max"), util(10000, "max"), "what the rank scaling is for")
+
+    def test_two_files_that_differ_only_in_complexity(self):
+        pair = [{"file": "ops/deploy.sh", "revs": 40, "recent_fixes": 0, "complexity": 80, "solo": False, "code": 300},
+                {"file": "ops/plain.sh", "revs": 40, "recent_fixes": 0, "complexity": 0, "solo": False, "code": 300}]
+        for scaling in ("max", "rank"):
+            scores = evaluate.factor_scores(ROWS + pair, scaling)
+            self.assertGreater(scores["ops/deploy.sh"], scores["ops/plain.sh"], f"{scaling}: complexity lifts the factor product")
+
+    def test_no_rows_is_no_list(self):
+        self.assertEqual(evaluate.factor_product([], "rank"), [])
+
+
 class Table(unittest.TestCase):
     def test_one_row_per_variant_one_column_per_cut_off_and_a_total(self):
         text = evaluate.table([("2025-02-28", 3, 40, {"churn": 1, "random (expected)": 0.4}),

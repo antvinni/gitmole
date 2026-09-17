@@ -93,8 +93,11 @@ written, `duplicates.py` runs jscpd and keeps the blocks without their text,
 `deps.py` runs osv-scanner offline and keeps one row per vulnerable package,
 `identity.py` merges author aliases, `load.py` parses the outputs,
 `findings.py` holds the heuristics, `coupling.py` folds a directory that
-changes as one into a cluster, `clean.py` finds and removes what gitmole
-left behind, and `render.py` draws the report.
+changes as one into a cluster, `watch.py` builds the watch list (the
+pool, each file's share, the reasons), `hotspots.py` is the one ranking
+both it and the hotspots table use, `trend.py` is complexity over time
+for the top hotspots, `clean.py` finds and removes what gitmole left
+behind, and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates
 `docs/banner.svg` from the banner code.
 `bin/render-examples` clones the repositories listed in the script under

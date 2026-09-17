@@ -108,9 +108,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    shows them.
 3. **Watch list**: the five source files most likely to need a fix next, with
    the reasons in words. Every source file still in the tree that changed
-   more than once is ranked by revisions × lines of code, the Hotspots
-   table's product, over source files only: measured against the fixes
-   that followed at six cut-offs on three repositories
+   more than once is ranked by revisions × lines of code, over source
+   files only: measured against the fixes that followed at six cut-offs
+   on three repositories
    ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md)),
    it named more of them than any weighting of fixes, complexity and
    ownership did. A file's score, which `--risk` adds up, is its share, in
@@ -118,10 +118,13 @@ How to read each part of the terminal report, and what each run writes to disk; 
    name the fix count (the last six months' when there are any), the sole
    owner, the most complex function lizard found (a nameless one by its
    line; a span marked `?` in the complex functions table is passed over)
-   and the files it always changes with, none of them entering the rank.
-   Test files are
-   left out. Under `--since`, churn and ownership are windowed and the list
-   says so. `--full` and the exports show fifteen. With `--risk BASE`, a
+   and, when its complexity grew by a quarter or more in a year, by how
+   much (the trend is sampled for the ten top hotspots only, so a file
+   further down the list may have none), and the files it always changes
+   with, none of them entering the rank. Test files are left out. Under
+   `--since`, churn and ownership are windowed and the list says so.
+   `--full` and the exports show fifteen.
+   With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
    score as a bar and the reasons, or why it has none (new file, changed
    once, test file, not scored).
@@ -151,9 +154,14 @@ How to read each part of the terminal report, and what each run writes to disk; 
    timeline; their lines are left out of ownership and surviving code
    too, so a deploy job that commits a built site owns nothing), a knowledge map (lines added per area of the tree
    and who wrote them), a timeline of commits per author over the last
-   twelve months, hotspots ranked by revisions times lines of code with the
-   number of fix commits alongside, change coupling, the most complex
-   functions, repo health. Change coupling hides pairs where either file is
+   twelve months, change coupling, the most complex functions, repo
+   health. On a narrow terminal the timeline shows fewer of those months,
+   dropping the oldest, rather than folding an author's name; the title
+   names the months shown. Hotspots, ranked by revisions times lines of
+   code with the number of fix commits alongside, rank the same files the
+   watch list leads with, and so appear under `--full` and in the Markdown
+   export, next to size by language, activity and surviving code by year.
+   Change coupling hides pairs where either file is
    no longer in the tree, since they describe a layout that no longer
    exists, and shows a directory whose files all change together (generated
    tables, one file per version) as one row with the file count and the
@@ -170,15 +178,17 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Size, hotspots, coupling, ownership, code age and the watch list analyse
    source files: a built-in list of code extensions plus names like Makefile
    and Dockerfile (`--file-types all` counts everything). In the default
-   report, the hotspots and complex functions tables hide test files and
-   generated files (a file whose first lines say it was generated or must
-   not be edited, that `.gitattributes` marks `linguist-generated`, or that
-   is a bundle, a minified file, a source map or anything under `dist/`
-   by name, the
-   run records them in `meta.json`; and an amalgamation, a file every one
-   of whose functions also appears identically in other files, found from
-   the function metrics), the complex functions table also
-   hides vendored code (`vendor/`, `vendored/`, `node_modules/`,
+   report, the complex functions table hides test files and generated
+   files (a file whose first lines say it was generated or must not be
+   edited, that `.gitattributes` marks `linguist-generated`, or that is
+   a bundle, a minified file, a source map or anything under `dist/` by
+   name, the run records them in `meta.json`; and an amalgamation, a
+   file every one of whose functions also appears identically in other
+   files, found from the function metrics); the hotspots table, drawn
+   under `--full` and in the Markdown export, hides the same test files
+   and generated files in the Markdown export, since `--full` shows
+   everything. The complex functions table also hides vendored code
+   (`vendor/`, `vendored/`, `node_modules/`,
    `third_party/`, `external/`, `deps/`, `.yarn/`, a `packages/` inside a package
    such as `requests/packages/`, and any directory whose own `LICENSE` or
    `COPYING` names none of the copyright holders the root licence names,
@@ -250,22 +260,27 @@ directory for a remote target:
 ## How to read the output
 
 1. Start with the header and the findings.
-2. The hotspots table is `maat-revisions.csv` joined with scc's per-file
-   size and complexity, author count, and age, ranked by revisions times
-   lines. The change log follows renames, so a moved file is one entity
-   under its new path and a pure move adds no lines: whoever moved a tree
-   to `src/` did not write it, and the knowledge map says so. Large files that change constantly are your risk. By default the
-   tables leave test files and deleted files out and say how many; `--full`
-   shows them.
+2. The watch list is the source files ranked by revisions × lines of code, from
+   `maat-revisions.csv` joined with scc's per-file size. The change log follows
+   renames, so a moved file is one entity under its new path and a pure move
+   adds no lines: whoever moved a tree to `src/` did not write it, and the
+   knowledge map says so. Large files that change constantly are your risk; the
+   reasons say what else counts against each file, and the backtest line says
+   how the same list would have done six months ago. The hotspots table behind
+   it, which `--full` and the Markdown export add, ranks every file by the same
+   product and carries the trend column; the Markdown export caps it and leaves
+   test files, deleted files, generated files and release plumbing out, saying
+   how many, and `--full` shows them all. The default report's own tables,
+   change coupling and complex functions, leave test files out the same way.
 3. Change coupling shows files that always change together. That usually
    means a hidden dependency or copy-pasted layout. A whole directory that
    changes as one is a generator or a shared layout, and shows as one row.
-4. People and the surviving-code table tell you whether knowledge is
-   concentrated in one or two people; the knowledge map says where. Areas
-   are top-level directories, or the subdirectories of a lone top-level one
-   such as `src/`. A directory the history knows but the tree no longer has
-   (the layout before a move to `src/` or `crates/`) is hidden from the map
-   with a count, and left out of the islands, bus-factor and knowledge-loss
-   findings; `--full` shows it.
+4. The People table's surviving-code column and the bus-factor and knowledge
+   findings tell you whether knowledge is concentrated in one or two people;
+   the knowledge map says where. Areas are top-level directories, or the
+   subdirectories of a lone top-level one such as `src/`. A directory the
+   history knows but the tree no longer has (the layout before a move to `src/`
+   or `crates/`) is hidden from the map with a count, and left out of the
+   islands, bus-factor and knowledge-loss findings; `--full` shows it.
 5. Repo health and secrets are pass or fail checks. Read them only if they
    flag something.

@@ -52,6 +52,15 @@ def rendered(report, findings, width=120, full=False):
     return console.export_text()
 
 
+def _rendered_section(sec: dict, width=120) -> str:
+    """One section drawn on its own, the way `rendered` draws a whole report: for Hotspots, which
+    the default terminal report no longer carries, but whose drawing (folding, eliding, hiding) is
+    still worth checking directly."""
+    console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
+    render.print_section(console, sec)
+    return console.export_text()
+
+
 class Report(unittest.TestCase):
     def test_header_shows_name_commits_span_and_languages(self):
         text = rendered(sample_report(), [])
@@ -260,23 +269,23 @@ class Report(unittest.TestCase):
         r["meta"]["last_date"] = "2026-09-10"
         r["trend"] = {"samples": ["2025-09-10", "2026-03-10", "2026-09-10"],
                       "files": {"static/index.html": [["2025-09-10", 10, 4000], ["2026-03-10", 12, 4000], ["2026-09-10", 16, 4000]]}}
-        text = rendered(r, [])
+        text = _rendered_section(render.hotspots_section(r, full="markdown", width=120))
         self.assertRegex(text, r"file\s+revs\s+lines\s+fixes\s+authors\s+trend")
         self.assertRegex(text, r"static/index\.html\s+51\s+4,000\s+0\s+-\s+\+60%")
         self.assertRegex(text, r"static/apps-metadata\.json\s+128\s+800\s+9\s+4\s+-")
         self.assertRegex(rendered(r, [], full=True), r"static/index\.html.*▁▃█")
-        self.assertRegex(rendered(sample_report(), []), r"static/index\.html\s+51\s+4,000\s+0\s+-\s+-")
+        self.assertRegex(_rendered_section(render.hotspots_section(sample_report(), full="markdown", width=120)),
+                         r"static/index\.html\s+51\s+4,000\s+0\s+-\s+-")
 
     def test_full_hotspots_say_the_trend_column_covers_the_top_ten(self):
         r = sample_report()
         r["meta"]["last_date"] = "2026-09-10"
         def caption(rep, full):
-            return next(x for x in render.sections(rep, full=full) if x["id"] == "hotspots")["caption"]
+            return render.hotspots_section(rep, full=full, width=None)["caption"]
         self.assertIsNone(caption(r, True), "no trend data, nothing to explain")
         r["trend"] = {"samples": ["2025-09-10", "2026-09-10"],
                       "files": {"static/index.html": [["2025-09-10", 10, 4000], ["2026-09-10", 16, 4000]]}}
         self.assertEqual(caption(r, True), "trend sampled for the top 10 hotspots")
-        self.assertIsNone(caption(r, False), "the tight report keeps its captions short")
         r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 100 - i} for i in range(60)]
         r["size"]["files"].update({f"f{i}.py": {"code": 10, "complexity": 0} for i in range(60)})   # in the tree, so not hidden as deleted
         self.assertEqual(caption(r, "markdown"), "and 10 more; trend sampled for the top 10 hotspots")
@@ -311,12 +320,11 @@ class Report(unittest.TestCase):
         self.assertIn("ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2026-01-01", caption)
         self.assertTrue(caption.endswith("the 2 most changed would name 1); whole history"), caption)
 
-    def test_default_hotspots_hide_test_files_and_say_so(self):
+    def test_markdown_hotspots_hide_test_files_and_say_so(self):
         r = sample_report()
         r["revisions"].append({"entity": "tests/test_a.py", "n-revs": 200})
         r["size"]["files"]["tests/test_a.py"] = {"code": 50, "complexity": 1}
-        text = rendered(r, [])
-        hot = text[text.index("◆ Hotspots"):]
+        hot = _rendered_section(render.hotspots_section(r, full="markdown", width=120))
         self.assertNotIn("tests/test_a.py", hot)
         self.assertIn("1 test file hidden; --full shows them", hot)
         full_text = rendered(r, [], full=True)
@@ -371,14 +379,14 @@ class Report(unittest.TestCase):
         full = _section_text(rendered(r, [], width=200, full=True), "Complex functions")
         self.assertIn("vendor/github.com/x/y.go", full)
 
-    def test_default_tables_hide_generated_files_and_say_so(self):
+    def test_markdown_tables_hide_generated_files_and_say_so(self):
         r = sample_report()
         r["meta"]["generated"] = ["lib/config-validator.js"]
         r["size"]["files"]["lib/config-validator.js"] = {"code": 1153, "complexity": 373}
         r["revisions"].append({"entity": "lib/config-validator.js", "n-revs": 8})
         r["functions"].append({"file": "lib/config-validator.js", "function": "validate10", "ccn": 373, "nloc": 1150, "params": 5, "start": 1, "end": 1150})
         text = rendered(r, [], width=200)
-        hot = text[text.index("◆ Hotspots"):text.index("Change coupling")]
+        hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
         self.assertNotIn("config-validator", hot)
         self.assertIn("1 generated file hidden; --full shows them", hot)
         fn = _section_text(text, "Complex functions")
@@ -387,24 +395,22 @@ class Report(unittest.TestCase):
         full = rendered(r, [], width=200, full=True)
         self.assertIn("validate10", full)
 
-    def test_default_hotspots_hide_release_plumbing_and_say_so(self):
+    def test_markdown_hotspots_hide_release_plumbing_and_say_so(self):
         r = sample_report()
         r["size"]["files"].update({"setup.py": {"code": 6, "complexity": 0}, "version.go": {"code": 2, "complexity": 0}})
         r["revisions"] += [{"entity": "setup.py", "n-revs": 184}, {"entity": "version.go", "n-revs": 29}]
-        hot = rendered(r, [], width=200)
-        hot = hot[hot.index("◆ Hotspots"):hot.index("Change coupling")]
+        hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
         self.assertNotIn("setup.py", hot)
         self.assertIn("2 release files hidden; --full shows them", hot)
         full = rendered(r, [], width=200, full=True)
         self.assertIn("setup.py", full[full.index("◆ Hotspots"):])
 
-    def test_default_hotspots_hide_files_the_change_log_shows_as_plumbing(self):
+    def test_markdown_hotspots_hide_files_the_change_log_shows_as_plumbing(self):
         r = sample_report()
         r["size"]["files"]["pkg/__init__.py"] = {"code": 40, "complexity": 0}
         r["revisions"].append({"entity": "pkg/__init__.py", "n-revs": 331})
         r["plumbing"] = [{"entity": "pkg/__init__.py", "n-revs": 331, "tiny-revs": 300}]
-        hot = rendered(r, [], width=200)
-        hot = hot[hot.index("◆ Hotspots"):hot.index("Change coupling")]
+        hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
         self.assertNotIn("pkg/__init__.py", hot)
         self.assertIn("1 release file hidden; --full shows them", hot)
 
@@ -475,7 +481,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["revisions"] = [{"entity": "tests/test_a.py", "n-revs": 200}]
         r["size"]["files"] = {"tests/test_a.py": {"code": 50, "complexity": 1}}
-        hot = _section_text(rendered(r, [], width=200), "\u25c6 Hotspots")
+        hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
         self.assertIn("no source hotspots; 1 test file hidden; --full shows them", hot)
 
     def test_default_coupling_hides_pairs_of_deleted_files_and_says_so(self):
@@ -490,10 +496,10 @@ class Report(unittest.TestCase):
         self.assertIn("static/tax.html", full)
         self.assertNotIn("hidden", full)
 
-    def test_default_hotspots_hide_deleted_files_and_say_so(self):
+    def test_markdown_hotspots_hide_deleted_files_and_say_so(self):
         r = sample_report()   # the tree holds static/index.html and static/apps-metadata.json only
         r["revisions"].append({"entity": "src/sizes/old.go", "n-revs": 40})
-        hot = _section_text(rendered(r, [], width=200), "◆ Hotspots")
+        hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
         self.assertNotIn("src/sizes/old.go", hot)
         self.assertIn("1 deleted file hidden; --full shows them", hot)
         full = _section_text(rendered(r, [], width=200, full=True), "◆ Hotspots")
@@ -503,7 +509,7 @@ class Report(unittest.TestCase):
     def test_hotspots_without_a_tree_listing_hide_nothing(self):
         r = sample_report()
         r["size"]["files"] = {}
-        hot = _section_text(rendered(r, [], width=200), "◆ Hotspots")
+        hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
         self.assertIn("static/index.html", hot)
         self.assertNotIn("deleted", hot)
 
@@ -745,7 +751,7 @@ class WatchList(unittest.TestCase):
         self.assertEqual(sec["caption"], "ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2025-01-01")
 
 
-class DescriptiveTables(unittest.TestCase):
+class FullOnlySections(unittest.TestCase):
     def test_default_report_leaves_them_out_and_full_brings_them_back(self):
         text = rendered(sample_report(), [])
         for title in ("Size by language", "Activity", "Surviving code by year written"):
@@ -753,6 +759,14 @@ class DescriptiveTables(unittest.TestCase):
         full = rendered(sample_report(), [], full=True)
         for title in ("Size by language", "Activity", "Surviving code by year written"):
             self.assertIn(title, full, title)
+
+    def test_hotspots_moved_to_full_and_markdown_alongside_the_other_descriptive_tables(self):
+        self.assertIn("hotspots", render.FULL_ONLY)
+        text = rendered(sample_report(), [])
+        self.assertNotIn("◆ Hotspots", text)
+        full = rendered(sample_report(), [], full=True)
+        self.assertIn("◆ Hotspots", full)
+        self.assertIn("## Hotspots", render.markdown(sample_report(), []))
 
     def test_header_keeps_one_line_of_them(self):
         r = sample_report()
@@ -869,7 +883,7 @@ class Timeline(unittest.TestCase):
         r["meta"]["bots"] = [{"name": "GitHub", "commits": 12}]   # actions@github.com: a bot by its address, not its name
         r["activity"]["timeline"]["GitHub"] = {"2026-08": 30, "2026-09": 40}
         text = rendered(r, [], width=120)
-        timeline = text.split("▦ Timeline")[1].split("◆ Hotspots")[0]
+        timeline = text.split("▦ Timeline")[1].split("⟷ Change coupling")[0]
         self.assertNotIn("GitHub", timeline)
         self.assertIn("Ann", timeline)
 
@@ -895,6 +909,50 @@ class Timeline(unittest.TestCase):
         r["activity"] = {}
         self.assertIn("no timeline data", rendered(r, []))
 
+    def test_a_name_is_never_folded_the_oldest_months_go_instead(self):
+        r = sample_report()
+        r["activity"]["timeline"] = {"antvinni": {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
+        text = rendered(r, [], width=80)
+        body = _section_text(text, "Timeline")
+        self.assertIn("antvinni", body, "the name on one line")
+        sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
+        self.assertLess(len(sec["columns"]) - 1, 12, "fewer months than the year, since the year does not fit")
+        self.assertTrue(sec["title"].endswith("→ Sep 2026)"), sec["title"])
+        self.assertNotIn("Oct 2025", sec["title"], "the title names the months shown")
+        wide = next(s for s in render.sections(r, full=False, width=120) if s["id"] == "timeline")
+        self.assertEqual(len(wide["columns"]) - 1, 12, "room for the whole year at 120")
+
+    def test_a_very_long_name_still_leaves_at_least_three_months(self):
+        r = sample_report()
+        name = "a" * 70   # long enough that even the floor does not leave room for the whole name
+        r["activity"]["timeline"] = {name: {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
+        text = rendered(r, [], width=80)
+        body = _section_text(text, "Timeline")
+        sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
+        self.assertEqual(len(sec["columns"]) - 1, 3, "the floor: three months even though the name leaves almost no room")
+        self.assertEqual(sec["title"], "Timeline (Jul 2026 → Sep 2026)")
+        section_text = body.split("\n\n", 1)[0]
+        for month in ("Jul", "Aug", "Sep"):
+            self.assertIn(month, section_text, f"the {month} column header is fully visible, not starved to nothing")
+        self.assertIn("3", section_text, "the counts under the shown months are visible")
+        self.assertNotIn(name, body, "the full 70-character name does not fit even at the floor")
+        self.assertIn("…", section_text, "the name gives way, cut with an ellipsis, rather than the months")
+        self.assertEqual(len(section_text.splitlines()), 4, "one row, not a name folded onto a second line")
+        for line in section_text.splitlines():
+            self.assertLessEqual(len(line), 80, "no line wider than the terminal")
+
+    def test_a_name_just_over_the_floors_room_still_leaves_full_month_headers(self):
+        r = sample_report()
+        name = "a" * 62   # over the 60-character room the floor leaves (width 80, 3 months): headers used to starve first
+        r["activity"]["timeline"] = {name: {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
+        text = rendered(r, [], width=80)
+        body = _section_text(text, "Timeline")
+        section_text = body.split("\n\n", 1)[0]
+        for month in ("Jul", "Aug", "Sep"):
+            self.assertIn(month, section_text, f"the {month} header is whole, not truncated to a letter and an ellipsis")
+        sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
+        self.assertEqual(len(sec["columns"]) - 1, 3)
+
 
 class Layout(unittest.TestCase):
     def test_header_carries_the_findings_tally(self):
@@ -915,7 +973,8 @@ class Layout(unittest.TestCase):
     def test_sections_open_with_a_symbol_and_a_title(self):
         text = rendered(sample_report(), [], width=80)
         self.assertRegex(text, r"\n\n◉ People\n")
-        self.assertRegex(text, r"\n\n◆ Hotspots\n")
+        full = rendered(sample_report(), [], width=80, full=True)
+        self.assertRegex(full, r"\n\n◆ Hotspots \(score = revisions × lines of code\)\n")
         self.assertNotIn("─────", text.split("◉ People")[1].split("\n")[0], "no rule across the width")
 
     def test_small_tables_sit_side_by_side_on_wide_terminals(self):
@@ -952,9 +1011,11 @@ class Layout(unittest.TestCase):
     def test_default_columns_are_the_ones_you_read(self):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=False)}
         self.assertNotIn("Size by language", secs)
+        self.assertNotIn("Hotspots", secs, "hotspots is --full and Markdown only")
         self.assertEqual(secs["People"]["columns"], ["author", "commits", "share", "surviving code"])
-        self.assertEqual([x for x in secs if x.startswith("Hotspots")], ["Hotspots"])
-        self.assertEqual(secs["Hotspots"]["columns"], ["file", "revs", "lines", "fixes", "authors", "trend"])
+        hot = render.hotspots_section(sample_report(), full="markdown", width=None)
+        self.assertEqual(hot["title"], "Hotspots")
+        self.assertEqual(hot["columns"], ["file", "revs", "lines", "fixes", "authors", "trend"])
         self.assertEqual(secs["Change coupling"]["columns"], ["file", "changes with", "degree"])
         self.assertEqual(secs["Knowledge map"]["columns"], ["area", "lines added", "main owner", "second"])
 
@@ -966,26 +1027,21 @@ class Layout(unittest.TestCase):
         self.assertIn("avg revs", secs["Change coupling"]["columns"])
 
     def test_row_caps_and_the_more_line(self):
+        # the 8-row default cap with "and N more" is pinned for Timeline instead
+        # (test_full_lifts_the_timeline_cap): Hotspots has no default-report row cap of its own any
+        # more, since it only ships under --full and Markdown. Under --full it shows every row.
         r = sample_report()
         r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 100 - i} for i in range(12)]
         r["size"]["files"] = {f"f{i}.py": {"code": 10, "complexity": 0} for i in range(12)}
-        compact = {x["title"]: x for x in render.sections(r, full=False)}["Hotspots"]
-        self.assertEqual(len(compact["rows"]), 8)
-        self.assertEqual(compact["caption"], "and 4 more")
         full = {x["title"]: x for x in render.sections(r, full=True)}["Hotspots (score = revisions × lines of code)"]
         self.assertEqual(len(full["rows"]), 12)
         self.assertIsNone(full["caption"])
 
-    def test_long_paths_are_elided_not_folded(self):
-        r = sample_report()
-        long = "packages/core/src/repowise/core/pipeline/persist_and_more_words.py"
-        r["revisions"] = [{"entity": long, "n-revs": 50}]
-        r["size"]["files"] = {long: {"code": 100, "complexity": 1}}
-        text = rendered(r, [], width=80)
-        self.assertIn("…/pipeline/persist_and_more_words.py", text)
-        self.assertNotIn(long, text)
-        hot = text[text.index("\n◆ Hotspots"):]
-        self.assertNotRegex(hot, r"\n\s*[a-z_]+\.py\s*\n", "no folded file-name tails")
+    # test_long_paths_are_elided_not_folded removed: it pinned Hotspots eliding long paths at a
+    # narrow width, which no longer happens in any shipped mode (Hotspots only ships under --full,
+    # which restores every column and never elides, and Markdown, which never passes a width). The
+    # same "elided, not folded" behaviour is already pinned for Complex functions, which stays in
+    # the default report, by test_long_paths_are_elided_like_every_other_table above.
 
     def test_threshold_styles(self):
         self.assertIsNone(render.cell_style("degree", "70%"))
@@ -1012,16 +1068,16 @@ class ReviewFixes(unittest.TestCase):
         self.assertEqual((len(full["rows"]), full["caption"]), (12, None))
 
     def test_paths_fit_next_to_wide_numbers_at_narrow_widths(self):
+        # re-pointed at Complex functions: Hotspots no longer elides paths in any shipped mode, so
+        # this narrow-width edge case is pinned on a table that still elides in the default report.
         r = sample_report()
         long = "services/payments/adapters/stripe_webhook_handler_v2.py"
-        r["revisions"] = [{"entity": long, "n-revs": 12345}]
-        r["size"]["files"] = {long: {"code": 1234567, "complexity": 9}}
-        # 75 is the narrowest width where the 31-character file name fits beside these numbers
-        for width in (75, 76, 84):
-            text = rendered(r, [], width=width)
-            hot = text[text.index("\n◆ Hotspots"):]
-            self.assertNotRegex(hot, r"\n\s*[a-z_0-9]+\.py\s*\n", f"folded tail at width {width}")
-            self.assertNotRegex(hot, r"\.p\s*\n", f"file name cut at width {width}")
+        r["functions"] = [{"file": long, "function": "handle", "ccn": 12345, "nloc": 1234567, "params": 9, "start": 1, "end": 2}]
+        # 67 is the narrowest width where the 28-character file name fits beside these numbers
+        for width in (67, 68, 84):
+            fn = _section_text(rendered(r, [], width=width), "Complex functions")
+            self.assertNotRegex(fn, r"\n\s*[a-z_0-9]+\.py\s*\n", f"folded tail at width {width}")
+            self.assertNotRegex(fn, r"\.p\s*\n", f"file name cut at width {width}")
 
     def test_markdown_rows_are_capped_unless_full(self):
         r = sample_report()
@@ -1129,6 +1185,7 @@ class Json(unittest.TestCase):
         self.assertIn("cohorts", d)
         self.assertEqual(d["watch"][0]["file"], "static/index.html")   # 51 × 4000 beats 128 × 800
         self.assertIn("reasons", d["watch"][0])
+        self.assertIn("trend", d["watch"][0])
 
     def test_the_nested_backtest_sub_report_is_left_out(self):
         r = sample_report()

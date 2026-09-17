@@ -34,7 +34,7 @@ next to it), with sizes, and deletes them after one y/N question.
 
 | Option | What it does |
 |---|---|
-| `--full` | Every column and every row. The default report keeps the columns you read, caps each table, elides long paths in the middle, hides test files, deleted files and vendored code, and shows a directory that changes as one as a single coupling row. |
+| `--full` | Every section, column and row. Adds the hotspots, size, activity and code age tables; the default report keeps the columns you read, caps each table, elides long paths in the middle, hides test files, deleted files and vendored code, and shows a directory that changes as one as a single coupling row. |
 | `--out DIR` | The output directory. Default: `analysis-<repo>` next to a local clone, or in the current directory for a remote target. |
 | `--no-run` | Skip the tools and re-render the report from the output directory of an earlier run. Works with the exports and `--risk`. |
 | `--since WHEN` | Bound the history by author date: `2y`, `18m`, `90d` or a `YYYY-MM-DD` date. People, activity, timeline, hotspots and coupling then describe the current team rather than the founders. File ages and code age always cover the whole history, identity aliases are still merged over all of it, and an empty window is an error. |
@@ -79,6 +79,11 @@ parsing its sentence:
  "evidence": {"count": 2, "files": [{"file": "lib/url.c", "recent_fixes": 5, "fixes": 41}]}}
 ```
 
+The JSON's `watch` rows carry a `trend` field: the change in the file's
+complexity over a year (`+54%`, `=` for under ten per cent either way, `-`
+when there is nothing to compare), and null when the file was not among the
+ten sampled hotspots.
+
 A CI job that runs
 `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"` blocks
 on secrets in source files and still posts the report. Secrets found only in
@@ -121,12 +126,13 @@ gitmole keeps them in check:
   Both shrink the blame count a lot on repos full of exports and fixtures.
 
 Two steps read history rather than the working tree, and both are bounded.
-The trend behind the hotspots' `trend` column runs scc over the ten top
-hotspots at up to twelve sampled commits, one run per sample, not one per
-file. The backtest behind the watch list's caption is a second change
-analysis over the same log with the window closed six months before the
-last commit, plus one checkout of the tree as it was then, exported under
-the output directory and removed again when the step ends.
+The trend behind the hotspots' `trend` column, which also feeds the watch
+list's complexity reason, runs scc over the ten top hotspots at up to
+twelve sampled commits, one run per sample, not one per file. The backtest
+behind the watch list's caption is a second change analysis over the same
+log with the window closed six months before the last commit, plus one
+checkout of the tree as it was then, exported under the output directory
+and removed again when the step ends.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
 and the rest of the report still renders: whatever the tool had written is
