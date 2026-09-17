@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """How the watch list would have done at several cut-off dates, next to the factor products it
-replaced and the simpler baselines.
+replaced (computed here, over the rows watch.risks returns) and the simpler baselines.
 
 A development tool, not a pipeline step: `python -m gitmole.evaluate REPO OUT_DIR [--windows 6]
 [--horizon 6] [--top 15]`, where OUT_DIR is a finished gitmole output directory for REPO (its log.txt
@@ -13,6 +13,7 @@ column per cut-off, and the total; then how many commits `--all` adds to HEAD's.
 from __future__ import annotations
 
 import argparse
+import bisect
 import calendar
 import datetime as dt
 import os
@@ -52,12 +53,56 @@ def report_at(commits: list, t: str, size: dict, meta: dict) -> dict:
             "fixes": maat.fixes(past, now=t), "coupling": [], "functions": []}
 
 
+SOLO_WEIGHT = 1.5       # how much single ownership lifts a factor product
+
+
+def _by_max(values: list, inclusive: bool):
+    """x as a share of the largest value: the scaling gitmole 0.7 shipped. One outlier moves everyone;
+    inclusive is ignored here, since a share of the largest value has no edge to choose."""
+    top = max(values)
+    return lambda x: x / top if top else 0.0
+
+
+def _by_rank(values: list, inclusive: bool):
+    """x as the share of the scored files at or below it (inclusive), or strictly below it. Churn is
+    inclusive, so the most-changed file is 1 and no file is 0; fixes and complexity are strict, so a
+    file with none of either gets no lift, as under _by_max. An outlier is one more file, not a new
+    scale."""
+    ordered = sorted(values)
+    cut = bisect.bisect_right if inclusive else bisect.bisect_left
+    return lambda x: cut(ordered, x) / len(ordered)
+
+
+SCALINGS = {"max": _by_max, "rank": _by_rank}
+
+
+def factor_scores(rows: list, scaling: str) -> dict:
+    """file -> churn × (1 + recent fixes) × (1 + complexity) × (1.5 if single-owned), what the watch
+    list ranked by before 0.8, over the rows watch.risks returns. Kept here, not in watch.py, because
+    only this comparison still needs it."""
+    if not rows:
+        return {}
+    scale = SCALINGS[scaling]
+    churn = scale([r["revs"] for r in rows], True)
+    fixed = scale([r["recent_fixes"] for r in rows], False)
+    cplx = scale([r["complexity"] for r in rows], False)
+    return {r["file"]: churn(r["revs"]) * (1 + fixed(r["recent_fixes"])) * (1 + cplx(r["complexity"])) * (SOLO_WEIGHT if r["solo"] else 1)
+            for r in rows}
+
+
+def factor_product(rows: list, scaling: str) -> list:
+    """File names by factor_scores, best first; ties by revisions, then by name, as the list itself breaks them."""
+    scores = factor_scores(rows, scaling)
+    return [r["file"] for r in sorted(rows, key=lambda r: (-scores[r["file"]], -r["revs"], r["file"]))]
+
+
 def variants(report: dict) -> dict:
-    """variant -> file names, best first, every one drawn from the pool the watch list draws from."""
+    """variant -> file names, best first, every one drawn from the pool the watch list draws from. The
+    factor products it used to be ranked by are computed here, next to watch list's own ranking."""
     rows = watch.risks(report)
     out = {"watch list (hotspot)": [r["file"] for r in rows],
-           "factor product (max-scaled)": [r["file"] for r in watch.risks(report, scoring="max")],
-           "factor product (rank-scaled)": [r["file"] for r in watch.risks(report, scoring="rank")]}
+           "factor product (max-scaled)": factor_product(rows, "max"),
+           "factor product (rank-scaled)": factor_product(rows, "rank")}
     for name, key in watch.BASELINES.items():
         out[name] = watch.ranked_by(rows, key)
     out["recent fixes"] = watch.ranked_by(rows, lambda r: (r["recent_fixes"], r["revs"]))
