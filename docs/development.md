@@ -102,6 +102,10 @@ left behind, and `render.py` draws the report.
 with the recorded reference date and writes `docs/examples/<repo>.md`; for
 the featured one it prints the README's text block on stdout. Clones and
 outputs are reused on a rerun; delete the directory to start clean.
+`python -m gitmole.evaluate CLONE OUT_DIR` replays the watch list at six
+cut-off dates against the fixes that followed each, next to lists ranked by
+churn, size and their product; the results are in
+[validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md).
 
 The change analysis (hotspots, coupling, ownership, age) is gitmole's own
 code, written after the ideas in Adam Tornhill's code-maat but sharing no

@@ -10,6 +10,7 @@ function in the file is named in the reasons but does not enter the score, since
 has no reader for shell, Terraform, Makefiles and the like."""
 from __future__ import annotations
 
+import bisect
 from collections import Counter, defaultdict
 
 try:
@@ -59,7 +60,27 @@ def _worst_function(report: dict) -> dict:
     return worst
 
 
-def risks(report: dict, min_revs: int = 2) -> list:
+def _by_max(values: list, inclusive: bool):
+    """x as a share of the largest value: the scaling the list has always had. One outlier moves everyone."""
+    top = max(values)
+    return lambda x: x / top if top else 0.0
+
+
+def _by_rank(values: list, inclusive: bool):
+    """x as the share of the scored files at or below it (inclusive), or strictly below it. Churn is
+    inclusive, so the most-changed file is 1 and no file is 0; fixes and complexity are strict, so a
+    file with none of either gets no lift, as under _by_max. An outlier is one more file, not a new scale."""
+    ordered = sorted(values)
+    cut = bisect.bisect_right if inclusive else bisect.bisect_left
+    return lambda x: cut(ordered, x) / len(ordered)
+
+
+SCALINGS = {"max": _by_max, "rank": _by_rank}
+
+
+def risks(report: dict, min_revs: int = 2, scoring: str = "max") -> list:
+    if scoring not in SCALINGS:
+        raise ValueError(f"scoring must be one of {', '.join(SCALINGS)}, got {scoring!r}")
     owners = _owners(report)
     companions = _companions(report)
     worst = _worst_function(report)
@@ -84,14 +105,14 @@ def risks(report: dict, min_revs: int = 2) -> list:
     if not rows:
         return []
 
-    max_revs = max(r["revs"] for r in rows)
-    max_fix = max(r["recent_fixes"] for r in rows)
-    max_cplx = max(r["complexity"] for r in rows)
+    scale = SCALINGS[scoring]
+    churn = scale([r["revs"] for r in rows], True)
+    fixed = scale([r["recent_fixes"] for r in rows], False)
+    cplx = scale([r["complexity"] for r in rows], False)
     for r in rows:
         solo = r["authors"] == 1 or r["owner_share"] >= SOLO_SHARE
         r["solo"] = solo
-        r["score"] = (r["revs"] / max_revs) * (1 + (r["recent_fixes"] / max_fix if max_fix else 0)) \
-            * (1 + (r["complexity"] / max_cplx if max_cplx else 0)) * (SOLO_WEIGHT if solo else 1)
+        r["score"] = churn(r["revs"]) * (1 + fixed(r["recent_fixes"])) * (1 + cplx(r["complexity"])) * (SOLO_WEIGHT if solo else 1)
         r["reasons"] = _reasons(r)
     rows.sort(key=lambda r: (-r["score"], -r["revs"], r["file"]))
     return rows

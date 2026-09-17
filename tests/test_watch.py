@@ -115,6 +115,28 @@ class Risks(unittest.TestCase):
         self.assertGreater(by["ops/deploy.sh"]["score"], by["core/util.py"]["score"])
 
 
+    def test_rank_scaling_keeps_the_order_of_the_synthetic_repo(self):
+        self.assertEqual([r["file"] for r in watch.risks(report(), scoring="rank")], ["core/parser.py", "web/index.html", "core/util.py"])
+
+    def test_under_rank_scaling_an_outlier_does_not_rescale_the_other_files(self):
+        def scores(outlier_revs, scoring):
+            r = report()
+            r["size"]["files"]["core/big.py"] = {"code": 10, "complexity": 0}
+            r["revisions"].append({"entity": "core/big.py", "n-revs": outlier_revs})
+            return {x["file"]: x["score"] for x in watch.risks(r, scoring=scoring)}
+        self.assertEqual(scores(100, "rank")["core/util.py"], scores(10000, "rank")["core/util.py"])
+        self.assertNotEqual(scores(100, "max")["core/util.py"], scores(10000, "max")["core/util.py"], "what the rank scaling is for")
+
+    def test_a_file_never_fixed_gets_no_lift_from_fixes_under_either_scaling(self):
+        for scoring in ("max", "rank"):
+            by = {r["file"]: r for r in watch.risks(report(), scoring=scoring)}
+            self.assertEqual(by["web/index.html"]["score"], 1.0, f"{scoring}: most changed, no fixes, no complexity, shared")
+
+    def test_an_unknown_scaling_is_refused(self):
+        with self.assertRaises(ValueError):
+            watch.risks(report(), scoring="median")
+
+
 class WhyEmpty(unittest.TestCase):
     def test_says_what_kept_the_list_empty(self):
         self.assertEqual(watch.why_empty(report(revisions=[])), "nothing changed more than once")
