@@ -809,6 +809,13 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
 
 
+def excerpt(report: dict, findings: list, console: Console, full: bool = False) -> None:
+    """The top of the report on its own: header, findings and the watch list. What a screenshot shows."""
+    console.print(header(report, findings))
+    console.print(findings_panel(findings, report))
+    print_section(console, watch_section(report, full=full, width=console.width))
+
+
 # --- markdown / json -------------------------------------------------------
 
 def _md_cell(cell: str) -> str:

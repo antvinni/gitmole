@@ -1155,5 +1155,32 @@ class ChangeRisk(unittest.TestCase):
         self.assertNotIn("change_risk", render.to_json(sample_report(), []))
 
 
+class Excerpt(unittest.TestCase):
+    def _text(self, findings=()):
+        console = Console(file=io.StringIO(), width=100, record=True, force_terminal=False, color_system=None)
+        render.excerpt(sample_report(), list(findings), console)
+        return console.export_text()
+
+    def test_prints_header_findings_and_watch_list(self):
+        text = self._text()
+        self.assertIn("demo", text)                     # header panel title
+        self.assertIn("363 commits", text)
+        self.assertIn("Findings", text)
+        self.assertIn("Watch list", text)
+        self.assertIn("static/apps-metadata.json", text)   # the top watch row: 128 revisions
+
+    def test_prints_nothing_else(self):
+        text = self._text()
+        for heading in ("Hotspots", "People", "Knowledge map", "Timeline", "Change coupling", "Repo health", "Full results"):
+            self.assertNotIn(heading, text)
+
+    def test_findings_are_listed(self):
+        found = [{"severity": "warning", "title": "Bus factor of one", "detail": "Ann wrote 80% of the code",
+                  "advice": "Pair someone with Ann."}]
+        text = self._text(found)
+        self.assertIn("Bus factor of one", text)
+        self.assertIn("Findings (1)", text)
+
+
 if __name__ == "__main__":
     unittest.main()
