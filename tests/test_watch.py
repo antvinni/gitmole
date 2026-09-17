@@ -53,6 +53,14 @@ class Risks(unittest.TestCase):
         self.assertNotIn("core/gone.py", files, "no longer in the tree")
         self.assertNotIn("core/once.py", files, "changed once")
 
+    def test_release_plumbing_is_not_on_the_list(self):
+        r = report()
+        r["size"]["files"].update({"setup.py": {"code": 6, "complexity": 0}, "version.go": {"code": 2, "complexity": 0}, "Makefile": {"code": 21, "complexity": 0}})
+        r["revisions"] = [{"entity": "setup.py", "n-revs": 184}, {"entity": "version.go", "n-revs": 29}, {"entity": "Makefile", "n-revs": 131},
+                          {"entity": "core/parser.py", "n-revs": 40}]
+        files = sorted(x["file"] for x in watch.risks(r))
+        self.assertEqual(files, ["Makefile", "core/parser.py"], "a version file or a manifest changes on every release, not where the next bug lands")
+
     def test_test_companions_and_weak_pairs_are_not_reasons(self):
         top = watch.risks(report())[0]
         coupling = [r for r in top["reasons"] if r.startswith("changes with")][0]

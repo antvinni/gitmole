@@ -334,6 +334,17 @@ class Report(unittest.TestCase):
         full = rendered(r, [], width=200, full=True)
         self.assertIn("validate10", full)
 
+    def test_default_hotspots_hide_release_plumbing_and_say_so(self):
+        r = sample_report()
+        r["size"]["files"].update({"setup.py": {"code": 6, "complexity": 0}, "version.go": {"code": 2, "complexity": 0}})
+        r["revisions"] += [{"entity": "setup.py", "n-revs": 184}, {"entity": "version.go", "n-revs": 29}]
+        hot = rendered(r, [], width=200)
+        hot = hot[hot.index("◆ Hotspots"):hot.index("Change coupling")]
+        self.assertNotIn("setup.py", hot)
+        self.assertIn("2 release files hidden; --full shows them", hot)
+        full = rendered(r, [], width=200, full=True)
+        self.assertIn("setup.py", full[full.index("◆ Hotspots"):])
+
     def test_default_coupling_hides_release_plumbing_pairs_and_says_so(self):
         r = sample_report()
         for f in ("lib/version.rb", "contrib/version.rb", "Gemfile", "Gemfile.lock"):

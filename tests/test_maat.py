@@ -48,6 +48,18 @@ class ParseLog(unittest.TestCase):
         self.assertEqual(commits[0]["files"], [("src/a.py", 3, 1), ("src/b.py", 2, 0)])
         self.assertEqual(commits[1]["files"][2], ("img/logo.png", 0, 0))
 
+    def test_renames_are_followed_to_the_new_path_and_a_pure_move_adds_no_lines(self):
+        # `git log -M --numstat` spells a rename three ways; the mover is not the owner of what moved
+        log = ("--d63e94f5--2023-08-13T10:00:00+00:00--Nate--Move to src layout\n"
+               "0\t0\t{requests => src/requests}/__init__.py\n"
+               "4\t7\tSECURITY.md => .github/SECURITY.md\n"
+               "0\t0\tCODE_OF_CONDUCT.md => .github/CODE_OF_CONDUCT.md\n"
+               "2\t0\tsrc/requests/{models.py => models_v2.py}\n"
+               "1\t1\tMakefile\n")
+        commits = maat.parse_log(log, types=None)
+        self.assertEqual(commits[0]["files"], [("src/requests/__init__.py", 0, 0), (".github/SECURITY.md", 4, 7),
+                                                (".github/CODE_OF_CONDUCT.md", 0, 0), ("src/requests/models_v2.py", 2, 0), ("Makefile", 1, 1)])
+
     def test_subjects_with_exotic_line_break_characters_do_not_split_the_log(self):
         # U+2028 and form feed are line breaks to str.splitlines but not to git
         text = "--x--2026-05-04T10:00:00+00:00--Ann--Fix\u2028broken\x0cthing\n1\t0\tf.py\n"

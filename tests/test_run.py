@@ -192,6 +192,8 @@ class Plan(unittest.TestCase):
         self.assertEqual(by["scc"]["stdout"], "/o/size.json")
         self.assertIn("--by-file", by["scc"]["argv"])
         self.assertIn("--use-mailmap", by["git-log"]["argv"])
+        self.assertIn("-M", by["git-log"]["argv"], "renames are followed so a move to src/ credits nobody with the moved lines")
+        self.assertNotIn("--no-renames", by["git-log"]["argv"])
         self.assertEqual(by["git-log"]["argv"][:4], ["git", "-c", "core.quotePath=false", "log"], "non-ASCII paths must not be octal-escaped and quoted")
 
     def test_function_metrics_step_is_optional_and_runs_the_bundled_script(self):
