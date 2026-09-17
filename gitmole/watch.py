@@ -1,13 +1,16 @@
-"""The watch list: where the next bug is most likely, from every per-file signal gitmole has.
+"""The watch list: the files with the most going against them, from every per-file signal gitmole has.
 
 Each source file that is still in the tree and changed more than once gets a score of
-churn × (1 + recent fixes) × (1 + complexity) × (1.5 if single-owned), churn, fixes and
-complexity each scaled to the worst file in the repo, plus a list of reasons in plain
-words. Churn is the base because a file nobody changes is not where the next bug lands;
-ownership is the weakest of the four predictors, so it weighs the least. Complexity is
-scc's per-file total, which exists for every file on one scale; lizard's most complex
-function in the file is named in the reasons but does not enter the score, since lizard
-has no reader for shell, Terraform, Makefiles and the like."""
+churn × (1 + recent fixes) × (1 + complexity) × (1.5 if single-owned), plus a list of reasons in
+plain words. Churn, fixes and complexity each enter as the file's rank among the scored files: the
+share of them that changed no more often than it did, and the share with strictly fewer recent
+fixes, strictly less complexity. A rank does not move when one outlier does, so a score means the
+same in a run with a 10,000-revision changelog as in one without. Churn is the base because a file
+nobody changes is rarely the one fixed next; ownership is the weakest of the four signals, so it
+weighs the least. How the list does against churn alone is measured in docs/validation.md.
+Complexity is scc's per-file total, which exists for every file on one scale; lizard's most complex
+function in the file is named in the reasons but does not enter the score, since lizard has no
+reader for shell, Terraform, Makefiles and the like."""
 from __future__ import annotations
 
 import bisect
@@ -61,7 +64,8 @@ def _worst_function(report: dict) -> dict:
 
 
 def _by_max(values: list, inclusive: bool):
-    """x as a share of the largest value: the scaling the list has always had. One outlier moves everyone."""
+    """x as a share of the largest value: the scaling the list has always had. One outlier moves everyone;
+    inclusive is ignored here, since a share of the largest value has no edge to choose."""
     top = max(values)
     return lambda x: x / top if top else 0.0
 
@@ -78,7 +82,9 @@ def _by_rank(values: list, inclusive: bool):
 SCALINGS = {"max": _by_max, "rank": _by_rank}
 
 
-def risks(report: dict, min_revs: int = 2, scoring: str = "max") -> list:
+def risks(report: dict, min_revs: int = 2, scoring: str = "rank") -> list:
+    """The watch list: every scored file with its reasons, worst first. `scoring` selects the scaling
+    behind each factor, "rank" (the default) or "max", kept so gitmole.evaluate can compare the two."""
     if scoring not in SCALINGS:
         raise ValueError(f"scoring must be one of {', '.join(SCALINGS)}, got {scoring!r}")
     owners = _owners(report)

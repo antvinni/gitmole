@@ -136,6 +136,10 @@ class Risks(unittest.TestCase):
         with self.assertRaises(ValueError):
             watch.risks(report(), scoring="median")
 
+    def test_the_list_ranks_by_rank_scaled_factors_by_default(self):
+        r = report()
+        self.assertEqual([x["score"] for x in watch.risks(r)], [x["score"] for x in watch.risks(r, scoring="rank")])
+
 
 class WhyEmpty(unittest.TestCase):
     def test_says_what_kept_the_list_empty(self):

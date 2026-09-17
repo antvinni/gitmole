@@ -109,9 +109,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
 3. **Watch list**: the five files where the next bug is most likely, with
    the reasons in words. Every source file still in the tree that changed
    more than once is scored churn × (1 + recent fixes) × (1 + complexity),
-   times 1.5 when one person wrote 90% or more of it, each factor scaled to
-   the worst file in the repo. Churn is the base because a file nobody
-   changes is not where the next bug lands; complexity is scc's per-file
+   times 1.5 when one person wrote 90% or more of it. Each factor is the
+   file's rank among the scored files (the share that changed no more often;
+   the share with strictly fewer recent fixes, strictly less complexity), so
+   one outlier does not rescale every other file and a `--risk` total means
+   the same from run to run. Churn is the base because a file nobody
+   changes is rarely the one fixed next; complexity is scc's per-file
    total, one scale for every file, while the most complex function lizard
    found is named in the reasons (a nameless one by its line; a span marked
    `?` in the complex functions table is passed over). The reasons name the
