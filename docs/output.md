@@ -176,15 +176,16 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Size, hotspots, coupling, ownership, code age and the watch list analyse
    source files: a built-in list of code extensions plus names like Makefile
    and Dockerfile (`--file-types all` counts everything). In the default
-   report, the hotspots and complex functions tables hide test files and
-   generated files (a file whose first lines say it was generated or must
-   not be edited, that `.gitattributes` marks `linguist-generated`, or that
-   is a bundle, a minified file, a source map or anything under `dist/`
-   by name, the
-   run records them in `meta.json`; and an amalgamation, a file every one
-   of whose functions also appears identically in other files, found from
-   the function metrics), the complex functions table also
-   hides vendored code (`vendor/`, `vendored/`, `node_modules/`,
+   report, the complex functions table hides test files and generated
+   files (a file whose first lines say it was generated or must not be
+   edited, that `.gitattributes` marks `linguist-generated`, or that is
+   a bundle, a minified file, a source map or anything under `dist/` by
+   name, the run records them in `meta.json`; and an amalgamation, a
+   file every one of whose functions also appears identically in other
+   files, found from the function metrics); the hotspots table, drawn
+   in the Markdown export rather than the default report, hides the
+   same test files and generated files. The complex functions table
+   also hides vendored code (`vendor/`, `vendored/`, `node_modules/`,
    `third_party/`, `external/`, `deps/`, `.yarn/`, a `packages/` inside a package
    such as `requests/packages/`, and any directory whose own `LICENSE` or
    `COPYING` names none of the copyright holders the root licence names,
