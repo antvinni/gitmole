@@ -40,8 +40,9 @@ RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
 PATH = {"overflow": "fold", "no_wrap": False}
 
-# rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own.
-CAPS = {"People": 6, "Hotspots": 8, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
+# rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own. Hotspots has
+# no entry: it is `--full`/Markdown only now, so its row count is never decided by this table.
+CAPS = {"People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
 TREND_TOP = 10   # the trend step's own --top default: only those files have samples
 WATCH_CAP, WATCH_FULL = 5, 15   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
@@ -413,7 +414,9 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
 
 
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
-    """Change frequency times size, Tornhill-style. Files no longer in the tree sort last."""
+    """Change frequency times size, Tornhill-style. Files no longer in the tree sort last. Drawn
+    under `--full` and in the Markdown export only; the default terminal report leaves it to the
+    watch list, which ranks the same files."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
@@ -443,10 +446,9 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
                ("trend", RIGHT)]
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
-        rows = _shorten(rows, width, columns)
     note = None if rows else _empty_note(None, hidden_note, "no source hotspots")
     notes = [c for c in (_more(len(scored), limit), None if note else hidden_note) if c]
-    if series and full is not False:   # the tight report keeps its captions short
+    if series:
         notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
     return _section(title, columns, rows, note=note, caption="; ".join(notes) or None)
 
@@ -609,7 +611,8 @@ FULL_ONLY = {"size", "activity", "age", "hotspots"}
 
 def sections(report: dict, full: bool = True, width=None) -> list:
     """Every section as a dict with an `id` (the builder's name without _section). The default terminal
-    report (`full` False) leaves these out; `full` True and Markdown keep them."""
+    report (`full` False) leaves out the sections in FULL_ONLY (size, activity, code age and
+    hotspots); `full` True and Markdown keep them."""
     out = []
     for b in BUILDERS:
         sid = b.__name__[:-len("_section")]

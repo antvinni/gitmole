@@ -162,6 +162,14 @@ class Risks(unittest.TestCase):
         by = {x["file"]: x for x in watch.risks(report())}
         self.assertIsNone(by["core/parser.py"]["trend"])
 
+    def test_the_floor_is_inclusive_at_exactly_25_percent(self):
+        def reasons(now):
+            r = report(trend={"samples": [], "files": {"core/parser.py": [["2025-09-01", 100, 300], ["2026-09-01", now, 800]]}})
+            r["meta"]["last_date"] = "2026-09-10"
+            return {x["file"]: x for x in watch.risks(r)}["core/parser.py"]["reasons"]
+        self.assertIn("complexity +25% in a year", reasons(125), "125 is a 25% rise over 100: right at the floor")
+        self.assertFalse([x for x in reasons(124) if "in a year" in x], "124 is a 24% rise over 100: just under the floor")
+
 
 class WhyEmpty(unittest.TestCase):
     def test_says_what_kept_the_list_empty(self):

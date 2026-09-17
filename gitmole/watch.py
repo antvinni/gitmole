@@ -20,10 +20,11 @@ from collections import Counter, defaultdict
 try:
     from . import filetypes, hotspots, textfmt, trend
 except ImportError:  # pragma: no cover - not run as a script, but keep the package pattern
+    # trend.py itself does `from . import ...`, which only works inside the package, so it has no
+    # standalone form to fall back to here; this arm is never exercised (see above).
     import filetypes
     import hotspots
     import textfmt
-    import trend
 
 CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function is not worth naming
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership
@@ -104,8 +105,9 @@ def risks(report: dict, min_revs: int = 2) -> list:
 
 
 def why_empty(report: dict, min_revs: int = 2) -> str:
-    """Why risks() came back empty, for the report's one-line note: the honest reason, since
-    "nothing changed" above a hotspots table full of revisions would be a lie."""
+    """Why risks() came back empty, for the report's one-line note: the honest reason, since files
+    can well have changed even though none of them scored, and a flat "nothing changed" would be
+    a lie about them."""
     churned = [h for h in hotspots.ranked(report) if h["revs"] >= min_revs]
     if not churned:
         return "nothing changed more than once"
