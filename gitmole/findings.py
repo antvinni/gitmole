@@ -216,9 +216,39 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
                f"Review {first['entity']} and {first['coupled']} first: a shared layout or a hidden dependency links them.")]
 
 
+def _months_apart(earlier: str, later: str) -> int:
+    """Whole months from one ISO date to another."""
+    y1, m1, d1 = (int(x) for x in earlier[:10].split("-"))
+    y2, m2, d2 = (int(x) for x in later[:10].split("-"))
+    return (y2 - y1) * 12 + (m2 - m1) - (1 if d2 < d1 else 0)
+
+
+def _dormant_months(report: dict) -> int:
+    """Months since the last commit, against the run's reference date (GITMOLE_NOW or today)."""
+    import datetime as _dt
+    last = report["meta"].get("last_date")
+    if not last:
+        return 0
+    now = report["meta"].get("now") or _dt.date.today().isoformat()
+    return max(0, _months_apart(last, now))
+
+
+def dormant(report: dict, months: int = 12) -> list:
+    """No commits for a year or more: everything else in the report describes a repository that has
+    stopped, which is the first thing to know about it."""
+    idle = _dormant_months(report)
+    if idle < months:
+        return []
+    return [_f("warning", "Dormant repository", f"No commits since {report['meta']['last_date']}, {idle} months ago.",
+               "The rest of the report describes a repository that has stopped; look for a successor or an archive notice before depending on it.")]
+
+
 def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
     """Files still in the tree that nobody has touched. The age table covers every path in the
-    history, so paths that were deleted are left out here; they are not dead code, they are gone."""
+    history, so paths that were deleted are left out here; they are not dead code, they are gone.
+    In a dormant repository every file is untouched because nothing is; the dormancy finding says so."""
+    if _dormant_months(report) >= months:
+        return []
     age = report.get("age") or []
     tree = _tree(report)
     if tree:
@@ -467,8 +497,8 @@ def duplication(report: dict, min_lines: int = 30) -> list:
                f"Extract the {first['lines']}-line block {where} first.")]
 
 
-RULES = [secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, reverts, brain_methods, complexity_growth,
-         tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss]
+RULES = [dormant, secrets_found, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, reverts, brain_methods,
+         complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss]
 
 
 def evaluate(report: dict) -> list:

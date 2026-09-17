@@ -26,6 +26,14 @@ class Merge(unittest.TestCase):
         merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
         self.assertEqual(merged, {"KaKa": 123, "namusyaka": 188, "Li Yu": 8})
 
+    def test_a_handle_that_is_one_distinctive_word_of_a_fuller_name_is_the_same_person(self):
+        ids = [{"name": "Junegunn Choi", "email": "junegunn.c@a.com", "commits": 2924}, {"name": "junegunn", "email": "junegunn@b.com", "commits": 123},
+               {"name": "Sam Altman", "email": "sam@a.com", "commits": 5}, {"name": "sam", "email": "sam@b.com", "commits": 2},
+               {"name": "Kevin Brown", "email": "kb@a.com", "commits": 76}, {"name": "Kevin", "email": "k@b.com", "commits": 21}]
+        merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
+        self.assertEqual(merged, {"Junegunn Choi": 3047, "Sam Altman": 5, "sam": 2, "Kevin Brown": 76, "Kevin": 21},
+                         "a short or common first name is not distinctive enough")
+
     def test_a_bare_common_first_name_is_not_enough(self):
         ids = [{"name": "Jean", "email": "jean@a.com", "commits": 24}, {"name": "Jean", "email": "jean@b.com", "commits": 18},
                {"name": "Alex", "email": "alex@a.com", "commits": 3}, {"name": "alex", "email": "alex@b.com", "commits": 2}]
@@ -76,7 +84,8 @@ class IsBot(unittest.TestCase):
         for name, email in [("renovate[bot]", "29139614+renovate[bot]@users.noreply.github.com"),
                             ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"),
                             ("dependabot[bot]", "support@github.com"), ("Dependabot", "dependabot@example.com"),
-                            ("Renovate Bot", "bot@renovateapp.com"), ("GitHub Actions", "actions@github.com")]:
+                            ("Renovate Bot", "bot@renovateapp.com"), ("GitHub Actions", "actions@github.com"),
+                            ("Copilot", "198982749+Copilot@users.noreply.github.com"), ("Cursor Agent", "cursoragent@cursor.com")]:
             self.assertTrue(identity.is_bot(name, email), (name, email))
 
     def test_people_are_not_bots(self):
