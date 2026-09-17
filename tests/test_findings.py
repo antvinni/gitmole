@@ -305,6 +305,29 @@ class ReleasePlumbing(unittest.TestCase):
         self.assertNotIn("package.json", f[0]["detail"])
 
 
+class Dormant(unittest.TestCase):
+    def test_a_year_without_commits_is_a_warning_that_dates_the_last_one(self):
+        r = report()
+        r["meta"].update({"last_date": "2025-06-14", "now": "2026-09-17"})
+        f = findings.dormant(r)
+        self.assertEqual(f[0]["severity"], "warning")
+        self.assertEqual(f[0]["title"], "Dormant repository")
+        self.assertIn("No commits since 2025-06-14, 15 months ago.", f[0]["detail"])
+        self.assertIn("stopped", f[0]["advice"])
+
+    def test_a_recent_commit_is_not_dormant(self):
+        r = report()
+        r["meta"].update({"last_date": "2026-06-14", "now": "2026-09-17"})
+        self.assertEqual(findings.dormant(r), [])
+        self.assertEqual(findings.dormant(report()), [], "no dates, no finding")
+
+    def test_stale_files_are_not_reported_for_a_dormant_repository(self):
+        age = [{"entity": f"f{i}", "age-months": 15} for i in range(10)]
+        r = report(age=age)
+        r["meta"].update({"last_date": "2025-06-14", "now": "2026-09-17"})
+        self.assertEqual(findings.stale_files(r), [], "every file is untouched because nothing is; the dormancy finding says so")
+
+
 class StaleFiles(unittest.TestCase):
     def test_info_when_a_third_untouched_for_a_year(self):
         age = [{"entity": f"f{i}", "age-months": 12} for i in range(4)] + [{"entity": "g", "age-months": 0} for _ in range(6)]

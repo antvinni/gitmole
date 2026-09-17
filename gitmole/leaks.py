@@ -40,6 +40,10 @@ _VERSION = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 _MARKER = re.compile(r"^(<[^<>]+>|x+|(?:x{2,}[-_ ]?)+|your[-_][\w-]+|change[-_]?me|replace[-_]?me)$", re.I)
 _EXAMPLE_WORDS = {"password", "passwd", "pass", "secret", "hello", "hey", "test", "example", "sample", "dummy", "foo", "bar",
                   "baz", "admin", "root", "user", "123456", "12345678", "123456789", "abc123", "qwerty", "letmein", "welcome"}
+# A whole value that refers to an environment variable or a template field is where the secret will be
+# read from, not the secret: `@env:AC_PASSWORD`, `${DB_PASSWORD}`, `{{.Env.X}}`, `process.env.X`, `<%= ENV['X'] %>`.
+_ENV_REF = re.compile(r"^(@env:\w+|\$\{[^{}]+\}|\$[A-Za-z_]\w*|\$\([^()]+\)|%[A-Za-z_]\w*%|\{\{.*\}\}|<%=?.*%>"
+                      r"|process\.env\.\w+|os\.environ(\[[^\]]+\]|\.get\([^()]*\))|ENV\[[^\]]+\])$", re.S)
 _KEY_BLOCK = re.compile(r"-----BEGIN [A-Z ]*KEY-----(.*?)-----END [A-Z ]*KEY-----", re.S)
 _KEY_MATERIAL = 64   # a real body is hundreds of base64 characters; a template has dots or a few x's
 
@@ -57,7 +61,8 @@ def digest(value: str, key: bytes) -> str:
 
 def is_placeholder(value: str) -> bool:
     value = (value or "").strip()
-    if _VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value) or value.lower() in _EXAMPLE_WORDS:
+    if (_VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value) or value.lower() in _EXAMPLE_WORDS
+            or _ENV_REF.match(value)):
         return True
     m = _KEY_BLOCK.search(value)
     if m:

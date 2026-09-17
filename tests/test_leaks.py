@@ -66,6 +66,14 @@ class Placeholder(unittest.TestCase):
         for value in ["hello123", "secret-9f8a7b6c5d4e", "s3cr3t!Passw0rd", "foobarbaz2024"]:
             self.assertFalse(leaks.is_placeholder(value), "a word inside other material is not a placeholder: " + value)
 
+    def test_references_to_an_environment_variable_are_placeholders(self):
+        # fzf's notarisation config: `password = "@env:AC_PASSWORD"`; goreleaser: `{{.Env.MACOS_SIGN_PASSWORD}}`
+        for value in ["@env:AC_PASSWORD", "{{.Env.MACOS_SIGN_PASSWORD}}", "${DB_PASSWORD}", "$DB_PASSWORD", "$(cat ~/.secret)", "%APPDATA_KEY%",
+                      "{{ secrets.API_TOKEN }}", "<%= ENV['KEY'] %>", "process.env.API_KEY", "os.environ['API_KEY']", "os.environ.get('K')", "ENV['SECRET']"]:
+            self.assertTrue(leaks.is_placeholder(value), value)
+        for value in ["p@ssw0rd!", "AKIA" + "X" * 16, "env-9f8a7b6c5d4e3f2a", "${not closed", "hello$world"]:
+            self.assertFalse(leaks.is_placeholder(value), value)
+
     def test_anything_else_is_taken_seriously(self):
         # built at runtime: a literal in these shapes would trip secret scanners on this very file
         key_id, long_key = "AKIA" + "X" * 16, "6L" + "x" * 38

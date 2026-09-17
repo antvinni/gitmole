@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 
 
-_BOT_WORDS = ("dependabot", "renovate", "github-actions", "github actions")
+_BOT_WORDS = ("dependabot", "renovate", "github-actions", "github actions", "copilot", "cursor agent", "cursor-agent", "cursoragent")
 
 
 def is_bot(name: str, email: str = "") -> bool:
@@ -33,13 +33,27 @@ def _plain(name: str) -> str:
     return " ".join(name.lower().split())
 
 
+def _distinctive(token: str) -> bool:
+    """A word that names one person on its own: five letters or more and not a common first name."""
+    return len(token) >= 5 and token not in _COMMON_FIRST_NAMES
+
+
 def same_person(a: dict, b: dict) -> bool:
-    """Same email, two shared name tokens, or the same name spelled identically (a handle such as
-    KaKa under three emails), unless that name is a bare common first name."""
-    if a["email"].lower() == b["email"].lower() or len(_tokens(a["name"]) & _tokens(b["name"])) >= 2:
+    """Same email; two shared name tokens; the same name spelled identically (a handle such as KaKa
+    under three emails), unless that name is a bare common first name; or a one-word handle that is
+    one distinctive word of the other's fuller name (junegunn and Junegunn Choi)."""
+    if a["email"].lower() == b["email"].lower():
         return True
-    name = _plain(a["name"])
-    return bool(name) and name == _plain(b["name"]) and name not in _COMMON_FIRST_NAMES
+    ta, tb = _tokens(a["name"]), _tokens(b["name"])
+    if len(ta & tb) >= 2:
+        return True
+    na, nb = _plain(a["name"]), _plain(b["name"])
+    if na and na == nb and na not in _COMMON_FIRST_NAMES:
+        return True
+    for handle, full in ((na, tb), (nb, ta)):
+        if " " not in handle and handle in full and len(full) >= 2 and _distinctive(handle):
+            return True
+    return False
 
 
 def merge(identities: list) -> list:

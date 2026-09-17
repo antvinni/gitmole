@@ -12,7 +12,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
 2. **Findings**: anything the heuristics flagged, worst first. Findings of
    the same kind are grouped into one entry with a list, and every finding
    ends with a next step that names the file, area or person to start with,
-   on its own line under the facts. Currently:
+   on its own line under the facts. Currently: a dormant repository (no
+   commits for twelve months or more, measured against the run's reference
+   date, which also silences the untouched-files note),
    secrets in history (see below), an unconfigured git identity
    (example.com and the like; the advice offers the `.mailmap` line that
    would merge it into the busiest real identity), one author owning most
@@ -50,11 +52,13 @@ How to read each part of the terminal report, and what each run writes to disk; 
    code (upstream's own specimens), or only in documentation (`.md`,
    `.rst`, `.txt`, `.adoc`, or anything under `docs/`), where it is
    usually a template, is a warning.
-   Five shapes cannot be a live secret and are left out, counted on the
+   Six shapes cannot be a live secret and are left out, counted on the
    footer line: version strings, tokens shortened with "...", whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
    or `changeme`, a whole value that is one of the words every example
-   uses (`hello`, `secret`, `password`, `123456`), and a `BEGIN ... KEY`
+   uses (`hello`, `secret`, `password`, `123456`), a whole value that
+   refers to an environment variable or a template field (`@env:X`,
+   `${X}`, `{{.Env.X}}`, `process.env.X`), and a `BEGIN ... KEY`
    block whose body holds no key material, like the dotted sample in
    Google's service-account docs. Every
    rule is about the whole value; nothing is skipped by prefix. To silence a
@@ -97,8 +101,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    changed more than once, would score. Repositories with under a year
    of history say `too little history to backtest`.
 4. **Tables**: people (identities merged on top of `.mailmap` when they
-   share an email, two name words, or the same name spelled identically
-   unless it is a bare common first name; the caption says whose; bots such as renovate,
+   share an email, two name words, the same name spelled identically
+   unless it is a bare common first name, or a one-word handle that is a
+   distinctive word of the fuller name; the caption says whose; bots and
+   coding agents such as renovate, Copilot, Cursor Agent,
    dependabot and GitHub Actions are counted apart in the caption and kept
    out of the timeline), a knowledge map (lines added per area of the tree
    and who wrote them), a timeline of commits per author over the last
