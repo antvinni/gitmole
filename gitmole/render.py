@@ -502,7 +502,16 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     """Ownership by area of the tree: who wrote most of each directory, gone owners marked."""
     months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
     gone = {g["name"] for g in loss.gone(report, months)}
-    areas = loss.areas(report.get("ownership") or [], gone)   # every area the map showed before, tests included
+    rows_all = report.get("ownership") or []   # every area the map showed before, tests included
+    areas = loss.areas(rows_all, gone)
+    hidden_note = None
+    tree = (report.get("size") or {}).get("files") or {}
+    if full is not True and tree:
+        # a directory the history knows but HEAD does not is a layout that no longer exists; the rows are
+        # filtered before the areas are built so a vanished layout cannot hide that one directory now dominates
+        areas = [a for a in loss.areas(knowledge.present_rows(rows_all, tree), gone) if knowledge.in_tree(a["area"], tree)]
+        hidden = len({knowledge.top_area(r["entity"]) for r in rows_all if not knowledge.in_tree(knowledge.top_area(r["entity"]), tree)})
+        hidden_note = f"{hidden} historical area{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None
     limit = _limit("Knowledge map", full)
     rows = []
     for a in areas[:limit]:
@@ -512,7 +521,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("second", {})]
     if full is not True:
         columns, rows = _keep(columns, rows, ["area", "lines added", "main owner", "second"])
-    notes = [c for c in (_more(len(areas), limit),) if c]
+    notes = [c for c in (_more(len(areas), limit), hidden_note) if c]
     if gone:
         notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
                      + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))

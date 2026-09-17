@@ -49,11 +49,13 @@ How to read each part of the terminal report, and what each run writes to disk; 
    (a language sample, a scanner's own rule definitions), or only in
    documentation (`.md`, `.rst`, `.txt`, `.adoc`, or anything under
    `docs/`), where it is usually a template, is a warning.
-   Four shapes cannot be a live secret and are left out, counted on the
+   Five shapes cannot be a live secret and are left out, counted on the
    footer line: version strings, tokens shortened with "...", whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
-   or `changeme`, and a `BEGIN ... KEY` block whose body holds no key
-   material, like the dotted sample in Google's service-account docs. Every
+   or `changeme`, a whole value that is one of the words every example
+   uses (`hello`, `secret`, `password`, `123456`), and a `BEGIN ... KEY`
+   block whose body holds no key material, like the dotted sample in
+   Google's service-account docs. Every
    rule is about the whole value; nothing is skipped by prefix. To silence a
    false positive for good, copy its fingerprint from `secrets.json` into a
    `.betterleaksignore` at the repository root; betterleaks reads it on the
@@ -172,6 +174,9 @@ directory for a remote target:
 4. People and the surviving-code table tell you whether knowledge is
    concentrated in one or two people; the knowledge map says where. Areas
    are top-level directories, or the subdirectories of a lone top-level one
-   such as `src/`.
+   such as `src/`. A directory the history knows but the tree no longer has
+   (the layout before a move to `src/` or `crates/`) is hidden from the map
+   with a count, and left out of the islands, bus-factor and knowledge-loss
+   findings; `--full` shows it.
 5. Repo health and secrets are pass or fail checks. Read them only if they
    flag something.

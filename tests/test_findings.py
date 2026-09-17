@@ -145,6 +145,14 @@ class BusFactor(unittest.TestCase):
         self.assertEqual(findings.bus_factor(r)[0]["advice"], "Pair someone with Ann on core/ first; it is 95% theirs since 2025-01-01.",
                          "ownership is windowed while the headline share is not")
 
+    def test_areas_no_longer_in_the_tree_are_not_named_in_the_advice(self):
+        own = [{"entity": "flask/a.py", "author": "Ann", "added": 5000, "deleted": 0},   # the pre-src/ layout
+               {"entity": "src/a.py", "author": "Ann", "added": 900, "deleted": 0},
+               {"entity": "src/b.py", "author": "Bob", "added": 50, "deleted": 0}]
+        tree = {"files": {"src/a.py": {"code": 1, "complexity": 0}, "src/b.py": {"code": 1, "complexity": 0}}}
+        f = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}, ownership=own, size=tree))
+        self.assertEqual(f[0]["advice"], "Pair someone with Ann on src/ first; it is 95% theirs.")
+
     def test_vendored_trees_are_not_named_in_the_advice(self):
         own = [{"entity": "vendor/github.com/x/a.go", "author": "Ann", "added": 500000, "deleted": 0},
                {"entity": "core/a.py", "author": "Ann", "added": 900, "deleted": 0},
@@ -438,6 +446,19 @@ class KnowledgeIslands(unittest.TestCase):
         self.assertEqual(f[0]["advice"], "Pair someone with Bob on core/ first; it is the largest at 300 lines.")
         self.assertNotIn("tests/", f[0]["detail"])
 
+    def test_areas_no_longer_in_the_tree_are_not_islands(self):
+        own = [{"entity": "src/a.rs", "author": "Ann", "added": 30000, "deleted": 0},   # moved to crates/ years ago
+               {"entity": "grep-printer/a.rs", "author": "Ann", "added": 20000, "deleted": 0},
+               {"entity": "crates/core/a.rs", "author": "Bob", "added": 300, "deleted": 0}]
+        tree = {"files": {"crates/core/a.rs": {"code": 300, "complexity": 1}}}
+        f = findings.knowledge_islands(report(ownership=own, size=tree))
+        self.assertEqual(f[0]["advice"], "Pair someone with Bob on crates/core/ first; it is the largest at 300 lines.",
+                         "with the vanished directories gone, crates/ holds everything and the map descends into it")
+        self.assertNotIn("src/", f[0]["detail"])
+        self.assertIn("100% of all lines added", f[0]["detail"], "lines in vanished directories are not in the denominator")
+        f = findings.knowledge_islands(report(ownership=own))
+        self.assertIn("src/", f[0]["detail"], "without a tree listing every area counts")
+
     def test_vendored_trees_are_not_islands(self):
         own = [{"entity": "vendor/github.com/x/a.go", "author": "Ann", "added": 500000, "deleted": 0},
                {"entity": "web/node_modules/y/b.js", "author": "Ann", "added": 90000, "deleted": 0},
@@ -510,6 +531,18 @@ class KnowledgeLoss(unittest.TestCase):
         self.assertIn("People with no commits since 2024-11-09 wrote 40% of the code that survives today: Bob (40%)", f[0]["detail"])
         self.assertIn("Areas mostly theirs: old/ (100%), docs/ (100%)", f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Pair someone on old/ first; nobody who wrote it is around to ask.")
+
+    def test_areas_no_longer_in_the_tree_are_not_named(self):
+        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
+                         age=[{"entity": "flask/a.py", "age-months": 2}, {"entity": "src/x.py", "age-months": 2}],
+                         ownership=[{"entity": "flask/a.py", "author": "Bob", "added": 8000, "deleted": 0},   # the old layout, all Bob's
+                                    {"entity": "src/x.py", "author": "Bob", "added": 300, "deleted": 0},
+                                    {"entity": "app/b.py", "author": "Ann", "added": 900, "deleted": 0}],
+                         size={"files": {"src/x.py": {"code": 1, "complexity": 0}, "app/b.py": {"code": 1, "complexity": 0}}})
+        f = findings.knowledge_loss(r)
+        self.assertIn("Areas mostly theirs: src/ (100%).", f[0]["detail"])
+        self.assertNotIn("flask/", f[0]["detail"])
+        self.assertEqual(f[0]["advice"], "Pair someone on src/ first; nobody who wrote it is around to ask.")
 
     def test_a_live_area_is_preferred_over_a_bigger_idle_one(self):
         r = self._report(theseus_authors={"Ann": 60, "Bob": 40},

@@ -45,8 +45,24 @@ class Clusters(unittest.TestCase):
         self.assertEqual([g["dir"] for g in groups], ["lib/", "(root files)"])
         self.assertEqual(rest, [])
 
-    def test_a_partial_clique_counts_the_files_it_touches(self):
-        pairs = [pair("d/a", "d/b"), pair("d/b", "d/c"), pair("d/c", "d/e")]   # 4 files, 3 pairs, not every pair present
-        [g], rest = coupling.clusters(pairs)
-        self.assertEqual((g["files"], g["pairs"]), (4, 3))
+    def test_a_chain_is_not_a_cluster(self):
+        pairs = [pair("d/a", "d/b"), pair("d/b", "d/c"), pair("d/c", "d/e")]   # 4 files, 3 of 6 possible pairs: connected, not a clique
+        groups, rest = coupling.clusters(pairs)
+        self.assertEqual(groups, [])
+        self.assertEqual(rest, pairs)
+
+    def test_a_near_complete_clique_is_a_cluster(self):
+        pairs = clique("d", ["a", "b", "c", "e", "f"])   # 5 files, 10 pairs
+        eight = pairs[:8]
+        [g], rest = coupling.clusters(eight)
+        self.assertEqual((g["files"], g["pairs"]), (5, 8))
         self.assertEqual(rest, [])
+        groups, rest = coupling.clusters(pairs[:7])   # 7 of 10 is under the 80% floor
+        self.assertEqual(groups, [])
+        self.assertEqual(len(rest), 7)
+
+    def test_two_unrelated_pairs_in_one_directory_are_not_a_cluster(self):
+        pairs = [pair("a", "b"), pair("c", "d")]
+        groups, rest = coupling.clusters(pairs)
+        self.assertEqual(groups, [])
+        self.assertEqual(rest, pairs)

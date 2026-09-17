@@ -33,10 +33,13 @@ RAW_FIELDS = ("Secret", "Match", "Line", "Message", "Attributes")
 
 # Shapes that cannot be a live secret: a version string (5.0.0-1667386184.dfbbb54), a token shortened
 # with an ellipsis, a whole-value template marker (your-project-id, <your-token>, XXXX-XXXX, changeme),
+# a whole value that is one of the words every example uses (`password: 'hello'` in a doc comment),
 # and a key block whose body holds no key material. Every rule is about the whole value; nothing is
 # skipped by prefix, since a public and a private key of the same service often share one.
 _VERSION = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 _MARKER = re.compile(r"^(<[^<>]+>|x+|(?:x{2,}[-_ ]?)+|your[-_][\w-]+|change[-_]?me|replace[-_]?me)$", re.I)
+_EXAMPLE_WORDS = {"password", "passwd", "pass", "secret", "hello", "hey", "test", "example", "sample", "dummy", "foo", "bar",
+                  "baz", "admin", "root", "user", "123456", "12345678", "123456789", "abc123", "qwerty", "letmein", "welcome"}
 _KEY_BLOCK = re.compile(r"-----BEGIN [A-Z ]*KEY-----(.*?)-----END [A-Z ]*KEY-----", re.S)
 _KEY_MATERIAL = 64   # a real body is hundreds of base64 characters; a template has dots or a few x's
 
@@ -54,7 +57,7 @@ def digest(value: str, key: bytes) -> str:
 
 def is_placeholder(value: str) -> bool:
     value = (value or "").strip()
-    if _VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value):
+    if _VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value) or value.lower() in _EXAMPLE_WORDS:
         return True
     m = _KEY_BLOCK.search(value)
     if m:

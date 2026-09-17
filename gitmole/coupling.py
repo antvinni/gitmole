@@ -32,12 +32,13 @@ def _components(pairs: list) -> list:
     return list(groups.values())
 
 
-def clusters(pairs: list, min_files: int = 4) -> tuple:
+def clusters(pairs: list, min_files: int = 4, min_density: float = 0.8) -> tuple:
     """Split `pairs` into (groups, rest). Pairs whose two files share a directory are gathered per
-    directory and then into connected groups; a group touching at least `min_files` distinct files
-    becomes one cluster with the file and pair counts, the weakest degree and the mean of the pairs'
-    average revisions. Every other pair comes back unchanged, in its original order. Two unrelated
-    pairs in one directory are not a cluster. Clusters are largest first."""
+    directory and then into connected groups; a group of at least `min_files` distinct files with at
+    least `min_density` of the possible pairs present becomes one cluster with the file and pair
+    counts, the weakest degree and the mean of the pairs' average revisions. Every other pair comes
+    back unchanged, in its original order. Two unrelated pairs in one directory, or a chain of pairs,
+    are not a cluster: "each other" has to be true. Clusters are largest first."""
     by_dir = defaultdict(list)
     for p in pairs:
         if _dir(p["entity"]) == _dir(p["coupled"]):
@@ -46,7 +47,8 @@ def clusters(pairs: list, min_files: int = 4) -> tuple:
     for directory, ps in by_dir.items():
         for component in _components(ps):
             files = {p["entity"] for p in component} | {p["coupled"] for p in component}
-            if len(files) < min_files:
+            possible = len(files) * (len(files) - 1) / 2
+            if len(files) < min_files or len(component) < min_density * possible:
                 continue
             groups.append({"dir": directory, "files": len(files), "pairs": len(component), "degree": min(p["degree"] for p in component),
                            "average-revs": round(sum(p["average-revs"] for p in component) / len(component))})
