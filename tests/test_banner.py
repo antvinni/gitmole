@@ -122,5 +122,27 @@ class BannerInCli(unittest.TestCase):
         self.assertNotIn("███╗", self._run(terminal=False))
 
 
+class VersionLine(unittest.TestCase):
+    def test_version_row_sits_under_the_letters(self):
+        rows = banner.neon(version="1.2.3").plain.rstrip("\n").split("\n")
+        self.assertEqual(len(rows), 7)
+        self.assertEqual(rows[6], "v1.2.3")
+
+    def test_version_row_is_dim(self):
+        text = banner.neon(version="1.2.3")
+        start = text.plain.index("v1.2.3")
+        style = next(str(sp.style) for sp in text.spans if sp.start == start)
+        self.assertIn("dim", style)
+
+    def test_without_a_version_nothing_changes(self):
+        self.assertEqual(banner.neon().plain, banner.neon(version=None).plain)
+        self.assertNotIn("v", banner.neon().plain.split("\n")[-2])
+
+    def test_every_frame_carries_the_version(self):
+        gen = banner.frames(version="1.2.3")
+        for _ in range(3):
+            self.assertTrue(next(gen).plain.rstrip("\n").endswith("v1.2.3"))
+
+
 if __name__ == "__main__":
     unittest.main()

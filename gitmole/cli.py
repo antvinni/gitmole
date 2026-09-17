@@ -171,7 +171,7 @@ def _no_run(args, console, ui, err) -> int:
         err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
         return 2
     if ui.is_terminal:
-        ui.print(banner.neon())
+        ui.print(banner.neon(version=__version__))
     return _render(out_dir, console, ui, args, err)
 
 
@@ -437,7 +437,7 @@ def _execute(steps, log_path, repo_dir, workers, console, timeout=None) -> dict:
     active, lock = set(), threading.Lock()
     started = time.monotonic()
     spinner = Spinner("dots", style="cyan")
-    frame = banner.frames()
+    frame = banner.frames(version=__version__)
 
     def label() -> str:
         with lock:
@@ -466,7 +466,7 @@ def _execute(steps, log_path, repo_dir, workers, console, timeout=None) -> dict:
         while worker.is_alive():
             live.update(view())
             worker.join(0.1)
-        live.update(Group(banner.neon(), Text("")) if console.is_terminal else Text(""))
+        live.update(Group(banner.neon(version=__version__), Text("")) if console.is_terminal else Text(""))
     console.print(f"[dim]{len(steps)} steps in {time.monotonic() - started:.1f}s[/dim]\n")
     return results
 

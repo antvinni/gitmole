@@ -193,8 +193,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    line. Activity and the timeline cover the whole history.
 5. **Footer**: where the files and plots are.
 
-The complete report for the gitmole repository itself is in
-[example.md](https://github.com/antvinni/gitmole/blob/main/docs/example.md).
+A full example, at a pinned commit, is
+[docs/examples/react.md](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md).
 
 ## The output directory
 

@@ -83,8 +83,9 @@ def _sprite_rows(look: int = 0) -> list:
     return rows
 
 
-def neon(offset: int = 0, look: int = 0) -> Text:
-    """The banner with the palette rotated down by `offset` rows, and the mole beside it."""
+def neon(offset: int = 0, look: int = 0, version: str = None) -> Text:
+    """The banner with the palette rotated down by `offset` rows, and the mole beside it.
+    With `version`, a dim `v1.2.3` row underneath: the report's reproducibility stamp."""
     text = Text()
     sprite = _sprite_rows(look)
     for i, row in enumerate(ART.split("\n")):
@@ -93,15 +94,17 @@ def neon(offset: int = 0, look: int = 0) -> Text:
         text.append(" " * GAP)
         text.append_text(sprite[i])
         text.append("\n")
+    if version:
+        text.append(f"v{version}\n", style="dim")
     return text
 
 
 LOOK_EVERY = 5  # frames per glance; at 10 fps the eyes move every half second
 
 
-def frames():
+def frames(version: str = None):
     """Endless generator of banner frames: gradient flowing down, eyes glancing side to side."""
     n = 0
     while True:
-        yield neon(offset=n % len(NEON), look=(n // LOOK_EVERY) % 2)
+        yield neon(offset=n % len(NEON), look=(n // LOOK_EVERY) % 2, version=version)
         n += 1
