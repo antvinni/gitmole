@@ -37,6 +37,27 @@ what keeps that report stable. gitmole validates it, announces it at the
 start of a run, and records it in `meta.json`, so a forgotten export cannot
 silently skew a real report.
 
+## Rules
+
+gitmole has no model; its judgement is the rules in `filetypes.py`,
+`leaks.py`, `identity.py` and `findings.py`. A rule may key on three things
+only:
+
+- a path convention of the ecosystem (`vendor/`, `node_modules/`, `dist/`,
+  `tests/`, `examples/`, `.min.js`, a lock file's name);
+- the shape of a value (a version string, a template field, an environment
+  reference, a dotted key path, five words of prose);
+- what the repository declares about itself (`linguist-generated` in
+  `.gitattributes`, "do not edit" in a file's first lines, a nested LICENSE
+  naming other copyright holders, `.mailmap`, a `[bot]` suffix).
+
+A rule must not key on a product name, a person's name, or a word list
+learned from one repository. Such a rule fixes the repository it was written
+for and guesses about the next one. When the remaining noise needs that
+kind of knowledge, the answer is the repository's own ignore mechanism, which
+the finding's advice already names (`.betterleaksignore`, `.mailmap`), not a
+gitmole change.
+
 ## Releases
 
 Versions are git tags. To release: bump `__version__` in `gitmole/__init__.py`,

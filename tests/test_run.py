@@ -465,6 +465,20 @@ class Execute(unittest.TestCase):
 
 
 class CollectMeta(unittest.TestCase):
+    def test_an_author_name_that_is_not_utf8_does_not_abort_the_run(self):
+        # laravel/framework has a commit whose author name holds a raw 0xf8 byte; git prints it as is.
+        # Built from raw bytes: git re-encodes a name that comes through the environment.
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "init", "-q", d], check=True)
+            tree = subprocess.run(["git", "write-tree"], cwd=d, check=True, capture_output=True, text=True).stdout.strip()
+            raw = (f"tree {tree}\n".encode() + b"author J\xf8rgen <j@x.com> 1735812000 +0000\n"
+                   + b"committer J\xf8rgen <j@x.com> 1735812000 +0000\n\nx\n")
+            sha = subprocess.run(["git", "hash-object", "-t", "commit", "-w", "--stdin"], cwd=d, input=raw, check=True, capture_output=True).stdout.decode().strip()
+            subprocess.run(["git", "update-ref", "HEAD", sha], cwd=d, check=True)
+            meta = run.collect_meta(d)
+        self.assertEqual(meta["commits"], 1)
+        self.assertEqual(meta["identities"][0]["name"], "J\ufffdrgen", "the bad byte becomes the replacement character")
+
     def test_reads_commits_span_branch_and_identities_from_git(self):
         with tempfile.TemporaryDirectory() as d:
             def git(*args, **env):

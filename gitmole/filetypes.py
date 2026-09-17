@@ -70,18 +70,19 @@ def is_doc_path(path: str) -> bool:
     return bool(_DOC_PATH.search(path))
 
 
-_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules)(/|$)", re.I)
+_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules|stubs?)(/|$)|\.stub$", re.I)
 _PACKAGE_EXAMPLE = re.compile(r"(^|/)(com|org|net|io|dev|me|co)/examples?(/|$)", re.I)   # Java's com.example.* is a package, not a sample
 
 
 def is_sample_path(path: str) -> bool:
-    """Example, sample, fixture, demo and rule directories: a value there is a specimen (a language
-    sample, a scanner's own rule definitions), not a credential in use; code there is not the
-    product. A reverse-domain package such as com/example/ is neither."""
+    """Example, sample, fixture, demo, rule and stub directories, and .stub files: a value there is a
+    specimen (a language sample, a scanner's own rule definitions, a template a generator fills in),
+    not a credential in use; code there is not the product. A reverse-domain package such as
+    com/example/ is neither."""
     return bool(_SAMPLE_PATH.search(path)) and not _PACKAGE_EXAMPLE.search(path)
 
 
-_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps)(/|$)|^[^/]+/packages/", re.I)
+_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps|\.yarn)(/|$)|^[^/]+/packages/", re.I)
 
 
 def is_vendor_path(path: str) -> bool:
@@ -190,7 +191,7 @@ def is_release(path: str, plumbing=frozenset()) -> bool:
 # What a generated file says about itself in its first lines: protoc, ajv, code generators of every kind.
 _GENERATED = re.compile(r"auto[- ]?generated|generated (by|from|file|code|automatically|with)|do not (edit|modify)|@generated|code generated", re.I)
 GENERATED_HEAD_LINES = 5
-_GENERATED_NAME = re.compile(r"\.(min\.js|min\.css|bundle\.js|map)$", re.I)   # a build output by name: nobody edits a bundle or a source map
+_GENERATED_NAME = re.compile(r"\.(min\.js|min\.css|bundle\.js|map)$|(^|/)dist/", re.I)   # a build output by name: nobody edits a bundle, a source map or dist/
 
 
 def _generated_patterns(repo: str) -> list:

@@ -69,6 +69,13 @@ class Placeholder(unittest.TestCase):
         for value in ["hello123", "secret-9f8a7b6c5d4e", "s3cr3t!Passw0rd", "foobarbaz2024"]:
             self.assertFalse(leaks.is_placeholder(value), "a word inside other material is not a placeholder: " + value)
 
+    def test_a_dotted_key_path_is_a_placeholder(self):
+        # laravel: `const INVALID_PASSWORD = 'passwords.password';` names a translation key, not a password
+        for value in ["passwords.password", "reminders.sent", "auth.failed", "validation.required_if"]:
+            self.assertTrue(leaks.is_placeholder(value), value)
+        for value in ["hunter2.xyz", "secret.Key9", "s3cr3t.pass", "auth.Fail3d"]:
+            self.assertFalse(leaks.is_placeholder(value), "digits or capitals make it material: " + value)
+
     def test_references_to_an_environment_variable_are_placeholders(self):
         # fzf's notarisation config: `password = "@env:AC_PASSWORD"`; goreleaser: `{{.Env.MACOS_SIGN_PASSWORD}}`
         for value in ["@env:AC_PASSWORD", "{{.Env.MACOS_SIGN_PASSWORD}}", "${DB_PASSWORD}", "$DB_PASSWORD", "$(cat ~/.secret)", "%APPDATA_KEY%",
@@ -94,6 +101,8 @@ class Placeholder(unittest.TestCase):
             subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "-m", "gen"], check=True)
             sha = subprocess.run(["git", "-C", d, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
             self.assertEqual(leaks.line_of(d, sha, "gen.sh", 2), "# Example password: nz5ej2kypkvcw0rn5cvhs6qxtm")
+            self.assertEqual(leaks.line_of(d, sha, "gen.sh", 3, above=2), "#!/bin/sh\n# Example password: nz5ej2kypkvcw0rn5cvhs6qxtm\necho hi",
+                             "with context: the lines above, joined")
             self.assertEqual(leaks.line_of(d, sha, "gen.sh", 9), "", "past the end is nothing, not an error")
             self.assertEqual(leaks.line_of(d, sha, "missing.sh", 1), "")
             self.assertEqual(leaks.line_of(d, "", "gen.sh", 1), "")

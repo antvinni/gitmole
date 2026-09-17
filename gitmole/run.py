@@ -351,7 +351,8 @@ def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_st
 
 
 def _git(repo_dir: str, *args) -> str:
-    return subprocess.run(["git", *args], cwd=repo_dir, check=True, capture_output=True, text=True).stdout
+    # bytes, decoded with replacement: an author name that is not UTF-8 (laravel has one) must not abort the run
+    return subprocess.run(["git", *args], cwd=repo_dir, check=True, capture_output=True).stdout.decode("utf-8", "replace")
 
 
 def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int = 25, types=filetypes.DEFAULT) -> dict:
