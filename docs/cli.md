@@ -67,6 +67,18 @@ gitmole . --fail-on warning            # exit 3 if any finding is a warning or w
 gitmole . --risk main --risk-threshold 5   # exit 3 if the changed files are too risky
 ```
 
+Each finding in the JSON carries, next to its severity, title, detail and
+advice, a `rule` (the rule's `id` and the thresholds it fired on) and its
+`evidence` (the numbers those thresholds were compared with, lists capped
+at ten), so a finding can be checked, filtered or tracked over time without
+parsing its sentence:
+
+```json
+{"severity": "warning", "title": "Bug magnets",
+ "rule": {"id": "bug_magnets", "min_recent": 3, "warn_at": 5, "window_months": 6, "fix": "the commit subject says so"},
+ "evidence": {"count": 2, "files": [{"file": "lib/url.c", "recent_fixes": 5, "fixes": 41}]}}
+```
+
 A CI job that runs
 `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"` blocks
 on secrets in source files and still posts the report. Secrets found only in

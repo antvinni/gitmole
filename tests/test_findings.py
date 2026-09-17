@@ -903,10 +903,29 @@ class Advice(unittest.TestCase):
         for f in found:
             self.assertTrue(f.get("advice"), f["title"])
             self.assertTrue(f["detail"].endswith(" " + f["advice"]), f["detail"])
+        import json
+        for f in found:
+            self.assertTrue(f["rule"].get("id"), f["title"])
+            self.assertIsInstance(f["evidence"], dict, f["title"])
+            json.dumps(f)   # tuples and sets would not survive the export
+        self.assertEqual(len({f["rule"]["id"] for f in found}), len({f["title"] for f in found}), "one id per kind of finding")
 
     def test_a_name_with_an_initial_keeps_its_advice(self):
         f = findings.bus_factor(report(theseus_authors={"Robert C. Martin": 90, "Bob": 10}))[0]
         self.assertEqual(f["advice"], "Pair someone with Robert C. Martin before they are unavailable.")
+
+    def test_a_bug_magnet_can_be_rechecked_from_its_own_rule_and_evidence(self):
+        f = findings.bug_magnets(report(fixes=[{"entity": "a.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5},
+                                               {"entity": "b.py", "n-fixes": 3, "last-fix": "2026-08-01", "recent-fixes": 3}]))[0]
+        self.assertEqual(f["rule"], {"id": "bug_magnets", "min_recent": 3, "warn_at": 5, "window_months": 6, "fix": "the commit subject says so"})
+        self.assertEqual(f["evidence"], {"count": 2, "files": [{"file": "a.py", "recent_fixes": 5, "fixes": 9}, {"file": "b.py", "recent_fixes": 3, "fixes": 3}]})
+        self.assertTrue(all(x["recent_fixes"] >= f["rule"]["min_recent"] for x in f["evidence"]["files"]))
+
+    def test_a_bus_factor_can_be_rechecked_from_its_own_rule_and_evidence(self):
+        f = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}))[0]
+        self.assertEqual(f["rule"], {"id": "bus_factor", "threshold": 0.7, "min_lines": 200})
+        self.assertEqual(f["evidence"], {"author": "Ann", "lines": 79, "total_lines": 100, "areas": []})
+        self.assertGreater(f["evidence"]["lines"] / f["evidence"]["total_lines"], f["rule"]["threshold"])
 
 
 class Evaluate(unittest.TestCase):
