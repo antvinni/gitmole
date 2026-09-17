@@ -83,6 +83,8 @@ def _made_up(value: str) -> bool:
 _TEMPLATE_FIELD = re.compile(r"\{[A-Za-z_][\w.]*\}|\$\{[^{}]*\}|\$\{\{.*?\}\}|%\([A-Za-z_]\w*\)s|\{\{.*?\}\}|<[A-Za-z_][\w-]*>")
 # Five or more words of letters: a description of the secret, not the secret.
 _PROSE = re.compile(r"^[A-Za-z][A-Za-z'-]*(\s+[A-Za-z][A-Za-z'-]*){4,}\s*$")
+# A dotted path of lowercase words (passwords.password, auth.failed): a translation or config key, not a password.
+_KEY_PATH = re.compile(r"^[a-z_]+(\.[a-z_]+)+$")
 
 
 def is_placeholder(value: str, line: str = "") -> bool:
@@ -90,7 +92,7 @@ def is_placeholder(value: str, line: str = "") -> bool:
     sat on, read from the clone at scan time and never written."""
     value = (value or "").strip()
     if (_VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value) or value.lower() in _EXAMPLE_WORDS
-            or _ENV_REF.match(value) or _made_up(value) or _TEMPLATE_FIELD.search(value) or _PROSE.match(value)):
+            or _ENV_REF.match(value) or _made_up(value) or _TEMPLATE_FIELD.search(value) or _PROSE.match(value) or _KEY_PATH.match(value)):
         return True
     if line and (_EXAMPLE_LINE.search(line) or _TEMPLATE_FIELD.search(line)):   # the line is an example, or a template being filled in
         return True
@@ -104,16 +106,19 @@ def is_placeholder(value: str, line: str = "") -> bool:
     return False
 
 
-def line_of(repo: str, commit: str, path: str, number: int) -> str:
-    """Line `number` of `path` as it was at `commit`, from the clone; "" when it cannot be read. Read
-    for the placeholder rule and dropped, like every other raw field."""
+def line_of(repo: str, commit: str, path: str, number: int, above: int = 0) -> str:
+    """Line `number` of `path` as it was at `commit`, from the clone, with `above` lines before it
+    joined on; "" when it cannot be read. Read for the placeholder rules and dropped, like every
+    other raw field. Two lines above catch a comment that calls the value an example."""
     if not (commit and path and number):
         return ""
     proc = subprocess.run(["git", "-C", repo, "show", f"{commit}:{path}"], capture_output=True)
     if proc.returncode != 0:
         return ""
     lines = proc.stdout.decode("utf-8", "replace").split("\n")
-    return lines[number - 1] if 0 < number <= len(lines) else ""
+    if not 0 < number <= len(lines):
+        return ""
+    return "\n".join(lines[max(0, number - 1 - above):number])
 
 
 LINE_LOOKUPS = 400   # one git call per finding; past this many the rest go without their line
@@ -180,7 +185,7 @@ def main(argv=None) -> int:
     text = proc.stdout.decode("utf-8", "surrogateescape").strip()
     raw = (json.loads(text) if text else None) or []   # a clean repository is reported as null
     for r in raw[:LINE_LOOKUPS]:   # betterleaks does not report the line; the clone in the current directory has it
-        r["Line"] = line_of(os.getcwd(), r.get("Commit") or "", r.get("File") or "", int(r.get("StartLine") or 0))
+        r["Line"] = line_of(os.getcwd(), r.get("Commit") or "", r.get("File") or "", int(r.get("StartLine") or 0), above=2)
     rows = sanitise(raw)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(target)), prefix=".secrets-", suffix=".json")
     try:

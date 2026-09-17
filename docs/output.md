@@ -31,8 +31,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    together, so those pairs are left out), duplicated blocks of 30+ lines
    (with `--duplicates`), a large share of stale files (files still in the
    tree; deleted paths do not count), knowledge islands: areas of at least
-   200 lines written almost entirely by one person (a warning when such
-   areas hold most of the code), and knowledge loss (people with no commits
+   200 lines and 1% of the code written almost entirely by one person (a
+   warning when such areas hold most of the code), and knowledge loss (people with no commits
    in the twelve months before the last commit who wrote 10% or more of the
    surviving code; a warning at 30%). An unconfigured identity is only
    flagged when it made at least 1% of the commits.
@@ -48,14 +48,17 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Secrets are grouped by value, so one key copied into ten files is one
    entry with its places counted. A value found in any source file is
    critical. A value found only in test files, such as fixtures and saved
-   web pages, only in example, sample, fixture, demo or rules directories
-   (a language sample, a scanner's own rule definitions), only in vendored
+   web pages, only in example, sample, fixture, demo, rules or stubs
+   directories and `.stub` files (a language sample, a scanner's own rule
+   definitions, a template a generator fills in), only in vendored
    code (upstream's own specimens), or only in documentation (`.md`,
    `.rst`, `.txt`, `.adoc`, anything under `docs/`, and type stubs, `.pyi`
    and `.d.ts`, which declare shapes and hold no runtime values), where it
    is usually a template, is a warning.
-   Eleven shapes cannot be a live secret and are left out, counted on the
-   footer line: version strings, tokens shortened with "...", whole-value
+   Twelve shapes cannot be a live secret and are left out, counted on the
+   footer line: version strings, tokens shortened with "...", a dotted
+   path of lowercase words such as `passwords.password` (a translation or
+   config key), whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
    or `changeme`, a template field anywhere inside the value (`{token}`,
    `${X}`, `%(name)s`, `<user>`), five or more words of prose, a whole
@@ -66,9 +69,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    `${X}`, `{{.Env.X}}`, `process.env.X`), a bare `BEGIN ... KEY` header
    with nothing after it (a pattern a script greps for), a `BEGIN ... KEY`
    block whose body holds no key material, like the dotted sample in
-   Google's service-account docs, and a value on a line that calls itself
-   an example, sample, dummy, fake or placeholder (the line is read from
-   the clone at scan time, one `git show` per finding, and never written). Every
+   Google's service-account docs, and a value whose line, or the two lines
+   above it, calls it an example, sample, dummy, fake or placeholder or
+   fills in a template field (the lines are read from the clone at scan
+   time, one `git show` per finding, and never written). Every
    rule is about the whole value; nothing is skipped by prefix. To silence a
    false positive for good, copy its fingerprint from `secrets.json` into a
    `.betterleaksignore` at the repository root; betterleaks reads it on the
@@ -142,12 +146,13 @@ How to read each part of the terminal report, and what each run writes to disk; 
    report, the hotspots and complex functions tables hide test files and
    generated files (a file whose first lines say it was generated or must
    not be edited, that `.gitattributes` marks `linguist-generated`, or that
-   is a bundle, a minified file or a source map by name, the
+   is a bundle, a minified file, a source map or anything under `dist/`
+   by name, the
    run records them in `meta.json`; and an amalgamation, a file every one
    of whose functions also appears identically in other files, found from
    the function metrics), the complex functions table also
    hides vendored code (`vendor/`, `vendored/`, `node_modules/`,
-   `third_party/`, `external/`, `deps/`, a `packages/` inside a package
+   `third_party/`, `external/`, `deps/`, `.yarn/`, a `packages/` inside a package
    such as `requests/packages/`, and any directory whose own `LICENSE` or
    `COPYING` names none of the copyright holders the root licence names,
    which the run records in `meta.json`) and example code (`examples/`),

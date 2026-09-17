@@ -103,9 +103,10 @@ class TestPaths(unittest.TestCase):
 
     def test_example_fixture_and_rule_directories(self):
         for path in ("examples/language/bru.bru", "example/app.py", "samples/x.json", "sample/x.json", "fixtures/keys.pem",
-                     "src/fixture/a.txt", "pkg/testdata/creds.yaml", "demo/x.py", "demos/x.py", "config/generate/rules/slack.go"):
+                     "src/fixture/a.txt", "pkg/testdata/creds.yaml", "demo/x.py", "demos/x.py", "config/generate/rules/slack.go",
+                     "src/Illuminate/Auth/Console/stubs/login.request.stub", "stubs/model.stub", "resources/views/mail.stub"):   # a stub is a template
             self.assertTrue(filetypes.is_sample_path(path), path)
-        for path in ("app/settings.py", "examplesite/app.py", "src/rulesets/a.go", "sampler/x.py", "config/betterleaks.toml",
+        for path in ("app/settings.py", "examplesite/app.py", "src/rulesets/a.go", "sampler/x.py", "config/betterleaks.toml", "src/stubby.py",
                      "src/main/java/com/example/service/impl/AccountServiceImpl.java", "org/example/App.kt"):   # a reverse-domain package
             self.assertFalse(filetypes.is_sample_path(path), path)
 
@@ -136,6 +137,8 @@ class TestPaths(unittest.TestCase):
                 "internal/js/renderkatex.bundle.js": "var a=1;\n",   # a bundle, a minified file or a source map is a build output by name
                 "static/app.min.css": "a{b:c}\n",
                 "static/app.js.map": "{}\n",
+                "src/Foundation/resources/renderer/dist/scripts.js": "var e=1;\n",   # a dist/ directory is build output by name
+                "src/distance.py": "x = 1\n",
             }
             for path, text in files.items():
                 os.makedirs(os.path.join(d, os.path.dirname(path)), exist_ok=True)
@@ -145,7 +148,7 @@ class TestPaths(unittest.TestCase):
                 fh.write("* text=auto\ndist/* linguist-generated=true\n*.min.js linguist-generated\n")
             found = filetypes.generated_files(d, sorted(files))
         self.assertEqual(found, ["dist/bundle.js", "gen/schema.py", "internal/js/renderkatex.bundle.js", "lib/config-validator.js", "pb/api.pb.go",
-                                 "static/app.js.map", "static/app.min.css"])
+                                 "src/Foundation/resources/renderer/dist/scripts.js", "static/app.js.map", "static/app.min.css"])
 
     def test_a_nested_licence_with_other_copyright_holders_marks_a_vendored_tree(self):
         with tempfile.TemporaryDirectory() as d:
@@ -176,7 +179,7 @@ class TestPaths(unittest.TestCase):
     def test_vendored_trees(self):
         for path in ("vendor/github.com/x/y.go", "web/node_modules/a/index.js", "third_party/z/a.c", "thirdparty/a.c", "_vendor/a.py",
                      "external/lib/a.cpp", "requests/packages/urllib3/a.py", "pip/_vendor/six.py", "botocore/vendored/requests/a.py",
-                     "deps/lua/src/strbuf.c", "deps/jemalloc/Makefile"):
+                     "deps/lua/src/strbuf.c", "deps/jemalloc/Makefile", ".yarn/releases/yarn-4.18.0.cjs", ".yarn/plugins/x.cjs"):
             self.assertTrue(filetypes.is_vendor_path(path), path)
         for path in ("vendors.py", "src/vendoring/a.py", "node/a.js", "externals.txt", "app/main.go",
                      "packages/runtime-core/src/renderer.ts", "packages-private/x.ts"):   # a monorepo's own packages/ at the root

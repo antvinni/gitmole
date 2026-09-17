@@ -594,6 +594,16 @@ class KnowledgeIslands(unittest.TestCase):
         self.assertNotIn("web/", f[0]["detail"])
         self.assertIn("100% of all lines added", f[0]["detail"], "vendored lines are not in the denominator either")
 
+    def test_an_island_that_is_a_sliver_of_the_code_is_not_named(self):
+        # laravel: 216 root-file lines by one person against 900,000 lines of src/; prettier's benchmarks/
+        own = [{"entity": "composer.json", "author": "Ann", "added": 216, "deleted": 0},
+               {"entity": "src/a.php", "author": "Bob", "added": 30000, "deleted": 0},
+               {"entity": "src/b.php", "author": "Cat", "added": 20000, "deleted": 0}]
+        self.assertEqual(findings.knowledge_islands(report(ownership=own)), [], "under 1% of the lines is not knowledge worth pairing on")
+        own[0]["added"] = 600
+        f = findings.knowledge_islands(report(ownership=own))
+        self.assertEqual(f[0]["advice"], "Pair someone with Ann on (root files) first; it is the largest at 600 lines.")
+
     def test_nothing_when_shared(self):
         self.assertEqual(findings.knowledge_islands(report(ownership=self.OWN[2:])), [])
         self.assertEqual(findings.knowledge_islands(report()), [])

@@ -320,14 +320,15 @@ def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_shar
     return [_f(sev, "Reverts", statement, advice)]
 
 
-def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9) -> list:
+def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9, min_fraction: float = 0.01) -> list:
     """Areas of the tree written almost entirely by one person. Areas that no longer exist are left
-    out, of the islands and of the total they are measured against."""
+    out, of the islands and of the total they are measured against; an island under `min_fraction`
+    of that total (laravel's root files against its src/) is not knowledge worth pairing on."""
     areas = _present_areas(report, _source_ownership(report))
-    islands = knowledge.islands(areas, min_lines=min_lines, min_share=min_share)
+    total = sum(a["lines"] for a in areas)
+    islands = [i for i in knowledge.islands(areas, min_lines=min_lines, min_share=min_share) if i["lines"] >= min_fraction * total]
     if not islands:
         return []
-    total = sum(a["lines"] for a in areas)
     covered = sum(i["lines"] for i in islands)
     sev = "warning" if total and covered / total > 0.5 else "info"
     listed = "; ".join(f"{i['area']} ({i['owner']} {i['share']}%)" for i in islands[:5])
