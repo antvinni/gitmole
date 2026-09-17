@@ -235,6 +235,7 @@ CORE_STEPS = {"scc": "size", "git-sizer": "repo health", "git-log": "change log"
 
 def _unfinished(report: dict) -> list:
     steps = report["meta"].get("steps") or {}
+    # "cancelled" is kept here for completeness, though an interrupted run never records its steps.
     words = {"timeout": "timed out", "failed": "failed", "skipped": "skipped", "cancelled": "cancelled"}
     return [f"{label} {words.get(steps[name], steps[name])}" for name, label in CORE_STEPS.items() if steps.get(name) not in (None, "run")]
 
@@ -310,7 +311,8 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
     rows = [(r["file"], "▰" * round(10 * r["score"] / top) if r["score"] else "", " · ".join(r["reasons"])) for r in rows_all[:limit]]
     columns = [("file", PATH), ("risk", {}), ("why", {"overflow": "fold", "ratio": 3})]
     watched = risk["watched"]
-    notes = [f"total {risk['total']:.1f}; {watched} of these files {'is' if watched == 1 else 'are'} on the watch list"] if rows else []
+    notes = [f"total {risk['total']:.1f}% of the repository's revisions × lines of code; "
+             f"{watched} of these files {'is' if watched == 1 else 'are'} on the watch list"] if rows else []
     more = _more(len(rows_all), limit)
     if more:
         notes.append(more)

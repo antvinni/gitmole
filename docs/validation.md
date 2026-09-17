@@ -20,7 +20,9 @@ as the repository's commit subjects and no better. Every variant ranks the
 same pool, the source files still in the tree at T that had changed more
 than once; `random (expected)` is what fifteen files drawn from that pool
 at random would name. Each column heading says how many files of the pool
-were fixed in that window.
+were fixed in that window. Generated files are left out of the pool at
+every cut-off by today's list of them, since the run records that list
+once, for the tree at the pinned commit.
 
 The variants: `watch list (hotspot)` is what gitmole ranks by, revisions ×
 lines of code. The two factor products are what it ranked by before 0.8,
@@ -106,9 +108,9 @@ times on django and eight to twelve times on react. Beyond that:
   rank-scaled, 204 max-scaled. Rank scaling is the better of the two, mostly
   on react (51 against 42).
 - **Churn alone does worst**, 190, and size alone (207) does better than
-  churn: ahead on curl and react, level on django. Their product does
-  better than either in total, though not on curl, where size alone is
-  ahead.
+  churn: ahead on curl and react, level on django. Their product, which is
+  the watch list's ranking, does better than either in total, though not
+  on curl, where size alone is ahead.
 - **curl is saturated.** Between 23% and 63% of its scored files get a
   fix-labelled commit in any six months, so almost any sensible fifteen
   hit; size alone scores 90 of 90 there. The backtest line under a

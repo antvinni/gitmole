@@ -113,8 +113,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    that followed at six cut-offs on three repositories
    ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md)),
    it named more of them than any weighting of fixes, complexity and
-   ownership did. A file's score, which `--risk` adds up, is the share of
-   scored files whose product is no larger, between 0 and 1; the reasons
+   ownership did. A file's score, which `--risk` adds up, is its share, in
+   percent, of all scored files' revisions × lines of code; the reasons
    name the fix count (the last six months' when there are any), the sole
    owner, the most complex function lizard found (a nameless one by its
    line; a span marked `?` in the complex functions table is passed over)

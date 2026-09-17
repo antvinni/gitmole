@@ -346,6 +346,24 @@ class Portfolio(unittest.TestCase):
         self.assertTrue(md.startswith("# acme"), md[:40])
         self.assertIn("| repo |", md)
 
+    def test_an_unreadable_repo_is_reported_and_skipped_not_a_traceback(self):
+        from unittest.mock import patch
+
+        from gitmole import load
+        real_load_report = load.load_report
+
+        def flaky(out_dir, *a, **kw):
+            if os.path.basename(out_dir) == "one":
+                raise load.Unreadable("x is truncated or not JSON; run gitmole again")
+            return real_load_report(out_dir, *a, **kw)
+
+        with patch("gitmole.cli.load.load_report", side_effect=flaky):
+            rc, text, dirs, has_meta, _ = self._run()
+        self.assertEqual(rc, 0)
+        self.assertEqual(dirs, ["one", "two"], "one's meta.json was still written to disk; only re-loading it failed")
+        self.assertIn("x is truncated or not JSON; run gitmole again; skipped", text)
+        self.assertIn("two", text, "the other repository still appears in the summary table")
+
 
 class GhFailures(unittest.TestCase):
     def test_listing_failure_is_reported_cleanly(self):

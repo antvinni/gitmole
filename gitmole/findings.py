@@ -328,7 +328,7 @@ def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_shar
     if reverted and not repeat:   # every reverted file was reverted once: no file keeps coming back
         return [_f(sev, "Reverts", f"{n} of {total} commits are reverts, spread over {len(reverted)} files, none backed out twice.",
                    "Look at why they were backed out; no single file keeps coming back.",
-                   rule=rule, evidence={"reverts": n, "commits": total, "reverted": {}})]
+                   rule=rule, evidence={"reverts": n, "commits": total, "files": len(reverted), "reverted": {}})]
     reverted = repeat
     # source files lead: a test file at the top of the table would otherwise be the one named first
     items = sorted(reverted.items(), key=lambda kv: filetypes.is_test_path(kv[0]))[:3]
@@ -619,7 +619,8 @@ def vulnerable_dependencies(report: dict) -> list:
                       rule={"id": "vulnerable_dependencies" if group is source else "vulnerable_dependencies_aside", "critical_score": CRITICAL_SCORE},
                       evidence={"lock_files": sources,
                                 "packages": [{"name": r["name"], "version": r["version"], "source": r["source"], "score": r.get("score"),
-                                              "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or [])} for r in group[:10]]}))
+                                              "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
+                                              "aliases": list(r.get("aliases") or [])} for r in group[:10]]}))
     return out
 
 

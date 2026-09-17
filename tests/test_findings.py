@@ -589,6 +589,7 @@ class VulnerableDependencies(unittest.TestCase):
         self.assertEqual((f["severity"], f["title"]), ("warning", "Vulnerable dependencies"))
         self.assertIn("1 vulnerable package in 1 lock file: lodash 4.17.15 (CVE-2024-1, 7.2, fixed in 4.17.21) in frontend/yarn.lock.", f["detail"])
         self.assertEqual(f["advice"], "Upgrade lodash to 4.17.21 in frontend/yarn.lock first; it scores 7.2. " + findings.IGNORE_DEPS)
+        self.assertIn("CVE-2024-1", f["evidence"]["packages"][0]["aliases"], "the identifier the sentence quotes is in the evidence too")
 
     def test_a_critical_score_makes_it_critical_and_the_worst_leads(self):
         rows = [self.row("minimist", "0.0.8", "package-lock.json", score=9.8, fixed="1.2.6"), self.row("lodash", "4.17.15", "package-lock.json", score=7.2)]
@@ -708,6 +709,7 @@ class Reverts(unittest.TestCase):
         f = findings.reverts(self._report(16, commits=5008, reverted={f"src/f{i}.rs": 1 for i in range(16)}))
         self.assertEqual(f[0]["detail"].split(" Look")[0], "16 of 5008 commits are reverts, spread over 16 files, none backed out twice.")
         self.assertEqual(f[0]["advice"], "Look at why they were backed out; no single file keeps coming back.")
+        self.assertEqual(f[0]["evidence"]["files"], 16, "the file count the sentence quotes is in the evidence too")
 
     def test_five_reverts_fire_even_below_five_percent(self):
         self.assertEqual(len(findings.reverts(self._report(5, commits=1000, reverted={"a.py": 5}))), 1)

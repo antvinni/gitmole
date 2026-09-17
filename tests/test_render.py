@@ -787,6 +787,13 @@ class DescriptiveTables(unittest.TestCase):
         r["meta"]["steps"] = {"scc": "run"}
         self.assertNotIn("size", render.pulse(r)[0])
 
+    def test_core_steps_are_still_step_names_the_planner_emits(self):
+        # a step renamed in run.plan without a matching rename here would silently drop out of the
+        # header's "did not finish" line instead of failing loudly, so this pins the two together.
+        from gitmole import run
+        self.assertLessEqual(set(render.CORE_STEPS), {s["name"] for s in run.plan("/r", "/o")},
+                             "a renamed step would otherwise stop being named in the header")
+
 
 class KnowledgeMap(unittest.TestCase):
     def test_section_lists_areas_with_owners(self):
@@ -1146,13 +1153,13 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(sec["rows"][0], ["core/parser.py", "▰▰▰▰▰▰▰▰▰▰", "changed 40 times · fixed 5 times in six months"])
         self.assertEqual(sec["rows"][1][1], "▰▰")
         self.assertEqual(sec["rows"][2][1], "")
-        self.assertEqual(sec["caption"], "total 3.6; 2 of these files are on the watch list")
+        self.assertEqual(sec["caption"], "total 3.6% of the repository's revisions × lines of code; 2 of these files are on the watch list")
 
     def test_one_watched_file_reads_as_one_file(self):
         risk = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times"], "watched": True}],
                 "total": 3.0, "watched": 1, "max_score": 3.0}
         sec = render.risk_section(risk, "main", full=False)
-        self.assertEqual(sec["caption"], "total 3.0; 1 of these files is on the watch list")
+        self.assertEqual(sec["caption"], "total 3.0% of the repository's revisions × lines of code; 1 of these files is on the watch list")
 
     def test_capped_rows_come_from_the_shared_limit_helper(self):
         risk = {"files": [{"file": f"f{i}.py", "score": 1.0, "reasons": ["changed 3 times"], "watched": False} for i in range(20)],

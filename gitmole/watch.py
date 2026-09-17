@@ -5,11 +5,13 @@ of code, the product the Hotspots table uses: measured at six cut-offs on three 
 (docs/validation.md), that product named more of the files fixed in the following six months than
 any weighting of fixes, complexity and ownership did. Those signals are the reasons printed beside
 each file: how often it was fixed lately, who alone owns it, its most complex function, what it
-always changes with. A file's score is the share of scored files whose product is no larger than its
-own, so it lies between 0 and 1, the top file scores 1, and one enormous file is one more file, not a
-new scale. The two factor-product scorings the list used to rank by, churn × (1 + recent fixes) ×
-(1 + complexity) × (1.5 if single-owned) with each factor a share of the largest value ("max") or a
-rank among the scored files ("rank"), stay selectable so gitmole.evaluate can keep comparing them.
+always changes with. A file's score is its share, in percent, of all scored files' revisions × lines
+of code, so the scores of the whole list add up to 100 and a change's `--risk` total is the share of
+that mass the change touches; one enormous file takes a large share, as it should, and lowers the
+others' only by what it adds to the whole. The two factor-product scorings the list used to rank by,
+churn × (1 + recent fixes) × (1 + complexity) × (1.5 if single-owned) with each factor a share of the
+largest value ("max") or a rank among the scored files ("rank"), stay selectable so gitmole.evaluate
+can keep comparing them.
 Complexity is scc's per-file total, which exists for every file on one scale; lizard's most complex
 function in the file is what the reasons name, since lizard has no reader for shell, Terraform,
 Makefiles and the like."""
@@ -75,8 +77,8 @@ def _by_max(values: list, inclusive: bool):
 def _by_rank(values: list, inclusive: bool):
     """x as the share of the scored files at or below it (inclusive), or strictly below it. Churn is
     inclusive, so the most-changed file is 1 and no file is 0; fixes and complexity are strict, so a
-    file with none of either gets no lift, as under _by_max. The hotspot product is ranked inclusively
-    too, so the top file always scores 1. An outlier is one more file, not a new scale."""
+    file with none of either gets no lift, as under _by_max. An outlier is one more file, not a new
+    scale."""
     ordered = sorted(values)
     cut = bisect.bisect_right if inclusive else bisect.bisect_left
     return lambda x: cut(ordered, x) / len(ordered)
@@ -88,8 +90,9 @@ SCORINGS = ("hotspot", *SCALINGS)
 
 def risks(report: dict, min_revs: int = 2, scoring: str = "hotspot") -> list:
     """The watch list: every scored file with its reasons, worst first. `scoring` is "hotspot" (the
-    default: revisions × lines of code, as a rank among the scored files), or one of the two factor
-    products, "rank" and "max", kept so gitmole.evaluate can compare them with it."""
+    default: each file's score is its percentage share of the pool's revisions × lines of code), or
+    one of the two factor products, "rank" and "max", kept so gitmole.evaluate can compare them with
+    it."""
     if scoring not in SCORINGS:
         raise ValueError(f"scoring must be one of {', '.join(SCORINGS)}, got {scoring!r}")
     owners = _owners(report)
@@ -117,10 +120,10 @@ def risks(report: dict, min_revs: int = 2, scoring: str = "hotspot") -> list:
         return []
 
     if scoring == "hotspot":
-        place = _by_rank([r["revs"] * r["code"] for r in rows], True)
+        pool = sum(r["revs"] * r["code"] for r in rows)
 
         def score(r):
-            return place(r["revs"] * r["code"])
+            return 100 * (r["revs"] * r["code"]) / pool if pool else 0.0
     else:
         scale = SCALINGS[scoring]
         churn = scale([r["revs"] for r in rows], True)
@@ -176,8 +179,9 @@ WATCH_TOP = 15   # the same cap the report's --full watch list uses
 
 
 def change_risk(report: dict, files: list) -> dict:
-    """The watch score of each touched file, and their sum. Files the watch list never scored get 0
-    and one reason saying why."""
+    """The watch score of each touched file, and their sum: under the default "hotspot" scoring, that
+    total is a percentage of the repository's revisions × lines of code. Files the watch list never
+    scored get 0 and one reason saying why."""
     ranked = risks(report)
     by_file = {r["file"]: r for r in ranked}
     watched = {r["file"] for r in ranked[:WATCH_TOP]}

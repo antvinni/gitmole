@@ -40,7 +40,7 @@ gitmole 'owner/*'                      # every non-archived repo of a user or or
 gitmole . --markdown report.md         # the same report as a Markdown document
 gitmole . --json report.json           # every table, the watch list and the findings
 gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
-gitmole . --risk main --risk-threshold 5   # exit 3 if the files changed since main are too risky
+gitmole . --risk main --risk-threshold 10  # exit 3 if the files changed since main hold over 10% of the risk
 gitmole . --since 2y --full            # the current team, every row and column
 gitmole --clean                        # list what gitmole left behind, delete on a yes
 ```

@@ -54,8 +54,8 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
 | `--fail-on LEVEL` | Exit 3 if any finding is at `critical`, `warning` or `info` or worse. |
-| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (0 to 1 per file), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
-| `--risk-threshold N` | With `--risk`: exit 3 when the change-risk total exceeds N. |
+| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
+| `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent. |
 
 ## Exports and CI
 
@@ -64,7 +64,7 @@ gitmole . --markdown report.md         # the same report as a Markdown document
 gitmole . --json report.json           # every table, the watch list and the findings, machine-readable
 gitmole . --markdown - | pbcopy        # - means stdout; banner and progress go to stderr
 gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
-gitmole . --risk main --risk-threshold 5   # exit 3 if the changed files are too risky
+gitmole . --risk main --risk-threshold 10  # exit 3 if the changed files hold over 10% of the repo's revisions × lines
 ```
 
 Each finding in the JSON carries, next to its severity, title, detail and
@@ -84,9 +84,14 @@ A CI job that runs
 on secrets in source files and still posts the report. Secrets found only in
 test files are a warning, so gate on `warning` to block on those too. Both
 exports also work with `--no-run` against an earlier output directory.
-`--risk-threshold` needs `--risk`: it exits 3 when the files changed since
-main add up to more than 5, each file counting between 0 and 1 by where it
-stands on the watch list; the total prints in the Change risk caption.
+`--risk-threshold` needs `--risk`; it exits 3 when the files changed since
+main hold more than 10% of the repository's revisions × lines of code, and
+the total prints in the Change risk caption.
+
+The scale changed in 0.8.0: before, the total was a sum of factor-product
+scores with no fixed unit. A threshold chosen for 0.7 has to be chosen
+again; run `gitmole . --risk main` on a few merged changes and read the
+totals.
 
 ## Big repositories
 

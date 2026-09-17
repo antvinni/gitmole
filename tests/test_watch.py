@@ -36,7 +36,25 @@ class Risks(unittest.TestCase):
         ranked = watch.risks(report())
         self.assertEqual([r["file"] for r in ranked], ["web/index.html", "core/parser.py", "core/util.py"],
                          "60 × 4000, then 40 × 800, then 30 × 200; fixes, complexity and ownership are reasons, not rank")
-        self.assertEqual([round(r["score"], 3) for r in ranked], [1.0, 0.667, 0.333], "the share of scored files at or below each product")
+        # products 240,000 / 32,000 / 6,000, sum 278,000: 100 × each ÷ 278,000.
+        self.assertEqual([round(r["score"], 2) for r in ranked], [86.33, 11.51, 2.16],
+                         "each file's percentage share of the pool's revisions × lines of code")
+        self.assertAlmostEqual(sum(r["score"] for r in ranked), 100.0, msg="the whole list's scores add up to 100")
+
+    def test_a_single_scored_file_holds_the_whole_pool_and_scores_100(self):
+        r = report(revisions=[{"entity": "core/parser.py", "n-revs": 40}])
+        ranked = watch.risks(r)
+        self.assertEqual([x["file"] for x in ranked], ["core/parser.py"])
+        self.assertEqual(ranked[0]["score"], 100.0, "one file is the whole pool, so it holds all of it")
+
+    def test_a_pool_whose_products_are_all_zero_does_not_divide_by_zero(self):
+        # a scored file's code is not itself filtered for 0 (only None is); scc can total 0 code
+        # for a file of blank lines and comments alone that it still recognises.
+        r = report()
+        for f in ("core/parser.py", "core/util.py", "web/index.html"):
+            r["size"]["files"][f]["code"] = 0
+        ranked = watch.risks(r)
+        self.assertEqual([x["score"] for x in ranked], [0.0, 0.0, 0.0], "revs × 0 is 0 for every row, so the sum is 0 and every score falls back to 0.0")
 
     def test_the_factor_products_stay_selectable_for_the_evaluation(self):
         for scoring in ("rank", "max"):
