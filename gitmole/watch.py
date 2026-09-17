@@ -50,9 +50,11 @@ def _companions(report: dict) -> dict:
 
 
 def _worst_function(report: dict) -> dict:
+    """The most complex function per file, passing over spans the function step marked as likely
+    mis-parsed: a swallowed span's complexity is not the file's."""
     worst = {}
     for f in report.get("functions") or []:
-        if f["file"] not in worst or f["ccn"] > worst[f["file"]]["ccn"]:
+        if not f.get("suspect") and (f["file"] not in worst or f["ccn"] > worst[f["file"]]["ccn"]):
             worst[f["file"]] = f
     return worst
 
@@ -120,7 +122,8 @@ def _reasons(r: dict) -> list:
         out.append(f"{r['owner']} wrote {round(100 * r['owner_share'])}% of it")
     fn = r["function"]
     if fn and fn["ccn"] >= CCN_FLOOR:
-        out.append(f"{fn['function']}() complexity {fn['ccn']}")
+        named = f"the function at line {fn['start']}" if fn.get("anonymous") else f"{fn['function']}()"
+        out.append(f"{named} complexity {fn['ccn']}")
     if r["companions"]:
         other, degree = r["companions"][0]
         more = len(r["companions"]) - 1

@@ -47,6 +47,16 @@ class Risks(unittest.TestCase):
         self.assertEqual(by["core/util.py"]["reasons"], ["changed 30 times", "fixed twice", "Ann wrote 95% of it"])
         self.assertEqual(by["web/index.html"]["reasons"], ["changed 60 times"])
 
+    def test_a_nameless_function_is_named_by_its_line_and_a_suspect_span_is_passed_over(self):
+        r = report()
+        r["functions"] = [{"file": "core/parser.py", "function": 'app.post("/api/x", async (req, res) => {', "anonymous": True,
+                           "ccn": 125, "nloc": 500, "params": 0, "start": 1162, "end": 1891, "suspect": "opens a block at line 1214 no deeper than its own start"},
+                          {"file": "core/parser.py", "function": 'router.get("/x", (req, res) => {', "anonymous": True,
+                           "ccn": 41, "nloc": 220, "params": 0, "start": 10, "end": 300, "suspect": ""}]
+        top = watch.risks(r)[0]
+        self.assertIn("the function at line 10 complexity 41", top["reasons"], "a label is not a name to put () after; a suspect span is not this file's complexity")
+        self.assertNotIn("complexity 125", " ".join(top["reasons"]))
+
     def test_leaves_out_tests_deleted_files_and_one_offs(self):
         files = [r["file"] for r in watch.risks(report())]
         self.assertNotIn("tests/test_parser.py", files)
