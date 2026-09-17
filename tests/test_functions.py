@@ -67,6 +67,17 @@ class FunctionsScript(unittest.TestCase):
         self.assertIn('"tracked"', csv, "functions are still measured")
         self.assertIsNone(dup, "no duplicates.txt: the finder did not run, so nothing pretends it did")
 
+    def test_a_huge_nested_name_is_cut_before_it_is_written(self):
+        from types import SimpleNamespace
+        name = ".".join("a" for _ in range(100_000))
+        fn = SimpleNamespace(nloc=5, cyclomatic_complexity=3, token_count=40, parameter_count=1, length=5, name=name,
+                             long_name=name + "( )", start_line=1, end_line=5)
+        row = functions.csv_row(SimpleNamespace(filename="a.py"), fn)
+        self.assertEqual(len(row[7]), functions.NAME_CAP)
+        self.assertTrue(row[7].endswith("…"))
+        self.assertLessEqual(len(row[8]), functions.LONG_NAME_CAP)
+        self.assertLessEqual(len(row[5]), functions.NAME_CAP + len("@1-5@a.py"))
+
     def test_csv_matches_lizards_own_layout(self):
         with tempfile.TemporaryDirectory() as d:
             make_repo(d)

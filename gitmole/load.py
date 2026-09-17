@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import io
+import sys
 import json
 import os
 import re
@@ -145,13 +146,21 @@ def parse_authors_log(text: str) -> list:
     ]
 
 
+NAME_CAP = 200   # a function name a table can show; deeply nested fixtures give lizard dotted names of megabytes
+csv.field_size_limit(min(sys.maxsize, 2**31 - 1))   # an older functions.csv may still carry such a name
+
+
+def _cut(name: str, cap: int = NAME_CAP) -> str:
+    return name if len(name) <= cap else name[:cap - 1] + "…"
+
+
 def parse_functions(text: str) -> list:
     """lizard --csv rows: nloc, ccn, tokens, params, length, location, file, function, long name, start, end."""
     rows = []
     for r in csv.reader(io.StringIO(text)):
         if len(r) < 11:
             continue
-        rows.append({"file": _rel(r[6]), "function": r[7] or "(anonymous)", "ccn": _num(r[1]), "nloc": _num(r[0]), "params": _num(r[3]),
+        rows.append({"file": _rel(r[6]), "function": _cut(r[7]) or "(anonymous)", "ccn": _num(r[1]), "nloc": _num(r[0]), "params": _num(r[3]),
                      "start": _num(r[9]), "end": _num(r[10])})
     return rows
 
