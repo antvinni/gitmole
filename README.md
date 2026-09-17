@@ -43,6 +43,7 @@ gitmole . --json report.json           # every table, the watch list and the fin
 gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
 gitmole . --risk main --risk-threshold 5   # exit 3 if the files changed since main are too risky
 gitmole . --since 2y --full            # the current team, every row and column
+gitmole --clean                        # list what gitmole left behind, delete on a yes
 ```
 
 A CI job that runs `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"`
@@ -124,8 +125,10 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 
 - Everything is offline except the optional clone step, which uses your
   existing gh auth. None of the tools send data anywhere.
-- Remote targets are cloned into a fresh temp directory. Local clones are
-  only read, but the log export and the secrets scan touch all branches.
+- Remote targets are cloned into a fresh temp directory that is removed when
+  the run ends. Local clones are only read, but the log export and the
+  secrets scan touch all branches. `gitmole --clean` lists every directory
+  gitmole created and deletes them after a y/N question.
 - Secret values never reach the output directory. betterleaks reports to
   gitmole in memory, and gitmole stores a short keyed hash in place of the
   value, the matched text and the commit message. The key is random, made

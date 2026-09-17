@@ -330,6 +330,59 @@ class GhFailures(unittest.TestCase):
         self.assertIn("repository not found", text)
 
 
+class TempClones(unittest.TestCase):
+    """A remote or portfolio run removes the temp parent it cloned into, whatever happened in between."""
+
+    def _cloner(self, parents):
+        def cloner(target, parent):
+            parents.append(parent)
+            d = os.path.join(parent, target.split("/")[-1])
+            os.makedirs(d)
+            _tiny_repo(d)
+            return d
+        return cloner
+
+    def _planner(self, argv):
+        return lambda repo, out, branch="HEAD", **kw: [{"name": "q", "argv": argv, "stdout": None, "deps": []}]
+
+    def test_remote_run_removes_its_clone_on_success(self):
+        parents = []
+        with tempfile.TemporaryDirectory() as work:
+            rc = cli.main(["acme/widgets", "--out", os.path.join(work, "out")], console=console(), tool_check=lambda **kw: [],
+                          planner=self._planner(["true"]), estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1},
+                          cloner=self._cloner(parents))
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(parents), 1)
+        self.assertFalse(os.path.exists(parents[0]))
+
+    def test_remote_run_removes_its_clone_when_a_step_fails(self):
+        parents = []
+        with tempfile.TemporaryDirectory() as work:
+            cli.main(["acme/widgets", "--out", os.path.join(work, "out")], console=console(), tool_check=lambda **kw: [],
+                     planner=self._planner(["false"]), estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1},
+                     cloner=self._cloner(parents))
+        self.assertFalse(os.path.exists(parents[0]))
+
+    def test_failed_clone_leaves_no_parent(self):
+        parents = []
+        def cloner(target, parent):
+            parents.append(parent)
+            raise run.GhError("repository not found")
+        rc = cli.main(["acme/missing"], console=console(), tool_check=lambda **kw: [], cloner=cloner)
+        self.assertEqual(rc, 2)
+        self.assertFalse(os.path.exists(parents[0]))
+
+    def test_portfolio_run_removes_its_parent(self):
+        parents = []
+        with tempfile.TemporaryDirectory() as work:
+            rc = cli.main(["acme/*", "--out", os.path.join(work, "pf")], console=console(), tool_check=lambda **kw: [],
+                          planner=self._planner(["true"]), estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1},
+                          lister=lambda owner: ["one", "two"], cloner=self._cloner(parents))
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(set(parents)), 1)
+        self.assertFalse(os.path.exists(parents[0]))
+
+
 class FileTypes(unittest.TestCase):
     def test_list_file_types_prints_the_tree_and_exits(self):
         with tempfile.TemporaryDirectory() as d:
@@ -516,8 +569,20 @@ class Arguments(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("not a repo", c.export_text())
 
+    def test_non_repo_directory_is_reported_not_raised(self):
+        with tempfile.TemporaryDirectory() as d:
+            target = os.path.join(d, "checkouts")
+            os.mkdir(target)
+            c = console()
+            rc = cli.main([target], console=c, tool_check=lambda **kw: [])
+            created = os.listdir(d)
+        self.assertEqual(rc, 2)
+        self.assertIn("not a git repository", c.export_text())
+        self.assertEqual(created, ["checkouts"])   # no analysis-checkouts/ next to a bad target
+
     def test_missing_tools_are_listed(self):
         with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
             c = console()
             rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"])
         text = c.export_text()
@@ -525,6 +590,120 @@ class Arguments(unittest.TestCase):
         self.assertIn("scc", text)
         self.assertIn("brew install", text)
         self.assertNotIn("jar", text)
+
+
+class Clean(unittest.TestCase):
+    """--clean lists what gitmole left behind and deletes on a yes. TMPDIR is pointed at a scratch dir so the
+    real temp folder is never listed or touched."""
+
+    def _with_tmp(self, fn):
+        with tempfile.TemporaryDirectory() as work, tempfile.TemporaryDirectory() as tmp:
+            old = os.environ.get("TMPDIR")
+            os.environ["TMPDIR"] = tmp
+            try:
+                return fn(work, tmp)
+            finally:
+                if old is None:
+                    del os.environ["TMPDIR"]
+                else:
+                    os.environ["TMPDIR"] = old
+
+    def _output(self, path):
+        os.makedirs(path)
+        with open(os.path.join(path, "meta.json"), "w") as fh:
+            fh.write("{}")
+
+    def test_nothing_to_clean(self):
+        def go(work, tmp):
+            c = console()
+            rc = cli.main(["--clean", work], console=c)
+            return rc, c.export_text()
+        rc, text = self._with_tmp(go)
+        self.assertEqual(rc, 0)
+        self.assertIn("nothing to clean", text)
+
+    def test_lists_then_keeps_on_anything_but_yes(self):
+        def go(work, tmp):
+            self._output(os.path.join(work, "analysis-a"))
+            os.makedirs(os.path.join(tmp, "gitmole-x"))
+            c = Console(file=io.StringIO(), width=120, record=True, force_terminal=True, color_system=None)
+            asked = []
+            rc = cli.main(["--clean", work], console=c, ask=lambda q: asked.append(q) or "n")
+            return rc, c.export_text(), asked, os.path.isdir(os.path.join(work, "analysis-a")), os.path.isdir(os.path.join(tmp, "gitmole-x"))
+        rc, text, asked, out_kept, tmp_kept = self._with_tmp(go)
+        self.assertEqual(rc, 0)
+        self.assertIn("Left behind", text)
+        self.assertIn("analysis-a", text)
+        self.assertIn("gitmole-x", text)
+        self.assertEqual(len(asked), 1)
+        self.assertIn("Delete 2 directories", asked[0])
+        self.assertIn("kept", text)
+        self.assertTrue(out_kept)
+        self.assertTrue(tmp_kept)
+
+    def test_yes_answer_removes_and_reports(self):
+        def go(work, tmp):
+            self._output(os.path.join(work, "analysis-a"))
+            os.makedirs(os.path.join(tmp, "gitmole-x"))
+            c = Console(file=io.StringIO(), width=120, record=True, force_terminal=True, color_system=None)
+            rc = cli.main(["--clean", work], console=c, ask=lambda q: "Y")
+            return rc, c.export_text(), os.listdir(work), os.listdir(tmp)
+        rc, text, work_left, tmp_left = self._with_tmp(go)
+        self.assertEqual(rc, 0)
+        self.assertIn("removed 2 directories", text)
+        self.assertEqual(work_left, [])
+        self.assertEqual(tmp_left, [])
+
+    def test_default_base_is_the_current_directory(self):
+        def go(work, tmp):
+            self._output(os.path.join(work, "analysis-a"))
+            here = os.getcwd()
+            os.chdir(work)
+            try:
+                c = console()
+                rc = cli.main(["--clean", "--yes"], console=c)
+            finally:
+                os.chdir(here)
+            return rc, os.listdir(work)
+        rc, left = self._with_tmp(go)
+        self.assertEqual(rc, 0)
+        self.assertEqual(left, [])
+
+    def test_no_terminal_lists_and_refuses_without_yes(self):
+        def go(work, tmp):
+            self._output(os.path.join(work, "analysis-a"))
+            c = console()   # force_terminal=False
+            rc = cli.main(["--clean", work], console=c, ask=lambda q: self.fail("must not ask"))
+            return rc, c.export_text(), os.path.isdir(os.path.join(work, "analysis-a"))
+        rc, text, kept = self._with_tmp(go)
+        self.assertEqual(rc, 2)
+        self.assertIn("analysis-a", text)
+        self.assertIn("needs a terminal", text)
+        self.assertIn("--yes", text)
+        self.assertTrue(kept)
+
+    def test_yes_flag_skips_the_question(self):
+        def go(work, tmp):
+            self._output(os.path.join(work, "analysis-a"))
+            c = console()
+            rc = cli.main(["--clean", work, "--yes"], console=c, ask=lambda q: self.fail("must not ask"))
+            return rc, c.export_text(), os.listdir(work)
+        rc, text, left = self._with_tmp(go)
+        self.assertEqual(rc, 0)
+        self.assertIn("removed 1 directory", text)
+        self.assertEqual(left, [])
+
+    def test_yes_without_clean_is_an_error(self):
+        c = console()
+        rc = cli.main([".", "--yes"], console=c)
+        self.assertEqual(rc, 2)
+        self.assertIn("--yes needs --clean", c.export_text())
+
+    def test_no_target_without_clean_is_an_error(self):
+        c = console()
+        rc = cli.main([], console=c)
+        self.assertEqual(rc, 2)
+        self.assertIn("target required", c.export_text())
 
 
 class Risk(unittest.TestCase):
