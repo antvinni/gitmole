@@ -77,7 +77,7 @@ has bumped the formula.
 
 The example reports name the gitmole version that made them. When a release
 changes the report, run `bin/render-examples` and commit the new
-`docs/examples/*.md`, `docs/report.svg` and README text block together.
+`docs/examples/*.md` and README text block together.
 Bumping a pin is a separate decision: it changes the repository's history,
 not gitmole's output.
 
@@ -99,10 +99,9 @@ left behind, and `render.py` draws the report.
 `docs/banner.svg` from the banner code.
 `bin/render-examples` clones the repositories listed in the script under
 `$TMPDIR/gitmole-examples/`, pins each to its recorded commit, runs gitmole
-with the recorded reference date and writes `docs/examples/<repo>.md` and,
-for the featured one, `docs/report.svg` plus the README's text block on
-stdout. Clones and outputs are reused on a rerun; delete the directory to
-start clean.
+with the recorded reference date and writes `docs/examples/<repo>.md`; for
+the featured one it prints the README's text block on stdout. Clones and
+outputs are reused on a rerun; delete the directory to start clean.
 
 The change analysis (hotspots, coupling, ownership, age) is gitmole's own
 code, written after the ideas in Adam Tornhill's code-maat but sharing no

@@ -811,7 +811,7 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
 
 def excerpt(report: dict, findings: list, console: Console, full: bool = False) -> None:
     """The report's opening on its own: the header, whose tally counts the findings, and the watch
-    list. What the README's picture shows; the findings themselves are in the full report."""
+    list. What the README's text block shows; the findings themselves are in the full report."""
     console.print(header(report, findings))
     print_section(console, watch_section(report, full=full, width=console.width))
 
