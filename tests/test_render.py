@@ -341,6 +341,25 @@ class Report(unittest.TestCase):
         full_text = rendered(r, [], full=True)
         self.assertIn("tests/test_a.py", full_text[full_text.index("Complex functions"):])
 
+    def test_a_nameless_function_shows_its_label_and_its_file_with_the_line(self):
+        r = sample_report()
+        r["functions"].append({"file": "server/routes.ts", "function": 'app.post("/api/x", async (req, res) => {', "anonymous": True,
+                               "ccn": 25, "nloc": 60, "params": 0, "start": 1162, "end": 1240, "suspect": ""})
+        fn = _section_text(rendered(r, [], width=200), "Complex functions")
+        self.assertIn('app.post("/api/x", async (req, res) => {', fn)
+        self.assertIn("server/routes.ts:1162", fn)
+        self.assertNotIn("static/js/app.js:", fn, "a named function is found by its name; the row shows the file alone")
+
+    def test_a_suspect_span_is_marked_and_the_caption_says_what_the_mark_means(self):
+        r = sample_report()
+        r["functions"].append({"file": "lib/tpl.js", "function": "tpl", "anonymous": False, "ccn": 30, "nloc": 9, "params": 1, "start": 1, "end": 9,
+                               "suspect": "opens a block at line 8 no deeper than its own start"})
+        fn = _section_text(rendered(r, [], width=200), "Complex functions")
+        self.assertIn("30?", fn)
+        self.assertIn("? marks 1 span lizard may have mis-parsed", fn)
+        plain = _section_text(rendered(sample_report(), [], width=200), "Complex functions")
+        self.assertNotIn("?", plain)
+
     def test_default_complex_functions_hide_vendored_code_and_say_so(self):
         r = sample_report()
         r["functions"].append({"file": "vendor/github.com/x/y.go", "function": "validate", "ccn": 179, "nloc": 424, "params": 3, "start": 1, "end": 424})

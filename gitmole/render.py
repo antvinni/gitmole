@@ -515,7 +515,10 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     funcs, generated_note = _hide_generated(funcs, lambda f: f["file"], report, full, noun="function in a generated file", plural="functions in generated files")
     hidden_note = _join_hidden(hidden_note, vendor_note, sample_note, generated_note)
     limit = _limit("Complex functions", full)
-    rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
+    shown = funcs[:limit]
+    rows = [(f["function"], _where(f), f"{f['ccn']}{SUSPECT_MARK}" if f.get("suspect") else f["ccn"], f["nloc"], f["params"]) for f in shown]
+    suspects = sum(1 for f in shown if f.get("suspect"))
+    suspect_note = f"{SUSPECT_MARK} marks {suspects} span{'s' if suspects != 1 else ''} lizard may have mis-parsed" if suspects else None
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
     if full is not True:
         rows = _shorten(rows, width, columns, path_columns=(1,))
@@ -533,8 +536,17 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
                            f"nothing over complexity {CCN_FLOOR} in source files {counted}")
     else:
         note = None
-    caption = "; ".join(c for c in (_more(len(funcs), limit), None if note else hidden_note, partial) if c) or None
+    caption = "; ".join(c for c in (_more(len(funcs), limit), None if note else hidden_note, partial, suspect_note) if c) or None
     return _section("Complex functions", columns, rows, note=note, caption=caption)
+
+
+SUSPECT_MARK = "?"
+
+
+def _where(f: dict) -> str:
+    """A named function is found by its name in its file; a nameless one goes by its start line's text,
+    so the row says which line."""
+    return f"{f['file']}:{f['start']}" if f.get("anonymous") else f["file"]
 
 
 def knowledge_section(report: dict, full: bool = True, width=None) -> dict:

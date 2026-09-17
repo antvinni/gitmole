@@ -188,9 +188,20 @@ How to read each part of the terminal report, and what each run writes to disk; 
    of a version struct being the usual case. Vendored and generated code is left out of the
    brain methods finding, vendored code out of the knowledge islands and
    bus factor findings too: somebody else's code, or a generator's, is not
-   this repository's risk. A function lizard cannot name (a Go function
-   literal) is called `(anonymous)` and the advice names its file and
-   line. Activity and the timeline cover the whole history.
+   this repository's risk. A function lizard cannot name (a callback, a
+   Go function literal) goes by the text of the line it starts on, such
+   as `app.post("/api/actions/:id/assign", async (req, res) => {`, and
+   its row and the advice name its file and line, since the label is
+   not a name to search for. lizard's JavaScript and TypeScript reader
+   sometimes loses its place in a template literal or JSX and folds
+   the functions that follow into one span; a `?` after the complexity
+   marks a span that looks like that (a line inside it opens a block
+   no deeper than the function's own start, fewer than a quarter of
+   forty or more lines are code, or it has no name and nothing near its
+   start line opens a function, as with a JSX ternary read as one), the
+   caption says how many, and such spans are left out of the brain
+   methods finding. Activity and the
+   timeline cover the whole history.
 5. **Footer**: where the files and plots are.
 
 A full example, at a pinned commit, is
@@ -216,7 +227,7 @@ directory for a remote target:
 | `maat-age.csv` | change analysis | months since last change per file |
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file |
 | `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
-| `functions.csv` | lizard | per-function complexity, length, parameters |
+| `functions.csv` | lizard | per-function complexity, length, parameters, in lizard's own `--csv` columns, then two of gitmole's: a label for a function lizard could not name (the text of its start line) and, when the span looks mis-parsed, why |
 | `duplicates.json` | jscpd | duplicated blocks over the tracked code files, largest first (the thousand largest), each with every place it appears, and the share of lines inside a block; no source text |
 | `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
 | `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |

@@ -65,11 +65,81 @@ class FunctionsScript(unittest.TestCase):
         self.assertLessEqual(len(row[8]), functions.LONG_NAME_CAP)
         self.assertLessEqual(len(row[5]), functions.NAME_CAP + len("@1-5@a.py"))
 
-    def test_csv_matches_lizards_own_layout(self):
+    def test_csv_is_lizards_own_layout_then_the_label_and_suspect_columns(self):
         with tempfile.TemporaryDirectory() as d:
             make_repo(d)
             rc, csv, _ = run(d, "--types", "py", "--ignore", "vendor/**")
-        self.assertEqual(csv, '4,2,14,2,4,"tracked@1-4@app.py","app.py","tracked","tracked( a , b )",1,4\n')
+        self.assertEqual(csv, '4,2,14,2,4,"tracked@1-4@app.py","app.py","tracked","tracked( a , b )",1,4,"",""\n')
+
+    def test_a_nameless_function_is_labelled_by_its_start_line(self):
+        route = 'app.post("/api/actions/:id/assign", async (req, res) => {\n  if (!req.params.id) { return res.status(400).send(); }\n  res.send(req.params.id);\n});\n'
+        literal = "package main\n\nfunc main() {\n\tf := func(x int) int {\n\t\tif x > 0 {\n\t\t\treturn 1\n\t\t}\n\t\treturn 0\n\t}\n\t_ = f\n}\n"
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d, extra={"routes.js": route, "lit.go": literal})
+            rc, csv, _ = run(d, "--types", "js,go")
+        self.assertIn('"(anonymous)","(anonymous)",1,4,"app.post(""/api/actions/:id/assign"", async (req, res) => {",""', csv)
+        self.assertIn('""," x int",4,9,"f := func(x int) int {",""', csv, "a Go literal has an empty name and the same kind of label")
+        self.assertIn('"main","main",3,11,"",""', csv, "a named function needs no label")
+
+    def test_the_label_is_the_nearest_line_that_opens_a_function_when_lizard_is_a_line_off(self):
+        # lizard puts an arrow whose body starts on the next line at the body's line, and a callback in a
+        # JSX attribute at the tag's line: the label looks a line back and a few lines on for the `=>`
+        src = ("const xs = items.filter((m) =>\n  prev.includes(m)\n);\n"
+               "function A() {\n  return (\n    <Input\n      onChange={(e) => {\n        set(e.target.value);\n      }}\n    />\n  );\n}\n")
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d, extra={"near.tsx": src})
+            rc, csv, _ = run(d, "--types", "tsx")
+        self.assertIn('"(anonymous)","(anonymous)",2,2,"const xs = items.filter((m) =>",""', csv)
+        self.assertIn('"(anonymous)","(anonymous)",6,8,"onChange={(e) => {",""', csv)
+
+    def test_a_span_that_swallows_a_sibling_is_marked_suspect(self):
+        # lizard loses its place in a template literal and folds the next function into `tpl`
+        src = ("const tpl = (name) => `\n<html>\n  <body>\n    ${name ? `<h1>${name}</h1>` : \"\"}\n  </body>\n</html>`;\n\n"
+               "function after(a) {\n  if (a) { return 1; }\n  return 0;\n}\n")
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d, extra={"tpl.js": src})
+            rc, csv, _ = run(d, "--types", "js")
+        self.assertNotIn('"after"', csv, "the fixture only holds if lizard still swallows the sibling")
+        self.assertIn('"tpl","tpl ( name )",1,9,"","opens a block at line 8 no deeper than its own start"', csv)
+        self.assertIn('"scripted","scripted ( a )",1,4,"",""', csv, "a closing line is not a sibling")
+
+    def test_a_signature_that_closes_its_parameter_list_on_a_later_line_is_not_a_sibling(self):
+        src = ("function Panel({\n  title,\n  onClose,\n}: PanelProps) {\n  if (!title) { return null; }\n  return onClose;\n}\n"
+               "class Store {\n  async summary(filters?: {\n    siteId?: string;\n  }): Promise<any> {\n    if (filters) { return 1; }\n    return 0;\n  }\n}\n")
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d, extra={"sig.ts": src})
+            rc, csv, _ = run(d, "--types", "ts")
+        self.assertIn('"Panel","Panel ( title , onClose , PanelProps )",1,7,"",""', csv)
+        self.assertIn('"summary","summary ( filters siteId )",9,14,"",""', csv)
+
+    def test_jsx_children_on_their_own_lines_do_not_shift_the_line_numbers(self):
+        # lizard 1.24 merges the newline before a JSX child with its indentation into one whitespace token,
+        # and its preprocessing drops whitespace tokens other than a bare newline: one line lost per child
+        src = ('function A() {\n  return (\n    <div className="grid">\n      <div className="lg">\n      </div>\n'
+               '        <Skeleton className="h-48" />\n    </div>\n  );\n}\nfunction B() {\n  return 1;\n}\n')
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d, extra={"page.tsx": src})
+            rc, csv, _ = run(d, "--types", "tsx")
+        self.assertIn('"B","B ( )",10,12,"",""', csv)
+        self.assertIn('"A","A ( )",1,9,"",""', csv)
+
+    def test_a_nameless_span_where_nothing_opens_a_function_is_marked_suspect(self):
+        # lizard reports a JSX ternary as a function: all code, all deeper than its start, so only the
+        # missing `=>` or `function` near its start line gives it away
+        src = "function A() {\n  return (\n    <div>\n      {isLoading ? (\n        <p>x</p>\n      ) : (\n        <p>y</p>\n      )}\n    </div>\n  );\n}\n"
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d, extra={"ternary.tsx": src})
+            rc, csv, _ = run(d, "--types", "tsx")
+        self.assertIn('"(anonymous)","(anonymous) ( x )",4,8,"{isLoading ? (","nothing opens a function within 5 lines of line 4"', csv)
+        self.assertIn('"A","A ( )",1,11,"",""', csv)
+
+    def test_a_long_span_that_is_mostly_not_code_is_marked_suspect(self):
+        body = "".join(f"  // note {i}\n" for i in range(40))
+        src = "function sparse(a) {\n" + body + "  if (a) { return 1; }\n  return 0;\n}\n"
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d, extra={"sparse.js": src})
+            rc, csv, _ = run(d, "--types", "js")
+        self.assertIn('"sparse","sparse ( a )",1,44,"","4 of 44 lines are code"', csv)
 
     def test_file_types_restrict_what_is_measured(self):
         with tempfile.TemporaryDirectory() as d:

@@ -442,10 +442,11 @@ def _partial_functions(report: dict) -> str:
 
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
     """Functions that are both long and complex, in this repository's own source files: test files,
-    example code, vendored code and generated files (amalgamations included) are left out. A warning
-    when one sits in a hotspot."""
+    example code, vendored code and generated files (amalgamations included) are left out, and so is
+    a span the function step marked suspect, since a mis-parse that swallowed the next function is
+    long and complex by construction. A warning when one sits in a hotspot."""
     generated, vendored = _generated(report), filetypes.vendor_dirs(report)
-    big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines
+    big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not f.get("suspect")
            and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
                     or f["file"] in generated)]
     if not big:
@@ -456,7 +457,7 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     listed = "; ".join(f"{f['function']} ({_place(f)}) complexity {f['ccn']}, {f['nloc']} lines, {f['params']} params" for f in big[:5])
     more = f" and {len(big) - 5} more" if len(big) > 5 else ""
     first = big[0]
-    which = f"the anonymous function at {_place(first)}" if first["function"] == ANONYMOUS else f"{first['function']} in {first['file']}"
+    which = f"the anonymous function at {_place(first)}" if _anonymous(first) else f"{first['function']} in {first['file']}"
     return [_f(sev, "Brain methods",
                f"{len(big)} function(s) are both long and complex: {listed}{more}.{_partial_functions(report)}",
                f"Split {which} first, before the next change lands there.")]
@@ -465,9 +466,15 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
 ANONYMOUS = "(anonymous)"
 
 
+def _anonymous(f: dict) -> bool:
+    """A function lizard could not name: it goes by its start line's text (or "(anonymous)" in an
+    older functions.csv), which is not a name to search for."""
+    return f.get("anonymous", f["function"] == ANONYMOUS)
+
+
 def _place(f: dict) -> str:
     """Where a function is: its file, or file:line when it has no name to find it by."""
-    return f"{f['file']}:{f['start']}" if f["function"] == ANONYMOUS else f["file"]
+    return f"{f['file']}:{f['start']}" if _anonymous(f) else f["file"]
 
 
 def _generated(report: dict) -> set:
