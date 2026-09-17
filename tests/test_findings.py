@@ -47,7 +47,7 @@ class SecretsFound(unittest.TestCase):
         self.assertIn("1 distinct value in 2 places: generic-api-key in app/settings.py (c1, c2)", crit["detail"])
         self.assertIn("Rotate", crit["advice"])
         self.assertIn(".betterleaksignore", crit["advice"])
-        self.assertEqual(warn["title"], "2 secret(s) only in test or documentation files")
+        self.assertEqual(warn["title"], "2 secret(s) only in test, example or documentation files")
         self.assertIn("2 distinct values in 3 places", warn["detail"])
         self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
         self.assertIn(".betterleaksignore", warn["advice"])
@@ -56,11 +56,21 @@ class SecretsFound(unittest.TestCase):
         r = report(secrets=[self.row("h3", "tests/t.py")])
         self.assertEqual([f["severity"] for f in findings.secrets_found(r)], ["warning"])
 
+    def test_a_value_only_in_an_example_fixture_or_rules_directory_is_a_warning(self):
+        r = report(secrets=[self.row("h1", "examples/language/bru.bru", "57d82e9", rule="generic-password"),
+                            self.row("h2", "config/generate/rules/slack.go", "04bdee4", rule="slack-bot-token"),
+                            self.row("h3", "pkg/testdata/creds.yaml", "c3")])
+        f = findings.secrets_found(r)
+        self.assertEqual([x["severity"] for x in f], ["warning"])
+        self.assertEqual(f[0]["title"], "3 secret(s) only in test, example or documentation files")
+        r = report(secrets=[self.row("h1", "examples/app.py", "c1"), self.row("h1", "app/config.py", "c2")])
+        self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
+
     def test_a_value_only_in_documentation_is_a_warning_that_says_template(self):
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508")])
         f = findings.secrets_found(r)
         self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertEqual(f[0]["title"], "1 secret(s) only in test or documentation files")
+        self.assertEqual(f[0]["title"], "1 secret(s) only in test, example or documentation files")
         self.assertIn("fixtures or templates", f[0]["advice"])
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
@@ -134,6 +144,13 @@ class BusFactor(unittest.TestCase):
         r["meta"]["since"] = "2025-01-01"
         self.assertEqual(findings.bus_factor(r)[0]["advice"], "Pair someone with Ann on core/ first; it is 95% theirs since 2025-01-01.",
                          "ownership is windowed while the headline share is not")
+
+    def test_vendored_trees_are_not_named_in_the_advice(self):
+        own = [{"entity": "vendor/github.com/x/a.go", "author": "Ann", "added": 500000, "deleted": 0},
+               {"entity": "core/a.py", "author": "Ann", "added": 900, "deleted": 0},
+               {"entity": "core/b.py", "author": "Bob", "added": 50, "deleted": 0}]
+        f = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}, ownership=own))
+        self.assertEqual(f[0]["advice"], "Pair someone with Ann on core/ first; it is 95% theirs.")
 
     def test_nothing_when_spread(self):
         self.assertEqual(findings.bus_factor(report()), [])
@@ -233,6 +250,17 @@ class TightCoupling(unittest.TestCase):
         pairs = [{"entity": "a", "coupled": "b", "degree": 100, "average-revs": 10}]
         f = findings.tight_coupling(report(coupling=pairs))
         self.assertIn("1 pair changes together", f[0]["detail"])
+
+    def test_a_directory_of_files_that_change_as_one_is_one_cluster(self):
+        files = [f"rich/_unicode_data/unicode{n}.py" for n in ("10", "11", "12", "13")]
+        pairs = [{"entity": a, "coupled": b, "degree": 100, "average-revs": 5} for i, a in enumerate(files) for b in files[i + 1:]]
+        pairs.append({"entity": "rich/a.py", "coupled": "rich/b.py", "degree": 90, "average-revs": 8})
+        f = findings.tight_coupling(report(coupling=pairs))
+        self.assertIn("4 files in rich/_unicode_data/ change together at least 80% of the time, and 1 more pair does: rich/a.py + rich/b.py (90%).", f[0]["detail"])
+        self.assertNotIn("unicode10", f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Review rich/_unicode_data/ first: 4 files change as one; a generator or a shared layout links them."), f[0]["detail"])
+        f = findings.tight_coupling(report(coupling=pairs[:-1]))
+        self.assertIn("4 files in rich/_unicode_data/ change together at least 80% of the time, 6 pairs in all.", f[0]["detail"])
 
     def test_nothing_when_no_tight_pairs(self):
         self.assertEqual(findings.tight_coupling(report()), [])
@@ -338,6 +366,14 @@ class BrainMethods(unittest.TestCase):
         self.assertNotIn("test_all", f[0]["detail"])
         self.assertEqual(findings.brain_methods(report(functions=fns[:1])), [])
 
+    def test_vendored_functions_are_not_brain_methods(self):
+        fns = [{"file": "vendor/github.com/google/jsonschema-go/jsonschema/validate.go", "function": "validate", "ccn": 179, "nloc": 424, "params": 3, "start": 1, "end": 424},
+               {"file": "processor/workers.go", "function": "countLoopGeneric", "ccn": 56, "nloc": 164, "params": 8, "start": 1, "end": 164}]
+        f = findings.brain_methods(report(functions=fns))
+        self.assertEqual(f[0]["advice"], "Split countLoopGeneric in processor/workers.go first, before the next change lands there.")
+        self.assertNotIn("vendor/", f[0]["detail"])
+        self.assertEqual(findings.brain_methods(report(functions=fns[:1])), [])
+
     def test_a_partial_run_says_there_may_be_more(self):
         r = report(functions=self.FUNCS)
         self.assertNotIn("part way", findings.brain_methods(r)[0]["detail"])
@@ -401,6 +437,16 @@ class KnowledgeIslands(unittest.TestCase):
         f = findings.knowledge_islands(report(ownership=own))
         self.assertEqual(f[0]["advice"], "Pair someone with Bob on core/ first; it is the largest at 300 lines.")
         self.assertNotIn("tests/", f[0]["detail"])
+
+    def test_vendored_trees_are_not_islands(self):
+        own = [{"entity": "vendor/github.com/x/a.go", "author": "Ann", "added": 500000, "deleted": 0},
+               {"entity": "web/node_modules/y/b.js", "author": "Ann", "added": 90000, "deleted": 0},
+               {"entity": "core/a.py", "author": "Bob", "added": 300, "deleted": 0}]
+        f = findings.knowledge_islands(report(ownership=own))
+        self.assertEqual(f[0]["advice"], "Pair someone with Bob on core/ first; it is the largest at 300 lines.")
+        self.assertNotIn("vendor/", f[0]["detail"])
+        self.assertNotIn("web/", f[0]["detail"])
+        self.assertIn("100% of all lines added", f[0]["detail"], "vendored lines are not in the denominator either")
 
     def test_nothing_when_shared(self):
         self.assertEqual(findings.knowledge_islands(report(ownership=self.OWN[2:])), [])

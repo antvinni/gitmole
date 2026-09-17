@@ -97,6 +97,20 @@ class TestPaths(unittest.TestCase):
         for path in ("app/settings.py", "static/index.html", "docsite/app.js", "mdx/a.py", "config.yaml"):
             self.assertFalse(filetypes.is_doc_path(path), path)
 
+    def test_example_fixture_and_rule_directories(self):
+        for path in ("examples/language/bru.bru", "example/app.py", "samples/x.json", "sample/x.json", "fixtures/keys.pem",
+                     "src/fixture/a.txt", "pkg/testdata/creds.yaml", "demo/x.py", "demos/x.py", "config/generate/rules/slack.go"):
+            self.assertTrue(filetypes.is_sample_path(path), path)
+        for path in ("app/settings.py", "examplesite/app.py", "src/rulesets/a.go", "sampler/x.py", "config/betterleaks.toml"):
+            self.assertFalse(filetypes.is_sample_path(path), path)
+
+    def test_vendored_trees(self):
+        for path in ("vendor/github.com/x/y.go", "web/node_modules/a/index.js", "third_party/z/a.c", "thirdparty/a.c", "_vendor/a.py",
+                     "external/lib/a.cpp"):
+            self.assertTrue(filetypes.is_vendor_path(path), path)
+        for path in ("vendors.py", "src/vendoring/a.py", "node/a.js", "externals.txt", "app/main.go"):
+            self.assertFalse(filetypes.is_vendor_path(path), path)
+
 
 if __name__ == "__main__":
     unittest.main()

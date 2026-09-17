@@ -34,7 +34,7 @@ next to it), with sizes, and deletes them after one y/N question.
 
 | Option | What it does |
 |---|---|
-| `--full` | Every column and every row. The default report keeps the columns you read, caps each table, elides long paths in the middle, and hides test files. |
+| `--full` | Every column and every row. The default report keeps the columns you read, caps each table, elides long paths in the middle, hides test files, deleted files and vendored code, and shows a directory that changes as one as a single coupling row. |
 | `--out DIR` | The output directory. Default: `analysis-<repo>` next to a local clone, or in the current directory for a remote target. |
 | `--no-run` | Skip the tools and re-render the report from the output directory of an earlier run. Works with the exports and `--risk`. |
 | `--since WHEN` | Bound the history by author date: `2y`, `18m`, `90d` or a `YYYY-MM-DD` date. People, activity, timeline, hotspots and coupling then describe the current team rather than the founders. File ages and code age always cover the whole history, identity aliases are still merged over all of it, and an empty window is an error. |
