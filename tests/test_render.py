@@ -924,13 +924,34 @@ class Timeline(unittest.TestCase):
 
     def test_a_very_long_name_still_leaves_at_least_three_months(self):
         r = sample_report()
-        name = "a" * 70   # long enough that the width arithmetic alone would want fewer than three months
+        name = "a" * 70   # long enough that even the floor does not leave room for the whole name
         r["activity"]["timeline"] = {name: {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
         text = rendered(r, [], width=80)
         body = _section_text(text, "Timeline")
-        self.assertIn(name, body, "the name on one line, not split, even when it is very long")
         sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
         self.assertEqual(len(sec["columns"]) - 1, 3, "the floor: three months even though the name leaves almost no room")
+        self.assertEqual(sec["title"], "Timeline (Jul 2026 → Sep 2026)")
+        section_text = body.split("\n\n", 1)[0]
+        for month in ("Jul", "Aug", "Sep"):
+            self.assertIn(month, section_text, f"the {month} column header is fully visible, not starved to nothing")
+        self.assertIn("3", section_text, "the counts under the shown months are visible")
+        self.assertNotIn(name, body, "the full 70-character name does not fit even at the floor")
+        self.assertIn("…", section_text, "the name gives way, cut with an ellipsis, rather than the months")
+        self.assertEqual(len(section_text.splitlines()), 4, "one row, not a name folded onto a second line")
+        for line in section_text.splitlines():
+            self.assertLessEqual(len(line), 80, "no line wider than the terminal")
+
+    def test_a_name_just_over_the_floors_room_still_leaves_full_month_headers(self):
+        r = sample_report()
+        name = "a" * 62   # over the 60-character room the floor leaves (width 80, 3 months): headers used to starve first
+        r["activity"]["timeline"] = {name: {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
+        text = rendered(r, [], width=80)
+        body = _section_text(text, "Timeline")
+        section_text = body.split("\n\n", 1)[0]
+        for month in ("Jul", "Aug", "Sep"):
+            self.assertIn(month, section_text, f"the {month} header is whole, not truncated to a letter and an ellipsis")
+        sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
+        self.assertEqual(len(sec["columns"]) - 1, 3)
 
 
 class Layout(unittest.TestCase):

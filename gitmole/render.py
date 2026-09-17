@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import coupling, filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
+from . import coupling, filetypes, hotspots, identity, knowledge, leaks, load, loss, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -30,8 +30,11 @@ SIDE_BY_SIDE_MIN_WIDTH = 100
 # gap rich reserves between every pair of columns even with the box's edges hidden (verified against
 # rich.table.Table._calculate_column_widths, whose "n columns - 1" extra width cancels the gap saved
 # on the last column, leaving a clean 6 per month). The section itself is indented by 2. FLOOR is the
-# fewest months shown even when a name leaves almost no room.
-MONTH_WIDTH, INDENT, FLOOR = 6, 2, 3
+# fewest months shown even when a name leaves almost no room. Once FLOOR is reached the months keep
+# their full width and the name gives way instead, cut to whatever room is left; NAME_FLOOR is the
+# fewest characters of a name still shown before the ellipsis, even if the months leave less room than
+# that (eight is enough to keep most short names, and the start of longer ones, still recognisable).
+MONTH_WIDTH, INDENT, FLOOR, NAME_FLOOR = 6, 2, 3, 8
 
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
@@ -403,8 +406,11 @@ def _month_label(ym: str) -> str:
 
 def timeline_section(report: dict, full: bool = True, width=None, months: int = 12) -> dict:
     """Commits per author, one column per month. Names never fold: when the year does not fit the
-    terminal width, the oldest months are dropped (down to FLOOR) instead, and the title names the
-    months actually shown. With no width (the Markdown export) the whole span is kept."""
+    terminal width, the oldest months are dropped (down to FLOOR) instead. If a name is still too long
+    for the room FLOOR leaves, the name gives way, not the months: it is shown cut with an ellipsis
+    (never fewer than NAME_FLOOR characters), so the months a reader came for stay full width. The
+    title names the months actually shown; ranking, bots filtering and the row's key are all still the
+    real name, only the displayed cell is cut. With no width (the Markdown export) nothing is trimmed."""
     tl = (report.get("activity") or {}).get("timeline") or {}
     if not tl:
         return _section("Timeline", [("author", {})], [], note="no timeline data")
@@ -422,7 +428,8 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
         name = max([len("author")] + [len(a) for a in ranked[:limit]])
         span = span[-max(FLOOR, min(len(span), (width - INDENT - name) // MONTH_WIDTH)):]
     columns = [("author", {"no_wrap": True})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
-    rows = [(a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
+    room = width - INDENT - MONTH_WIDTH * len(span) if width else None
+    rows = [(load._cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
     return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))
 
 
