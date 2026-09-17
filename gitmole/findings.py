@@ -185,10 +185,12 @@ def hotspot_dominance(report: dict, ratio: float = 2.0, minimum: int = 20) -> li
 
 def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> list:
     """A file and its test are expected to change together, so pairs with a test file on either side are
-    left out; so are pairs where either file is no longer in the tree, which are history, not a dependency."""
+    left out; so are pairs where either file is no longer in the tree, which are history, not a dependency,
+    and pairs of release plumbing (two version files, a manifest and its lock file), which are a release."""
     tree = _tree(report)
     pairs = [p for p in report.get("coupling") or [] if p["degree"] >= min_degree and p["average-revs"] >= min_revs
              and not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))
+             and not (filetypes.is_release_path(p["entity"]) and filetypes.is_release_path(p["coupled"]))
              and not (tree and (p["entity"] not in tree or p["coupled"] not in tree))]
     if not pairs:
         return []
@@ -386,20 +388,36 @@ def _partial_functions(report: dict) -> str:
 
 
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
-    """Functions that are both long and complex, in this repository's own source files: test files and
-    vendored code are left out. A warning when one sits in a hotspot."""
+    """Functions that are both long and complex, in this repository's own source files: test files,
+    vendored code and generated files are left out. A warning when one sits in a hotspot."""
+    generated = _generated(report)
     big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines
-           and not (filetypes.is_test_path(f["file"]) or filetypes.is_vendor_path(f["file"]))]
+           and not (filetypes.is_test_path(f["file"]) or filetypes.is_vendor_path(f["file"]) or f["file"] in generated)]
     if not big:
         return []
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     hot = hotspots.top(report)
     sev = "warning" if any(f["file"] in hot for f in big) else "info"
-    listed = "; ".join(f"{f['function']} ({f['file']}) complexity {f['ccn']}, {f['nloc']} lines, {f['params']} params" for f in big[:5])
+    listed = "; ".join(f"{f['function']} ({_place(f)}) complexity {f['ccn']}, {f['nloc']} lines, {f['params']} params" for f in big[:5])
     more = f" and {len(big) - 5} more" if len(big) > 5 else ""
+    first = big[0]
+    which = f"the anonymous function at {_place(first)}" if first["function"] == ANONYMOUS else f"{first['function']} in {first['file']}"
     return [_f(sev, "Brain methods",
                f"{len(big)} function(s) are both long and complex: {listed}{more}.{_partial_functions(report)}",
-               f"Split {big[0]['function']} in {big[0]['file']} first, before the next change lands there.")]
+               f"Split {which} first, before the next change lands there.")]
+
+
+ANONYMOUS = "(anonymous)"
+
+
+def _place(f: dict) -> str:
+    """Where a function is: its file, or file:line when it has no name to find it by."""
+    return f"{f['file']}:{f['start']}" if f["function"] == ANONYMOUS else f["file"]
+
+
+def _generated(report: dict) -> set:
+    """Files the run found to be generated (a header marker or a linguist-generated attribute)."""
+    return set((report.get("meta") or {}).get("generated") or [])
 
 
 def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = 25, top_n: int = 10) -> list:

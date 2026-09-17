@@ -20,8 +20,26 @@ def _tokens(name: str) -> set:
     return {t for t in re.split(r"[^a-z0-9]+", name.lower()) if len(t) >= 3}
 
 
+# A bare first name under two emails may be two people; anything else spelled identically is one.
+_COMMON_FIRST_NAMES = {
+    "adam", "alex", "alexander", "andrew", "andy", "ann", "anna", "ben", "bob", "chris", "dan", "daniel", "dave", "david", "ed",
+    "eric", "frank", "george", "jack", "james", "jan", "jean", "jim", "joe", "john", "jon", "josh", "kevin", "lee", "li", "luke",
+    "mark", "martin", "matt", "max", "michael", "mike", "nick", "paul", "pete", "peter", "phil", "rob", "robert", "ryan", "sam",
+    "scott", "steve", "tim", "tom", "tony", "will",
+}
+
+
+def _plain(name: str) -> str:
+    return " ".join(name.lower().split())
+
+
 def same_person(a: dict, b: dict) -> bool:
-    return a["email"].lower() == b["email"].lower() or len(_tokens(a["name"]) & _tokens(b["name"])) >= 2
+    """Same email, two shared name tokens, or the same name spelled identically (a handle such as
+    KaKa under three emails), unless that name is a bare common first name."""
+    if a["email"].lower() == b["email"].lower() or len(_tokens(a["name"]) & _tokens(b["name"])) >= 2:
+        return True
+    name = _plain(a["name"])
+    return bool(name) and name == _plain(b["name"]) and name not in _COMMON_FIRST_NAMES
 
 
 def merge(identities: list) -> list:

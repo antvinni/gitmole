@@ -15,7 +15,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 
-from . import __version__, banner, filetypes, findings, load, loss, run
+from . import __version__, banner, blame, filetypes, findings, load, loss, run
 
 
 def parse_args(argv):
@@ -294,6 +294,8 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     meta = run.collect_meta(repo_dir, since=args.since_date)
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     meta["gone_months"] = args.gone
+    ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
+    meta["generated"] = filetypes.generated_files(repo_dir, blame.text_files(repo_dir, ignore))   # hidden from the tables, out of the findings
     if args.since_date and meta["commits"] == 0:
         raise NoCommits(f"no commits since {args.since_date}; widen --since")
     if args.now:

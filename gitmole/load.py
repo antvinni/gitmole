@@ -151,7 +151,7 @@ def parse_functions(text: str) -> list:
     for r in csv.reader(io.StringIO(text)):
         if len(r) < 11:
             continue
-        rows.append({"file": _rel(r[6]), "function": r[7], "ccn": _num(r[1]), "nloc": _num(r[0]), "params": _num(r[3]),
+        rows.append({"file": _rel(r[6]), "function": r[7] or "(anonymous)", "ccn": _num(r[1]), "nloc": _num(r[0]), "params": _num(r[3]),
                      "start": _num(r[9]), "end": _num(r[10])})
     return rows
 

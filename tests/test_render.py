@@ -318,6 +318,36 @@ class Report(unittest.TestCase):
         full = _section_text(rendered(r, [], width=200, full=True), "Complex functions")
         self.assertIn("vendor/github.com/x/y.go", full)
 
+    def test_default_tables_hide_generated_files_and_say_so(self):
+        r = sample_report()
+        r["meta"]["generated"] = ["lib/config-validator.js"]
+        r["size"]["files"]["lib/config-validator.js"] = {"code": 1153, "complexity": 373}
+        r["revisions"].append({"entity": "lib/config-validator.js", "n-revs": 8})
+        r["functions"].append({"file": "lib/config-validator.js", "function": "validate10", "ccn": 373, "nloc": 1150, "params": 5, "start": 1, "end": 1150})
+        text = rendered(r, [], width=200)
+        hot = text[text.index("◆ Hotspots"):text.index("Change coupling")]
+        self.assertNotIn("config-validator", hot)
+        self.assertIn("1 generated file hidden; --full shows them", hot)
+        fn = _section_text(text, "Complex functions")
+        self.assertNotIn("validate10", fn)
+        self.assertIn("1 function in a generated file hidden; --full shows them", fn)
+        full = rendered(r, [], width=200, full=True)
+        self.assertIn("validate10", full)
+
+    def test_default_coupling_hides_release_plumbing_pairs_and_says_so(self):
+        r = sample_report()
+        for f in ("lib/version.rb", "contrib/version.rb", "Gemfile", "Gemfile.lock"):
+            r["size"]["files"][f] = {"code": 3, "complexity": 0}
+        r["coupling"] = [{"entity": "lib/version.rb", "coupled": "contrib/version.rb", "degree": 64, "average-revs": 60},
+                         {"entity": "Gemfile", "coupled": "Gemfile.lock", "degree": 90, "average-revs": 20},
+                         {"entity": "static/index.html", "coupled": "static/apps-metadata.json", "degree": 90, "average-revs": 11}]
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("static/index.html", coupling)
+        self.assertNotIn("version.rb", coupling)
+        self.assertIn("2 release pairs hidden; --full shows them", coupling)
+        full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
+        self.assertIn("version.rb", full)
+
     def test_hotspots_with_only_test_files_say_what_was_hidden(self):
         r = sample_report()
         r["revisions"] = [{"entity": "tests/test_a.py", "n-revs": 200}]

@@ -254,6 +254,15 @@ class TightCoupling(unittest.TestCase):
         f = findings.tight_coupling(report(coupling=pairs))
         self.assertIn("2 pairs", f[0]["detail"], "without a tree listing every pair counts")
 
+    def test_release_plumbing_pairs_are_not_a_dependency(self):
+        pairs = [{"entity": "lib/sinatra/version.rb", "coupled": "rack-protection/lib/rack/protection/version.rb", "degree": 100, "average-revs": 60},
+                 {"entity": "package.json", "coupled": "package-lock.json", "degree": 95, "average-revs": 40},
+                 {"entity": "lib/sinatra/version.rb", "coupled": "lib/sinatra/base.rb", "degree": 85, "average-revs": 10}]
+        f = findings.tight_coupling(report(coupling=pairs))
+        self.assertIn("1 pair changes together", f[0]["detail"], "a version file paired with real code still counts")
+        self.assertNotIn("package.json", f[0]["detail"])
+        self.assertEqual(findings.tight_coupling(report(coupling=pairs[:2])), [])
+
     def test_single_pair_reads_grammatically(self):
         pairs = [{"entity": "a", "coupled": "b", "degree": 100, "average-revs": 10}]
         f = findings.tight_coupling(report(coupling=pairs))
@@ -373,6 +382,21 @@ class BrainMethods(unittest.TestCase):
         self.assertEqual(f[0]["advice"], "Split parse in core/parser.py first, before the next change lands there.")
         self.assertNotIn("test_all", f[0]["detail"])
         self.assertEqual(findings.brain_methods(report(functions=fns[:1])), [])
+
+    def test_an_anonymous_function_is_named_by_its_place(self):
+        fns = [{"file": "completions.go", "function": "(anonymous)", "ccn": 47, "nloc": 136, "params": 1, "start": 316, "end": 585}]
+        f = findings.brain_methods(report(functions=fns))
+        self.assertIn("(anonymous) (completions.go:316) complexity 47, 136 lines, 1 params", f[0]["detail"])
+        self.assertEqual(f[0]["advice"], "Split the anonymous function at completions.go:316 first, before the next change lands there.")
+
+    def test_generated_files_are_not_brain_methods(self):
+        fns = [{"file": "lib/config-validator.js", "function": "validate10", "ccn": 373, "nloc": 1150, "params": 5, "start": 1, "end": 1150},
+               {"file": "lib/reply.js", "function": "onSendEnd", "ccn": 34, "nloc": 180, "params": 2, "start": 1, "end": 180}]
+        r = report(functions=fns)
+        r["meta"]["generated"] = ["lib/config-validator.js"]
+        f = findings.brain_methods(r)
+        self.assertEqual(f[0]["advice"], "Split onSendEnd in lib/reply.js first, before the next change lands there.")
+        self.assertNotIn("validate10", f[0]["detail"])
 
     def test_vendored_functions_are_not_brain_methods(self):
         fns = [{"file": "vendor/github.com/google/jsonschema-go/jsonschema/validate.go", "function": "validate", "ccn": 179, "nloc": 424, "params": 3, "start": 1, "end": 424},
