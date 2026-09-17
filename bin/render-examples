@@ -27,15 +27,15 @@ from gitmole import __version__, findings, load, render, run  # noqa: E402
 NOW = "2026-09-17"      # GITMOLE_NOW for every run: file ages and the backtest cut-off stay fixed
 TIMEOUT = 3600          # seconds any single tool may run; kubernetes needs more than the default 900
 WIDTH = 100             # the README's text block and the SVG share one width
-FEATURED = "curl"       # whose excerpt becomes docs/report.svg and the README's text block
+FEATURED = "react"      # whose excerpt becomes docs/report.svg and the README's text block
 
 # (owner/repo, commit): the default branch tip on the day the examples were last regenerated.
 # A new pin comes from:  git ls-remote https://github.com/OWNER/REPO HEAD
 EXAMPLES = [
-    ("curl/curl", "0000000000000000000000000000000000000000"),
-    ("django/django", "0000000000000000000000000000000000000000"),
-    ("facebook/react", "0000000000000000000000000000000000000000"),
-    ("kubernetes/kubernetes", "0000000000000000000000000000000000000000"),
+    ("curl/curl", "540ee5b560cc6e775e11317048a13cc7e355bf91"),
+    ("django/django", "8cbdd4a814397f81adf0129288f32b615bd1f94f"),
+    ("facebook/react", "2b19aecd0e9111b774fad0fad9862e50bcb5bc8a"),
+    ("kubernetes/kubernetes", "c709d78ba7522d7e5aa125d06c2e6763c6b78f55"),
 ]
 
 

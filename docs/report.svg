@@ -1,0 +1,548 @@
+<svg class="rich-terminal" viewBox="0 0 1238 2953.6" xmlns="http://www.w3.org/2000/svg">
+    <!-- Generated with Rich https://www.textualize.io -->
+    <style>
+
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Regular"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Regular.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Regular.woff") format("woff");
+        font-style: normal;
+        font-weight: 400;
+    }
+    @font-face {
+        font-family: "Fira Code";
+        src: local("FiraCode-Bold"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff2/FiraCode-Bold.woff2") format("woff2"),
+                url("https://cdnjs.cloudflare.com/ajax/libs/firacode/6.2.0/woff/FiraCode-Bold.woff") format("woff");
+        font-style: bold;
+        font-weight: 700;
+    }
+
+    .gitmole-matrix {
+        font-family: Fira Code, monospace;
+        font-size: 20px;
+        line-height: 24.4px;
+        font-variant-east-asian: full-width;
+    }
+
+    .gitmole-title {
+        font-size: 18px;
+        font-weight: bold;
+        font-family: arial;
+    }
+
+    .gitmole-r1 { fill: #608ab1 }
+.gitmole-r2 { fill: #608ab1;font-weight: bold }
+.gitmole-r3 { fill: #c5c8c6 }
+.gitmole-r4 { fill: #c5c8c6;font-weight: bold }
+.gitmole-r5 { fill: #868887 }
+.gitmole-r6 { fill: #cc555a;font-weight: bold }
+.gitmole-r7 { fill: #8a4346;font-weight: bold }
+.gitmole-r8 { fill: #8a4346;font-weight: bold;font-style: italic; }
+.gitmole-r9 { fill: #d0b344 }
+.gitmole-r10 { fill: #8d7b39 }
+.gitmole-r11 { fill: #8d7b39;font-style: italic; }
+.gitmole-r12 { fill: #68a0b3 }
+.gitmole-r13 { fill: #4e707b }
+.gitmole-r14 { fill: #4e707b;font-style: italic; }
+.gitmole-r15 { fill: #5ad0ff }
+.gitmole-r16 { fill: #5ad0ff;font-weight: bold }
+.gitmole-r17 { fill: #c86cff;font-weight: bold }
+.gitmole-r18 { fill: #3a4150 }
+.gitmole-r19 { fill: #868887;font-style: italic; }
+    </style>
+
+    <defs>
+    <clipPath id="gitmole-clip-terminal">
+      <rect x="0" y="0" width="1219.0" height="2902.6" />
+    </clipPath>
+    <clipPath id="gitmole-line-0">
+    <rect x="0" y="1.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-1">
+    <rect x="0" y="25.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-2">
+    <rect x="0" y="50.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-3">
+    <rect x="0" y="74.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-4">
+    <rect x="0" y="99.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-5">
+    <rect x="0" y="123.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-6">
+    <rect x="0" y="147.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-7">
+    <rect x="0" y="172.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-8">
+    <rect x="0" y="196.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-9">
+    <rect x="0" y="221.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-10">
+    <rect x="0" y="245.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-11">
+    <rect x="0" y="269.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-12">
+    <rect x="0" y="294.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-13">
+    <rect x="0" y="318.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-14">
+    <rect x="0" y="343.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-15">
+    <rect x="0" y="367.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-16">
+    <rect x="0" y="391.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-17">
+    <rect x="0" y="416.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-18">
+    <rect x="0" y="440.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-19">
+    <rect x="0" y="465.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-20">
+    <rect x="0" y="489.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-21">
+    <rect x="0" y="513.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-22">
+    <rect x="0" y="538.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-23">
+    <rect x="0" y="562.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-24">
+    <rect x="0" y="587.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-25">
+    <rect x="0" y="611.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-26">
+    <rect x="0" y="635.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-27">
+    <rect x="0" y="660.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-28">
+    <rect x="0" y="684.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-29">
+    <rect x="0" y="709.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-30">
+    <rect x="0" y="733.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-31">
+    <rect x="0" y="757.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-32">
+    <rect x="0" y="782.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-33">
+    <rect x="0" y="806.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-34">
+    <rect x="0" y="831.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-35">
+    <rect x="0" y="855.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-36">
+    <rect x="0" y="879.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-37">
+    <rect x="0" y="904.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-38">
+    <rect x="0" y="928.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-39">
+    <rect x="0" y="953.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-40">
+    <rect x="0" y="977.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-41">
+    <rect x="0" y="1001.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-42">
+    <rect x="0" y="1026.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-43">
+    <rect x="0" y="1050.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-44">
+    <rect x="0" y="1075.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-45">
+    <rect x="0" y="1099.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-46">
+    <rect x="0" y="1123.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-47">
+    <rect x="0" y="1148.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-48">
+    <rect x="0" y="1172.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-49">
+    <rect x="0" y="1197.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-50">
+    <rect x="0" y="1221.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-51">
+    <rect x="0" y="1245.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-52">
+    <rect x="0" y="1270.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-53">
+    <rect x="0" y="1294.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-54">
+    <rect x="0" y="1319.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-55">
+    <rect x="0" y="1343.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-56">
+    <rect x="0" y="1367.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-57">
+    <rect x="0" y="1392.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-58">
+    <rect x="0" y="1416.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-59">
+    <rect x="0" y="1441.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-60">
+    <rect x="0" y="1465.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-61">
+    <rect x="0" y="1489.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-62">
+    <rect x="0" y="1514.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-63">
+    <rect x="0" y="1538.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-64">
+    <rect x="0" y="1563.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-65">
+    <rect x="0" y="1587.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-66">
+    <rect x="0" y="1611.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-67">
+    <rect x="0" y="1636.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-68">
+    <rect x="0" y="1660.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-69">
+    <rect x="0" y="1685.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-70">
+    <rect x="0" y="1709.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-71">
+    <rect x="0" y="1733.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-72">
+    <rect x="0" y="1758.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-73">
+    <rect x="0" y="1782.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-74">
+    <rect x="0" y="1807.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-75">
+    <rect x="0" y="1831.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-76">
+    <rect x="0" y="1855.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-77">
+    <rect x="0" y="1880.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-78">
+    <rect x="0" y="1904.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-79">
+    <rect x="0" y="1929.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-80">
+    <rect x="0" y="1953.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-81">
+    <rect x="0" y="1977.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-82">
+    <rect x="0" y="2002.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-83">
+    <rect x="0" y="2026.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-84">
+    <rect x="0" y="2051.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-85">
+    <rect x="0" y="2075.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-86">
+    <rect x="0" y="2099.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-87">
+    <rect x="0" y="2124.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-88">
+    <rect x="0" y="2148.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-89">
+    <rect x="0" y="2173.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-90">
+    <rect x="0" y="2197.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-91">
+    <rect x="0" y="2221.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-92">
+    <rect x="0" y="2246.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-93">
+    <rect x="0" y="2270.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-94">
+    <rect x="0" y="2295.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-95">
+    <rect x="0" y="2319.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-96">
+    <rect x="0" y="2343.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-97">
+    <rect x="0" y="2368.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-98">
+    <rect x="0" y="2392.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-99">
+    <rect x="0" y="2417.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-100">
+    <rect x="0" y="2441.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-101">
+    <rect x="0" y="2465.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-102">
+    <rect x="0" y="2490.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-103">
+    <rect x="0" y="2514.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-104">
+    <rect x="0" y="2539.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-105">
+    <rect x="0" y="2563.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-106">
+    <rect x="0" y="2587.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-107">
+    <rect x="0" y="2612.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-108">
+    <rect x="0" y="2636.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-109">
+    <rect x="0" y="2661.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-110">
+    <rect x="0" y="2685.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-111">
+    <rect x="0" y="2709.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-112">
+    <rect x="0" y="2734.3" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-113">
+    <rect x="0" y="2758.7" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-114">
+    <rect x="0" y="2783.1" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-115">
+    <rect x="0" y="2807.5" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-116">
+    <rect x="0" y="2831.9" width="1220" height="24.65"/>
+            </clipPath>
+<clipPath id="gitmole-line-117">
+    <rect x="0" y="2856.3" width="1220" height="24.65"/>
+            </clipPath>
+    </defs>
+
+    <rect fill="#292929" stroke="rgba(255,255,255,0.35)" stroke-width="1" x="1" y="1" width="1236" height="2951.6" rx="8"/><text class="gitmole-title" fill="#c5c8c6" text-anchor="middle" x="618" y="27">gitmole&#160;react</text>
+            <g transform="translate(26,22)">
+            <circle cx="0" cy="0" r="7" fill="#ff5f57"/>
+            <circle cx="22" cy="0" r="7" fill="#febc2e"/>
+            <circle cx="44" cy="0" r="7" fill="#28c840"/>
+            </g>
+        
+    <g transform="translate(9, 41)" clip-path="url(#gitmole-clip-terminal)">
+    <rect fill="#1c2230" x="24.4" y="2563.5" width="573.4" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="597.8" y="2563.5" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="610" y="2563.5" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="622.2" y="2563.5" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="634.4" y="2563.5" width="585.6" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="24.4" y="2587.9" width="585.6" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="610" y="2587.9" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="622.2" y="2587.9" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="634.4" y="2587.9" width="585.6" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="24.4" y="2709.9" width="573.4" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="597.8" y="2709.9" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="610" y="2709.9" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="622.2" y="2709.9" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="634.4" y="2709.9" width="585.6" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="24.4" y="2734.3" width="585.6" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="610" y="2734.3" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="622.2" y="2734.3" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="634.4" y="2734.3" width="585.6" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="24.4" y="2758.7" width="585.6" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="610" y="2758.7" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="622.2" y="2758.7" width="12.2" height="24.65" shape-rendering="crispEdges"/><rect fill="#1c2230" x="634.4" y="2758.7" width="585.6" height="24.65" shape-rendering="crispEdges"/>
+    <g class="gitmole-matrix">
+    <text class="gitmole-r1" x="0" y="20" textLength="24.4" clip-path="url(#gitmole-line-0)">╭─</text><text class="gitmole-r2" x="36.6" y="20" textLength="61" clip-path="url(#gitmole-line-0)">react</text><text class="gitmole-r1" x="109.8" y="20" textLength="1085.8" clip-path="url(#gitmole-line-0)">─────────────────────────────────────────────────────────────────────────────────────────</text><text class="gitmole-r1" x="1195.6" y="20" textLength="24.4" clip-path="url(#gitmole-line-0)">─╮</text><text class="gitmole-r3" x="1220" y="20" textLength="12.2" clip-path="url(#gitmole-line-0)">
+</text><text class="gitmole-r1" x="0" y="44.4" textLength="12.2" clip-path="url(#gitmole-line-1)">│</text><text class="gitmole-r4" x="24.4" y="44.4" textLength="158.6" clip-path="url(#gitmole-line-1)">35263&#160;commits</text><text class="gitmole-r3" x="183" y="44.4" textLength="780.8" clip-path="url(#gitmole-line-1)">&#160;&#160;·&#160;&#160;2013-05-28&#160;→&#160;2026-09-16&#160;&#160;·&#160;&#160;1880&#160;identities&#160;&#160;·&#160;&#160;branch&#160;main</text><text class="gitmole-r1" x="1207.8" y="44.4" textLength="12.2" clip-path="url(#gitmole-line-1)">│</text><text class="gitmole-r3" x="1220" y="44.4" textLength="12.2" clip-path="url(#gitmole-line-1)">
+</text><text class="gitmole-r1" x="0" y="68.8" textLength="12.2" clip-path="url(#gitmole-line-2)">│</text><text class="gitmole-r3" x="24.4" y="68.8" textLength="793" clip-path="url(#gitmole-line-2)">681,078&#160;lines&#160;in&#160;4781&#160;files&#160;&#160;·&#160;&#160;JavaScript,&#160;TypeScript,&#160;Rust,&#160;CSS</text><text class="gitmole-r1" x="1207.8" y="68.8" textLength="12.2" clip-path="url(#gitmole-line-2)">│</text><text class="gitmole-r3" x="1220" y="68.8" textLength="12.2" clip-path="url(#gitmole-line-2)">
+</text><text class="gitmole-r1" x="0" y="93.2" textLength="12.2" clip-path="url(#gitmole-line-3)">│</text><text class="gitmole-r5" x="24.4" y="93.2" textLength="1171.2" clip-path="url(#gitmole-line-3)">most&#160;commits&#160;on&#160;Wed&#160;at&#160;16:00&#160;&#160;·&#160;&#160;13%&#160;of&#160;commits&#160;are&#160;fixes&#160;&#160;·&#160;&#160;1%&#160;of&#160;commits&#160;are&#160;reverts&#160;&#160;·&#160;&#160;19%&#160;</text><text class="gitmole-r1" x="1207.8" y="93.2" textLength="12.2" clip-path="url(#gitmole-line-3)">│</text><text class="gitmole-r3" x="1220" y="93.2" textLength="12.2" clip-path="url(#gitmole-line-3)">
+</text><text class="gitmole-r1" x="0" y="117.6" textLength="12.2" clip-path="url(#gitmole-line-4)">│</text><text class="gitmole-r5" x="24.4" y="117.6" textLength="329.4" clip-path="url(#gitmole-line-4)">of&#160;surviving&#160;code&#160;from&#160;2026</text><text class="gitmole-r1" x="1207.8" y="117.6" textLength="12.2" clip-path="url(#gitmole-line-4)">│</text><text class="gitmole-r3" x="1220" y="117.6" textLength="12.2" clip-path="url(#gitmole-line-4)">
+</text><text class="gitmole-r1" x="0" y="142" textLength="12.2" clip-path="url(#gitmole-line-5)">│</text><text class="gitmole-r6" x="24.4" y="142" textLength="378.2" clip-path="url(#gitmole-line-5)">1&#160;critical,&#160;6&#160;warnings,&#160;8&#160;notes</text><text class="gitmole-r1" x="1207.8" y="142" textLength="12.2" clip-path="url(#gitmole-line-5)">│</text><text class="gitmole-r3" x="1220" y="142" textLength="12.2" clip-path="url(#gitmole-line-5)">
+</text><text class="gitmole-r1" x="0" y="166.4" textLength="1220" clip-path="url(#gitmole-line-6)">╰──────────────────────────────────────────────────────────────────────────────────────────────────╯</text><text class="gitmole-r3" x="1220" y="166.4" textLength="12.2" clip-path="url(#gitmole-line-6)">
+</text><text class="gitmole-r6" x="0" y="190.8" textLength="24.4" clip-path="url(#gitmole-line-7)">╭─</text><text class="gitmole-r6" x="24.4" y="190.8" textLength="183" clip-path="url(#gitmole-line-7)">&#160;Findings&#160;(15)&#160;</text><text class="gitmole-r6" x="207.4" y="190.8" textLength="988.2" clip-path="url(#gitmole-line-7)">─────────────────────────────────────────────────────────────────────────────────</text><text class="gitmole-r6" x="1195.6" y="190.8" textLength="24.4" clip-path="url(#gitmole-line-7)">─╮</text><text class="gitmole-r3" x="1220" y="190.8" textLength="12.2" clip-path="url(#gitmole-line-7)">
+</text><text class="gitmole-r6" x="0" y="215.2" textLength="12.2" clip-path="url(#gitmole-line-8)">│</text><text class="gitmole-r6" x="24.4" y="215.2" textLength="12.2" clip-path="url(#gitmole-line-8)">✖</text><text class="gitmole-r6" x="48.8" y="215.2" textLength="1146.8" clip-path="url(#gitmole-line-8)">31&#160;secret(s)&#160;in&#160;history&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="215.2" textLength="12.2" clip-path="url(#gitmole-line-8)">│</text><text class="gitmole-r3" x="1220" y="215.2" textLength="12.2" clip-path="url(#gitmole-line-8)">
+</text><text class="gitmole-r6" x="0" y="239.6" textLength="12.2" clip-path="url(#gitmole-line-9)">│</text><text class="gitmole-r7" x="48.8" y="239.6" textLength="707.6" clip-path="url(#gitmole-line-9)">31&#160;distinct&#160;values&#160;in&#160;79&#160;places:&#160;facebook-access-token&#160;in&#160;</text><text class="gitmole-r6" x="1207.8" y="239.6" textLength="12.2" clip-path="url(#gitmole-line-9)">│</text><text class="gitmole-r3" x="1220" y="239.6" textLength="12.2" clip-path="url(#gitmole-line-9)">
+</text><text class="gitmole-r6" x="0" y="264" textLength="12.2" clip-path="url(#gitmole-line-10)">│</text><text class="gitmole-r7" x="48.8" y="264" textLength="1146.8" clip-path="url(#gitmole-line-10)">temp/chrome/Default/Extensions/iilloeljhmkmakgkcahhghoaofbikgne/0.0.27_0/content_google.js&#160;and</text><text class="gitmole-r6" x="1207.8" y="264" textLength="12.2" clip-path="url(#gitmole-line-10)">│</text><text class="gitmole-r3" x="1220" y="264" textLength="12.2" clip-path="url(#gitmole-line-10)">
+</text><text class="gitmole-r6" x="0" y="288.4" textLength="12.2" clip-path="url(#gitmole-line-11)">│</text><text class="gitmole-r7" x="48.8" y="288.4" textLength="658.8" clip-path="url(#gitmole-line-11)">11&#160;other&#160;files&#160;(789e5f0,&#160;94718f1);&#160;generic-api-key&#160;in&#160;</text><text class="gitmole-r6" x="1207.8" y="288.4" textLength="12.2" clip-path="url(#gitmole-line-11)">│</text><text class="gitmole-r3" x="1220" y="288.4" textLength="12.2" clip-path="url(#gitmole-line-11)">
+</text><text class="gitmole-r6" x="0" y="312.8" textLength="12.2" clip-path="url(#gitmole-line-12)">│</text><text class="gitmole-r7" x="48.8" y="312.8" textLength="1134.6" clip-path="url(#gitmole-line-12)">temp/chrome/Default/Extensions/pajkjnmeojmbapicmbpliphjmcekeaac/25.3.1_0/manifest.json&#160;and&#160;3&#160;</text><text class="gitmole-r6" x="1207.8" y="312.8" textLength="12.2" clip-path="url(#gitmole-line-12)">│</text><text class="gitmole-r3" x="1220" y="312.8" textLength="12.2" clip-path="url(#gitmole-line-12)">
+</text><text class="gitmole-r6" x="0" y="337.2" textLength="12.2" clip-path="url(#gitmole-line-13)">│</text><text class="gitmole-r7" x="48.8" y="337.2" textLength="1134.6" clip-path="url(#gitmole-line-13)">other&#160;files&#160;(789e5f0,&#160;94718f1);&#160;generic-api-key&#160;in&#160;grunt/config/webdriver-all.js&#160;and&#160;2&#160;other&#160;</text><text class="gitmole-r6" x="1207.8" y="337.2" textLength="12.2" clip-path="url(#gitmole-line-13)">│</text><text class="gitmole-r3" x="1220" y="337.2" textLength="12.2" clip-path="url(#gitmole-line-13)">
+</text><text class="gitmole-r6" x="0" y="361.6" textLength="12.2" clip-path="url(#gitmole-line-14)">│</text><text class="gitmole-r7" x="48.8" y="361.6" textLength="573.4" clip-path="url(#gitmole-line-14)">files&#160;(9182100,&#160;1b477fa&#160;and&#160;2&#160;more)&#160;and&#160;28&#160;more</text><text class="gitmole-r6" x="1207.8" y="361.6" textLength="12.2" clip-path="url(#gitmole-line-14)">│</text><text class="gitmole-r3" x="1220" y="361.6" textLength="12.2" clip-path="url(#gitmole-line-14)">
+</text><text class="gitmole-r6" x="0" y="386" textLength="12.2" clip-path="url(#gitmole-line-15)">│</text><text class="gitmole-r8" x="48.8" y="386" textLength="1110.2" clip-path="url(#gitmole-line-15)">↳&#160;Rotate&#160;them;&#160;deleting&#160;the&#160;file&#160;does&#160;not&#160;remove&#160;them&#160;from&#160;git.&#160;Add&#160;the&#160;fingerprint&#160;of&#160;any&#160;</text><text class="gitmole-r6" x="1207.8" y="386" textLength="12.2" clip-path="url(#gitmole-line-15)">│</text><text class="gitmole-r3" x="1220" y="386" textLength="12.2" clip-path="url(#gitmole-line-15)">
+</text><text class="gitmole-r6" x="0" y="410.4" textLength="12.2" clip-path="url(#gitmole-line-16)">│</text><text class="gitmole-r8" x="48.8" y="410.4" textLength="890.6" clip-path="url(#gitmole-line-16)">false&#160;positive&#160;from&#160;secrets.json&#160;to&#160;.betterleaksignore&#160;in&#160;the&#160;repository.</text><text class="gitmole-r6" x="1207.8" y="410.4" textLength="12.2" clip-path="url(#gitmole-line-16)">│</text><text class="gitmole-r3" x="1220" y="410.4" textLength="12.2" clip-path="url(#gitmole-line-16)">
+</text><text class="gitmole-r6" x="0" y="434.8" textLength="12.2" clip-path="url(#gitmole-line-17)">│</text><text class="gitmole-r9" x="24.4" y="434.8" textLength="12.2" clip-path="url(#gitmole-line-17)">▲</text><text class="gitmole-r9" x="48.8" y="434.8" textLength="1146.8" clip-path="url(#gitmole-line-17)">2&#160;secret(s)&#160;only&#160;in&#160;test,&#160;example,&#160;vendored&#160;or&#160;documentation&#160;files&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="434.8" textLength="12.2" clip-path="url(#gitmole-line-17)">│</text><text class="gitmole-r3" x="1220" y="434.8" textLength="12.2" clip-path="url(#gitmole-line-17)">
+</text><text class="gitmole-r6" x="0" y="459.2" textLength="12.2" clip-path="url(#gitmole-line-18)">│</text><text class="gitmole-r10" x="48.8" y="459.2" textLength="622.2" clip-path="url(#gitmole-line-18)">2&#160;distinct&#160;values&#160;in&#160;18&#160;places:&#160;generic-api-key&#160;in&#160;</text><text class="gitmole-r6" x="1207.8" y="459.2" textLength="12.2" clip-path="url(#gitmole-line-18)">│</text><text class="gitmole-r3" x="1220" y="459.2" textLength="12.2" clip-path="url(#gitmole-line-18)">
+</text><text class="gitmole-r6" x="0" y="483.6" textLength="12.2" clip-path="url(#gitmole-line-19)">│</text><text class="gitmole-r10" x="48.8" y="483.6" textLength="1146.8" clip-path="url(#gitmole-line-19)">compiler/packages/react-mcp-server/src/utils/algolia.ts&#160;and&#160;1&#160;other&#160;file&#160;(0807592,&#160;e285434&#160;and</text><text class="gitmole-r6" x="1207.8" y="483.6" textLength="12.2" clip-path="url(#gitmole-line-19)">│</text><text class="gitmole-r3" x="1220" y="483.6" textLength="12.2" clip-path="url(#gitmole-line-19)">
+</text><text class="gitmole-r6" x="0" y="508" textLength="12.2" clip-path="url(#gitmole-line-20)">│</text><text class="gitmole-r10" x="48.8" y="508" textLength="1146.8" clip-path="url(#gitmole-line-20)">14&#160;more);&#160;generic-api-key&#160;in&#160;packages/react-client/src/__tests__/ReactFlight-test.js&#160;(843ec07)</text><text class="gitmole-r6" x="1207.8" y="508" textLength="12.2" clip-path="url(#gitmole-line-20)">│</text><text class="gitmole-r3" x="1220" y="508" textLength="12.2" clip-path="url(#gitmole-line-20)">
+</text><text class="gitmole-r6" x="0" y="532.4" textLength="12.2" clip-path="url(#gitmole-line-21)">│</text><text class="gitmole-r11" x="48.8" y="532.4" textLength="1098" clip-path="url(#gitmole-line-21)">↳&#160;Confirm&#160;they&#160;are&#160;fixtures&#160;or&#160;templates,&#160;not&#160;live&#160;keys.&#160;Add&#160;the&#160;fingerprint&#160;of&#160;any&#160;false&#160;</text><text class="gitmole-r6" x="1207.8" y="532.4" textLength="12.2" clip-path="url(#gitmole-line-21)">│</text><text class="gitmole-r3" x="1220" y="532.4" textLength="12.2" clip-path="url(#gitmole-line-21)">
+</text><text class="gitmole-r6" x="0" y="556.8" textLength="12.2" clip-path="url(#gitmole-line-22)">│</text><text class="gitmole-r11" x="48.8" y="556.8" textLength="817.4" clip-path="url(#gitmole-line-22)">positive&#160;from&#160;secrets.json&#160;to&#160;.betterleaksignore&#160;in&#160;the&#160;repository.</text><text class="gitmole-r6" x="1207.8" y="556.8" textLength="12.2" clip-path="url(#gitmole-line-22)">│</text><text class="gitmole-r3" x="1220" y="556.8" textLength="12.2" clip-path="url(#gitmole-line-22)">
+</text><text class="gitmole-r6" x="0" y="581.2" textLength="12.2" clip-path="url(#gitmole-line-23)">│</text><text class="gitmole-r9" x="24.4" y="581.2" textLength="12.2" clip-path="url(#gitmole-line-23)">▲</text><text class="gitmole-r9" x="48.8" y="581.2" textLength="1146.8" clip-path="url(#gitmole-line-23)">Repo&#160;health&#160;(6)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="581.2" textLength="12.2" clip-path="url(#gitmole-line-23)">│</text><text class="gitmole-r3" x="1220" y="581.2" textLength="12.2" clip-path="url(#gitmole-line-23)">
+</text><text class="gitmole-r6" x="0" y="605.6" textLength="12.2" clip-path="url(#gitmole-line-24)">│</text><text class="gitmole-r9" x="48.8" y="605.6" textLength="1146.8" clip-path="url(#gitmole-line-24)">Blobs:&#160;Total&#160;size&#160;is&#160;33.1&#160;GiB.&#160;git-sizer&#160;level&#160;of&#160;concern&#160;3&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="605.6" textLength="12.2" clip-path="url(#gitmole-line-24)">│</text><text class="gitmole-r3" x="1220" y="605.6" textLength="12.2" clip-path="url(#gitmole-line-24)">
+</text><text class="gitmole-r6" x="0" y="630" textLength="12.2" clip-path="url(#gitmole-line-25)">│</text><text class="gitmole-r9" x="48.8" y="630" textLength="1146.8" clip-path="url(#gitmole-line-25)">Trees:&#160;Maximum&#160;entries&#160;is&#160;2.71&#160;k&#160;at&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="630" textLength="12.2" clip-path="url(#gitmole-line-25)">│</text><text class="gitmole-r3" x="1220" y="630" textLength="12.2" clip-path="url(#gitmole-line-25)">
+</text><text class="gitmole-r6" x="0" y="654.4" textLength="12.2" clip-path="url(#gitmole-line-26)">│</text><text class="gitmole-r9" x="48.8" y="654.4" textLength="1146.8" clip-path="url(#gitmole-line-26)">compiler/packages/babel-plugin-react-compiler/src/__tests__/fixtures/compiler.&#160;git-sizer&#160;level</text><text class="gitmole-r6" x="1207.8" y="654.4" textLength="12.2" clip-path="url(#gitmole-line-26)">│</text><text class="gitmole-r3" x="1220" y="654.4" textLength="12.2" clip-path="url(#gitmole-line-26)">
+</text><text class="gitmole-r6" x="0" y="678.8" textLength="12.2" clip-path="url(#gitmole-line-27)">│</text><text class="gitmole-r9" x="48.8" y="678.8" textLength="1146.8" clip-path="url(#gitmole-line-27)">of&#160;concern&#160;2&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="678.8" textLength="12.2" clip-path="url(#gitmole-line-27)">│</text><text class="gitmole-r3" x="1220" y="678.8" textLength="12.2" clip-path="url(#gitmole-line-27)">
+</text><text class="gitmole-r6" x="0" y="703.2" textLength="12.2" clip-path="url(#gitmole-line-28)">│</text><text class="gitmole-r9" x="48.8" y="703.2" textLength="1146.8" clip-path="url(#gitmole-line-28)">Biggest&#160;checkouts:&#160;Maximum&#160;path&#160;length&#160;is&#160;201&#160;B&#160;at&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="703.2" textLength="12.2" clip-path="url(#gitmole-line-28)">│</text><text class="gitmole-r3" x="1220" y="703.2" textLength="12.2" clip-path="url(#gitmole-line-28)">
+</text><text class="gitmole-r6" x="0" y="727.6" textLength="12.2" clip-path="url(#gitmole-line-29)">│</text><text class="gitmole-r9" x="48.8" y="727.6" textLength="1146.8" clip-path="url(#gitmole-line-29)">refs/remotes/origin/sapling-pr-archive-josephsavona^{tree}.&#160;git-sizer&#160;level&#160;of&#160;concern&#160;2&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="727.6" textLength="12.2" clip-path="url(#gitmole-line-29)">│</text><text class="gitmole-r3" x="1220" y="727.6" textLength="12.2" clip-path="url(#gitmole-line-29)">
+</text><text class="gitmole-r6" x="0" y="752" textLength="12.2" clip-path="url(#gitmole-line-30)">│</text><text class="gitmole-r9" x="48.8" y="752" textLength="1146.8" clip-path="url(#gitmole-line-30)">Commits:&#160;Maximum&#160;size&#160;is&#160;60.7&#160;KiB.&#160;git-sizer&#160;level&#160;of&#160;concern&#160;1&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="752" textLength="12.2" clip-path="url(#gitmole-line-30)">│</text><text class="gitmole-r3" x="1220" y="752" textLength="12.2" clip-path="url(#gitmole-line-30)">
+</text><text class="gitmole-r6" x="0" y="776.4" textLength="12.2" clip-path="url(#gitmole-line-31)">│</text><text class="gitmole-r9" x="48.8" y="776.4" textLength="1146.8" clip-path="url(#gitmole-line-31)">Blobs:&#160;Maximum&#160;size&#160;is&#160;17.2&#160;MiB&#160;at&#160;temp/chrome/Safe&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="776.4" textLength="12.2" clip-path="url(#gitmole-line-31)">│</text><text class="gitmole-r3" x="1220" y="776.4" textLength="12.2" clip-path="url(#gitmole-line-31)">
+</text><text class="gitmole-r6" x="0" y="800.8" textLength="12.2" clip-path="url(#gitmole-line-32)">│</text><text class="gitmole-r9" x="48.8" y="800.8" textLength="1146.8" clip-path="url(#gitmole-line-32)">Browsing/UrlSoceng.store.4_13392147903759335,&#160;no&#160;longer&#160;in&#160;the&#160;tree.&#160;git-sizer&#160;level&#160;of&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="800.8" textLength="12.2" clip-path="url(#gitmole-line-32)">│</text><text class="gitmole-r3" x="1220" y="800.8" textLength="12.2" clip-path="url(#gitmole-line-32)">
+</text><text class="gitmole-r6" x="0" y="825.2" textLength="12.2" clip-path="url(#gitmole-line-33)">│</text><text class="gitmole-r9" x="48.8" y="825.2" textLength="1146.8" clip-path="url(#gitmole-line-33)">concern&#160;1&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="825.2" textLength="12.2" clip-path="url(#gitmole-line-33)">│</text><text class="gitmole-r3" x="1220" y="825.2" textLength="12.2" clip-path="url(#gitmole-line-33)">
+</text><text class="gitmole-r6" x="0" y="849.6" textLength="12.2" clip-path="url(#gitmole-line-34)">│</text><text class="gitmole-r9" x="48.8" y="849.6" textLength="1146.8" clip-path="url(#gitmole-line-34)">Biggest&#160;checkouts:&#160;Maximum&#160;path&#160;depth&#160;is&#160;11&#160;at&#160;refs/remotes/origin/ledgers/8-replay^{tree}.&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="849.6" textLength="12.2" clip-path="url(#gitmole-line-34)">│</text><text class="gitmole-r3" x="1220" y="849.6" textLength="12.2" clip-path="url(#gitmole-line-34)">
+</text><text class="gitmole-r6" x="0" y="874" textLength="12.2" clip-path="url(#gitmole-line-35)">│</text><text class="gitmole-r9" x="48.8" y="874" textLength="1146.8" clip-path="url(#gitmole-line-35)">git-sizer&#160;level&#160;of&#160;concern&#160;1&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="874" textLength="12.2" clip-path="url(#gitmole-line-35)">│</text><text class="gitmole-r3" x="1220" y="874" textLength="12.2" clip-path="url(#gitmole-line-35)">
+</text><text class="gitmole-r6" x="0" y="898.4" textLength="12.2" clip-path="url(#gitmole-line-36)">│</text><text class="gitmole-r11" x="48.8" y="898.4" textLength="744.2" clip-path="url(#gitmole-line-36)">↳&#160;Move&#160;large&#160;files&#160;to&#160;Git&#160;LFS&#160;or&#160;rewrite&#160;them&#160;out&#160;of&#160;history.</text><text class="gitmole-r6" x="1207.8" y="898.4" textLength="12.2" clip-path="url(#gitmole-line-36)">│</text><text class="gitmole-r3" x="1220" y="898.4" textLength="12.2" clip-path="url(#gitmole-line-36)">
+</text><text class="gitmole-r6" x="0" y="922.8" textLength="12.2" clip-path="url(#gitmole-line-37)">│</text><text class="gitmole-r11" x="48.8" y="922.8" textLength="1110.2" clip-path="url(#gitmole-line-37)">↳&#160;Split&#160;compiler/packages/babel-plugin-react-compiler/src/__tests__/fixtures/compiler&#160;into&#160;</text><text class="gitmole-r6" x="1207.8" y="922.8" textLength="12.2" clip-path="url(#gitmole-line-37)">│</text><text class="gitmole-r3" x="1220" y="922.8" textLength="12.2" clip-path="url(#gitmole-line-37)">
+</text><text class="gitmole-r6" x="0" y="947.2" textLength="12.2" clip-path="url(#gitmole-line-38)">│</text><text class="gitmole-r11" x="48.8" y="947.2" textLength="829.6" clip-path="url(#gitmole-line-38)">subdirectories;&#160;a&#160;directory&#160;that&#160;wide&#160;slows&#160;every&#160;checkout&#160;and&#160;diff.</text><text class="gitmole-r6" x="1207.8" y="947.2" textLength="12.2" clip-path="url(#gitmole-line-38)">│</text><text class="gitmole-r3" x="1220" y="947.2" textLength="12.2" clip-path="url(#gitmole-line-38)">
+</text><text class="gitmole-r6" x="0" y="971.6" textLength="12.2" clip-path="url(#gitmole-line-39)">│</text><text class="gitmole-r11" x="48.8" y="971.6" textLength="707.6" clip-path="url(#gitmole-line-39)">↳&#160;Consider&#160;a&#160;sparse&#160;checkout&#160;for&#160;CI;&#160;the&#160;tree&#160;is&#160;the&#160;cost.</text><text class="gitmole-r6" x="1207.8" y="971.6" textLength="12.2" clip-path="url(#gitmole-line-39)">│</text><text class="gitmole-r3" x="1220" y="971.6" textLength="12.2" clip-path="url(#gitmole-line-39)">
+</text><text class="gitmole-r6" x="0" y="996" textLength="12.2" clip-path="url(#gitmole-line-40)">│</text><text class="gitmole-r11" x="48.8" y="996" textLength="963.8" clip-path="url(#gitmole-line-40)">↳&#160;Look&#160;at&#160;that&#160;commit;&#160;oversized&#160;commits&#160;are&#160;usually&#160;imports&#160;or&#160;octopus&#160;merges.</text><text class="gitmole-r6" x="1207.8" y="996" textLength="12.2" clip-path="url(#gitmole-line-40)">│</text><text class="gitmole-r3" x="1220" y="996" textLength="12.2" clip-path="url(#gitmole-line-40)">
+</text><text class="gitmole-r6" x="0" y="1020.4" textLength="12.2" clip-path="url(#gitmole-line-41)">│</text><text class="gitmole-r11" x="48.8" y="1020.4" textLength="1049.2" clip-path="url(#gitmole-line-41)">↳&#160;It&#160;is&#160;already&#160;gone&#160;from&#160;the&#160;tree;&#160;a&#160;history&#160;rewrite&#160;is&#160;only&#160;worth&#160;it&#160;for&#160;clone&#160;size.</text><text class="gitmole-r6" x="1207.8" y="1020.4" textLength="12.2" clip-path="url(#gitmole-line-41)">│</text><text class="gitmole-r3" x="1220" y="1020.4" textLength="12.2" clip-path="url(#gitmole-line-41)">
+</text><text class="gitmole-r6" x="0" y="1044.8" textLength="12.2" clip-path="url(#gitmole-line-42)">│</text><text class="gitmole-r9" x="24.4" y="1044.8" textLength="12.2" clip-path="url(#gitmole-line-42)">▲</text><text class="gitmole-r9" x="48.8" y="1044.8" textLength="1146.8" clip-path="url(#gitmole-line-42)">Bug&#160;magnets&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="1044.8" textLength="12.2" clip-path="url(#gitmole-line-42)">│</text><text class="gitmole-r3" x="1220" y="1044.8" textLength="12.2" clip-path="url(#gitmole-line-42)">
+</text><text class="gitmole-r6" x="0" y="1069.2" textLength="12.2" clip-path="url(#gitmole-line-43)">│</text><text class="gitmole-r10" x="48.8" y="1069.2" textLength="683.2" clip-path="url(#gitmole-line-43)">100&#160;file(s)&#160;were&#160;fixed&#160;3+&#160;times&#160;in&#160;the&#160;last&#160;six&#160;months:&#160;</text><text class="gitmole-r6" x="1207.8" y="1069.2" textLength="12.2" clip-path="url(#gitmole-line-43)">│</text><text class="gitmole-r3" x="1220" y="1069.2" textLength="12.2" clip-path="url(#gitmole-line-43)">
+</text><text class="gitmole-r6" x="0" y="1093.6" textLength="12.2" clip-path="url(#gitmole-line-44)">│</text><text class="gitmole-r10" x="48.8" y="1093.6" textLength="988.2" clip-path="url(#gitmole-line-44)">compiler/crates/react_compiler/src/entrypoint/pipeline.rs&#160;(33&#160;recent,&#160;35&#160;total);&#160;</text><text class="gitmole-r6" x="1207.8" y="1093.6" textLength="12.2" clip-path="url(#gitmole-line-44)">│</text><text class="gitmole-r3" x="1220" y="1093.6" textLength="12.2" clip-path="url(#gitmole-line-44)">
+</text><text class="gitmole-r6" x="0" y="1118" textLength="12.2" clip-path="url(#gitmole-line-45)">│</text><text class="gitmole-r10" x="48.8" y="1118" textLength="976" clip-path="url(#gitmole-line-45)">compiler/crates/react_compiler/src/entrypoint/program.rs&#160;(24&#160;recent,&#160;28&#160;total);&#160;</text><text class="gitmole-r6" x="1207.8" y="1118" textLength="12.2" clip-path="url(#gitmole-line-45)">│</text><text class="gitmole-r3" x="1220" y="1118" textLength="12.2" clip-path="url(#gitmole-line-45)">
+</text><text class="gitmole-r6" x="0" y="1142.4" textLength="12.2" clip-path="url(#gitmole-line-46)">│</text><text class="gitmole-r10" x="48.8" y="1142.4" textLength="854" clip-path="url(#gitmole-line-46)">compiled/facebook-www/ReactDOM-dev.classic.js&#160;(22&#160;recent,&#160;190&#160;total);&#160;</text><text class="gitmole-r6" x="1207.8" y="1142.4" textLength="12.2" clip-path="url(#gitmole-line-46)">│</text><text class="gitmole-r3" x="1220" y="1142.4" textLength="12.2" clip-path="url(#gitmole-line-46)">
+</text><text class="gitmole-r6" x="0" y="1166.8" textLength="12.2" clip-path="url(#gitmole-line-47)">│</text><text class="gitmole-r10" x="48.8" y="1166.8" textLength="841.8" clip-path="url(#gitmole-line-47)">compiled/facebook-www/ReactDOM-dev.modern.js&#160;(22&#160;recent,&#160;190&#160;total);&#160;</text><text class="gitmole-r6" x="1207.8" y="1166.8" textLength="12.2" clip-path="url(#gitmole-line-47)">│</text><text class="gitmole-r3" x="1220" y="1166.8" textLength="12.2" clip-path="url(#gitmole-line-47)">
+</text><text class="gitmole-r6" x="0" y="1191.2" textLength="12.2" clip-path="url(#gitmole-line-48)">│</text><text class="gitmole-r10" x="48.8" y="1191.2" textLength="1061.4" clip-path="url(#gitmole-line-48)">compiled/facebook-www/ReactDOMTesting-dev.classic.js&#160;(22&#160;recent,&#160;190&#160;total)&#160;and&#160;95&#160;more</text><text class="gitmole-r6" x="1207.8" y="1191.2" textLength="12.2" clip-path="url(#gitmole-line-48)">│</text><text class="gitmole-r3" x="1220" y="1191.2" textLength="12.2" clip-path="url(#gitmole-line-48)">
+</text><text class="gitmole-r6" x="0" y="1215.6" textLength="12.2" clip-path="url(#gitmole-line-49)">│</text><text class="gitmole-r11" x="48.8" y="1215.6" textLength="866.2" clip-path="url(#gitmole-line-49)">↳&#160;Review&#160;compiler/crates/react_compiler/src/entrypoint/pipeline.rs&#160;and&#160;</text><text class="gitmole-r6" x="1207.8" y="1215.6" textLength="12.2" clip-path="url(#gitmole-line-49)">│</text><text class="gitmole-r3" x="1220" y="1215.6" textLength="12.2" clip-path="url(#gitmole-line-49)">
+</text><text class="gitmole-r6" x="0" y="1240" textLength="12.2" clip-path="url(#gitmole-line-50)">│</text><text class="gitmole-r11" x="48.8" y="1240" textLength="1134.6" clip-path="url(#gitmole-line-50)">compiler/crates/react_compiler/src/entrypoint/program.rs&#160;before&#160;the&#160;next&#160;release;&#160;expect&#160;the&#160;</text><text class="gitmole-r6" x="1207.8" y="1240" textLength="12.2" clip-path="url(#gitmole-line-50)">│</text><text class="gitmole-r3" x="1220" y="1240" textLength="12.2" clip-path="url(#gitmole-line-50)">
+</text><text class="gitmole-r6" x="0" y="1264.4" textLength="12.2" clip-path="url(#gitmole-line-51)">│</text><text class="gitmole-r11" x="48.8" y="1264.4" textLength="183" clip-path="url(#gitmole-line-51)">next&#160;bug&#160;there.</text><text class="gitmole-r6" x="1207.8" y="1264.4" textLength="12.2" clip-path="url(#gitmole-line-51)">│</text><text class="gitmole-r3" x="1220" y="1264.4" textLength="12.2" clip-path="url(#gitmole-line-51)">
+</text><text class="gitmole-r6" x="0" y="1288.8" textLength="12.2" clip-path="url(#gitmole-line-52)">│</text><text class="gitmole-r9" x="24.4" y="1288.8" textLength="12.2" clip-path="url(#gitmole-line-52)">▲</text><text class="gitmole-r9" x="48.8" y="1288.8" textLength="1146.8" clip-path="url(#gitmole-line-52)">Brain&#160;methods&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="1288.8" textLength="12.2" clip-path="url(#gitmole-line-52)">│</text><text class="gitmole-r3" x="1220" y="1288.8" textLength="12.2" clip-path="url(#gitmole-line-52)">
+</text><text class="gitmole-r6" x="0" y="1313.2" textLength="12.2" clip-path="url(#gitmole-line-53)">│</text><text class="gitmole-r10" x="48.8" y="1313.2" textLength="597.8" clip-path="url(#gitmole-line-53)">241&#160;function(s)&#160;are&#160;both&#160;long&#160;and&#160;complex:&#160;debug&#160;</text><text class="gitmole-r6" x="1207.8" y="1313.2" textLength="12.2" clip-path="url(#gitmole-line-53)">│</text><text class="gitmole-r3" x="1220" y="1313.2" textLength="12.2" clip-path="url(#gitmole-line-53)">
+</text><text class="gitmole-r6" x="0" y="1337.6" textLength="12.2" clip-path="url(#gitmole-line-54)">│</text><text class="gitmole-r10" x="48.8" y="1337.6" textLength="1134.6" clip-path="url(#gitmole-line-54)">(packages/react-devtools-shared/src/backend/fiber/renderer.js)&#160;complexity&#160;837,&#160;3553&#160;lines,&#160;4&#160;</text><text class="gitmole-r6" x="1207.8" y="1337.6" textLength="12.2" clip-path="url(#gitmole-line-54)">│</text><text class="gitmole-r3" x="1220" y="1337.6" textLength="12.2" clip-path="url(#gitmole-line-54)">
+</text><text class="gitmole-r6" x="0" y="1362" textLength="12.2" clip-path="url(#gitmole-line-55)">│</text><text class="gitmole-r10" x="48.8" y="1362" textLength="1146.8" clip-path="url(#gitmole-line-55)">params;&#160;getRetryCache&#160;(packages/react-reconciler/src/ReactFiberCommitWork.js)&#160;complexity&#160;699,&#160;</text><text class="gitmole-r6" x="1207.8" y="1362" textLength="12.2" clip-path="url(#gitmole-line-55)">│</text><text class="gitmole-r3" x="1220" y="1362" textLength="12.2" clip-path="url(#gitmole-line-55)">
+</text><text class="gitmole-r6" x="0" y="1386.4" textLength="12.2" clip-path="url(#gitmole-line-56)">│</text><text class="gitmole-r10" x="48.8" y="1386.4" textLength="1146.8" clip-path="url(#gitmole-line-56)">2934&#160;lines,&#160;1&#160;params;&#160;renderModelDestructive&#160;(packages/react-server/src/ReactFlightServer.js)&#160;</text><text class="gitmole-r6" x="1207.8" y="1386.4" textLength="12.2" clip-path="url(#gitmole-line-56)">│</text><text class="gitmole-r3" x="1220" y="1386.4" textLength="12.2" clip-path="url(#gitmole-line-56)">
+</text><text class="gitmole-r6" x="0" y="1410.8" textLength="12.2" clip-path="url(#gitmole-line-57)">│</text><text class="gitmole-r10" x="48.8" y="1410.8" textLength="634.4" clip-path="url(#gitmole-line-57)">complexity&#160;544,&#160;2578&#160;lines,&#160;5&#160;params;&#160;pushStartHtml&#160;</text><text class="gitmole-r6" x="1207.8" y="1410.8" textLength="12.2" clip-path="url(#gitmole-line-57)">│</text><text class="gitmole-r3" x="1220" y="1410.8" textLength="12.2" clip-path="url(#gitmole-line-57)">
+</text><text class="gitmole-r6" x="0" y="1435.2" textLength="12.2" clip-path="url(#gitmole-line-58)">│</text><text class="gitmole-r10" x="48.8" y="1435.2" textLength="1134.6" clip-path="url(#gitmole-line-58)">(packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js)&#160;complexity&#160;496,&#160;2553&#160;lines,&#160;5&#160;</text><text class="gitmole-r6" x="1207.8" y="1435.2" textLength="12.2" clip-path="url(#gitmole-line-58)">│</text><text class="gitmole-r3" x="1220" y="1435.2" textLength="12.2" clip-path="url(#gitmole-line-58)">
+</text><text class="gitmole-r6" x="0" y="1459.6" textLength="12.2" clip-path="url(#gitmole-line-59)">│</text><text class="gitmole-r10" x="48.8" y="1459.6" textLength="1146.8" clip-path="url(#gitmole-line-59)">params;&#160;setProp&#160;(packages/react-dom-bindings/src/client/ReactDOMComponent.js)&#160;complexity&#160;193,&#160;</text><text class="gitmole-r6" x="1207.8" y="1459.6" textLength="12.2" clip-path="url(#gitmole-line-59)">│</text><text class="gitmole-r3" x="1220" y="1459.6" textLength="12.2" clip-path="url(#gitmole-line-59)">
+</text><text class="gitmole-r6" x="0" y="1484" textLength="12.2" clip-path="url(#gitmole-line-60)">│</text><text class="gitmole-r10" x="48.8" y="1484" textLength="390.4" clip-path="url(#gitmole-line-60)">529&#160;lines,&#160;6&#160;params&#160;and&#160;236&#160;more</text><text class="gitmole-r6" x="1207.8" y="1484" textLength="12.2" clip-path="url(#gitmole-line-60)">│</text><text class="gitmole-r3" x="1220" y="1484" textLength="12.2" clip-path="url(#gitmole-line-60)">
+</text><text class="gitmole-r6" x="0" y="1508.4" textLength="12.2" clip-path="url(#gitmole-line-61)">│</text><text class="gitmole-r11" x="48.8" y="1508.4" textLength="1122.4" clip-path="url(#gitmole-line-61)">↳&#160;Split&#160;debug&#160;in&#160;packages/react-devtools-shared/src/backend/fiber/renderer.js&#160;first,&#160;before&#160;</text><text class="gitmole-r6" x="1207.8" y="1508.4" textLength="12.2" clip-path="url(#gitmole-line-61)">│</text><text class="gitmole-r3" x="1220" y="1508.4" textLength="12.2" clip-path="url(#gitmole-line-61)">
+</text><text class="gitmole-r6" x="0" y="1532.8" textLength="12.2" clip-path="url(#gitmole-line-62)">│</text><text class="gitmole-r11" x="48.8" y="1532.8" textLength="341.6" clip-path="url(#gitmole-line-62)">the&#160;next&#160;change&#160;lands&#160;there.</text><text class="gitmole-r6" x="1207.8" y="1532.8" textLength="12.2" clip-path="url(#gitmole-line-62)">│</text><text class="gitmole-r3" x="1220" y="1532.8" textLength="12.2" clip-path="url(#gitmole-line-62)">
+</text><text class="gitmole-r6" x="0" y="1557.2" textLength="12.2" clip-path="url(#gitmole-line-63)">│</text><text class="gitmole-r12" x="24.4" y="1557.2" textLength="12.2" clip-path="url(#gitmole-line-63)">●</text><text class="gitmole-r12" x="48.8" y="1557.2" textLength="1146.8" clip-path="url(#gitmole-line-63)">Reverts&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="1557.2" textLength="12.2" clip-path="url(#gitmole-line-63)">│</text><text class="gitmole-r3" x="1220" y="1557.2" textLength="12.2" clip-path="url(#gitmole-line-63)">
+</text><text class="gitmole-r6" x="0" y="1581.6" textLength="12.2" clip-path="url(#gitmole-line-64)">│</text><text class="gitmole-r13" x="48.8" y="1581.6" textLength="1146.8" clip-path="url(#gitmole-line-64)">283&#160;of&#160;35263&#160;commits&#160;are&#160;reverts;&#160;compiled/facebook-www/ReactDOM-dev.modern.js&#160;was&#160;reverted&#160;27</text><text class="gitmole-r6" x="1207.8" y="1581.6" textLength="12.2" clip-path="url(#gitmole-line-64)">│</text><text class="gitmole-r3" x="1220" y="1581.6" textLength="12.2" clip-path="url(#gitmole-line-64)">
+</text><text class="gitmole-r6" x="0" y="1606" textLength="12.2" clip-path="url(#gitmole-line-65)">│</text><text class="gitmole-r13" x="48.8" y="1606" textLength="768.6" clip-path="url(#gitmole-line-65)">times,&#160;compiled/facebook-www/ReactDOM-prod.modern.js&#160;27&#160;times,&#160;</text><text class="gitmole-r6" x="1207.8" y="1606" textLength="12.2" clip-path="url(#gitmole-line-65)">│</text><text class="gitmole-r3" x="1220" y="1606" textLength="12.2" clip-path="url(#gitmole-line-65)">
+</text><text class="gitmole-r6" x="0" y="1630.4" textLength="12.2" clip-path="url(#gitmole-line-66)">│</text><text class="gitmole-r13" x="48.8" y="1630.4" textLength="719.8" clip-path="url(#gitmole-line-66)">compiled/facebook-www/ReactDOM-profiling.modern.js&#160;27&#160;times</text><text class="gitmole-r6" x="1207.8" y="1630.4" textLength="12.2" clip-path="url(#gitmole-line-66)">│</text><text class="gitmole-r3" x="1220" y="1630.4" textLength="12.2" clip-path="url(#gitmole-line-66)">
+</text><text class="gitmole-r6" x="0" y="1654.8" textLength="12.2" clip-path="url(#gitmole-line-67)">│</text><text class="gitmole-r14" x="48.8" y="1654.8" textLength="1122.4" clip-path="url(#gitmole-line-67)">↳&#160;Add&#160;a&#160;check&#160;before&#160;merge&#160;for&#160;compiled/facebook-www/ReactDOM-dev.modern.js;&#160;it&#160;is&#160;the&#160;file&#160;</text><text class="gitmole-r6" x="1207.8" y="1654.8" textLength="12.2" clip-path="url(#gitmole-line-67)">│</text><text class="gitmole-r3" x="1220" y="1654.8" textLength="12.2" clip-path="url(#gitmole-line-67)">
+</text><text class="gitmole-r6" x="0" y="1679.2" textLength="12.2" clip-path="url(#gitmole-line-68)">│</text><text class="gitmole-r14" x="48.8" y="1679.2" textLength="268.4" clip-path="url(#gitmole-line-68)">most&#160;often&#160;backed&#160;out.</text><text class="gitmole-r6" x="1207.8" y="1679.2" textLength="12.2" clip-path="url(#gitmole-line-68)">│</text><text class="gitmole-r3" x="1220" y="1679.2" textLength="12.2" clip-path="url(#gitmole-line-68)">
+</text><text class="gitmole-r6" x="0" y="1703.6" textLength="12.2" clip-path="url(#gitmole-line-69)">│</text><text class="gitmole-r12" x="24.4" y="1703.6" textLength="12.2" clip-path="url(#gitmole-line-69)">●</text><text class="gitmole-r12" x="48.8" y="1703.6" textLength="1146.8" clip-path="url(#gitmole-line-69)">Files&#160;that&#160;always&#160;change&#160;together&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="1703.6" textLength="12.2" clip-path="url(#gitmole-line-69)">│</text><text class="gitmole-r3" x="1220" y="1703.6" textLength="12.2" clip-path="url(#gitmole-line-69)">
+</text><text class="gitmole-r6" x="0" y="1728" textLength="12.2" clip-path="url(#gitmole-line-70)">│</text><text class="gitmole-r13" x="48.8" y="1728" textLength="1146.8" clip-path="url(#gitmole-line-70)">4&#160;files&#160;in&#160;packages/shared/forks/&#160;change&#160;together&#160;at&#160;least&#160;80%&#160;of&#160;the&#160;time,&#160;and&#160;24&#160;more&#160;pairs&#160;</text><text class="gitmole-r6" x="1207.8" y="1728" textLength="12.2" clip-path="url(#gitmole-line-70)">│</text><text class="gitmole-r3" x="1220" y="1728" textLength="12.2" clip-path="url(#gitmole-line-70)">
+</text><text class="gitmole-r6" x="0" y="1752.4" textLength="12.2" clip-path="url(#gitmole-line-71)">│</text><text class="gitmole-r13" x="48.8" y="1752.4" textLength="878.4" clip-path="url(#gitmole-line-71)">do:&#160;fixtures/eslint-v6/build.mjs&#160;+&#160;fixtures/eslint-v7/build.mjs&#160;(100%);&#160;</text><text class="gitmole-r6" x="1207.8" y="1752.4" textLength="12.2" clip-path="url(#gitmole-line-71)">│</text><text class="gitmole-r3" x="1220" y="1752.4" textLength="12.2" clip-path="url(#gitmole-line-71)">
+</text><text class="gitmole-r6" x="0" y="1776.8" textLength="12.2" clip-path="url(#gitmole-line-72)">│</text><text class="gitmole-r13" x="48.8" y="1776.8" textLength="829.6" clip-path="url(#gitmole-line-72)">fixtures/eslint-v6/build.mjs&#160;+&#160;fixtures/eslint-v8/build.mjs&#160;(100%);&#160;</text><text class="gitmole-r6" x="1207.8" y="1776.8" textLength="12.2" clip-path="url(#gitmole-line-72)">│</text><text class="gitmole-r3" x="1220" y="1776.8" textLength="12.2" clip-path="url(#gitmole-line-72)">
+</text><text class="gitmole-r6" x="0" y="1801.2" textLength="12.2" clip-path="url(#gitmole-line-73)">│</text><text class="gitmole-r13" x="48.8" y="1801.2" textLength="805.2" clip-path="url(#gitmole-line-73)">fixtures/eslint-v6/build.mjs&#160;+&#160;fixtures/eslint-v9/build.mjs&#160;(100%)</text><text class="gitmole-r6" x="1207.8" y="1801.2" textLength="12.2" clip-path="url(#gitmole-line-73)">│</text><text class="gitmole-r3" x="1220" y="1801.2" textLength="12.2" clip-path="url(#gitmole-line-73)">
+</text><text class="gitmole-r6" x="0" y="1825.6" textLength="12.2" clip-path="url(#gitmole-line-74)">│</text><text class="gitmole-r14" x="48.8" y="1825.6" textLength="1134.6" clip-path="url(#gitmole-line-74)">↳&#160;Review&#160;packages/shared/forks/&#160;first:&#160;4&#160;files&#160;change&#160;as&#160;one;&#160;a&#160;generator&#160;or&#160;a&#160;shared&#160;layout&#160;</text><text class="gitmole-r6" x="1207.8" y="1825.6" textLength="12.2" clip-path="url(#gitmole-line-74)">│</text><text class="gitmole-r3" x="1220" y="1825.6" textLength="12.2" clip-path="url(#gitmole-line-74)">
+</text><text class="gitmole-r6" x="0" y="1850" textLength="12.2" clip-path="url(#gitmole-line-75)">│</text><text class="gitmole-r14" x="48.8" y="1850" textLength="134.2" clip-path="url(#gitmole-line-75)">links&#160;them.</text><text class="gitmole-r6" x="1207.8" y="1850" textLength="12.2" clip-path="url(#gitmole-line-75)">│</text><text class="gitmole-r3" x="1220" y="1850" textLength="12.2" clip-path="url(#gitmole-line-75)">
+</text><text class="gitmole-r6" x="0" y="1874.4" textLength="12.2" clip-path="url(#gitmole-line-76)">│</text><text class="gitmole-r12" x="24.4" y="1874.4" textLength="12.2" clip-path="url(#gitmole-line-76)">●</text><text class="gitmole-r12" x="48.8" y="1874.4" textLength="1146.8" clip-path="url(#gitmole-line-76)">Duplicated&#160;code&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="1874.4" textLength="12.2" clip-path="url(#gitmole-line-76)">│</text><text class="gitmole-r3" x="1220" y="1874.4" textLength="12.2" clip-path="url(#gitmole-line-76)">
+</text><text class="gitmole-r6" x="0" y="1898.8" textLength="12.2" clip-path="url(#gitmole-line-77)">│</text><text class="gitmole-r13" x="48.8" y="1898.8" textLength="622.2" clip-path="url(#gitmole-line-77)">571&#160;block(s)&#160;of&#160;30+&#160;duplicated&#160;lines:&#160;432&#160;lines&#160;in&#160;</text><text class="gitmole-r6" x="1207.8" y="1898.8" textLength="12.2" clip-path="url(#gitmole-line-77)">│</text><text class="gitmole-r3" x="1220" y="1898.8" textLength="12.2" clip-path="url(#gitmole-line-77)">
+</text><text class="gitmole-r6" x="0" y="1923.2" textLength="12.2" clip-path="url(#gitmole-line-78)">│</text><text class="gitmole-r13" x="48.8" y="1923.2" textLength="1146.8" clip-path="url(#gitmole-line-78)">compiler/packages/babel-plugin-react-compiler/scripts/eslint-plugin-react-hooks-test-cases.js:</text><text class="gitmole-r6" x="1207.8" y="1923.2" textLength="12.2" clip-path="url(#gitmole-line-78)">│</text><text class="gitmole-r3" x="1220" y="1923.2" textLength="12.2" clip-path="url(#gitmole-line-78)">
+</text><text class="gitmole-r6" x="0" y="1947.6" textLength="12.2" clip-path="url(#gitmole-line-79)">│</text><text class="gitmole-r13" x="48.8" y="1947.6" textLength="1134.6" clip-path="url(#gitmole-line-79)">29&#160;and&#160;packages/eslint-plugin-react-hooks/__tests__/ESLintRulesOfHooks-test.js:65;&#160;411&#160;lines&#160;</text><text class="gitmole-r6" x="1207.8" y="1947.6" textLength="12.2" clip-path="url(#gitmole-line-79)">│</text><text class="gitmole-r3" x="1220" y="1947.6" textLength="12.2" clip-path="url(#gitmole-line-79)">
+</text><text class="gitmole-r6" x="0" y="1972" textLength="12.2" clip-path="url(#gitmole-line-80)">│</text><text class="gitmole-r13" x="48.8" y="1972" textLength="866.2" clip-path="url(#gitmole-line-80)">in&#160;packages/react-server-dom-esm/src/ReactFlightESMNodeLoader.js:1&#160;and&#160;</text><text class="gitmole-r6" x="1207.8" y="1972" textLength="12.2" clip-path="url(#gitmole-line-80)">│</text><text class="gitmole-r3" x="1220" y="1972" textLength="12.2" clip-path="url(#gitmole-line-80)">
+</text><text class="gitmole-r6" x="0" y="1996.4" textLength="12.2" clip-path="url(#gitmole-line-81)">│</text><text class="gitmole-r13" x="48.8" y="1996.4" textLength="976" clip-path="url(#gitmole-line-81)">packages/react-server-dom-unbundled/src/ReactFlightUnbundledNodeLoader.js:1&#160;and&#160;</text><text class="gitmole-r6" x="1207.8" y="1996.4" textLength="12.2" clip-path="url(#gitmole-line-81)">│</text><text class="gitmole-r3" x="1220" y="1996.4" textLength="12.2" clip-path="url(#gitmole-line-81)">
+</text><text class="gitmole-r6" x="0" y="2020.8" textLength="12.2" clip-path="url(#gitmole-line-82)">│</text><text class="gitmole-r13" x="48.8" y="2020.8" textLength="1049.2" clip-path="url(#gitmole-line-82)">packages/react-server-dom-webpack/src/ReactFlightWebpackNodeLoader.js:1;&#160;401&#160;lines&#160;in&#160;</text><text class="gitmole-r6" x="1207.8" y="2020.8" textLength="12.2" clip-path="url(#gitmole-line-82)">│</text><text class="gitmole-r3" x="1220" y="2020.8" textLength="12.2" clip-path="url(#gitmole-line-82)">
+</text><text class="gitmole-r6" x="0" y="2045.2" textLength="12.2" clip-path="url(#gitmole-line-83)">│</text><text class="gitmole-r13" x="48.8" y="2045.2" textLength="1000.4" clip-path="url(#gitmole-line-83)">packages/react-server-dom-unbundled/src/ReactFlightUnbundledNodeLoader.js:404&#160;and&#160;</text><text class="gitmole-r6" x="1207.8" y="2045.2" textLength="12.2" clip-path="url(#gitmole-line-83)">│</text><text class="gitmole-r3" x="1220" y="2045.2" textLength="12.2" clip-path="url(#gitmole-line-83)">
+</text><text class="gitmole-r6" x="0" y="2069.6" textLength="12.2" clip-path="url(#gitmole-line-84)">│</text><text class="gitmole-r13" x="48.8" y="2069.6" textLength="1073.6" clip-path="url(#gitmole-line-84)">packages/react-server-dom-webpack/src/ReactFlightWebpackNodeLoader.js:404&#160;and&#160;568&#160;more.&#160;</text><text class="gitmole-r6" x="1207.8" y="2069.6" textLength="12.2" clip-path="url(#gitmole-line-84)">│</text><text class="gitmole-r3" x="1220" y="2069.6" textLength="12.2" clip-path="url(#gitmole-line-84)">
+</text><text class="gitmole-r6" x="0" y="2094" textLength="12.2" clip-path="url(#gitmole-line-85)">│</text><text class="gitmole-r13" x="48.8" y="2094" textLength="463.6" clip-path="url(#gitmole-line-85)">Overall&#160;26.53%&#160;of&#160;lines&#160;are&#160;duplicated</text><text class="gitmole-r6" x="1207.8" y="2094" textLength="12.2" clip-path="url(#gitmole-line-85)">│</text><text class="gitmole-r3" x="1220" y="2094" textLength="12.2" clip-path="url(#gitmole-line-85)">
+</text><text class="gitmole-r6" x="0" y="2118.4" textLength="12.2" clip-path="url(#gitmole-line-86)">│</text><text class="gitmole-r14" x="48.8" y="2118.4" textLength="475.8" clip-path="url(#gitmole-line-86)">↳&#160;Extract&#160;the&#160;432-line&#160;block&#160;shared&#160;by&#160;</text><text class="gitmole-r6" x="1207.8" y="2118.4" textLength="12.2" clip-path="url(#gitmole-line-86)">│</text><text class="gitmole-r3" x="1220" y="2118.4" textLength="12.2" clip-path="url(#gitmole-line-86)">
+</text><text class="gitmole-r6" x="0" y="2142.8" textLength="12.2" clip-path="url(#gitmole-line-87)">│</text><text class="gitmole-r14" x="48.8" y="2142.8" textLength="1146.8" clip-path="url(#gitmole-line-87)">compiler/packages/babel-plugin-react-compiler/scripts/eslint-plugin-react-hooks-test-cases.js&#160;</text><text class="gitmole-r6" x="1207.8" y="2142.8" textLength="12.2" clip-path="url(#gitmole-line-87)">│</text><text class="gitmole-r3" x="1220" y="2142.8" textLength="12.2" clip-path="url(#gitmole-line-87)">
+</text><text class="gitmole-r6" x="0" y="2167.2" textLength="12.2" clip-path="url(#gitmole-line-88)">│</text><text class="gitmole-r14" x="48.8" y="2167.2" textLength="1000.4" clip-path="url(#gitmole-line-88)">and&#160;packages/eslint-plugin-react-hooks/__tests__/ESLintRulesOfHooks-test.js&#160;first.</text><text class="gitmole-r6" x="1207.8" y="2167.2" textLength="12.2" clip-path="url(#gitmole-line-88)">│</text><text class="gitmole-r3" x="1220" y="2167.2" textLength="12.2" clip-path="url(#gitmole-line-88)">
+</text><text class="gitmole-r6" x="0" y="2191.6" textLength="12.2" clip-path="url(#gitmole-line-89)">│</text><text class="gitmole-r12" x="24.4" y="2191.6" textLength="12.2" clip-path="url(#gitmole-line-89)">●</text><text class="gitmole-r12" x="48.8" y="2191.6" textLength="1146.8" clip-path="url(#gitmole-line-89)">A&#160;large&#160;share&#160;of&#160;files&#160;is&#160;untouched&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="2191.6" textLength="12.2" clip-path="url(#gitmole-line-89)">│</text><text class="gitmole-r3" x="1220" y="2191.6" textLength="12.2" clip-path="url(#gitmole-line-89)">
+</text><text class="gitmole-r6" x="0" y="2216" textLength="12.2" clip-path="url(#gitmole-line-90)">│</text><text class="gitmole-r13" x="48.8" y="2216" textLength="695.4" clip-path="url(#gitmole-line-90)">64%&#160;of&#160;files&#160;(3067)&#160;have&#160;not&#160;changed&#160;in&#160;12&#160;months&#160;or&#160;more</text><text class="gitmole-r6" x="1207.8" y="2216" textLength="12.2" clip-path="url(#gitmole-line-90)">│</text><text class="gitmole-r3" x="1220" y="2216" textLength="12.2" clip-path="url(#gitmole-line-90)">
+</text><text class="gitmole-r6" x="0" y="2240.4" textLength="12.2" clip-path="url(#gitmole-line-91)">│</text><text class="gitmole-r14" x="48.8" y="2240.4" textLength="963.8" clip-path="url(#gitmole-line-91)">↳&#160;Consider&#160;deleting&#160;what&#160;nobody&#160;has&#160;needed;&#160;dead&#160;code&#160;hides&#160;in&#160;untouched&#160;files.</text><text class="gitmole-r6" x="1207.8" y="2240.4" textLength="12.2" clip-path="url(#gitmole-line-91)">│</text><text class="gitmole-r3" x="1220" y="2240.4" textLength="12.2" clip-path="url(#gitmole-line-91)">
+</text><text class="gitmole-r6" x="0" y="2264.8" textLength="12.2" clip-path="url(#gitmole-line-92)">│</text><text class="gitmole-r12" x="24.4" y="2264.8" textLength="12.2" clip-path="url(#gitmole-line-92)">●</text><text class="gitmole-r12" x="48.8" y="2264.8" textLength="1146.8" clip-path="url(#gitmole-line-92)">Knowledge&#160;loss&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r6" x="1207.8" y="2264.8" textLength="12.2" clip-path="url(#gitmole-line-92)">│</text><text class="gitmole-r3" x="1220" y="2264.8" textLength="12.2" clip-path="url(#gitmole-line-92)">
+</text><text class="gitmole-r6" x="0" y="2289.2" textLength="12.2" clip-path="url(#gitmole-line-93)">│</text><text class="gitmole-r13" x="48.8" y="2289.2" textLength="1085.8" clip-path="url(#gitmole-line-93)">People&#160;with&#160;no&#160;commits&#160;since&#160;2025-09-16&#160;wrote&#160;23%&#160;of&#160;the&#160;code&#160;that&#160;survives&#160;today:&#160;Brian&#160;</text><text class="gitmole-r6" x="1207.8" y="2289.2" textLength="12.2" clip-path="url(#gitmole-line-93)">│</text><text class="gitmole-r3" x="1220" y="2289.2" textLength="12.2" clip-path="url(#gitmole-line-93)">
+</text><text class="gitmole-r6" x="0" y="2313.6" textLength="12.2" clip-path="url(#gitmole-line-94)">│</text><text class="gitmole-r13" x="48.8" y="2313.6" textLength="878.4" clip-path="url(#gitmole-line-94)">Vaughn&#160;(8%),&#160;Jan&#160;Kassens&#160;(5%),&#160;Dominic&#160;Gannaway&#160;(1%)&#160;and&#160;542&#160;others&#160;(9%)</text><text class="gitmole-r6" x="1207.8" y="2313.6" textLength="12.2" clip-path="url(#gitmole-line-94)">│</text><text class="gitmole-r3" x="1220" y="2313.6" textLength="12.2" clip-path="url(#gitmole-line-94)">
+</text><text class="gitmole-r6" x="0" y="2338" textLength="12.2" clip-path="url(#gitmole-line-95)">│</text><text class="gitmole-r14" x="48.8" y="2338" textLength="1146.8" clip-path="url(#gitmole-line-95)">↳&#160;Pair&#160;someone&#160;with&#160;the&#160;people&#160;who&#160;worked&#160;with&#160;Brian&#160;Vaughn&#160;before&#160;the&#160;rest&#160;of&#160;that&#160;knowledge&#160;</text><text class="gitmole-r6" x="1207.8" y="2338" textLength="12.2" clip-path="url(#gitmole-line-95)">│</text><text class="gitmole-r3" x="1220" y="2338" textLength="12.2" clip-path="url(#gitmole-line-95)">
+</text><text class="gitmole-r6" x="0" y="2362.4" textLength="12.2" clip-path="url(#gitmole-line-96)">│</text><text class="gitmole-r14" x="48.8" y="2362.4" textLength="61" clip-path="url(#gitmole-line-96)">goes.</text><text class="gitmole-r6" x="1207.8" y="2362.4" textLength="12.2" clip-path="url(#gitmole-line-96)">│</text><text class="gitmole-r3" x="1220" y="2362.4" textLength="12.2" clip-path="url(#gitmole-line-96)">
+</text><text class="gitmole-r6" x="0" y="2386.8" textLength="1220" clip-path="url(#gitmole-line-97)">╰──────────────────────────────────────────────────────────────────────────────────────────────────╯</text><text class="gitmole-r3" x="1220" y="2386.8" textLength="12.2" clip-path="url(#gitmole-line-97)">
+</text><text class="gitmole-r3" x="1220" y="2411.2" textLength="12.2" clip-path="url(#gitmole-line-98)">
+</text><text class="gitmole-r15" x="0" y="2435.6" textLength="24.4" clip-path="url(#gitmole-line-99)">◎&#160;</text><text class="gitmole-r16" x="24.4" y="2435.6" textLength="122" clip-path="url(#gitmole-line-99)">Watch&#160;list</text><text class="gitmole-r3" x="1220" y="2435.6" textLength="12.2" clip-path="url(#gitmole-line-99)">
+</text><text class="gitmole-r17" x="24.4" y="2460" textLength="573.4" clip-path="url(#gitmole-line-100)">file&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r17" x="634.4" y="2460" textLength="585.6" clip-path="url(#gitmole-line-100)">why&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2460" textLength="12.2" clip-path="url(#gitmole-line-100)">
+</text><text class="gitmole-r18" x="24.4" y="2484.4" textLength="1195.6" clip-path="url(#gitmole-line-101)">──────────────────────────────────────────────────────────────────────────────────────────────────</text><text class="gitmole-r3" x="1220" y="2484.4" textLength="12.2" clip-path="url(#gitmole-line-101)">
+</text><text class="gitmole-r4" x="24.4" y="2508.8" textLength="573.4" clip-path="url(#gitmole-line-102)">compiler/packages/babel-plugin-react-compiler/s</text><text class="gitmole-r3" x="634.4" y="2508.8" textLength="585.6" clip-path="url(#gitmole-line-102)">changed&#160;331&#160;times&#160;·&#160;fixed&#160;twice&#160;in&#160;six&#160;months&#160;·&#160;</text><text class="gitmole-r3" x="1220" y="2508.8" textLength="12.2" clip-path="url(#gitmole-line-102)">
+</text><text class="gitmole-r4" x="24.4" y="2533.2" textLength="573.4" clip-path="url(#gitmole-line-103)">rc/Inference/InferMutationAliasingEffects.ts&#160;&#160;&#160;</text><text class="gitmole-r3" x="634.4" y="2533.2" textLength="585.6" clip-path="url(#gitmole-line-103)">Joe&#160;Savona&#160;wrote&#160;98%&#160;of&#160;it&#160;·&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2533.2" textLength="12.2" clip-path="url(#gitmole-line-103)">
+</text><text class="gitmole-r3" x="634.4" y="2557.6" textLength="585.6" clip-path="url(#gitmole-line-104)">findNonMutatedDestructureSpreads()&#160;complexity&#160;39</text><text class="gitmole-r3" x="1220" y="2557.6" textLength="12.2" clip-path="url(#gitmole-line-104)">
+</text><text class="gitmole-r4" x="24.4" y="2582" textLength="573.4" clip-path="url(#gitmole-line-105)">packages/react-server/src/ReactFlightServer.js&#160;</text><text class="gitmole-r3" x="634.4" y="2582" textLength="585.6" clip-path="url(#gitmole-line-105)">changed&#160;377&#160;times&#160;·&#160;fixed&#160;once&#160;in&#160;six&#160;months&#160;·&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2582" textLength="12.2" clip-path="url(#gitmole-line-105)">
+</text><text class="gitmole-r3" x="634.4" y="2606.4" textLength="585.6" clip-path="url(#gitmole-line-106)">renderModelDestructive()&#160;complexity&#160;544&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2606.4" textLength="12.2" clip-path="url(#gitmole-line-106)">
+</text><text class="gitmole-r4" x="24.4" y="2630.8" textLength="573.4" clip-path="url(#gitmole-line-107)">packages/shared/forks/ReactFeatureFlags.www.js&#160;</text><text class="gitmole-r3" x="634.4" y="2630.8" textLength="585.6" clip-path="url(#gitmole-line-107)">changed&#160;583&#160;times&#160;·&#160;fixed&#160;once&#160;in&#160;six&#160;months&#160;·&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2630.8" textLength="12.2" clip-path="url(#gitmole-line-107)">
+</text><text class="gitmole-r3" x="634.4" y="2655.2" textLength="585.6" clip-path="url(#gitmole-line-108)">changes&#160;with&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2655.2" textLength="12.2" clip-path="url(#gitmole-line-108)">
+</text><text class="gitmole-r3" x="634.4" y="2679.6" textLength="585.6" clip-path="url(#gitmole-line-109)">packages/shared/forks/ReactFeatureFlags.test-ren</text><text class="gitmole-r3" x="1220" y="2679.6" textLength="12.2" clip-path="url(#gitmole-line-109)">
+</text><text class="gitmole-r3" x="634.4" y="2704" textLength="585.6" clip-path="url(#gitmole-line-110)">derer.www.js&#160;(77%)&#160;and&#160;5&#160;others&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2704" textLength="12.2" clip-path="url(#gitmole-line-110)">
+</text><text class="gitmole-r4" x="24.4" y="2728.4" textLength="573.4" clip-path="url(#gitmole-line-111)">packages/shared/ReactFeatureFlags.js&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="634.4" y="2728.4" textLength="585.6" clip-path="url(#gitmole-line-111)">changed&#160;575&#160;times&#160;·&#160;fixed&#160;6&#160;times&#160;·&#160;changes&#160;with</text><text class="gitmole-r3" x="1220" y="2728.4" textLength="12.2" clip-path="url(#gitmole-line-111)">
+</text><text class="gitmole-r3" x="634.4" y="2752.8" textLength="585.6" clip-path="url(#gitmole-line-112)">packages/shared/forks/ReactFeatureFlags.test-ren</text><text class="gitmole-r3" x="1220" y="2752.8" textLength="12.2" clip-path="url(#gitmole-line-112)">
+</text><text class="gitmole-r3" x="634.4" y="2777.2" textLength="585.6" clip-path="url(#gitmole-line-113)">derer.js&#160;(80%)&#160;and&#160;4&#160;others&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2777.2" textLength="12.2" clip-path="url(#gitmole-line-113)">
+</text><text class="gitmole-r4" x="24.4" y="2801.6" textLength="573.4" clip-path="url(#gitmole-line-114)">packages/react-reconciler/src/ReactFiberWorkLoo</text><text class="gitmole-r3" x="634.4" y="2801.6" textLength="585.6" clip-path="url(#gitmole-line-114)">changed&#160;342&#160;times&#160;·&#160;fixed&#160;4&#160;times&#160;in&#160;six&#160;months&#160;</text><text class="gitmole-r3" x="1220" y="2801.6" textLength="12.2" clip-path="url(#gitmole-line-114)">
+</text><text class="gitmole-r4" x="24.4" y="2826" textLength="573.4" clip-path="url(#gitmole-line-115)">p.js&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="634.4" y="2826" textLength="585.6" clip-path="url(#gitmole-line-115)">·&#160;flushSpawnedWork()&#160;complexity&#160;48&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2826" textLength="12.2" clip-path="url(#gitmole-line-115)">
+</text><text class="gitmole-r19" x="24.4" y="2850.4" textLength="1195.6" clip-path="url(#gitmole-line-116)">ranked&#160;by&#160;churn&#160;×&#160;recent&#160;fixes&#160;×&#160;complexity&#160;×&#160;single&#160;ownership&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2850.4" textLength="12.2" clip-path="url(#gitmole-line-116)">
+</text><text class="gitmole-r19" x="24.4" y="2874.8" textLength="1195.6" clip-path="url(#gitmole-line-117)">6&#160;months&#160;ago&#160;this&#160;list&#160;would&#160;have&#160;named&#160;6&#160;of&#160;the&#160;211&#160;files&#160;fixed&#160;since&#160;(a&#160;random&#160;15&#160;of&#160;the&#160;1979&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2874.8" textLength="12.2" clip-path="url(#gitmole-line-117)">
+</text><text class="gitmole-r19" x="24.4" y="2899.2" textLength="1195.6" clip-path="url(#gitmole-line-118)">files&#160;that&#160;had&#160;changed&#160;more&#160;than&#160;once&#160;would&#160;name&#160;0.3)&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;</text><text class="gitmole-r3" x="1220" y="2899.2" textLength="12.2" clip-path="url(#gitmole-line-118)">
+</text>
+    </g>
+    </g>
+</svg>
