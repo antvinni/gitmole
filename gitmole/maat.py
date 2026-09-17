@@ -3,7 +3,7 @@
 
 Standalone on purpose: gitmole runs it as a pipeline step with
 `python3 maat.py LOG OUT_DIR [--aliases META_JSON]` and it must not need the
-package on sys.path. Input is `git log --all --numstat --date=short
+package on sys.path. Input is `git log HEAD --numstat --date=short
 --pretty=format:--%h--%ad--%aN -M`: renames are followed, so a moved file
 is one entity under its new path and a pure move adds and deletes nothing.
 Whoever moved a directory to src/ did not write it.

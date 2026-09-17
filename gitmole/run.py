@@ -188,7 +188,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "betterleaks", "argv": [sys.executable, LEAKS_SCRIPT, o("secrets.json")], "stdout": None, "deps": []},   # hashes the values before anything is written
         {"name": "osv-scanner", "argv": [sys.executable, DEPS_SCRIPT, o("dependencies.json")], "stdout": None, "deps": []},   # offline, against the local database
-        {"name": "git-log", "argv": [*filetypes.GIT, "log", "--all", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN--%s", "-M"], "stdout": log, "deps": []},   # -M: a move is not an edit
+        {"name": "git-log", "argv": [*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN--%s", "-M"], "stdout": log, "deps": []},   # -M: a move is not an edit; HEAD, not --all: a backport on a release branch is not a second fix, and the stash is not a commit
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
     ]
     workers = procs or blame.default_procs()
@@ -393,7 +393,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
 
     from .load import parse_authors_log
 
-    lines = _git(repo_dir, "log", "--all", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").splitlines()
+    lines = _git(repo_dir, "log", "HEAD", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").splitlines()
     all_rows = [l.split("\t", 2) for l in lines if l.count("\t") == 2]
     bot_names = identity.bot_names(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in all_rows)))
     rows = [r for r in all_rows if r[1] not in bot_names]

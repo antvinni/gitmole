@@ -179,6 +179,24 @@ class SinceInPlanAndMeta(unittest.TestCase):
         self.assertEqual([i["name"] for i in meta["identities"]], ["Zed"])
         self.assertEqual(meta["aliases"], {"john-smith": "John Smith"}, "merged from the full history so blame and ownership still merge them")
 
+    def test_the_change_log_and_the_commit_count_read_head_not_every_ref(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o")}
+        self.assertNotIn("--all", by["git-log"]["argv"])
+        self.assertIn("HEAD", by["git-log"]["argv"])
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            ident = dict(GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.com", GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="ann@x.com")
+            git("init", "-q", "-b", "main")
+            git("commit", "-q", "--allow-empty", "-m", "one", **ident)
+            git("switch", "-q", "-c", "release-1.x")
+            git("commit", "-q", "--allow-empty", "-m", "fix: backport", **dict(ident, GIT_AUTHOR_NAME="Backporter", GIT_AUTHOR_EMAIL="bp@x.com"))
+            git("switch", "-q", "main")
+            meta = run.collect_meta(d)
+        self.assertEqual(meta["commits"], 1, "the release branch's backport is not main's history")
+        self.assertEqual([i["name"] for i in meta["identities"]], ["Ann"])
+
 
 class RepoName(unittest.TestCase):
     def test_strips_git_suffix_and_takes_last_segment(self):

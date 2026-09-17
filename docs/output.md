@@ -219,7 +219,7 @@ directory for a remote target:
 
 | File | From | What it is |
 |---|---|---|
-| `meta.json` | git | name, branch, commit count, date span, identities |
+| `meta.json` | git | name, branch, commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps` |
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |

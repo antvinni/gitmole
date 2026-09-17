@@ -141,8 +141,9 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
   against a local copy of its database that you download once, and gitmole
   never downloads it for you.
 - Remote targets are cloned into a fresh temp directory that is removed when
-  the run ends. Local clones are only read, but the log export and the
-  secrets scan touch all branches. `gitmole --clean` lists every directory
+  the run ends. Local clones are only read. The secrets scan reads every
+  branch; everything else describes the branch that is checked out.
+  `gitmole --clean` lists every directory
   gitmole created and deletes them after a y/N question.
 - Secret values never reach the output directory. betterleaks reports to
   gitmole in memory, and gitmole stores a short keyed hash in place of the
