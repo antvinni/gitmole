@@ -48,6 +48,36 @@ class OddNames(unittest.TestCase):
         self.assertEqual(areas[0]["lines"], 1000)
 
 
+class InTree(unittest.TestCase):
+    TREE = {"crates/core/a.rs": {}, "crates/ignore/src/b.rs": {}, "build.rs": {}}
+
+    def test_an_area_is_in_the_tree_when_any_tracked_file_sits_under_it(self):
+        self.assertTrue(knowledge.in_tree("crates/", self.TREE))
+        self.assertTrue(knowledge.in_tree("crates/ignore/", self.TREE))
+        self.assertFalse(knowledge.in_tree("src/", self.TREE))
+        self.assertFalse(knowledge.in_tree("crate/", self.TREE), "a prefix of a directory name is not that directory")
+
+    def test_root_files_are_in_the_tree_when_any_file_has_no_directory(self):
+        self.assertTrue(knowledge.in_tree(knowledge.ROOT, self.TREE))
+        self.assertFalse(knowledge.in_tree(knowledge.ROOT, {"crates/core/a.rs": {}}))
+
+    def test_no_tree_listing_means_every_area_counts(self):
+        self.assertTrue(knowledge.in_tree("src/", {}))
+
+    def test_present_rows_drop_vanished_top_level_directories_so_the_survivor_can_dominate(self):
+        rows = [{"entity": "src/a.rs", "author": "Ann", "added": 30000, "deleted": 0},          # the layout before crates/
+                {"entity": "crates/core/a.rs", "author": "Ann", "added": 9000, "deleted": 0},
+                {"entity": "crates/ignore/b.rs", "author": "Bob", "added": 900, "deleted": 0},
+                {"entity": "ci/x.sh", "author": "Ann", "added": 500, "deleted": 0}]
+        tree = {"crates/core/a.rs": {}, "crates/ignore/b.rs": {}, "ci/x.sh": {}}
+        kept = knowledge.present_rows(rows, tree)
+        self.assertEqual([r["entity"] for r in kept], ["crates/core/a.rs", "crates/ignore/b.rs", "ci/x.sh"])
+        self.assertEqual([a["area"] for a in knowledge.areas(kept)], ["crates/core/", "crates/ignore/", "ci/"],
+                         "with src/ gone, crates/ holds over 80% and the map descends into it")
+        self.assertEqual([a["area"] for a in knowledge.areas(rows)], ["src/", "crates/", "ci/"], "the vanished src/ used to hide that")
+        self.assertEqual(knowledge.present_rows(rows, {}), rows)
+
+
 class Islands(unittest.TestCase):
     def test_areas_dominated_by_one_author(self):
         areas = knowledge.areas(OWNERSHIP)

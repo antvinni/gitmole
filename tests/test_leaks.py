@@ -59,6 +59,13 @@ class Placeholder(unittest.TestCase):
         for value in ["AKIA" + "X" * 16, "6L" + "x" * 38, "ghp_" + "a1" * 18, "yourkey" + "9" * 20]:
             self.assertFalse(leaks.is_placeholder(value), "a marker inside real-looking material is not enough: " + value)
 
+    def test_common_example_words_are_placeholders(self):
+        # `password: 'hello'` in a doc comment, `secret` in a sample config: the words every example uses
+        for value in ["hello", "Hello", "secret", "password", "PASSWORD", "example", "123456", "qwerty", "letmein", "foo", "dummy"]:
+            self.assertTrue(leaks.is_placeholder(value), value)
+        for value in ["hello123", "secret-9f8a7b6c5d4e", "s3cr3t!Passw0rd", "foobarbaz2024"]:
+            self.assertFalse(leaks.is_placeholder(value), "a word inside other material is not a placeholder: " + value)
+
     def test_anything_else_is_taken_seriously(self):
         # built at runtime: a literal in these shapes would trip secret scanners on this very file
         key_id, long_key = "AKIA" + "X" * 16, "6L" + "x" * 38

@@ -212,6 +212,7 @@ class Report(unittest.TestCase):
     def test_knowledge_map_caption_says_gone_is_measured_over_the_whole_history(self):
         r = sample_report()
         r["meta"].update({"last_date": "2026-09-10", "bots": []})
+        r["size"]["files"]["tests/t.py"] = {"code": 1, "complexity": 0}   # every area in the tree, so nothing is hidden
         r["activity"]["authors"] = {"Ann": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2026-09-01"},
                                     "Bob": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2025-01-01"}}
         def caption(rep):
@@ -635,6 +636,25 @@ class KnowledgeMap(unittest.TestCase):
         r = sample_report()
         r["ownership"] = []
         self.assertIn("no ownership data", rendered(r, []))
+
+    def test_default_map_hides_areas_no_longer_in_the_tree_and_says_so(self):
+        r = sample_report()   # the tree holds static/ files only; tests/t.py in the ownership rows is history
+        r["ownership"].append({"entity": "flask/app.py", "author": "Ann", "added": 4000, "deleted": 0})
+        km = _section_text(rendered(r, [], width=200), "Knowledge map")
+        self.assertIn("static/", km)
+        self.assertNotIn("flask/", km)
+        self.assertNotIn("tests/", km)
+        self.assertIn("2 historical areas hidden; --full shows them", km)
+        full = _section_text(rendered(r, [], width=200, full=True), "Knowledge map")
+        self.assertIn("flask/", full)
+        self.assertNotIn("hidden", full)
+
+    def test_map_without_a_tree_listing_hides_nothing(self):
+        r = sample_report()
+        r["size"]["files"] = {}
+        km = _section_text(rendered(r, [], width=200), "Knowledge map")
+        self.assertIn("tests/", km)
+        self.assertNotIn("historical", km)
 
 
 class Timeline(unittest.TestCase):

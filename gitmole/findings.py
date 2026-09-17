@@ -100,6 +100,14 @@ def _source_ownership(report: dict) -> list:
     return [r for r in report.get("ownership") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_vendor_path(r["entity"]))]
 
 
+def _present_areas(report: dict, rows: list, build=knowledge.areas) -> list:
+    """Areas built from the ownership rows of directories that still exist, then only those areas that
+    exist themselves: a directory the history knows but HEAD does not (the layout before a move to
+    src/ or crates/) is nowhere to pair anyone on. `build` is knowledge.areas or a wrapper of it."""
+    tree = _tree(report)
+    return [a for a in build(knowledge.present_rows(rows, tree)) if knowledge.in_tree(a["area"], tree)]
+
+
 def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> list:
     """One author owns most of the surviving code (whole history). The areas named in the advice
     come from lines added, which `--since` windows, so the advice says so when it applies."""
@@ -111,7 +119,7 @@ def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> li
     if lines / total <= threshold:
         return []
     theirs = []
-    for a in knowledge.areas(_source_ownership(report)):
+    for a in _present_areas(report, _source_ownership(report)):
         owned = dict(a["owners"]).get(name, 0)
         if a["lines"] >= min_lines and owned / a["lines"] >= 0.8:
             theirs.append((a["area"], round(100 * owned / a["lines"])))
@@ -263,7 +271,9 @@ def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_shar
 
 
 def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9) -> list:
-    areas = knowledge.areas(_source_ownership(report))
+    """Areas of the tree written almost entirely by one person. Areas that no longer exist are left
+    out, of the islands and of the total they are measured against."""
+    areas = _present_areas(report, _source_ownership(report))
     islands = knowledge.islands(areas, min_lines=min_lines, min_share=min_share)
     if not islands:
         return []
@@ -329,9 +339,10 @@ def _loss_people(by_person: dict, total: int) -> str:
 
 
 def _loss_areas(report: dict, names: set, source_rows: list) -> list:
-    """Areas at 200+ lines where 80%+ of the surviving code is theirs, tagged live or not and
-    sorted live-first: that is where the gap bites soonest."""
-    theirs = [a for a in loss.areas(source_rows, names) if a["lines"] >= 200 and a["lost_share"] >= 0.8]
+    """Areas at 200+ lines where 80%+ of the surviving code is theirs, still in the tree, tagged live
+    or not and sorted live-first: that is where the gap bites soonest."""
+    theirs = [a for a in _present_areas(report, source_rows, build=lambda rows: loss.areas(rows, names))
+              if a["lines"] >= 200 and a["lost_share"] >= 0.8]
     for a in theirs:
         a["live"] = _is_live(a["area"], report.get("age") or [])
     theirs.sort(key=lambda a: (not a["live"], -a["lines"], a["area"]))   # a live area first: that is where the gap bites

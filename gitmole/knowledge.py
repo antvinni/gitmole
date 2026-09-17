@@ -7,11 +7,35 @@ from collections import Counter, defaultdict
 ROOT = "(root files)"
 
 
+def in_tree(area: str, tree: dict) -> bool:
+    """Whether any tracked file sits under `area` (a directory prefix ending in "/", or ROOT). With
+    no tree listing every area counts: there is nothing to judge by."""
+    if not tree:
+        return True
+    if area == ROOT:
+        return any("/" not in path for path in tree)
+    return any(path.startswith(area) for path in tree)
+
+
 def _area(entity: str, depth: int) -> str:
     dirs = entity.split("/")[:-1]
     if not dirs:
         return ROOT
     return "/".join(dirs[:depth]) + "/"
+
+
+def top_area(entity: str) -> str:
+    """The top-level directory of a path, or ROOT."""
+    return _area(entity, 1)
+
+
+def present_rows(rows: list, tree: dict) -> list:
+    """Ownership rows for files whose top-level directory still exists in the tree. Filtering the rows
+    before areas are built keeps a vanished layout (the src/ before a move to crates/) from inflating
+    the total and hiding that one directory now holds almost everything."""
+    if not tree:
+        return rows
+    return [r for r in rows if in_tree(top_area(r["entity"]), tree)]
 
 
 def _aggregate(rows: list, depth: int) -> list:
