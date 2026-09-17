@@ -2,7 +2,6 @@
 import importlib.machinery
 import importlib.util
 import os
-import re
 import unittest
 
 PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "render-examples")
@@ -65,6 +64,15 @@ class Document(unittest.TestCase):
         self.assertIn("| lib/url.c | changed 800 times |", self.doc)
         self.assertIn("## Watch list", self.doc)
 
+    def test_strips_the_footer_render_markdown_actually_emits(self):
+        from tests.test_render import sample_report
+        from gitmole import render
+        markdown = render.markdown(sample_report(), [])
+        self.assertIn("Full results and plots in", markdown)          # the fixture copies this sentence
+        doc = self.mod.document("demo/demo", "b" * 40, markdown)
+        self.assertNotIn("Full results and plots in", doc)
+        self.assertNotIn(sample_report()["out_dir"], doc)
+
 
 class Pins(unittest.TestCase):
     def test_every_example_is_a_github_target_with_a_full_sha(self):
@@ -86,3 +94,13 @@ class Pins(unittest.TestCase):
         self.assertRegex(mod.NOW, r"^\d{4}-\d{2}-\d{2}$")
         self.assertEqual(mod.WIDTH, 100)
         self.assertGreaterEqual(mod.TIMEOUT, 900)
+
+    def test_unknown_name_exits_2_and_names_the_choices(self):
+        mod = load()
+        import io, contextlib
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = mod.main(["nope"])
+        self.assertEqual(rc, 2)
+        self.assertIn("nope", err.getvalue())
+        self.assertIn("curl", err.getvalue())

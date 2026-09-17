@@ -55,7 +55,7 @@ blocks on secrets in source files and still posts the report. Every option:
 ## What you get
 
 The opening of the report for [react](https://github.com/facebook/react), 35,263 commits
-since 2013, at a pinned commit:
+since 2013, at a pinned commit; the picture above, as text:
 
 ```text
 ╭─ react ──────────────────────────────────────────────────────────────────────────────────────────╮
@@ -98,17 +98,19 @@ coupling, complex functions and repo health. Every section is explained in
 [docs/output.md](https://github.com/antvinni/gitmole/blob/main/docs/output.md).
 
 Reports on repositories you know, each at a pinned commit with a fixed
-reference date so the file is reproducible:
+reference date, published as gitmole wrote them; the repo-health numbers
+come from git-sizer over the whole clone, so a fresh clone can differ there:
 
 | Repository | Commits | Lines | Watch list backtest |
 |---|---:|---:|---|
-| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | 39,894 | 247,179 | named 15 of the 239 files fixed in the next six months; a random pick would name 5 |
-| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | 52,832 | 431,749 | named 13 of the 213 files fixed; random would name 2.8 |
-| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | 35,263 | 681,078 | named 6 of the 211 files fixed; random would name 0.3 |
-| [kubernetes](https://github.com/antvinni/gitmole/blob/main/docs/examples/kubernetes.md) | 161,803 | 4,180,715 | named 7 of the 338 files fixed; random would name 0.4 |
+| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | 39,894 | 247,179 | named 15 of the 239 files fixed in the next six months; a random pick would name 5.0 |
+| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | 52,832 | 431,749 | named 13 of the 213 files fixed in the next six months; a random pick would name 2.8 |
+| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | 35,263 | 681,078 | named 6 of the 211 files fixed in the next six months; a random pick would name 0.3 |
+| [kubernetes](https://github.com/antvinni/gitmole/blob/main/docs/examples/kubernetes.md) | 161,803 | 4,180,715 | named 7 of the 338 files fixed in the next six months; a random pick would name 0.4 |
 
-kubernetes's code-age and duplicates steps were skipped on gitmole's default
-budgets; its report says so in its own text.
+kubernetes's code-age step was skipped on gitmole's default time budget and
+its report says so; the duplicates step was skipped on the memory budget too
+and produced no section.
 
 ## The tool set
 
