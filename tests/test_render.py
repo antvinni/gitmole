@@ -320,7 +320,7 @@ class Report(unittest.TestCase):
         self.assertIn("ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2026-01-01", caption)
         self.assertTrue(caption.endswith("the 2 most changed would name 1); whole history"), caption)
 
-    def test_default_hotspots_hide_test_files_and_say_so(self):
+    def test_markdown_hotspots_hide_test_files_and_say_so(self):
         r = sample_report()
         r["revisions"].append({"entity": "tests/test_a.py", "n-revs": 200})
         r["size"]["files"]["tests/test_a.py"] = {"code": 50, "complexity": 1}
@@ -379,7 +379,7 @@ class Report(unittest.TestCase):
         full = _section_text(rendered(r, [], width=200, full=True), "Complex functions")
         self.assertIn("vendor/github.com/x/y.go", full)
 
-    def test_default_tables_hide_generated_files_and_say_so(self):
+    def test_markdown_tables_hide_generated_files_and_say_so(self):
         r = sample_report()
         r["meta"]["generated"] = ["lib/config-validator.js"]
         r["size"]["files"]["lib/config-validator.js"] = {"code": 1153, "complexity": 373}
@@ -395,7 +395,7 @@ class Report(unittest.TestCase):
         full = rendered(r, [], width=200, full=True)
         self.assertIn("validate10", full)
 
-    def test_default_hotspots_hide_release_plumbing_and_say_so(self):
+    def test_markdown_hotspots_hide_release_plumbing_and_say_so(self):
         r = sample_report()
         r["size"]["files"].update({"setup.py": {"code": 6, "complexity": 0}, "version.go": {"code": 2, "complexity": 0}})
         r["revisions"] += [{"entity": "setup.py", "n-revs": 184}, {"entity": "version.go", "n-revs": 29}]
@@ -405,7 +405,7 @@ class Report(unittest.TestCase):
         full = rendered(r, [], width=200, full=True)
         self.assertIn("setup.py", full[full.index("◆ Hotspots"):])
 
-    def test_default_hotspots_hide_files_the_change_log_shows_as_plumbing(self):
+    def test_markdown_hotspots_hide_files_the_change_log_shows_as_plumbing(self):
         r = sample_report()
         r["size"]["files"]["pkg/__init__.py"] = {"code": 40, "complexity": 0}
         r["revisions"].append({"entity": "pkg/__init__.py", "n-revs": 331})
@@ -496,7 +496,7 @@ class Report(unittest.TestCase):
         self.assertIn("static/tax.html", full)
         self.assertNotIn("hidden", full)
 
-    def test_default_hotspots_hide_deleted_files_and_say_so(self):
+    def test_markdown_hotspots_hide_deleted_files_and_say_so(self):
         r = sample_report()   # the tree holds static/index.html and static/apps-metadata.json only
         r["revisions"].append({"entity": "src/sizes/old.go", "n-revs": 40})
         hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
@@ -751,7 +751,7 @@ class WatchList(unittest.TestCase):
         self.assertEqual(sec["caption"], "ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2025-01-01")
 
 
-class DescriptiveTables(unittest.TestCase):
+class FullOnlySections(unittest.TestCase):
     def test_default_report_leaves_them_out_and_full_brings_them_back(self):
         text = rendered(sample_report(), [])
         for title in ("Size by language", "Activity", "Surviving code by year written"):

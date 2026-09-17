@@ -108,9 +108,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    shows them.
 3. **Watch list**: the five source files most likely to need a fix next, with
    the reasons in words. Every source file still in the tree that changed
-   more than once is ranked by revisions × lines of code, the Hotspots
-   table's product, over source files only: measured against the fixes
-   that followed at six cut-offs on three repositories
+   more than once is ranked by revisions × lines of code, over source
+   files only: measured against the fixes that followed at six cut-offs
+   on three repositories
    ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md)),
    it named more of them than any weighting of fixes, complexity and
    ownership did. A file's score, which `--risk` adds up, is its share, in
@@ -119,9 +119,11 @@ How to read each part of the terminal report, and what each run writes to disk; 
    owner, the most complex function lizard found (a nameless one by its
    line; a span marked `?` in the complex functions table is passed over)
    and, when its complexity grew by a quarter or more in a year, by how
-   much, and the files it always changes with, none of them entering the
-   rank. Test files are left out. Under `--since`, churn and ownership are
-   windowed and the list says so. `--full` and the exports show fifteen.
+   much (the trend is sampled for the ten top hotspots only, so a file
+   further down the list may have none), and the files it always changes
+   with, none of them entering the rank. Test files are left out. Under
+   `--since`, churn and ownership are windowed and the list says so.
+   `--full` and the exports show fifteen.
    With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
    score as a bar and the reasons, or why it has none (new file, changed
@@ -183,9 +185,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    name, the run records them in `meta.json`; and an amalgamation, a
    file every one of whose functions also appears identically in other
    files, found from the function metrics); the hotspots table, drawn
-   in the Markdown export rather than the default report, hides the
-   same test files and generated files. The complex functions table
-   also hides vendored code (`vendor/`, `vendored/`, `node_modules/`,
+   under `--full` and in the Markdown export, hides the same test files
+   and generated files in the Markdown export, since `--full` shows
+   everything. The complex functions table also hides vendored code
+   (`vendor/`, `vendored/`, `node_modules/`,
    `third_party/`, `external/`, `deps/`, `.yarn/`, a `packages/` inside a package
    such as `requests/packages/`, and any directory whose own `LICENSE` or
    `COPYING` names none of the copyright holders the root licence names,
@@ -257,13 +260,16 @@ directory for a remote target:
 ## How to read the output
 
 1. Start with the header and the findings.
-2. The hotspots table is `maat-revisions.csv` joined with scc's per-file
-   size and complexity, author count, and age, ranked by revisions times
-   lines. The change log follows renames, so a moved file is one entity
-   under its new path and a pure move adds no lines: whoever moved a tree
-   to `src/` did not write it, and the knowledge map says so. Large files that change constantly are your risk. By default the
-   tables leave test files and deleted files out and say how many; `--full`
-   shows them.
+2. The watch list is the source files ranked by revisions × lines of code,
+   from `maat-revisions.csv` joined with scc's per-file size. The change log
+   follows renames, so a moved file is one entity under its new path and a pure
+   move adds no lines: whoever moved a tree to `src/` did not write it, and the
+   knowledge map says so. Large files that change constantly are your risk; the
+   reasons say what else counts against each file, and the backtest line says
+   how the same list would have done six months ago. The hotspots table behind
+   it, with every file and the trend column, is what `--full` and the Markdown
+   export add; by default the tables leave test files and deleted files out and
+   say how many, and `--full` shows them.
 3. Change coupling shows files that always change together. That usually
    means a hidden dependency or copy-pasted layout. A whole directory that
    changes as one is a generator or a shared layout, and shows as one row.

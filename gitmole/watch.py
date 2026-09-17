@@ -17,14 +17,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-try:
-    from . import filetypes, hotspots, textfmt, trend
-except ImportError:  # pragma: no cover - not run as a script, but keep the package pattern
-    # trend.py itself does `from . import ...`, which only works inside the package, so it has no
-    # standalone form to fall back to here; this arm is never exercised (see above).
-    import filetypes
-    import hotspots
-    import textfmt
+from . import filetypes, hotspots, textfmt, trend
 
 CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function is not worth naming
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership

@@ -79,6 +79,11 @@ parsing its sentence:
  "evidence": {"count": 2, "files": [{"file": "lib/url.c", "recent_fixes": 5, "fixes": 41}]}}
 ```
 
+The JSON's `watch` rows carry a `trend` field: the change in the file's
+complexity over a year (`+54%`, `=` for under ten per cent either way, `-`
+when there is nothing to compare), and null when the file was not among the
+ten sampled hotspots.
+
 A CI job that runs
 `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"` blocks
 on secrets in source files and still posts the report. Secrets found only in
@@ -121,12 +126,13 @@ gitmole keeps them in check:
   Both shrink the blame count a lot on repos full of exports and fixtures.
 
 Two steps read history rather than the working tree, and both are bounded.
-The trend behind the hotspots' `trend` column runs scc over the ten top
-hotspots at up to twelve sampled commits, one run per sample, not one per
-file. The backtest behind the watch list's caption is a second change
-analysis over the same log with the window closed six months before the
-last commit, plus one checkout of the tree as it was then, exported under
-the output directory and removed again when the step ends.
+The trend behind the hotspots' `trend` column, which also feeds the watch
+list's complexity reason, runs scc over the ten top hotspots at up to
+twelve sampled commits, one run per sample, not one per file. The backtest
+behind the watch list's caption is a second change analysis over the same
+log with the window closed six months before the last commit, plus one
+checkout of the tree as it was then, exported under the output directory
+and removed again when the step ends.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
 and the rest of the report still renders: whatever the tool had written is

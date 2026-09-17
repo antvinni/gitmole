@@ -88,12 +88,11 @@ ranks by revisions × lines of code: measured at six cut-offs on three
 repositories
 ([validation](https://github.com/antvinni/gitmole/blob/main/docs/validation.md)),
 that named more of the files fixed next than churn alone, size alone or a
-weighted product of fixes, complexity and ownership. Between the header and
-that list the full report puts its findings, 16 for react (1 critical, 6
-warnings, 9 notes); below it, tables for people, the knowledge map, the
-timeline, change coupling, complex functions and repo health; `--full`
-adds the hotspots table behind the list, size, activity and code age.
-Every section is explained in
+weighted product of fixes, complexity and ownership. Between the header and that
+list the full report puts its findings, 16 for react (1 critical, 6 warnings, 9
+notes); below it, tables for people, the knowledge map, the timeline, change
+coupling, complex functions and repo health; `--full` adds the hotspots table
+behind the list, size, activity and code age. Every section is explained in
 [docs/output.md](https://github.com/antvinni/gitmole/blob/main/docs/output.md).
 
 Reports on repositories you know, each at a pinned commit with a fixed

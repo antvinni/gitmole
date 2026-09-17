@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import coupling, filetypes, hotspots, identity, knowledge, leaks, load, loss, textfmt, trend, watch
+from . import coupling, filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -34,6 +34,8 @@ SIDE_BY_SIDE_MIN_WIDTH = 100
 # their full width and the name gives way instead, cut to whatever room is left; NAME_FLOOR is the
 # fewest characters of a name still shown before the ellipsis, even if the months leave less room than
 # that (eight is enough to keep most short names, and the start of longer ones, still recognisable).
+# The section needs INDENT + NAME_FLOOR + FLOOR × MONTH_WIDTH = 28 columns; below that rich starves
+# the month cells, which no real terminal reaches.
 MONTH_WIDTH, INDENT, FLOOR, NAME_FLOOR = 6, 2, 3, 8
 
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
@@ -429,14 +431,15 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
         span = span[-max(FLOOR, min(len(span), (width - INDENT - name) // MONTH_WIDTH)):]
     columns = [("author", {"no_wrap": True})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     room = width - INDENT - MONTH_WIDTH * len(span) if width else None
-    rows = [(load._cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
+    rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
     return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))
 
 
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     """Change frequency times size, Tornhill-style. Files no longer in the tree sort last. Drawn
     under `--full` and in the Markdown export only; the default terminal report leaves it to the
-    watch list, which ranks the same files."""
+    watch list, which ranks the same files. Built only for those two, it has no row cap of its
+    own outside Markdown's."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}

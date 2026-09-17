@@ -23,6 +23,17 @@ class ShortenPath(unittest.TestCase):
         self.assertEqual(textfmt.shorten_path("Makefile", 5), "Makefile")
 
 
+class Cut(unittest.TestCase):
+    def test_short_string_is_unchanged(self):
+        self.assertEqual(textfmt.cut("gitmole/cli.py", 30), "gitmole/cli.py")
+
+    def test_long_string_is_cut_to_exactly_cap_characters_ending_in_the_ellipsis(self):
+        name = "a" * 500
+        cut = textfmt.cut(name, 10)
+        self.assertEqual(len(cut), 10)
+        self.assertTrue(cut.endswith(textfmt.ELLIPSIS))
+
+
 class GroupFindings(unittest.TestCase):
     def test_same_title_findings_merge_into_one_with_a_list(self):
         found = [
