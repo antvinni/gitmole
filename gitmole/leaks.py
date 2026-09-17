@@ -59,16 +59,57 @@ def digest(value: str, key: bytes) -> str:
     return hmac.new(key, value.encode("utf-8", "surrogateescape"), hashlib.sha256).hexdigest()[:12]
 
 
-def is_placeholder(value: str) -> bool:
+# A header followed by no key material is a pattern a script greps for, not a key (ohmyzsh's ssh-agent
+# plugin: the scanner captures the header and the shell code after it).
+_HEADER = re.compile(r"^\^?-----BEGIN[ \\A-Z]*KEY-----")
+_BASE64_RUN = re.compile(r"[A-Za-z0-9+/=]{40,}")
+# A line that calls its own value an example is documentation, wherever it sits: "# Example password: ...".
+_EXAMPLE_LINE = re.compile(r"\b(example|sample|dummy|fake|placeholder)|\be\.g\.", re.I)
+
+
+def _made_up(value: str) -> bool:
+    """A run up the alphabet and the digits (qr6stu789vwxyz, abcd1234): typed, not generated. Eight
+    characters or more, letters non-decreasing, digits non-decreasing, both present or one long."""
+    alnum = re.sub(r"[^A-Za-z0-9]", "", value).lower()
+    letters = [c for c in alnum if c.isalpha()]
+    digits = [c for c in alnum if c.isdigit()]
+    if len(alnum) < 8 or len(alnum) != len(letters) + len(digits):
+        return False
+    return letters == sorted(letters) and digits == sorted(digits) and len(set(letters)) >= 4 or (not letters and digits == sorted(digits))
+
+
+def is_placeholder(value: str, line: str = "") -> bool:
+    """Whether `value` has a shape that cannot be a live secret. `line` is the source line the value
+    sat on, read from the clone at scan time and never written."""
     value = (value or "").strip()
     if (_VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value) or value.lower() in _EXAMPLE_WORDS
-            or _ENV_REF.match(value)):
+            or _ENV_REF.match(value) or _made_up(value)):
+        return True
+    if line and _EXAMPLE_LINE.search(line):
         return True
     m = _KEY_BLOCK.search(value)
     if m:
         body = re.sub(r"\s|\.|…|\\n", "", m.group(1))   # literal \n sequences appear in JSON samples
         return len(body) < _KEY_MATERIAL
+    h = _HEADER.match(value)
+    if h and not _BASE64_RUN.search(value[h.end():]):
+        return True
     return False
+
+
+def line_of(repo: str, commit: str, path: str, number: int) -> str:
+    """Line `number` of `path` as it was at `commit`, from the clone; "" when it cannot be read. Read
+    for the placeholder rule and dropped, like every other raw field."""
+    if not (commit and path and number):
+        return ""
+    proc = subprocess.run(["git", "-C", repo, "show", f"{commit}:{path}"], capture_output=True)
+    if proc.returncode != 0:
+        return ""
+    lines = proc.stdout.decode("utf-8", "replace").split("\n")
+    return lines[number - 1] if 0 < number <= len(lines) else ""
+
+
+LINE_LOOKUPS = 400   # one git call per finding; past this many the rest go without their line
 
 
 def sanitise(rows: list) -> list:
@@ -78,7 +119,7 @@ def sanitise(rows: list) -> list:
         value = r.get("Secret") or ""
         clean = {k: v for k, v in r.items() if k not in RAW_FIELDS}
         clean["SecretHash"] = digest(value, key)
-        clean["Placeholder"] = is_placeholder(value)
+        clean["Placeholder"] = is_placeholder(value, r.get("Line") or "")   # the line is read here and dropped with the other raw fields
         out.append(clean)
     return out
 
@@ -130,7 +171,10 @@ def main(argv=None) -> int:
         print(f"leaks.py: betterleaks exited {proc.returncode}; no report written", file=sys.stderr)
         return proc.returncode
     text = proc.stdout.decode("utf-8", "surrogateescape").strip()
-    rows = sanitise((json.loads(text) if text else None) or [])   # a clean repository is reported as null
+    raw = (json.loads(text) if text else None) or []   # a clean repository is reported as null
+    for r in raw[:LINE_LOOKUPS]:   # betterleaks does not report the line; the clone in the current directory has it
+        r["Line"] = line_of(os.getcwd(), r.get("Commit") or "", r.get("File") or "", int(r.get("StartLine") or 0))
+    rows = sanitise(raw)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(target)), prefix=".secrets-", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

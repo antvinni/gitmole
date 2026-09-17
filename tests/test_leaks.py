@@ -74,6 +74,42 @@ class Placeholder(unittest.TestCase):
         for value in ["p@ssw0rd!", "AKIA" + "X" * 16, "env-9f8a7b6c5d4e3f2a", "${not closed", "hello$world"]:
             self.assertFalse(leaks.is_placeholder(value), value)
 
+    def test_a_key_header_with_no_key_material_after_it_is_a_marker_not_a_key(self):
+        # ohmyzsh's ssh-agent plugin greps files for the header; the scanner captures the header and the shell code after it
+        for value in ["-----BEGIN OPENSSH PRIVATE KEY-----", "^-----BEGIN\\ OPENSSH\\ PRIVATE\\ KEY-----", "-----BEGIN RSA PRIVATE KEY-----\\n",
+                      '-----BEGIN OPENSSH PRIVATE KEY-----".\n      if [[ -f "$file" && $(command head -n 1 "$file") =~ ^-----BEGIN ]]; then']:
+            self.assertTrue(leaks.is_placeholder(value), value)
+        real = "-----BEGIN OPENSSH PRIVATE KEY-----\n" + "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW" * 3
+        self.assertFalse(leaks.is_placeholder(real), "a header followed by base64 is a key, END or no END")
+
+    def test_the_line_is_read_from_the_clone_at_the_commit(self):
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "init", "-q", d], check=True)
+            with open(os.path.join(d, "gen.sh"), "w") as fh:
+                fh.write("#!/bin/sh\n# Example password: nz5ej2kypkvcw0rn5cvhs6qxtm\necho hi\n")
+            subprocess.run(["git", "-C", d, "add", "gen.sh"], check=True)
+            subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "-m", "gen"], check=True)
+            sha = subprocess.run(["git", "-C", d, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+            self.assertEqual(leaks.line_of(d, sha, "gen.sh", 2), "# Example password: nz5ej2kypkvcw0rn5cvhs6qxtm")
+            self.assertEqual(leaks.line_of(d, sha, "gen.sh", 9), "", "past the end is nothing, not an error")
+            self.assertEqual(leaks.line_of(d, sha, "missing.sh", 1), "")
+            self.assertEqual(leaks.line_of(d, "", "gen.sh", 1), "")
+
+    def test_a_line_that_calls_itself_an_example_is_a_placeholder(self):
+        # `# Example password: nz5ej2kypkvcw0rn5cvhs6qxtm` in a password generator's header comment
+        self.assertTrue(leaks.is_placeholder("nz5ej2kypkvcw0rn5cvhs6qxtm", line="# Example password: nz5ej2kypkvcw0rn5cvhs6qxtm"))
+        self.assertTrue(leaks.is_placeholder("nz5ej2kypkvcw0rn5cvhs6qxtm", line="token = 'nz5ej2kypkvcw0rn5cvhs6qxtm'  # e.g. from the dashboard"))
+        self.assertTrue(leaks.is_placeholder("nz5ej2kypkvcw0rn5cvhs6qxtm", line="SAMPLE_KEY = 'nz5ej2kypkvcw0rn5cvhs6qxtm'"))
+        self.assertFalse(leaks.is_placeholder("nz5ej2kypkvcw0rn5cvhs6qxtm", line="api_key = 'nz5ej2kypkvcw0rn5cvhs6qxtm'"))
+        self.assertFalse(leaks.is_placeholder("nz5ej2kypkvcw0rn5cvhs6qxtm"), "without the line there is nothing to go on")
+
+    def test_a_run_up_the_alphabet_or_the_digits_is_made_up(self):
+        # ohmyzsh's spotify plugin: CLIENT_SECRET="qr6stu789vwxyz" in a usage message
+        for value in ["qr6stu789vwxyz", "abcdefghijklmnop", "abcd1234efgh5678", "ABCDEF123456", "0123456789abcdef"]:
+            self.assertTrue(leaks.is_placeholder(value), value)
+        for value in ["nz5ej2kypkvcw0rn5cvhs6qxtm", "abcdefg", "zyxwvutsrq", "ghp_" + "a1" * 18]:
+            self.assertFalse(leaks.is_placeholder(value), value)
+
     def test_anything_else_is_taken_seriously(self):
         # built at runtime: a literal in these shapes would trip secret scanners on this very file
         key_id, long_key = "AKIA" + "X" * 16, "6L" + "x" * 38
@@ -96,6 +132,12 @@ class Sanitise(unittest.TestCase):
         self.assertEqual([r["Placeholder"] for r in rows], [False, True])
         self.assertEqual(rows[0]["Fingerprint"], RAW[0]["Fingerprint"])
         self.assertEqual(rows[0]["Author"], "Ann")
+
+    def test_the_line_is_read_for_the_placeholder_flag_before_it_is_dropped(self):
+        row = dict(RAW[0], Line="# Example token: " + RAW[0]["Secret"])
+        [clean] = leaks.sanitise([row])
+        self.assertTrue(clean["Placeholder"])
+        self.assertNotIn("Line", clean)
 
 
 class Script(unittest.TestCase):

@@ -236,7 +236,10 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
     surviving = OrderedDict()
     for name, lines in (parse_theseus(authors) if authors else {}).items():
         key = canonical.get(name, name)
+        if identity.is_bot(key):   # a deploy job that committed a built site owns nothing anyone needs to know
+            continue
         surviving[key] = surviving.get(key, 0) + lines
+    ownership = [r for r in parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")) if not identity.is_bot(r.get("author") or "")]
     return {
         "out_dir": out_dir,
         "meta": meta,
@@ -248,7 +251,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
         "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),
-        "ownership": parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")),
+        "ownership": ownership,
         "fixes": parse_maat_csv(_read(out_dir, "maat-fixes.csv")),
         "sizer": parse_git_sizer(_read(out_dir, "repo-health.txt")),
         "cohorts": parse_theseus(cohorts) if cohorts else {},

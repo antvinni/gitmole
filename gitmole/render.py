@@ -129,6 +129,15 @@ def _hide_release(pairs: list, full) -> tuple:
     return kept, (f"{hidden} release pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
+def _hide_header_pairs(pairs: list, full) -> tuple:
+    """A C-family source file and its own header change together by construction."""
+    if full is True:
+        return pairs, None
+    kept = [p for p in pairs if not filetypes.is_header_pair(p["entity"], p["coupled"])]
+    hidden = len(pairs) - len(kept)
+    return kept, (f"{hidden} header pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
+
+
 def _join_hidden(*notes) -> str:
     """Several hidden-row notes as one caption phrase: 'A hidden; B hidden; --full shows them'."""
     parts = [n[:-len(HIDDEN_SUFFIX)] if n.endswith(HIDDEN_SUFFIX) else n for n in notes if n]
@@ -430,7 +439,9 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair")
     pairs, gone_note = _hide_gone(pairs, report, full)
     pairs, release_note = _hide_release(pairs, full)
-    gone_note = _join_hidden(gone_note, release_note)
+    pairs, header_note = _hide_header_pairs(pairs, full)
+    pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs")
+    gone_note = _join_hidden(gone_note, release_note, header_note, vendor_note)
     groups, cluster_note = [], None
     if full is not True:
         # a directory whose files all change together is one row; --full lists every pair

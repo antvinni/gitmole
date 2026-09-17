@@ -78,7 +78,7 @@ def is_sample_path(path: str) -> bool:
     return bool(_SAMPLE_PATH.search(path))
 
 
-_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external)(/|$)|^[^/]+/packages/", re.I)
+_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps)(/|$)|^[^/]+/packages/", re.I)
 
 
 def is_vendor_path(path: str) -> bool:
@@ -98,6 +98,25 @@ def is_release_path(path: str) -> bool:
     together is a release commit, not a dependency between them."""
     name = path.rsplit("/", 1)[-1].lower()
     return name in _RELEASE_NAMES or name.endswith(".gemspec") or name.startswith(("changelog", "changes.", "history.", "news."))
+
+
+_SOURCE_EXT = {"c", "cc", "cpp", "cxx", "m", "mm"}
+_HEADER_EXT = {"h", "hh", "hpp", "hxx"}
+
+
+def is_header_pair(a: str, b: str) -> bool:
+    """A C-family source file and its own header, same directory and stem: they change together by
+    construction, so the pair says nothing about a hidden dependency."""
+    if a == b:
+        return False
+    (da, sa, ea), (db, sb, eb) = _split(a), _split(b)
+    return da == db and sa == sb and ({ea, eb} & _SOURCE_EXT) and ({ea, eb} & _HEADER_EXT) and ea != eb
+
+
+def _split(path: str) -> tuple:
+    head, _, name = path.rpartition("/")
+    stem, _, ext = name.rpartition(".")
+    return head, stem, ext.lower()
 
 
 def plumbing_paths(report: dict) -> set:

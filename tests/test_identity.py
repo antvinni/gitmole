@@ -91,7 +91,8 @@ class IsBot(unittest.TestCase):
                             ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"),
                             ("dependabot[bot]", "support@github.com"), ("Dependabot", "dependabot@example.com"),
                             ("Renovate Bot", "bot@renovateapp.com"), ("GitHub Actions", "actions@github.com"),
-                            ("Copilot", "198982749+Copilot@users.noreply.github.com"), ("Cursor Agent", "cursoragent@cursor.com")]:
+                            ("Copilot", "198982749+Copilot@users.noreply.github.com"), ("Cursor Agent", "cursoragent@cursor.com"),
+                            ("Deploy from CI", ""), ("Release Bot", "release@x.com"), ("CI", "ci@x.com"), ("Homebrew Automation", "a@x.com")]:
             self.assertTrue(identity.is_bot(name, email), (name, email))
 
     def test_people_are_not_bots(self):

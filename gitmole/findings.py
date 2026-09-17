@@ -195,6 +195,8 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
     pairs = [p for p in report.get("coupling") or [] if p["degree"] >= min_degree and p["average-revs"] >= min_revs
              and not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))
              and not (filetypes.is_release_path(p["entity"]) and filetypes.is_release_path(p["coupled"]))
+             and not filetypes.is_header_pair(p["entity"], p["coupled"])
+             and not (filetypes.is_vendor_path(p["entity"]) or filetypes.is_vendor_path(p["coupled"]))
              and not (tree and (p["entity"] not in tree or p["coupled"] not in tree))]
     if not pairs:
         return []

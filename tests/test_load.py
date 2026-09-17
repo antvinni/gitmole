@@ -270,6 +270,24 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["duplicates"]["rate"], 5.0)
         self.assertEqual(r["out_dir"], out)
 
+    def test_bot_authors_are_dropped_from_ownership_and_surviving_code(self):
+        # mdBook: a gh-pages deploy job committed the built site under the root, so "Deploy from CI" owned the root files
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "theseus"))
+            files = {
+                "meta.json": json.dumps({"name": "demo", "commits": 3, "identities": [{"name": "Ann", "email": "a@x", "commits": 2}],
+                                         "bots": [{"name": "Deploy from CI", "commits": 40}]}),
+                "maat-entity-ownership.csv": "entity,author,added,deleted\nindex.html,Deploy from CI,6000,0\nsrc/a.rs,Ann,300,0\nsrc/b.rs,dependabot[bot],20,0\n",
+                "theseus/authors.json": json.dumps({"labels": ["Ann", "Deploy from CI"], "ts": ["t"], "y": [[300], [6000]]}),
+            }
+            for name, text in files.items():
+                with open(os.path.join(out, name), "w") as fh:
+                    fh.write(text)
+            r = load.load_report(out)
+        self.assertEqual([o["author"] for o in r["ownership"]], ["Ann"])
+        self.assertEqual(r["theseus_authors"], {"Ann": 300})
+
     def test_size_is_filtered_by_the_file_types_recorded_in_meta(self):
         import os, tempfile
         size = json.dumps([{"Name": "JSON", "Count": 1, "Code": 9000, "Comment": 0, "Blank": 0, "Complexity": 0,

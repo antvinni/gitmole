@@ -5,15 +5,17 @@ import re
 
 
 _BOT_WORDS = ("dependabot", "renovate", "github-actions", "github actions", "copilot", "cursor agent", "cursor-agent", "cursoragent")
+_BOT_NAME = re.compile(r"\bbot\b|\bci\b|deploy|automation", re.I)   # "Deploy from CI", "Release Bot", "Homebrew Automation"
 
 
 def is_bot(name: str, email: str = "") -> bool:
-    """A commit author that is a service, not a person: GitHub's *[bot] suffix, or one of the
-    common automation names in the name or the mailbox."""
+    """A commit author that is a service, not a person: GitHub's *[bot] suffix, one of the common
+    automation names in the name or the mailbox, or a name that says bot, CI, deploy or automation."""
     n, local = name.strip().lower(), email.strip().lower().split("@")[0]
     if n.endswith("[bot]") or local.endswith("[bot]"):
         return True
-    return any(w in n for w in _BOT_WORDS) or any(w in local for w in _BOT_WORDS) or email.strip().lower() == "actions@github.com"
+    return (any(w in n for w in _BOT_WORDS) or any(w in local for w in _BOT_WORDS) or email.strip().lower() == "actions@github.com"
+            or bool(_BOT_NAME.search(name)))
 
 
 def _tokens(name: str) -> set:
