@@ -57,7 +57,14 @@ def same_person(a: dict, b: dict) -> bool:
             return True
     # RobinMalfait and Robin Malfait: the full name run together, six letters or more so it is not anyone
     sa, sb = _squash(a["name"]), _squash(b["name"])
-    return bool(sa) and sa == sb and len(sa) >= 6 and (len(ta) >= 2 or len(tb) >= 2)
+    if sa and sa == sb and len(sa) >= 6 and (len(ta) >= 2 or len(tb) >= 2):
+        return True
+    # nlohmann and Niels Lohmann: an initial plus a distinctive surname
+    for handle, full in ((na, nb), (nb, na)):
+        words = full.split()
+        if " " not in handle and len(words) >= 2 and handle == words[0][0] + words[-1] and _distinctive(words[-1]):
+            return True
+    return False
 
 
 def _squash(name: str) -> str:

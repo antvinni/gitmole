@@ -106,15 +106,17 @@ def _hide_tests(rows: list, path_of, full, noun="test file", plural=None) -> tup
     return _hide_rows(rows, path_of, full, filetypes.is_test_path, noun, plural)
 
 
-def _hide_vendor(rows: list, path_of, full, noun="file in vendored code", plural="files in vendored code") -> tuple:
-    """Vendored trees: somebody else's code, not this repository's risk."""
-    return _hide_rows(rows, path_of, full, filetypes.is_vendor_path, noun, plural)
+def _hide_vendor(rows: list, path_of, full, noun="file in vendored code", plural="files in vendored code", report: dict = None) -> tuple:
+    """Vendored trees, by name or by the licence the run found: somebody else's code, not this repository's risk."""
+    dirs = filetypes.vendor_dirs(report or {})
+    return _hide_rows(rows, path_of, full, lambda p: filetypes.is_vendored(p, dirs), noun, plural)
 
 
 def _hide_generated(rows: list, path_of, report: dict, full, noun="generated file", plural=None) -> tuple:
-    """Generated files (a header marker or a linguist-generated attribute, found at run time): the
-    generator's churn and complexity, not the repository's."""
-    generated = set((report.get("meta") or {}).get("generated") or [])
+    """Generated files (a header marker or a linguist-generated attribute, found at run time) and
+    amalgamations (other files pasted together, found from the function metrics): the generator's
+    churn and complexity, not the repository's."""
+    generated = hotspots.derived(report)
     return _hide_rows(rows, path_of, full, lambda p: p in generated, noun, plural)
 
 
@@ -440,7 +442,7 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs, gone_note = _hide_gone(pairs, report, full)
     pairs, release_note = _hide_release(pairs, full)
     pairs, header_note = _hide_header_pairs(pairs, full)
-    pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs")
+    pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs", report=report)
     gone_note = _join_hidden(gone_note, release_note, header_note, vendor_note)
     groups, cluster_note = [], None
     if full is not True:
@@ -507,9 +509,10 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     measured = report.get("functions") or []
     funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full, noun="function in a test file", plural="functions in test files")
-    funcs, vendor_note = _hide_vendor(funcs, lambda f: f["file"], full, noun="function in vendored code", plural="functions in vendored code")
+    funcs, vendor_note = _hide_vendor(funcs, lambda f: f["file"], full, noun="function in vendored code", plural="functions in vendored code", report=report)
+    funcs, sample_note = _hide_rows(funcs, lambda f: f["file"], full, filetypes.is_sample_path, "function in example code", "functions in example code")
     funcs, generated_note = _hide_generated(funcs, lambda f: f["file"], report, full, noun="function in a generated file", plural="functions in generated files")
-    hidden_note = _join_hidden(hidden_note, vendor_note, generated_note)
+    hidden_note = _join_hidden(hidden_note, vendor_note, sample_note, generated_note)
     limit = _limit("Complex functions", full)
     rows = [(f["function"], f["file"], f["ccn"], f["nloc"], f["params"]) for f in funcs[:limit]]
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]

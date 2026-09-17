@@ -318,6 +318,15 @@ class ReleasePlumbing(unittest.TestCase):
         f = findings.hotspot_dominance(r)
         self.assertIn("fastapi/routing.py changed 187 times", f[0]["detail"])
 
+    def test_a_generated_file_is_not_a_bug_magnet(self):
+        fixes = [{"entity": "single_include/json.hpp", "n-fixes": 338, "last-fix": "2026-09-01", "recent-fixes": 43},
+                 {"entity": "include/json.hpp", "n-fixes": 116, "last-fix": "2026-09-01", "recent-fixes": 15}]
+        r = report(fixes=fixes)
+        r["meta"]["generated"] = ["single_include/json.hpp"]
+        f = findings.bug_magnets(r)
+        self.assertIn("include/json.hpp (15 recent", f[0]["detail"])
+        self.assertNotIn("single_include", f[0]["detail"])
+
     def test_a_manifest_is_not_a_bug_magnet(self):
         fixes = [{"entity": "package.json", "n-fixes": 20, "last-fix": "2026-09-01", "recent-fixes": 6},
                  {"entity": "lib/reply.js", "n-fixes": 10, "last-fix": "2026-09-01", "recent-fixes": 4}]
@@ -464,6 +473,22 @@ class BrainMethods(unittest.TestCase):
         self.assertEqual(f[0]["advice"], "Split onSendEnd in lib/reply.js first, before the next change lands there.")
         self.assertNotIn("validate10", f[0]["detail"])
 
+    def test_example_code_is_not_a_brain_method(self):
+        fns = [{"file": "examples/named-pipe-ready.rs", "function": "windows_main", "ccn": 25, "nloc": 109, "params": 0, "start": 1, "end": 109},
+               {"file": "tokio/src/sync/notify.rs", "function": "poll_notified", "ccn": 17, "nloc": 140, "params": 2, "start": 1, "end": 140}]
+        f = findings.brain_methods(report(functions=fns))
+        self.assertEqual(f[0]["advice"], "Split poll_notified in tokio/src/sync/notify.rs first, before the next change lands there.")
+        self.assertNotIn("windows_main", f[0]["detail"])
+
+    def test_an_amalgamated_file_is_not_a_brain_method(self):
+        fns = []
+        for i in range(25):
+            fns.append({"file": f"include/part{i % 3}.hpp", "function": f"f{i}", "ccn": 30, "nloc": 120, "params": 1, "start": 1, "end": 120})
+            fns.append({"file": "single_include/all.hpp", "function": f"f{i}", "ccn": 30, "nloc": 120, "params": 1, "start": 1, "end": 120})
+        f = findings.brain_methods(report(functions=fns))
+        self.assertNotIn("single_include", f[0]["detail"])
+        self.assertIn("include/part0.hpp", f[0]["detail"])
+
     def test_vendored_functions_are_not_brain_methods(self):
         fns = [{"file": "vendor/github.com/google/jsonschema-go/jsonschema/validate.go", "function": "validate", "ccn": 179, "nloc": 424, "params": 3, "start": 1, "end": 424},
                {"file": "processor/workers.go", "function": "countLoopGeneric", "ccn": 56, "nloc": 164, "params": 8, "start": 1, "end": 164}]
@@ -579,6 +604,12 @@ class Reverts(unittest.TestCase):
         self.assertIn("5 of 100 commits are reverts; core/a.py was reverted 3 times, core/b.py twice, tests/t.py 4 times",
                       f[0]["detail"], "source files lead, test files still listed")
         self.assertEqual(f[0]["advice"], "Add a check before merge for core/a.py; it is the file most often backed out.")
+
+    def test_files_reverted_once_each_are_spread_not_named(self):
+        # tokio: 16 reverts across 16 files; naming one of them as "most often backed out" says nothing
+        f = findings.reverts(self._report(16, commits=5008, reverted={f"src/f{i}.rs": 1 for i in range(16)}))
+        self.assertEqual(f[0]["detail"].split(" Look")[0], "16 of 5008 commits are reverts, spread over 16 files, none backed out twice.")
+        self.assertEqual(f[0]["advice"], "Look at why they were backed out; no single file keeps coming back.")
 
     def test_five_reverts_fire_even_below_five_percent(self):
         self.assertEqual(len(findings.reverts(self._report(5, commits=1000, reverted={"a.py": 5}))), 1)

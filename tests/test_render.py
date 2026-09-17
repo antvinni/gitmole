@@ -14,7 +14,8 @@ def sample_report():
         "size": {"languages": [{"name": "HTML", "files": 28, "code": 4783, "comment": 144, "blank": 732, "complexity": 0},
                                {"name": "Python", "files": 7, "code": 638, "comment": 50, "blank": 52, "complexity": 57}],
                  "total_code": 5421, "total_files": 35,
-                 "files": {"static/apps-metadata.json": {"code": 800, "complexity": 0}, "static/index.html": {"code": 4000, "complexity": 12}}},
+                 "files": {"static/apps-metadata.json": {"code": 800, "complexity": 0}, "static/index.html": {"code": 4000, "complexity": 12},
+                           "static/a.html": {"code": 300, "complexity": 0}, "static/b.html": {"code": 200, "complexity": 0}}},
         "revisions": [{"entity": "static/apps-metadata.json", "n-revs": 128}, {"entity": "static/index.html", "n-revs": 51}],
         "authors": [{"entity": "static/apps-metadata.json", "n-authors": 4, "n-revs": 128}],
         "coupling": [{"entity": "static/tax.html", "coupled": "static/treasury.html", "degree": 85, "average-revs": 11}],
@@ -394,6 +395,17 @@ class Report(unittest.TestCase):
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
         self.assertIn("version.rb", full)
 
+    def test_default_complex_functions_hide_example_code_and_amalgamations(self):
+        r = sample_report()
+        r["functions"].append({"file": "examples/demo.js", "function": "main", "ccn": 30, "nloc": 90, "params": 0, "start": 1, "end": 90})
+        for i in range(25):
+            r["functions"].append({"file": f"src/part{i % 3}.js", "function": f"f{i}", "ccn": 12, "nloc": 30, "params": 1, "start": 1, "end": 30})
+            r["functions"].append({"file": "dist/all.js", "function": f"f{i}", "ccn": 12, "nloc": 30, "params": 1, "start": 1, "end": 30})
+        fn = _section_text(rendered(r, [], width=200), "Complex functions")
+        self.assertNotIn("examples/demo.js", fn)
+        self.assertNotIn("dist/all.js", fn)
+        self.assertIn("1 function in example code hidden; 25 functions in generated files hidden; --full shows them", fn)
+
     def test_hotspots_with_only_test_files_say_what_was_hidden(self):
         r = sample_report()
         r["revisions"] = [{"entity": "tests/test_a.py", "n-revs": 200}]
@@ -721,6 +733,10 @@ class KnowledgeMap(unittest.TestCase):
         self.assertNotIn("flask/", km)
         self.assertNotIn("tests/", km)
         self.assertIn("2 historical areas hidden; --full shows them", km)
+        r["size"]["files"]["tests/t.py"] = {"code": 1, "complexity": 0}
+        km = _section_text(rendered(r, [], width=200), "Knowledge map")
+        self.assertIn("tests/", km, "a file back in the tree brings its area back")
+        self.assertIn("1 historical area hidden; --full shows them", km)
         full = _section_text(rendered(r, [], width=200, full=True), "Knowledge map")
         self.assertIn("flask/", full)
         self.assertNotIn("hidden", full)

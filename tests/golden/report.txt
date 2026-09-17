@@ -33,7 +33,7 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 ⌂ Knowledge map
   area           lines added   main owner           second
   ───────────────────────────────────────────────────────────────────
-  app/                    20   Ann Example (80%)    Bob Example (20%)
+  app/                    19   Ann Example (79%)    Bob Example (21%)
   (root files)             2   Bob Example (100%)   -
 
 ▦ Timeline (Jun 2024 → May 2025)
