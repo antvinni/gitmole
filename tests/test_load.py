@@ -138,6 +138,19 @@ class ParseFunctions(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(load.parse_functions(""), [])
 
+    def test_a_row_with_a_huge_long_name_does_not_abort_the_report(self):
+        # ruff: lizard wrote a long name of several hundred kilobytes for one function, over csv's default field limit
+        huge = "f( " + "a, " * 100_000 + ")"
+        rows = load.parse_functions(f'5,3,40,1,5,"f@1-5@a.rs","a.rs","f","{huge}",1,5\n')
+        self.assertEqual((rows[0]["function"], rows[0]["file"], rows[0]["ccn"]), ("f", "a.rs", 3))
+
+    def test_a_huge_function_name_is_cut_to_something_a_table_can_show(self):
+        # a test fixture of deeply nested functions gives lizard a dotted name of megabytes
+        name = ".".join("a" for _ in range(100_000))
+        rows = load.parse_functions(f'5,3,40,1,5,"{name}@1-5@a.py","a.py","{name}","{name}( )",1,5\n')
+        self.assertEqual(len(rows[0]["function"]), load.NAME_CAP)
+        self.assertTrue(rows[0]["function"].endswith("…"))
+
     def test_a_nameless_function_is_called_anonymous(self):
         # lizard names Go function literals with an empty string where it names JavaScript's "(anonymous)"
         rows = load.parse_functions('136,47,926,1,270,"@316-585@completions.go","completions.go",""," c * Command",316,585\n')

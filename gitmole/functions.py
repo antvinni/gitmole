@@ -30,10 +30,20 @@ def select_files(repo: str, ignore=(), types_spec: str = None) -> list:
     return [f for f in files if lizard.get_reader_for(f) is not None]
 
 
+NAME_CAP = 200        # a deeply nested fixture gives lizard a dotted name of megabytes; nobody reads past this
+LONG_NAME_CAP = 500
+
+
+def _cut(text: str, cap: int) -> str:
+    return text if len(text) <= cap else text[:cap - 1] + "…"
+
+
 def csv_row(info, fn) -> list:
-    """The columns `lizard --csv` prints, so the loader does not care which produced the file."""
+    """The columns `lizard --csv` prints, so the loader does not care which produced the file. Names
+    are cut to what a table can show, so one pathological fixture cannot make the file unreadable."""
+    name = _cut(fn.name, NAME_CAP)
     return [fn.nloc, fn.cyclomatic_complexity, fn.token_count, fn.parameter_count, fn.length,
-            f"{fn.name}@{fn.start_line}-{fn.end_line}@{info.filename}", info.filename, fn.name, fn.long_name, fn.start_line, fn.end_line]
+            f"{name}@{fn.start_line}-{fn.end_line}@{info.filename}", info.filename, name, _cut(fn.long_name, LONG_NAME_CAP), fn.start_line, fn.end_line]
 
 
 def write_duplicates(dup: Duplicates, fh) -> None:
