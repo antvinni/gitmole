@@ -146,6 +146,43 @@ def has_lizard(finder=importlib.util.find_spec) -> bool:
     return finder("lizard") is not None
 
 
+_VERSION_TOKEN = re.compile(r"\d+\.\d+[\w.-]*")
+
+
+def tool_version(name: str, path: str = None) -> str | None:
+    """The version a tool prints for --version: the last version-shaped token on its first line
+    ("scc version 4.1.0", "git-sizer release 1.5.0", "osv-scanner version: 2.6.0"). None when the tool is
+    missing, hangs or prints none."""
+    try:
+        proc = subprocess.run([name, "--version"], capture_output=True, text=True, timeout=10, env=dict(os.environ, PATH=path or env_path()))
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    first = next((l for l in (proc.stdout + "\n" + proc.stderr).splitlines() if l.strip()), "")
+    found = _VERSION_TOKEN.findall(first)
+    return found[-1] if found else None
+
+
+def lizard_version() -> str | None:
+    """lizard is a module of this interpreter, so its version comes from the package metadata."""
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        return version("lizard")
+    except PackageNotFoundError:
+        return None
+
+
+def manifest(repo_dir: str, args, version_of=tool_version) -> dict:
+    """What produced this report: the commit analysed, gitmole's version, every tool's, and the options
+    that change what the steps see without being recorded elsewhere in meta.json (--since, --file-types,
+    --now and --gone are top-level fields already). Two reports that differ can then be told apart by cause."""
+    from . import __version__
+    names = ["git", *REQUIRED_TOOLS] + (PLOT_TOOLS if getattr(args, "plots", False) else [])
+    tools = {name: version_of(name) for name in names}
+    tools["lizard"] = lizard_version()
+    return {"commit": _git(repo_dir, "rev-parse", "HEAD").strip(), "gitmole": __version__, "tools": tools,
+            "options": {"ignore": list(args.ignore), "ignore_data": bool(args.ignore_data), "deep": bool(args.deep)}}
+
+
 # Everything a run writes besides meta.json and run.log. Removed before each run so a reused
 # --out directory never shows a previous run's data as this run's (a step skipped or killed
 # this time would otherwise leave last time's file in place).

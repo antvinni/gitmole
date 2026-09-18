@@ -297,6 +297,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     types_spec = _types_spec(args.file_types)
 
     meta = run.collect_meta(repo_dir, since=args.since_date)
+    meta["run"] = run.manifest(repo_dir, args)   # what produced this report: commit, gitmole and tool versions, the options
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     meta["gone_months"] = args.gone
     tracked = blame.text_files(repo_dir)   # every tracked text file: --ignore shapes blame, functions and duplicates, never what a file is

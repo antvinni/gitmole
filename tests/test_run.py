@@ -1,11 +1,13 @@
+import argparse
 import json
 import os
+import re
 import subprocess
 import tempfile
 import sys
 import unittest
 
-from gitmole import blame, run
+from gitmole import __version__, blame, run
 
 
 class ClassifyTarget(unittest.TestCase):
@@ -672,6 +674,35 @@ class ClearOutputs(unittest.TestCase):
             open(os.path.join(d, "backtest", "size.json"), "w").close()
             run.clear_outputs(d)
             self.assertFalse(os.path.exists(os.path.join(d, "backtest")))
+
+
+class Manifest(unittest.TestCase):
+    def test_versions_are_the_last_version_token_of_the_first_line(self):
+        fake = {"scc": "scc version 4.1.0\n", "git-sizer": "git-sizer release 1.5.0\n", "betterleaks": "betterleaks version 1.8.1\n",
+                "jscpd": "5.2.1\n", "osv-scanner": "osv-scanner version: 2.6.0\ncommit: abc\n", "git": "git version 2.55.0\n"}
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "init", "-q"], cwd=d, check=True)
+            subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@x", "commit", "-q", "--allow-empty", "-m", "init"], cwd=d, check=True)
+            sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=d, capture_output=True, text=True).stdout.strip()
+            args = argparse.Namespace(plots=False, ignore=["*.min.js"], ignore_data=True, deep=False)
+            m = run.manifest(d, args, version_of=lambda name, path=None: re.findall(r"\d+\.\d+[\w.-]*", fake[name].split("\n")[0])[-1] if name in fake else None)
+        self.assertEqual(m["commit"], sha)
+        self.assertEqual(m["gitmole"], __version__)
+        self.assertEqual(m["tools"], {"git": "2.55.0", "scc": "4.1.0", "git-sizer": "1.5.0", "betterleaks": "1.8.1", "jscpd": "5.2.1",
+                                      "osv-scanner": "2.6.0", "lizard": run.lizard_version()})
+        self.assertEqual(m["options"], {"ignore": ["*.min.js"], "ignore_data": True, "deep": False})
+
+    def test_plots_add_theseus_and_a_missing_tool_records_none(self):
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "init", "-q"], cwd=d, check=True)
+            subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@x", "commit", "-q", "--allow-empty", "-m", "init"], cwd=d, check=True)
+            m = run.manifest(d, argparse.Namespace(plots=True, ignore=[], ignore_data=False, deep=False), version_of=lambda name, path=None: None)
+        self.assertIn("git-of-theseus-analyze", m["tools"])
+        self.assertIsNone(m["tools"]["scc"])
+
+    def test_tool_version_reads_the_real_git(self):
+        self.assertRegex(run.tool_version("git"), r"^\d+\.\d+")
+        self.assertIsNone(run.tool_version("no-such-tool-xyz"))
 
 
 if __name__ == "__main__":

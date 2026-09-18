@@ -243,6 +243,7 @@ def summary(report: dict) -> dict:
         "since": m.get("since"),
         "pulse": pulse(report),
         "coverage": m.get("coverage") or {},
+        "commit": (m.get("run") or {}).get("commit"),
     }
 
 
@@ -696,6 +697,18 @@ def dependencies_pass(report: dict):
     return "No known vulnerabilities in dependencies", detail
 
 
+def run_line(report: dict):
+    """'gitmole 0.10.0 · git 2.55.0 · scc 4.1.0 · … · --ignore-data': what produced the report, from the run
+    manifest; None for an output directory written before it existed. A tool without a version is left out."""
+    manifest = (report.get("meta") or {}).get("run")
+    if not manifest:
+        return None
+    parts = [f"gitmole {manifest.get('gitmole', '?')}"] + [f"{n} {v}" for n, v in (manifest.get("tools") or {}).items() if v]
+    opts = manifest.get("options") or {}
+    flags = [f"--ignore {g}" for g in opts.get("ignore") or []] + (["--ignore-data"] if opts.get("ignore_data") else []) + (["--deep"] if opts.get("deep") else [])
+    return " · ".join(parts + ([" ".join(flags)] if flags else []))
+
+
 def checks_passed(report: dict) -> list:
     """The checks that ran and passed, secrets first: said out loud rather than left to silence."""
     return [p for p in (secrets_pass(report), dependencies_pass(report)) if p]
@@ -731,7 +744,8 @@ def header(report: dict, findings: list = (), full: bool = False) -> Panel:
     body.append(f"  ·  {s['first_date']} → {s['last_date']}")
     if s["since"]:
         body.append(f"  ·  since {s['since']}", style="yellow")
-    body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}  ·  branch {s['branch']}\n")
+    body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}"
+                f"  ·  branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "\n")
     body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}\n")
     if full and s["coverage"]:
         body.append(classify.coverage_line(s["coverage"]) + "\n", style="dim")
@@ -875,6 +889,8 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
     deps_line = dependencies_line(report)
     if deps_line:
         console.print(Text(deps_line[0], style=deps_line[1]))
+    if full and (line := run_line(report)):
+        console.print(Text(line, style="dim"), soft_wrap=True)
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
 
 
@@ -905,7 +921,9 @@ def _md_findings(findings: list, report: dict = None) -> list:
 def markdown(report: dict, findings: list, full: bool = False, risk: dict = None, base: str = None) -> str:
     s = summary(report)
     out = [f"# {s['name']}", "",
-           f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "") + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
+           f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
+           + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}"
+           + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "  ",
            f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["coverage"] or s["pulse"] else ""),
            *([classify.coverage_line(s["coverage"]) + ("  " if s["pulse"] else "")] if s["coverage"] else []),
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
@@ -926,7 +944,8 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
         if sec.get("caption"):
             out += ["", f"_{sec['caption']}_"]
     deps_line = dependencies_line(report)
-    out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "", f"Full results and plots in {report['out_dir']}", ""]
+    out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "",
+            *([run_line(report) + "  "] if run_line(report) else []), f"Full results and plots in {report['out_dir']}", ""]
     return "\n".join(out)
 
 

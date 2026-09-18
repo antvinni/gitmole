@@ -568,6 +568,23 @@ class Report(unittest.TestCase):
         self.assertIn("nothing over complexity 10 (1 function measured)", fn)
         self.assertNotIn("hidden", fn)
 
+    def test_header_shows_the_commit_when_the_run_recorded_one_and_the_run_line_closes_full_and_markdown(self):
+        r = sample_report()
+        r["meta"]["run"] = {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "gitmole": "0.10.0",
+                            "tools": {"git": "2.55.0", "scc": "4.1.0", "jscpd": None, "lizard": "1.24.0"},
+                            "options": {"ignore": ["*.min.js"], "ignore_data": True, "deep": False}}
+        line = "gitmole 0.10.0 · git 2.55.0 · scc 4.1.0 · lizard 1.24.0 · --ignore *.min.js --ignore-data"
+        self.assertEqual(render.run_line(r), line, "a tool with no version is left out")
+        self.assertIn("@ 540ee5b5", rendered(r, []))
+        self.assertIn(line, rendered(r, [], full=True))
+        self.assertNotIn("gitmole 0.10.0", rendered(r, []), "the default report stays tight")
+        md = render.markdown(r, [])
+        self.assertIn("branch main @ 540ee5b5", md)
+        self.assertIn(f"\n{line}  \nFull results and plots in", md)
+        r["meta"].pop("run")
+        self.assertIsNone(render.run_line(r))
+        self.assertNotIn("@ ", render.markdown(r, []).split("\n")[2], "an older output directory: the branch alone")
+
 
 class HideTests(unittest.TestCase):
     """render._hide_tests: the rows dropped from the default tables and the caption that counts them."""
