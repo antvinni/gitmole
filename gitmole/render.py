@@ -656,7 +656,10 @@ def compare_section(result: dict) -> dict:
         lines.append(f"options differ: {', '.join(before['options_differ'])}; the changes partly reflect them")
     lines.append(f"{against}, {before.get('date') or '?'} · {_tally_words(result['tally']['before'])} → {_tally_words(result['tally']['after'])}")
     columns = [("change", {}), ("what", {"overflow": "fold", "ratio": 3})]
-    return _section("Since last report", columns, rows, note=None if rows else "nothing changed", caption="\n".join(lines))
+    # an empty section prints heading + note and drops the caption (section_block, _md_section), so when
+    # there is nothing to show, the caption's own lines fold into the note instead of vanishing with it
+    note = None if rows else "; ".join(["nothing changed"] + lines)
+    return _section("Since last report", columns, rows, note=note, caption="\n".join(lines))
 
 
 BUILDERS = [watch_section, size_section, people_section, knowledge_section, activity_section, timeline_section,

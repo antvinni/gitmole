@@ -1012,7 +1012,9 @@ class Risk(unittest.TestCase):
             self.assertEqual(rc, 0)
             text = c.export_text()
             self.assertIn("Since last report", text)
-            self.assertIn("nothing changed", text)
+            # not just "nothing changed" -- the watch list's own empty note ("nothing changed more than
+            # once") would make that assertion pass vacuously; pin the compare section's own printed text
+            self.assertIn("Since last report: nothing changed; against", text)
             with open(os.path.join(d, "junk.json"), "w") as fh:
                 fh.write("[1, 2]")
             err = console()

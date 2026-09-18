@@ -16,8 +16,15 @@ def key(finding: dict) -> tuple:
 
 
 def is_export(data) -> bool:
-    """A gitmole --json export: a report with its findings and watch list."""
-    return isinstance(data, dict) and isinstance(data.get("meta"), dict) and "findings" in data and "watch" in data
+    """A gitmole --json export: a report with its findings and watch list. Every finding must carry a
+    rule id and a severity, the shape key() and _tally() read without a default — exports from before
+    0.8.0 have findings without a `rule`, and would otherwise pass this check and crash later on a bare
+    KeyError instead of being refused here."""
+    if not (isinstance(data, dict) and isinstance(data.get("meta"), dict) and "findings" in data and "watch" in data):
+        return False
+    found = data.get("findings")
+    return isinstance(found, list) and all(
+        isinstance(f, dict) and isinstance(f.get("rule"), dict) and "id" in f["rule"] and "severity" in f for f in found)
 
 
 def _tally(found: list) -> dict:

@@ -47,3 +47,7 @@ class Compare(unittest.TestCase):
         self.assertTrue(compare.is_export(self.before))
         self.assertFalse(compare.is_export({"meta": {}}))
         self.assertFalse(compare.is_export([]))
+
+    def test_is_export_rejects_findings_from_before_0_8_0_without_rule_ids(self):
+        before = {**self.before, "findings": [{"severity": "warning", "title": "Bug magnets", "detail": "", "advice": ""}]}
+        self.assertFalse(compare.is_export(before), "a finding without a rule id crashes key()/_tally() instead of comparing; refuse it up front")

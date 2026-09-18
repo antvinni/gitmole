@@ -531,7 +531,8 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
             err.print(f"[red]--compare {args.compare}:[/red] {e}", soft_wrap=True)
             return 2
         if not _compare.is_export(before):
-            err.print(f"[red]--compare {args.compare}:[/red] not a gitmole --json export (no meta, findings and watch)", soft_wrap=True)
+            err.print(f"[red]--compare {args.compare}:[/red] not a gitmole --json export (it needs meta, findings with rule ids, and watch; "
+                      "exports from before 0.8.0 have no rule ids)", soft_wrap=True)
             return 2
         if before["meta"].get("name") != report["meta"].get("name"):
             err.print(f"[red]--compare {args.compare}:[/red] it describes {before['meta'].get('name')}, this run describes {report['meta'].get('name')}; "

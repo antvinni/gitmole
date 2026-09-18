@@ -1316,7 +1316,9 @@ class Compare(unittest.TestCase):
         result["before"] = {"commit": None, "date": "2026-09-10", "options_differ": []}
         self.assertEqual(render.compare_section(result)["caption"], "against an export without a run manifest, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note")
         empty = {**result, "new": [], "resolved": [], "persisting": [], "watch_entered": [], "watch_left": []}
-        self.assertEqual(render.compare_section(empty)["note"], "nothing changed")
+        self.assertEqual(render.compare_section(empty)["note"],
+                         "nothing changed; against an export without a run manifest, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note",
+                         "the empty case folds the caption's lines into the note, or the reader loses the against-commit and tally")
         r = sample_report()
         text = rendered(r, [], compare=result)
         self.assertIn("Since last report", text)
