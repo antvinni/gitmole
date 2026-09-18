@@ -47,6 +47,7 @@ def parse_args(argv):
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
     p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) by their share of the repository's revisions × lines of code; needs a local path")
     p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the changed files hold more than N percent of the repository's revisions × lines of code")
+    p.add_argument("--sbom", metavar="PATH", help="write a CycloneDX 1.6 SBOM of every locked package to PATH, or - for stdout, from the osv-scanner step's package list")
     p.add_argument("--compare", metavar="BEFORE_JSON", help="add a 'Since last report' section against an earlier --json export of the same clone")
     p.add_argument("--hook", action="store_true", help="with --no-run: read an agent hook's JSON on stdin (or files after --), score the files it names like --risk, "
                                                        "print a summary the agent reads back, exit 2 when --risk-threshold is exceeded")
@@ -84,7 +85,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if args.clean:
         return _clean(args, console, ask or (lambda q: console.input(q, markup=False)))
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
-    quiet = "-" in (args.json, args.markdown, args.sarif)
+    quiet = "-" in (args.json, args.markdown, args.sarif, args.sbom)
     ui = Console(stderr=True) if quiet else console
 
     rc, now = _resolve_time(args, err, ui)
@@ -148,6 +149,7 @@ def _check_args(args, err, kind=None) -> int | None:
         bad = None
     else:
         bad = ("--compare needs one repository, not owner/*" if args.compare and kind == "org" else
+               "--sbom needs one repository, not owner/*" if args.sbom and kind == "org" else
                "--risk needs a local path" if args.risk else
                "--list-file-types needs a local path" if args.list_file_types else None)
     if bad:
@@ -598,7 +600,15 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
     if args.sarif:
         from . import sarif
         _write(sarif.dumps(report, found, scope=args.sarif_scope), args.sarif, console)
-    if "-" not in (args.json, args.markdown, args.sarif):
+    if args.sbom:
+        from . import sbom
+        packages = sbom.read_packages(out_dir)
+        if packages is None:
+            err.print("[red]--sbom:[/red] no package list in the output directory; the osv-scanner step writes it, and did not "
+                      f"(dependencies: {(report.get('dependencies') or {}).get('status', 'not-run')}; run.log says why)", soft_wrap=True)
+            return 2
+        _write(sbom.dumps(report, packages), args.sbom, console)
+    if "-" not in (args.json, args.markdown, args.sarif, args.sbom):
         render.report(report, found, console, full=args.full, risk=risk, base=args.risk, compare=comparison)
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
         return 3

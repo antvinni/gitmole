@@ -754,6 +754,14 @@ def health_section(report: dict, full: bool = True, width=None) -> dict:
                     note=None if rows else "nothing flagged")
 
 
+def osps_section(report: dict, full: bool = True, width=None) -> dict:
+    """The OSPS Baseline controls a clone can show, each with its result here: --full and Markdown only."""
+    from . import findings, osps
+    rows = [(r["control"], r["requirement"], r["result"], r["evidence"]) for r in osps.coverage(report, findings.evaluate(report))]
+    return _section("OSPS Baseline", [("control", {"no_wrap": True}), ("asks", {"overflow": "fold", "ratio": 2}), ("result", {}), ("evidence", {"overflow": "fold", "ratio": 3})],
+                    rows, caption=f"the controls a clone can show evidence for, from the {osps.BASELINE}; access control and most of vulnerability management need the forge")
+
+
 def _tally_words(counts: dict) -> str:
     return textfmt.tally([{"severity": s} for s, n in counts.items() for _ in range(n)])
 
@@ -783,10 +791,10 @@ def compare_section(result: dict) -> dict:
 
 
 BUILDERS = [watch_section, watch_by_component_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
-            hotspots_section, coupling_section, signing_section, trailers_section, age_section, functions_section, health_section]
+            hotspots_section, coupling_section, signing_section, trailers_section, age_section, functions_section, health_section, osps_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
 # do next; Hotspots ranks the files the watch list already leads with, by the same product.
-FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "watch_by_component"}
+FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "watch_by_component", "osps"}
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
@@ -1144,6 +1152,8 @@ def to_json(report: dict, findings: list, risk: dict = None, compare: dict = Non
                      for r in watch.risks(report)[:WATCH_FULL]]}
     out["watch_by_component"] = [{"component": g["component"], "share": round(g["share"], 3), "files": [x["file"] for x in g["files"]]}
                                  for g in watch.by_component(watch.risks(report))]
+    from . import osps
+    out["osps"] = {"baseline": osps.BASELINE, "controls": osps.coverage(report, findings)}
     bt = watch.backtest(report)
     if bt is not None:
         out["watch_backtest"] = bt

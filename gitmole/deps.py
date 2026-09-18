@@ -21,6 +21,12 @@ import subprocess
 import sys
 import tempfile
 
+try:
+    from . import imports, licences
+except ImportError:  # run as a script: the package directory is sys.path[0]
+    import imports
+    import licences
+
 ARGV = ["osv-scanner", "scan", "source", "-r", "--offline", "--format", "json", "--all-packages", "."]
 NO_SOURCES = 128           # osv-scanner: no lock file found
 NO_DATABASE = "no offline version of the OSV database"   # its message when the local copy is missing
@@ -141,8 +147,8 @@ def _label(score, vulns: list) -> str:
 
 def _relative(path: str, cwd: str) -> str:
     if os.path.isabs(path):
-        try:
-            rel = os.path.relpath(path, cwd)
+        try:   # real paths on both sides: osv-scanner may report /tmp/... for a cwd of /private/tmp/...
+            rel = os.path.relpath(os.path.realpath(path), os.path.realpath(cwd))
         except ValueError:
             return path
         return path if rel.startswith("..") else rel
@@ -174,6 +180,64 @@ def summarise(data: dict, cwd: str) -> dict:
     return {"status": "scanned", "sources": sources, "packages": packages, "vulnerable": vulnerable}
 
 
+PACKAGES = "packages.json"   # every locked package, for --sbom; not part of the report, which keeps the vulnerable ones
+
+
+def packages(data: dict, cwd: str) -> list:
+    """Every package the lock files pin, once per ecosystem, name and version, with the lock files that
+    pin it and the licence a lock file declares for it (package-lock.json, composer.lock), sorted."""
+    declared = {}
+    try:
+        for d in licences.lock_licences(cwd, [_relative(p, cwd) for p in _lock_paths(data)], every=True):
+            declared.setdefault((d["ecosystem"], d["name"], d["version"]), d["expression"])
+    except OSError:
+        pass
+    by_key = {}
+    for r in data.get("results") or []:
+        path = _relative((r.get("source") or {}).get("path") or "", cwd)
+        for p in r.get("packages") or []:
+            info = p.get("package") or {}
+            key = (info.get("ecosystem", ""), info.get("name", ""), info.get("version", ""))
+            row = by_key.setdefault(key, {"ecosystem": key[0], "name": key[1], "version": key[2], "sources": []})
+            if path not in row["sources"]:
+                row["sources"].append(path)
+    out = []
+    for key in sorted(by_key):
+        row = by_key[key]
+        row["sources"].sort()
+        if key in declared:
+            row["license"] = declared[key]
+        out.append(row)
+    return out
+
+
+def _lock_paths(data: dict) -> list:
+    return [(r.get("source") or {}).get("path") or "" for r in data.get("results") or []]
+
+
+# The same scan with the vulnerability matcher switched off: it reads every lock file and matches nothing,
+# so it needs no database. The flag is osv-scanner's experimental plugin switch (2.x); when it fails, there
+# is no package list and --sbom says so.
+LIST_ARGV = ARGV[:-1] + ["--experimental-disable-plugins", "vulnmatch/osvlocal", "."]
+
+
+def list_packages():
+    proc = subprocess.run(LIST_ARGV, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if proc.returncode not in (0, 1):
+        print(f"deps.py: listing the packages without the database: osv-scanner exited {proc.returncode}", file=sys.stderr)
+        return None
+    try:
+        data = json.loads(proc.stdout.decode("utf-8", "replace") or "{}")
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def write_packages(rows: list, target: str) -> None:
+    with open(target, "w", encoding="utf-8") as fh:
+        json.dump({"packages": rows}, fh, indent=0, sort_keys=True)
+
+
 def write(result: dict, target: str) -> None:
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(target)), prefix=".dependencies-", suffix=".json")
     try:
@@ -198,6 +262,9 @@ def main(argv=None) -> int:
         result = {"status": "no-sources"}
     elif NO_DATABASE in err:
         result = {"status": "no-database", "download": DOWNLOAD}
+        listed = list_packages()   # the package list for --sbom needs no database
+        if listed is not None:
+            write_packages(packages(listed, os.getcwd()), os.path.join(os.path.dirname(os.path.abspath(target)), PACKAGES))
     elif proc.returncode in (0, 1):   # 1: packages with vulnerabilities were found
         text = proc.stdout.decode("utf-8", "replace").strip()
         try:
@@ -208,6 +275,11 @@ def main(argv=None) -> int:
         result = summarise(data, os.getcwd())
         result["database_date"] = database_date()
         result["database_digest"] = database_digest()
+        try:
+            imports.annotate(result["vulnerable"], os.getcwd())
+        except OSError as e:   # the rows stand without it
+            print(f"deps.py: imports: {e}", file=sys.stderr)
+        write_packages(packages(data, os.getcwd()), os.path.join(os.path.dirname(os.path.abspath(target)), PACKAGES))
     else:
         print(f"deps.py: osv-scanner exited {proc.returncode}; no report written", file=sys.stderr)
         return proc.returncode

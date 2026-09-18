@@ -65,7 +65,7 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 - gitsign (Sigstore). [repo](https://github.com/sigstore/gitsign): the `x509` mechanism in `signing.py`.
 - zizmor. [audits](https://docs.zizmor.sh/audits/): the `unpinned_actions` check, which gitmole does lexically.
 - GuardDog (Datadog). [repo](https://github.com/DataDog/guarddog): the reference set behind `install_scripts`.
-- license-expression (nexB). [PyPI](https://pypi.org/project/license-expression/): declared licences, *not built*.
+- license-expression (nexB). [PyPI](https://pypi.org/project/license-expression/): considered and not used; `licences.py` evaluates the few SPDX operators itself, without a dependency.
 - ecosyste-ms/typosquatting-dataset. [repo](https://github.com/ecosyste-ms/typosquatting-dataset): an exact-match list, *not built*.
 - actions/attest (GitHub). [repo](https://github.com/actions/attest): the CI attestation of gitmole's own report.
 - pnpm pull request #14902. [PR](https://github.com/pnpm/pnpm/pull/14902): why `lockfile_drift` reads commit times.
@@ -83,9 +83,13 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 - gitmodules(5). [docs](https://git-scm.com/docs/gitmodules): the submodule checks in `hygiene.py`.
 - Red Hat, RHSB-2021-007, CVE-2021-42574. [advisory](https://access.redhat.com/security/vulnerabilities/RHSB-2021-007): `trojan_source`.
 - SLSA v1.2, source track. [spec](https://slsa.dev/spec/v1.2/source-requirements): signing coverage as evidence, never a level.
-- OpenSSF, Open Source Project Security Baseline. [site](https://baseline.openssf.org/): the hygiene checks; tagging rules with controls is *not built*.
+- OpenSSF, Open Source Project Security Baseline. [site](https://baseline.openssf.org/), [controls](https://github.com/ossf/security-baseline): the hygiene checks, `rule.osps` and the coverage table in `osps.py`.
 - OpenSSF Scorecard. [site](https://scorecard.dev/): the `scorecard` key on each hygiene rule.
-- European Commission, Cyber Resilience Act. [site](https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act): an SBOM emitter, *not built*.
+- European Commission, Cyber Resilience Act. [site](https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act): why `--sbom` exists.
+- CycloneDX 1.6. [spec](https://cyclonedx.org/docs/1.6/json/): the `--sbom` document in `sbom.py`.
+- Package URL (purl). [spec](https://github.com/package-url/purl-spec): the component identifiers in `sbom.py`.
+- PEP 639, licence expressions in core metadata. [PEP](https://peps.python.org/pep-0639/): `license` in pyproject.toml, read by `licences.py`.
+- osv-scanner, scanning source. [docs](https://google.github.io/osv-scanner/usage/scan-source): why `imported` is a textual read, not call analysis.
 - SPDX 3.0.1, AI profile. [spec](https://spdx.github.io/spdx-spec/v3.0.1/model/AI/AI/): why there is no `Generated-By` trailer to read.
 - Linux kernel, coding assistants. [docs](https://docs.kernel.org/process/coding-assistants.html): `Assisted-by` in the cohort and the `signoff_by_co_author` finding.
 - AGENTS.md. [site](https://agents.md/): the instruction files `provenance.py` reads.

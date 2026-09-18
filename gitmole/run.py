@@ -195,7 +195,7 @@ def manifest(repo_dir: str, args, version_of=tool_version) -> dict:
 # Everything a run writes besides meta.json and run.log. Removed before each run so a reused
 # --out directory never shows a previous run's data as this run's (a step skipped or killed
 # this time would otherwise leave last time's file in place).
-OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "dependencies.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json", "provenance.json",
+OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "dependencies.json", "packages.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json", "provenance.json",
            "duplicates.json", "duplicates.txt",   # duplicates.txt: what lizard's finder wrote before jscpd
            "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]

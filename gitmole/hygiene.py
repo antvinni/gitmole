@@ -10,7 +10,8 @@ workflow's `uses:`, a lock file's name, `.gitmodules`, a symlink's mode) or on t
 - actions: `uses: owner/repo@ref` in .github/workflows where the ref is not a full commit SHA;
 - lockfiles: a manifest whose last commit is newer than its lock file's, or a manifest with none;
 - updates: the ecosystems whose lock files are tracked that dependabot.yml does not cover;
-- presence: a licence, a security policy, CODEOWNERS and the CODEOWNERS paths that match nothing;
+- presence: a licence, a security policy, a contribution guide, CODEOWNERS and the CODEOWNERS paths
+  that match nothing;
 - confusion: a scoped npm package resolved from a registry other than the one .npmrc declares for
   its scope, several registries in one lock file, a pip `extra-index-url`;
 - install: packages with install scripts in package-lock.json, lifecycle scripts in a tracked
@@ -20,7 +21,9 @@ workflow's `uses:`, a lock file's name, `.gitmodules`, a symlink's mode) or on t
 - submodules: plain http:// or git:// URLs, credentials in a URL, relative URLs, `branch =`;
 - symlinks: links that resolve outside the tree or into .git/;
 - trojan: bidirectional control characters (CVE-2021-42574) and identifiers that mix Latin with
-  Cyrillic, Greek or another confusable script, in source files."""
+  Cyrillic, Greek or another confusable script, in source files;
+- licences: the licences the project and its locked dependencies declare (licences.py);
+- imports: declared dependencies that nothing tracked imports (imports.py)."""
 from __future__ import annotations
 
 import ast
@@ -34,9 +37,11 @@ from collections import defaultdict
 from urllib.parse import urlsplit
 
 try:
-    from . import filetypes
+    from . import filetypes, imports, licences
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
+    import imports
+    import licences
 
 CAP = 50   # rows kept per list: the count says how many there were
 
@@ -197,8 +202,10 @@ def presence(repo: str) -> dict:
                 if p.startswith(prefix) and "/" not in p[len(prefix):] and re.match(names, p[len(prefix):], re.I):
                     return p
         return None
-    licence = next((p for p in tracked if "/" not in p and re.match(r"^(licen[cs]e|copying)(\.|-|$)", p, re.I)), None)
+    licence = next((p for p in tracked if "/" not in p and re.match(r"^(licen[cs]e|copying)(\.|-|$)", p, re.I)), None) \
+        or next(("LICENSES/" for p in tracked if p.startswith("LICENSES/")), None)   # the REUSE layout
     policy = first(r"^security(\.md|\.txt|\.rst)?$")
+    contributing = first(r"^contributing(\.md|\.txt|\.rst|\.adoc)?$")
     owners = first(r"^codeowners$")
     missing = []
     if owners:
@@ -209,7 +216,7 @@ def presence(repo: str) -> dict:
             pattern = line.split()[0]
             if not _codeowners_matches(pattern, tracked):
                 missing.append(pattern)
-    return {"license": licence, "security_policy": policy, "codeowners": owners, "codeowners_missing": missing[:CAP]}
+    return {"license": licence, "security_policy": policy, "contributing": contributing, "codeowners": owners, "codeowners_missing": missing[:CAP]}
 
 
 # --- dependency confusion -----------------------------------------------------------------------
@@ -483,7 +490,7 @@ def trojan_source(repo: str) -> dict:
 
 CHECKS = {"actions": actions_pinning, "lockfiles": lockfiles, "updates": dependency_updates, "presence": presence,
           "confusion": dependency_confusion, "install": install_scripts, "binaries": binaries, "submodules": submodules,
-          "symlinks": symlinks, "trojan": trojan_source}
+          "symlinks": symlinks, "trojan": trojan_source, "licences": licences.check, "imports": imports.unused}
 
 
 def main(argv=None) -> int:

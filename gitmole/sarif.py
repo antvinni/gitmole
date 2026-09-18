@@ -178,7 +178,7 @@ def _rule(f: dict) -> dict:
     name = "".join(part.capitalize() for part in re.split(r"[^A-Za-z0-9]+", rule) if part)
     return {"id": rule, "name": name, "shortDescription": {"text": f["title"]}, "fullDescription": {"text": f["detail"]},
             "help": {"text": f["advice"], "markdown": f["advice"]}, "defaultConfiguration": {"level": LEVELS[f["severity"]]},
-            "properties": {"security-severity": SEVERITY[f["severity"]], "tags": ["gitmole"]}}
+            "properties": {"security-severity": SEVERITY[f["severity"]], "tags": ["gitmole", *f["rule"].get("osps", [])]}}
 
 
 def build(report: dict, found: list, scope: str = "head") -> dict:

@@ -81,8 +81,11 @@ What gitmole does not do: dead-code detection (the import graph can say
 - **GitLens**: useful in the editor, but it has telemetry and paid tiers.
 - **askalono**, **licensee**, **trivy's licence scanner**: licence detection.
   askalono was archived in May 2026, licensee is a Ruby gem, and trivy is the
-  heaviest tool here; gitmole already reads a nested LICENSE to tell vendored
-  code apart, which is the part that changes what you do next.
+  heaviest tool here. gitmole reads what is declared instead: the manifests,
+  the lock files' licence fields, and the licence file against the opening
+  words of a small set of texts.
+- **syft**, **cdxgen**: SBOM generators. osv-scanner already reads every
+  lock file, so `--sbom` writes CycloneDX from its package list.
 - **OpenSSF Scorecard** in local mode: only its file-presence checks run without
   the GitHub API. **semgrep**: a dozen dependencies and rulesets fetched from a
   registry. **enry**: linguist's vendored and generated lists, which gitmole's

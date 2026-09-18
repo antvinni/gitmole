@@ -126,7 +126,7 @@ class DatabaseDate(unittest.TestCase):
 class Script(unittest.TestCase):
     """The wiring, against a stand-in osv-scanner on PATH."""
 
-    def _run(self, stdout: str, rc: int = 0, stderr: str = "Scanning dir .\n"):
+    def _run(self, stdout: str, rc: int = 0, stderr: str = "Scanning dir .\n", listing: str = None):
         with tempfile.TemporaryDirectory() as d:
             bindir, repo, out = os.path.join(d, "bin"), os.path.join(d, "repo"), os.path.join(d, "out")
             for p in (bindir, repo, out):
@@ -137,7 +137,12 @@ class Script(unittest.TestCase):
                 fh.write(stderr)
             fake = os.path.join(bindir, "osv-scanner")
             with open(fake, "w") as fh:
-                fh.write(f"#!/bin/sh\necho \"$@\" > {d}/argv\npwd > {d}/cwd\ncat {d}/stdout.json\ncat {d}/stderr.txt >&2\nexit {rc}\n")
+                listed = ""
+                if listing is not None:   # the second pass, matcher off, answers with the package list
+                    with open(os.path.join(d, "listing.json"), "w") as lh:
+                        lh.write(listing)
+                    listed = f'case "$*" in *vulnmatch*) cat {d}/listing.json; exit 0;; esac\n'
+                fh.write(f"#!/bin/sh\n{listed}echo \"$@\" > {d}/argv\npwd > {d}/cwd\ncat {d}/stdout.json\ncat {d}/stderr.txt >&2\nexit {rc}\n")
             os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
             env = dict(os.environ, PATH=bindir + os.pathsep + os.environ["PATH"], OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY=os.path.join(d, "nodb"))
             target = os.path.join(out, "dependencies.json")
@@ -151,6 +156,10 @@ class Script(unittest.TestCase):
                 with open(target) as fh:
                     written = json.load(fh)
             leftovers = sorted(os.listdir(out))
+            self.packages = None
+            if "packages.json" in leftovers:
+                with open(os.path.join(out, "packages.json")) as fh:
+                    self.packages = json.load(fh)["packages"]
         return p, argv, cwd, written, leftovers, repo
 
     def test_scans_the_repository_offline_and_writes_the_summary(self):
@@ -165,7 +174,7 @@ class Script(unittest.TestCase):
         self.assertEqual(written["status"], "scanned")
         self.assertEqual([r["name"] for r in written["vulnerable"]], ["minimist", "lodash"])
         self.assertIsNone(written["database_date"], "no local database directory: no date")
-        self.assertEqual(leftovers, ["dependencies.json"])
+        self.assertEqual(leftovers, ["dependencies.json", "packages.json"])
         self.assertIn("Scanning dir", p.stderr, "osv-scanner's own log still reaches run.log")
 
     def test_no_lock_files_is_recorded_not_failed(self):
@@ -179,6 +188,15 @@ class Script(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(written["status"], "no-database")
         self.assertEqual(written["download"], "osv-scanner scan source -r --offline-vulnerabilities --download-offline-databases .")
+
+    def test_without_the_database_the_lock_files_are_still_listed_for_the_sbom(self):
+        listing = json.dumps({"results": [{"source": {"path": "./package-lock.json"}, "packages": [{"package": {"name": "a", "version": "1", "ecosystem": "npm"}}]}]})
+        p, _, _, written, leftovers, _ = self._run('{"results": []}', rc=127, listing=listing,
+                                                   stderr="unable to fetch OSV database: no offline version of the OSV database is available\n")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(written["status"], "no-database", "the vulnerabilities were not checked, whatever the listing found")
+        self.assertEqual(leftovers, ["dependencies.json", "packages.json"])
+        self.assertEqual(self.packages, [{"ecosystem": "npm", "name": "a", "version": "1", "sources": ["package-lock.json"]}])
 
     def test_any_other_failure_writes_nothing_and_fails_the_step(self):
         p, _, _, written, leftovers, _ = self._run("", rc=127, stderr="something else broke\n")

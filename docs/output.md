@@ -93,6 +93,41 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Greek or another confusable script (a warning). `hygiene.json` holds
    every check's raw result.
 
+   What the project declares about its dependencies and licence is read
+   as declared, never detected. Declared dependencies nothing imports: a
+   `package.json` runtime dependency no tracked file imports, names in a
+   quoted string of a configuration file, or runs from the manifest's
+   scripts; a `go.mod` direct requirement no import path or `go:generate`
+   line falls under; a Cargo.toml dependency no `name::` path, `use` or
+   `extern crate` names (a note). Python and Ruby are left out because a
+   distribution's import name need not be its own, and gitmole keeps no
+   table of names. The project's licence as declared: a root manifest
+   (package.json, pyproject.toml, Cargo.toml, composer.json, a gemspec,
+   setup.cfg) that names a different licence from the licence file's text
+   (a note), or a declared licence known not to be OSI- or FSF-approved (a
+   warning). Copyleft dependencies in a permissive project: runtime
+   packages whose licence, as package-lock.json or composer.lock records
+   it, is strong copyleft (GPL, AGPL, SSPL, EUPL, OSL) while the project's
+   own is permissive (a warning); weak copyleft (LGPL, MPL, EPL) is counted
+   in the finding, not flagged. SPDX expressions are evaluated with `OR`
+   as the user's choice and `AND` as every term; a GPL with a linking
+   exception counts as weak. Other lock files record no licence and are
+   not read for one.
+
+   Rules that give evidence for an OSPS Baseline control carry its id in
+   `rule.osps`, and SARIF tags the rule with it. The OSPS Baseline section
+   (`--full`, Markdown and `osps` in the JSON) lists the ten controls a
+   clone can show: secrets in version control, the licence file and its
+   licence, sign-off on every commit, a contribution guide, security
+   contacts, a dependency list, executables and binaries in version
+   control, and known-vulnerable dependencies. Each gets a result here:
+   met, gap, not seen (sign-off below 90% of commits, where a contributor
+   agreement outside git would not show), unrecognised (a licence gitmole
+   does not know), not applicable, or not checked when the step that reads
+   it did not run. It is evidence for a control, not an audit of it;
+   access control and most of vulnerability management live in the
+   forge's settings and are not in the table.
+
    With `gitmole[structure]` installed (see
    [install.md](https://github.com/antvinni/gitmole/blob/main/docs/install.md#structure-nesting-debt-markers-the-import-graph)),
    tree-sitter parses every tracked file in eleven languages, once per
@@ -178,7 +213,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    package pinned only by a lock file under tests, examples, docs or
    vendored code is a note. The advice names the package to upgrade first,
    or, for a malicious one, to remove. An advisory that does not apply to your
-   code is silenced in `osv-scanner.toml` at the repository root. The footer
+   code is silenced in `osv-scanner.toml` at the repository root. Each row
+   says whether any tracked source imports the package (`imported`: true,
+   false, or unknown where the import name need not be the package's, as
+   in Python and Ruby); the finding names a package nothing imports, and
+   never lowers its severity for it, since an unimported package is still
+   installed. This is not reachability, which needs a buildable tree. The footer
    line says how many packages in how many lock files were checked and how
    old the database copy is; without lock files, or without the database, it
    says that instead.
@@ -477,6 +517,7 @@ directory for a remote target:
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | betterleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
 | `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record), the database date and a digest of that snapshot; or a status: no lock files, no local database |
+| `packages.json` | osv-scanner, with or without its database | every package the lock files pin, once per ecosystem, name and version, with the lock files that pin it and the licence a lock file declares; read by `--sbom`, not part of the report |
 | `log.txt` | git | the numstat log export the change analysis reads, whitespace ignored, with each commit's `Co-authored-by` trailers behind its subject |
 | `maat-revisions.csv` | change analysis | change frequency per file |
 | `maat-coupling.csv` | change analysis | files that change together, over logical changes (a ticket's commits, or one author's day) |
@@ -498,7 +539,7 @@ directory for a remote target:
 | `trend.json` | trend step | complexity and lines of the top hotspots at sampled commits |
 | `backtest/` | backtest step | the change analysis and size as of six months before the last commit |
 | `signing.json` | signing step | commits signed, by mechanism (gpg, ssh, x509), by year, humans against bots, per identity and over the last year, from the commit objects |
-| `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source |
+| `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave |
 | `structure.json` | structure step, `gitmole[structure]` only | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports, its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the possibly unreferenced files; or a status saying how to install it |
 | `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the marked cohort against the rest, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |

@@ -53,6 +53,7 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--gone MONTHS` | How long without a commit counts as gone, measured before the last commit. Default 12. |
 | `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout. |
 | `--sarif PATH` | Write the findings as SARIF 2.1.0 to PATH, or `-` for stdout, for GitHub code scanning and GitLab. See [SARIF](#sarif). |
+| `--sbom PATH` | Write a CycloneDX 1.6 SBOM of every locked package to PATH, or `-` for stdout. See [SBOM](#sbom). |
 | `--sarif-scope head\|history` | With `--sarif`: `head` (the default) keeps only the results whose file is in the tree; `history` keeps every result, the commit in its properties. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
 | `--fail-on LEVEL` | Exit 3 if any finding is at `critical`, `warning` or `info` or worse. |
@@ -160,6 +161,22 @@ with the commit under `properties.commit`.
   with:
     sarif_file: gitmole.sarif
 ```
+
+## SBOM
+
+`gitmole . --sbom sbom.cdx.json` writes a CycloneDX 1.6 document of the
+packages every lock file in the tree pins, as the osv-scanner step read
+them: one component per ecosystem, name and version, with its package URL,
+the lock files that pin it as properties, and its licence where
+package-lock.json or composer.lock declares one. The metadata names the
+repository, its commit and its declared licence. There is no dependency
+graph, because not every lock file records one. The same commit gives the
+same bytes: the timestamp is the last commit's day and the serial number
+is derived from the commit and the components. The package list comes
+from the osv-scanner step, which writes it with or without the local
+vulnerability database: without one, it reads the lock files a second time
+with the matcher switched off. When the step did not run, `--sbom` exits 2
+and says so.
 
 ## Agent hooks
 
