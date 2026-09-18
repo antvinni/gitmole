@@ -22,6 +22,13 @@ FUNCTIONS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "fu
 DUPLICATES_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "duplicates.py")
 LEAKS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "leaks.py")
 DEPS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "deps.py")
+LAUNCH_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "launch.py")
+
+
+def module(name: str) -> list:
+    """The argv that runs gitmole.NAME as a step: through launch.py, by path, so the analysed repository
+    (the step's working directory) can never shadow gitmole with a package of the same name."""
+    return [sys.executable, LAUNCH_SCRIPT, f"gitmole.{name}"]
 # jscpd holds every token of every file it scans: about a gigabyte of memory per 25 MB of tracked text
 # (a 34 MB tree took 0.9 GB, a 171 MB tree of generated SQL took 4 GB, both in seconds). Past this much
 # text the duplicates step is skipped unless --deep asks for it.
@@ -261,25 +268,25 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         # stash is not a commit
         {"name": "git-log", "argv": [*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", f"--pretty=format:{LOG_FORMAT}", "-M", "-w", "--ignore-blank-lines"], "stdout": log, "deps": []},
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json"), *revs_args], "stdout": None, "deps": ["git-log"]},
-        {"name": "signing", "argv": [sys.executable, "-m", "gitmole.signing", out_dir], "stdout": None, "deps": []},   # the gpgsig headers, no keyring
-        {"name": "hygiene", "argv": [sys.executable, "-m", "gitmole.hygiene", out_dir], "stdout": None, "deps": []},   # the Scorecard checks, from the clone
-        {"name": "provenance", "argv": [sys.executable, "-m", "gitmole.provenance", out_dir], "stdout": None, "deps": ["scc", "change analysis"]},   # trailers, cohorts, agent files; the watch list for the hit rate
+        {"name": "signing", "argv": [*module("signing"), out_dir], "stdout": None, "deps": []},   # the gpgsig headers, no keyring
+        {"name": "hygiene", "argv": [*module("hygiene"), out_dir], "stdout": None, "deps": []},   # the Scorecard checks, from the clone
+        {"name": "provenance", "argv": [*module("provenance"), out_dir], "stdout": None, "deps": ["scc", "change analysis"]},   # trailers, cohorts, agent files; the watch list for the hit rate
     ]
     workers = procs or blame.default_procs()
     if lizard:
         steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args],
                       "stdout": None, "deps": []})
     if structure:   # tree-sitter: nesting, cognitive complexity, debt markers, the import graph; gitmole[structure] only
-        steps.append({"name": "structure", "argv": [sys.executable, "-m", "gitmole.structure", out_dir, "--procs", str(workers)], "stdout": None, "deps": []})
+        steps.append({"name": "structure", "argv": [*module("structure"), out_dir, "--procs", str(workers)], "stdout": None, "deps": []})
     if duplicates:
         steps.append({"name": "duplicates", "argv": [sys.executable, DUPLICATES_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args,
                                                     *(["--then", duplicates_then] if duplicates_then else [])],   # the rate a year back: a direction
                       "stdout": None, "deps": []})
     if trend:
-        steps.append({"name": "trend", "argv": [sys.executable, "-m", "gitmole.trend", out_dir, "--samples", str(samples)],
+        steps.append({"name": "trend", "argv": [*module("trend"), out_dir, "--samples", str(samples)],
                       "stdout": None, "deps": ["scc", "change analysis"]})
     if backtest:
-        steps.append({"name": "backtest", "argv": [sys.executable, "-m", "gitmole.backtest", out_dir, "--until", backtest],
+        steps.append({"name": "backtest", "argv": [*module("backtest"), out_dir, "--until", backtest],
                       "stdout": None, "deps": ["git-log", "change analysis"]})
     if age:
         steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": ["git-log"]})   # the log names the co-authors a line is shared with
@@ -396,7 +403,7 @@ def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_st
             argv, stat_file = step["argv"], None
             if stats is not None:
                 stat_file = f"{log_path}.{abs(hash(step['name']))}.stat"
-                argv = [sys.executable, "-m", "gitmole.stepstat", stat_file, "--", *argv]
+                argv = [*module("stepstat"), stat_file, "--", *argv]
             try:
                 rc = _run_step(argv, cwd, env, out, log, timeout, control)
                 if rc == "timeout":

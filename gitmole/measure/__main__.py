@@ -1,7 +1,7 @@
 """python -m gitmole.measure: the measurement harness of docs/measurement.md.
 
     python -m gitmole.measure run [--ref REF]... [--sets development,awkward,gate]   # one or more releases
-    python -m gitmole.measure history [--sets ...] [--force]                         # every release tag, oldest first
+    python -m gitmole.measure history [--releases all|minor] [--sets ...] [--force]  # every release tag, or every x.y.0, oldest first
     python -m gitmole.measure extras                                                 # the current tree's one-off checks
     python -m gitmole.measure report                                                 # docs/measurement-history.md and the graphs
     python -m gitmole.measure labels dump|score                                      # the hand-label sheet and its verdicts
@@ -56,9 +56,24 @@ def write(record: dict, directory: str = RECORDS) -> str:
     return path
 
 
-def tags() -> list:
+def tags(releases: str = "all") -> list:
+    """The release tags, oldest first; `minor` keeps the first shipped release of each x.y series (0.13.0
+    was tagged without its version bump, so 0.13.1 stands for it), since a patch release rarely changes
+    what is measured and each costs a run of the whole corpus."""
     out = subprocess.run(["git", "tag", "--list", "v*", "--sort=creatordate"], cwd=corpus.ROOT, capture_output=True, text=True, check=True).stdout
-    return [t for t in out.split() if t]
+    found = [t for t in out.split() if t]
+    if releases != "minor":
+        return found
+    picked, seen = [], set()
+    for t in found:   # the first release of each x.y series that shipped: a tag whose source carries its own version
+        series = t.lstrip("v").rsplit(".", 1)[0]
+        if series in seen:
+            continue
+        init = subprocess.run(["git", "show", f"{t}:gitmole/__init__.py"], cwd=corpus.ROOT, capture_output=True, text=True).stdout
+        if f'"{t.lstrip("v")}"' in init:
+            picked.append(t)
+            seen.add(series)
+    return picked
 
 
 def main(argv=None) -> int:
@@ -71,6 +86,7 @@ def main(argv=None) -> int:
     h = sub.add_parser("history")
     h.add_argument("--sets", default=DEFAULT_SETS)
     h.add_argument("--force", action="store_true", help="measure a release again even when its record exists")
+    h.add_argument("--releases", choices=["all", "minor"], default="all", help="every tag, or only x.y.0 releases")
     sub.add_parser("extras")
     sub.add_parser("report")
     lab = sub.add_parser("labels")
@@ -84,7 +100,7 @@ def main(argv=None) -> int:
         return 0
     if args.command == "history":
         have = {r["version"] for r in dashboard.load_history(RECORDS)} if os.path.isdir(RECORDS) else set()
-        for tag in tags():
+        for tag in tags(args.releases):
             if tag.lstrip("v") in have and not args.force:
                 continue
             print(write(measure(tag, args.sets.split(","), manifest, root)), flush=True)

@@ -228,7 +228,7 @@ class Plan(unittest.TestCase):
         names = [s["name"] for s in steps]
         for expected in ["scc", "git-sizer", "betterleaks", "git-log", "change analysis", "code age", "signing", "hygiene", "provenance"]:
             self.assertIn(expected, names)
-        self.assertEqual(by_name(steps)["signing"]["argv"][1:], ["-m", "gitmole.signing", "/o"], "commit signing coverage, read from the objects, no keyring")
+        self.assertEqual(by_name(steps)["signing"]["argv"][1:], [run.LAUNCH_SCRIPT, "gitmole.signing", "/o"], "commit signing coverage, read from the objects, no keyring")
         self.assertEqual(by_name(steps)["signing"]["deps"], [], "it reads meta.json for the bot names, written before the steps start")
         for gone in ["onefetch", "git-quick-stats"]:
             self.assertNotIn(gone, names)
@@ -252,7 +252,7 @@ class Plan(unittest.TestCase):
 
     def test_provenance_runs_as_a_module_and_duplicates_measure_a_year_back(self):
         steps = by_name(run.plan("/r", "/o", duplicates_then="2025-09-17"))
-        self.assertEqual(steps["provenance"]["argv"][1:], ["-m", "gitmole.provenance", "/o"])
+        self.assertEqual(steps["provenance"]["argv"][1:], [run.LAUNCH_SCRIPT, "gitmole.provenance", "/o"])
         argv = steps["duplicates"]["argv"]
         self.assertEqual(argv[argv.index("--then") + 1], "2025-09-17")
         self.assertNotIn("--then", by_name(run.plan("/r", "/o"))["duplicates"]["argv"])
@@ -261,7 +261,7 @@ class Plan(unittest.TestCase):
     def test_the_structure_step_is_optional_and_runs_the_module(self):
         self.assertNotIn("structure", by_name(run.plan("/r", "/o")))
         step = by_name(run.plan("/r", "/o", structure=True, procs=3))["structure"]
-        self.assertEqual(step["argv"][1:], ["-m", "gitmole.structure", "/o", "--procs", "3"])
+        self.assertEqual(step["argv"][1:], [run.LAUNCH_SCRIPT, "gitmole.structure", "/o", "--procs", "3"])
         self.assertEqual(step["deps"], [], "it reads meta.json for the vendored list, written before the steps start")
         self.assertIn("structure.json", run.OUTPUTS)
 
@@ -411,7 +411,7 @@ class Plan(unittest.TestCase):
 
     def test_trend_runs_as_a_module_after_scc_and_the_change_analysis(self):
         by = {s["name"]: s for s in run.plan("/r", "/o")}
-        self.assertEqual(by["trend"]["argv"][:3], [sys.executable, "-m", "gitmole.trend"])
+        self.assertEqual(by["trend"]["argv"][:3], run.module("trend"))
         self.assertEqual(by["trend"]["argv"][3], "/o")
         self.assertEqual(by["trend"]["deps"], ["scc", "change analysis"])
         self.assertNotIn("trend", [s["name"] for s in run.plan("/r", "/o", trend=False)])
@@ -419,7 +419,7 @@ class Plan(unittest.TestCase):
 
     def test_backtest_step_runs_after_the_change_analysis_when_a_cut_off_is_given(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", backtest="2025-12-01")}
-        self.assertEqual(by["backtest"]["argv"][:3], [sys.executable, "-m", "gitmole.backtest"])
+        self.assertEqual(by["backtest"]["argv"][:3], run.module("backtest"))
         self.assertEqual(by["backtest"]["argv"][3:], ["/o", "--until", "2025-12-01"])
         self.assertEqual(by["backtest"]["deps"], ["git-log", "change analysis"])
         self.assertNotIn("backtest", [s["name"] for s in run.plan("/r", "/o")])
@@ -812,3 +812,18 @@ class Manifest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LaunchInsideAnotherGitmole(unittest.TestCase):
+    def test_a_step_run_from_a_repository_with_its_own_gitmole_package_runs_this_one(self):
+        import subprocess, sys, tempfile
+        from gitmole import run
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "gitmole"))
+            with open(os.path.join(d, "gitmole", "__init__.py"), "w") as fh:
+                fh.write("raise SystemExit('the analysed repository shadowed gitmole')\n")
+            stats = os.path.join(d, "stats.json")
+            p = subprocess.run([*run.module("stepstat"), stats, "--", sys.executable, "-c", "print('ok')"], cwd=d, capture_output=True, text=True)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertEqual(p.stdout.strip(), "ok")
+            self.assertTrue(os.path.exists(stats))

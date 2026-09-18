@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
+<rect width="900" height="300" fill="#ffffff"/>
+<text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Findings per repository</text>
+<line x1="56" y1="244.0" x2="884" y2="244.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="248.0" text-anchor="end" fill="#1f2328">0</text>
+<line x1="56" y1="193.0" x2="884" y2="193.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="197.0" text-anchor="end" fill="#1f2328">6.25</text>
+<line x1="56" y1="142.0" x2="884" y2="142.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="146.0" text-anchor="end" fill="#1f2328">12</text>
+<line x1="56" y1="91.0" x2="884" y2="91.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="95.0" text-anchor="end" fill="#1f2328">19</text>
+<line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="44.0" text-anchor="end" fill="#1f2328">25</text>
+<text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
+<text x="125.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
+<text x="194.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
+<text x="263.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="332.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="401.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="539.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="608.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
+<text x="677.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="746.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="815.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<polyline points="56.0,158.3 90.5,158.3 125.0,158.3 159.5,158.3 194.0,158.3 228.5,158.3 263.0,158.3 297.5,158.3 332.0,158.3 366.5,142.0 401.0,142.0 435.5,142.0 470.0,142.0 504.5,129.8 539.0,129.8 573.5,129.8 608.0,129.8 642.5,113.4 677.0,113.4 711.5,113.4 746.0,113.4 780.5,113.4 815.0,113.4 849.5,113.4 884.0,113.4" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="56.0,140.4 90.5,140.4 125.0,140.4 159.5,140.4 194.0,140.4 228.5,134.7 263.0,134.7 297.5,134.7 332.0,134.7 366.5,118.3 401.0,118.3 435.5,118.3 470.0,118.3 504.5,88.1 539.0,88.1 573.5,88.1 608.0,88.1 642.5,71.8 677.0,66.1 711.5,66.1 746.0,66.1 780.5,66.1 815.0,66.1 849.5,66.1 884.0,66.1" fill="none" stroke="#8250df" stroke-width="2" stroke-dasharray="5 4"/>
+<line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
+<text x="84" y="286" fill="#1f2328">median</text>
+<line x1="134" y1="282" x2="156" y2="282" stroke="#8250df" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="162" y="286" fill="#1f2328">90th percentile</text>
+<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">development set; the report's brevity is the product</text>
+</svg>
