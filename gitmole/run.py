@@ -543,6 +543,16 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
     }
     if since:
         meta["since"] = since
+    # merges per person, through .mailmap and the same alias merge: the People table shows them apart, since
+    # a maintainer who merges every pull request would otherwise lead it on merges alone
+    merge_rows = [l.split("\t", 2) for l in _git(repo_dir, "log", "HEAD", "--merges", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").split("\n")
+                  if l.count("\t") == 2]
+    by_name = Counter(n for d, n, _ in merge_rows if not since or d >= since)
+    for i in meta["identities"]:
+        names = {i["name"]} | {a["name"] for a in i.get("aliases") or []}
+        n = sum(by_name[x] for x in names)
+        if n:
+            i["merges"] = n
     return meta
 
 

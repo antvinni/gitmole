@@ -258,11 +258,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Secrets are grouped by value, so one key copied into ten files is one
    entry with its places counted. A value found in any source file is
    critical. A value found only in test files, such as fixtures and saved
-   web pages, only in example, sample, fixture, demo, rules or stubs
+   web pages, only in example, sample, fixture, demo, tutorial, exercise, rules or stubs
    directories and `.stub` files (a language sample, a scanner's own rule
    definitions, a template a generator fills in), only in vendored
    code (upstream's own specimens), or only in documentation (`.md`,
-   `.rst`, `.txt`, `.adoc`, anything under `docs/`, and type stubs, `.pyi`
+   `.rst`, `.txt`, `.adoc`, anything under `docs/` or a CamelCase
+   `ProjectDocs/`, and type stubs, `.pyi`
    and `.d.ts`, which declare shapes and hold no runtime values), where it
    is usually a template, is a warning.
    Twelve shapes cannot be a live secret and are left out, counted on the
@@ -291,7 +292,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    configuration files, where `PASSWORD=x` is a literal, are not judged
    this way; a masked value such as `elastic:XXXXXX`; a value that names a
    file, such as an icon; a name that holds the keyword itself joined by
-   letters or underscores (`resetpassword`, `password_missing`); a GUID
+   letters or underscores and written in one case (`resetpassword`,
+   `password_missing`, `CURLOPT_PASSWD`; a mixed-case `MyCompanySecret`
+   reads as a chosen password and stays a finding); a GUID
    in a table of GUIDs, like a list of interface ids; and a key header
    that closes its own string literal, which is code writing a PEM file.
    Every
@@ -323,7 +326,11 @@ How to read each part of the terminal report, and what each run writes to disk; 
    regression or crash; a fix that changes more lines than 99% of the
    repository's commits (never under 500) is tangled by size and credits
    none of its files, in the fix counts, the bug-magnet finding and the
-   backtest alike, and `activity.json` counts them. Test files are left out of every finding that names a
+   backtest alike, and `activity.json` counts them. A commit is tangled
+   when it touches ten files or more across four directories or more under
+   a subject that lists several changes: parts between semicolons, commas,
+   ampersands and pluses, and a part after "and" only when it is two words
+   or more, so "a new agent on macOS and Linux" is one change. Test files are left out of every finding that names a
    file, area or function: they change with every fix, and owning the tests is
    not the knowledge risk. The default tables leave them out too; `--full`
    shows them.
@@ -404,8 +411,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    test changed in 4 of its 28 changes`; a repository with no test file
    anywhere says nothing), none of them entering the rank. Test files are left out, and so
    are vendored code and example code (the `examples/`, `samples/`,
-   `fixtures/`, `testdata/`, `demos/`, `rules/` and `stubs/` directories
-   and `.stub` files), which the complex functions table hides for the same
+   `fixtures/`, `testdata/`, `demos/`, `tutorials/`, `exercises/` (and
+   `ExerciseFiles/`), `rules/` and `stubs/` directories and `.stub` files;
+   a course's exercise binaries are teaching material), which the complex functions table hides for the same
    reason: somebody else's code, or a specimen, is not this repository's
    risk. Generated files, amalgamations and release plumbing leave the pool
    too, for their own reasons rather than that one. Under `--since`, churn
@@ -452,7 +460,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    share an email, two name words, the same name spelled identically
    unless it is a bare common first name, a one-word handle that is a
    distinctive word of the fuller name, the fuller name run together
-   (RobinMalfait), or an initial plus the surname (nlohmann); the caption says whose; bots,
+   (RobinMalfait), or an initial plus the surname (nlohmann); the caption says whose; merges
+   counted in a column of their own and left out of the commit count and
+   share, since merging every pull request is not writing the code; bots,
    which are any author named `*[bot]`, any identity that merges with
    one (`github-actions` beside `github-actions[bot]` is one account),
    and any author whose name says bot, CI, deploy or automation, no
@@ -512,8 +522,16 @@ How to read each part of the terminal report, and what each run writes to disk; 
    everything. The complex functions table also hides vendored code
    (`vendor/`, `vendored/`, `node_modules/`,
    `third_party/`, `external/`, `deps/`, `.yarn/`, a `packages/` inside a package
-   such as `requests/packages/`, and any directory whose own `LICENSE` or
+   such as `requests/packages/`, any directory whose own `LICENSE` or
    `COPYING` names none of the copyright holders the root licence names,
+   any directory where two or more source files, and at least half of
+   them, open with a copyright notice naming somebody else: nobody the root
+   licence names, no holder a tenth of the tree's source files name, and
+   no author of the history by full name (a compression library copied in
+   with its per-file headers). A notice line has a year or opens
+   "Copyright (c)", so licence prose that mentions "the copyright owner"
+   and a template's "Copyright [yyyy]" name nobody, and a root licence
+   that names nobody leaves nothing to compare a nested one with,
    or that `.gitattributes` marks `linguist-vendored`, which the run records
    in `meta.json`) and example code (the directories the watch list leaves
    out), and the change coupling table hides pairs

@@ -418,16 +418,22 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
 
 def people_section(report: dict, full: bool = True, width=None) -> dict:
     ids = report["meta"].get("identities") or []
-    total_commits = sum(i["commits"] for i in ids)
+    merges = any(i.get("merges") for i in ids)   # merges apart: merging every pull request is not writing the code
+    ids = sorted(ids, key=lambda i: -(i["commits"] - i.get("merges", 0))) if merges else ids
+    total_commits = sum(i["commits"] - i.get("merges", 0) for i in ids)
     surviving = report.get("theseus_authors") or {}
     total_lines = sum(surviving.values())
     limit = _limit("People", full)
-    rows = [(i["name"], i["email"], i["commits"], _pct(i["commits"], total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
-    columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), ("share", RIGHT), ("surviving code", RIGHT)]
+    rows = [(i["name"], i["email"], i["commits"] - i.get("merges", 0), *((i.get("merges", 0),) if merges else ()),
+             _pct(i["commits"] - i.get("merges", 0), total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
+    columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
+               ("share", RIGHT), ("surviving code", RIGHT)]
     if full is not True:
-        columns, rows = _keep(columns, rows, ["author", "commits", "share", "surviving code"])
+        columns, rows = _keep(columns, rows, ["author", "commits", *(["merges"] if merges else []), "share", "surviving code"])
     since = report["meta"].get("since")
     notes = [f"commits since {since}; surviving code is for the whole tree"] if since else []
+    if merges:
+        notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
     more = _more(len(ids), limit)
     if more:
         notes.append(more)

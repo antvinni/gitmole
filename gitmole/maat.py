@@ -596,10 +596,21 @@ _BRACKETED = re.compile(r"\([^()]*\)|\[[^\[\]]*\]|`[^`]*`")
 _CLAUSE_BREAK = re.compile(r"\s*(?:;|,|&|\+|\band\b)\s*", re.I)
 
 
+_STRONG_BREAK = re.compile(r"\s*(?:;|,|&|\+)\s*")
+_AND = re.compile(r"\s+and\s+", re.I)
+
+
 def clauses(subject: str) -> int:
-    """How many things a subject says it does: its parts between semicolons, commas, ampersands, pluses
-    and 'and', with anything in brackets or backticks passed over (a call's arguments are not clauses)."""
-    return len([part for part in _CLAUSE_BREAK.split(_BRACKETED.sub("", subject or "")) if part.strip()])
+    """How many things a subject says it does: its parts between semicolons, commas, ampersands and
+    pluses, with anything in brackets or backticks passed over (a call's arguments are not clauses); a
+    part after a plain 'and' counts only when it is two words or more, since "on macOS and Linux" joins
+    two nouns, not two changes."""
+    count = 0
+    for part in _STRONG_BREAK.split(_BRACKETED.sub("", subject or "")):
+        pieces = [x for x in _AND.split(part) if x.strip()]
+        if pieces:
+            count += 1 + sum(1 for x in pieces[1:] if len(x.split()) >= 2)
+    return count
 
 
 def is_tangled(c: dict) -> bool:

@@ -68,22 +68,24 @@ def is_test_path(path: str) -> bool:
     return bool(_TEST_PATH.search(path) or _TEST_SUFFIX.search(path))
 
 
-_DOC_PATH = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|\.(md|markdown|rst|txt|adoc|pyi|d\.ts)$", re.I)
+_DOC_PATH = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|\.(md|markdown|rst|txt|adoc|pyi|d\.ts)$|(^|/)[A-Za-z0-9]+Docs/", re.I)
 
 
 def is_doc_path(path: str) -> bool:
-    """Documentation: prose formats anywhere, anything under docs/, doc/, docs_src/, docs-site/, and
+    """Documentation: prose formats anywhere, anything under docs/, doc/, docs_src/, docs-site/ or a
+    CamelCase ProjectDocs/ (the AppTests/ convention for documentation), and
     type stubs (.pyi, .d.ts), which declare shapes and carry no runtime values. A key in a planning
     document, a tutorial or a stub's default is far more often a specimen than a leak."""
     return bool(_DOC_PATH.search(path))
 
 
-_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules|stubs?)(/|$)|\.stub$", re.I)
+_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules|stubs?|tutorials?|exercises?(files)?)(/|$)|\.stub$", re.I)
 _PACKAGE_EXAMPLE = re.compile(r"(^|/)(com|org|net|io|dev|me|co)/examples?(/|$)", re.I)   # Java's com.example.* is a package, not a sample
 
 
 def is_sample_path(path: str) -> bool:
-    """Example, sample, fixture, demo, rule and stub directories, and .stub files: a value there is a
+    """Example, sample, fixture, demo, tutorial, exercise, rule and stub directories, and .stub files
+    (a course's exercise binaries are teaching material): a value there is a
     specimen (a language sample, a scanner's own rule definitions, a template a generator fills in),
     not a credential in use; code there is not the product. A reverse-domain package such as
     com/example/ is neither."""
@@ -118,14 +120,70 @@ _HOLDER_STOP = {"copyright", "the", "and", "all", "rights", "reserved", "inc", "
 
 
 _NOTICE = re.compile(r"^\W*copyright\b|\(c\)|©", re.I)   # a notice line, not legal prose that mentions copyright
+_YEAR = re.compile(r"\b(19|20)\d\d\b")
+_OPENS = re.compile(r"^\W*copyright\b.*(\(c\)|©)", re.I)
+# ...and it is dated, or opens "Copyright (c)": "Copyright [yyyy] [name of copyright owner]" is a template, and
+# Apache's "(c) You must retain ..." is a list item
+
+
+def _is_notice(line: str) -> bool:
+    return bool(_NOTICE.search(line)) and bool(_YEAR.search(line) or _OPENS.search(line))
 
 
 def _holders(text: str) -> set:
-    """The words that name whoever a licence's copyright notices belong to."""
+    """The words that name whoever a licence's copyright notices belong to. A notice line has a year or
+    opens "Copyright (c)"; licence prose that merely mentions the copyright owner names nobody."""
     out = set()
     for line in text.splitlines():
-        if _NOTICE.search(line):
+        if _is_notice(line):
             out |= {t.lower() for t in re.findall(r"[A-Za-z]{3,}", line) if t.lower() not in _HOLDER_STOP}
+    return out
+
+
+HEADER_LINES = 40          # a file's own notice sits in its opening comment
+HEADER_SHARE = 0.10        # a holder named in this share of the tree's source files is the project's own
+
+
+def _authors(repo: str) -> list:
+    """The history's author names, each as its set of words of three letters or more: people who commit
+    here. A notice names one of them when it holds every word of the name, so a shared first name does
+    not make a stranger's code ours."""
+    out = subprocess.run([*GIT, "log", "HEAD", "--format=%aN"], cwd=repo, capture_output=True).stdout.decode("utf-8", "replace")
+    names = {frozenset(t.lower() for t in re.findall(r"[A-Za-z]{3,}", n)) for n in set(out.split("\n"))}
+    return [n for n in names if len(n) >= 2]   # a one-word handle is too easily a word of the notice
+
+
+def header_vendored(repo: str, paths: list, ours: set) -> list:
+    """Directories whose source files carry somebody else's copyright notice in their opening comment
+    (a compression library copied in with its per-file licence headers), each ending in `/`: two or
+    more files, and at least half the directory's source files, name holders that are none of `ours`,
+    none of the holders a tenth or more of the tree's source files name, and no author of this history by
+    full name."""
+    headed, sources = {}, 0
+    for p in paths:
+        if matches(p, DEFAULT):
+            sources += 1
+            head = "\n".join(_read_head(repo, p, 4000).splitlines()[:HEADER_LINES])
+            holders = _holders(head)
+            if holders:
+                headed[p] = holders
+    if not headed:
+        return []
+    common = Counter(w for h in headed.values() for w in h)
+    own = set(ours) | {w for w, n in common.items() if n >= HEADER_SHARE * sources}
+    people = _authors(repo)
+
+    def theirs(holders):
+        return not (holders & own) and not any(name <= holders for name in people)
+    by_dir = {}
+    for p in paths:
+        if matches(p, DEFAULT):
+            by_dir.setdefault(p.rpartition("/")[0], []).append(p)
+    out = []
+    for d, files in sorted(by_dir.items()):
+        foreign = [p for p in files if p in headed and theirs(headed[p])]
+        if d and len(foreign) >= 2 and 2 * len(foreign) >= len(files):
+            out.append(d + "/")
     return out
 
 
@@ -140,7 +198,8 @@ def _read_head(repo: str, path: str, size: int = 20_000) -> str:
 def vendored_paths(repo: str, paths: list, attrs: dict = None) -> list:
     """Somebody else's code, as the repository itself says: directories holding a nested LICENSE or
     COPYING whose copyright lines name none of the holders the root licence names (mypy/typeshed/, a
-    bundled googletest), each ending in `/`; and every file marked linguist-vendored in .gitattributes,
+    bundled googletest), each ending in `/`; directories whose files' own headers name somebody else
+    (header_vendored); and every file marked linguist-vendored in .gitattributes,
     as git resolves it. A monorepo's own packages carry the same holder and stay. Without a root licence
     naming anyone there is no licence comparison. `attrs` is attributes() when the caller has it."""
     attrs = attributes(repo, paths) if attrs is None else attrs
@@ -154,6 +213,7 @@ def vendored_paths(repo: str, paths: list, attrs: dict = None) -> list:
             head, _, name = p.rpartition("/")
             if head and _LICENCE_NAME.match(name) and not (_holders(_read_head(repo, p)) & ours):
                 out.add(head + "/")
+    out.update(header_vendored(repo, paths, ours))
     return sorted(out)
 
 
