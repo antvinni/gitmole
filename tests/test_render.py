@@ -613,6 +613,12 @@ class HideTests(unittest.TestCase):
         self.assertEqual(kept, ["app.py"])
         self.assertEqual(note, "12 test files hidden; --full shows them")   # hiding happens before any row cap
 
+    def test_a_vendored_test_is_hidden_by_the_tests_rule(self):
+        rows = [{"path": "vendor/x_test.go"}, {"path": "src/a.go"}]
+        kept, note = render._hide_tests(rows, lambda r: r["path"], False)
+        self.assertEqual([r["path"] for r in kept], ["src/a.go"], "vendored comes first among its reasons, test file is still one of them")
+        self.assertEqual(note, "1 test file hidden; --full shows them")
+
 
 class Activity(unittest.TestCase):
     def test_activity_shows_weekdays_and_busiest_hour(self):

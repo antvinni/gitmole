@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import coupling, filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
+from . import classify, coupling, filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -114,23 +114,27 @@ def _hide_rows(rows: list, path_of, full, pred, noun: str, plural=None) -> tuple
     return kept, note
 
 
-def _hide_tests(rows: list, path_of, full, noun="test file", plural=None) -> tuple:
+def _hide_by(rows: list, path_of, full, classifier, reasons, noun: str, plural=None) -> tuple:
+    """_hide_rows through the classifier: a row goes when any of its path's reasons is one the table hides."""
+    return _hide_rows(rows, path_of, full, lambda p: classifier.excluded(p, reasons), noun, plural)
+
+
+def _hide_tests(rows: list, path_of, full, noun="test file", plural=None, classifier=None) -> tuple:
     """Test files: they change with every fix, so they are not a signal on their own."""
-    return _hide_rows(rows, path_of, full, filetypes.is_test_path, noun, plural)
+    return _hide_by(rows, path_of, full, classifier or classify.Classifier({}), {"test file"}, noun, plural)
 
 
-def _hide_vendor(rows: list, path_of, full, noun="file in vendored code", plural="files in vendored code", report: dict = None) -> tuple:
-    """Vendored trees, by name or by the licence the run found: somebody else's code, not this repository's risk."""
-    dirs = filetypes.vendor_dirs(report or {})
-    return _hide_rows(rows, path_of, full, lambda p: filetypes.is_vendored(p, dirs), noun, plural)
+def _hide_vendor(rows: list, path_of, full, noun="file in vendored code", plural="files in vendored code", report: dict = None, classifier=None) -> tuple:
+    """Vendored trees, by name, by the licence the run found or by the attribute the repository declares:
+    somebody else's code, not this repository's risk."""
+    return _hide_by(rows, path_of, full, classifier or classify.Classifier(report or {}), {"vendored"}, noun, plural)
 
 
-def _hide_generated(rows: list, path_of, report: dict, full, noun="generated file", plural=None) -> tuple:
+def _hide_generated(rows: list, path_of, report: dict, full, noun="generated file", plural=None, classifier=None) -> tuple:
     """Generated files (a header marker or a linguist-generated attribute, found at run time) and
     amalgamations (other files pasted together, found from the function metrics): the generator's
     churn and complexity, not the repository's."""
-    generated = hotspots.derived(report)
-    return _hide_rows(rows, path_of, full, lambda p: p in generated, noun, plural)
+    return _hide_by(rows, path_of, full, classifier or classify.Classifier(report or {}), {"generated", "amalgamation"}, noun, plural)
 
 
 def _hide_release(pairs: list, full) -> tuple:
@@ -159,24 +163,25 @@ def _join_hidden(*notes) -> str:
     return "; ".join(parts) + HIDDEN_SUFFIX if parts else None
 
 
-def _hide_deleted(rows: list, report: dict, full) -> tuple:
-    """Drop hotspot rows for files no longer in the tree, unless `full` is True or there is no tree
-    listing to judge by: a deleted file's churn is history. Returns (rows, note) like _hide_tests."""
-    tree = (report.get("size") or {}).get("files") or {}
-    if full is True or not tree:
+def _hide_deleted(rows: list, report: dict, full, classifier=None) -> tuple:
+    """Drop hotspot rows for files no longer in the tree, unless `full` is True: a deleted file's churn
+    is history. The classifier judges nothing as gone without a tree listing, so a killed scc hides
+    nothing. Returns (rows, note) like _hide_tests."""
+    if full is True:
         return rows, None
-    kept = [h for h in rows if h["code"] is not None]
+    cls = classifier or classify.Classifier(report or {})
+    kept = [h for h in rows if not cls.excluded(h["entity"], {"not in the tree"})]
     hidden = len(rows) - len(kept)
     return kept, (f"{hidden} deleted file{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
-def _hide_gone(pairs: list, report: dict, full) -> tuple:
+def _hide_gone(pairs: list, report: dict, full, classifier=None) -> tuple:
     """Drop coupled pairs where either file is no longer in the tree, unless `full` is True: they
     describe a layout that no longer exists. Returns (pairs, note) like _hide_tests."""
-    tree = (report.get("size") or {}).get("files") or {}
-    if full is True or not tree:
+    if full is True:
         return pairs, None
-    kept = [p for p in pairs if p["entity"] in tree and p["coupled"] in tree]
+    cls = classifier or classify.Classifier(report or {})
+    kept = [p for p in pairs if not (cls.excluded(p["entity"], {"not in the tree"}) or cls.excluded(p["coupled"], {"not in the tree"}))]
     hidden = len(pairs) - len(kept)
     return kept, (f"{hidden} historical pair{'s' if hidden != 1 else ''} hidden; --full shows them" if hidden else None)
 
@@ -447,12 +452,12 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
+    cls = classify.Classifier(report)
     scored = hotspots.ranked(report)
-    scored, hidden_note = _hide_tests(scored, lambda h: h["entity"], full)
-    scored, deleted_note = _hide_deleted(scored, report, full)
-    scored, generated_note = _hide_generated(scored, lambda h: h["entity"], report, full)
-    plumb = filetypes.plumbing_paths(report)
-    scored, release_note = _hide_rows(scored, lambda h: h["entity"], full, lambda p: filetypes.is_release(p, plumb), "release file")
+    scored, hidden_note = _hide_tests(scored, lambda h: h["entity"], full, classifier=cls)
+    scored, deleted_note = _hide_deleted(scored, report, full, classifier=cls)
+    scored, generated_note = _hide_generated(scored, lambda h: h["entity"], report, full, classifier=cls)
+    scored, release_note = _hide_by(scored, lambda h: h["entity"], full, cls, {"release file"}, "release file")
     hidden_note = _join_hidden(hidden_note, deleted_note, generated_note, release_note)
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
@@ -481,13 +486,14 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
 
 
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:
+    cls = classify.Classifier(report)
     pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))
-    pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair")
-    pairs, gone_note = _hide_gone(pairs, report, full)
+    pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair", classifier=cls)
+    pairs, gone_note = _hide_gone(pairs, report, full, classifier=cls)
     pairs, release_note = _hide_release(pairs, full)
     pairs, header_note = _hide_header_pairs(pairs, full)
-    pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs", report=report)
-    pairs, generated_note = _hide_generated(pairs, lambda p: (p["entity"], p["coupled"]), report, full, noun="generated pair", plural="generated pairs")
+    pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs", report=report, classifier=cls)
+    pairs, generated_note = _hide_generated(pairs, lambda p: (p["entity"], p["coupled"]), report, full, noun="generated pair", plural="generated pairs", classifier=cls)
     gone_note = _join_hidden(gone_note, release_note, header_note, vendor_note, generated_note)
     groups, cluster_note = [], None
     if full is not True:
@@ -551,12 +557,13 @@ CCN_FLOOR = 10  # lizard's own "complex" threshold; below it a function is not w
 
 def functions_section(report: dict, full: bool = True, width=None) -> dict:
     """Functions at or over the complexity floor, worst first, from lizard when it is installed."""
+    cls = classify.Classifier(report)
     measured = report.get("functions") or []
     funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
-    funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full, noun="function in a test file", plural="functions in test files")
-    funcs, vendor_note = _hide_vendor(funcs, lambda f: f["file"], full, noun="function in vendored code", plural="functions in vendored code", report=report)
-    funcs, sample_note = _hide_rows(funcs, lambda f: f["file"], full, filetypes.is_sample_path, "function in example code", "functions in example code")
-    funcs, generated_note = _hide_generated(funcs, lambda f: f["file"], report, full, noun="function in a generated file", plural="functions in generated files")
+    funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full, noun="function in a test file", plural="functions in test files", classifier=cls)
+    funcs, vendor_note = _hide_vendor(funcs, lambda f: f["file"], full, noun="function in vendored code", plural="functions in vendored code", report=report, classifier=cls)
+    funcs, sample_note = _hide_by(funcs, lambda f: f["file"], full, cls, {"example code"}, "function in example code", "functions in example code")
+    funcs, generated_note = _hide_generated(funcs, lambda f: f["file"], report, full, noun="function in a generated file", plural="functions in generated files", classifier=cls)
     hidden_note = _join_hidden(hidden_note, vendor_note, sample_note, generated_note)
     limit = _limit("Complex functions", full)
     shown = funcs[:limit]
