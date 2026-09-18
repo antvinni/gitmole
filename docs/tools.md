@@ -34,8 +34,10 @@ id to `osv-scanner.toml` at the repository root, osv-scanner's own ignore file.
 
 **tree-sitter**, optional through `gitmole[structure]`, answers "how is the
 code shaped, and what imports what": nesting, compound conditions,
-cognitive complexity, the TODO and FIXME markers the authors left, and the
-import graph that says which co-changing files have no import between them.
+cognitive complexity, the TODO and FIXME markers the authors left, the
+import graph that says which co-changing files have no import between them,
+and three shape rules (errors caught and dropped, addresses in literals, code
+left in comments) that ast-grep would otherwise have needed a second wheel for.
 It is py-tree-sitter with one grammar wheel per language (Python,
 JavaScript, TypeScript, Go, Rust, Java, C, C++, Ruby, C#, PHP), each a
 compiled grammar inside an MIT wheel: nothing to compile, nothing fetched at

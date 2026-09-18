@@ -36,7 +36,7 @@ try:
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
 
-ANALYSER = "2"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
+ANALYSER = "3"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
 MAX_BYTES = 1_000_000
 FUNCTIONS_KEPT = 3000
 
@@ -72,6 +72,89 @@ FLAT = {"else_clause", "elif_clause", "elsif", "else"}
 NO_INCREMENT = {"try_statement"}   # the try nests its body; the catch is what Sonar counts
 LOGICAL = {"&&", "||", "and", "or"}
 DEBT = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b")
+
+# --- shapes: an error swallowed, an address in a literal, code left in a comment -----------------
+CATCH = {"catch_clause", "except_clause", "rescue"}
+BODY = {"block", "statement_block", "compound_statement", "then"}
+EMPTY_STATEMENTS = {"pass_statement", "empty_statement"}
+STRING = {"string", "string_literal", "interpreted_string_literal", "raw_string_literal", "template_string", "encapsed_string"}
+ATTRIBUTE = {"attribute", "attribute_list", "annotation", "marker_annotation", "decorator", "attribute_item"}
+_QUOTED = re.compile(r"""^[A-Za-z@$]*(["'`]+)(.*?)\1$""", re.S)
+_IPV4 = re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?::\d{1,5})?$")
+# a comment line that reads as a statement: an assignment, a call, a keyword that opens one, a brace
+_CODE_LINE = re.compile(r"""^(?:(?:return|if|elif|else|for|while|import|from|var|let|const|def|function|class|#include|throw|raise|break|continue|await)\b.*[;:{})\]]|[A-Za-z_$][\w.$\[\]]*\s*(?:=|\+=|-=|\|=|:=)\s*\S.*|[\w.$]+(?:\.[\w$]+)*\(.*\)\s*;?|[{}]\s*[;)]?|.*[;{]|\}\s*else\b.*)$""")
+_COMMENT_MARK = re.compile(r"^\s*(?://+|/\*+|\*+/?|#+|--|;+) ?")
+CODE_SHARE = 0.8   # of a comment block's lines that read as code, for the block to count as code left in a comment
+_DIRECTIVE = re.compile(r"^(?:eslint|prettier|istanbul|noqa|type:|pylint|@ts-|jshint|global |c8 |nolint|NOLINT|clang-format|fmt:|pragma|region|endregion|-\*-|SPDX-|Copyright|http)", re.I)
+
+
+BROAD_PYTHON = {"Exception", "BaseException"}   # the language's own root classes
+
+
+def _is_empty_catch(node, src: bytes = b"") -> bool:
+    """A catch, except or rescue whose body does nothing and says nothing: no statement but `pass`, and
+    no comment, since a comment is the author saying the error is ignored on purpose (Sonar's S108).
+    Python's `except SomeError: pass` is the language's idiom for an expected failure (EAFP), so there
+    only a bare `except:` or one that catches Exception or BaseException counts."""
+    if node.type == "except_clause":
+        caught = [c for c in node.named_children if c.type not in BODY and c.type != "comment"]
+        if caught and not all(_text(src, c).strip("() ") in BROAD_PYTHON or _text(src, c).split(" as ")[0].strip("() ") in BROAD_PYTHON for c in caught):
+            return False
+    body = None
+    for c in node.named_children:
+        if c.type == "comment":
+            return False
+        if c.type in BODY:
+            body = c
+    if body is None:
+        return node.type == "rescue"   # Ruby: an empty rescue has no `then` at all
+    for c in body.named_children:
+        if c.type == "comment" or c.type not in EMPTY_STATEMENTS:
+            return False
+    return True
+
+
+def _address(text: str):
+    """The IPv4 address a string literal is, with its port, or None: loopback, the unspecified and
+    broadcast addresses, netmasks, the documentation ranges (RFC 5737), a trailing .0 (a network, or a
+    four-part version like 1.0.0.0), and a first octet of 0, 1 or 2, which is how an ASN.1 object
+    identifier (2.5.4.3) starts, are left out."""
+    m = _QUOTED.match(text.strip())
+    value = (m.group(2) if m else text).strip()
+    ip = _IPV4.match(value)
+    if not ip:
+        return None
+    octets = [int(x) for x in ip.groups()]
+    if any(o > 255 for o in octets) or octets[0] <= 2 or octets[0] in (127, 255) or octets[3] in (0, 255):   # 0-2: an object identifier's first arc
+        return None
+    if octets[:3] in ([192, 0, 2], [198, 51, 100], [203, 0, 113]):
+        return None
+    return value
+
+
+def _code_like(line: str) -> bool:
+    s = line.strip()
+    return bool(s) and not _DIRECTIVE.match(s) and not s.endswith(".") and bool(_CODE_LINE.match(s)) and not re.match(r"^[A-Za-z]+(?: [a-z]+){3,}", s)
+
+
+def commented_code_lines(text: str) -> int:
+    """How many lines of one comment block (a block comment, or a run of line comments on consecutive
+    lines) read as code; 0 unless four in five of its lines do and one of them starts right after the
+    comment marker, as an editor's comment-out leaves it. Prose with a worked example under it (indented,
+    or introduced by a line ending in a colon), and documentation comments, whose examples are meant to
+    be there, are not code left behind."""
+    if text.lstrip().startswith(("/**", "///", "//!", "#!", "/*!")):
+        return 0
+    lines = [re.sub(r"\s*\*/\s*$", "", _COMMENT_MARK.sub("", l)) for l in text.split("\n")]
+    lines = [l.rstrip() for l in lines if l.strip() and l.strip() not in ("*/", "*")]
+    if not lines:
+        return 0
+    code = [l for l in lines if _code_like(l)]
+    if len(code) < CODE_SHARE * len(lines) or not any(not l[:1].isspace() for l in code):
+        return 0
+    if any(l.strip().endswith(":") and not _code_like(l) for l in lines):
+        return 0   # "Build the dispatcher function:" introduces an example
+    return len(code)
 
 
 def cache_root() -> str | None:
@@ -217,6 +300,17 @@ def analyse(src: bytes, lang_name: str, language) -> dict:
     funcs, stack, done = [], [], []   # stack: one frame per ancestor on the way down
     comments = comment_lines = definitions = 0
     debt, imports = [], []
+    shapes = {"empty_catch": [], "bare_except": [], "addresses": [], "commented_code": 0, "commented_sample": []}
+    block = []   # the open comment block: [first line, last line, text, made of line comments]
+
+    def flush():
+        if block:
+            code = commented_code_lines(block[2])
+            if code:
+                shapes["commented_code"] += code
+                if len(shapes["commented_sample"]) < 5:
+                    shapes["commented_sample"].append(block[0] + 1)
+            block.clear()
     main_guard = False
     chains = []   # open runs of logical operators: [count]
     while True:
@@ -263,6 +357,22 @@ def analyse(src: bytes, lang_name: str, language) -> dict:
             m = DEBT.search(text)
             if m:
                 debt.append({"line": node.start_point[0] + 1, "tag": m.group(1), "text": " ".join(text.split())[:100]})
+            own_line = not src[src.rfind(b"\n", 0, node.start_byte) + 1:node.start_byte].strip()   # not trailing code
+            line_comment = text.startswith(("//", "#", "--")) and "\n" not in text.rstrip()
+            if block and line_comment and block[3] and own_line and node.start_point[0] == block[1] + 1:
+                block[1], block[2] = node.end_point[0], block[2] + "\n" + text
+            else:
+                flush()
+                if own_line:
+                    block.extend([node.start_point[0], node.end_point[0], text, line_comment])
+        elif t in CATCH and _is_empty_catch(node, src):
+            shapes["empty_catch"].append(node.start_point[0] + 1)
+            if t == "except_clause" and not any(c.type not in BODY and c.type != "comment" for c in node.named_children):
+                shapes["bare_except"].append(node.start_point[0] + 1)
+        elif t in STRING and node.end_byte - node.start_byte <= 30 and not any(s[0] in ATTRIBUTE for s in stack):
+            value = _address(_text(src, node))
+            if value:
+                shapes["addresses"].append({"line": node.start_point[0] + 1, "value": value})
         found = _import(node, src, lang_name)
         if found:
             imports.extend(found)
@@ -278,7 +388,8 @@ def analyse(src: bytes, lang_name: str, language) -> dict:
             if cursor.goto_next_sibling():
                 break
             if not cursor.goto_parent():
-                return _result(done, comments, comment_lines, definitions, debt, imports, main_guard, src, tree)
+                flush()
+                return _result(done, comments, comment_lines, definitions, debt, imports, main_guard, src, tree, shapes)
 
 
 def _in_chain(node) -> bool:
@@ -304,10 +415,10 @@ def _leave(frame, funcs, done, chains):
         done.append(funcs.pop())
 
 
-def _result(done, comments, comment_lines, definitions, debt, imports, main_guard, src, tree) -> dict:
+def _result(done, comments, comment_lines, definitions, debt, imports, main_guard, src, tree, shapes) -> dict:
     lines = src.count(b"\n") + (1 if src and not src.endswith(b"\n") else 0)
     return {"lines": lines, "comments": comments, "comment_lines": comment_lines, "definitions": definitions,
-            "debt": debt, "imports": imports, "main": main_guard or src.startswith(b"#!"), "errors": tree.root_node.has_error,
+            "debt": debt, "imports": imports, "main": main_guard or src.startswith(b"#!"), "errors": tree.root_node.has_error, "shapes": shapes,
             "functions": [{"name": f.name, "start": f.start, "end": f.end, "nesting": f.max_nesting, "cognitive": f.cognitive,
                            "complex_conditions": f.complex, "bumps": f.bumps} for f in done]}
 
@@ -518,6 +629,23 @@ def unreferenced(files: dict, edges: dict, resolved: dict, entries: set) -> list
     return [p for p in out if files[p]["language"] not in loud]
 
 
+def _slim_shapes(s: dict) -> dict:
+    """The shapes one file holds, as structure.json keeps them: counts and the first few lines; empty
+    lists and zero counts are left out so a clean file costs nothing."""
+    out = {}
+    for key in ("empty_catch", "bare_except"):
+        if s.get(key):
+            out[key] = s[key][:5]
+            out[key + "_count"] = len(s[key])
+    if s.get("addresses"):
+        out["addresses"] = s["addresses"][:5]
+        out["addresses_count"] = len(s["addresses"])
+    if s.get("commented_code"):
+        out["commented_code"] = s["commented_code"]
+        out["commented_sample"] = s.get("commented_sample") or []
+    return out
+
+
 def entries_dirs(entries: set) -> set:
     return {e for e in entries if e.endswith("package.json")}
 
@@ -576,6 +704,7 @@ def collect(repo: str, procs: int = None, vendored=()) -> dict:
     slim = {p: {"language": v["language"], "lines": v.get("lines", 0), "comments": v.get("comments", 0), "comment_lines": v.get("comment_lines", 0),
                 "definitions": v.get("definitions", 0), "debt": len(v.get("debt") or []), "debt_sample": (v.get("debt") or [])[:5],
                 "main": v.get("main", False), "imports": edges.get(p, []), "errors": v.get("errors", False),
+                "shapes": _slim_shapes(v.get("shapes") or {}),
                 "max_nesting": max((f["nesting"] for f in v.get("functions") or []), default=0),
                 "max_cognitive": max((f["cognitive"] for f in v.get("functions") or []), default=0)}
             for p, v in files.items() if "failed" not in v}

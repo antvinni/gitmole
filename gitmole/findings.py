@@ -1009,6 +1009,78 @@ def debt_in_hotspots(report: dict, min_markers: int = 3, min_files: int = 2, top
                evidence={"files": [{"file": f, "markers": n} for f, n in flagged[:10]]})]
 
 
+def _shape_files(report: dict, key: str) -> list:
+    """[(file, shapes)] for this repository's own source files holding a shape: tests, examples,
+    documentation, vendored and generated files left out, since a fixture or a sample may do on purpose
+    what the source should not."""
+    s = _structure(report)
+    if not s:
+        return []
+    generated, vendored = _generated(report), filetypes.vendor_dirs(report)
+    return [(p, v["shapes"]) for p, v in sorted((s.get("files") or {}).items()) if (v.get("shapes") or {}).get(key)
+            and not (filetypes.is_test_path(p) or filetypes.is_sample_path(p) or filetypes.is_doc_path(p)
+                     or filetypes.is_vendored(p, vendored) or p in generated)]
+
+
+def swallowed_errors(report: dict, min_count: int = 5, top_n: int = 10) -> list:
+    """Catch, except and rescue blocks that do nothing and say nothing: no statement, no comment. In
+    Python only a bare `except:` or one catching Exception or BaseException counts, since `except
+    KeyError: pass` is the language's idiom. A warning when one sits in a top hotspot, where an error
+    that vanishes is the hardest to trace."""
+    rows = _shape_files(report, "empty_catch")
+    total = sum(sh.get("empty_catch_count", len(sh["empty_catch"])) for _, sh in rows)
+    if total < min_count:
+        return []
+    rows.sort(key=lambda r: (-r[1].get("empty_catch_count", 0), r[0]))
+    top = set(_scored_top(report, top_n))
+    hot = [p for p, _ in rows if p in top]
+    listed = _files_list([f"{p}:{sh['empty_catch'][0]}" + (f" and {sh['empty_catch_count'] - 1} more there" if sh.get("empty_catch_count", 1) > 1 else "") for p, sh in rows])
+    bare = sum(sh.get("bare_except_count", 0) for _, sh in rows)
+    first = hot[0] if hot else rows[0][0]
+    return [_f("warning" if hot else "info", "Errors caught and dropped",
+               f"{_plural(total, 'empty catch block')} in {_plural(len(rows), 'source file')}"
+               + (f", {bare} of them a bare except" if bare else "") + f": {listed}."
+               + (f" {textfmt.join_and(hot[:3])} {'is a top hotspot' if len(hot) == 1 else 'are top hotspots'}." if hot else ""),
+               f"Log or rethrow in {first} first, or say in a comment why the error is ignored; an error dropped without a trace is the hardest kind to find.",
+               rule={"id": "swallowed_errors", "min_count": min_count, "measure": "tree-sitter", "python": "bare, Exception or BaseException only"},
+               evidence={"count": total, "bare_except": bare, "hotspots": hot[:10],
+                         "files": [{"file": p, "start": sh["empty_catch"][0], "count": sh.get("empty_catch_count", 1)} for p, sh in rows[:10]]})]
+
+
+def hardcoded_addresses(report: dict) -> list:
+    """IPv4 addresses written into string literals in source files: a host that moves, or an environment
+    wired into the code. Loopback, unspecified, broadcast, netmask-shaped, documentation-range (RFC 5737)
+    and object-identifier-shaped values are not counted (structure.py)."""
+    rows = _shape_files(report, "addresses")
+    if not rows:
+        return []
+    total = sum(sh.get("addresses_count", len(sh["addresses"])) for _, sh in rows)
+    places = [(p, a) for p, sh in rows for a in sh["addresses"]]
+    listed = _files_list([f"{a['value']} at {p}:{a['line']}" for p, a in places])
+    return [_f("info", "Addresses written into the code",
+               f"{_plural(total, 'IPv4 address')} in string literals in {_plural(len(rows), 'source file')}: {listed}.",
+               f"Move {places[0][1]['value']} in {places[0][0]} into configuration, or a name that DNS resolves; an address in code has to be edited and shipped to change.",
+               rule={"id": "hardcoded_addresses", "measure": "tree-sitter", "left_out": "loopback, 0.0.0.0, broadcast, RFC 5737, x.x.x.0, first octet 0-2"},
+               evidence={"count": total, "files": [{"file": p, "start": a["line"], "value": a["value"]} for p, a in places[:10]]})]
+
+
+def commented_out_code(report: dict, min_lines: int = 10) -> list:
+    """Source files with ten or more lines of code left in comments: blocks of line or block comments in
+    which four lines in five read as statements and one starts right at the comment marker. Worked
+    examples in prose and documentation comments are not counted. The history already keeps old code."""
+    rows = [(p, sh) for p, sh in _shape_files(report, "commented_code") if sh["commented_code"] >= min_lines]
+    if not rows:
+        return []
+    rows.sort(key=lambda r: (-r[1]["commented_code"], r[0]))
+    listed = _files_list([f"{p} ({sh['commented_code']} lines from line {sh['commented_sample'][0]})" for p, sh in rows])
+    first = rows[0]
+    return [_f("info", "Code left in comments",
+               f"{_plural(len(rows), 'source file')} {'holds' if len(rows) == 1 else 'hold'} {min_lines} or more lines of commented-out code: {listed}.",
+               f"Delete the block at {first[0]}:{first[1]['commented_sample'][0]}; git keeps the old version, and a reader cannot tell whether it is meant to come back.",
+               rule={"id": "commented_out_code", "min_lines": min_lines, "measure": "tree-sitter", "code_share": 0.8},
+               evidence={"files": [{"file": p, "start": sh["commented_sample"][0], "lines": sh["commented_code"]} for p, sh in rows[:10]]})]
+
+
 def deep_nesting(report: dict, min_nesting: int = 5, min_bumps: int = 3, top_n: int = 10) -> list:
     """Functions nested five levels or more, or with three or more separate chunks of nested logic (a
     bumpy road), in this repository's own source: CodeScene's nesting and bumpy-road factors, measured
@@ -1270,7 +1342,7 @@ RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, plac
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
          sweeping_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, unreferenced_files,
          agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author,
-         truck_factor, authors_gone, component_coupling]
+         truck_factor, authors_gone, component_coupling, swallowed_errors, hardcoded_addresses, commented_out_code]
 
 
 def evaluate(report: dict) -> list:
