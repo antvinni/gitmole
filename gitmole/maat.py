@@ -381,6 +381,102 @@ def entropy(commits: list, now: str = None, decay: float = ENTROPY_DECAY) -> lis
     return rows
 
 
+DOA_DECAY_MONTHS = 5   # JetBrains' Bus Factor Explorer: knowledge halves every five months
+DOA_AUTHOR_SHARE = 0.75
+DOA_FLOOR = 3.293
+
+
+def _doa(fa: int, dl: float, ac: float) -> float:
+    """Avelino et al.'s degree of authorship: a creator's bonus, the author's own changes, and a
+    logarithmic dilution by everyone else's."""
+    return 3.293 + 1.098 * fa + 0.164 * dl - 0.321 * math.log(1 + ac)
+
+
+def doa(commits: list, now: str = None) -> list:
+    """Per file and person: created it (the first commit that added lines to it; a pure move creates
+    nothing), their changes, others' changes, the degree of authorship, and whether they count as an
+    author of it (DOA at least three quarters of the file's highest and at least 3.293), undecayed and
+    with knowledge halving every five months. Changes, not lines, so a reformat transfers nothing."""
+    now = dt.date.fromisoformat(now or dt.date.today().isoformat())
+    changes, decayed, first = defaultdict(Counter), defaultdict(Counter), {}
+    for c in commits:
+        weight = 0.5 ** (max(0, (now - dt.date.fromisoformat(c["date"])).days) / 30.44 / DOA_DECAY_MONTHS)
+        for p, added, _ in c["files"]:
+            for who in people(c):
+                changes[p][who] += 1
+                decayed[p][who] += weight
+            if added > 0 and (p not in first or (c["date"], c.get("time", "")) < first[p][0]):
+                first[p] = ((c["date"], c.get("time", "")), c["author"])
+    rows = []
+    for p, per in changes.items():
+        total, total_d = sum(per.values()), sum(decayed[p].values())
+        creator = first.get(p, (None, None))[1]
+        scores = {}
+        for who, n in per.items():
+            fa = int(who == creator)
+            scores[who] = (fa, n, total - n, _doa(fa, n, total - n), _doa(fa, decayed[p][who], total_d - decayed[p][who]))
+        top, top_d = max(s[3] for s in scores.values()), max(s[4] for s in scores.values())
+        for who, (fa, n, others, value, value_d) in sorted(scores.items()):
+            rows.append({"entity": p, "author": who, "fa": fa, "dl": n, "ac": others, "doa": round(value, 4), "doa_decayed": round(value_d, 4),
+                         "is_author": int(value >= DOA_FLOOR and value >= DOA_AUTHOR_SHARE * top),
+                         "is_author_decayed": int(value_d >= DOA_FLOOR and value_d >= DOA_AUTHOR_SHARE * top_d)})
+    rows.sort(key=lambda r: (r["entity"], r["author"]))
+    return rows
+
+
+def _local_hour(stamp: str):
+    try:
+        return dt.datetime.fromisoformat(stamp[:-1] + "+00:00" if stamp.endswith("Z") else stamp).hour if len(stamp) > 10 else None
+    except ValueError:
+        return None
+
+
+LATE_HOURS = range(0, 4)   # Eyolfson, Tan and Lam: commits between midnight and 4 am, in the author's own time, were buggier
+
+
+def latenight(commits: list) -> list:
+    """Per file: its revisions, and how many were committed between midnight and 4 am in the author's
+    own offset. A reason beside a file, never a rank: the effect is far weaker than churn or ownership."""
+    revs, late = Counter(), Counter()
+    for c in commits:
+        hour = _local_hour(c.get("time") or "")
+        for p, _, _ in c["files"]:
+            revs[p] += 1
+            late[p] += hour is not None and hour in LATE_HOURS
+    rows = [{"entity": p, "n-revs": n, "late": late[p]} for p, n in revs.items()]
+    rows.sort(key=lambda r: (-r["late"], r["entity"]))
+    return rows
+
+
+def component(path: str, depth: int) -> str:
+    dirs = path.split("/")[:-1]
+    return "/".join(dirs[:depth]) + "/" if dirs else "(root files)"
+
+
+def components(commits: list, min_shared: int = 10, min_degree: int = 20, max_components: int = 10) -> list:
+    """Coupling between components, the files truncated to their first one and two directories, over
+    the logical changes: two files in one directory changing together is a layout, `auth/` and
+    `billing/` changing together 40% of the time is architecture. A change that spans more than
+    `max_components` components is a sweep and couples nothing."""
+    out = []
+    for depth in (1, 2):
+        revs, shared = Counter(), Counter()
+        for c in changesets(commits):
+            comps = sorted({component(p, depth) for p, _, _ in c["files"]} - {"(root files)"})
+            if not comps or len(comps) > max_components:
+                continue
+            revs.update(comps)
+            for a, b in itertools.combinations(comps, 2):
+                shared[(a, b)] += 1
+        for (a, b), n in shared.items():
+            avg = (revs[a] + revs[b]) / 2
+            degree = int(math.floor(100 * n / avg + 0.5))
+            if n >= min_shared and degree >= min_degree:
+                out.append({"depth": depth, "entity": a, "coupled": b, "degree": degree, "shared": n, "average-revs": int(math.floor(avg + 0.5))})
+    out.sort(key=lambda r: (r["depth"], -r["degree"], -r["shared"], r["entity"], r["coupled"]))
+    return out
+
+
 RECENT_MONTHS = 6
 OVERSIZED_PERCENTILE = 0.99   # a fix changing more lines than this share of the history's commits credits nothing
 OVERSIZED_FLOOR = 500         # ...and never under this many lines, so a small repository's percentile does not bite
@@ -559,8 +655,11 @@ ANALYSES = {
     "entity-ownership": (entity_ownership, ["entity", "author", "added", "deleted"]),
     "fixes": (fixes, ["entity", "n-fixes", "last-fix", "recent-fixes"]),
     "entropy": (entropy, ["entity", "periods", "hcm"]),
+    "doa": (doa, ["entity", "author", "fa", "dl", "ac", "doa", "doa_decayed", "is_author", "is_author_decayed"]),
+    "latenight": (latenight, ["entity", "n-revs", "late"]),
+    "components": (components, ["depth", "entity", "coupled", "degree", "shared", "average-revs"]),
 }
-NEEDS_NOW = {"age", "fixes", "entropy"}
+NEEDS_NOW = {"age", "fixes", "entropy", "doa"}
 
 
 def aliases_from_meta(path: str) -> dict:

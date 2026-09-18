@@ -82,7 +82,9 @@ def parse_scc(text: str, types=None) -> dict:
 
 
 NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs",
-                   "minor", "soc", "partners", "n-sets", "with-tests", "periods"}
+                   "minor", "soc", "partners", "n-sets", "with-tests", "periods", "fa", "dl", "ac", "is_author", "is_author_decayed", "late",
+                   "depth", "shared"}
+FLOAT_COLUMNS = {"doa", "doa_decayed", "hcm"}
 
 
 def parse_maat_csv(text: str) -> list:
@@ -91,8 +93,15 @@ def parse_maat_csv(text: str) -> list:
         return []
     out = []
     for row in csv.DictReader(io.StringIO(text)):
-        out.append({k: (_num(v) if k in NUMERIC_COLUMNS else v) for k, v in row.items()})
+        out.append({k: (_num(v) if k in NUMERIC_COLUMNS else _float(v) if k in FLOAT_COLUMNS else v) for k, v in row.items()})
     return out
+
+
+def _float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _num(v):
@@ -318,6 +327,9 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "soc": parse_maat_csv(_read(out_dir, "maat-soc.csv")),   # sum of coupling; empty for an output directory from before 0.11
         "tests": parse_maat_csv(_read(out_dir, "maat-tests.csv")),   # test co-change per production file; empty before 0.12
         "entropy": parse_maat_csv(_read(out_dir, "maat-entropy.csv")),   # Hassan's change entropy per file; empty before 0.13
+        "doa": parse_maat_csv(_read(out_dir, "maat-doa.csv")),   # degree of authorship per file and person; empty before 0.19
+        "latenight": parse_maat_csv(_read(out_dir, "maat-latenight.csv")),
+        "components": parse_maat_csv(_read(out_dir, "maat-components.csv")),
         "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),
         "ownership": ownership,

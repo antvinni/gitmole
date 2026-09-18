@@ -1260,7 +1260,8 @@ class References(unittest.TestCase):
         for rule, ref in expected.items():
             self.assertEqual(findings.REFS[rule], ref, rule)
         import os
-        page = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "references.md")).read()
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "references.md")) as fh:
+            page = fh.read()
         for ref in expected.values():
             surname = ref.split(",")[0].split(" and ")[0].split(" et al.")[0]
             self.assertIn(surname, page, f"{ref} is on the references page")
@@ -1268,3 +1269,57 @@ class References(unittest.TestCase):
     def test_the_ref_reaches_the_rule_dict(self):
         found = findings.tight_coupling(report(coupling=[{"entity": "a.py", "coupled": "b.py", "degree": 90, "average-revs": 10}]))
         self.assertEqual(found[0]["rule"]["ref"], "Gall, Hajek and Jazayeri, ICSM 1998")
+
+
+class TruckFactor(unittest.TestCase):
+    def rep(self, doa, **over):
+        files = sorted({r["entity"] for r in doa})
+        base = dict(size={"files": {f: {"code": 10, "complexity": 1} for f in files}}, doa=doa,
+                    revisions=[{"entity": f, "n-revs": 3} for f in files],
+                    meta={"name": "r", "commits": 100, "identities": [], "last_date": "2026-09-01", "gone_months": 12},
+                    activity={"authors_all": {"Ann": {"last": "2026-08-01"}, "Bob": {"last": "2026-08-01"}, "Cat": {"last": "2024-01-01"}}},
+                    age=[{"entity": f, "age-months": 1} for f in files])
+        base.update(over)
+        return report(**base)
+
+    def row(self, f, who, author=1, decayed=None):
+        return {"entity": f, "author": who, "fa": 0, "dl": 1, "ac": 0, "doa": 4.0, "doa_decayed": 4.0, "is_author": author,
+                "is_author_decayed": author if decayed is None else decayed}
+
+    def test_one_person_whose_departure_orphans_most_files(self):
+        doa = [self.row(f"core/a{i}.py", "Ann") for i in range(20)] + [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+        doa += [self.row("core/a0.py", "Bob", author=0)]
+        found = {f["rule"]["id"]: f for f in findings.evaluate(self.rep(doa))}
+        f = found["truck_factor"]
+        self.assertEqual(f["severity"], "warning")
+        self.assertIn("Truck factor 1: without Ann, 20 of the 28 source files (71%) have no author left", f["detail"])
+        self.assertIn("core/ (Ann)", f["detail"], "an area whose own truck factor is one")
+        self.assertEqual(f["rule"]["ref"], "Avelino et al., ICPC 2016")
+        self.assertEqual(f["evidence"]["truck_factor"], 1)
+
+    def test_a_shared_codebase_has_none(self):
+        doa = [self.row(f"core/a{i}.py", who) for i in range(30) for who in ("Ann", "Bob", "Cat")]
+        self.assertNotIn("truck_factor", {f["rule"]["id"] for f in findings.evaluate(self.rep(doa))})
+
+    def test_files_whose_authors_all_left_while_others_still_edit_them(self):
+        doa = [self.row(f"core/a{i}.py", "Cat") for i in range(6)] + [self.row(f"core/a{i}.py", "Bob", author=0) for i in range(6)]
+        doa += [self.row(f"web/b{i}.py", who) for i in range(20) for who in ("Ann", "Bob")]
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa))}["authors_gone"]
+        self.assertEqual(f["severity"], "info")
+        self.assertIn("6 source files changed in the last year have no author still committing", f["detail"])
+        self.assertIn("core/a0.py (Cat)", f["detail"])
+
+
+class ComponentCoupling(unittest.TestCase):
+    def test_pairs_of_components_that_change_together(self):
+        files = {f"{d}/f{i}.py": {"code": 10, "complexity": 1} for d in ("auth", "billing", "tests", "web") for i in range(5)}
+        r = report(size={"files": files},
+                   components=[{"depth": 1, "entity": "auth/", "coupled": "billing/", "degree": 45, "shared": 30, "average-revs": 66},
+                               {"depth": 1, "entity": "auth/", "coupled": "tests/", "degree": 80, "shared": 50, "average-revs": 60},
+                               {"depth": 1, "entity": "billing/", "coupled": "web/", "degree": 22, "shared": 12, "average-revs": 50},
+                               {"depth": 2, "entity": "auth/x/", "coupled": "billing/y/", "degree": 90, "shared": 20, "average-revs": 22}])
+        f = {x["rule"]["id"]: x for x in findings.evaluate(r)}["component_coupling"]
+        self.assertIn("auth/ and billing/ change together in 45% of their changes (30 shared)", f["detail"])
+        self.assertNotIn("tests/", f["detail"], "a component of tests changes with what it tests")
+        self.assertNotIn("web/", f["detail"], "under the 30% floor")
+        self.assertNotIn("auth/x/", f["detail"], "the depth is the one the tree's layout asks for")

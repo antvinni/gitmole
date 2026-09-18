@@ -292,6 +292,13 @@ class Report(unittest.TestCase):
         text = (sec.get("caption") or "") + (sec.get("note") or "")
         self.assertIn("the vulnerability database changed between the runs (2026-09-01 to 2026-09-17), so a dependency finding can move with no change to the code", text)
 
+    def test_the_watch_list_by_component_is_a_full_only_section(self):
+        r = sample_report()
+        self.assertNotIn("Watch list by component", rendered(r, [], width=200))
+        self.assertIn("Watch list by component", rendered(r, [], width=200, full=True))
+        self.assertIn("## Watch list by component", render.markdown(r, []))
+        self.assertIn("watch_by_component", render.to_json(r, []))
+
     def test_the_json_is_the_same_bytes_for_the_same_clone_whatever_the_run(self):
         import copy
         a = sample_report()
@@ -1307,13 +1314,13 @@ class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report(), full=True)
         titles = [x["title"] for x in secs]
-        self.assertEqual(titles[:5], ["Watch list", "Size by language", "People", "Knowledge map", "Activity"])
-        self.assertTrue(titles[5].startswith("Timeline"))
-        self.assertTrue(titles[6].startswith("Hotspots"))
+        self.assertEqual(titles[:6], ["Watch list", "Watch list by component", "Size by language", "People", "Knowledge map", "Activity"])
+        self.assertTrue(titles[6].startswith("Timeline"))
+        self.assertTrue(titles[7].startswith("Hotspots"))
         self.assertEqual(titles[-2], "Complex functions")
         self.assertEqual(titles[-1], "Repo health (git-sizer concerns)")
-        self.assertEqual([x["id"] for x in secs][:4], ["watch", "size", "people", "knowledge"])
-        size = secs[1]
+        self.assertEqual([x["id"] for x in secs][:5], ["watch", "watch_by_component", "size", "people", "knowledge"])
+        size = secs[2]
         self.assertEqual(size["columns"][:3], ["language", "files", "code"])
         self.assertEqual(size["rows"][0][0], "HTML")
 

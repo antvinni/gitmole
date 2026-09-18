@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import tempfile
 import unittest
@@ -349,8 +350,9 @@ class WriteAll(unittest.TestCase):
                 fh.write(LOG)
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
-            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-entropy.csv",
-                                     "maat-fixes.csv", "maat-plumbing.csv", "maat-revisions.csv", "maat-soc.csv", "maat-tests.csv"])
+            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-components.csv", "maat-coupling.csv", "maat-doa.csv",
+                                     "maat-entity-ownership.csv", "maat-entropy.csv", "maat-fixes.csv", "maat-latenight.csv", "maat-plumbing.csv",
+                                     "maat-revisions.csv", "maat-soc.csv", "maat-tests.csv"])
             self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))
             with open(os.path.join(d, "maat-revisions.csv")) as fh:
                 self.assertEqual(fh.readline().strip(), "entity,n-revs")
@@ -632,3 +634,52 @@ class ChangeEntropy(unittest.TestCase):
             maat.write_all(log, d, now="2026-09-15")
             with open(os.path.join(d, "maat-entropy.csv")) as fh:
                 self.assertEqual(fh.readline().strip(), "entity,periods,hcm")
+
+
+class DegreeOfAuthorship(unittest.TestCase):
+    def test_avelinos_doa_with_the_creator_bonus_and_dilution_by_others(self):
+        commits = [_commit("c1", [("a.py", 10, 0)], author="Ann", date="2026-01-01"),
+                   _commit("c2", [("a.py", 2, 1)], author="Ann", date="2026-01-02"),
+                   _commit("c3", [("a.py", 1, 1)], author="Bob", date="2026-01-03"),
+                   _commit("m1", [("b.py", 0, 0)], author="Mover", date="2026-01-04"),
+                   _commit("c4", [("b.py", 5, 0)], author="Cat", date="2026-01-05")]
+        rows = {(r["entity"], r["author"]): r for r in maat.doa(commits, now="2026-01-10")}
+        ann = rows[("a.py", "Ann")]
+        self.assertEqual((ann["fa"], ann["dl"], ann["ac"]), (1, 2, 1))
+        self.assertAlmostEqual(ann["doa"], 3.293 + 1.098 + 0.164 * 2 - 0.321 * math.log(2), places=3)
+        self.assertEqual(rows[("a.py", "Bob")]["fa"], 0)
+        self.assertEqual((rows[("b.py", "Cat")]["fa"], rows[("b.py", "Mover")]["fa"]), (1, 0), "a pure move adds no lines and creates nothing")
+        self.assertEqual(ann["is_author"], 1)
+        self.assertEqual(rows[("a.py", "Bob")]["is_author"], 0, "Bob's DOA is under the 3.293 floor")
+
+    def test_decay_halves_knowledge_every_five_months(self):
+        old = [_commit(f"o{i}", [("a.py", 1, 0)], author="Ann", date="2024-01-01") for i in range(10)]
+        new = [_commit(f"n{i}", [("a.py", 1, 0)], author="Bob", date="2026-01-01") for i in range(3)]
+        rows = {r["author"]: r for r in maat.doa(old + new, now="2026-01-01")}
+        self.assertEqual(rows["Ann"]["is_author"], 1, "undecayed, ten changes and creation outweigh three")
+        self.assertGreater(rows["Bob"]["doa_decayed"], rows["Ann"]["doa_decayed"] - 1.098, "decayed, Ann's two-year-old changes count for little")
+        self.assertEqual(rows["Bob"]["is_author_decayed"], 1)
+
+
+class LateNight(unittest.TestCase):
+    def test_commits_between_midnight_and_four_in_the_authors_own_time(self):
+        commits = [dict(_commit("a", [("x.py", 1, 0)]), time="2026-01-05T01:30:00+09:00"),
+                   dict(_commit("b", [("x.py", 1, 0)]), time="2026-01-05T03:59:00-05:00"),
+                   dict(_commit("c", [("x.py", 1, 0)]), time="2026-01-05T04:00:00+00:00"),
+                   dict(_commit("d", [("x.py", 1, 0), ("y.py", 1, 0)]), time="2026-01-05T23:00:00+00:00")]
+        rows = {r["entity"]: r for r in maat.latenight(commits)}
+        self.assertEqual(rows["x.py"], {"entity": "x.py", "n-revs": 4, "late": 2})
+        self.assertEqual(rows["y.py"]["late"], 0)
+
+
+class Components(unittest.TestCase):
+    def test_coupling_between_top_level_components_over_logical_changes(self):
+        commits = []
+        for i in range(12):
+            commits.append(_commit(f"a{i}", [("auth/login.py", 1, 0), ("billing/charge.py", 1, 0)], date=f"2026-01-{1 + i:02d}"))
+        for i in range(12):
+            commits.append(_commit(f"b{i}", [("auth/token.py", 1, 0)], author="Bob", date=f"2026-02-{1 + i:02d}"))
+        commits.append(_commit("c", [("docs/x.md", 1, 0), ("auth/login.py", 1, 0)], date="2026-03-01"))
+        rows = [r for r in maat.components(commits) if r["depth"] == 1]
+        self.assertEqual(rows, [{"depth": 1, "entity": "auth/", "coupled": "billing/", "degree": 65, "shared": 12, "average-revs": 19}],
+                         "12 shared changes over an average of (25 + 12) / 2; docs/ shares one change, under the floor")
