@@ -26,6 +26,9 @@ COMPANION_DEGREE = 50   # a coupling worth mentioning
 COMPANION_REVS = 5      # ...over enough shared revisions to be a pattern
 MINOR_FLOOR = 3         # this many minor contributors (under 5% of the file's commits each) is a crowd worth naming
 PARTNERS_FLOOR = 20     # this many files it shares five or more commits with is a hub worth naming
+DEBT_FLOOR = 3          # TODO/FIXME/XXX/HACK comments worth naming in a hot file
+NESTING_FLOOR = 5       # a function nested this deep is worth naming (CodeScene flags from 4)
+GOD_FILE = 60           # top-level functions, classes and methods in one file: a god file
 PERIODS_FLOOR = 12      # changes in this many different months: scattered, Hassan's entropy signal, a reason and never a rank
 TESTED_SETS = 5         # this many changes before the share of them that moved a test says anything
 TESTED_SHARE = 0.2      # a test moved with at most this share of the file's changes: a hot file whose tests do not follow it
@@ -78,6 +81,11 @@ def risks(report: dict, min_revs: int = 2) -> list:
     has_tests = any(filetypes.is_test_path(p) for p in ((report.get("size") or {}).get("files") or {}))
     tested = {t["entity"]: (t["n-sets"], t["with-tests"]) for t in report.get("tests") or []} if has_tests else {}
     periods = {e["entity"]: e["periods"] for e in report.get("entropy") or []}   # absent before 0.14
+    shape = (report.get("structure") or {}).get("files") or {}   # tree-sitter, with gitmole[structure]
+    nested = {}
+    for f in (report.get("structure") or {}).get("functions") or []:
+        if f["file"] not in nested or f["nesting"] > nested[f["file"]]["nesting"]:
+            nested[f["file"]] = f
     series = (report.get("trend") or {}).get("files") or {}
     last = (report.get("meta") or {}).get("last_date") or ""
 
@@ -95,6 +103,8 @@ def risks(report: dict, min_revs: int = 2) -> list:
                      "authors": n_authors.get(h["entity"]), "owner": owner, "owner_share": share,
                      "minor": minors.get(h["entity"], 0), "partners": partners.get(h["entity"], 0),
                      "periods": periods.get(h["entity"]),
+                     "debt": (shape.get(h["entity"]) or {}).get("debt", 0), "definitions": (shape.get(h["entity"]) or {}).get("definitions", 0),
+                     "deepest": nested.get(h["entity"]),
                      "changes": tested.get(h["entity"], (None, None))[0], "with_tests": tested.get(h["entity"], (None, None))[1],
                      "tested_share": (tested[h["entity"]][1] / tested[h["entity"]][0]) if tested.get(h["entity"], (0, 0))[0] else None,
                      "complexity": h["complexity"] or 0, "code": h["code"],
@@ -135,6 +145,9 @@ def why_empty(report: dict, min_revs: int = 2) -> str:
 
 
 def _reasons(r: dict) -> list:
+    """The reasons, most actionable first: how often it changed and was fixed, who owns it, what in it
+    is complex, what its authors flagged and what its tests do, then how it couples; the scatter and
+    the size of the file last. The default terminal report shows the first REASONS_SHOWN."""
     out = [f"changed {textfmt.times(r['revs'])}"]
     if r["recent_fixes"]:
         out.append(f"fixed {textfmt.times(r['recent_fixes'])} in six months")
@@ -153,6 +166,14 @@ def _reasons(r: dict) -> list:
     grown = r.get("trend") or ""
     if grown.startswith("+") and int(grown[1:-1]) >= trend.GROWTH_FLOOR:
         out.append(f"complexity {grown} in a year")   # the Hotspots table's trend column, which the default report no longer shows
+    deepest = r.get("deepest")
+    if deepest and deepest["nesting"] >= NESTING_FLOOR:
+        out.append(f"{deepest['name']}() nested {deepest['nesting']} deep")
+    if r.get("debt", 0) >= DEBT_FLOOR:
+        out.append(f"{r['debt']} TODO/FIXME comments")   # self-admitted debt: the authors said it is unfinished
+    if r.get("changes") and r["changes"] >= TESTED_SETS and r["tested_share"] <= TESTED_SHARE:
+        out.append(f"no test changed in its {r['changes']} changes" if not r["with_tests"]
+                   else f"a test changed in {r['with_tests']} of its {r['changes']} changes")
     if r["companions"]:
         other, degree = r["companions"][0]
         more = len(r["companions"]) - 1
@@ -160,12 +181,14 @@ def _reasons(r: dict) -> list:
         out.append(f"changes with {other} ({degree}%){tail}")
     if r.get("partners", 0) >= PARTNERS_FLOOR:
         out.append(f"changes alongside {r['partners']} other files")   # sum of coupling: weakly coupled to everything
+    if r.get("definitions", 0) >= GOD_FILE:
+        out.append(f"defines {r['definitions']} functions and classes")
     if (r.get("periods") or 0) >= PERIODS_FLOOR:
         out.append(f"changed in {r['periods']} different months")   # Hassan's scatter: lost on the backtest, so a reason, not a rank
-    if r.get("changes") and r["changes"] >= TESTED_SETS and r["tested_share"] <= TESTED_SHARE:
-        out.append(f"no test changed in its {r['changes']} changes" if not r["with_tests"]
-                   else f"a test changed in {r['with_tests']} of its {r['changes']} changes")
     return out
+
+
+REASONS_SHOWN = 6   # the default terminal report's cap per row; --full, Markdown and the JSON carry every reason
 
 
 WATCH_TOP = 15   # the same cap the report's --full watch list uses

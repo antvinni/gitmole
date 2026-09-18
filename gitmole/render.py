@@ -319,7 +319,9 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     """The files to keep an eye on, with the reasons in words. Paths stay whole here."""
     ranked = watch.risks(report)
     limit = WATCH_CAP if full is False else WATCH_FULL
-    rows = [(r["file"], " · ".join(r["reasons"])) for r in ranked[:limit]]
+    shown = watch.REASONS_SHOWN if full is False else None   # the default terminal view keeps each row readable
+    rows = [(r["file"], " · ".join(r["reasons"][:shown]) + (f" · {len(r['reasons']) - shown} more" if shown and len(r["reasons"]) > shown else ""))
+            for r in ranked[:limit]]
     columns = [("file", PATH), ("why", {"overflow": "fold", "ratio": 3})]
     since = report["meta"].get("since")
     # "alone": the reasons never move a file; a reader who sees fixes and ownership beside each row

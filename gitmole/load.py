@@ -330,6 +330,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "trend": _read_json(out_dir, "trend.json", {"samples": [], "files": {}}),
         "signing": _read_json(out_dir, "signing.json", {}) or {},   # commit signing coverage; {} before the step or after a killed one
         "hygiene": _read_json(out_dir, "hygiene.json", {}) or {},   # the hygiene checks (hygiene.py); {} before 0.15
-        "unreachable": _read_json(out_dir, "unreachable.json", {}) or {},   # what the secrets step found outside reachable history
+        "unreachable": _read_json(out_dir, "unreachable.json", {}) or {},
+        "structure": _read_json(out_dir, "structure.json", {}) or {},   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
         "backtest": _nested(out_dir) if nested else None,
     }

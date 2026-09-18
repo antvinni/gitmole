@@ -88,6 +88,18 @@ class Risks(unittest.TestCase):
         self.assertEqual(by["core/parser.py"]["periods"], 14)
         self.assertIsNone({x["file"]: x for x in watch.risks(report())}["core/parser.py"]["periods"], "an output directory without the table")
 
+    def test_debt_markers_deep_nesting_and_a_god_file_are_reasons(self):
+        r = report()
+        r["structure"] = {"status": "run", "files": {"core/parser.py": {"debt": 5, "definitions": 72, "max_nesting": 6},
+                                                     "core/util.py": {"debt": 1, "definitions": 8, "max_nesting": 2}},
+                          "functions": [{"file": "core/parser.py", "name": "parse", "start": 10, "nesting": 6, "cognitive": 80}]}
+        by = {x["file"]: x for x in watch.risks(r)}
+        reasons = by["core/parser.py"]["reasons"]
+        self.assertIn("5 TODO/FIXME comments", reasons)
+        self.assertIn("parse() nested 6 deep", reasons)
+        self.assertIn("defines 72 functions and classes", reasons)
+        self.assertFalse([x for x in by["core/util.py"]["reasons"] if "TODO" in x or "nested" in x or "defines" in x])
+
     def test_tests_that_never_move_with_a_file_are_a_reason(self):
         r = report()
         r["tests"] = [{"entity": "core/parser.py", "n-sets": 38, "with-tests": 0}, {"entity": "core/util.py", "n-sets": 28, "with-tests": 4},

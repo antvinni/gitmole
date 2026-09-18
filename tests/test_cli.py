@@ -102,6 +102,25 @@ class FunctionMetrics(unittest.TestCase):
         self.assertTrue(calls[0]["lizard"])
         self.assertEqual(meta["functions"]["status"], "run")
 
+    def test_the_structure_step_is_planned_when_tree_sitter_is_installed(self):
+        for have in (True, False):
+            with tempfile.TemporaryDirectory() as d:
+                _tiny_repo(d)
+                out = os.path.join(d, "out")
+                calls = []
+                def planner(repo, o, branch="HEAD", **kw):
+                    calls.append(kw)
+                    return [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+                cli.main([d, "--out", out], console=console(), tool_check=lambda **kw: [], planner=planner,
+                         estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1}, lizard_check=lambda: False,
+                         structure_check=lambda: have)
+                with open(os.path.join(out, "meta.json")) as fh:
+                    meta = json.load(fh)
+            self.assertEqual(calls[0]["structure"], have)
+            self.assertEqual(meta["structure"]["status"], "run" if have else "skipped")
+            if not have:
+                self.assertEqual(meta["structure"]["install"], "pip install 'gitmole[structure]'")
+
     def test_skipped_without_lizard(self):
         calls = []
         rc, meta, _ = self._main(False, calls)

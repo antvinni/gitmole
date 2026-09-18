@@ -250,6 +250,13 @@ class Plan(unittest.TestCase):
         self.assertNotIn("--no-renames", by["git-log"]["argv"])
         self.assertEqual(by["git-log"]["argv"][:4], ["git", "-c", "core.quotePath=false", "log"], "non-ASCII paths must not be octal-escaped and quoted")
 
+    def test_the_structure_step_is_optional_and_runs_the_module(self):
+        self.assertNotIn("structure", by_name(run.plan("/r", "/o")))
+        step = by_name(run.plan("/r", "/o", structure=True, procs=3))["structure"]
+        self.assertEqual(step["argv"][1:], ["-m", "gitmole.structure", "/o", "--procs", "3"])
+        self.assertEqual(step["deps"], [], "it reads meta.json for the vendored list, written before the steps start")
+        self.assertIn("structure.json", run.OUTPUTS)
+
     def test_function_metrics_step_is_optional_and_runs_the_bundled_script(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", lizard=True, ignore=["vendor/**"], types="py,sql", procs=3)}
         argv = by["functions"]["argv"]
