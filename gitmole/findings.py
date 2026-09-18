@@ -899,9 +899,132 @@ def _aside_path(path: str) -> bool:
     return filetypes.is_test_path(path) or filetypes.is_sample_path(path) or filetypes.is_vendor_path(path)
 
 
+STRUCTURE_LANGUAGES = {"python", "javascript", "typescript", "tsx", "c", "cpp", "ruby"}   # where the import graph resolves at all
+
+
+def _structure(report: dict) -> dict:
+    s = report.get("structure") or {}
+    return s if s.get("status") == "run" else {}
+
+
+def _scored_top(report: dict, n: int = 10) -> list:
+    from . import classify
+    cls = classify.Classifier(report)
+    return [h["entity"] for h in hotspots.ranked(report) if h["code"] is not None and cls.reason(h["entity"]) is None][:n]
+
+
+def debt_in_hotspots(report: dict, min_markers: int = 3, min_files: int = 2, top_n: int = 10) -> list:
+    """Top hotspots whose own comments say they are unfinished: TODO, FIXME, XXX, HACK. Methods carrying
+    such self-admitted debt were revised more than twice as often and carried about twice the bug ratio
+    (Maldonado and Shihab's markers; the 2024 study of 774,051 Java methods), and most of it is never
+    removed: a hot file its authors flagged is a reason no churn number gives."""
+    s = _structure(report)
+    if not s:
+        return []
+    files = s.get("files") or {}
+    top = _scored_top(report, top_n)
+    flagged = [(f, files[f]["debt"]) for f in top if (files.get(f) or {}).get("debt")]
+    if not flagged or (max(n for _, n in flagged) < min_markers and len(flagged) < min_files):
+        return []   # one marker in one hotspot is ordinary; three in one, or markers in two, is a pattern
+    first = max(flagged, key=lambda t: t[1])[0]
+    sample = (files[first].get("debt_sample") or [{}])[0]
+    at = f", starting at line {sample['line']}" if sample.get("line") else ""
+    listed = "; ".join(f"{f} ({n})" for f, n in flagged[:5]) + (f" and {len(flagged) - 5} more" if len(flagged) > 5 else "")
+    return [_f("info", "Debt the authors flagged in hotspots",
+               f"{len(flagged)} of the top {len(top)} hotspots carry TODO, FIXME, XXX or HACK comments: {listed}.",
+               f"Resolve or ticket the markers in {first} first{at}; it changes often and its authors said it is unfinished.",
+               rule={"id": "debt_in_hotspots", "markers": ["TODO", "FIXME", "XXX", "HACK"], "min_markers": min_markers, "top_n": top_n,
+                     "ref": "Maldonado and Shihab, MTD 2015"},
+               evidence={"files": [{"file": f, "markers": n} for f, n in flagged[:10]]})]
+
+
+def deep_nesting(report: dict, min_nesting: int = 5, min_bumps: int = 3, top_n: int = 10) -> list:
+    """Functions nested five levels or more, or with three or more separate chunks of nested logic (a
+    bumpy road), in this repository's own source: CodeScene's nesting and bumpy-road factors, measured
+    by tree-sitter in every language it parses, with Sonar's cognitive complexity beside them. A
+    warning when one sits in a top hotspot."""
+    s = _structure(report)
+    if not s:
+        return []
+    generated, vendored = _generated(report), filetypes.vendor_dirs(report)
+    deep = [f for f in s.get("functions") or [] if (f["nesting"] >= min_nesting or f["bumps"] >= min_bumps)
+            and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
+                     or f["file"] in generated)]
+    if not deep:
+        return []
+    deep.sort(key=lambda f: (-f["cognitive"], -f["nesting"], f["file"], f["start"]))
+    top = set(_scored_top(report, top_n))
+    sev = "warning" if any(f["file"] in top for f in deep) else "info"
+
+    def one(f):
+        return f"{f['name']} ({f['file']}:{f['start']}) nested {f['nesting']} deep, cognitive complexity {f['cognitive']}, {f['bumps']} bump{'s' if f['bumps'] != 1 else ''}"
+    listed = "; ".join(one(f) for f in deep[:5]) + (f" and {len(deep) - 5} more" if len(deep) > 5 else "")
+    first = next((f for f in deep if f["file"] in top), deep[0])
+    return [_f(sev, "Deeply nested code", f"{_plural(len(deep), 'function')} nest {min_nesting} levels or more or carry {min_bumps}+ separate nested chunks: {listed}.",
+               f"Flatten {first['name']} in {first['file']} first: return early and move each nested chunk into a function of its own.",
+               rule={"id": "deep_nesting", "min_nesting": min_nesting, "min_bumps": min_bumps, "measure": "tree-sitter",
+                     "ref": "SonarSource cognitive complexity; CodeScene code health"},
+               evidence={"count": len(deep), "functions": [{k: f[k] for k in ("file", "name", "start", "nesting", "cognitive", "bumps")} for f in deep[:10]]})]
+
+
+def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_resolved: float = 0.6) -> list:
+    """Pairs that change together without an import between them, in either direction. Ajienka and
+    Capiluppi found across 79 projects that many co-changed pairs have no structural dependency at
+    all: such a pair is a shared format, a duplicated rule or copy-paste, and neither a pure-git nor a
+    pure-static tool can print it. Only for languages whose imports this graph mostly resolves."""
+    s = _structure(report)
+    if not s:
+        return []
+    files, resolved, tree = s.get("files") or {}, s.get("resolved") or {}, _tree(report)
+    derived = _generated(report)
+
+    def graphed(p):
+        info = files.get(p)
+        return info is not None and info.get("language") in STRUCTURE_LANGUAGES and resolved.get(info["language"], 0) >= min_resolved
+
+    hidden = []
+    for p in report.get("coupling") or []:
+        a, b = p["entity"], p["coupled"]
+        if p["degree"] < min_degree or p["average-revs"] < min_revs or not (graphed(a) and graphed(b)):
+            continue
+        if filetypes.is_test_path(a) or filetypes.is_test_path(b) or filetypes.is_header_pair(a, b) or a in derived or b in derived:
+            continue
+        if tree and (a not in tree or b not in tree):
+            continue
+        if b in (files[a].get("imports") or []) or a in (files[b].get("imports") or []):
+            continue
+        hidden.append(p)
+    if not hidden:
+        return []
+    hidden.sort(key=lambda p: (-p["degree"], -p["average-revs"], p["entity"]))
+    listed = "; ".join(f"{p['entity']} and {p['coupled']} change together {p['degree']}% of the time, and neither imports the other" for p in hidden[:3])
+    more = f" ({len(hidden) - 3} more pairs like them)" if len(hidden) > 3 else ""
+    first = hidden[0]
+    return [_f("info", "Coupling with no import behind it", f"{listed}{more}.",
+               f"Look at why {first['entity']} and {first['coupled']} move together: a shared format, a duplicated rule or copied code is the usual answer.",
+               rule={"id": "hidden_coupling", "min_degree": min_degree, "min_revs": min_revs, "min_resolved": min_resolved,
+                     "ref": "Ajienka and Capiluppi, JSS 2017"},
+               evidence={"pairs": [{"a": p["entity"], "b": p["coupled"], "degree": p["degree"], "revs": p["average-revs"]} for p in hidden[:10]]})]
+
+
+def unreferenced_files(report: dict) -> list:
+    """Files nothing in the tree imports that are no entry point by convention or declaration, from the
+    structure step, which already leaves out languages whose graph is too blind to judge. Never
+    "dead": Romano et al. found no comprehension cost to dead code in controlled experiments, and a
+    dynamic import cannot be seen from here, so this is a list to check, not to delete."""
+    s = _structure(report)
+    paths = s.get("unreferenced") or []
+    if not paths:
+        return []
+    n = s.get("unreferenced_count", len(paths))
+    return [_f("info", "Possibly unreferenced files", f"{_plural(n, 'file')} {'is' if n == 1 else 'are'} imported by nothing in the tree and {'is' if n == 1 else 'are'} no entry point: {_files_list(paths, 5)}.",
+               f"Check {paths[0]} before anything else; dynamic imports, plugins loaded by name and framework routing do not show in an import graph.",
+               rule={"id": "unreferenced_files", "ref": "Romano et al., TSE 2020"}, evidence={"count": n, "files": paths[:10]})]
+
+
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets,
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
-         sweeping_commits, tangled_commits, hygiene_findings]
+         sweeping_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, unreferenced_files]
 
 
 def evaluate(report: dict) -> list:

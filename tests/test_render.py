@@ -247,6 +247,16 @@ class Report(unittest.TestCase):
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
         self.assertNotIn("sweeping", caption)
 
+    def test_the_default_watch_list_shows_six_reasons_and_counts_the_rest(self):
+        from unittest.mock import patch
+        r = sample_report()
+        many = [f"reason {i}" for i in range(9)]
+        with patch.object(render.watch, "_reasons", return_value=many):
+            short = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["rows"][0][1]
+            full = next(x for x in render.sections(r, full=True) if x["id"] == "watch")["rows"][0][1]
+        self.assertEqual(short, " · ".join(many[:6]) + " · 3 more")
+        self.assertEqual(full, " · ".join(many))
+
     def test_the_secrets_line_says_what_lay_outside_reachable_history(self):
         r = sample_report()
         r["unreachable"] = {"objects": 0, "blobs": 0, "scanned": 0, "findings": 0}

@@ -86,10 +86,30 @@ prints that command. The copy lives in osv-scanner's cache directory
 (`~/Library/Caches/osv-scalibr` on macOS, `~/.cache/osv-scalibr` on Linux, or
 `OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY`), and the report says how old it is.
 
+## Structure: nesting, debt markers, the import graph
+
+The structure step is optional. It needs `gitmole[structure]`: py-tree-sitter
+and one compiled grammar per language (Python, JavaScript, TypeScript and
+TSX, Go, Rust, Java, C, C++, Ruby, C#, PHP), each an MIT wheel with nothing to
+compile and nothing to download at run time. Python 3.10 or newer.
+
+```bash
+pipx install 'gitmole[structure]'
+pipx inject gitmole tree-sitter tree-sitter-python tree-sitter-javascript   # or add grammars to an existing install
+```
+
+The Homebrew formula does not include it. Without it the step is skipped and
+`meta.json` says how to install it; a grammar that is missing skips its
+language only. Results are cached by blob hash under
+`~/Library/Caches/gitmole/structure` (`~/.cache/gitmole/structure` on
+Linux), so a file that has not changed is not parsed twice;
+`GITMOLE_CACHE` names another directory, or `off`.
+
 ## Other ways to install
 
 ```bash
 pipx install 'gitmole[plots]'                                                # adds git-of-theseus for --plots
+pipx install 'gitmole[structure]'                                            # adds tree-sitter for the structure step
 pipx install gitmole==0.4.0                                                  # a pinned release
 pipx install git+https://github.com/antvinni/gitmole                        # main, unreleased
 ```

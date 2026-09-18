@@ -20,6 +20,22 @@ classifiers = [
 
 [project.optional-dependencies]
 plots = ["git-of-theseus"]
+# nesting, cognitive complexity, debt markers and the import graph: py-tree-sitter and one compiled grammar per
+# language, MIT wheels with no compiler and no network needed
+structure = [
+    "tree-sitter>=0.23; python_version >= '3.10'",
+    "tree-sitter-python>=0.23; python_version >= '3.10'",
+    "tree-sitter-javascript>=0.23; python_version >= '3.10'",
+    "tree-sitter-typescript>=0.23; python_version >= '3.10'",
+    "tree-sitter-go>=0.23; python_version >= '3.10'",
+    "tree-sitter-rust>=0.23; python_version >= '3.10'",
+    "tree-sitter-java>=0.23; python_version >= '3.10'",
+    "tree-sitter-c>=0.23; python_version >= '3.10'",
+    "tree-sitter-cpp>=0.23; python_version >= '3.10'",
+    "tree-sitter-ruby>=0.23; python_version >= '3.10'",
+    "tree-sitter-c-sharp>=0.23; python_version >= '3.10'",
+    "tree-sitter-php>=0.23; python_version >= '3.10'",
+]
 
 [project.scripts]
 gitmole = "gitmole.cli:main"

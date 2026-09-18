@@ -106,7 +106,8 @@ and removes what gitmole left behind, `compare.py` is the difference between
 two reports (the findings new, resolved and persisting, the watch list's
 moves), `hook.py` is the agent-hook gate behind `--hook`, `sarif.py` the SARIF export,
 `signing.py` reads commit signing coverage from the objects, `hygiene.py` the
-repository hygiene checks, `szz.py` finds
+repository hygiene checks, `structure.py` the optional tree-sitter pass
+(nesting, cognitive complexity, debt markers, the import graph), `szz.py` finds
 bug-inducing commits by R-SZZ for the backtest, and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates
 `docs/banner.svg` from the banner code.
@@ -131,4 +132,9 @@ The change analysis (hotspots, coupling, ownership, age) is gitmole's own
 code, written after the ideas in Adam Tornhill's code-maat but sharing no
 code with it. The bug-inducing commits in `szz.py` follow Rosa et al.'s
 R-SZZ as pyszz_v2 describes it, written fresh over `git diff` and `git
-blame`, sharing no code with it.
+blame`, sharing no code with it. The structure pass in `structure.py` borrows three ideas
+and no code: cognitive complexity from SonarSource's published
+specification (simplified: one increment per run of boolean operators, and
+`else if` flat), nesting and the bumpy road from CodeScene's code-health
+documentation, and the debt markers from Maldonado and Shihab; the walk,
+the metrics and the import resolution are written fresh over py-tree-sitter.

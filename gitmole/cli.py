@@ -69,7 +69,8 @@ def interrupt(*_):
 
 
 def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
-         lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard, ask=None, stdin=None) -> int:
+         lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard, ask=None, stdin=None,
+         structure_check=run.has_structure) -> int:
     global _control
     _control = run.Control()
     if threading.current_thread() is threading.main_thread():
@@ -115,6 +116,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         err.print(f"brew install {' '.join(run.REQUIRED_TOOLS)}; see README.md for other ways")
         return 2
     args.lizard = lizard_check()   # decided once, for every repository this run analyses
+    args.structure = structure_check()
 
     rc, repo_dir, out_dir = _resolve_target(kind, target, args, console, ui, err, planner, estimator, lister, cloner)
     if rc is not None:
@@ -359,6 +361,8 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
     lizard_ok = args.lizard
     meta["functions"] = {"status": "planned" if lizard_ok else "skipped"}   # "run" only once the step has finished
+    meta["structure"] = ({"status": "planned"} if getattr(args, "structure", False)
+                         else {"status": "skipped", "install": "pip install 'gitmole[structure]'"})
     meta["duplicates"] = {"status": "planned" if duplicates_ok else "skipped", "text_mb": round(estimate.get("text_bytes", 0) / 1e6, 1),
                           "budget_mb": run.DUPLICATES_BUDGET_MB}
     meta["trend"] = {"status": "planned"}
@@ -384,6 +388,8 @@ def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: boo
         meta["plots"]["status"] = status("git-of-theseus")
     if lizard_ok:
         meta["functions"]["status"] = status("functions")
+    if (meta.get("structure") or {}).get("status") == "planned":
+        meta["structure"]["status"] = status("structure")
     if duplicates_ok and "duplicates" in results:
         meta["duplicates"]["status"] = status("duplicates")
     if "trend" in results:
@@ -420,7 +426,8 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     lizard_ok = args.lizard
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
-                    since=args.since_date, lizard=lizard_ok, duplicates=duplicates_ok, backtest=cut, ignore_revs=run.ignore_revs_files(repo_dir))
+                    since=args.since_date, lizard=lizard_ok, duplicates=duplicates_ok, backtest=cut, ignore_revs=run.ignore_revs_files(repo_dir),
+                    structure=getattr(args, "structure", False))
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
     if _control.cancelled.is_set():

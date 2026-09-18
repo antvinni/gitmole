@@ -375,6 +375,7 @@ class LoadReport(unittest.TestCase):
             self.assertEqual(load.load_report(out)["signing"], {}, "an output directory from before the step, or a killed step")
             self.assertEqual(load.load_report(out)["hygiene"], {})
             self.assertEqual(load.load_report(out)["unreachable"], {})
+            self.assertEqual(load.load_report(out)["structure"], {})
 
     def test_missing_optional_file_gives_empty_value(self):
         import tempfile

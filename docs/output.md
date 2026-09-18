@@ -81,6 +81,36 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Greek or another confusable script (a warning). `hygiene.json` holds
    every check's raw result.
 
+   With `gitmole[structure]` installed (see
+   [install.md](https://github.com/antvinni/gitmole/blob/main/docs/install.md#structure-nesting-debt-markers-the-import-graph)),
+   tree-sitter parses every tracked file in eleven languages, once per
+   file content, and four more findings can appear. Debt the authors
+   flagged in hotspots: TODO, FIXME, XXX and HACK comments, the markers
+   Maldonado and Shihab defined, in the top ten hotspots (three or more in
+   one, or any in two). Deeply nested code: functions nested five levels or
+   more, or with three or more separate chunks of nested logic (CodeScene's
+   bumpy road), with Sonar's cognitive complexity beside them; a warning
+   when one sits in a top hotspot. Coupling with no import behind it: a
+   pair that changes together 60% of the time or more although neither
+   file imports the other, which Ajienka and Capiluppi found is common and
+   usually a shared format, a duplicated rule or copied code; only for
+   languages whose imports the graph mostly resolves (Python, JavaScript,
+   TypeScript, C, C++, Ruby). Possibly unreferenced files: Python,
+   JavaScript and TypeScript files nothing imports that are no entry point
+   by convention (`__main__.py`, `index.*`, `main.*`, `*.config.*`, a
+   dotfile, a file beside `package.json`, `bin/`, `scripts/`,
+   `migrations/`, file-routed `pages/` and `app/`), by declaration
+   (`pyproject.toml` scripts, `package.json` main, bin and exports) or by
+   content (a `__main__` guard, a shebang); a basename that recurs in three
+   directories, and a directory the code itself barely imports, are loaded
+   by name and left out, and a language where more than one file in twenty
+   still looks unreferenced loads code by name and gets no list at all.
+   Never "dead": a dynamic import does not show in an import graph.
+   Flow-typed JavaScript parses with errors, and its metrics come from the
+   partial tree. The watch list gains three reasons from the same step:
+   `5 TODO/FIXME comments`, `parse() nested 6 deep`, and `defines 72
+   functions and classes` for a file with sixty or more.
+
    Two checks are also reported when they pass: a green `No secrets in
    history` line closes the panel whenever the betterleaks scan ran and
    found no secret value, and a green `No known vulnerabilities in
@@ -238,7 +268,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    risk. Generated files, amalgamations and release plumbing leave the pool
    too, for their own reasons rather than that one. Under `--since`, churn
    and ownership are windowed and the list says so.
-   `--full` and the exports show fifteen.
+   `--full` and the exports show fifteen. The default report shows a row's
+   first six reasons, most actionable first, and counts the rest (`· 3
+   more`); `--full`, Markdown and the JSON carry them all.
    With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
    score as a bar and the reasons, or why it has none: the first reason that
@@ -411,6 +443,7 @@ directory for a remote target:
 | `signing.json` | signing step | commits signed, by mechanism (gpg, ssh, x509), by year, humans against bots, per identity and over the last year, from the commit objects |
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave |
+| `structure.json` | structure step, `gitmole[structure]` only | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports, its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the possibly unreferenced files; or a status saying how to install it |
 | `run.log` | gitmole | every command run and its stderr |
 
 ## How to read the output

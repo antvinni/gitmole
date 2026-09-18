@@ -1142,3 +1142,68 @@ class Hygiene(unittest.TestCase):
         self.assertEqual(found["trojan_source"]["severity"], "critical")
         self.assertIn("src/a.py:2 holds U+202E", found["trojan_source"]["detail"])
         self.assertIn("prоcess at src/b.py:2 mixes CYRILLIC and LATIN", found["trojan_source"]["detail"])
+
+
+class Structure(unittest.TestCase):
+    def base(self, **structure):
+        size = {f"src/f{i}.py": {"code": 1000 - i, "complexity": 1} for i in range(12)}
+        size.update({"tests/test_f.py": {"code": 50, "complexity": 1}})
+        s = {"status": "run", "resolved": {"python": 0.95}, "files": {p: {"language": "python", "debt": 0, "imports": [], "definitions": 5,
+                                                                         "max_nesting": 1, "max_cognitive": 3} for p in size},
+             "functions": [], "unreferenced": [], "unreferenced_count": 0}
+        s.update(structure)
+        return report(size={"files": size}, revisions=[{"entity": p, "n-revs": 100 - i} for i, p in enumerate(size)], structure=s)
+
+    def by_id(self, r):
+        return {f["rule"]["id"]: f for f in findings.evaluate(r)}
+
+    def test_debt_markers_in_top_hotspots(self):
+        r = self.base()
+        r["structure"]["files"]["src/f0.py"]["debt"] = 4
+        r["structure"]["files"]["src/f0.py"]["debt_sample"] = [{"line": 12, "tag": "TODO", "text": "# TODO: split"}]
+        r["structure"]["files"]["src/f3.py"]["debt"] = 1
+        f = self.by_id(r)["debt_in_hotspots"]
+        self.assertEqual((f["severity"], f["title"]), ("info", "Debt the authors flagged in hotspots"))
+        self.assertIn("2 of the top 10 hotspots carry TODO, FIXME, XXX or HACK comments: src/f0.py (4); src/f3.py (1).", f["detail"])
+        self.assertEqual(f["advice"], "Resolve or ticket the markers in src/f0.py first, starting at line 12; it changes often and its authors said it is unfinished.")
+        self.assertEqual(f["rule"]["ref"], "Maldonado and Shihab, MTD 2015")
+        r["structure"]["files"]["src/f0.py"]["debt"] = 1
+        r["structure"]["files"]["src/f3.py"]["debt"] = 0
+        self.assertNotIn("debt_in_hotspots", self.by_id(r), "one marker in one hotspot is ordinary")
+
+    def test_deeply_nested_and_bumpy_functions(self):
+        r = self.base(functions=[{"file": "src/f0.py", "name": "parse", "start": 10, "end": 300, "nesting": 6, "cognitive": 80, "complex_conditions": 2, "bumps": 3},
+                                 {"file": "src/f9.py", "name": "tidy", "start": 1, "end": 40, "nesting": 3, "cognitive": 12, "complex_conditions": 0, "bumps": 3},
+                                 {"file": "tests/test_f.py", "name": "test_x", "start": 1, "end": 40, "nesting": 7, "cognitive": 90, "complex_conditions": 0, "bumps": 4}])
+        f = self.by_id(r)["deep_nesting"]
+        self.assertEqual(f["severity"], "warning", "the worst sits in a top hotspot")
+        self.assertIn("parse (src/f0.py:10) nested 6 deep, cognitive complexity 80, 3 bumps", f["detail"])
+        self.assertIn("tidy (src/f9.py:1)", f["detail"], "three separate bumps are a bumpy road whatever the depth")
+        self.assertNotIn("test_x", f["detail"])
+        self.assertTrue(f["advice"].startswith("Flatten parse in src/f0.py first"), f["advice"])
+        self.assertEqual(f["rule"]["min_nesting"], 5)
+
+    def test_hidden_coupling_is_a_pair_that_changes_together_with_no_import_between(self):
+        r = self.base()
+        r["coupling"] = [{"entity": "src/f0.py", "coupled": "src/f1.py", "degree": 80, "average-revs": 20},
+                         {"entity": "src/f2.py", "coupled": "src/f3.py", "degree": 75, "average-revs": 20},
+                         {"entity": "src/f4.py", "coupled": "tests/test_f.py", "degree": 90, "average-revs": 20}]
+        r["structure"]["files"]["src/f2.py"]["imports"] = ["src/f3.py"]
+        f = self.by_id(r)["hidden_coupling"]
+        self.assertIn("src/f0.py and src/f1.py change together 80% of the time, and neither imports the other", f["detail"])
+        self.assertNotIn("src/f2.py", f["detail"], "an import explains that pair")
+        self.assertEqual(f["rule"]["ref"], "Ajienka and Capiluppi, JSS 2017")
+        r["structure"]["resolved"] = {"python": 0.3}
+        self.assertNotIn("hidden_coupling", self.by_id(r), "a graph that resolves a third of the imports cannot say what is hidden")
+
+    def test_possibly_unreferenced_files(self):
+        r = self.base(unreferenced=["src/f11.py"], unreferenced_count=1)
+        f = self.by_id(r)["unreferenced_files"]
+        self.assertEqual((f["severity"], f["title"]), ("info", "Possibly unreferenced files"))
+        self.assertIn("src/f11.py", f["detail"])
+        self.assertIn("dynamic imports, plugins loaded by name and framework routing do not show", f["advice"])
+
+    def test_nothing_without_the_step(self):
+        r = self.base()
+        r["structure"] = {"status": "not-installed"}
+        self.assertFalse({"debt_in_hotspots", "deep_nesting", "hidden_coupling", "unreferenced_files"} & set(self.by_id(r)))
