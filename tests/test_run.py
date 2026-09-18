@@ -218,12 +218,18 @@ class OutputDir(unittest.TestCase):
         self.assertEqual(run.output_dir("remote", "/tmp/clone/repo", None, cwd="/home/me"), "/home/me/analysis-repo")
 
 
+def by_name(steps):
+    return {s["name"]: s for s in steps}
+
+
 class Plan(unittest.TestCase):
     def test_lists_every_tool_and_theseus_plots_depend_on_analyze(self):
         steps = run.plan("/r", "/o")
         names = [s["name"] for s in steps]
-        for expected in ["scc", "git-sizer", "betterleaks", "git-log", "change analysis", "code age"]:
+        for expected in ["scc", "git-sizer", "betterleaks", "git-log", "change analysis", "code age", "signing", "hygiene"]:
             self.assertIn(expected, names)
+        self.assertEqual(by_name(steps)["signing"]["argv"][1:], ["-m", "gitmole.signing", "/o"], "commit signing coverage, read from the objects, no keyring")
+        self.assertEqual(by_name(steps)["signing"]["deps"], [], "it reads meta.json for the bot names, written before the steps start")
         for gone in ["onefetch", "git-quick-stats"]:
             self.assertNotIn(gone, names)
         for absent in ["git-of-theseus", "theseus stack plot", "theseus survival plot"]:
@@ -719,6 +725,11 @@ class ChangedFiles(unittest.TestCase):
 
 
 class ClearOutputs(unittest.TestCase):
+    def test_signing_and_hygiene_json_are_cleared_between_runs(self):
+        self.assertIn("signing.json", run.OUTPUTS)
+        self.assertIn("hygiene.json", run.OUTPUTS)
+        self.assertIn("unreachable.json", run.OUTPUTS)
+
     def test_removes_every_tool_output_but_keeps_meta_and_the_log(self):
         with tempfile.TemporaryDirectory() as out:
             os.makedirs(os.path.join(out, "theseus"))

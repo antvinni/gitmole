@@ -6,9 +6,15 @@ How to read each part of the terminal report, and what each run writes to disk; 
 
 1. **Header**: commits, date span, identities, branch, size, top languages,
    one line for the busiest day and hour, the share of fix commits, the
-   share that are reverts when there are any, and the year most surviving
-   code was written (or why the blame pass did not run), and a one-line
-   tally of the findings. With `--full`, and always in Markdown, a coverage
+   share that are reverts when there are any, the year most surviving
+   code was written (or why the blame pass did not run), and the share of
+   commits signed and by what (`51% of commits signed (gpg 49%, ssh 2%),
+   60% of the last year's`), and a one-line tally of the findings. Signing
+   is read from the `gpgsig` header in each commit object, so it needs no
+   keyring and a fresh clone reads the same as the author's; nothing is
+   verified, and the figure is evidence toward SLSA Source L2, never a
+   level. `--full` and Markdown add a Signing by year table with humans
+   against bots and the busiest identities. With `--full`, and always in Markdown, a coverage
    line counts the tracked text files by why they are out of the scored
    pool: `4,512 files: 582 scored · 13 generated · 2,680 test files · 139
    example code · 3 release files · 1,095 not a source type`, and a file of
@@ -49,6 +55,31 @@ How to read each part of the terminal report, and what each run writes to disk; 
    in the twelve months before the last commit who wrote 10% or more of the
    surviving code; a warning at 30%). An unconfigured identity is only
    flagged when it made at least 1% of the commits.
+
+   Repository hygiene is read from the clone alone, the checks OpenSSF
+   Scorecard and the OSPS Baseline otherwise make through the GitHub API,
+   each rule naming the Scorecard check it stands in for: workflow steps
+   that use an action by tag or branch rather than a full commit SHA (a
+   warning); a manifest whose last commit is newer than its lock file's, by
+   commit time (a warning), and a manifest of an ecosystem that locks by
+   convention with no lock file in its directory or above it (a note); the
+   ecosystems with a tracked lock file that `dependabot.yml` does not cover,
+   or no update tool at all (Renovate covers every manager by itself); no
+   licence file, no `SECURITY.md`, and `CODEOWNERS` lines that match no
+   tracked file; a scoped npm package resolved from another host than the
+   one `.npmrc` declares for its scope (a warning), lock files that mix
+   registries, and a pip `extra-index-url`; packages that run install
+   scripts, lifecycle scripts in the repository's own `package.json`, and
+   process or network calls in `setup.py`; executables by their magic bytes
+   (ELF, PE, Mach-O) outside test and example paths (a warning), and blobs
+   `.gitattributes` sends to LFS that were committed as they are;
+   submodule URLs with credentials (critical; the credential is redacted),
+   over plain `http://` or `git://` (a warning), relative, or following a
+   branch; symlinks that resolve outside the tree or into `.git/`; and
+   Trojan Source, bidirectional control characters in source files
+   (CVE-2021-42574, critical) and identifiers that mix Latin with Cyrillic,
+   Greek or another confusable script (a warning). `hygiene.json` holds
+   every check's raw result.
 
    Two checks are also reported when they pass: a green `No secrets in
    history` line closes the panel whenever the betterleaks scan ran and
@@ -108,6 +139,18 @@ How to read each part of the terminal report, and what each run writes to disk; 
    false positive for good, copy its fingerprint from `secrets.json` into a
    `.betterleaksignore` at the repository root; betterleaks reads it on the
    next run, and an existing `.gitleaksignore` works too.
+
+   betterleaks walks the history the refs reach; it does not see a commit
+   only the reflog remembers, a dropped stash or a blob added and never
+   committed. The secrets step also takes every object in the repository
+   less those a ref reaches, writes the blobs among them (up to 5,000, each
+   under a megabyte) under the output directory for one `betterleaks dir`
+   pass, removes them again, and reports what it finds as `(unreachable
+   blob <hash>)`; the footer says how many it scanned, or that there were
+   none, which is what a fresh clone looks like, since a clone fetches only
+   what a ref reaches. betterleaks' live validation of a found credential
+   is network, so gitmole passes `--validation=false` rather than rely on
+   the default.
 
    The values themselves are never written. `secrets.json` holds a short
    keyed hash in place of each value, the matched text and the commit
@@ -365,6 +408,9 @@ directory for a remote target:
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |
 | `trend.json` | trend step | complexity and lines of the top hotspots at sampled commits |
 | `backtest/` | backtest step | the change analysis and size as of six months before the last commit |
+| `signing.json` | signing step | commits signed, by mechanism (gpg, ssh, x509), by year, humans against bots, per identity and over the last year, from the commit objects |
+| `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source |
+| `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave |
 | `run.log` | gitmole | every command run and its stderr |
 
 ## How to read the output

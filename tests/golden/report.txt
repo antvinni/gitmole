@@ -3,13 +3,17 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 ╭─ demo ───────────────────────────────────────────────────────────────────────────────────────────╮
 │ 8 commits  ·  2024-01-10 → 2025-05-30  ·  2 identities  ·  branch main @ b310579c                │
 │ 10 lines in 3 files  ·  Python, Makefile                                                         │
-│ most commits on Wed at 09:00  ·  12% of commits are fixes  ·  82% of surviving code from 2024    │
-│ 1 note                                                                                           │
+│ most commits on Wed at 09:00  ·  12% of commits are fixes  ·  82% of surviving code from 2024  · │
+│ no commits signed                                                                                │
+│ 2 notes                                                                                          │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (1) ───────────────────────────────────────────────────────────────────────────────────╮
+╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ● Files that always change together                                                              │
 │   1 pair changes together at least 80% of the time, e.g. app/main.py + app/util.py (83%)         │
 │   ↳ Review app/main.py and app/util.py first: a shared layout or a hidden dependency links them. │
+│ ● Repository policy files                                                                        │
+│   No licence file at the root; no security policy (SECURITY.md)                                  │
+│   ↳ Add a LICENSE; without one nobody may reuse the code.                                        │
 │ ✔ No secrets in history                                                                          │
 │   betterleaks scanned every commit on every branch                                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -51,6 +55,6 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 
 ✚ Repo health (git-sizer concerns): nothing flagged
 
-Secrets: none found
+Secrets: none found; no unreachable objects (a fresh clone fetches only what a ref reaches)
 Dependencies: no lock files found
 Full results and plots in <out>

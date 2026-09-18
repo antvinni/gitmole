@@ -247,6 +247,37 @@ class Report(unittest.TestCase):
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
         self.assertNotIn("sweeping", caption)
 
+    def test_the_secrets_line_says_what_lay_outside_reachable_history(self):
+        r = sample_report()
+        r["unreachable"] = {"objects": 0, "blobs": 0, "scanned": 0, "findings": 0}
+        self.assertEqual(render.secrets_line(r), "Secrets: none found; no unreachable objects (a fresh clone fetches only what a ref reaches)")
+        r["unreachable"] = {"objects": 12, "blobs": 7, "scanned": 7, "findings": 0}
+        self.assertEqual(render.secrets_line(r), "Secrets: none found; 7 unreachable blobs scanned too")
+        r["unreachable"] = {}
+        self.assertEqual(render.secrets_line(r), "Secrets: none found", "an output directory from before the sweep")
+
+    def test_signing_coverage_is_a_header_phrase_and_a_full_only_table(self):
+        r = sample_report()
+        r["signing"] = {"commits": 363, "signed": 121, "mechanisms": {"ssh": 100, "gpg": 21},
+                        "by_year": {"2025": {"commits": 163, "signed": 21}, "2026": {"commits": 200, "signed": 100}},
+                        "humans": {"commits": 340, "signed": 121}, "bots": {"commits": 23, "signed": 0},
+                        "by_identity": [{"name": "Ann", "commits": 234, "signed": 120}, {"name": "Bob", "commits": 106, "signed": 1}],
+                        "last_year": {"commits": 210, "signed": 105}}
+        self.assertIn("33% of commits signed (ssh 28%, gpg 6%), 50% of the last year's", render.pulse(r))
+        text = rendered(r, [], width=200)
+        self.assertNotIn("◈ Signing", text, "the table is --full only")
+        full = rendered(r, [], width=200, full=True)
+        self.assertIn("Signing by year", full)
+        block = _section_text(full, "Signing by year")
+        self.assertRegex(block, r"2026\s+200\s+100\s+50%")
+        self.assertIn("humans 36% signed, bots 0%; Ann 51%, Bob 1%; read from the commit objects, nothing verified", block)
+        self.assertIn("## Signing by year", render.markdown(r, []))
+        r["signing"] = {"commits": 5, "signed": 0, "mechanisms": {}, "by_year": {"2026": {"commits": 5, "signed": 0}}, "humans": {"commits": 5, "signed": 0},
+                        "bots": {"commits": 0, "signed": 0}, "by_identity": [], "last_year": {"commits": 5, "signed": 0}}
+        self.assertIn("no commits signed", render.pulse(r))
+        r["signing"] = {}
+        self.assertFalse([p for p in render.pulse(r) if "signed" in p], "an output directory without the step says nothing")
+
     def test_footer_path_is_never_wrapped(self):
         r = sample_report()
         r["out_dir"] = "/very/long/" + "x" * 150 + "/analysis-demo"

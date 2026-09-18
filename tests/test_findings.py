@@ -1054,3 +1054,91 @@ class Evaluate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Hygiene(unittest.TestCase):
+    def h(self, **over):
+        base = {"actions": {"unpinned": [], "unpinned_count": 0, "pinned": 0, "local": 0},
+                "lockfiles": {"drift": [], "drift_count": 0, "missing": [], "missing_count": 0, "pairs": 0},
+                "updates": {"tool": "dependabot", "covered": [], "uncovered": []},
+                "presence": {"license": "LICENSE", "security_policy": "SECURITY.md", "codeowners": None, "codeowners_missing": []},
+                "confusion": {"scoped_public": [], "scoped_public_count": 0, "registries": {}, "pip_extra_index": []},
+                "install": {"lockfile": [], "lockfile_count": 0, "manifests": [], "setup_py": []},
+                "binaries": {"binaries": 0, "executables": [], "executables_count": 0, "by_name": [], "lfs_unpointed": []},
+                "submodules": {"count": 0, "insecure": [], "credentials": [], "relative": [], "floating": []},
+                "symlinks": {"count": 0, "outside": [], "into_git": []},
+                "trojan": {"files": 10, "bidi": [], "bidi_count": 0, "mixed_script": [], "mixed_script_count": 0}}
+        for k, v in over.items():
+            base[k] = {**base[k], **v}
+        return report(hygiene=base)
+
+    def by_id(self, r):
+        return {f["rule"]["id"]: f for f in findings.hygiene_findings(r)}
+
+    def test_a_clean_repository_has_none_and_an_old_output_directory_too(self):
+        self.assertEqual(findings.hygiene_findings(self.h()), [])
+        self.assertEqual(findings.hygiene_findings(report()), [])
+
+    def test_unpinned_actions_are_a_warning_naming_the_step_and_the_fix(self):
+        f = self.by_id(self.h(actions={"unpinned": [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4"},
+                                                    {"file": ".github/workflows/ci.yml", "uses": "org/deploy@main"}], "unpinned_count": 2, "pinned": 1}))["unpinned_actions"]
+        self.assertEqual((f["severity"], f["title"]), ("warning", "Actions pinned by tag or branch"))
+        self.assertIn("2 of 3 workflow steps use an action by tag or branch: actions/checkout@v4 and org/deploy@main in .github/workflows/ci.yml.", f["detail"])
+        self.assertTrue(f["advice"].startswith("Pin org/deploy@main to a full commit SHA first"), f["advice"])
+        self.assertEqual(f["rule"]["scorecard"], "Pinned-Dependencies")
+
+    def test_lockfile_drift_and_missing_lockfiles(self):
+        found = self.by_id(self.h(lockfiles={"drift": [{"manifest": "package.json", "lockfile": "package-lock.json", "manifest_date": "2026-03-01", "lockfile_date": "2026-01-01"}],
+                                             "drift_count": 1, "missing": [{"manifest": "lib/Cargo.toml", "expected": ["Cargo.lock"]}], "missing_count": 1, "pairs": 3}))
+        self.assertEqual(found["lockfile_drift"]["severity"], "warning")
+        self.assertIn("package.json changed on 2026-03-01, after package-lock.json last did on 2026-01-01", found["lockfile_drift"]["detail"])
+        self.assertEqual(found["lockfile_missing"]["severity"], "info")
+        self.assertIn("lib/Cargo.toml has no Cargo.lock", found["lockfile_missing"]["detail"])
+
+    def test_update_tooling(self):
+        f = self.by_id(self.h(updates={"tool": "dependabot", "covered": ["npm"], "uncovered": ["gomod", "pip"]}))["dependency_updates"]
+        self.assertIn("dependabot.yml covers npm but not gomod and pip", f["detail"])
+        f = self.by_id(self.h(updates={"tool": None, "covered": [], "uncovered": ["npm"]}))["dependency_updates"]
+        self.assertIn("No dependency update tool is declared for npm", f["detail"])
+
+    def test_policy_files(self):
+        f = self.by_id(self.h(presence={"license": None, "security_policy": None, "codeowners": ".github/CODEOWNERS", "codeowners_missing": ["/gone/"]}))["repo_policy"]
+        self.assertEqual(f["severity"], "info")
+        self.assertIn("No licence file at the root; no security policy (SECURITY.md); .github/CODEOWNERS names 1 path that matches no tracked file: /gone/.", f["detail"])
+
+    def test_dependency_confusion_is_a_warning_when_a_scoped_package_left_its_registry(self):
+        f = self.by_id(self.h(confusion={"scoped_public": [{"lockfile": "package-lock.json", "package": "@acme/auth", "registry": "registry.npmjs.org",
+                                                           "declared": "npm.acme.internal"}], "scoped_public_count": 1}))["dependency_confusion"]
+        self.assertEqual(f["severity"], "warning")
+        self.assertIn("@acme/auth resolved from registry.npmjs.org in package-lock.json, though .npmrc sends @acme to npm.acme.internal", f["detail"])
+        f = self.by_id(self.h(confusion={"pip_extra_index": ["pip.conf"]}))["dependency_confusion"]
+        self.assertEqual(f["severity"], "info")
+
+    def test_install_scripts_are_a_note(self):
+        f = self.by_id(self.h(install={"lockfile": [{"lockfile": "package-lock.json", "package": "esbuild"}], "lockfile_count": 1,
+                                       "manifests": [{"file": "package.json", "scripts": ["postinstall"]}], "setup_py": [{"file": "setup.py", "calls": ["subprocess.run"]}]}))["install_scripts"]
+        self.assertEqual(f["severity"], "info")
+        self.assertIn("1 locked package runs an install script (esbuild); package.json declares postinstall; setup.py calls subprocess.run", f["detail"])
+
+    def test_committed_executables_outside_tests_are_a_warning(self):
+        f = self.by_id(self.h(binaries={"binaries": 3, "executables": [{"file": "build/app.exe", "format": "PE"}, {"file": "tests/data/x.so", "format": "ELF"}],
+                                        "executables_count": 2, "lfs_unpointed": ["data/big.bin"]}))["committed_binaries"]
+        self.assertEqual(f["severity"], "warning")
+        self.assertIn("build/app.exe (PE)", f["detail"])
+        self.assertNotIn("tests/data/x.so", f["detail"], "a test fixture is expected to be a binary")
+        self.assertIn("data/big.bin is committed as a blob though .gitattributes sends it to LFS", f["detail"])
+        self.assertEqual(f["rule"]["scorecard"], "Binary-Artifacts")
+
+    def test_submodules_symlinks_and_trojan_source(self):
+        found = self.by_id(self.h(submodules={"count": 2, "credentials": [{"name": "c", "url": "https://***@example.com/c.git"}], "insecure": [{"name": "a", "url": "http://x/a.git"}]},
+                                  symlinks={"count": 2, "outside": [{"link": "src/out", "target": "../../etc/passwd"}]},
+                                  trojan={"bidi": [{"file": "src/a.py", "line": 2, "char": "U+202E"}], "bidi_count": 1,
+                                          "mixed_script": [{"file": "src/b.py", "line": 2, "token": "prоcess", "scripts": ["CYRILLIC", "LATIN"]}], "mixed_script_count": 1}))
+        self.assertEqual(found["submodule_urls"]["severity"], "critical", "a credential in a tracked file")
+        self.assertIn("c carries credentials in its URL", found["submodule_urls"]["detail"])
+        self.assertNotIn("tok", found["submodule_urls"]["detail"])
+        self.assertEqual(found["unsafe_symlinks"]["severity"], "warning")
+        self.assertIn("src/out points outside the tree (../../etc/passwd)", found["unsafe_symlinks"]["detail"])
+        self.assertEqual(found["trojan_source"]["severity"], "critical")
+        self.assertIn("src/a.py:2 holds U+202E", found["trojan_source"]["detail"])
+        self.assertIn("prоcess at src/b.py:2 mixes CYRILLIC and LATIN", found["trojan_source"]["detail"])

@@ -189,7 +189,7 @@ def manifest(repo_dir: str, args, version_of=tool_version) -> dict:
 # Everything a run writes besides meta.json and run.log. Removed before each run so a reused
 # --out directory never shows a previous run's data as this run's (a step skipped or killed
 # this time would otherwise leave last time's file in place).
-OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "dependencies.json", "log.txt", "activity.json", "functions.csv",
+OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "dependencies.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json",
            "duplicates.json", "duplicates.txt",   # duplicates.txt: what lizard's finder wrote before jscpd
            "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]
@@ -255,6 +255,8 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         # stash is not a commit
         {"name": "git-log", "argv": [*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", f"--pretty=format:{LOG_FORMAT}", "-M", "-w", "--ignore-blank-lines"], "stdout": log, "deps": []},
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json"), *revs_args], "stdout": None, "deps": ["git-log"]},
+        {"name": "signing", "argv": [sys.executable, "-m", "gitmole.signing", out_dir], "stdout": None, "deps": []},   # the gpgsig headers, no keyring
+        {"name": "hygiene", "argv": [sys.executable, "-m", "gitmole.hygiene", out_dir], "stdout": None, "deps": []},   # the Scorecard checks, from the clone
     ]
     workers = procs or blame.default_procs()
     if lizard:

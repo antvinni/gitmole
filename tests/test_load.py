@@ -271,6 +271,8 @@ class LoadReport(unittest.TestCase):
                                                  "database_date": "2026-09-17"}),
                 "theseus/cohorts.json": json.dumps({"labels": ["Code added in 2026"], "ts": ["t"], "y": [[10]]}),
                 "theseus/authors.json": json.dumps({"labels": ["Ann"], "ts": ["t"], "y": [[10]]}),
+                "signing.json": json.dumps({"commits": 3, "signed": 1, "mechanisms": {"ssh": 1}, "by_year": {"2026": {"commits": 3, "signed": 1}},
+                                            "humans": {"commits": 3, "signed": 1}, "bots": {"commits": 0, "signed": 0}, "by_identity": [], "last_year": {"commits": 3, "signed": 1}}),
             }
             for name, text in files.items():
                 with open(os.path.join(out, name), "w") as fh:
@@ -295,6 +297,7 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["duplicates"], {"rate": 5.0, "files": 2, "blocks": [{"lines": 40, "places": [("a.py", 1, 40), ("b.py", 1, 40)]}]})
         self.assertEqual(r["dependencies"], {"status": "scanned", "sources": [{"path": "uv.lock", "packages": 4}], "packages": 4, "vulnerable": [],
                                              "database_date": "2026-09-17"})
+        self.assertEqual(r["signing"]["signed"], 1)
         self.assertEqual(r["out_dir"], out)
 
     def test_an_older_output_directory_still_reads_lizards_duplicates_and_has_no_dependency_scan(self):
@@ -363,6 +366,15 @@ class LoadReport(unittest.TestCase):
                 json.dump({"labels": ["Bob", "Robert", "Ann"], "ts": ["t"], "y": [[70], [20], [10]]}, fh)
             r = load.load_report(out)
         self.assertEqual(r["theseus_authors"], {"Bob": 90, "Ann": 10})
+
+    def test_no_signing_file_is_an_empty_record(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                fh.write("{}")
+            self.assertEqual(load.load_report(out)["signing"], {}, "an output directory from before the step, or a killed step")
+            self.assertEqual(load.load_report(out)["hygiene"], {})
+            self.assertEqual(load.load_report(out)["unreachable"], {})
 
     def test_missing_optional_file_gives_empty_value(self):
         import tempfile

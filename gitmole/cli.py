@@ -41,6 +41,9 @@ def parse_args(argv):
     p.add_argument("--full", action="store_true", help="every section, column and row in the terminal report: adds hotspots, size, activity and code age, and the test files the default tables hide (the default is the tighter, readable one)")
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
+    p.add_argument("--sarif", metavar="PATH", help="write the findings as SARIF 2.1.0 to PATH, or - for stdout, for GitHub code scanning and GitLab")
+    p.add_argument("--sarif-scope", choices=["head", "history"], default="head",
+                   help="with --sarif: head keeps only results whose file is in the tree (default); history keeps every result, the commit in its properties")
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
     p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) by their share of the repository's revisions × lines of code; needs a local path")
     p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the changed files hold more than N percent of the repository's revisions × lines of code")
@@ -80,7 +83,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if args.clean:
         return _clean(args, console, ask or (lambda q: console.input(q, markup=False)))
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
-    quiet = "-" in (args.json, args.markdown)
+    quiet = "-" in (args.json, args.markdown, args.sarif)
     ui = Console(stderr=True) if quiet else console
 
     rc, now = _resolve_time(args, err, ui)
@@ -582,7 +585,10 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
         _write(json.dumps(render.to_json(report, found, risk=risk, compare=comparison), indent=2) + "\n", args.json, console)
     if args.markdown:
         _write(render.markdown(report, found, full=args.full, risk=risk, base=args.risk, compare=comparison), args.markdown, console)
-    if "-" not in (args.json, args.markdown):
+    if args.sarif:
+        from . import sarif
+        _write(sarif.dumps(report, found, scope=args.sarif_scope), args.sarif, console)
+    if "-" not in (args.json, args.markdown, args.sarif):
         render.report(report, found, console, full=args.full, risk=risk, base=args.risk, compare=comparison)
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
         return 3

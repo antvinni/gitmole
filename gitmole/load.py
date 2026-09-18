@@ -328,5 +328,8 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         # scan); a missing file means the step did not finish or the run predates it
         "dependencies": parse_dependencies(_read_json(out_dir, "dependencies.json", None)),
         "trend": _read_json(out_dir, "trend.json", {"samples": [], "files": {}}),
+        "signing": _read_json(out_dir, "signing.json", {}) or {},   # commit signing coverage; {} before the step or after a killed one
+        "hygiene": _read_json(out_dir, "hygiene.json", {}) or {},   # the hygiene checks (hygiene.py); {} before 0.15
+        "unreachable": _read_json(out_dir, "unreachable.json", {}) or {},   # what the secrets step found outside reachable history
         "backtest": _nested(out_dir) if nested else None,
     }

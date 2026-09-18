@@ -27,7 +27,12 @@ try:
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
 
-ARGV = ["betterleaks", "git", "--no-banner", "--report-format", "json", "--report-path", "-", "--exit-code", "0"]
+# --validation=false: betterleaks can check a found credential against the live service, which is network;
+# it is off by default, and gitmole says so rather than rely on the default
+ARGV = ["betterleaks", "git", "--no-banner", "--report-format", "json", "--report-path", "-", "--exit-code", "0", "--validation=false"]
+DIR_ARGV = ["betterleaks", "dir", "{dir}", "--no-banner", "--report-format", "json", "--report-path", "-", "--exit-code", "0", "--validation=false"]
+UNREACHABLE_CAP = 5000          # blobs scanned outside reachable history; the count of the rest is recorded
+UNREACHABLE_MAX_BYTES = 1_000_000
 # the value, the text around it, and the commit message, which can quote it; Attributes repeats the message
 RAW_FIELDS = ("Secret", "Match", "Line", "Message", "Attributes")
 
@@ -170,6 +175,62 @@ def placeholders(rows: list) -> int:
     return len({(r["commit"], r["file"], r.get("line")) for r in rows if r.get("placeholder")})
 
 
+def unreachable(repo: str):
+    """The objects no ref reaches: a commit only the reflog remembers, a stash dropped, a blob added and
+    never committed. betterleaks walks the reachable history and sees none of them. Every object in the
+    repository (`cat-file --batch-all-objects`) less those `rev-list --objects --all` reaches; the blobs
+    among them, up to the cap and under a megabyte, are what gets scanned. None outside a repository. A
+    fresh clone fetches only reachable objects, so there it is zero, and the record says so."""
+    def run(*args):
+        return subprocess.run(["git", *args], cwd=repo, capture_output=True)
+    every = run("cat-file", "--batch-all-objects", "--batch-check=%(objectname) %(objecttype) %(objectsize)")
+    reached = run("rev-list", "--objects", "--all")
+    if every.returncode != 0 or reached.returncode != 0:
+        return None
+    seen = {line.split(b" ", 1)[0] for line in reached.stdout.split(b"\n") if line}
+    objects, blobs = 0, []
+    for line in every.stdout.split(b"\n"):
+        parts = line.split()
+        if len(parts) != 3 or parts[0] in seen:
+            continue
+        objects += 1
+        if parts[1] == b"blob" and int(parts[2]) <= UNREACHABLE_MAX_BYTES:
+            blobs.append(parts[0].decode())
+    return {"objects": objects, "blobs": len(blobs), "shas": sorted(blobs)}
+
+
+def scan_unreachable(repo: str, out_dir: str, found: dict) -> list:
+    """betterleaks over the unreachable blobs, each written under the output directory by its hash and
+    removed again; its rows name the blob as `(unreachable blob <hash>)`, with no commit."""
+    shas = found["shas"][:UNREACHABLE_CAP]
+    if not shas:
+        return []
+    with tempfile.TemporaryDirectory(dir=out_dir, prefix=".unreachable-") as tmp:
+        proc = subprocess.run(["git", "cat-file", "--batch"], cwd=repo, capture_output=True, input="\n".join(shas).encode() + b"\n")
+        data, pos = proc.stdout, 0
+        for sha in shas:
+            end = data.find(b"\n", pos)
+            if end < 0:
+                break
+            header = data[pos:end].split()
+            size = int(header[2]) if len(header) == 3 else 0
+            with open(os.path.join(tmp, sha), "wb") as fh:
+                fh.write(data[end + 1:end + 1 + size])
+            pos = end + 1 + size + 1
+        argv = [tmp if a == "{dir}" else a for a in DIR_ARGV]
+        scan = subprocess.run(argv, cwd=repo, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
+        if scan.returncode != 0:
+            print(f"leaks.py: betterleaks dir exited {scan.returncode}; unreachable blobs not scanned", file=sys.stderr)
+            return []
+        text = scan.stdout.decode("utf-8", "surrogateescape").strip()
+        rows = (json.loads(text) if text else None) or []
+    for r in rows:
+        sha = os.path.basename(r.get("File") or "")
+        r["File"] = f"(unreachable blob {sha[:12]})"
+        r["Commit"] = ""
+    return rows
+
+
 def main(argv=None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 1:
@@ -185,7 +246,13 @@ def main(argv=None) -> int:
     raw = (json.loads(text) if text else None) or []   # a clean repository is reported as null
     for r in raw[:LINE_LOOKUPS]:   # betterleaks does not report the line; the clone in the current directory has it
         r["Line"] = line_of(os.getcwd(), r.get("Commit") or "", r.get("File") or "", int(r.get("StartLine") or 0), above=2)
-    rows = sanitise(raw)
+    found = unreachable(os.getcwd())
+    extra = scan_unreachable(os.getcwd(), os.path.dirname(os.path.abspath(target)), found) if found else []
+    rows = sanitise(raw + extra)
+    if found is not None:
+        with open(os.path.join(os.path.dirname(os.path.abspath(target)), "unreachable.json"), "w", encoding="utf-8") as fh:
+            json.dump({"objects": found["objects"], "blobs": found["blobs"], "scanned": min(found["blobs"], UNREACHABLE_CAP),
+                       "findings": len(extra)}, fh)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(target)), prefix=".secrets-", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:

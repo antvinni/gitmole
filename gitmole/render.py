@@ -286,7 +286,24 @@ def pulse(report: dict) -> list:
         out.append(f"{_pct(lines, sum(cohorts.values()))} of surviving code from {label.replace('Code added in ', '')}")
     elif _age_status(report) != "run":
         out.append(_age_reason(report))   # the age table is --full only, so this is where a timeout shows
+    signed = signing_phrase(report)
+    if signed:
+        out.append(signed)
     return out
+
+
+def signing_phrase(report: dict):
+    """'33% of commits signed (ssh 28%, gpg 6%), 50% of the last year's', or 'no commits signed'; None
+    without the step. Read from the commit objects, nothing verified: evidence, not a level."""
+    sig = report.get("signing") or {}
+    if not sig.get("commits"):
+        return None
+    if not sig.get("signed"):
+        return "no commits signed"
+    mix = ", ".join(f"{k} {_pct(v, sig['commits'])}" for k, v in sorted((sig.get("mechanisms") or {}).items(), key=lambda kv: (-kv[1], kv[0])))
+    last = sig.get("last_year") or {}
+    tail = f", {_pct(last['signed'], last['commits'])} of the last year's" if last.get("commits") else ""
+    return f"{_pct(sig['signed'], sig['commits'])} of commits signed ({mix}){tail}"
 
 
 def _age_status(report: dict) -> str:
@@ -478,6 +495,24 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     room = width - INDENT - MONTH_WIDTH * len(span) if width else None
     rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
     return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))
+
+
+def signing_section(report: dict, full: bool = True, width=None) -> dict:
+    """Signed commits per year, from the gpgsig headers: --full and Markdown only."""
+    sig = report.get("signing") or {}
+    columns = [("year", {}), ("commits", RIGHT), ("signed", RIGHT), ("share", RIGHT)]
+    if not sig.get("commits"):
+        return _section("Signing by year", columns, [], note="no signing data")
+    rows = [(year, y["commits"], y["signed"], _pct(y["signed"], y["commits"])) for year, y in sorted((sig.get("by_year") or {}).items())]
+    humans, bots = sig.get("humans") or {}, sig.get("bots") or {}
+    parts = []
+    if humans.get("commits"):
+        parts.append(f"humans {_pct(humans['signed'], humans['commits'])} signed" + (f", bots {_pct(bots['signed'], bots['commits'])}" if bots.get("commits") else ""))
+    people = [i for i in (sig.get("by_identity") or [])[:5]]
+    if people:
+        parts.append(", ".join(f"{i['name']} {_pct(i['signed'], i['commits'])}" for i in people))
+    parts.append("read from the commit objects, nothing verified")
+    return _section("Signing by year", columns, rows, caption="; ".join(parts))
 
 
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
@@ -703,10 +738,10 @@ def compare_section(result: dict) -> dict:
 
 
 BUILDERS = [watch_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
-            hotspots_section, coupling_section, age_section, functions_section, health_section]
+            hotspots_section, coupling_section, signing_section, age_section, functions_section, health_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
 # do next; Hotspots ranks the files the watch list already leads with, by the same product.
-FULL_ONLY = {"size", "activity", "age", "hotspots"}
+FULL_ONLY = {"size", "activity", "age", "hotspots", "signing"}
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
@@ -733,6 +768,11 @@ def secrets_line(report: dict) -> str:
     skipped = leaks.placeholders(rows)
     if skipped:
         line += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
+    loose = report.get("unreachable") or {}
+    if loose and not loose.get("objects"):
+        line += "; no unreachable objects (a fresh clone fetches only what a ref reaches)"
+    elif loose.get("scanned"):
+        line += f"; {loose['scanned']:,} unreachable blob{'s' if loose['scanned'] != 1 else ''} scanned too"
     return line
 
 

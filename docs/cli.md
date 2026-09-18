@@ -52,6 +52,8 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--deep` | Run code age, plots and the duplicates step regardless of their budgets. |
 | `--gone MONTHS` | How long without a commit counts as gone, measured before the last commit. Default 12. |
 | `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout. |
+| `--sarif PATH` | Write the findings as SARIF 2.1.0 to PATH, or `-` for stdout, for GitHub code scanning and GitLab. See [SARIF](#sarif). |
+| `--sarif-scope head\|history` | With `--sarif`: `head` (the default) keeps only the results whose file is in the tree; `history` keeps every result, the commit in its properties. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
 | `--fail-on LEVEL` | Exit 3 if any finding is at `critical`, `warning` or `info` or worse. |
 | `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
@@ -116,6 +118,33 @@ author's prior commits here (`touches 9 files across 4 directories, 3
 commits; adds 340 lines to 1,200 (28%), removes 12; most of the change is
 in one file; 3 of the 9 files changed this month; the files have 130 prior
 changes by 3 people; Bob has 3 prior commits here`).
+
+## SARIF
+
+`gitmole . --sarif gitmole.sarif` writes the findings in the format GitHub
+code scanning and GitLab read: one run with gitmole as the driver, a rule
+per finding id with its title, detail and advice, a result per place the
+evidence names, `level` from the severity (critical is `error`, warning is
+`warning`, info is `note`) and `properties["security-severity"]`, which is
+what GitHub ranks alerts by (9.0 critical, 5.0 warning, 2.0 info; a
+vulnerable dependency carries its advisory's own score, a malicious one
+10.0). Every result has a `partialFingerprints` entry hashed from rule,
+path, commit and line, so a second upload updates alerts instead of
+duplicating them; for a secret that hash comes from where it was found,
+never from the value, so two runs agree although the keyed value hashes
+never do. A secret is one result per place, pointing at the file and
+naming the commit; its line belongs to that commit's version of the file,
+so under the default `--sarif-scope head` it carries no region, and a
+secret in a file no longer in the tree, a sweeping commit and anything else
+without a HEAD location are left out. `--sarif-scope history` keeps them,
+with the commit under `properties.commit`.
+
+```yaml
+- run: gitmole . --out analysis --sarif gitmole.sarif
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: gitmole.sarif
+```
 
 ## Agent hooks
 
