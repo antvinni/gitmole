@@ -73,7 +73,7 @@ jobs:
           subject-path: report.json
           predicate-type: https://github.com/antvinni/gitmole/report/v1
           predicate-path: predicate.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gitmole-report
           path: report.json
@@ -100,7 +100,7 @@ jobs:
         run: |
           export GITMOLE_NOW="$(git log -1 --format=%cs)"
           gitmole . --out analysis --json report-linux.json > /dev/null
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gitmole-report-linux
           path: report-linux.json
@@ -177,7 +177,7 @@ jobs:
         run: |
           python -m pip install build
           python -m build
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist
           path: dist/
