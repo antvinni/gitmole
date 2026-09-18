@@ -307,6 +307,16 @@ class Report(unittest.TestCase):
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["pool"], 2)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["baselines"]["churn"], 1)
 
+    def test_nothing_fixed_since_the_cut_off_is_one_sentence_not_three_zeros(self):
+        r = sample_report()
+        past = sample_report()
+        past["meta"] = {"now": "2026-03-10"}
+        r["backtest"] = past
+        r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-01-01", "recent-fixes": 0}]   # before the cut-off
+        caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
+        self.assertIn("nothing has been fixed since the cut-off six months ago, so there is nothing to score the list against", caption)
+        self.assertNotIn("0 of the 0", caption)
+        self.assertEqual(render.to_json(r, [])["watch_backtest"]["fixed"], 0, "the JSON keeps the numbers")
 
     def test_backtest_caption_says_whole_history_under_a_window(self):
         r = sample_report()
@@ -317,7 +327,7 @@ class Report(unittest.TestCase):
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
         r["meta"]["since"] = "2026-01-01"
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2026-01-01", caption)
+        self.assertIn("ranked by revisions × lines of code alone; the reasons say what to look at there; commits since 2026-01-01", caption)
         self.assertTrue(caption.endswith("the 2 most changed would name 1); whole history"), caption)
 
     def test_markdown_hotspots_hide_test_files_and_say_so(self):
@@ -707,7 +717,7 @@ class WatchList(unittest.TestCase):
         self.assertIn("◎ Watch list", text)
         self.assertRegex(text, r"static/index.html\s+changed 51 times · only Ann has touched it")
         self.assertRegex(text, r"static/apps-metadata.json\s+changed 128 times · fixed 4 times in six months")
-        self.assertIn("ranked by revisions × lines of code; the reasons say what else counts against each file", text)
+        self.assertIn("ranked by revisions × lines of code alone; the reasons say what to look at there", text)
 
     def test_capped_at_five_by_default_and_fifteen_in_full(self):
         r = sample_report()
@@ -748,7 +758,7 @@ class WatchList(unittest.TestCase):
         r = sample_report()
         r["meta"]["since"] = "2025-01-01"
         sec = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
-        self.assertEqual(sec["caption"], "ranked by revisions × lines of code; the reasons say what else counts against each file; commits since 2025-01-01")
+        self.assertEqual(sec["caption"], "ranked by revisions × lines of code alone; the reasons say what to look at there; commits since 2025-01-01")
 
 
 class FullOnlySections(unittest.TestCase):

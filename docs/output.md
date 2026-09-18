@@ -265,8 +265,9 @@ directory for a remote target:
    renames, so a moved file is one entity under its new path and a pure move
    adds no lines: whoever moved a tree to `src/` did not write it, and the
    knowledge map says so. Large files that change constantly are your risk; the
-   reasons say what else counts against each file, and the backtest line says
-   how the same list would have done six months ago. The hotspots table behind
+   reasons do not move a file, they say what to look at there, and the backtest
+   line says how the same list would have done six months ago, or that nothing
+   has been fixed since the cut-off. The hotspots table behind
    it, which `--full` and the Markdown export add, ranks every file by the same
    product and carries the trend column; the Markdown export caps it and leaves
    test files, deleted files, generated files and release plumbing out, saying
