@@ -41,7 +41,12 @@ churn × (1 + recent fixes) × (1 + complexity) × 1.5 for a single owner,
 with each factor divided by the repository's largest value (`max-scaled`,
 the score 0.7 shipped) or taken as the file's rank among the scored files
 (`rank-scaled`). `churn` is revisions alone, `size` lines of code alone, and
-`recent fixes` the fix commits of the six months before T.
+`recent fixes` the fix commits of the six months before T. `change entropy
+(HCM)` is Hassan's history complexity metric (ICSE 2009), the one metric with
+published evidence of beating churn: per calendar month, the Shannon entropy
+of the files' shares of that month's changes, normalised by log2 of the files
+changed; a file's score is the sum over months of its share times that
+entropy, each month's weight halved for every month back from T.
 
 ## Results
 
@@ -55,6 +60,7 @@ the score 0.7 shipped) or taken as the file's rank among the scored files
 | churn | 15 | 14 | 13 | 13 | 15 | 15 | 85 |
 | size | 15 | 15 | 15 | 15 | 15 | 15 | 90 |
 | recent fixes | 14 | 14 | 14 | 13 | 15 | 15 | 85 |
+| change entropy (HCM) | 12 | 13 | 15 | 15 | 14 | 15 | 84 |
 | random (expected) | 4.4 | 4.4 | 4.8 | 3.9 | 7.6 | 5.0 | 30.1 |
 
 `--all` exports 39,902 commits (7,470 fixes); HEAD reaches 39,758 (7,461 fixes).
@@ -69,6 +75,7 @@ the score 0.7 shipped) or taken as the file's rank among the scored files
 | churn | 12 | 11 | 12 | 10 | 12 | 12 | 69 |
 | size | 15 | 15 | 13 | 13 | 14 | 13 | 83 |
 | recent fixes | 13 | 14 | 15 | 14 | 14 | 13 | 83 |
+| change entropy (HCM) | 12 | 13 | 6 | 11 | 13 | 10 | 65 |
 | random (expected) | 2.8 | 2.7 | 3.2 | 3.3 | 3.2 | 3.3 | 18.5 |
 
 `--all` exports 52,840 commits (30,130 fixes); HEAD reaches 34,933 (20,452 fixes).
@@ -83,6 +90,7 @@ the score 0.7 shipped) or taken as the file's rank among the scored files
 | churn | 3 | 5 | 6 | 9 | 5 | 7 | 35 |
 | size | 8 | 5 | 9 | 9 | 7 | 8 | 46 |
 | recent fixes | 8 | 6 | 7 | 9 | 8 | 6 | 44 |
+| change entropy (HCM) | 4 | 2 | 10 | 7 | 10 | 3 | 36 |
 | random (expected) | 1.3 | 0.8 | 0.9 | 0.8 | 0.9 | 0.4 | 5.1 |
 
 `--all` exports 35,268 commits (4,501 fixes); HEAD reaches 21,703 (2,985 fixes).
@@ -97,6 +105,7 @@ the score 0.7 shipped) or taken as the file's rank among the scored files
 | churn | 85 | 69 | 35 | 189 |
 | size | 90 | 83 | 46 | 219 |
 | recent fixes | 85 | 83 | 44 | 212 |
+| change entropy (HCM) | 84 | 65 | 36 | 185 |
 | random (expected) | 30.1 | 18.5 | 5.1 | 53.7 |
 
 Of 270 possible: three repositories, six cut-offs, fifteen files.
@@ -125,6 +134,12 @@ django and eight to twelve times on react. Beyond that:
 - **Churn alone does worst**, 189. Its product with size, which is what the
   watch list ranks by, does better than either factor alone in total, though
   not on curl, where size alone is ahead.
+- **Change entropy does not earn the rank**, 185: two behind the watch
+  list on curl (84), nineteen behind on django (65) and nineteen on
+  react (36), and behind size alone and recent fixes everywhere but curl.
+  The roadmap's own rule applies: it stays a reason, `changed in 14
+  different months`, printed beside a file that changed in twelve or more,
+  and never a rank.
 - **curl is saturated.** Between 26% and 64% of its scored files get a
   fix-labelled commit in any six months, so almost any sensible fifteen
   hit; size alone scores 90 of 90 there. The backtest line under a

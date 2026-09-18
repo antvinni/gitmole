@@ -651,6 +651,31 @@ class CollectMeta(unittest.TestCase):
 
 
 class ChangedFiles(unittest.TestCase):
+    def test_change_stats_carry_the_lines_the_author_and_the_commit_count(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="a@x",
+                         GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="a@x")
+                e.update(env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q", "-b", "main")
+            with open(os.path.join(d, "a.py"), "w") as fh:
+                fh.write("x\ny\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "base")
+            git("switch", "-q", "-c", "feature")
+            with open(os.path.join(d, "a.py"), "w") as fh:
+                fh.write("x\nz\nw\n")
+            with open(os.path.join(d, "b.py"), "w") as fh:
+                fh.write("1\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "work", GIT_AUTHOR_NAME="Bob", GIT_AUTHOR_EMAIL="b@x")
+            git("commit", "-q", "--allow-empty", "-m", "more", GIT_AUTHOR_NAME="Bob", GIT_AUTHOR_EMAIL="b@x")
+            stats = run.change_stats(d, "main")
+            with self.assertRaises(ValueError):
+                run.change_stats(d, "nope")
+        self.assertEqual(stats, {"files": ["a.py", "b.py"], "added": {"a.py": 2, "b.py": 1}, "deleted": {"a.py": 1, "b.py": 0}, "author": "Bob", "commits": 2})
+
     def test_lists_paths_changed_since_the_merge_base(self):
         with tempfile.TemporaryDirectory() as d:
             def git(*args):

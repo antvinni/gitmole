@@ -45,8 +45,16 @@ def parse_args(argv):
     p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) by their share of the repository's revisions × lines of code; needs a local path")
     p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the changed files hold more than N percent of the repository's revisions × lines of code")
     p.add_argument("--compare", metavar="BEFORE_JSON", help="add a 'Since last report' section against an earlier --json export of the same clone")
+    p.add_argument("--hook", action="store_true", help="with --no-run: read an agent hook's JSON on stdin (or files after --), score the files it names like --risk, "
+                                                       "print a summary the agent reads back, exit 2 when --risk-threshold is exceeded")
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
-    return p.parse_args(argv)
+    # --hook takes the files to score after --, pre-commit's way. Split them off here: Python 3.9's argparse
+    # cannot give a second positional a value once optionals sit between it and the first.
+    argv = list(argv)
+    files = argv[argv.index("--") + 1:] if "--" in argv else []
+    args = p.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
+    args.files = files
+    return args
 
 
 _control = run.Control()
@@ -58,7 +66,7 @@ def interrupt(*_):
 
 
 def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
-         lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard, ask=None) -> int:
+         lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard, ask=None, stdin=None) -> int:
     global _control
     _control = run.Control()
     if threading.current_thread() is threading.main_thread():
@@ -80,7 +88,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         return rc
 
     if args.no_run:
-        return _no_run(args, console, ui, err)
+        return _no_run(args, console, ui, err, stdin)
 
     try:
         kind, target = run.classify_target(args.target)
@@ -128,7 +136,8 @@ def _check_args(args, err, kind=None) -> int | None:
     if kind is None:
         bad = ("--yes needs --clean" if args.yes and not args.clean else
                "target required" if args.target is None and not args.clean else
-               "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk else
+               "--hook needs --no-run and an output directory" if args.hook and not args.no_run else
+               "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk and not args.hook else
                "--compare: no such file: " + args.compare if args.compare and not os.path.isfile(args.compare) else None)
     elif kind == "path":
         bad = None
@@ -164,8 +173,9 @@ def _resolve_time(args, err, ui):
     return None, now
 
 
-def _no_run(args, console, ui, err) -> int:
-    """Handle --no-run: re-render an existing output directory instead of running the pipeline."""
+def _no_run(args, console, ui, err, stdin=None) -> int:
+    """Handle --no-run: re-render an existing output directory instead of running the pipeline, or,
+    with --hook, score the files an agent's hook names against it."""
     if args.since:
         err.print("[red]--since needs a run:[/red] a re-render cannot narrow an earlier analysis")
         return 2
@@ -173,9 +183,37 @@ def _no_run(args, console, ui, err) -> int:
     if not os.path.isfile(os.path.join(out_dir, "meta.json")):
         err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
         return 2
+    if args.hook:
+        return _hook(out_dir, args, console, err, sys.stdin if stdin is None else stdin)
     if ui.is_terminal:
         ui.print(banner.neon(version=__version__))
     return _render(out_dir, console, ui, args, err)
+
+
+def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
+    """The agent-hook gate (see hook.py): 2 over the threshold, 0 otherwise, silent when the event
+    names no file in the repository."""
+    from . import hook, watch
+    try:
+        report = load.load_report(out_dir)
+    except load.Unreadable as e:
+        err.print(f"[red]{e}[/red]", soft_wrap=True)
+        return 0   # a broken output directory must not block an edit
+    repo = report["meta"].get("path") or os.getcwd()
+    event = {} if args.files else hook.read_event(stdin)
+    files = [os.path.relpath(os.path.abspath(f), os.path.realpath(repo)) if os.path.isabs(f) else f for f in args.files] or hook.paths_in(event, repo)
+    if not files:
+        return 0
+    risk = watch.change_risk(report, files)
+    lines = hook.summary(risk, args.risk_threshold)
+    if args.files:
+        console.print("\n".join(lines), soft_wrap=True, markup=False, highlight=False)
+    else:
+        console.print(hook.hook_output(event, lines), soft_wrap=True, markup=False, highlight=False)
+    if args.risk_threshold is not None and risk["total"] > args.risk_threshold:
+        err.print("\n".join(lines), soft_wrap=True, markup=False, highlight=False)   # exit 2: what the agent is told
+        return 2
+    return 0
 
 
 def _clean(args, console: Console, ask) -> int:
@@ -516,12 +554,12 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
     risk = None
     if args.risk:
         try:
-            files = run.changed_files(report["meta"].get("path") or os.getcwd(), args.risk)
+            stats = run.change_stats(report["meta"].get("path") or os.getcwd(), args.risk)
         except ValueError as e:
             err.print(f"[red]--risk {args.risk}:[/red] {e}", soft_wrap=True)
             return 2
         from . import watch
-        risk = {"base": args.risk, **watch.change_risk(report, files)}
+        risk = {"base": args.risk, **watch.change_risk(report, stats["files"], stats)}
     comparison = None
     if args.compare:
         from . import compare as _compare
