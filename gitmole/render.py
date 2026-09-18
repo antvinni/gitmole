@@ -525,6 +525,16 @@ def signing_section(report: dict, full: bool = True, width=None) -> dict:
     return _section("Signing by year", columns, rows, caption="; ".join(parts))
 
 
+def watch_by_component_section(report: dict, full: bool = True, width=None) -> dict:
+    """The watch list's top files within each component: --full and Markdown only."""
+    groups = watch.by_component(watch.risks(report))
+    rows = [(g["component"], f"{g['share']:.0f}%", " · ".join(x["file"] for x in g["files"]))
+            for g in groups]
+    columns = [("component", PATH), ("share", RIGHT), ("top files", {"overflow": "fold", "ratio": 3})]
+    return _section("Watch list by component", columns, rows, note=None if rows else "no component holds 5% of the list's score",
+                    caption="each component's share of the watch list's revisions × lines of code, and its own top files" if rows else None)
+
+
 def trailers_section(report: dict, full: bool = True, width=None) -> dict:
     """The trailer keys the history carries, with the cohort comparison and the neutral commit-shape
     descriptors below: --full and Markdown only. Read, never inferred; nothing is labelled."""
@@ -772,11 +782,11 @@ def compare_section(result: dict) -> dict:
     return _section("Since last report", columns, rows, note=note, caption="\n".join(lines))
 
 
-BUILDERS = [watch_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
+BUILDERS = [watch_section, watch_by_component_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
             hotspots_section, coupling_section, signing_section, trailers_section, age_section, functions_section, health_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
 # do next; Hotspots ranks the files the watch list already leads with, by the same product.
-FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers"}
+FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "watch_by_component"}
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
@@ -1132,6 +1142,8 @@ def to_json(report: dict, findings: list, risk: dict = None, compare: dict = Non
     out = {**{k: v for k, v in report.items() if k != "backtest"}, "findings": findings,   # the sub-report is a report of its own
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
+    out["watch_by_component"] = [{"component": g["component"], "share": round(g["share"], 3), "files": [x["file"] for x in g["files"]]}
+                                 for g in watch.by_component(watch.risks(report))]
     bt = watch.backtest(report)
     if bt is not None:
         out["watch_backtest"] = bt

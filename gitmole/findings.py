@@ -1101,10 +1101,118 @@ def signoff_by_co_author(report: dict, min_commits: int = 2) -> list:
                evidence={"identities": rows[:10]})]
 
 
+def _pool_files(report: dict) -> list:
+    """The source files still in the tree that no classifier reason sets aside."""
+    from . import classify
+    cls = classify.Classifier(report)
+    return sorted(f for f in _tree(report) if cls.reason(f) is None)
+
+
+def _authors_of(report: dict, files: list, key: str = "is_author") -> dict:
+    wanted = set(files)
+    out = {f: set() for f in files}
+    for r in report.get("doa") or []:
+        if r["entity"] in wanted and r.get(key):
+            out[r["entity"]].add(r["author"])
+    return out
+
+
+def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> list:
+    """Avelino et al.'s truck factor over the degree of authorship: how many people have to leave before
+    more than half the source files have no author. One is a warning, two a note. Changes rather than
+    lines, and a creator's bonus, so it can disagree with the surviving-code share, which the bus-factor
+    finding reads; the finding says so when it does. Also per area, and with knowledge halving every
+    five months."""
+    if not report.get("doa"):
+        return []
+    files = _pool_files(report)
+    authored = {f: a for f, a in _authors_of(report, files).items()}
+    if len(files) < min_files:
+        return []
+    tf, removed, share = knowledge.truck_factor(authored)
+    tf_d, removed_d, _ = knowledge.truck_factor(_authors_of(report, files, "is_author_decayed"))
+    depth = knowledge.depth_for(files)
+    areas = {}
+    for f in files:
+        areas.setdefault(knowledge._area(f, depth), []).append(f)
+    lone = []
+    for area, fs in sorted(areas.items()):
+        if len(fs) >= area_files and area != knowledge.ROOT:
+            n, who, _ = knowledge.truck_factor({f: authored[f] for f in fs})
+            if n == 1:
+                lone.append((area, who[0]))
+    if tf > 2 and not lone:
+        return []
+    orphans = round(share * len(files))
+    statement = (f"Truck factor {tf}: without {textfmt.join_and(removed)}, {orphans} of the {len(files)} source files ({_pct(orphans, len(files))}) "
+                 f"have no author left.")
+    if tf_d != tf:
+        statement += f" With knowledge halving every five months it is {tf_d} ({textfmt.join_and(removed_d)})."
+    if lone:
+        statement += " Areas with a truck factor of one: " + ", ".join(f"{a} ({w})" for a, w in lone[:5]) + (f" and {len(lone) - 5} more" if len(lone) > 5 else "") + "."
+    shares = report.get("theseus_authors") or {}
+    if shares and removed:
+        top, lines = max(shares.items(), key=lambda kv: kv[1])
+        if top != removed[0]:
+            statement += f" The surviving code's largest share is {top}'s ({_pct(lines, sum(shares.values()))}), which the bus-factor finding reads."
+    first_area = next((a for a, w in lone if w == removed[0]), lone[0][0] if lone else None)
+    advice = f"Pair someone with {removed[0]}" + (f" on {first_area}" if first_area else "") + " first; they author most of what would be left without an author."
+    return [_f("warning" if tf == 1 else "info", "Truck factor", statement, advice,
+               rule={"id": "truck_factor", "doa_author_share": 0.75, "doa_floor": 3.293, "orphan_share": 0.5, "decay_months": 5,
+                     "ref": "Avelino et al., ICPC 2016"},
+               evidence={"truck_factor": tf, "removed": removed, "truck_factor_decayed": tf_d, "removed_decayed": removed_d,
+                         "files": len(files), "orphaned": orphans, "areas": [{"area": a, "author": w} for a, w in lone[:10]]})]
+
+
+def authors_gone(report: dict, min_files: int = 5) -> list:
+    """Files whose every author by degree of authorship has stopped committing, while others still
+    change them: "creator left, editors remain", knowledge the blame share cannot show."""
+    if not report.get("doa"):
+        return []
+    months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
+    gone = {g["name"] for g in loss.gone(report, months)}
+    fresh = {a["entity"] for a in report.get("age") or [] if a["age-months"] < 12}
+    files = [f for f in _pool_files(report) if f in fresh]
+    authored = _authors_of(report, files)
+    left = [(f, sorted(a)) for f, a in authored.items() if a and a <= gone]
+    if len(left) < min_files:
+        return []
+    listed = "; ".join(f"{f} ({textfmt.join_and(a)})" for f, a in left[:5]) + (f" and {len(left) - 5} more" if len(left) > 5 else "")
+    return [_f("info", "Files whose authors have left", f"{len(left)} source files changed in the last year have no author still committing: {listed}.",
+               f"Make the people who edit {left[0][0]} its authors: review its design with them and write down what only {left[0][1][0]} knew.",
+               rule={"id": "authors_gone", "gone_months": months, "min_files": min_files, "ref": "Avelino et al., ICPC 2016"},
+               evidence={"count": len(left), "files": [{"file": f, "authors": a} for f, a in left[:10]]})]
+
+
+def component_coupling(report: dict, min_degree: int = 30) -> list:
+    """Components (top-level directories, or the level below a lone src/) that change together in a
+    large share of their changes: coupling at the level of the architecture, where two files in one
+    directory is only a layout."""
+    rows = report.get("components") or []
+    if not rows:
+        return []
+    depth = knowledge.depth_for(list(_tree(report)) or [r["entity"] + "x" for r in rows])
+
+    def aside(c):
+        probe = c + "x.py"
+        return filetypes.is_test_path(probe) or filetypes.is_sample_path(probe) or filetypes.is_doc_path(probe) or filetypes.is_vendor_path(probe)
+    pairs = [r for r in rows if r["depth"] == depth and r["degree"] >= min_degree and not aside(r["entity"]) and not aside(r["coupled"])]
+    if not pairs:
+        return []
+    listed = "; ".join(f"{p['entity']} and {p['coupled']} change together in {p['degree']}% of their changes ({p['shared']} shared)" for p in pairs[:3])
+    more = f" ({len(pairs) - 3} more pairs)" if len(pairs) > 3 else ""
+    first = pairs[0]
+    return [_f("info", "Components that change together", f"{listed}{more}.",
+               f"Look at what {first['entity']} and {first['coupled']} share: a change that keeps landing in both is an interface nobody named.",
+               rule={"id": "component_coupling", "min_degree": min_degree, "depth": depth, "ref": "Tornhill, Your Code as a Crime Scene, 2024"},
+               evidence={"pairs": [{"a": p["entity"], "b": p["coupled"], "degree": p["degree"], "shared": p["shared"]} for p in pairs[:10]]})]
+
+
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets,
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
          sweeping_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, unreferenced_files,
-         agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author]
+         agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author,
+         truck_factor, authors_gone, component_coupling]
 
 
 def evaluate(report: dict) -> list:

@@ -8,12 +8,12 @@ citation in its `rule.ref`, so a reader checking the JSON sees it where the numb
 ## Research
 
 - Ajienka and Capiluppi, "Understanding the interplay between the logical and structural coupling of software classes," *JSS* 134, 2017. [link](https://www.sciencedirect.com/science/article/abs/pii/S016412121730184X): the `hidden_coupling` finding.
-- Avelino, Passos, Hora and Valente, "A Novel Approach for Estimating Truck Factors," *ICPC* 2016. [arXiv:1604.06766](https://arxiv.org/pdf/1604.06766): a degree-of-authorship bus factor, *not built*.
-- Becker et al., "Bus Factor Explorer," *ASE* 2023 tool paper. [arXiv:2403.08038](https://arxiv.org/pdf/2403.08038): knowledge decay for the bus factor, *not built*.
+- Avelino, Passos, Hora and Valente, "A Novel Approach for Estimating Truck Factors," *ICPC* 2016. [arXiv:1604.06766](https://arxiv.org/pdf/1604.06766): `maat.doa`, the `truck_factor` and `authors_gone` findings.
+- Becker et al., "Bus Factor Explorer," *ASE* 2023 tool paper. [arXiv:2403.08038](https://arxiv.org/pdf/2403.08038): the five-month knowledge decay in `maat.doa` and the decayed truck factor.
 - Bird, Nagappan, Murphy, Gall and Devanbu, "Don't Touch My Code!," *FSE* 2011. [PDF](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/bird2011dtm.pdf): the `minor` column in `maat-authors.csv`, the watch reason and the `minor_contributors` finding.
 - Borg, Hagatulah, Tornhill and Söderberg, "Code for Machines, Not Just Humans," 2026. [arXiv:2601.02200](https://arxiv.org/html/2601.02200): why structure metrics earned the optional `structure.py` step.
 - Boucher and Anderson, "Trojan Source: Invisible Vulnerabilities," *USENIX Security* 2023: the `trojan_source` check in `hygiene.py`.
-- Eyolfson, Tan and Lam, "Correlations between bugginess and time-based commit characteristics," *EMSE* 19, 2014. [PDF](https://www.cs.purdue.edu/homes/lintan/publications/commitTime-emse14.pdf): late-night commits as a reason, *not built*.
+- Eyolfson, Tan and Lam, "Correlations between bugginess and time-based commit characteristics," *EMSE* 19, 2014. [PDF](https://www.cs.purdue.edu/homes/lintan/publications/commitTime-emse14.pdf): `maat.latenight` and the midnight-to-4-am watch reason, never a rank.
 - Fu and Menzies, "Revisiting Unsupervised Learning for Defect Prediction," *FSE* 2017. [arXiv:1703.00132](https://arxiv.org/pdf/1703.00132): why the Kamei factors on `--risk` stay reasons and never a score.
 - Gall, Hajek and Jazayeri, "Detection of logical coupling based on product release history," *ICSM* 1998: change coupling, the `tight_coupling` finding.
 - Hassan, "Predicting Faults Using the Complexity of Code Changes," *ICSE* 2009. [PDF](https://sailresearch.github.io/sail-website/data/pdfs/ICSE2009_PredictingFaultsUsingTheComplexityOfCodeChanges.pdf): `maat.entropy`, the backtest variant and the `changed in N different months` reason.
@@ -35,7 +35,7 @@ citation in its `rule.ref`, so a reader checking the JSON sees it where the numb
 - Yang et al., "Effort-aware just-in-time defect prediction: simple unsupervised models could be better than supervised models," *FSE* 2016. [ACM](https://dl.acm.org/doi/10.1145/2950290.2950353): the Kamei factors on `--risk`.
 - Zimmermann, Weißgerber, Diehl and Zeller, "Mining Version Histories to Guide Software Changes," *TSE* 31(6), 2005. [PDF](https://thomas-zimmermann.com/publications/files/zimmermann-tse-2005.pdf): `coupling_gaps` on `--risk` and the `--hook` summary.
 - "PR-SZZ: How pull requests can support the tracing of defects in software repositories," 2022. [arXiv:2206.09967](https://arxiv.org/pdf/2206.09967): crediting `Co-authored-by` trailers in `maat.py` and `blame.py`.
-- "Knowledge Islands: Visualizing Developers Knowledge Concentration," *SBES* 2024. [arXiv:2408.08733](https://arxiv.org/html/2408.08733v1): knowledge decay, *not built*.
+- "Knowledge Islands: Visualizing Developers Knowledge Concentration," *SBES* 2024. [arXiv:2408.08733](https://arxiv.org/html/2408.08733v1): recency beside authorship, behind the decayed truck factor.
 - "Self-Admitted Technical Debt in methods: a large-scale study," 2024. [arXiv:2411.13777](https://arxiv.org/html/2411.13777v2): the evidence behind `debt_in_hotspots`.
 - "Revisiting the Identification of the Co-evolution of Production and Test Code," *TOSEM* 2023. [ACM](https://dl.acm.org/doi/10.1145/3607183): `maat.test_cochange`.
 - "The Distribution of Commit Sizes in Open Source," 2014. [arXiv:1408.4974](https://arxiv.org/pdf/1408.4974): the repository's own 99th percentile in `maat.sweeping` and `maat.oversized`.
@@ -53,7 +53,7 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 
 - code-maat (Adam Tornhill). [README](https://github.com/adamtornhill/code-maat/blob/master/README.md): the layout of `maat.py`, its temporal period behind `maat.changesets`, and `soc`.
 - pyszz_v2 (Rosa et al.). [repo](https://github.com/grosa1/pyszz_v2/): the reference R-SZZ `szz.py` follows.
-- Bus Factor Explorer (JetBrains Research). [repo](https://github.com/JetBrains-Research/bus-factor-explorer): *not built*.
+- Bus Factor Explorer (JetBrains Research). [repo](https://github.com/JetBrains-Research/bus-factor-explorer): the decay in `maat.doa`.
 - py-tree-sitter and the tree-sitter grammar wheels (MIT). [repo](https://github.com/tree-sitter/py-tree-sitter): `structure.py`, behind `gitmole[structure]`.
 - tree-sitter-language-pack 1.20.0. [PyPI](https://pypi.org/project/tree-sitter-language-pack/): considered and not used; it downloads its grammars at run time.
 - lizard, issue #432. [issue](https://github.com/terryyin/lizard/issues/432): why cognitive complexity comes from `structure.py`.
@@ -74,7 +74,7 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 
 - CodeScene, Code Health. [docs](https://docs.enterprise.codescene.io/latest/guides/technical/code-health.html): nesting and the bumpy road in `structure.py`, the `deep_nesting` finding.
 - CodeScene, terminology. [docs](https://docs.enterprise.codescene.io/versions/6.0.8/terminology/codescene-terminology.html): ticket-ID grouping in `maat.changesets`.
-- CodeScene, hotspots guide. [docs](https://docs.enterprise.codescene.io/versions/4.4.2/guides/technical/hotspots.html): per-component scoping, *not built*.
+- CodeScene, hotspots guide. [docs](https://docs.enterprise.codescene.io/versions/4.4.2/guides/technical/hotspots.html): the watch list by component and `component_coupling`.
 - SonarSource, Cognitive Complexity. [PDF](https://www.sonarsource.com/docs/CognitiveComplexity.pdf): cognitive complexity in `structure.py`.
 - GitHub, SARIF support for code scanning. [docs](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support): `sarif.py`.
 - GitLab, SARIF reports. [docs](https://docs.gitlab.com/user/application_security/detect/sarif/): every SARIF result needs a rule id and, to be kept, a location.

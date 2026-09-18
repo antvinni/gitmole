@@ -1,0 +1,7 @@
+# Keeps the workflow's actions, pinned by commit SHA, current: gitmole's own unpinned-actions rule asks for both.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

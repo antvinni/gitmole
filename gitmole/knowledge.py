@@ -78,3 +78,37 @@ def islands(areas_list: list, min_lines: int = 200, min_share: float = 0.9) -> l
         if n / a["lines"] >= min_share:
             out.append({"area": a["area"], "owner": owner, "share": round(100 * n / a["lines"]), "lines": a["lines"]})
     return out
+
+
+def truck_factor(authors_of: dict, orphan_share: float = 0.5) -> tuple:
+    """Avelino et al.'s truck factor: remove the person who authors the most files, again and again, until
+    more than half the files have no author left. (the number removed, their names in order, the share
+    orphaned at the end). authors_of: {file: set of names}."""
+    files = list(authors_of)
+    if not files:
+        return 0, [], 0.0
+    remaining = {f: set(a) for f, a in authors_of.items()}
+    removed = []
+
+    def orphaned():
+        return sum(1 for a in remaining.values() if not a) / len(files)
+    while orphaned() <= orphan_share:
+        counts = {}
+        for a in remaining.values():
+            for who in a:
+                counts[who] = counts.get(who, 0) + 1
+        if not counts:
+            break
+        top = min(counts, key=lambda w: (-counts[w], w))
+        removed.append(top)
+        for a in remaining.values():
+            a.discard(top)
+    return len(removed), removed, orphaned()
+
+
+def depth_for(paths: list, dominant: float = 0.8) -> int:
+    """1 for top-level directories, 2 when one top-level directory holds `dominant` of the files (a lone
+    src/), as the knowledge map chooses."""
+    from collections import Counter
+    tops = Counter(_area(p, 1) for p in paths)
+    return 2 if tops and tops.most_common(1)[0][1] >= dominant * len(paths) and tops.most_common(1)[0][0] != ROOT else 1

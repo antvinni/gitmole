@@ -99,7 +99,8 @@ coupling over logical changesets, test co-change, authors with their minor
 contributors, age, ownership over the numstat log, co-authors credited,
 sweeping commits and declared ignore-revs left out, oversized fixes out of
 the fix pool, tangled commits counted; the file names still say maat because
-the layout matches what code-maat produced), `blame.py` is the standalone
+the layout matches what code-maat produced; degree of authorship, commits
+between midnight and 4 am and coupling between components are gitmole's own), `blame.py` is the standalone
 code-age pass (its output mimics git-of-theseus so one loader serves both),
 `leaks.py` runs betterleaks and hashes the values before anything is
 written, `duplicates.py` runs jscpd and keeps the blocks without their text,

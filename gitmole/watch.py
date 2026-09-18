@@ -31,6 +31,7 @@ PARTNERS_FLOOR = 20     # this many files it shares five or more commits with is
 DEBT_FLOOR = 3          # TODO/FIXME/XXX/HACK comments worth naming in a hot file
 NESTING_FLOOR = 5       # a function nested this deep is worth naming (CodeScene flags from 4)
 GOD_FILE = 60           # top-level functions, classes and methods in one file: a god file
+LATE_FLOOR, LATE_SHARE = 3, 0.25   # commits between midnight and 4 am, the author's own time: this many, and this share
 PERIODS_FLOOR = 12      # changes in this many different months: scattered, Hassan's entropy signal, a reason and never a rank
 TESTED_SETS = 5         # this many changes before the share of them that moved a test says anything
 TESTED_SHARE = 0.2      # a test moved with at most this share of the file's changes: a hot file whose tests do not follow it
@@ -83,6 +84,7 @@ def risks(report: dict, min_revs: int = 2) -> list:
     has_tests = any(filetypes.is_test_path(p) for p in ((report.get("size") or {}).get("files") or {}))
     tested = {t["entity"]: (t["n-sets"], t["with-tests"]) for t in report.get("tests") or []} if has_tests else {}
     periods = {e["entity"]: e["periods"] for e in report.get("entropy") or []}   # absent before 0.14
+    late = {e["entity"]: (e["late"], e["n-revs"]) for e in report.get("latenight") or []}   # absent before 0.19
     shape = (report.get("structure") or {}).get("files") or {}   # tree-sitter, with gitmole[structure]
     nested = {}
     for f in (report.get("structure") or {}).get("functions") or []:
@@ -105,6 +107,7 @@ def risks(report: dict, min_revs: int = 2) -> list:
                      "authors": n_authors.get(h["entity"]), "owner": owner, "owner_share": share,
                      "minor": minors.get(h["entity"], 0), "partners": partners.get(h["entity"], 0),
                      "periods": periods.get(h["entity"]),
+                     "late": late.get(h["entity"], (0, 0))[0], "late_revs": late.get(h["entity"], (0, 0))[1],
                      "debt": (shape.get(h["entity"]) or {}).get("debt", 0), "definitions": (shape.get(h["entity"]) or {}).get("definitions", 0),
                      "deepest": nested.get(h["entity"]),
                      "changes": tested.get(h["entity"], (None, None))[0], "with_tests": tested.get(h["entity"], (None, None))[1],
@@ -185,9 +188,28 @@ def _reasons(r: dict) -> list:
         out.append(f"changes alongside {r['partners']} other files")   # sum of coupling: weakly coupled to everything
     if r.get("definitions", 0) >= GOD_FILE:
         out.append(f"defines {r['definitions']} functions and classes")
+    if r.get("late", 0) >= LATE_FLOOR and r["late"] / max(1, r.get("late_revs") or 1) >= LATE_SHARE:
+        out.append(f"{round(100 * r['late'] / r['late_revs'])}% of its changes made between midnight and 4 am")   # Eyolfson et al.: a tie-breaker, never a rank
     if (r.get("periods") or 0) >= PERIODS_FLOOR:
         out.append(f"changed in {r['periods']} different months")   # Hassan's scatter: lost on the backtest, so a reason, not a rank
     return out
+
+
+def by_component(rows: list, top: int = 3, min_share: float = 5.0, limit: int = 8) -> list:
+    """The watch list within each component (top-level directory, or the next level down when one holds
+    most of the files): one busy subtree otherwise takes the whole list. Components holding at least
+    `min_share` percent of the pool's score, largest first, each with its own top files."""
+    from . import knowledge
+    from .maat import component
+    if not rows:
+        return []
+    depth = knowledge.depth_for([r["file"] for r in rows])
+    groups = {}
+    for r in rows:
+        groups.setdefault(component(r["file"], depth), []).append(r)
+    out = [{"component": c, "share": sum(x["score"] for x in rs), "files": rs[:top]} for c, rs in groups.items()]
+    out.sort(key=lambda g: (-g["share"], g["component"]))
+    return [g for g in out if g["share"] >= min_share][:limit]
 
 
 REASONS_SHOWN = 6   # the default terminal report's cap per row; --full, Markdown and the JSON carry every reason

@@ -138,6 +138,25 @@ How to read each part of the terminal report, and what each run writes to disk; 
    commits or more, is a note: the Linux kernel's policy forbids an agent
    to add the Developer Certificate of Origin.
 
+   Knowledge is also measured by degree of authorship (Avelino et al.): per
+   file and person, a bonus for creating it (the first commit that added
+   lines to it; a pure move creates nothing), their own changes, and a
+   logarithmic dilution by everyone else's, so changes count, not lines,
+   and a reformat transfers nothing. A person is an author of a file when
+   their degree is at least three quarters of the file's highest. The
+   truck factor is how many authors have to leave before more than half
+   the source files have none; one is a warning, two a note, and an area
+   whose own truck factor is one is named. It is computed a second time
+   with knowledge halving every five months (JetBrains' Bus Factor
+   Explorer), and when the surviving code's largest share belongs to
+   someone else, the finding says so. Files whose authors have left: five
+   or more source files changed in the last year whose every author has
+   stopped committing, "creator left, editors remain". Components that
+   change together: top-level directories (or the level below a lone
+   `src/`) sharing 30% or more of their logical changes, test,
+   documentation, example and vendored directories left out: coupling at
+   the level of the architecture.
+
    Two checks are also reported when they pass: a green `No secrets in
    history` line closes the panel whenever the betterleaks scan ran and
    found no secret value, and a green `No known vulnerabilities in
@@ -284,7 +303,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    further down the list may have none), the files it always changes
    with, when it shares five or more commits with twenty or more other
    files, how many (Tornhill's sum of coupling: the file weakly coupled to
-   everything), when it changed in twelve or more different months, how
+   everything), when three or more and a quarter of its changes were made
+   between midnight and 4 am in the author's own time zone, how many
+   (Eyolfson et al.; a tie-breaker, never a rank), when it changed in twelve or more different months, how
    many (Hassan's change entropy: scattered changes, which lost to the
    ranking on the backtest and so stay a reason), and, over five or more changes, when a test file moved
    with at most a fifth of them (`no test changed in its 38 changes`, `a
@@ -297,7 +318,11 @@ How to read each part of the terminal report, and what each run writes to disk; 
    risk. Generated files, amalgamations and release plumbing leave the pool
    too, for their own reasons rather than that one. Under `--since`, churn
    and ownership are windowed and the list says so.
-   `--full` and the exports show fifteen. The default report shows a row's
+   `--full` and the exports show fifteen. `--full` and Markdown add a Watch
+   list by component: each component's share of the list's revisions ×
+   lines of code and its own top three files, since one busy subtree
+   otherwise takes the whole list; the JSON carries it as
+   `watch_by_component`. The default report shows a row's
    first six reasons, most actionable first, and counts the rest (`· 3
    more`); `--full`, Markdown and the JSON carry them all.
    With `--risk BASE`, a
@@ -457,6 +482,9 @@ directory for a remote target:
 | `maat-coupling.csv` | change analysis | files that change together, over logical changes (a ticket's commits, or one author's day) |
 | `maat-soc.csv` | change analysis | sum of coupling per file: its co-changes with any other file, and how many files it shares five or more commits with, over logical changes |
 | `maat-tests.csv` | change analysis | per production file, how many logical changes touched it and how many of those also touched a test file |
+| `maat-doa.csv` | change analysis | degree of authorship per file and person: created it, own changes, others' changes, the degree undecayed and with knowledge halving every five months, and whether each counts as an author |
+| `maat-latenight.csv` | change analysis | per file, its revisions and how many were committed between midnight and 4 am in the author's own time zone |
+| `maat-components.csv` | change analysis | coupling between components at one and two directory levels, over logical changes: shared changes, degree, average revisions |
 | `maat-entropy.csv` | change analysis | Hassan's change entropy per file: the months it changed in, and its decayed history complexity (its share of each month's changes times that month's entropy over files, halved per month back) |
 | `maat-authors.csv` | change analysis | authors per file (co-authors included), and how many of them are minor contributors |
 | `maat-age.csv` | change analysis | months since last change per file |

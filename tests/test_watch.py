@@ -100,6 +100,21 @@ class Risks(unittest.TestCase):
         self.assertIn("defines 72 functions and classes", reasons)
         self.assertFalse([x for x in by["core/util.py"]["reasons"] if "TODO" in x or "nested" in x or "defines" in x])
 
+    def test_late_night_changes_are_a_reason_and_never_a_rank(self):
+        r = report()
+        r["latenight"] = [{"entity": "core/parser.py", "n-revs": 40, "late": 12}, {"entity": "core/util.py", "n-revs": 30, "late": 2}]
+        by = {x["file"]: x for x in watch.risks(r)}
+        self.assertIn("30% of its changes made between midnight and 4 am", by["core/parser.py"]["reasons"])
+        self.assertNotIn("midnight", " ".join(by["core/util.py"]["reasons"]))
+        self.assertEqual([x["file"] for x in watch.risks(r)], [x["file"] for x in watch.risks(report())], "the rank does not move")
+
+    def test_the_watch_list_by_component(self):
+        r = report()
+        groups = watch.by_component(watch.risks(r), top=2)
+        self.assertEqual([(g["component"], [x["file"] for x in g["files"]]) for g in groups],
+                         [("web/", ["web/index.html"]), ("core/", ["core/parser.py", "core/util.py"])])
+        self.assertAlmostEqual(sum(g["share"] for g in groups), 100.0)
+
     def test_tests_that_never_move_with_a_file_are_a_reason(self):
         r = report()
         r["tests"] = [{"entity": "core/parser.py", "n-sets": 38, "with-tests": 0}, {"entity": "core/util.py", "n-sets": 28, "with-tests": 4},
