@@ -38,13 +38,13 @@ class ActionsPinning(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             r = Repo(d)
             r.write(".github/workflows/ci.yml", "jobs:\n  t:\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-python@" + "a" * 40 + " # v5\n"
-                    "      - uses: ./local/action\n      - uses: docker://alpine:3\n      - uses: 'org/repo@main'\n")
+                    "      - uses: ./local/action\n      - uses: docker://alpine:3\n      - uses: 'org/repo@main'\n      - uses: $/.github/actions/x\n")
             r.write(".github/workflows/release.yaml", "jobs:\n  r:\n    steps:\n      - uses: softprops/action-gh-release@" + "b" * 64 + "\n")
             r.commit()
             out = hygiene.actions_pinning(d)
         self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4"}, {"file": ".github/workflows/ci.yml", "uses": "org/repo@main"}])
         self.assertEqual(out["pinned"], 2)
-        self.assertEqual(out["local"], 2, "a local action and a docker image are neither")
+        self.assertEqual(out["local"], 3, "a local action, a docker image and a path without @ref (curl writes $/.github/...) are neither")
 
 
 class Lockfiles(unittest.TestCase):

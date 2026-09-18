@@ -78,7 +78,7 @@ def actions_pinning(repo: str) -> dict:
         if not re.match(r"^\.github/workflows/[^/]+\.ya?ml$", path):
             continue
         for ref in _USES.findall(_text(repo, path)):
-            if ref.startswith("./") or ref.startswith("docker://"):
+            if ref.startswith("./") or ref.startswith("docker://") or "@" not in ref:   # a remote action always names its ref
                 local += 1
             elif "@" in ref and _SHA.match(ref.rsplit("@", 1)[1]):
                 pinned += 1
