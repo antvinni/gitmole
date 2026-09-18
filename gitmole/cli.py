@@ -44,6 +44,7 @@ def parse_args(argv):
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
     p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) by their share of the repository's revisions × lines of code; needs a local path")
     p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the changed files hold more than N percent of the repository's revisions × lines of code")
+    p.add_argument("--compare", metavar="BEFORE_JSON", help="add a 'Since last report' section against an earlier --json export of the same clone")
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
     return p.parse_args(argv)
 
@@ -131,7 +132,8 @@ def _check_args(args, err, kind=None) -> int | None:
     elif kind == "path":
         bad = None
     else:
-        bad = ("--risk needs a local path" if args.risk else
+        bad = ("--compare needs one repository, not owner/*" if args.compare and kind == "org" else
+               "--risk needs a local path" if args.risk else
                "--list-file-types needs a local path" if args.list_file_types else None)
     if bad:
         err.print(f"[red]{bad}[/red]")
@@ -519,12 +521,29 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
             return 2
         from . import watch
         risk = {"base": args.risk, **watch.change_risk(report, files)}
+    comparison = None
+    if args.compare:
+        from . import compare as _compare
+        try:
+            with open(args.compare, encoding="utf-8") as fh:
+                before = json.load(fh)
+        except (OSError, ValueError) as e:
+            err.print(f"[red]--compare {args.compare}:[/red] {e}", soft_wrap=True)
+            return 2
+        if not _compare.is_export(before):
+            err.print(f"[red]--compare {args.compare}:[/red] not a gitmole --json export (no meta, findings and watch)", soft_wrap=True)
+            return 2
+        if before["meta"].get("name") != report["meta"].get("name"):
+            err.print(f"[red]--compare {args.compare}:[/red] it describes {before['meta'].get('name')}, this run describes {report['meta'].get('name')}; "
+                      "the two exports must be of the same clone", soft_wrap=True)
+            return 2
+        comparison = _compare.compare(before, report, found)
     if args.json:
-        _write(json.dumps(render.to_json(report, found, risk=risk), indent=2) + "\n", args.json, console)
+        _write(json.dumps(render.to_json(report, found, risk=risk, compare=comparison), indent=2) + "\n", args.json, console)
     if args.markdown:
-        _write(render.markdown(report, found, full=args.full, risk=risk, base=args.risk), args.markdown, console)
+        _write(render.markdown(report, found, full=args.full, risk=risk, base=args.risk, compare=comparison), args.markdown, console)
     if "-" not in (args.json, args.markdown):
-        render.report(report, found, console, full=args.full, risk=risk, base=args.risk)
+        render.report(report, found, console, full=args.full, risk=risk, base=args.risk, compare=comparison)
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
         return 3
     if risk is not None and args.risk_threshold is not None and risk["total"] > args.risk_threshold:

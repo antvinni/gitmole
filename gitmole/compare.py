@@ -1,0 +1,57 @@
+"""What changed since an earlier --json export: findings that are new, resolved or persisting, files that
+entered or left the watch list, the tally before and after. Pure over two report dicts."""
+from __future__ import annotations
+
+from . import findings, watch
+
+# A rule emits one finding per report, except these two, which emit one per row; the evidence field
+# that tells the rows apart joins the rule id in the key.
+KEY_FIELDS = {"repo_health": "metric", "placeholder_identity": "email"}
+
+
+def key(finding: dict) -> tuple:
+    rid = finding["rule"]["id"]
+    field = KEY_FIELDS.get(rid)
+    return (rid, (finding.get("evidence") or {}).get(field)) if field else (rid,)
+
+
+def is_export(data) -> bool:
+    """A gitmole --json export: a report with its findings and watch list."""
+    return isinstance(data, dict) and isinstance(data.get("meta"), dict) and "findings" in data and "watch" in data
+
+
+def _tally(found: list) -> dict:
+    counts = {s: 0 for s in findings.SEVERITIES}
+    for f in found:
+        counts[f["severity"]] += 1
+    return counts
+
+
+def _ordered(found: list) -> list:
+    return sorted(found, key=lambda f: (findings.SEVERITIES.index(f["severity"]), f["title"], str(key(f))))
+
+
+def _options_differ(before_meta: dict, after_meta: dict) -> list:
+    """The options that change what a run sees: --since and --file-types from meta's top level, --ignore and
+    --ignore-data from the manifest when both exports have one."""
+    out = [name for name in ("since", "file_types") if before_meta.get(name) != after_meta.get(name)]
+    b, a = (before_meta.get("run") or {}).get("options"), (after_meta.get("run") or {}).get("options")
+    if b is not None and a is not None:
+        out += [name for name in ("ignore", "ignore_data") if b.get(name) != a.get(name)]
+    return out
+
+
+def compare(before: dict, report: dict, found: list, top: int = watch.WATCH_TOP) -> dict:
+    """before: an earlier export; report and found: this run's loaded report and its findings."""
+    b = {key(f): f for f in before.get("findings") or []}
+    a = {key(f): f for f in found}
+    persisting = [{**a[k], "was": b[k]["severity"]} for k in a if k in b]
+    before_watch = [r["file"] for r in (before.get("watch") or [])[:top]]
+    after_watch = [r["file"] for r in watch.risks(report)[:top]]
+    meta_b, meta_a = before.get("meta") or {}, report.get("meta") or {}
+    return {"new": _ordered([a[k] for k in a if k not in b]), "resolved": _ordered([b[k] for k in b if k not in a]),
+            "persisting": _ordered(persisting),
+            "watch_entered": [f for f in after_watch if f not in before_watch], "watch_left": [f for f in before_watch if f not in after_watch],
+            "tally": {"before": _tally(before.get("findings") or []), "after": _tally(found)},
+            "before": {"commit": (meta_b.get("run") or {}).get("commit"), "date": meta_b.get("last_date"),
+                       "options_differ": _options_differ(meta_b, meta_a)}}

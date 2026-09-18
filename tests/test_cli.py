@@ -998,6 +998,38 @@ class Risk(unittest.TestCase):
             self.assertEqual(rc, 2)
             self.assertIn("--risk-threshold needs --risk", c.export_text())
 
+    def test_compare_against_an_earlier_export(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            estimator = lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0}
+            before = os.path.join(d, "before.json")
+            rc = cli.main([d, "--out", out, "--json", before], console=console(), tool_check=lambda **kw: [], planner=planner, estimator=estimator)
+            self.assertEqual(rc, 0)
+            c = console()
+            rc = cli.main([out, "--no-run", "--compare", before], console=c)
+            self.assertEqual(rc, 0)
+            text = c.export_text()
+            self.assertIn("Since last report", text)
+            self.assertIn("nothing changed", text)
+            with open(os.path.join(d, "junk.json"), "w") as fh:
+                fh.write("[1, 2]")
+            err = console()
+            self.assertEqual(cli.main([out, "--no-run", "--compare", os.path.join(d, "junk.json")], console=err), 2)
+            self.assertIn("not a gitmole --json export", err.export_text())
+            with open(before) as fh:
+                other = json.load(fh)
+            other["meta"]["name"] = "elsewhere"
+            with open(os.path.join(d, "other.json"), "w") as fh:
+                json.dump(other, fh)
+            err = console()
+            self.assertEqual(cli.main([out, "--no-run", "--compare", os.path.join(d, "other.json")], console=err), 2)
+            self.assertIn("describes elsewhere", err.export_text())
+        err = console()
+        self.assertEqual(cli.main(["someone/*", "--compare", before], console=err), 2)
+        self.assertIn("--compare needs one repository", err.export_text())
+
 
 class BacktestWindow(unittest.TestCase):
     def _run(self, dates, *extra):

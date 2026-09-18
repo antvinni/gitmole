@@ -41,7 +41,7 @@ MONTH_WIDTH, INDENT, FLOOR, NAME_FLOOR = 6, 2, 3, 8
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
            "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
-           "Change risk": "◈"}
+           "Change risk": "◈", "Since last report": "⇄"}
 # the one column to read first in each table; the rest are dimmed
 KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "revs", "Change coupling": "degree",
               "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
@@ -638,6 +638,27 @@ def health_section(report: dict, full: bool = True, width=None) -> dict:
                     note=None if rows else "nothing flagged")
 
 
+def _tally_words(counts: dict) -> str:
+    return textfmt.tally([{"severity": s} for s, n in counts.items() for _ in range(n)])
+
+
+def compare_section(result: dict) -> dict:
+    """Since last report: the findings that are new, resolved or persisting (with the severity they had),
+    and the files that entered or left the watch list."""
+    rows = [("new", f"{f['severity']} · {f['title']}") for f in result["new"]]
+    rows += [("resolved", f"{f['severity']} · {f['title']}") for f in result["resolved"]]
+    rows += [("persisting", (f"{f['was']} → {f['severity']}" if f["was"] != f["severity"] else f["severity"]) + f" · {f['title']}") for f in result["persisting"]]
+    rows += [("entered the watch list", p) for p in result["watch_entered"]] + [("left the watch list", p) for p in result["watch_left"]]
+    before = result["before"]
+    against = f"against {before['commit'][:8]}" if before.get("commit") else "against an export without a run manifest"
+    lines = []
+    if before.get("options_differ"):
+        lines.append(f"options differ: {', '.join(before['options_differ'])}; the changes partly reflect them")
+    lines.append(f"{against}, {before.get('date') or '?'} · {_tally_words(result['tally']['before'])} → {_tally_words(result['tally']['after'])}")
+    columns = [("change", {}), ("what", {"overflow": "fold", "ratio": 3})]
+    return _section("Since last report", columns, rows, note=None if rows else "nothing changed", caption="\n".join(lines))
+
+
 BUILDERS = [watch_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
             hotspots_section, coupling_section, age_section, functions_section, health_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
@@ -862,9 +883,11 @@ def _partners(secs: list) -> dict:
     return out
 
 
-def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None) -> None:
+def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> None:
     console.print(header(report, findings, full=full))
     console.print(findings_panel(findings, report))
+    if compare is not None:
+        print_section(console, compare_section(compare))
     secs = sections(report, full=full, width=console.width)
     by_id = {s["id"]: s for s in secs}
     partners = _partners(secs) if console.width >= SIDE_BY_SIDE_MIN_WIDTH else {}
@@ -918,7 +941,21 @@ def _md_findings(findings: list, report: dict = None) -> list:
     return out
 
 
-def markdown(report: dict, findings: list, full: bool = False, risk: dict = None, base: str = None) -> str:
+def _md_section(sec: dict) -> list:
+    """A section's Markdown: the heading, then its table (or note), then its caption."""
+    out = ["", f"## {sec['title']}", ""]
+    if not sec["rows"]:
+        out.append(f"_{sec['note'] or 'nothing'}_")
+        return out
+    out.append("| " + " | ".join(sec["columns"]) + " |")
+    out.append("| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]) + " |")
+    out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sec["rows"]]
+    if sec.get("caption"):
+        out += ["", f"_{sec['caption']}_"]
+    return out
+
+
+def markdown(report: dict, findings: list, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> str:
     s = summary(report)
     out = [f"# {s['name']}", "",
            f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
@@ -929,27 +966,21 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
            "## Findings", ""]
     out += _md_findings(findings, report)
+    if compare is not None:
+        out += _md_section(compare_section(compare))
     secs = sections(report, full=True if full else "markdown")
     if risk is not None:
         after = next((i for i, sec in enumerate(secs) if sec["id"] == "watch"), len(secs) - 1)
         secs = secs[:after + 1] + [risk_section(risk, base, full=True if full else "markdown")] + secs[after + 1:]
     for sec in secs:
-        out += ["", f"## {sec['title']}", ""]
-        if not sec["rows"]:
-            out.append(f"_{sec['note'] or 'nothing'}_")
-            continue
-        out.append("| " + " | ".join(sec["columns"]) + " |")
-        out.append("| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]) + " |")
-        out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sec["rows"]]
-        if sec.get("caption"):
-            out += ["", f"_{sec['caption']}_"]
+        out += _md_section(sec)
     deps_line = dependencies_line(report)
     out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "",
             *([run_line(report) + "  "] if run_line(report) else []), f"Full results and plots in {report['out_dir']}", ""]
     return "\n".join(out)
 
 
-def to_json(report: dict, findings: list, risk: dict = None) -> dict:
+def to_json(report: dict, findings: list, risk: dict = None, compare: dict = None) -> dict:
     out = {**{k: v for k, v in report.items() if k != "backtest"}, "findings": findings,   # the sub-report is a report of its own
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
@@ -958,6 +989,8 @@ def to_json(report: dict, findings: list, risk: dict = None) -> dict:
         out["watch_backtest"] = bt
     if risk is not None:
         out["change_risk"] = risk
+    if compare is not None:
+        out["compare"] = compare
     return out
 
 

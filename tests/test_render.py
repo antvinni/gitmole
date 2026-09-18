@@ -46,9 +46,9 @@ def _section_text(text: str, heading: str) -> str:
     return text[text.index(heading):]
 
 
-def rendered(report, findings, width=120, full=False):
+def rendered(report, findings, width=120, full=False, compare=None):
     console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
-    render.report(report, findings, console, full=full)
+    render.report(report, findings, console, full=full, compare=compare)
     return console.export_text()
 
 
@@ -1295,6 +1295,33 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(j["change_risk"]["base"], "main")
         self.assertEqual(j["change_risk"]["total"], 3.6)
         self.assertNotIn("change_risk", render.to_json(sample_report(), []))
+
+
+class Compare(unittest.TestCase):
+    def test_compare_section_lists_the_buckets_and_the_watch_moves(self):
+        result = {"new": [{"severity": "warning", "title": "Credential-shaped files tracked"}],
+                  "resolved": [{"severity": "info", "title": "Reverts"}],
+                  "persisting": [{"severity": "info", "title": "Bug magnets", "was": "warning"}, {"severity": "warning", "title": "Repo health", "was": "warning"}],
+                  "watch_entered": ["c.py"], "watch_left": ["b.py"],
+                  "tally": {"before": {"critical": 0, "warning": 2, "info": 2}, "after": {"critical": 0, "warning": 2, "info": 1}},
+                  "before": {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "date": "2026-09-10", "options_differ": ["ignore_data"]}}
+        sec = render.compare_section(result)
+        self.assertEqual(sec["title"], "Since last report")
+        self.assertEqual(sec["rows"], [["new", "warning · Credential-shaped files tracked"], ["resolved", "info · Reverts"],
+                                       ["persisting", "warning → info · Bug magnets"], ["persisting", "warning · Repo health"],
+                                       ["entered the watch list", "c.py"], ["left the watch list", "b.py"]],
+                         "_section stringifies every row into a list, like every other section's rows")
+        self.assertEqual(sec["caption"], "options differ: ignore_data; the changes partly reflect them\n"
+                                         "against 540ee5b5, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note")
+        result["before"] = {"commit": None, "date": "2026-09-10", "options_differ": []}
+        self.assertEqual(render.compare_section(result)["caption"], "against an export without a run manifest, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note")
+        empty = {**result, "new": [], "resolved": [], "persisting": [], "watch_entered": [], "watch_left": []}
+        self.assertEqual(render.compare_section(empty)["note"], "nothing changed")
+        r = sample_report()
+        text = rendered(r, [], compare=result)
+        self.assertIn("Since last report", text)
+        self.assertIn("## Since last report", render.markdown(r, [], compare=result))
+        self.assertEqual(render.to_json(r, [], compare=result)["compare"], result)
 
 
 class Excerpt(unittest.TestCase):
