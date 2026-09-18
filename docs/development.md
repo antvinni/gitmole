@@ -85,9 +85,11 @@ not gitmole's output.
 ## Code layout
 
 The code lives in `gitmole/`: `run.py` plans and executes the tools,
-`maat.py` is the standalone change analysis (revisions, coupling, authors,
-age, ownership over the numstat log; the file names still say maat because
-the layout matches what code-maat produced), `blame.py` is the standalone
+`maat.py` is the standalone change analysis (revisions, coupling, sum of
+coupling, authors with their minor contributors, age, ownership over the
+numstat log, co-authors credited, sweeping commits and declared ignore-revs
+left out; the file names still say maat because the layout matches what
+code-maat produced), `blame.py` is the standalone
 code-age pass (its output mimics git-of-theseus so one loader serves both),
 `leaks.py` runs betterleaks and hashes the values before anything is
 written, `duplicates.py` runs jscpd and keeps the blocks without their text,

@@ -121,6 +121,29 @@ How to read each part of the terminal report, and what each run writes to disk; 
    file, area or function: they change with every fix, and owning the tests is
    not the knowledge risk. The default tables leave them out too; `--full`
    shows them.
+
+   The change log is read with whitespace ignored (`git log -w
+   --ignore-blank-lines`), so a hunk that only re-indents counts no lines
+   and a file a formatter only re-indented is not a revision. A commit that
+   touches at least as many files as 99% of the repository's commits (never
+   fewer than twenty) and takes out as many lines as it puts in, within a
+   tenth, is a sweeping commit: a formatter run, a rename across the tree, a
+   copyright-year bump. It would count as a revision of every file it
+   touches and couple them all to each other, so it is left out of the
+   revisions, coupling, authors, ownership, fix and age counts, along with
+   every commit the repository declares uninteresting in
+   `.git-blame-ignore-revs` (and the file `blame.ignoreRevsFile` names);
+   the activity totals keep them, `activity.json` lists them, the watch
+   list's caption counts them, and the finding names the undeclared ones
+   with the advice to declare them, so that git blame and GitHub skip them
+   too. A commit's `Co-authored-by` trailers (git's own trailer, which GitHub
+   adds to a squash merge and pair programmers add by hand) name people who
+   count as its authors too: in the People table, credited with the commits
+   they are named on, through `.mailmap` and the same identity merge and bot
+   rules; in the authors and ownership tables, where a commit's lines are
+   shared equally between everyone it credits; and in the code-age pass,
+   where a blamed line is shared the same way, so a squash-merged repository
+   does not attribute every line to whoever pressed the button.
 3. **Since last report**: with `--compare BEFORE.json`, what changed
    against an earlier `--json` export of the same clone. Findings are
    matched by their rule id, and for the two rules that emit one finding per
@@ -148,12 +171,15 @@ How to read each part of the terminal report, and what each run writes to disk; 
    ownership did. A file's score, which `--risk` adds up, is its share, in
    percent, of all scored files' revisions × lines of code; the reasons
    name the fix count (the last six months' when there are any), the sole
-   owner, the most complex function lizard found (a nameless one by its
+   owner, the minor contributors when there are three or more (people with
+   under 5% of the file's commits each), the most complex function lizard found (a nameless one by its
    line; a span marked `?` in the complex functions table is passed over)
    and, when its complexity grew by a quarter or more in a year, by how
    much (the trend is sampled for the ten top hotspots only, so a file
-   further down the list may have none), and the files it always changes
-   with, none of them entering the rank. Test files are left out, and so
+   further down the list may have none), the files it always changes
+   with, and, when it shares five or more commits with twenty or more other
+   files, how many (Tornhill's sum of coupling: the file weakly coupled to
+   everything), none of them entering the rank. Test files are left out, and so
    are vendored code and example code (the `examples/`, `samples/`,
    `fixtures/`, `testdata/`, `demos/`, `rules/` and `stubs/` directories
    and `.stub` files), which the complex functions table hides for the same
@@ -211,7 +237,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Hotspots hide files no longer in the tree the same way. Hotspots carry a `trend` column, sampled for the
    top ten hotspots: the change in complexity over the last year from scc on
    the file at sampled commits (`--full` shows the whole series as a
-   sparkline). The knowledge map marks owners who have stopped committing
+   sparkline), and under `--full` a `minors` column (contributors with under
+   5% of the file's commits) and a `co-changes` column (the files it shares
+   five or more commits with). The knowledge map marks owners who have stopped committing
    with `(gone)`, and under `--full` shows the share of each area's lines
    that they wrote. With `--full`: size by language, activity by weekday
    with the busiest hour and the share of commits that are fixes, and
@@ -285,17 +313,18 @@ directory for a remote target:
 | File | From | What it is |
 |---|---|---|
 | `meta.json` | git | name, branch, commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`; what produced the run under `run`; the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists |
-| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
+| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, and how many declared commits the log holds |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | betterleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
 | `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record), the database date; or a status: no lock files, no local database |
-| `log.txt` | git | the numstat log export the change analysis reads |
+| `log.txt` | git | the numstat log export the change analysis reads, whitespace ignored, with each commit's `Co-authored-by` trailers behind its subject |
 | `maat-revisions.csv` | change analysis | change frequency per file |
 | `maat-coupling.csv` | change analysis | files that change together |
-| `maat-authors.csv` | change analysis | authors per file |
+| `maat-soc.csv` | change analysis | sum of coupling per file: its co-changes with any other file, and how many files it shares five or more commits with |
+| `maat-authors.csv` | change analysis | authors per file (co-authors included), and how many of them are minor contributors |
 | `maat-age.csv` | change analysis | months since last change per file |
-| `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file |
+| `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file, a commit's lines shared between its author and co-authors |
 | `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
 | `functions.csv` | lizard | per-function complexity, length, parameters, in lizard's own `--csv` columns, then two of gitmole's: a label for a function lizard could not name (the text of its start line) and, when the span looks mis-parsed, why |
 | `duplicates.json` | jscpd | duplicated blocks over the tracked code files, largest first (the thousand largest), each with every place it appears, and the share of lines inside a block; no source text |
