@@ -349,8 +349,8 @@ class WriteAll(unittest.TestCase):
                 fh.write(LOG)
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
-            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-fixes.csv",
-                                     "maat-plumbing.csv", "maat-revisions.csv", "maat-soc.csv", "maat-tests.csv"])
+            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-entropy.csv",
+                                     "maat-fixes.csv", "maat-plumbing.csv", "maat-revisions.csv", "maat-soc.csv", "maat-tests.csv"])
             self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))
             with open(os.path.join(d, "maat-revisions.csv")) as fh:
                 self.assertEqual(fh.readline().strip(), "entity,n-revs")
@@ -605,3 +605,30 @@ class IgnoreRevs(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChangeEntropy(unittest.TestCase):
+    def test_hassans_decayed_entropy_over_monthly_periods(self):
+        # Two files share January evenly (entropy 1); February is all one file (entropy 0); a lone file in March
+        # changes nothing (one file: no scatter). Decay halves a period's weight each month back from `now`.
+        commits = [_commit("j1", [("a.py", 1, 0)], date="2026-01-05"), _commit("j2", [("b.py", 1, 0)], date="2026-01-20"),
+                   _commit("f1", [("a.py", 1, 0)], date="2026-02-03"), _commit("f2", [("a.py", 1, 0)], date="2026-02-09"),
+                   _commit("m1", [("c.py", 1, 0)], date="2026-03-01")]
+        rows = {r["entity"]: r for r in maat.entropy(commits, now="2026-03-31")}
+        self.assertEqual(rows["a.py"]["periods"], 2)
+        self.assertEqual(rows["b.py"]["periods"], 1)
+        self.assertEqual(rows["c.py"]["periods"], 1)
+        # a.py: January share 0.5 × entropy 1 × weight 0.25 (two months back) + February share 1 × entropy 0 = 0.125
+        self.assertAlmostEqual(rows["a.py"]["hcm"], 0.125)
+        self.assertAlmostEqual(rows["b.py"]["hcm"], 0.125)
+        self.assertEqual(rows["c.py"]["hcm"], 0.0)
+        self.assertEqual([r["entity"] for r in maat.entropy(commits, now="2026-03-31")][:2], ["a.py", "b.py"], "highest first, ties by name")
+
+    def test_written_alongside_the_other_analyses(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                fh.write(LOG)
+            maat.write_all(log, d, now="2026-09-15")
+            with open(os.path.join(d, "maat-entropy.csv")) as fh:
+                self.assertEqual(fh.readline().strip(), "entity,periods,hcm")

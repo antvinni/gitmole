@@ -79,6 +79,15 @@ class Risks(unittest.TestCase):
         self.assertNotIn("alongside", " ".join(by["core/util.py"]["reasons"]))
         self.assertEqual(by["web/index.html"]["minor"], 0, "an output directory without the column reads as none")
 
+    def test_changes_scattered_over_many_months_are_a_reason(self):
+        r = report()
+        r["entropy"] = [{"entity": "core/parser.py", "periods": 14, "hcm": 2.1}, {"entity": "core/util.py", "periods": 6, "hcm": 0.4}]
+        by = {x["file"]: x for x in watch.risks(r)}
+        self.assertIn("changed in 14 different months", by["core/parser.py"]["reasons"])
+        self.assertNotIn("months", " ".join(by["core/util.py"]["reasons"]), "six months of changes is not scattered")
+        self.assertEqual(by["core/parser.py"]["periods"], 14)
+        self.assertIsNone({x["file"]: x for x in watch.risks(report())}["core/parser.py"]["periods"], "an output directory without the table")
+
     def test_tests_that_never_move_with_a_file_are_a_reason(self):
         r = report()
         r["tests"] = [{"entity": "core/parser.py", "n-sets": 38, "with-tests": 0}, {"entity": "core/util.py", "n-sets": 28, "with-tests": 4},
@@ -246,6 +255,46 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(out["watched"], 2, "both are in the top 15 of the watch list")
         self.assertEqual(out["max_score"], watch.risks(r)[0]["score"])
 
+    def test_each_scored_file_carries_the_context_pack_and_the_companions_the_change_left_out(self):
+        r = report()
+        r["authors"] = [{"entity": "core/parser.py", "n-authors": 14, "n-revs": 40, "minor": 11}, {"entity": "core/util.py", "n-authors": 3, "n-revs": 30, "minor": 0}]
+        r["size"]["files"].update({"core/ast.py": {"code": 100, "complexity": 1}, "core/lexer.py": {"code": 100, "complexity": 1}})
+        r["revisions"] += [{"entity": "core/ast.py", "n-revs": 30}, {"entity": "core/lexer.py", "n-revs": 20}]
+        out = watch.change_risk(r, ["core/parser.py", "core/lexer.py", "tests/test_parser.py"])
+        by = {f["file"]: f for f in out["files"]}
+        p = by["core/parser.py"]
+        self.assertEqual((p["rank"], p["recent_fixes"], p["fixes"], p["owner"], round(p["owner_share"], 2), p["minor"]), (2, 5, 9, "Ann", 1.0, 11),
+                         "hotspot rank, fix counts, owner and share, minor contributors: what a reviewer, human or model, reads before the diff")
+        self.assertEqual(out["coupling_gaps"], [{"file": "core/parser.py", "companion": "core/ast.py", "degree": 72}],
+                         "parser usually changes with ast.py, which this change does not touch; lexer.py is touched, so it is no gap")
+        self.assertEqual(by["core/lexer.py"]["rank"], 5)
+        self.assertIsNone(by["tests/test_parser.py"]["rank"], "a file the list does not score has no rank")
+
+    def test_kamei_factors_describe_the_change_as_reasons(self):
+        r = report()
+        r["age"] = [{"entity": "core/parser.py", "age-months": 0}, {"entity": "core/util.py", "age-months": 8}]
+        r["activity"] = {"authors_all": {"Ann": {"commits": 120}, "Bob": {"commits": 3}}}
+        stats = {"files": ["core/parser.py", "core/util.py", "web/index.html"], "added": {"core/parser.py": 300, "core/util.py": 20, "web/index.html": 4},
+                 "deleted": {"core/parser.py": 40, "core/util.py": 0, "web/index.html": 0}, "author": "Bob", "commits": 3}
+        out = watch.change_risk(r, stats["files"], stats)
+        c = out["change"]
+        self.assertEqual((c["files"], c["dirs"], c["added"], c["deleted"], c["lines_before"]), (3, 2, 324, 40, 5000))
+        self.assertAlmostEqual(c["entropy"], 0.248, places=3, msg="Shannon entropy of the change's lines over its files, normalised by log2 of the file count")
+        self.assertEqual((c["prior_revisions"], c["recent_files"], c["developers"], c["author"], c["author_commits"]), (130, 1, 3, "Bob", 3))
+        self.assertEqual(c["reasons"], ["touches 3 files across 2 directories, 3 commits", "adds 324 lines to 5,000 (6%), removes 40",
+                                        "most of the change is in one file", "1 of the 3 files changed this month",
+                                        "the files have 130 prior changes by 3 people", "Bob has 3 prior commits here"])
+        self.assertNotIn("change", watch.change_risk(r, stats["files"]), "without the diff's numbers there are no factors")
+
+    def test_a_first_time_author_and_an_even_spread(self):
+        r = report()
+        r["activity"] = {"authors_all": {"Ann": {"commits": 120}}}
+        stats = {"files": ["core/parser.py", "core/util.py"], "added": {"core/parser.py": 50, "core/util.py": 50}, "deleted": {}, "author": "New Person", "commits": 1}
+        c = watch.change_risk(r, stats["files"], stats)["change"]
+        self.assertEqual(c["entropy"], 1.0)
+        self.assertIn("spread evenly over its files", c["reasons"])
+        self.assertIn("New Person's first commit here", c["reasons"])
+
     def test_max_score_is_repo_wide_not_touched(self):
         # max_score should be the highest score in the repository, not the max of touched files
         r = report()
@@ -266,7 +315,7 @@ class ChangeRisk(unittest.TestCase):
                               "vendor/lib/x.py": ["vendored"]})
 
     def test_empty(self):
-        self.assertEqual(watch.change_risk(report(), []), {"files": [], "total": 0.0, "watched": 0, "max_score": 0.0})
+        self.assertEqual(watch.change_risk(report(), []), {"files": [], "total": 0.0, "watched": 0, "max_score": 0.0, "coupling_gaps": [], "pool": 3})
 
     def test_a_file_in_the_tree_with_no_revisions_in_the_window_is_not_scored(self):
         # in size.files, not a test path, but no maat-revisions row at all: 0 revisions in the window,

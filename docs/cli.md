@@ -57,6 +57,7 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
 | `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent. |
 | `--compare BEFORE.json` | Add a "Since last report" section against an earlier `--json` export of the same clone: findings new, resolved and persisting, files that entered or left the watch list. Works with `--no-run`; never changes the exit code; not with `owner/*`. |
+| `--hook` | With `--no-run` and an output directory: read an agent hook's JSON on stdin (or take files after `--`), score the files it names like `--risk`, print a summary the agent reads back, and exit 2 when `--risk-threshold` is exceeded. See [Agent hooks](#agent-hooks). |
 
 ## Exports and CI
 
@@ -98,6 +99,75 @@ The scale changed in 0.8.0: before, the total was a sum of factor-product
 scores with no fixed unit. A threshold chosen for 0.7 has to be chosen
 again; run `gitmole . --risk main` on a few merged changes and read the
 totals.
+
+The Change risk section, and `change_risk` in the JSON, carry what history
+says about the change beyond its total. Each scored file has its hotspot
+rank, fix counts, owner and share, minor-contributor count and whether it
+is on the watch list. `coupling_gaps` lists the companions a touched file
+usually changes with (50% of the time or more, over five or more shared
+commits) that the change did not touch: Zimmermann et al. measured such
+co-change recommendations at 66% precision with a 2% false-alarm rate, so
+one is rare and usually right. And `change` holds Kamei et al.'s
+just-in-time factors as named reasons beside the mass share, never folded
+into it: the files, directories and commits, lines added against the lines
+those files had, how evenly the change spreads over its files, how many of
+the files changed this month, their prior changes and people, and the
+author's prior commits here (`touches 9 files across 4 directories, 3
+commits; adds 340 lines to 1,200 (28%), removes 12; most of the change is
+in one file; 3 of the 9 files changed this month; the files have 130 prior
+changes by 3 people; Bob has 3 prior commits here`).
+
+## Agent hooks
+
+The same gate wired into a coding agent: after every file edit, the files
+the edit touched are scored against the last gitmole run, and the agent
+reads the summary back before it goes on. Deterministic findings before
+inference, so the model reasons over a short list rather than rediscovering
+what history already says. `gitmole OUT_DIR --no-run --hook` reads the
+hook's JSON on stdin, takes the file paths the agents put there
+(`tool_input.file_path`, `file_path`, `file_paths`, `tool_response.filePath`),
+scores them like `--risk`, prints one line per file with the companions the
+edit left untouched, and exits 2 when the total is over `--risk-threshold`,
+which every one of these hooks reads as "block"; without a threshold it is
+a soft warning. The output directory comes from an earlier run
+(`gitmole . --out analysis-repo`), so the hook itself costs a few hundred
+milliseconds and needs no tool on PATH.
+
+Claude Code, `.claude/settings.json`, a `PostToolUse` hook on `Write|Edit`;
+the JSON on stdout becomes `additionalContext`, exit 2 shows stderr to the
+model:
+
+```json
+{"hooks": {"PostToolUse": [{"matcher": "Write|Edit",
+  "hooks": [{"type": "command", "command": "gitmole analysis-repo --no-run --hook --risk-threshold 10"}]}]}}
+```
+
+Cursor, `.cursor/hooks.json`, `afterFileEdit` (add `"failClosed": true` to
+block on a non-zero exit); Gemini CLI, `AfterTool` in its settings; both
+pass the same shape of JSON on stdin and read the exit code:
+
+```json
+{"version": 1, "hooks": {"afterFileEdit": [{"command": "gitmole analysis-repo --no-run --hook --risk-threshold 10", "failClosed": true}]}}
+```
+
+pre-commit, from the `.pre-commit-hooks.yaml` in gitmole's repository:
+`gitmole-risk` runs the whole analysis against `origin/main` at `pre-push`
+(the external tools have to be on PATH); `gitmole-hook` scores the staged
+files against an earlier run at `pre-commit`, with the output directory as
+its first argument:
+
+```yaml
+repos:
+  - repo: https://github.com/antvinni/gitmole
+    rev: v0.13.0
+    hooks:
+      - id: gitmole-risk
+        args: [--risk, origin/main, --risk-threshold, "10"]
+      - id: gitmole-hook
+        args: [analysis-repo, --no-run, --hook, --risk-threshold, "10", --]
+```
+
+Secrets are betterleaks' own pre-commit hook; gitmole does not repeat it.
 
 ## Big repositories
 

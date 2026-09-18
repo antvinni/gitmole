@@ -349,6 +349,36 @@ def test_cochange(commits: list) -> list:
     return rows
 
 
+ENTROPY_DECAY = 0.5   # a period's weight halves for every month it lies before the reference date
+
+
+def entropy(commits: list, now: str = None, decay: float = ENTROPY_DECAY) -> list:
+    """Hassan's history complexity metric (ICSE 2009), decayed: for each calendar month, the Shannon
+    entropy of the files' shares of that month's changes, normalised by log2 of the files changed;
+    a file's score is the sum over months of its share times that entropy, each month weighted by
+    `decay` to the power of its distance from `now`. Changes scattered over many files in a month are
+    hard to keep track of; a month spent on one file is not. `periods` is how many months the file
+    changed in."""
+    now = now or dt.date.today().isoformat()
+    by_month = defaultdict(Counter)
+    for c in commits:
+        for p, _, _ in c["files"]:
+            by_month[c["date"][:7]][p] += 1
+    y0, m0 = int(now[:4]), int(now[5:7])
+    scores, periods = defaultdict(float), Counter()
+    for month, counts in by_month.items():
+        total, n = sum(counts.values()), len(counts)
+        h = -sum((v / total) * math.log2(v / total) for v in counts.values()) / math.log2(n) if n > 1 else 0.0
+        back = (y0 - int(month[:4])) * 12 + (m0 - int(month[5:7]))
+        weight = decay ** max(0, back)
+        for p, v in counts.items():
+            periods[p] += 1
+            scores[p] += (v / total) * h * weight
+    rows = [{"entity": p, "periods": periods[p], "hcm": round(scores[p], 6)} for p in periods]
+    rows.sort(key=lambda r: (-r["hcm"], -r["periods"], r["entity"]))
+    return rows
+
+
 RECENT_MONTHS = 6
 OVERSIZED_PERCENTILE = 0.99   # a fix changing more lines than this share of the history's commits credits nothing
 OVERSIZED_FLOOR = 500         # ...and never under this many lines, so a small repository's percentile does not bite
@@ -526,8 +556,9 @@ ANALYSES = {
     "age": (age, ["entity", "age-months"]),
     "entity-ownership": (entity_ownership, ["entity", "author", "added", "deleted"]),
     "fixes": (fixes, ["entity", "n-fixes", "last-fix", "recent-fixes"]),
+    "entropy": (entropy, ["entity", "periods", "hcm"]),
 }
-NEEDS_NOW = {"age", "fixes"}
+NEEDS_NOW = {"age", "fixes", "entropy"}
 
 
 def aliases_from_meta(path: str) -> dict:

@@ -359,8 +359,23 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
     more = _more(len(rows_all), limit)
     if more:
         notes.append(more)
+    factors = (risk.get("change") or {}).get("reasons") or []
+    if rows and factors:
+        notes.append("; ".join(factors))
+    gaps = risk.get("coupling_gaps") or []
+    if rows and gaps:
+        notes.append(gaps_line(gaps))
     return _section(f"Change risk ({len(rows_all)} files since {base})", columns, rows,
                     note=None if rows else f"no files changed since {base}", caption="\n".join(notes) or None)
+
+
+def gaps_line(gaps: list) -> str:
+    """'not touched: core/ast.py, which changes with core/parser.py 72% of the time, and core/lexer.py (55%)':
+    the companions a change left out, strongest first."""
+    first = gaps[0]
+    rest = [f"{g['companion']} ({g['degree']}%)" for g in gaps[1:4]]
+    line = f"not touched: {first['companion']}, which changes with {first['file']} {first['degree']}% of the time"
+    return line + (", and " + textfmt.join_and(rest) if rest else "") + (f" and {len(gaps) - 4} more" if len(gaps) > 4 else "")
 
 
 def size_section(report: dict, full: bool = True, width=None) -> dict:
