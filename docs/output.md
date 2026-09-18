@@ -8,14 +8,26 @@ How to read each part of the terminal report, and what each run writes to disk; 
    one line for the busiest day and hour, the share of fix commits, the
    share that are reverts when there are any, and the year most surviving
    code was written (or why the blame pass did not run), and a one-line
-   tally of the findings.
+   tally of the findings. With `--full`, and always in Markdown, a coverage
+   line counts the tracked text files by why they are out of the scored
+   pool: `4,512 files: 582 scored · 13 generated · 2,680 test files · 139
+   example code · 3 release files · 1,095 not a source type`, and a file of
+   a type scc does not classify counts as `not counted by scc`. An output
+   directory from before 0.10 has no coverage and shows no line.
 2. **Findings**: anything the heuristics flagged, worst first. Findings of
    the same kind are grouped into one entry with a list, and every finding
    ends with a next step that names the file, area or person to start with,
    on its own line under the facts. Currently: a dormant repository (no
    commits for twelve months or more, measured against the run's reference
    date, which also silences the untouched-files note),
-   secrets in history (see below), an unconfigured git identity
+   secrets in history (see below), credential-shaped files tracked (a
+   warning: a tracked `.env` or `.env.*` that is not a template, `.netrc`,
+   `_netrc`, `.pypirc`, `.dockercfg`, a private key named `id_rsa`,
+   `id_dsa`, `id_ecdsa` or `id_ed25519`, and anything under a `.ssh/`
+   directory; the name alone is the finding, whatever the contents, and
+   test and example paths are not counted; the advice is to move the values
+   to the environment, `git rm` the files and add them to `.gitignore`),
+   an unconfigured git identity
    (example.com and the like; the advice offers the `.mailmap` line that
    would merge it into the busiest real identity), one author owning most
    surviving code, git-sizer concerns (a large blob that is no longer in
@@ -106,7 +118,24 @@ How to read each part of the terminal report, and what each run writes to disk; 
    file, area or function: they change with every fix, and owning the tests is
    not the knowledge risk. The default tables leave them out too; `--full`
    shows them.
-3. **Watch list**: the five source files most likely to need a fix next, with
+3. **Since last report**: with `--compare BEFORE.json`, what changed
+   against an earlier `--json` export of the same clone. Findings are
+   matched by their rule id, and for the two rules that emit one finding per
+   row by the rule id with the metric (repo health) or the mailbox
+   (unconfigured identity); each one is listed as new, resolved or
+   persisting, and a persisting finding whose severity moved says
+   `warning → info`. Then the files that entered and the files that left
+   the top fifteen of the watch list. The caption says what the comparison
+   is against, `against 540ee5b5, 2026-09-10` from the before export's
+   commit and last commit date or `against an export without a run
+   manifest`, and the tally before and after; when nothing changed, the
+   section says so and keeps those lines in the note. When `--since`,
+   `--file-types`, `--ignore` or `--ignore-data` differ between the two
+   runs, the caption's first line lists them, since the changes then partly
+   reflect the options. Markdown carries the section and the JSON carries it
+   under `compare`. The comparison never changes the exit code: `--fail-on`
+   reads this run alone.
+4. **Watch list**: the five source files most likely to need a fix next, with
    the reasons in words. Every source file still in the tree that changed
    more than once is ranked by revisions × lines of code, over source
    files only: measured against the fixes that followed at six cut-offs
@@ -121,13 +150,22 @@ How to read each part of the terminal report, and what each run writes to disk; 
    and, when its complexity grew by a quarter or more in a year, by how
    much (the trend is sampled for the ten top hotspots only, so a file
    further down the list may have none), and the files it always changes
-   with, none of them entering the rank. Test files are left out. Under
-   `--since`, churn and ownership are windowed and the list says so.
+   with, none of them entering the rank. Test files are left out, and so
+   are vendored code and example code (the `examples/`, `samples/`,
+   `fixtures/`, `testdata/`, `demos/`, `rules/` and `stubs/` directories
+   and `.stub` files), which the complex functions table hides for the same
+   reason: somebody else's code, or a specimen, is not this repository's
+   risk. Under `--since`, churn and ownership are windowed and the list
+   says so.
    `--full` and the exports show fifteen.
    With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
-   score as a bar and the reasons, or why it has none (new file, changed
-   once, test file, not scored).
+   score as a bar and the reasons, or why it has none: the first reason that
+   applies of `generated`, `vendored`, `test file`, `example code`,
+   `release file`, `amalgamation`, `not a source type` and `not in the
+   tree`, the last covering a file the change deleted and, under `--no-run`,
+   one added after the run; otherwise `changed once`, or `no revisions on
+   record`.
 
    Under the watch list, one line says how the list would have done:
    gitmole reruns the change analysis as of six months before the last
@@ -142,7 +180,7 @@ How to read each part of the terminal report, and what each run writes to disk; 
    by size alone and by the factor product the list used to rank by, is in
    [validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md).
    "Fixed" means a commit whose subject says so, which is a proxy for a bug.
-4. **Tables**: people (identities merged on top of `.mailmap` when they
+5. **Tables**: people (identities merged on top of `.mailmap` when they
    share an email, two name words, the same name spelled identically
    unless it is a bare common first name, a one-word handle that is a
    distinctive word of the fuller name, the fuller name run together
@@ -180,9 +218,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    and Dockerfile (`--file-types all` counts everything). In the default
    report, the complex functions table hides test files and generated
    files (a file whose first lines say it was generated or must not be
-   edited, that `.gitattributes` marks `linguist-generated`, or that is
-   a bundle, a minified file, a source map or anything under `dist/` by
-   name, the run records them in `meta.json`; and an amalgamation, a
+   edited, that `.gitattributes` marks `linguist-generated`, which git
+   resolves as it does for itself, nested `.gitattributes` included, or
+   that is a bundle, a minified file, a source map or anything under
+   `dist/` by name, the run records them in `meta.json`; and an amalgamation, a
    file every one of whose functions also appears identically in other
    files, found from the function metrics); the hotspots table, drawn
    under `--full` and in the Markdown export, hides the same test files
@@ -192,8 +231,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    `third_party/`, `external/`, `deps/`, `.yarn/`, a `packages/` inside a package
    such as `requests/packages/`, and any directory whose own `LICENSE` or
    `COPYING` names none of the copyright holders the root licence names,
-   which the run records in `meta.json`) and example code (`examples/`),
-   and the change coupling table hides pairs
+   or that `.gitattributes` marks `linguist-vendored`, which the run records
+   in `meta.json`) and example code (the directories the watch list leaves
+   out), and the change coupling table hides pairs
    with a test file, pairs of release plumbing (two version files, a
    manifest and its lock file, changelogs), header pairs (a C-family
    source file and its own header) and pairs with a vendored file on
@@ -223,7 +263,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    caption says how many, and such spans are left out of the brain
    methods finding. Activity and the
    timeline cover the whole history.
-5. **Footer**: where the files and plots are.
+6. **Footer**: where the files and plots are. `--full` and Markdown close
+   with a Run line above it: what produced the report, gitmole's version,
+   every tool's and the `--ignore`, `--ignore-data` and `--deep` options,
+   read from the run manifest `meta.run` (the commit, the versions, the
+   options). The header shows that commit as `branch main @ 540ee5b5`. An
+   output directory from before 0.10 has no manifest and shows neither.
 
 A full example, at a pinned commit, is
 [docs/examples/react.md](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md).
@@ -235,7 +280,7 @@ directory for a remote target:
 
 | File | From | What it is |
 |---|---|---|
-| `meta.json` | git | name, branch, commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps` |
+| `meta.json` | git | name, branch, commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`; what produced the run under `run` |
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |

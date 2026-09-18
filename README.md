@@ -56,7 +56,7 @@ since 2013, at a pinned commit:
 
 ```text
 ╭─ react ──────────────────────────────────────────────────────────────────────────────────────────╮
-│ 21703 commits  ·  2013-05-28 → 2026-09-16  ·  1843 identities  ·  branch main                    │
+│ 21703 commits  ·  2013-05-28 → 2026-09-16  ·  1843 identities  ·  branch main @ 2b19aecd         │
 │ 681,078 lines in 4781 files  ·  JavaScript, TypeScript, Rust, CSS                                │
 │ most commits on Wed at 15:00  ·  14% of commits are fixes  ·  1% of commits are reverts  ·  19%  │
 │ of surviving code from 2026                                                                      │
@@ -77,8 +77,8 @@ since 2013, at a pinned commit:
   packages/react-reconciler/src/ReactFiberBeginWo   changed 361 times · fixed once in six months ·  
   rk.js                                             beginWork() complexity 52                       
   ranked by revisions × lines of code alone; the reasons say what to look at there                  
-  6 months ago this list would have named 11 of the 46 files fixed since (a random 15 of the 1802   
-  files that had changed more than once would name 0.3; the 15 most changed would name 7)           
+  6 months ago this list would have named 10 of the 46 files fixed since (a random 15 of the 1375   
+  files that had changed more than once would name 0.4; the 15 most changed would name 7)           
 ```
 
 The watch list is the point: the five source files most likely to need a fix
@@ -101,9 +101,9 @@ come from git-sizer over the whole clone, so a fresh clone can differ there:
 
 | Repository | Commits | Lines | Watch list backtest |
 |---|---:|---:|---|
-| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | 39,758 | 247,179 | named 15 of the 238 files fixed in the next six months; a random pick would name 4.9, the 15 most changed 15 |
-| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | 34,933 | 431,749 | named 15 of the 213 files fixed in the next six months; a random pick would name 3.1, the 15 most changed 13 |
-| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | 21,703 | 681,078 | named 11 of the 46 files fixed in the next six months; a random pick would name 0.3, the 15 most changed 7 |
+| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | 39,758 | 247,179 | named 15 of the 238 files fixed in the next six months; a random pick would name 5.6, the 15 most changed 15 |
+| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | 34,933 | 431,749 | named 15 of the 213 files fixed in the next six months; a random pick would name 3.4, the 15 most changed 13 |
+| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | 21,703 | 681,078 | named 10 of the 46 files fixed in the next six months; a random pick would name 0.4, the 15 most changed 7 |
 
 ## The tool set
 
