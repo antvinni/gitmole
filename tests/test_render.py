@@ -1210,7 +1210,7 @@ class Json(unittest.TestCase):
 class ChangeRisk(unittest.TestCase):
     RISK = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times", "fixed 5 times in six months"], "watched": True},
                       {"file": "core/util.py", "score": 0.6, "reasons": ["changed 30 times"], "watched": True},
-                      {"file": "core/new.py", "score": 0, "reasons": ["new file"], "watched": False}],
+                      {"file": "core/new.py", "score": 0, "reasons": ["not in the tree"], "watched": False}],
             "total": 3.6, "watched": 2, "max_score": 3.0}
 
     def test_section_has_a_bar_scaled_to_the_worst_file_in_the_repo(self):

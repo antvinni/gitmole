@@ -32,6 +32,11 @@ def times(n: int) -> str:
     return {1: "once", 2: "twice"}.get(n, f"{n} times")
 
 
+def join_and(items: list) -> str:
+    """"a"; "a and b"; "a, b and c": an English list, the last item joined with "and" instead of a comma."""
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
 _ADVICE_VERBS = ("Add ", "Set ", "Rotate ", "Pair ", "Rerun ", "Expect ", "Consider ", "Use ", "Review ", "Merge ", "Split ", "Move ", "Extract ")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 

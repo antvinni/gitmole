@@ -892,13 +892,13 @@ class Risk(unittest.TestCase):
             self.assertEqual(rc, 0)
             text = c.export_text()
             self.assertIn("Change risk (1 files since main)", text)
-            self.assertRegex(text, r"a\.py\s+new file", "the stub planner writes no size.json, so a.py is not in the tree data")
+            self.assertRegex(text, r"a\.py\s+no revisions on record", "the stub planner writes no size.json and no log, so a.py has no scc row and no revisions")
             c = console()
             rc = cli.main([out, "--no-run", "--risk", "main"], console=c)
             self.assertEqual(rc, 0)
             text = c.export_text()
             self.assertIn("Change risk (1 files since main)", text)
-            self.assertRegex(text, r"a\.py\s+new file", "the stub planner writes no size.json, so a.py is not in the tree data")
+            self.assertRegex(text, r"a\.py\s+no revisions on record", "the stub planner writes no size.json and no log, so a.py has no scc row and no revisions")
 
     def test_unknown_base_is_an_error(self):
         with tempfile.TemporaryDirectory() as d:

@@ -23,6 +23,13 @@ class ShortenPath(unittest.TestCase):
         self.assertEqual(textfmt.shorten_path("Makefile", 5), "Makefile")
 
 
+class JoinAnd(unittest.TestCase):
+    def test_one_two_and_three_items(self):
+        self.assertEqual(textfmt.join_and(["a"]), "a")
+        self.assertEqual(textfmt.join_and(["a", "b"]), "a and b")
+        self.assertEqual(textfmt.join_and(["a", "b", "c"]), "a, b and c")
+
+
 class Cut(unittest.TestCase):
     def test_short_string_is_unchanged(self):
         self.assertEqual(textfmt.cut("gitmole/cli.py", 30), "gitmole/cli.py")
