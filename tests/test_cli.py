@@ -293,6 +293,27 @@ class Export(unittest.TestCase):
         self.assertNotIn("╭", text)
         self.assertNotIn("███╗", text, "no banner when piping an export to stdout")
 
+    def test_sarif_export_to_file_and_to_stdout_with_a_scope(self):
+        ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            _report_dir(out, ids)
+            c = console()
+            rc = cli.main([out, "--no-run", "--sarif", os.path.join(out, "r.sarif")], console=c)
+            with open(os.path.join(out, "r.sarif")) as fh:
+                d = json.load(fh)
+            self.assertEqual(rc, 0)
+            self.assertEqual(d["version"], "2.1.0")
+            self.assertEqual(d["runs"][0]["tool"]["driver"]["name"], "gitmole")
+            self.assertEqual([r["id"] for r in d["runs"][0]["tool"]["driver"]["rules"]], ["placeholder_identity"])
+            self.assertEqual(d["runs"][0]["properties"]["scope"], "head")
+            self.assertIn("demo", c.export_text(), "the terminal report still prints when exporting to a file")
+            c = Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system="truecolor")
+            rc = cli.main([out, "--no-run", "--sarif", "-", "--sarif-scope", "history"], console=c)
+            text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(text)["runs"][0]["properties"]["scope"], "history")
+        self.assertNotIn("███╗", text, "no banner when piping an export to stdout")
+
     def test_fail_on_returns_3_when_a_finding_reaches_the_level(self):
         ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
         with tempfile.TemporaryDirectory() as out:

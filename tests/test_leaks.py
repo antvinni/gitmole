@@ -221,6 +221,87 @@ class Script(unittest.TestCase):
         self.assertEqual(leftovers, [])
 
 
+def _git_repo_with_unreachable_objects(d):
+    """A repository with one commit on main, a commit only the reflog remembers, and a dangling blob."""
+    def git(*args):
+        env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="a@x",
+                   GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="a@x")
+        return subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=env, text=True).stdout.strip()
+    git("init", "-q", "-b", "main")
+    with open(os.path.join(d, "a.py"), "w") as fh:
+        fh.write("x = 1\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "one")
+    with open(os.path.join(d, "b.py"), "w") as fh:
+        fh.write("TOKEN = '" + FAKE + "'\n")
+    git("add", "-A")
+    git("commit", "-q", "-m", "two")
+    git("reset", "-q", "--hard", "HEAD~1")   # the second commit now lives only in the reflog
+    with open(os.path.join(d, "loose.txt"), "w") as fh:
+        fh.write("loose\n")
+    dangling = git("hash-object", "-w", "loose.txt")
+    os.remove(os.path.join(d, "loose.txt"))
+    return dangling
+
+
+class Unreachable(unittest.TestCase):
+    def test_blobs_no_ref_reaches_reflog_only_and_dangling_alike(self):
+        with tempfile.TemporaryDirectory() as d:
+            dangling = _git_repo_with_unreachable_objects(d)
+            found = leaks.unreachable(d)
+        self.assertEqual(found["blobs"], 2, "b.py from the reset commit and the dangling blob")
+        self.assertIn(dangling, found["shas"])
+        self.assertGreaterEqual(found["objects"], 4, "the reset commit, its tree, its blob, the dangling blob")
+
+    def test_nothing_outside_a_repository(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(leaks.unreachable(d))
+
+    def test_the_step_scans_the_unreachable_blobs_too_and_says_how_many(self):
+        with tempfile.TemporaryDirectory() as d:
+            bindir, repo, out = os.path.join(d, "bin"), os.path.join(d, "repo"), os.path.join(d, "out")
+            for p in (bindir, repo, out):
+                os.makedirs(p)
+            _git_repo_with_unreachable_objects(repo)
+            with open(os.path.join(d, "git.json"), "w") as fh:
+                fh.write("null")
+            fake = os.path.join(bindir, "betterleaks")
+            with open(fake, "w") as fh:
+                fh.write(f"""#!/bin/sh
+echo "$@" >> {d}/argv
+if [ "$1" = dir ]; then
+  for f in "$2"/*; do
+    if grep -q TOKEN "$f"; then
+      printf '[{{"RuleID": "generic-api-key", "File": "%s", "StartLine": 1, "Fingerprint": "x", "Secret": "{FAKE}", "Match": "m", "Line": "l"}}]' "$f"
+      exit 0
+    fi
+  done
+  echo null
+else
+  cat {d}/git.json
+fi
+""")
+            os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
+            env = dict(os.environ, PATH=bindir + os.pathsep + os.environ["PATH"], GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null")
+            p = subprocess.run([sys.executable, SCRIPT, os.path.join(out, "secrets.json")], cwd=repo, env=env, capture_output=True, text=True)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            with open(os.path.join(d, "argv")) as fh:
+                calls = [line.split() for line in fh.read().splitlines()]
+            with open(os.path.join(out, "secrets.json")) as fh:
+                rows = json.load(fh)
+            with open(os.path.join(out, "unreachable.json")) as fh:
+                record = json.load(fh)
+            leftovers = sorted(os.listdir(out))
+        self.assertEqual([c[0] for c in calls], ["git", "dir"])
+        self.assertTrue(all("--validation=false" in c for c in calls), "live-credential validation is network; it stays off, explicitly")
+        [row] = rows
+        self.assertRegex(row["File"], r"^\(unreachable blob [0-9a-f]{12}\)$")
+        self.assertEqual(row["Commit"], "")
+        self.assertNotIn(FAKE, json.dumps(rows))
+        self.assertEqual((record["blobs"], record["scanned"], record["findings"]), (2, 2, 1))
+        self.assertEqual(leftovers, ["secrets.json", "unreachable.json"], "the blobs written for the scan are gone")
+
+
 class Group(unittest.TestCase):
     def row(self, value, file, commit="c1", line=1, rule="generic-api-key", placeholder=False):
         return {"rule": rule, "file": file, "commit": commit, "line": line, "fingerprint": f"{commit}:{file}:{rule}:{line}",

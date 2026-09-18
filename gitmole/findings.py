@@ -731,9 +731,177 @@ def vulnerable_dependencies(report: dict) -> list:
     return out
 
 
+def _files_list(items: list, n: int = 3) -> str:
+    return textfmt.join_and(items[:n]) + (f" and {len(items) - n} more" if len(items) > n else "")
+
+
+def hygiene_findings(report: dict) -> list:
+    """The hygiene checks (hygiene.py), one finding per rule, each naming the OpenSSF Scorecard check it
+    stands in for without the GitHub API. Nothing for an output directory from before the step."""
+    h = report.get("hygiene") or {}
+    out = []
+    for check in (_hygiene_actions, _hygiene_lockfiles, _hygiene_updates, _hygiene_presence, _hygiene_confusion, _hygiene_install, _hygiene_binaries, _hygiene_submodules, _hygiene_symlinks, _hygiene_trojan):
+        check(h, out)
+    return out
+
+
+def _hygiene_actions(h: dict, out: list) -> None:
+
+    a = h.get("actions") or {}
+    if a.get("unpinned"):
+        n, total = a.get("unpinned_count", len(a["unpinned"])), a.get("unpinned_count", len(a["unpinned"])) + (a.get("pinned") or 0)
+        by_file = {}
+        for u in a["unpinned"]:
+            if u["uses"] not in by_file.setdefault(u["file"], []):
+                by_file[u["file"]].append(u["uses"])
+        listed = "; ".join(f"{textfmt.join_and(v[:3])}{' and more' if len(v) > 3 else ''} in {k}" for k, v in list(by_file.items())[:3])
+        third = [u for u in a["unpinned"] if not u["uses"].split("/", 1)[0] in ("actions", "github")]
+        first = (third or a["unpinned"])[0]["uses"]
+        out.append(_f("warning", "Actions pinned by tag or branch",
+                      f"{n} of {total} workflow steps use an action by tag or branch: {listed}. Whoever controls the action can move the tag to other code.",
+                      f"Pin {first} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
+                      rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0), "unpinned": a["unpinned"][:10]}))
+
+
+def _hygiene_lockfiles(h: dict, out: list) -> None:
+    lf = h.get("lockfiles") or {}
+    if lf.get("drift"):
+        d = lf["drift"]
+        listed = "; ".join(f"{x['manifest']} changed on {x['manifest_date']}, after {x['lockfile']} last did on {x['lockfile_date']}" for x in d[:3])
+        out.append(_f("warning", "Lock files behind their manifests", f"{_plural(lf.get('drift_count', len(d)), 'manifest')} changed after the lock file that pins it: {listed}.",
+                      f"Regenerate {d[0]['lockfile']} and commit it with the manifest; a frozen install does not catch this.",
+                      rule={"id": "lockfile_drift", "by": "last commit time"}, evidence={"count": lf.get("drift_count", len(d)), "drift": d[:10]}))
+    if lf.get("missing"):
+        m = lf["missing"]
+        listed = "; ".join(f"{x['manifest']} has no {x['expected'][0]}" for x in m[:3])
+        out.append(_f("info", "Manifests without a lock file", f"{listed}{' and ' + str(len(m) - 3) + ' more' if len(m) > 3 else ''}.",
+                      "Commit the lock file so every install resolves the same versions, and the vulnerability scan can read them.",
+                      rule={"id": "lockfile_missing", "scorecard": "Pinned-Dependencies"}, evidence={"missing": m[:10]}))
+
+
+def _hygiene_updates(h: dict, out: list) -> None:
+    up = h.get("updates") or {}
+    if up.get("uncovered"):
+        names = textfmt.join_and(up["uncovered"])
+        if up.get("tool"):
+            statement = f"dependabot.yml covers {textfmt.join_and(up['covered']) or 'nothing'} but not {names}, which have lock files here."
+        else:
+            statement = f"No dependency update tool is declared for {names}, which have lock files here."
+        out.append(_f("info", "Dependencies without an update tool", statement,
+                      f"Add a package-ecosystem entry for {up['uncovered'][0]} to .github/dependabot.yml, or a renovate.json.",
+                      rule={"id": "dependency_updates", "scorecard": "Dependency-Update-Tool"}, evidence=dict(up)))
+
+
+def _hygiene_presence(h: dict, out: list) -> None:
+    pr = h.get("presence") or {}
+    if pr and (not pr.get("license") or not pr.get("security_policy") or pr.get("codeowners_missing")):
+        parts = []
+        if not pr.get("license"):
+            parts.append("No licence file at the root")
+        if not pr.get("security_policy"):
+            parts.append("no security policy (SECURITY.md)" if parts else "No security policy (SECURITY.md)")
+        missing = pr.get("codeowners_missing") or []
+        if missing:
+            parts.append(f"{pr['codeowners']} names {_plural(len(missing), 'path')} that {'matches' if len(missing) == 1 else 'match'} no tracked file: {_files_list(missing)}")
+        advice = ("Add a LICENSE; without one nobody may reuse the code." if not pr.get("license") else
+                  "Add a SECURITY.md that says how to report a vulnerability privately." if not pr.get("security_policy") else
+                  f"Remove or fix {missing[0]} in {pr['codeowners']}; a stale owner line assigns reviews to nothing.")
+        out.append(_f("info", "Repository policy files", "; ".join(parts) + ".", advice,
+                      rule={"id": "repo_policy", "scorecard": "Security-Policy, License"}, evidence=dict(pr)))
+
+
+def _hygiene_confusion(h: dict, out: list) -> None:
+    cf = h.get("confusion") or {}
+    if cf.get("scoped_public") or cf.get("registries") or cf.get("pip_extra_index"):
+        parts = [f"{x['package']} resolved from {x['registry']} in {x['lockfile']}, though .npmrc sends {x['package'].split('/')[0]} to {x['declared']}"
+                 for x in (cf.get("scoped_public") or [])[:3]]
+        parts += [f"{k} mixes {textfmt.join_and(v)}" for k, v in list((cf.get("registries") or {}).items())[:2]]
+        if cf.get("pip_extra_index"):
+            parts.append(f"{_files_list(cf['pip_extra_index'])} {'adds' if len(cf['pip_extra_index']) == 1 else 'add'} a pip extra-index-url, which lets a public package shadow a private one")
+        sev = "warning" if cf.get("scoped_public") else "info"
+        advice = (f"Reinstall {cf['scoped_public'][0]['package']} from {cf['scoped_public'][0]['declared']} and check the published copy is yours."
+                  if cf.get("scoped_public") else "Use one index per package: --index-url for the private one, or a scoped registry, rather than an extra index.")
+        out.append(_f(sev, "Dependency confusion shapes", "; ".join(parts) + ".", advice,
+                      rule={"id": "dependency_confusion"}, evidence={"scoped_public": (cf.get("scoped_public") or [])[:10],
+                                                                    "registries": cf.get("registries") or {}, "pip_extra_index": cf.get("pip_extra_index") or []}))
+
+
+def _hygiene_install(h: dict, out: list) -> None:
+    ins = h.get("install") or {}
+    if ins.get("lockfile") or ins.get("manifests") or ins.get("setup_py"):
+        parts = []
+        if ins.get("lockfile"):
+            n = ins.get("lockfile_count", len(ins["lockfile"]))
+            parts.append(f"{n} locked package{'s' if n != 1 else ''} {'runs' if n == 1 else 'run'} an install script ({_files_list([x['package'] for x in ins['lockfile']])})")
+        parts += [f"{m['file']} declares {textfmt.join_and(m['scripts'])}" for m in (ins.get("manifests") or [])[:3]]
+        parts += [f"{s_['file']} calls {textfmt.join_and(s_['calls'])}" for s_ in (ins.get("setup_py") or [])[:3]]
+        out.append(_f("info", "Code that runs at install", "; ".join(parts) + ".",
+                      "Install with scripts disabled where the build allows it (npm ci --ignore-scripts) and review what the rest run.",
+                      rule={"id": "install_scripts"}, evidence={k: ins.get(k) for k in ("lockfile", "manifests", "setup_py")}))
+
+
+def _hygiene_binaries(h: dict, out: list) -> None:
+    b = h.get("binaries") or {}
+    exe = [x for x in b.get("executables") or [] if not _aside_path(x["file"])]
+    if exe or b.get("lfs_unpointed"):
+        parts = []
+        if exe:
+            named = [f"{x['file']} ({x['format']})" for x in exe]
+            parts.append(f"{_plural(len(exe), 'executable')} committed: {_files_list(named)}")
+        lfs = b.get("lfs_unpointed") or []
+        if lfs:
+            parts.append(f"{_files_list(lfs)} {'is' if len(lfs) == 1 else 'are'} committed as a blob though .gitattributes sends {'it' if len(lfs) == 1 else 'them'} to LFS")
+        out.append(_f("warning" if exe else "info", "Committed binaries", "; ".join(parts) + ".",
+                      f"Build {exe[0]['file']} in CI and publish it as a release asset instead; nobody can review a binary in a diff." if exe
+                      else "Run git lfs migrate import for those paths, or drop the filter=lfs line that does not apply.",
+                      rule={"id": "committed_binaries", "scorecard": "Binary-Artifacts"}, evidence={"executables": exe[:10], "lfs_unpointed": lfs[:10]}))
+
+
+def _hygiene_submodules(h: dict, out: list) -> None:
+    sm = h.get("submodules") or {}
+    if sm.get("credentials") or sm.get("insecure") or sm.get("relative") or sm.get("floating"):
+        parts = [f"{x['name']} carries credentials in its URL" for x in sm.get("credentials") or []]
+        parts += [f"{x['name']} is fetched over {x['url'].split(':', 1)[0]}://" for x in sm.get("insecure") or []]
+        parts += [f"{x['name']} has a relative URL ({x['url']})" for x in sm.get("relative") or []]
+        parts += [f"{x['name']} follows branch {x['branch']}" for x in sm.get("floating") or []]
+        sev = "critical" if sm.get("credentials") else "warning" if sm.get("insecure") else "info"
+        advice = ("Rotate that credential and remove it from .gitmodules; history keeps it." if sm.get("credentials") else
+                  "Switch those URLs to https://; a plain-text fetch can be rewritten on the way." if sm.get("insecure") else
+                  "Use absolute https:// URLs and let the pinned commit, not a branch, say what is checked out.")
+        out.append(_f(sev, "Submodule URLs", "; ".join(parts[:6]) + ".", advice, rule={"id": "submodule_urls"},
+                      evidence={k: sm.get(k) or [] for k in ("credentials", "insecure", "relative", "floating")}))
+
+
+def _hygiene_symlinks(h: dict, out: list) -> None:
+    sl = h.get("symlinks") or {}
+    if sl.get("outside") or sl.get("into_git"):
+        parts = [f"{x['link']} points outside the tree ({x['target']})" for x in sl.get("outside") or []]
+        parts += [f"{x['link']} points into .git ({x['target']})" for x in sl.get("into_git") or []]
+        out.append(_f("warning", "Symlinks out of the tree", "; ".join(parts[:5]) + ".",
+                      "Replace them with files or relative links inside the tree; a checkout that follows them reads or writes where it should not.",
+                      rule={"id": "unsafe_symlinks"}, evidence={"outside": sl.get("outside") or [], "into_git": sl.get("into_git") or []}))
+
+
+def _hygiene_trojan(h: dict, out: list) -> None:
+    tj = h.get("trojan") or {}
+    if tj.get("bidi") or tj.get("mixed_script"):
+        parts = [f"{x['file']}:{x['line']} holds {x['char']}" for x in (tj.get("bidi") or [])[:3]]
+        parts += [f"{x['token']} at {x['file']}:{x['line']} mixes {textfmt.join_and(x['scripts'])}" for x in (tj.get("mixed_script") or [])[:3]]
+        sev = "critical" if tj.get("bidi") else "warning"
+        first = (tj.get("bidi") or tj.get("mixed_script"))[0]
+        out.append(_f(sev, "Trojan Source characters", "; ".join(parts) + ". Code can read one way in review and compile another.",
+                      f"Look at {first['file']}:{first['line']} in a hex view first, and remove the character unless it is in a string that must hold it.",
+                      rule={"id": "trojan_source", "cve": "CVE-2021-42574"},
+                      evidence={"bidi": (tj.get("bidi") or [])[:10], "mixed_script": (tj.get("mixed_script") or [])[:10]}))
+
+
+def _aside_path(path: str) -> bool:
+    return filetypes.is_test_path(path) or filetypes.is_sample_path(path) or filetypes.is_vendor_path(path)
+
+
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets,
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
-         sweeping_commits, tangled_commits]
+         sweeping_commits, tangled_commits, hygiene_findings]
 
 
 def evaluate(report: dict) -> list:

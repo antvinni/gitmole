@@ -104,7 +104,9 @@ why a file is out of the scored pool, `findings.py` holds the heuristics,
 `trend.py` is complexity over time for the top hotspots, `clean.py` finds
 and removes what gitmole left behind, `compare.py` is the difference between
 two reports (the findings new, resolved and persisting, the watch list's
-moves), `hook.py` is the agent-hook gate behind `--hook`, `szz.py` finds
+moves), `hook.py` is the agent-hook gate behind `--hook`, `sarif.py` the SARIF export,
+`signing.py` reads commit signing coverage from the objects, `hygiene.py` the
+repository hygiene checks, `szz.py` finds
 bug-inducing commits by R-SZZ for the backtest, and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates
 `docs/banner.svg` from the banner code.
