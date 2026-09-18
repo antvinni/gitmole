@@ -36,12 +36,12 @@ class Outcome(unittest.TestCase):
 
 class Score(unittest.TestCase):
     def test_the_report_at_t_knows_nothing_after_t(self):
-        r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {"bots": [], "generated": []})
+        r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {"bots": []}, [], [])
         self.assertEqual({x["entity"]: x["n-revs"] for x in r["revisions"]}, {"core/a.py": 3, "core/b.py": 2, "tests/test_a.py": 1})
         self.assertEqual(r["meta"]["now"], "2025-06-01")
 
     def test_every_variant_is_scored_over_one_pool_next_to_a_random_pick(self):
-        r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {})
+        r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {}, [], [])
         out = evaluate.score(r, {"core/b.py"}, top=1)
         self.assertEqual(set(out), {"watch list (hotspot)", "factor product (max-scaled)", "factor product (rank-scaled)", "churn", "size", "recent fixes", "random (expected)"})
         self.assertEqual(out["churn"], 0, "a.py changed more and was not the file fixed")
@@ -51,7 +51,7 @@ class Score(unittest.TestCase):
     def test_a_bot_owns_nothing_at_t_either(self):
         commits = [commit("2025-01-10", "add", ("core/a.py", 100, 0))]
         commits[0]["author"] = "release[bot]"
-        self.assertEqual(evaluate.report_at(commits, "2025-06-01", SIZE, {})["ownership"], [])
+        self.assertEqual(evaluate.report_at(commits, "2025-06-01", SIZE, {}, [], [])["ownership"], [])
 
 
 ROWS = [
