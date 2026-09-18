@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import functools
 import importlib.util
 import json
 import os
@@ -149,10 +150,12 @@ def has_lizard(finder=importlib.util.find_spec) -> bool:
 _VERSION_TOKEN = re.compile(r"\d+\.\d+[\w.-]*")
 
 
+@functools.lru_cache(maxsize=None)
 def tool_version(name: str, path: str = None) -> str | None:
     """The version a tool prints for --version: the last version-shaped token on its first line
     ("scc version 4.1.0", "git-sizer release 1.5.0", "osv-scanner version: 2.6.0"). None when the tool is
-    missing, hangs or prints none."""
+    missing, hangs or prints none. Cached: a tool's version cannot change within a process, so a run with
+    several steps (or a test calling manifest() often) pays for one --version per tool, not one per call."""
     try:
         proc = subprocess.run([name, "--version"], capture_output=True, text=True, timeout=10, env=dict(os.environ, PATH=path or env_path()))
     except (OSError, subprocess.TimeoutExpired):

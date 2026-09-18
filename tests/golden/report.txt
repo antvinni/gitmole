@@ -1,7 +1,7 @@
 reference date fixed by GITMOLE_NOW: 2025-06-15
 
 ╭─ demo ───────────────────────────────────────────────────────────────────────────────────────────╮
-│ 8 commits  ·  2024-01-10 → 2025-05-30  ·  2 identities  ·  branch main                           │
+│ 8 commits  ·  2024-01-10 → 2025-05-30  ·  2 identities  ·  branch main @ b310579c                │
 │ 10 lines in 3 files  ·  Python, Makefile                                                         │
 │ most commits on Wed at 09:00  ·  12% of commits are fixes  ·  82% of surviving code from 2024    │
 │ 1 note                                                                                           │
