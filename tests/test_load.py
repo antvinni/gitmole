@@ -367,6 +367,11 @@ class LoadReport(unittest.TestCase):
             r = load.load_report(out)
         self.assertEqual(r["theseus_authors"], {"Bob": 90, "Ann": 10})
 
+    def test_the_duplication_rate_a_year_back_is_kept(self):
+        d = load.parse_duplicates_json({"rate": 6.1, "files": 10, "blocks": [], "then": {"date": "2025-09-17", "rev": "abc", "files": 9, "rate": 4.2}})
+        self.assertEqual(d["then"], {"date": "2025-09-17", "rev": "abc", "files": 9, "rate": 4.2})
+        self.assertNotIn("then", load.parse_duplicates_json({"rate": 6.1, "blocks": []}))
+
     def test_no_signing_file_is_an_empty_record(self):
         import os, tempfile
         with tempfile.TemporaryDirectory() as out:
@@ -376,6 +381,7 @@ class LoadReport(unittest.TestCase):
             self.assertEqual(load.load_report(out)["hygiene"], {})
             self.assertEqual(load.load_report(out)["unreachable"], {})
             self.assertEqual(load.load_report(out)["structure"], {})
+            self.assertEqual(load.load_report(out)["provenance"], {})
 
     def test_missing_optional_file_gives_empty_value(self):
         import tempfile

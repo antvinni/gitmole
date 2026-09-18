@@ -195,7 +195,7 @@ def manifest(repo_dir: str, args, version_of=tool_version) -> dict:
 # Everything a run writes besides meta.json and run.log. Removed before each run so a reused
 # --out directory never shows a previous run's data as this run's (a step skipped or killed
 # this time would otherwise leave last time's file in place).
-OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "dependencies.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json",
+OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "dependencies.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json", "provenance.json",
            "duplicates.json", "duplicates.txt",   # duplicates.txt: what lizard's finder wrote before jscpd
            "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]
@@ -242,7 +242,7 @@ def ignore_revs_files(repo_dir: str) -> list:
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
          lizard: bool = False, duplicates: bool = True, trend: bool = True, samples: int = 12, backtest: str = None,
-         ignore_revs=(), structure: bool = False) -> list:
+         ignore_revs=(), structure: bool = False, duplicates_then: str = None) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
@@ -263,6 +263,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json"), *revs_args], "stdout": None, "deps": ["git-log"]},
         {"name": "signing", "argv": [sys.executable, "-m", "gitmole.signing", out_dir], "stdout": None, "deps": []},   # the gpgsig headers, no keyring
         {"name": "hygiene", "argv": [sys.executable, "-m", "gitmole.hygiene", out_dir], "stdout": None, "deps": []},   # the Scorecard checks, from the clone
+        {"name": "provenance", "argv": [sys.executable, "-m", "gitmole.provenance", out_dir], "stdout": None, "deps": []},   # trailers, cohorts, agent files
     ]
     workers = procs or blame.default_procs()
     if lizard:
@@ -271,7 +272,8 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
     if structure:   # tree-sitter: nesting, cognitive complexity, debt markers, the import graph; gitmole[structure] only
         steps.append({"name": "structure", "argv": [sys.executable, "-m", "gitmole.structure", out_dir, "--procs", str(workers)], "stdout": None, "deps": []})
     if duplicates:
-        steps.append({"name": "duplicates", "argv": [sys.executable, DUPLICATES_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args],
+        steps.append({"name": "duplicates", "argv": [sys.executable, DUPLICATES_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args,
+                                                    *(["--then", duplicates_then] if duplicates_then else [])],   # the rate a year back: a direction
                       "stdout": None, "deps": []})
     if trend:
         steps.append({"name": "trend", "argv": [sys.executable, "-m", "gitmole.trend", out_dir, "--samples", str(samples)],

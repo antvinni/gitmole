@@ -6,8 +6,10 @@ jscpd walks the working tree and reports every pair of matching fragments. This 
 whose two sides are both tracked files inside the analysed types, folds the pairs of one fragment into
 a block with all its places, measures the duplicated share over the kept files, and writes
 duplicates.json. jscpd's own report quotes every fragment, so it is written to a temporary directory
-under OUT and removed before this returns: no source text lands in the output directory. Standalone,
-like maat.py and blame.py.
+under OUT and removed before this returns: no source text lands in the output directory. With --then
+DATE the tree at the last commit before that date is exported under OUT, measured the same way and
+removed, so the rate has a direction: GitClear's longitudinal data shows duplication is where the
+change is, and one number without the year before it says little. Standalone, like maat.py and blame.py.
 """
 from __future__ import annotations
 
@@ -118,6 +120,40 @@ def run_jscpd(repo: str, out: str, procs: int, ignore=()) -> tuple:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def rev_before(repo: str, date: str):
+    out = subprocess.run(["git", "rev-list", "-1", f"--before={date}T00:00:00", "HEAD"], cwd=repo, capture_output=True, text=True)
+    return out.stdout.strip() or None
+
+
+def files_at(repo: str, rev: str, ignore=(), types_spec: str = None) -> list:
+    """The tracked text files of the tree at `rev`, in the analysed types, as select_files lists HEAD's."""
+    import fnmatch
+    proc = subprocess.run([*filetypes.GIT, "grep", "-I", "--name-only", "-z", "-e", "", rev], cwd=repo, capture_output=True)
+    types = filetypes.parse(types_spec)
+    paths = sorted(p.decode("utf-8", "surrogateescape").split(":", 1)[1] for p in proc.stdout.split(b"\0") if p)
+    return [f for f in paths if filetypes.matches(f, types) and not any(fnmatch.fnmatch(f, g) for g in ignore)]
+
+
+def rate_at(repo: str, out: str, rev: str, procs: int, ignore=(), types_spec: str = None):
+    """The duplicated share of the tree at `rev`: the tree exported through a temporary index under
+    `out` (as the backtest exports its cut-off), jscpd over it, the same fold and rate as HEAD's."""
+    tmp = tempfile.mkdtemp(prefix=".dup-then-", dir=out)
+    try:
+        tree = os.path.join(tmp, "tree")
+        os.makedirs(tree)
+        env = dict(os.environ, GIT_INDEX_FILE=os.path.join(tmp, "index"))
+        subprocess.run(["git", "read-tree", rev], cwd=repo, env=env, check=True, capture_output=True)
+        subprocess.run(["git", "checkout-index", "-a", f"--prefix={tree}/"], cwd=repo, env=env, check=True, capture_output=True)
+        files = files_at(repo, rev, ignore, types_spec)
+        rc, report = run_jscpd(tree, out, procs, ignore)
+        if rc != 0:
+            return None
+        blocks = fold(report.get("duplicates") or [], set(files))
+        return {"files": len(files), "rate": rate(blocks, tree, files)}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def write(result: dict, target: str) -> None:
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(target)), prefix=".duplicates-", suffix=".json")
     try:
@@ -136,6 +172,7 @@ def main(argv=None) -> int:
     p.add_argument("--procs", type=int, default=1)
     p.add_argument("--ignore", action="append", default=[])
     p.add_argument("--types", default=None, help="file types spec as for gitmole --file-types")
+    p.add_argument("--then", metavar="YYYY-MM-DD", help="also measure the tree at the last commit before this date, for the direction")
     args = p.parse_args(argv)
     repo, out = os.path.abspath(args.repo), os.path.abspath(args.out)
     files = select_files(repo, args.ignore, args.types)
@@ -145,6 +182,11 @@ def main(argv=None) -> int:
     blocks = fold(report.get("duplicates") or [], set(files))
     result = {"tool": "jscpd", "files": len(files), "clones": sum(len(b["places"]) - 1 for b in blocks),
               "rate": rate(blocks, repo, files), "blocks": blocks[:BLOCKS_KEPT]}
+    if args.then:
+        rev = rev_before(repo, args.then)
+        measured = rate_at(repo, out, rev, args.procs, args.ignore, args.types) if rev else None
+        if measured:
+            result["then"] = {"date": args.then, "rev": rev[:12], **measured}
     write(result, os.path.join(out, "duplicates.json"))
     return 0
 

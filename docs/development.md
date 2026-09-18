@@ -107,7 +107,8 @@ two reports (the findings new, resolved and persisting, the watch list's
 moves), `hook.py` is the agent-hook gate behind `--hook`, `sarif.py` the SARIF export,
 `signing.py` reads commit signing coverage from the objects, `hygiene.py` the
 repository hygiene checks, `structure.py` the optional tree-sitter pass
-(nesting, cognitive complexity, debt markers, the import graph), `szz.py` finds
+(nesting, cognitive complexity, debt markers, the import graph), `provenance.py`
+trailers, cohorts, commit shape and the agent files, `szz.py` finds
 bug-inducing commits by R-SZZ for the backtest, and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates
 `docs/banner.svg` from the banner code.

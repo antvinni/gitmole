@@ -1207,3 +1207,43 @@ class Structure(unittest.TestCase):
         r = self.base()
         r["structure"] = {"status": "not-installed"}
         self.assertFalse({"debt_in_hotspots", "deep_nesting", "hidden_coupling", "unreferenced_files"} & set(self.by_id(r)))
+
+
+class AgentSurface(unittest.TestCase):
+    def rep(self, agents=None, trailers=None):
+        return report(provenance={"agents": agents or {}, "trailers": trailers or {"never_author": [], "signoff_by_co_author": []}},
+                      meta={"name": "r", "commits": 1000, "identities": [], "last_date": "2026-09-01"})
+
+    def by_id(self, r):
+        return {f["rule"]["id"]: f for f in findings.evaluate(r)}
+
+    def test_approval_prompts_turned_off_and_personal_settings_tracked_are_warnings(self):
+        found = self.by_id(self.rep(agents={"approval_disabled": [{"file": ".claude/settings.json", "setting": "permissions.defaultMode=bypassPermissions"}],
+                                            "local_settings": [".claude/settings.local.json"]}))
+        f = found["agent_approval_disabled"]
+        self.assertEqual(f["severity"], "warning")
+        self.assertIn(".claude/settings.json sets permissions.defaultMode=bypassPermissions", f["detail"])
+        self.assertEqual(found["agent_local_settings"]["severity"], "warning")
+        self.assertIn(".claude/settings.local.json is tracked", found["agent_local_settings"]["detail"])
+
+    def test_literal_values_in_an_mcp_declaration_name_the_key_never_the_value(self):
+        f = self.by_id(self.rep(agents={"mcp": [{"file": ".mcp.json", "servers": 2, "literal_env": [{"server": "db", "key": "DB_URL"}]}]}))["mcp_literal_env"]
+        self.assertEqual(f["severity"], "warning")
+        self.assertIn("db sets DB_URL in .mcp.json to a literal value", f["detail"])
+        self.assertIn("${DB_URL}", f["advice"])
+
+    def test_stale_instructions(self):
+        found = self.by_id(self.rep(agents={"instructions": [{"file": "AGENTS.md", "last": "2025-01-01", "commits_behind": 640},
+                                                             {"file": "CLAUDE.md", "last": "2026-08-20", "commits_behind": 12}]}))
+        f = found["agent_instructions_drift"]
+        self.assertEqual(f["severity"], "info")
+        self.assertIn("AGENTS.md last changed on 2025-01-01, 20 months and 640 commits before the last commit", f["detail"])
+        self.assertNotIn("CLAUDE.md", f["detail"])
+
+    def test_a_sign_off_by_an_identity_that_only_co_authors(self):
+        f = self.by_id(self.rep(trailers={"never_author": [], "signoff_by_co_author": [{"name": "Ghost", "email": "ghost@x.com", "commits": 3}]}))["signoff_by_co_author"]
+        self.assertEqual(f["severity"], "info")
+        self.assertIn("Ghost <ghost@x.com> signs off 3 commits but never authors one", f["detail"])
+        self.assertEqual(self.by_id(self.rep()).get("signoff_by_co_author"), None)
+        one = self.rep(trailers={"never_author": [], "signoff_by_co_author": [{"name": "Ghost", "email": "ghost@x.com", "commits": 1}]})
+        self.assertIsNone(self.by_id(one).get("signoff_by_co_author"), "one commit is not a habit")

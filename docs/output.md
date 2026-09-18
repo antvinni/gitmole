@@ -14,7 +14,19 @@ How to read each part of the terminal report, and what each run writes to disk; 
    keyring and a fresh clone reads the same as the author's; nothing is
    verified, and the figure is evidence toward SLSA Source L2, never a
    level. `--full` and Markdown add a Signing by year table with humans
-   against bots and the busiest identities. With `--full`, and always in Markdown, a coverage
+   against bots and the busiest identities. With a year of history, the
+   header also gives the duplication rate's direction, `26.5% of lines
+   duplicated, down from 28.1% a year before`: the duplicates step runs
+   jscpd a second time over the tree as it stood a year before the last
+   commit. `--full` and Markdown add a Trailers table: every hyphenated
+   trailer key and how many commits carry it, then the commits an
+   `Assisted-by` trailer or a co-author who never authors a commit marks,
+   against the rest (reverted, fixes, a file changed again within two
+   weeks), with the share of the history they cover, and three neutral
+   descriptors of how commits arrive (bursts of five or more within ten
+   minutes, conventional-commit subjects, hours of the day). This
+   repository against itself, with no prior from elsewhere, and nothing is
+   labelled: every descriptor has an ordinary cause. With `--full`, and always in Markdown, a coverage
    line counts the tracked text files by why they are out of the scored
    pool: `4,512 files: 582 scored · 13 generated · 2,680 test files · 139
    example code · 3 release files · 1,095 not a source type`, and a file of
@@ -110,6 +122,21 @@ How to read each part of the terminal report, and what each run writes to disk; 
    partial tree. The watch list gains three reasons from the same step:
    `5 TODO/FIXME comments`, `parse() nested 6 deep`, and `defines 72
    functions and classes` for a file with sixty or more.
+
+   What the history declares about how commits were made is read, never
+   inferred. Agent configuration is a surface like `package.json`: a
+   committed setting that turns approval prompts off
+   (`permissions.defaultMode` set to `bypassPermissions`) and a tracked
+   `.claude/settings.local.json`, which is meant for one machine, are
+   warnings; an MCP server declaration (`.mcp.json`, `.cursor/mcp.json`,
+   `.vscode/mcp.json`) whose environment holds a literal value of sixteen
+   characters or more rather than a `${VAR}` reference is a warning that
+   names the key and never the value; an instruction file (`AGENTS.md`,
+   `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) six months
+   and a hundred commits behind the last commit is a note. A `Signed-off-by`
+   from an identity that co-authors commits but never authors one, on two
+   commits or more, is a note: the Linux kernel's policy forbids an agent
+   to add the Developer Certificate of Origin.
 
    Two checks are also reported when they pass: a green `No secrets in
    history` line closes the panel whenever the betterleaks scan ran and
@@ -434,7 +461,7 @@ directory for a remote target:
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file, a commit's lines shared between its author and co-authors |
 | `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
 | `functions.csv` | lizard | per-function complexity, length, parameters, in lizard's own `--csv` columns, then two of gitmole's: a label for a function lizard could not name (the text of its start line) and, when the span looks mis-parsed, why |
-| `duplicates.json` | jscpd | duplicated blocks over the tracked code files, largest first (the thousand largest), each with every place it appears, and the share of lines inside a block; no source text |
+| `duplicates.json` | jscpd | duplicated blocks over the tracked code files, largest first (the thousand largest), each with every place it appears, and the share of lines inside a block, now and at the last commit a year before; no source text |
 | `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
 | `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |
@@ -444,6 +471,7 @@ directory for a remote target:
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave |
 | `structure.json` | structure step, `gitmole[structure]` only | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports, its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the possibly unreferenced files; or a status saying how to install it |
+| `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the marked cohort against the rest, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
 | `run.log` | gitmole | every command run and its stderr |
 
 ## How to read the output

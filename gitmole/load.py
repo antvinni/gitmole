@@ -197,7 +197,10 @@ def parse_duplicates_json(data) -> dict | None:
     blocks = [{"lines": _num(b.get("lines")), "places": sorted(tuple(p[:3]) for p in b.get("places") or [] if len(p) >= 3)}
               for b in data.get("blocks") or []]
     rate = data.get("rate")
-    return {"rate": float(rate) if rate is not None else None, "blocks": blocks, "files": _num(data.get("files"))}
+    out = {"rate": float(rate) if rate is not None else None, "blocks": blocks, "files": _num(data.get("files"))}
+    if isinstance(data.get("then"), dict):
+        out["then"] = data["then"]   # the rate at the last commit a year before: the direction
+    return out
 
 
 def parse_duplicates(text: str) -> dict:
@@ -331,6 +334,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "signing": _read_json(out_dir, "signing.json", {}) or {},   # commit signing coverage; {} before the step or after a killed one
         "hygiene": _read_json(out_dir, "hygiene.json", {}) or {},   # the hygiene checks (hygiene.py); {} before 0.15
         "unreachable": _read_json(out_dir, "unreachable.json", {}) or {},
-        "structure": _read_json(out_dir, "structure.json", {}) or {},   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
+        "structure": _read_json(out_dir, "structure.json", {}) or {},
+        "provenance": _read_json(out_dir, "provenance.json", {}) or {},   # trailers, cohorts, commit shape, agent files; {} before 0.17   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
         "backtest": _nested(out_dir) if nested else None,
     }
