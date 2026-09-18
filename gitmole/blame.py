@@ -31,13 +31,14 @@ def default_procs(cpu: int = None) -> int:
     return max(1, cpu - 2)
 
 
-def _low_priority(shared: dict = None):
+def _low_priority(shared: dict = None, imported=()):
     try:
         os.nice(10)
     except OSError:
         pass
     if shared:
         set_co_authors(shared)
+    set_imported(imported)
 
 
 try:
@@ -48,11 +49,26 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
 
 _CO_AUTHORS = {}       # abbreviated commit hash -> the co-authors' names; set in every worker by the pool initializer
 _HASH_LENGTHS = ()     # the abbreviation lengths the log used, so a blame's full hash can be looked up by prefix
+_IMPORTED = ()         # abbreviated hashes of the import commits (maat.importing): their lines are nobody's
+
+
+def set_imported(hashes) -> None:
+    global _IMPORTED
+    _IMPORTED = tuple(hashes or ())
+
+
+def _is_imported(full_hash: str) -> bool:
+    return any(full_hash.startswith(h) for h in _IMPORTED)
 
 
 def co_authors_by_commit(log_text: str, aliases: dict = None) -> dict:
     """From the change log, the commits that name co-authors: {hash: [names]}."""
     return {c["hash"]: c["co_authors"] for c in maat.parse_log(log_text, aliases, types=None) if c["co_authors"]}
+
+
+def imports_in(log_text: str, types=filetypes.DEFAULT) -> list:
+    """The hashes of the log's import commits, the way the change analysis finds them."""
+    return [c["hash"] for c in maat.importing(maat.parse_log(log_text, None, types))]
 
 
 def set_co_authors(shared: dict) -> None:
@@ -86,26 +102,31 @@ _HEADER = re.compile(r"^[0-9a-f]{40,64} \d+ \d+")
 def blame_file(repo: str, path: str) -> dict:
     """{(year, author): lines} for one file at HEAD. A line from a commit with co-authors (see
     set_co_authors) is split equally between everyone it credits, so the values are fractional
-    then; whole lines are rounded once, when the totals are written."""
+    then; whole lines are rounded once, when the totals are written. A line an import commit wrote
+    (set_imported) counts for its year under the author None: it survives, but nobody here wrote it."""
     proc = subprocess.run(["git", "blame", "--line-porcelain", "HEAD", "--", path], cwd=repo, capture_output=True, text=True, errors="replace")
     if proc.returncode != 0:
         return {}
-    counts, author, year, crew = Counter(), None, None, []
+    counts, author, year, crew, imported = Counter(), None, None, [], False
     for line in proc.stdout.split("\n"):
         if line.startswith("author "):
             author = line[7:]
         elif line.startswith("author-time "):
             year = str(dt.datetime.fromtimestamp(int(line[12:]), dt.timezone.utc).year)
         elif line.startswith("\t"):
-            if crew:
+            if imported:
+                counts[(year, None)] += 1
+            elif crew:
                 share = 1 / (1 + len(crew))
                 counts[(year, author)] += share
                 for who in crew:
                     counts[(year, who)] += share
             else:
                 counts[(year, author)] += 1
-        elif _HASH_LENGTHS and _HEADER.match(line):
-            crew = _shared_with(line.split(" ", 1)[0])
+        elif _HEADER.match(line):
+            full = line.split(" ", 1)[0]
+            crew = _shared_with(full) if _HASH_LENGTHS else []
+            imported = bool(_IMPORTED) and _is_imported(full)
     return {k: (int(v) if float(v).is_integer() else v) for k, v in counts.items()}
 
 
@@ -145,17 +166,20 @@ def _series(counter: Counter, label) -> dict:
 
 def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, procs: int = None, types=filetypes.DEFAULT, log_path: str = None) -> dict:
     aliases = aliases_from_meta(aliases_path) if aliases_path else {}
-    shared = {}
+    shared, imported = {}, []
     if log_path and os.path.exists(log_path):
         with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
-            shared = co_authors_by_commit(fh.read(), aliases)
+            text = fh.read()
+        shared = co_authors_by_commit(text, aliases)
+        imported = imports_in(text, types)
     files = code_files(repo, ignore, types)
     years, authors = Counter(), Counter()
-    with Pool(procs or default_procs(), initializer=_low_priority, initargs=(shared,)) as pool:
+    with Pool(procs or default_procs(), initializer=_low_priority, initargs=(shared, imported)) as pool:
         for counts in pool.imap_unordered(_job, [(repo, f) for f in files], chunksize=8):
             for (year, author), n in counts.items():
                 years[year] += n
-                authors[aliases.get(author, author)] += n
+                if author is not None:   # an import's lines count for their year and for nobody
+                    authors[aliases.get(author, author)] += n
     years = Counter({k: int(round(v)) for k, v in years.items()})
     authors = Counter({k: int(round(v)) for k, v in authors.items() if round(v)})
     os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)

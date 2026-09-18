@@ -1323,3 +1323,13 @@ class ComponentCoupling(unittest.TestCase):
         self.assertNotIn("tests/", f["detail"], "a component of tests changes with what it tests")
         self.assertNotIn("web/", f["detail"], "under the 30% floor")
         self.assertNotIn("auth/x/", f["detail"], "the depth is the one the tree's layout asks for")
+
+
+class ImportCommits(unittest.TestCase):
+    def test_the_import_is_named_with_its_share(self):
+        act = {"imports": [{"hash": "79d8f164f8", "date": "2019-03-26", "author": "Dan", "files": 12449, "added": 2800751, "deleted": 16,
+                            "subject": "Candidate release of source code."}], "added_total": 6648513}
+        f = findings.import_commits(report(activity=act))
+        self.assertEqual(f[0]["rule"]["id"], "import_commits")
+        self.assertIn("79d8f164f8 by Dan (12,449 files, 2,800,751 lines, 42% of every line the history adds", f[0]["detail"])
+        self.assertEqual(findings.import_commits(report(activity={})), [])
