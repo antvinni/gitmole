@@ -6,6 +6,16 @@ import unittest
 from gitmole import filetypes
 
 
+def git_repo(d: str, files: dict) -> None:
+    """A repository at `d` holding `files` (path -> text), staged, so git check-attr can read its .gitattributes."""
+    for path, text in files.items():
+        os.makedirs(os.path.join(d, os.path.dirname(path)) or d, exist_ok=True)
+        with open(os.path.join(d, path), "w") as fh:
+            fh.write(text)
+    subprocess.run(["git", "init", "-q"], cwd=d, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=d, check=True)
+
+
 class Parse(unittest.TestCase):
     def test_default_when_unset(self):
         self.assertIs(filetypes.parse(None), filetypes.DEFAULT)
@@ -139,16 +149,42 @@ class TestPaths(unittest.TestCase):
                 "static/app.js.map": "{}\n",
                 "src/Foundation/resources/renderer/dist/scripts.js": "var e=1;\n",   # a dist/ directory is build output by name
                 "src/distance.py": "x = 1\n",
+                "out/report.txt": "plain\n",                # attributed at the root
+                "pkg/gen/a.txt": "plain\n",                 # attributed by a nested .gitattributes, which git honours
+                "pkg/other.txt": "plain\n",
+                ".gitattributes": "* text=auto\nout/* linguist-generated=true\n",
+                "pkg/.gitattributes": "gen/*.txt linguist-generated\n",
             }
-            for path, text in files.items():
-                os.makedirs(os.path.join(d, os.path.dirname(path)), exist_ok=True)
-                with open(os.path.join(d, path), "w") as fh:
-                    fh.write(text)
-            with open(os.path.join(d, ".gitattributes"), "w") as fh:
-                fh.write("* text=auto\ndist/* linguist-generated=true\n*.min.js linguist-generated\n")
+            git_repo(d, files)
             found = filetypes.generated_files(d, sorted(files))
-        self.assertEqual(found, ["dist/bundle.js", "gen/schema.py", "internal/js/renderkatex.bundle.js", "lib/config-validator.js", "pb/api.pb.go",
+        self.assertEqual(found, ["dist/bundle.js", "gen/schema.py", "internal/js/renderkatex.bundle.js", "lib/config-validator.js",
+                                 "out/report.txt", "pb/api.pb.go", "pkg/gen/a.txt",
                                  "src/Foundation/resources/renderer/dist/scripts.js", "static/app.js.map", "static/app.min.css"])
+
+    def test_attributes_come_from_git_and_a_plain_directory_has_none(self):
+        with tempfile.TemporaryDirectory() as d:
+            git_repo(d, {"third/lib.js": "x\n", "main.go": "y\n", ".gitattributes": "third/** linguist-vendored\n"})
+            self.assertEqual(filetypes.attributes(d, ["third/lib.js", "main.go"]), {"third/lib.js": {"linguist-vendored"}})
+            self.assertEqual(filetypes.attributes(d, []), {})
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(filetypes.attributes(d, ["a.py"]), {}, "no repository: nothing is attributed, nothing fails")
+
+    def test_linguist_vendored_paths_join_the_licence_found_directories(self):
+        with tempfile.TemporaryDirectory() as d:
+            files = {
+                "LICENSE": "MIT License\n\nCopyright (c) 2012-2023 Jukka Lehtosalo and contributors\n",
+                "mypy/typeshed/LICENSE": "Apache License\nVersion 2.0\n\"Licensor\" shall mean the copyright owner or entity\n",
+                "mypy/checker.py": "x = 1\n",
+                "third/lib.js": "x\n",
+                ".gitattributes": "third/** linguist-vendored\n",
+            }
+            git_repo(d, files)
+            found = filetypes.vendored_paths(d, sorted(files))
+        self.assertEqual(found, ["mypy/typeshed/", "third/lib.js"], "a directory by licence ends in /, a file by attribute does not")
+        self.assertTrue(filetypes.is_vendored("mypy/typeshed/stdlib/_hashlib.pyi", found))
+        self.assertTrue(filetypes.is_vendored("third/lib.js", found))
+        self.assertFalse(filetypes.is_vendored("third/lib.js2", found), "a file entry matches exactly, not as a prefix")
+        self.assertFalse(filetypes.is_vendored("mypy/checker.py", found))
 
     def test_a_nested_licence_with_other_copyright_holders_marks_a_vendored_tree(self):
         with tempfile.TemporaryDirectory() as d:
@@ -163,7 +199,7 @@ class TestPaths(unittest.TestCase):
                 os.makedirs(os.path.join(d, os.path.dirname(path)) or d, exist_ok=True)
                 with open(os.path.join(d, path), "w") as fh:
                     fh.write(text)
-            found = filetypes.vendored_dirs(d, sorted(files))
+            found = filetypes.vendored_paths(d, sorted(files))
         self.assertEqual(found, ["mypy/typeshed/", "mypyc/external/googletest/"])
         self.assertTrue(filetypes.is_vendored("mypy/typeshed/stdlib/_hashlib.pyi", found))
         self.assertFalse(filetypes.is_vendored("mypy/checker.py", found))
@@ -174,7 +210,7 @@ class TestPaths(unittest.TestCase):
             os.makedirs(os.path.join(d, "lib", "x"))
             with open(os.path.join(d, "lib", "x", "LICENSE"), "w") as fh:
                 fh.write("Copyright 2008, Google Inc.\n")
-            self.assertEqual(filetypes.vendored_dirs(d, ["lib/x/LICENSE"]), [], "nothing to compare against")
+            self.assertEqual(filetypes.vendored_paths(d, ["lib/x/LICENSE"]), [], "nothing to compare against")
 
     def test_vendored_trees(self):
         for path in ("vendor/github.com/x/y.go", "web/node_modules/a/index.js", "third_party/z/a.c", "thirdparty/a.c", "_vendor/a.py",

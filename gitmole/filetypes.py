@@ -2,7 +2,6 @@
 Standalone so blame.py and maat.py can import it as scripts."""
 from __future__ import annotations
 
-import fnmatch
 import os
 import re
 import subprocess
@@ -129,33 +128,35 @@ def _read_head(repo: str, path: str, size: int = 20_000) -> str:
         return ""
 
 
-def vendored_dirs(repo: str, paths: list) -> list:
-    """Directories holding somebody else's code, by licence: a nested LICENSE or COPYING whose
-    copyright lines name none of the holders the root licence names (mypy/typeshed/, a bundled
-    googletest). A monorepo's own packages carry the same holder and stay. Without a root licence
-    naming anyone there is nothing to compare against."""
+def vendored_paths(repo: str, paths: list, attrs: dict = None) -> list:
+    """Somebody else's code, as the repository itself says: directories holding a nested LICENSE or
+    COPYING whose copyright lines name none of the holders the root licence names (mypy/typeshed/, a
+    bundled googletest), each ending in `/`; and every file marked linguist-vendored in .gitattributes,
+    as git resolves it. A monorepo's own packages carry the same holder and stay. Without a root licence
+    naming anyone there is no licence comparison. `attrs` is attributes() when the caller has it."""
+    attrs = attributes(repo, paths) if attrs is None else attrs
+    out = {p for p in paths if "linguist-vendored" in attrs.get(p, ())}
     ours = set()
     for p in paths:
         if "/" not in p and _LICENCE_NAME.match(p):
             ours |= _holders(_read_head(repo, p))
-    if not ours:
-        return []
-    out = set()
-    for p in paths:
-        head, _, name = p.rpartition("/")
-        if head and _LICENCE_NAME.match(name) and not (_holders(_read_head(repo, p)) & ours):
-            out.add(head + "/")
+    if ours:
+        for p in paths:
+            head, _, name = p.rpartition("/")
+            if head and _LICENCE_NAME.match(name) and not (_holders(_read_head(repo, p)) & ours):
+                out.add(head + "/")
     return sorted(out)
 
 
 def vendor_dirs(report: dict) -> tuple:
-    """The vendored directories a run found by licence (see vendored_dirs)."""
+    """The vendored directories and files a run found (see vendored_paths)."""
     return tuple((report.get("meta") or {}).get("vendored") or [])
 
 
 def is_vendored(path: str, dirs=()) -> bool:
-    """is_vendor_path, or under a directory the run found to be vendored by licence."""
-    return is_vendor_path(path) or any(path.startswith(d) for d in dirs)
+    """is_vendor_path, or listed by the run (see vendored_paths): a directory entry, ending in `/`, by
+    prefix; a file entry exactly."""
+    return is_vendor_path(path) or any(path.startswith(d) if d.endswith("/") else path == d for d in dirs)
 
 
 _SOURCE_EXT = {"c", "cc", "cpp", "cxx", "m", "mm"}
@@ -194,34 +195,36 @@ GENERATED_HEAD_LINES = 5
 _GENERATED_NAME = re.compile(r"\.(min\.js|min\.css|bundle\.js|map)$|(^|/)dist/", re.I)   # a build output by name: nobody edits a bundle, a source map or dist/
 
 
-def _generated_patterns(repo: str) -> list:
-    """The .gitattributes patterns marked linguist-generated at the repository root."""
-    try:
-        with open(os.path.join(repo, ".gitattributes"), encoding="utf-8", errors="replace") as fh:
-            lines = fh.read().splitlines()
-    except OSError:
-        return []
-    out = []
-    for line in lines:
-        parts = line.split()
-        if len(parts) >= 2 and any(p in ("linguist-generated", "linguist-generated=true") for p in parts[1:]):
-            out.append(parts[0].lstrip("/"))
+def attributes(repo: str, paths: list, cached: bool = False, env: dict = None) -> dict:
+    """path -> the linguist attributes git sets on it (linguist-generated, linguist-vendored), resolved by
+    git itself, so a nested .gitattributes and info/attributes count exactly as they do for git. `cached`
+    reads the .gitattributes files of the index instead of the working tree: with GIT_INDEX_FILE in `env`
+    pointing at a temporary index, that is the tree at another commit (the backtest). A plain directory
+    that is no repository, or a git that fails, attributes nothing."""
+    if not paths:
+        return {}
+    argv = [*GIT, "check-attr", "--stdin", "-z", *(["--cached"] if cached else []), "linguist-generated", "linguist-vendored"]
+    stdin = b"".join(p.encode("utf-8", "surrogateescape") + b"\0" for p in paths)
+    proc = subprocess.run(argv, cwd=repo, env=env, input=stdin, capture_output=True)
+    if proc.returncode != 0:
+        return {}
+    out = {}
+    fields = proc.stdout.split(b"\0")
+    for i in range(0, len(fields) - 2, 3):   # -z prints path, attribute, value, each NUL-terminated
+        path, attr, value = (f.decode("utf-8", "surrogateescape") for f in fields[i:i + 3])
+        if value in ("set", "true"):
+            out.setdefault(path, set()).add(attr)
     return out
 
 
-def _attribute_match(path: str, pattern: str) -> bool:
-    if "/" in pattern:
-        return fnmatch.fnmatchcase(path, pattern) or fnmatch.fnmatchcase(path, pattern.rstrip("/") + "/*")
-    return fnmatch.fnmatchcase(path.rsplit("/", 1)[-1], pattern)
-
-
-def generated_files(repo: str, paths: list) -> list:
-    """The tracked files that are generated: marked linguist-generated in .gitattributes, or saying so
-    in their first lines. Their complexity and churn are the generator's, not the repository's."""
-    patterns = _generated_patterns(repo)
+def generated_files(repo: str, paths: list, attrs: dict = None) -> list:
+    """The tracked files that are generated: a build output by name, marked linguist-generated (as git
+    resolves it), or saying so in their first lines. Their complexity and churn are the generator's, not
+    the repository's. `attrs` is attributes() when the caller already has it."""
+    attrs = attributes(repo, paths) if attrs is None else attrs
     out = []
     for path in paths:
-        if _GENERATED_NAME.search(path) or any(_attribute_match(path, p) for p in patterns):
+        if _GENERATED_NAME.search(path) or "linguist-generated" in attrs.get(path, ()):
             out.append(path)
             continue
         try:

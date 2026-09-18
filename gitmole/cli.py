@@ -302,7 +302,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
     tracked = blame.text_files(repo_dir, ignore)
     meta["generated"] = filetypes.generated_files(repo_dir, tracked)   # hidden from the tables, out of the findings
-    meta["vendored"] = filetypes.vendored_dirs(repo_dir, tracked)     # somebody else's code, by the licence it carries
+    meta["vendored"] = filetypes.vendored_paths(repo_dir, tracked)    # somebody else's code, by the licence it carries or the attribute it declares
     if args.since_date and meta["commits"] == 0:
         raise NoCommits(f"no commits since {args.since_date}; widen --since")
     if args.now:
