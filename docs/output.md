@@ -117,7 +117,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
 
    A commit counts as a fix when its subject starts with `fix:`, `hotfix:` or
    `bugfix:` in the conventional style, or mentions fix, bug, hotfix,
-   regression or crash. Test files are left out of every finding that names a
+   regression or crash; a fix that changes more lines than 99% of the
+   repository's commits (never under 500) is tangled by size and credits
+   none of its files, in the fix counts, the bug-magnet finding and the
+   backtest alike, and `activity.json` counts them. Test files are left out of every finding that names a
    file, area or function: they change with every fix, and owning the tests is
    not the knowledge risk. The default tables leave them out too; `--full`
    shows them.
@@ -177,9 +180,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    and, when its complexity grew by a quarter or more in a year, by how
    much (the trend is sampled for the ten top hotspots only, so a file
    further down the list may have none), the files it always changes
-   with, and, when it shares five or more commits with twenty or more other
+   with, when it shares five or more commits with twenty or more other
    files, how many (Tornhill's sum of coupling: the file weakly coupled to
-   everything), none of them entering the rank. Test files are left out, and so
+   everything), and, over five or more changes, when a test file moved
+   with at most a fifth of them (`no test changed in its 38 changes`, `a
+   test changed in 4 of its 28 changes`; a repository with no test file
+   anywhere says nothing), none of them entering the rank. Test files are left out, and so
    are vendored code and example code (the `examples/`, `samples/`,
    `fixtures/`, `testdata/`, `demos/`, `rules/` and `stubs/` directories
    and `.stub` files), which the complex functions table hides for the same
@@ -229,6 +235,19 @@ How to read each part of the terminal report, and what each run writes to disk; 
    code with the number of fix commits alongside, rank the same files the
    watch list leads with, and so appear under `--full` and in the Markdown
    export, next to size by language, activity and surviving code by year.
+   Change coupling counts logical changes rather than commits: commits
+   whose subjects share a ticket-shaped key (GitHub's `(#1234)` squash
+   suffix, a Jira-shaped `PROJ-42` opening the subject, `Fixes #77`) are one
+   change wherever they landed, and the rest group by author and calendar
+   day, code-maat's temporal period, so a rebase-merged pull request is one
+   change again and a change spread over a ticket's commits counts once;
+   the cap of thirty files per change applies after grouping, and the sum of
+   coupling and the test co-change counts use the same changes. The caption
+   says how changes reach the branch when that changes what a pair means:
+   almost no merge commits and most subjects ending `(#NNNN)` is a
+   squash-merged repository, whose pairs describe pull requests rather than
+   edits; a tenth or more of the commits being merges means the pairs
+   describe the commits on the branches, since a merge exports no file list.
    Change coupling hides pairs where either file is
    no longer in the tree, since they describe a layout that no longer
    exists, and shows a directory whose files all change together (generated
@@ -312,16 +331,17 @@ directory for a remote target:
 
 | File | From | What it is |
 |---|---|---|
-| `meta.json` | git | name, branch, commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`; what produced the run under `run`; the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists |
-| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, and how many declared commits the log holds |
+| `meta.json` | git | name, branch, commit count, merge-commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`; what produced the run under `run`; the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists |
+| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, and how many declared commits the log holds; the oversized fixes left out of the fix counts, the tangled commits with a sample, and how many subjects end in a squash-merge suffix |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | betterleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
 | `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record), the database date; or a status: no lock files, no local database |
 | `log.txt` | git | the numstat log export the change analysis reads, whitespace ignored, with each commit's `Co-authored-by` trailers behind its subject |
 | `maat-revisions.csv` | change analysis | change frequency per file |
-| `maat-coupling.csv` | change analysis | files that change together |
-| `maat-soc.csv` | change analysis | sum of coupling per file: its co-changes with any other file, and how many files it shares five or more commits with |
+| `maat-coupling.csv` | change analysis | files that change together, over logical changes (a ticket's commits, or one author's day) |
+| `maat-soc.csv` | change analysis | sum of coupling per file: its co-changes with any other file, and how many files it shares five or more commits with, over logical changes |
+| `maat-tests.csv` | change analysis | per production file, how many logical changes touched it and how many of those also touched a test file |
 | `maat-authors.csv` | change analysis | authors per file (co-authors included), and how many of them are minor contributors |
 | `maat-age.csv` | change analysis | months since last change per file |
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file, a commit's lines shared between its author and co-authors |

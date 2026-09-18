@@ -182,10 +182,69 @@ def revisions(commits: list) -> list:
     return [{"entity": e, "n-revs": n} for e, n in sorted(_revs(commits).items(), key=lambda kv: (-kv[1], kv[0]))]
 
 
-def coupling(commits: list, min_shared: int = 5, min_degree: int = 30, max_changeset: int = 30) -> list:
-    revs = _revs(commits)
-    shared = Counter()
+# A ticket-shaped key in a subject: GitHub's squash-merge suffix "(#1234)", a Jira-shaped "PROJ-42",
+# or a reference such as "Fixes #77". Value shapes, not word lists: the shape is the convention.
+_TICKET_SUFFIX = re.compile(r"\(#(\d+)\)\s*$")
+_TICKET_JIRA = re.compile(r"^\s*[\[(]?([A-Z][A-Z0-9]+-\d+)\b")   # at the start, as trackers put it; UTF-8 mid-sentence is a word
+_TICKET_REF = re.compile(r"\b(?:fixes|fixed|closes|closed|refs|resolves|resolved)\s+#?(\d+)\b", re.I)
+
+
+def ticket_key(subject: str):
+    """The change a commit belongs to, when its subject says: '#1234' for a squash suffix or a
+    'Fixes #1234' reference, 'PROJ-42' for a Jira-shaped key opening the subject; None when nothing
+    ticket-shaped is there."""
+    subject = subject or ""
+    m = _TICKET_SUFFIX.search(subject)
+    if m:
+        return f"#{m.group(1)}"
+    m = _TICKET_JIRA.search(subject)
+    if m:
+        return m.group(1)
+    m = _TICKET_REF.search(subject)
+    if m:
+        return f"#{m.group(1)}"
+    return None
+
+
+def changesets(commits: list) -> list:
+    """The logical changes, code-maat's temporal period with CodeScene's ticket grouping: commits whose
+    subjects share a ticket-shaped key are one changeset, wherever and whenever they landed; the rest
+    group by author and calendar day, so a rebase-merged pull request is one change again. Two squash
+    merges by one person on one day carry two keys and stay apart. Each changeset speaks with its first
+    commit's hash, date, author and subject, carries its commit count, and sums the lines per path."""
+    groups, order = {}, []
     for c in commits:
+        key = ticket_key(c.get("subject", ""))
+        key = ("ticket", key) if key else ("day", c["author"], c["date"])
+        if key not in groups:
+            groups[key] = {"hash": c["hash"], "date": c["date"], "time": c.get("time", c["date"]), "author": c["author"],
+                           "subject": c.get("subject", ""), "co_authors": list(c.get("co_authors", ())), "commits": 0, "files": [], "_lines": {}}
+            order.append(key)
+        g = groups[key]
+        g["commits"] += 1
+        for p, a, d in c["files"]:
+            if p not in g["_lines"]:
+                g["_lines"][p] = [a, d]
+            else:
+                g["_lines"][p][0] += a
+                g["_lines"][p][1] += d
+    out = []
+    for key in order:
+        g = groups[key]
+        g["files"] = [(p, a, d) for p, (a, d) in g["_lines"].items()]
+        del g["_lines"]
+        out.append(g)
+    return out
+
+
+def coupling(commits: list, min_shared: int = 5, min_degree: int = 30, max_changeset: int = 30) -> list:
+    """Pairs that change together, over the logical changesets (see changesets()) rather than the raw
+    commits, so a rebase-merged change counts once and a change spread over a ticket's commits counts
+    as one. The cap on a changeset's size applies after grouping."""
+    sets = changesets(commits)
+    revs = _revs(sets)
+    shared = Counter()
+    for c in sets:
         paths = sorted({p for p, _, _ in c["files"]})
         if len(paths) > max_changeset:
             continue
@@ -228,7 +287,7 @@ def soc(commits: list, min_shared: int = 5, max_changeset: int = 30) -> list:
     and how many distinct files it shares at least `min_shared` commits with. Pairwise degree finds
     the pairs; this finds the file weakly coupled to everything."""
     shared = Counter()
-    for c in commits:
+    for c in changesets(commits):
         paths = sorted({p for p, _, _ in c["files"]})
         if len(paths) > max_changeset:
             continue
@@ -272,16 +331,56 @@ def age(commits: list, now: str = None) -> list:
     return rows
 
 
+def test_cochange(commits: list) -> list:
+    """Per production file: how many changesets touched it, and how many of those also touched a test
+    file. A hot file whose tests never move is a better-evidenced test signal than assertion density."""
+    sets_by, with_tests = Counter(), Counter()
+    for c in changesets(commits):
+        paths = {p for p, _, _ in c["files"]}
+        tested = any(filetypes.is_test_path(p) for p in paths)
+        for p in paths:
+            if filetypes.is_test_path(p):
+                continue
+            sets_by[p] += 1
+            if tested:
+                with_tests[p] += 1
+    rows = [{"entity": p, "n-sets": n, "with-tests": with_tests[p]} for p, n in sets_by.items()]
+    rows.sort(key=lambda r: (-r["n-sets"], r["entity"]))
+    return rows
+
+
 RECENT_MONTHS = 6
+OVERSIZED_PERCENTILE = 0.99   # a fix changing more lines than this share of the history's commits credits nothing
+OVERSIZED_FLOOR = 500         # ...and never under this many lines, so a small repository's percentile does not bite
+
+
+def _lines(c: dict) -> int:
+    return sum(a + d for _, a, d in c["files"])
+
+
+def oversized(commits: list, percentile: float = OVERSIZED_PERCENTILE, floor: int = OVERSIZED_FLOOR) -> list:
+    """The commits above the repository's own 99th percentile of lines changed (never under `floor`).
+    Commit sizes are heavy-tailed, so the percentile is the repository's; Herzig and Zeller showed a
+    tangled fix mislabels most of the files it touches, and a fix this size is tangled by size."""
+    sizes = sorted(_lines(c) for c in commits if c["files"])
+    if not sizes:
+        return []
+    cut = max(floor, sizes[min(len(sizes) - 1, int(math.ceil(percentile * len(sizes))) - 1)])
+    return [c for c in commits if c["files"] and _lines(c) >= cut]
+
+
+def fix_commits(commits: list) -> list:
+    """The fix pool: commits whose subject says fix, less the oversized ones."""
+    big = {c["hash"] for c in oversized(commits)}
+    return [c for c in commits if is_fix(c.get("subject", "")) and c["hash"] not in big]
 
 
 def fixes(commits: list, now: str = None) -> list:
-    """Per entity: how many fix commits touched it, the last one, and how many in the recent window."""
+    """Per entity: how many fix commits touched it, the last one, and how many in the recent window.
+    An oversized fix (see oversized()) credits none of its files."""
     now = now or dt.date.today().isoformat()
     total, last, recent = Counter(), {}, Counter()
-    for c in commits:
-        if not is_fix(c.get("subject", "")):
-            continue
+    for c in fix_commits(commits):
         fresh = _months_between(c["date"], now) < RECENT_MONTHS
         for p, _, _ in c["files"]:
             total[p] += 1
@@ -330,10 +429,33 @@ def author_totals(commits: list) -> dict:
     return out
 
 
+TANGLED_FILES = 10   # a commit this wide, across this many directories, under a subject with this many clauses,
+TANGLED_DIRS = 4     # looks like several changes in one; Herzig and Zeller (MSR 2013) found such commits
+TANGLED_CLAUSES = 2  # mislabel a large share of the files they touch
+_BRACKETED = re.compile(r"\([^()]*\)|\[[^\[\]]*\]|`[^`]*`")
+_CLAUSE_BREAK = re.compile(r"\s*(?:;|,|&|\+|\band\b)\s*", re.I)
+
+
+def clauses(subject: str) -> int:
+    """How many things a subject says it does: its parts between semicolons, commas, ampersands, pluses
+    and 'and', with anything in brackets or backticks passed over (a call's arguments are not clauses)."""
+    return len([part for part in _CLAUSE_BREAK.split(_BRACKETED.sub("", subject or "")) if part.strip()])
+
+
+def is_tangled(c: dict) -> bool:
+    """Many files across many directories under a subject that lists several things: several changes
+    in one commit, whose fix label, if any, credits files the fix never touched."""
+    if len(c["files"]) < TANGLED_FILES:
+        return False
+    dirs = {os.path.dirname(p) for p, _, _ in c["files"]}
+    return len(dirs) >= TANGLED_DIRS and clauses(c.get("subject", "")) >= TANGLED_CLAUSES
+
+
 def activity(commits: list, ignored: set = frozenset()) -> dict:
     """Commits by weekday (Mon=0) and hour, by month, and per-author totals, over every commit; plus
     the sweeping commits the tables leave out, each marked whether the repository declared it in
-    .git-blame-ignore-revs, and how many declared commits the log holds."""
+    .git-blame-ignore-revs, how many declared commits the log holds, the oversized fixes the fix pool
+    leaves out, the tangled-looking commits, and how many subjects end in a squash-merge suffix."""
     by_weekday, by_hour, by_month, net_by_year = [0] * 7, [0] * 24, Counter(), Counter()
     timeline, fix_commits = defaultdict(Counter), 0
     revert_commits, reverted = 0, Counter()
@@ -362,6 +484,8 @@ def activity(commits: list, ignored: set = frozenset()) -> dict:
         if is_rev:
             revert_commits += 1
     swept = sorted(sweeping(commits), key=lambda c: (-len(c["files"]), c["date"], c["hash"]))
+    big = {c["hash"] for c in oversized(commits)}
+    tangled = sorted((c for c in commits if is_tangled(c)), key=lambda c: (-len(c["files"]), c["date"], c["hash"]))
     return {"by_weekday": by_weekday, "by_hour": by_hour, "by_month": dict(sorted(by_month.items())),
             "net_by_year": dict(sorted(net_by_year.items())), "authors": author_totals(commits),
             "timeline": {a: dict(sorted(m.items())) for a, m in timeline.items()}, "fix_commits": fix_commits,
@@ -370,7 +494,12 @@ def activity(commits: list, ignored: set = frozenset()) -> dict:
             "sweeping": [{"hash": c["hash"], "date": c["date"], "author": c["author"], "subject": c.get("subject", ""), "files": len(c["files"]),
                           "added": sum(a for _, a, _ in c["files"]), "deleted": sum(d for _, _, d in c["files"]), "declared": c["hash"] in ignored}
                          for c in swept],
-            "ignored_revs": sum(1 for c in commits if c["hash"] in ignored)}
+            "ignored_revs": sum(1 for c in commits if c["hash"] in ignored),
+            "oversized_fixes": sum(1 for c in commits if c["hash"] in big and is_fix(c.get("subject", ""))),
+            "tangled_commits": len(tangled),
+            "tangled": [{"hash": c["hash"], "date": c["date"], "files": len(c["files"]), "dirs": len({os.path.dirname(p) for p, _, _ in c["files"]}),
+                         "subject": c.get("subject", "")} for c in tangled[:10]],
+            "squash_subjects": sum(1 for c in commits if _TICKET_SUFFIX.search(c.get("subject", "")))}
 
 
 def plumbing(commits: list, min_revs: int = 20, share: float = 0.8, max_lines: int = 3) -> list:
@@ -392,6 +521,7 @@ ANALYSES = {
     "plumbing": (plumbing, ["entity", "n-revs", "tiny-revs"]),
     "coupling": (coupling, ["entity", "coupled", "degree", "average-revs"]),
     "soc": (soc, ["entity", "soc", "partners"]),
+    "tests": (test_cochange, ["entity", "n-sets", "with-tests"]),
     "authors": (authors, ["entity", "n-authors", "n-revs", "minor"]),
     "age": (age, ["entity", "age-months"]),
     "entity-ownership": (entity_ownership, ["entity", "author", "added", "deleted"]),

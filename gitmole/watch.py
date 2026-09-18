@@ -25,6 +25,8 @@ COMPANION_DEGREE = 50   # a coupling worth mentioning
 COMPANION_REVS = 5      # ...over enough shared revisions to be a pattern
 MINOR_FLOOR = 3         # this many minor contributors (under 5% of the file's commits each) is a crowd worth naming
 PARTNERS_FLOOR = 20     # this many files it shares five or more commits with is a hub worth naming
+TESTED_SETS = 5         # this many changes before the share of them that moved a test says anything
+TESTED_SHARE = 0.2      # a test moved with at most this share of the file's changes: a hot file whose tests do not follow it
 
 
 def _owners(report: dict) -> dict:
@@ -70,6 +72,9 @@ def risks(report: dict, min_revs: int = 2) -> list:
     n_authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     minors = {a["entity"]: a.get("minor", 0) for a in report.get("authors") or []}   # absent in an output directory from before 0.11
     partners = {a["entity"]: a.get("partners", 0) for a in report.get("soc") or []}
+    # absent before 0.12; and a repository without a test file anywhere has nothing to say about tests moving
+    has_tests = any(filetypes.is_test_path(p) for p in ((report.get("size") or {}).get("files") or {}))
+    tested = {t["entity"]: (t["n-sets"], t["with-tests"]) for t in report.get("tests") or []} if has_tests else {}
     series = (report.get("trend") or {}).get("files") or {}
     last = (report.get("meta") or {}).get("last_date") or ""
 
@@ -86,6 +91,8 @@ def risks(report: dict, min_revs: int = 2) -> list:
         rows.append({"file": h["entity"], "revs": h["revs"], "recent_fixes": fx.get("recent-fixes", 0), "fixes": fx.get("n-fixes", 0),
                      "authors": n_authors.get(h["entity"]), "owner": owner, "owner_share": share,
                      "minor": minors.get(h["entity"], 0), "partners": partners.get(h["entity"], 0),
+                     "changes": tested.get(h["entity"], (None, None))[0], "with_tests": tested.get(h["entity"], (None, None))[1],
+                     "tested_share": (tested[h["entity"]][1] / tested[h["entity"]][0]) if tested.get(h["entity"], (0, 0))[0] else None,
                      "complexity": h["complexity"] or 0, "code": h["code"],
                      "function": fn, "companions": companions.get(h["entity"], []),
                      "trend": trend.change_over_year(series[h["entity"]], last) if last and h["entity"] in series else None})
@@ -149,6 +156,9 @@ def _reasons(r: dict) -> list:
         out.append(f"changes with {other} ({degree}%){tail}")
     if r.get("partners", 0) >= PARTNERS_FLOOR:
         out.append(f"changes alongside {r['partners']} other files")   # sum of coupling: weakly coupled to everything
+    if r.get("changes") and r["changes"] >= TESTED_SETS and r["tested_share"] <= TESTED_SHARE:
+        out.append(f"no test changed in its {r['changes']} changes" if not r["with_tests"]
+                   else f"a test changed in {r['with_tests']} of its {r['changes']} changes")
     return out
 
 

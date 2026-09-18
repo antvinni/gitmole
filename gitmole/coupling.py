@@ -7,6 +7,28 @@ from collections import defaultdict
 
 ROOT = "(root files)"
 
+SQUASH_SHARE = 0.5     # this share of subjects ending in (#NNNN), with almost no merge commits, is a squash-merged repository
+FEW_MERGES = 0.02      # under this share of commits with two parents counts as almost none
+MANY_MERGES = 0.1      # this share of merge commits and the branches' own commits are what the pairs describe
+
+
+def regime(report: dict) -> tuple:
+    """(kind, caveat): how changes reach the branch, from what the history declares. 'squash' when
+    almost no commit has two parents and most subjects carry GitHub's squash suffix, so a coupling
+    pair describes a pull request, not an edit; 'merge' when a tenth or more of the commits are merges,
+    which export no file list; 'linear' otherwise, with nothing to caveat. An output directory from
+    before the merge count says 'linear' too."""
+    meta, act = report.get("meta") or {}, report.get("activity") or {}
+    commits, merges, squash = meta.get("commits") or 0, meta.get("merges"), act.get("squash_subjects") or 0
+    if not commits or merges is None:
+        return "linear", None
+    if merges / commits < FEW_MERGES and squash / commits >= SQUASH_SHARE:
+        return "squash", (f"{round(100 * squash / commits)}% of subjects end in (#NNNN) and {merges:,} of {commits:,} commits are merges: "
+                          "squash-merged, so the pairs describe pull requests, not edits")
+    if merges / commits >= MANY_MERGES:
+        return "merge", f"{merges:,} of {commits:,} commits are merges: merge commits carry no file list, so the pairs describe the commits on the branches"
+    return "linear", None
+
 
 def _dir(path: str) -> str:
     head = os.path.dirname(path)

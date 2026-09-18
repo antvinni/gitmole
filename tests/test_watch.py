@@ -79,6 +79,23 @@ class Risks(unittest.TestCase):
         self.assertNotIn("alongside", " ".join(by["core/util.py"]["reasons"]))
         self.assertEqual(by["web/index.html"]["minor"], 0, "an output directory without the column reads as none")
 
+    def test_tests_that_never_move_with_a_file_are_a_reason(self):
+        r = report()
+        r["tests"] = [{"entity": "core/parser.py", "n-sets": 38, "with-tests": 0}, {"entity": "core/util.py", "n-sets": 28, "with-tests": 4},
+                      {"entity": "web/index.html", "n-sets": 55, "with-tests": 30}]
+        by = {x["file"]: x for x in watch.risks(r)}
+        self.assertIn("no test changed in its 38 changes", by["core/parser.py"]["reasons"])
+        self.assertIn("a test changed in 4 of its 28 changes", by["core/util.py"]["reasons"])
+        self.assertNotIn("test", " ".join(by["web/index.html"]["reasons"]), "tests move with most of its changes: nothing to say")
+        self.assertEqual(by["core/parser.py"]["tested_share"], 0.0)
+        r["tests"] = [{"entity": "core/parser.py", "n-sets": 4, "with-tests": 0}]
+        self.assertNotIn("test", " ".join({x["file"]: x for x in watch.risks(r)}["core/parser.py"]["reasons"]), "four changes are too few to judge by")
+        self.assertIsNone({x["file"]: x for x in watch.risks(report())}["core/parser.py"]["tested_share"], "an output directory without the table")
+        r = report(tests=[{"entity": "core/parser.py", "n-sets": 38, "with-tests": 0}])
+        del r["size"]["files"]["tests/test_parser.py"]
+        self.assertNotIn("test", " ".join({x["file"]: x for x in watch.risks(r)}["core/parser.py"]["reasons"]),
+                         "a repository with no test file anywhere has nothing to say about tests moving")
+
     def test_a_nameless_function_is_named_by_its_line_and_a_suspect_span_is_passed_over(self):
         r = report()
         r["functions"] = [{"file": "core/parser.py", "function": 'app.post("/api/x", async (req, res) => {', "anonymous": True,

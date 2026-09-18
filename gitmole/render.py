@@ -537,6 +537,9 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
         rows = _shorten(rows, width, columns, path_columns=2)
     note = None if rows else _empty_note("no pairs with 5+ shared revisions", hidden_note, "no source pairs with 5+ shared revisions")
     notes = [c for c in (_more(len(pairs), limit), None if note else hidden_note) if c]
+    caveat = coupling.regime(report)[1]   # what a pair means here: a pull request under squash merging, an edit otherwise
+    if rows and caveat:
+        notes.append(caveat)
     return _section("Change coupling", columns, rows, note=note, caption="; ".join(notes) or None)
 
 

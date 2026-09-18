@@ -460,6 +460,17 @@ class Report(unittest.TestCase):
         self.assertNotIn("deps/", coupling)
         self.assertIn("2 vendored pairs hidden; --full shows them", coupling)
 
+    def test_the_coupling_caption_names_the_merge_regime(self):
+        r = sample_report()
+        r["size"]["files"].update({"static/tax.html": {"code": 30, "complexity": 0}, "static/treasury.html": {"code": 30, "complexity": 0}})
+        r["meta"]["merges"] = 2
+        r["activity"]["squash_subjects"] = 300
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("83% of subjects end in (#NNNN) and 2 of 363 commits are merges: squash-merged, so the pairs describe pull requests, not edits", coupling)
+        r["activity"]["squash_subjects"] = 3
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertNotIn("squash", coupling)
+
     def test_default_coupling_hides_generated_pairs_and_says_so(self):
         r = sample_report()
         r["meta"]["generated"] = ["js/a.bundle.js", "js/b.bundle.js"]

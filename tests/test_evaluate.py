@@ -33,6 +33,11 @@ class Outcome(unittest.TestCase):
         self.assertEqual(evaluate.fixed_between(COMMITS, "2025-06-01", "2025-12-01"), {"core/a.py", "core/b.py"})
         self.assertEqual(evaluate.fixed_between(COMMITS, "2025-03-10", "2025-03-11"), {"core/a.py"}, "the start is inclusive; the test file is left out")
 
+    def test_an_oversized_fix_is_not_an_outcome(self):
+        commits = COMMITS + [commit(f"2025-05-{1 + i:02d}", "small", ("core/a.py", 1, 1)) for i in range(20)]
+        commits.append(commit("2025-08-01", "fix: the big one", *[(f"core/g{i}.py", 100, 100) for i in range(10)]))
+        self.assertEqual(evaluate.fixed_between(commits, "2025-07-01", "2025-09-01"), {"core/b.py"}, "2,000 lines over the 99th percentile: tangled by size, credits nothing")
+
 
 class Score(unittest.TestCase):
     def test_the_report_at_t_knows_nothing_after_t(self):
