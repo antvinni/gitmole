@@ -683,3 +683,37 @@ class Components(unittest.TestCase):
         rows = [r for r in maat.components(commits) if r["depth"] == 1]
         self.assertEqual(rows, [{"depth": 1, "entity": "auth/", "coupled": "billing/", "degree": 65, "shared": 12, "average-revs": 19}],
                          "12 shared changes over an average of (25 + 12) / 2; docs/ shares one change, under the floor")
+
+
+class Imports(unittest.TestCase):
+    def _history(self):
+        imp = _commit("imp", [(f"core/f{i}.py", 1000, 0) for i in range(120)], author="Dan", date="2019-03-26")
+        work = [_commit(f"w{i}", [("core/f1.py", 20, 5), ("core/f2.py", 10, 2)], author="Kim" if i % 2 else "Lee", date=f"2020-01-{1 + i:02d}")
+                for i in range(20)]
+        feature = _commit("feat", [(f"new/g{i}.py", 30, 0) for i in range(110)], author="Kim", date="2020-02-01")   # 3,300 of ~124,000 lines
+        return [imp, *work, feature]
+
+    def test_an_add_only_commit_holding_a_twentieth_of_the_history_is_an_import(self):
+        commits = self._history()
+        self.assertEqual([c["hash"] for c in maat.importing(commits)], ["imp"], "a big new feature is a small share of the history and stays in")
+        self.assertNotIn("imp", [c["hash"] for c in maat.analysed(commits)])
+        owners = {r["entity"]: r["author"] for r in maat.entity_ownership(maat.analysed(commits)) if r["entity"] == "core/f1.py"}
+        self.assertNotEqual(owners.get("core/f1.py"), "Dan", "the importer owns nothing")
+
+    def test_nobody_created_what_an_import_brought_in(self):
+        commits = self._history()
+        rows = maat.doa(maat.analysed(commits), now="2020-03-01", imported=maat.imported_files(commits))
+        self.assertEqual({r["fa"] for r in rows if r["entity"] == "core/f1.py"}, {0}, "the first editor after the import did not create the file")
+        self.assertEqual({r["fa"] for r in rows if r["entity"] == "new/g1.py"}, {1})
+        act = maat.activity(commits)
+        self.assertEqual([c["hash"] for c in act["imports"]], ["imp"])
+        self.assertEqual(act["added_total"], sum(a for c in commits for _, a, _ in c["files"]))
+
+
+class ComponentPairs(unittest.TestCase):
+    def test_a_directory_is_not_coupled_with_its_own_subdirectory(self):
+        commits = [_commit(f"a{i}", [("gradle/build.gradle", 1, 0), ("gradle/root/x.gradle", 1, 0), ("app/y.py", 1, 0)], date=f"2026-01-{1 + i:02d}")
+                   for i in range(12)]
+        pairs = {(r["entity"], r["coupled"]) for r in maat.components(commits)}
+        self.assertNotIn(("gradle/", "gradle/root/"), pairs)
+        self.assertIn(("app/", "gradle/root/"), pairs)

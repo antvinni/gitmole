@@ -330,7 +330,15 @@ How to read each part of the terminal report, and what each run writes to disk; 
    the activity totals keep them, `activity.json` lists them, the watch
    list's caption counts them, and the finding names the undeclared ones
    with the advice to declare them, so that git blame and GitHub skip them
-   too. A commit's `Co-authored-by` trailers (git's own trailer, which GitHub
+   too. An import is left out the same way: a commit that adds to a hundred
+   files or more, deletes at most a hundredth of what it adds, and holds a
+   twentieth or more of every line the history ever adds, such as a project
+   published with its past squashed into one first commit. Whoever committed
+   it did not write what it holds, so it gives nobody ownership, authorship
+   or the degree-of-authorship bonus for creating a file, and the code-age
+   pass credits its surviving lines to nobody (they still count for their
+   year). A note names it with its share, since the knowledge tables then
+   read differently from a plain git blame. A commit's `Co-authored-by` trailers (git's own trailer, which GitHub
    adds to a squash merge and pair programmers add by hand) name people who
    count as its authors too: in the People table, credited with the commits
    they are named on, through `.mailmap` and the same identity merge and bot
@@ -544,7 +552,7 @@ directory for a remote target:
 | File | From | What it is |
 |---|---|---|
 | `meta.json` | git | name, branch, commit count, merge-commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`; what produced the run under `run`; the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists |
-| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, and how many declared commits the log holds; the oversized fixes left out of the fix counts, the tangled commits with a sample, and how many subjects end in a squash-merge suffix |
+| `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, the import commits left out with the history's total lines added, and how many declared commits the log holds; the oversized fixes left out of the fix counts, the tangled commits with a sample, and how many subjects end in a squash-merge suffix |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | betterleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |

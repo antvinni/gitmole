@@ -174,10 +174,39 @@ def is_ignored(h: str, revs: set) -> bool:
     return h in revs or any(full.startswith(h) or h.startswith(full) for full in revs)
 
 
+IMPORT_SHARE = 0.05     # an import adds at least this share of every line the history adds...
+IMPORT_MIN_FILES = 100  # ...to at least this many files...
+IMPORT_DELETED = 0.01   # ...and deletes at most this share of what it adds
+
+
+def importing(commits: list, share: float = IMPORT_SHARE, min_files: int = IMPORT_MIN_FILES, deleted: float = IMPORT_DELETED) -> list:
+    """The commits that bring a codebase in rather than change it: add-only, a hundred files or more,
+    and a twentieth or more of every line the history ever adds (a project published with its history
+    squashed into one first commit, a subsystem moved in from another repository). Whoever committed
+    it did not write what it holds, so crediting them with ownership of every file it touched makes
+    one person the owner of most of the tree. A large feature, however new, is a small share of a
+    long history and stays in."""
+    total = sum(a for c in commits for _, a, _ in c["files"])
+    out = []
+    for c in commits:
+        if len(c["files"]) < min_files:
+            continue
+        a, d = sum(x for _, x, _ in c["files"]), sum(y for _, _, y in c["files"])
+        if total and a >= share * total and d <= deleted * a:
+            out.append(c)
+    return out
+
+
 def analysed(commits: list, ignored: set = frozenset()) -> list:
-    """The commits every table but the activity totals reads: without the sweeps and the declared."""
-    swept = {c["hash"] for c in sweeping(commits)}
-    return [c for c in commits if c["hash"] not in swept and c["hash"] not in ignored]
+    """The commits every table but the activity totals reads: without the sweeps, the imports and the
+    declared."""
+    left_out = {c["hash"] for c in sweeping(commits)} | {c["hash"] for c in importing(commits)}
+    return [c for c in commits if c["hash"] not in left_out and c["hash"] not in ignored]
+
+
+def imported_files(commits: list) -> set:
+    """The files an import brought in: nobody here created them."""
+    return {p for c in importing(commits) for p, a, _ in c["files"] if a > 0}
 
 
 def revisions(commits: list) -> list:
@@ -392,11 +421,13 @@ def _doa(fa: int, dl: float, ac: float) -> float:
     return 3.293 + 1.098 * fa + 0.164 * dl - 0.321 * math.log(1 + ac)
 
 
-def doa(commits: list, now: str = None) -> list:
+def doa(commits: list, now: str = None, imported=frozenset()) -> list:
     """Per file and person: created it (the first commit that added lines to it; a pure move creates
     nothing), their changes, others' changes, the degree of authorship, and whether they count as an
     author of it (DOA at least three quarters of the file's highest and at least 3.293), undecayed and
-    with knowledge halving every five months. Changes, not lines, so a reformat transfers nothing."""
+    with knowledge halving every five months. Changes, not lines, so a reformat transfers nothing. A file
+    in `imported` came in with an import commit, which is left out; nobody gets the bonus for creating
+    it, rather than whoever changed it first afterwards."""
     now = dt.date.fromisoformat(now or dt.date.today().isoformat())
     changes, decayed, first = defaultdict(Counter), defaultdict(Counter), {}
     for c in commits:
@@ -410,7 +441,7 @@ def doa(commits: list, now: str = None) -> list:
     rows = []
     for p, per in changes.items():
         total, total_d = sum(per.values()), sum(decayed[p].values())
-        creator = first.get(p, (None, None))[1]
+        creator = None if p in imported else first.get(p, (None, None))[1]
         scores = {}
         for who, n in per.items():
             fa = int(who == creator)
@@ -467,7 +498,8 @@ def components(commits: list, min_shared: int = 10, min_degree: int = 20, max_co
                 continue
             revs.update(comps)
             for a, b in itertools.combinations(comps, 2):
-                shared[(a, b)] += 1
+                if not (b.startswith(a) or a.startswith(b)):   # gradle/ holding a file and gradle/root/ are one component and its part
+                    shared[(a, b)] += 1
         for (a, b), n in shared.items():
             avg = (revs[a] + revs[b]) / 2
             degree = int(math.floor(100 * n / avg + 0.5))
@@ -612,6 +644,7 @@ def activity(commits: list, ignored: set = frozenset()) -> dict:
         if is_rev:
             revert_commits += 1
     swept = sorted(sweeping(commits), key=lambda c: (-len(c["files"]), c["date"], c["hash"]))
+    brought_in = sorted(importing(commits), key=lambda c: (c["date"], c["hash"]))
     big = {c["hash"] for c in oversized(commits)}
     tangled = sorted((c for c in commits if is_tangled(c)), key=lambda c: (-len(c["files"]), c["date"], c["hash"]))
     return {"by_weekday": by_weekday, "by_hour": by_hour, "by_month": dict(sorted(by_month.items())),
@@ -622,6 +655,9 @@ def activity(commits: list, ignored: set = frozenset()) -> dict:
             "sweeping": [{"hash": c["hash"], "date": c["date"], "author": c["author"], "subject": c.get("subject", ""), "files": len(c["files"]),
                           "added": sum(a for _, a, _ in c["files"]), "deleted": sum(d for _, _, d in c["files"]), "declared": c["hash"] in ignored}
                          for c in swept],
+            "imports": [{"hash": c["hash"], "date": c["date"], "author": c["author"], "subject": c.get("subject", ""), "files": len(c["files"]),
+                         "added": sum(a for _, a, _ in c["files"]), "deleted": sum(d for _, _, d in c["files"])} for c in brought_in],
+            "added_total": sum(a for c in commits for _, a, _ in c["files"]),
             "ignored_revs": sum(1 for c in commits if c["hash"] in ignored),
             "oversized_fixes": sum(1 for c in commits if c["hash"] in big and is_fix(c.get("subject", ""))),
             "tangled_commits": len(tangled),
@@ -708,7 +744,10 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filet
     kept, kept_all = analysed(windowed, ignored), analysed(commits, ignored)
     for name, (fn, header) in ANALYSES.items():
         source = kept_all if name == "age" else kept   # ages describe the whole history
-        rows = fn(source, now=now) if name in NEEDS_NOW else fn(source)
+        if name == "doa":   # the files an import created have no creator here
+            rows = fn(source, now=now, imported=imported_files(commits))
+        else:
+            rows = fn(source, now=now) if name in NEEDS_NOW else fn(source)
         with open(os.path.join(out_dir, f"maat-{name}.csv"), "w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=header)
             w.writeheader()

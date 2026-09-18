@@ -244,6 +244,31 @@ def sweeping_commits(report: dict) -> list:
                                                              "deleted": c.get("deleted"), "subject": c.get("subject", "")} for c in swept[:10]]})]
 
 
+def import_commits(report: dict) -> list:
+    """Commits that brought a codebase in rather than changed it (maat.importing): add-only, a hundred
+    files or more, a twentieth or more of every line the history adds. The change analysis leaves them out
+    of ownership and authorship, and the code-age pass credits the lines they wrote to nobody, so the
+    person who committed an import is not made the owner of everything in it. Said, since the knowledge
+    tables then read differently from a plain git blame."""
+    act = report.get("activity") or {}
+    rows = act.get("imports") or []
+    if not rows:
+        return []
+    total = act.get("added_total") or 0
+
+    def one(c):
+        share = f", {100 * c['added'] / total:.0f}% of every line the history adds" if total else ""
+        return f"{c['hash']} by {c['author']} ({c['files']:,} files, {c['added']:,} lines{share}, {c['date']}, {textfmt.cut(c.get('subject', ''), 50)})"
+    listed = "; ".join(one(c) for c in rows[:3])
+    return [_f("info", "Imports left out of ownership",
+               f"{_plural(len(rows), 'commit')} brought code in without changing any: {listed}. "
+               "Ownership, authorship, the truck factor and the churn counts leave it out, and the code-age pass credits its surviving lines to nobody.",
+               "Read the knowledge tables as who has worked on the code since; git blame still names the importer for every untouched line.",
+               rule={"id": "import_commits", "share": maat.IMPORT_SHARE, "min_files": maat.IMPORT_MIN_FILES, "deleted": maat.IMPORT_DELETED},
+               evidence={"commits": [{"hash": c["hash"], "date": c["date"], "author": c["author"], "files": c["files"], "added": c["added"],
+                                      "deleted": c["deleted"], "subject": c.get("subject", "")} for c in rows[:10]], "added_total": total})]
+
+
 def tangled_commits(report: dict, min_share: float = 0.02, min_count: int = 5) -> list:
     """Commits that do several things at once: ten or more files across four or more directories under
     a subject that lists several changes. Herzig and Zeller (MSR 2013) found tangled fixes mislabel a
@@ -1340,7 +1365,7 @@ def component_coupling(report: dict, min_degree: int = 30) -> list:
 
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets,
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
-         sweeping_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, unreferenced_files,
+         sweeping_commits, import_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, unreferenced_files,
          agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author,
          truck_factor, authors_gone, component_coupling, swallowed_errors, hardcoded_addresses, commented_out_code]
 

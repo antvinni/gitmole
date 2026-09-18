@@ -141,3 +141,16 @@ class CoAuthors(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class Imported(unittest.TestCase):
+    def test_lines_an_import_wrote_count_for_their_year_and_for_nobody(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            head = subprocess.run(["git", "rev-list", "--max-parents=0", "HEAD"], cwd=d, capture_output=True, text=True, check=True).stdout.strip()
+            blame.set_imported([head[:9]])
+            try:
+                self.assertEqual(blame.blame_file(d, "a.py"), {("2024", None): 3, ("2026", "Bobby"): 1})
+            finally:
+                blame.set_imported(())
