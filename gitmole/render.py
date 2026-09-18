@@ -548,12 +548,33 @@ def trailers_section(report: dict, full: bool = True, width=None) -> dict:
     if marked.get("commits"):
         def pair(key):
             return f"{_pct(marked.get(key, 0), marked['commits'])} against {_pct(rest.get(key, 0), rest.get('commits') or 0)}"
+        watch_part = f", touched a file on the watch list's top {co['watch_top']} {pair('watch')}" if co.get("watch_top") else ""
         notes.append(f"marked commits ({co.get('definition')}): {marked['commits']:,}, {round(100 * co.get('share', 0))}% of the history; "
-                     f"reverted {pair('reverted')} for the rest, fixes {pair('fixes')}, a file changed again within two weeks {pair('retouched')}")
+                     f"reverted {pair('reverted')} for the rest, fixes {pair('fixes')}, a file changed again within two weeks {pair('retouched')}{watch_part}")
     if sh:
         notes.append(f"{round(100 * sh.get('burst_share', 0))}% of commits land in bursts of five or more within ten minutes; "
                      f"{round(100 * sh.get('conventional_share', 0))}% have conventional-commit subjects; commits come in {sh.get('hours_used', 0)} hours of the day")
     return _section("Trailers", columns, rows, note=None if rows else "no trailers", caption="\n".join(notes) or None)
+
+
+def lines_section(report: dict, full: bool = True, width=None) -> dict:
+    """Lines added to code files in the last year and the year before, the share git marks as moved and
+    the share deleted again within two weeks, and the same for the marked cohort against the rest:
+    --full and Markdown only. A direction for this repository, not a score."""
+    ln = (report.get("provenance") or {}).get("lines") or {}
+
+    def share(x):
+        return "-" if x is None else f"{100 * x:.1f}%"
+    rows = [(f"{w['label']} ({w['from']} to {w['to']})", w["commits"], w["added"], share(w.get("moved_share")), share(w.get("churn_share")))
+            for w in ln.get("windows") or []]
+    co = ln.get("cohort") or {}
+    if (co.get("marked") or {}).get("commits"):
+        rows += [(label, c["commits"], c["added"], share(c.get("moved_share")), share(c.get("churn_share")))
+                 for label, c in (("marked commits, both years", co["marked"]), ("the rest, both years", co["rest"]))]
+    columns = [("period", {"overflow": "fold"}), ("commits", RIGHT), ("lines added", RIGHT), ("moved", RIGHT), (f"churned in {ln.get('churn_days', 14)} days", RIGHT)]
+    return _section("Changed lines", columns, rows, note=None if rows else "no history in the last two years",
+                    caption="code files only; moved: lines git's moved-code detection marks (--color-moved=blocks); churned: deleted again "
+                            "within two weeks from the same file with the same text" if rows else None)
 
 
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
@@ -791,10 +812,10 @@ def compare_section(result: dict) -> dict:
 
 
 BUILDERS = [watch_section, watch_by_component_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
-            hotspots_section, coupling_section, signing_section, trailers_section, age_section, functions_section, health_section, osps_section]
+            hotspots_section, coupling_section, signing_section, trailers_section, lines_section, age_section, functions_section, health_section, osps_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
 # do next; Hotspots ranks the files the watch list already leads with, by the same product.
-FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "watch_by_component", "osps"}
+FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "lines", "watch_by_component", "osps"}
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:

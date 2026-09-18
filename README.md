@@ -41,6 +41,7 @@ gitmole . --json report.json           # every table, the watch list and the fin
 gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
 gitmole . --risk main --risk-threshold 10  # exit 3 if the files changed since main hold over 10% of the risk
 gitmole . --sarif gitmole.sarif        # the findings for GitHub code scanning or GitLab
+gitmole . --sbom sbom.cdx.json         # a CycloneDX SBOM of every package the lock files pin
 gitmole . --compare last.json          # what changed since an earlier --json export
 gitmole analysis-repo --no-run --hook  # a coding agent's edit hook: history's view of the files it just touched
 gitmole . --since 2y --full            # the current team, every row and column
@@ -59,9 +60,9 @@ Reports on repositories you know, each at a pinned commit, published as gitmole 
 
 | Repository | Commit | Commits | Lines | gitmole run |
 |---|---|---:|---:|---:|
-| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | [`540ee5b5`](https://github.com/curl/curl/commit/540ee5b560cc6e775e11317048a13cc7e355bf91) | 39,758 | 247,179 | 57 s |
-| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | [`8cbdd4a8`](https://github.com/django/django/commit/8cbdd4a814397f81adf0129288f32b615bd1f94f) | 34,933 | 431,749 | 132 s |
-| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | [`2b19aecd`](https://github.com/facebook/react/commit/2b19aecd0e9111b774fad0fad9862e50bcb5bc8a) | 21,703 | 681,078 | 151 s |
+| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | [`540ee5b5`](https://github.com/curl/curl/commit/540ee5b560cc6e775e11317048a13cc7e355bf91) | 39,758 | 247,179 | 59 s |
+| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | [`8cbdd4a8`](https://github.com/django/django/commit/8cbdd4a814397f81adf0129288f32b615bd1f94f) | 34,933 | 431,749 | 135 s |
+| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | [`2b19aecd`](https://github.com/facebook/react/commit/2b19aecd0e9111b774fad0fad9862e50bcb5bc8a) | 21,703 | 681,078 | 157 s |
 
 Run times are one `gitmole CLONE` with every default step, on a MacBook Pro (M4, 16 GB).
 

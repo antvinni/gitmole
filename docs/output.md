@@ -178,6 +178,18 @@ How to read each part of the terminal report, and what each run writes to disk; 
    `5 TODO/FIXME comments`, `parse() nested 6 deep`, and `defines 72
    functions and classes` for a file with sixty or more.
 
+   Changed lines (`--full` and Markdown, `provenance.lines` in the JSON):
+   the lines added to code files in the last year and the year before, the
+   share git's own moved-code detection marks as moved (`--color-moved`,
+   blocks of twenty characters or more), and the share deleted again within
+   two weeks from the same file with the same text, GitClear's moved and
+   churned lines as a direction for this repository. Blank lines and lines
+   without three letters or digits are not matched, since any brace would
+   pair with any other. When commits carry an `Assisted-by` trailer or a
+   co-author who never authors, the same two numbers for them against the
+   rest, and the trailers section adds each side's watch-list hit rate: the
+   share of its commits that touched a file on the watch list's top fifteen.
+
    What the history declares about how commits were made is read, never
    inferred. Agent configuration is a surface like `package.json`: a
    committed setting that turns approval prompts off
@@ -562,7 +574,7 @@ directory for a remote target:
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave |
 | `structure.json` | structure step, `gitmole[structure]` only | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports, its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
-| `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the marked cohort against the rest, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
+| `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the marked cohort against the rest (with each side's watch-list hit rate), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
 | `run.log` | gitmole | every command run and its stderr |
 
 ## How to read the output

@@ -70,6 +70,16 @@ class Induced(unittest.TestCase):
 
 
 class Score(unittest.TestCase):
+    def test_effort_is_the_false_alarms_before_the_first_hit_and_the_lines_read(self):
+        r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {"bots": []}, [], [])
+        ranked = evaluate.variants(r)["watch list (hotspot)"]
+        out = evaluate.effort(r, {ranked[1]}, 15)["watch list (hotspot)"]
+        self.assertEqual(out[0], 1, "one file before the first labelled one")
+        self.assertEqual(out[1], sum(SIZE["files"][f]["code"] for f in ranked[:15]))
+        self.assertEqual(evaluate.effort(r, set(), 15)["watch list (hotspot)"][0], len(ranked[:15]), "no hit: every file was a false alarm")
+        table = evaluate.effort_table([{"a": (1, 100)}, {"a": (3, 300)}])
+        self.assertIn("| a | 2 | 200 |", table)
+
     def test_the_report_at_t_knows_nothing_after_t(self):
         r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {"bots": []}, [], [])
         self.assertEqual({x["entity"]: x["n-revs"] for x in r["revisions"]}, {"core/a.py": 3, "core/b.py": 2, "tests/test_a.py": 1})

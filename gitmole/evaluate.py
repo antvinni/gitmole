@@ -62,8 +62,14 @@ def labelled_between(commits: list, labels: dict, start: str, end: str) -> set:
     before `end` (ApacheJIT, Defectors: see szz.read_labels): the paths the label names, or every
     source file the commit touched. Either side may be abbreviated."""
     out = set()
+    short = [k for k in labels if len(k) < 40]   # abbreviated labels need a prefix match; full hashes are a lookup
     for c in maat.in_window(commits, start, end):
-        paths = next((v for k, v in labels.items() if k.startswith(c["hash"]) or c["hash"].startswith(k)), "none")
+        if c["hash"] in labels:
+            paths = labels[c["hash"]]
+        elif len(c["hash"]) < 40:   # an abbreviated hash in the log: scan for the label it abbreviates
+            paths = next((v for k, v in labels.items() if k.startswith(c["hash"])), "none")
+        else:
+            paths = next((labels[k] for k in short if c["hash"].startswith(k)), "none")
         if paths == "none":
             continue
         out.update(p for p in (paths if paths is not None else [p for p, _, _ in c["files"]]) if not filetypes.is_test_path(p))
@@ -151,6 +157,32 @@ def score(report: dict, fixed: set, top: int) -> dict:
     return out
 
 
+def effort(report: dict, outcome: set, top: int) -> dict:
+    """variant -> (IFA, lines): how many of its first `top` files come before the first one in the
+    outcome (initial false alarms; `top` when none is), and the lines of code those files hold at the
+    cut-off, the inspection budget. A list that ranks small files first can look good on hits per line
+    and still send a reviewer through many files before one matters, so both are shown."""
+    files = (report.get("size") or {}).get("files") or {}
+    out = {}
+    for name, ranked in variants(report).items():
+        head = ranked[:top]
+        ifa = next((i for i, f in enumerate(head) if f in outcome), len(head))
+        out[name] = (ifa, sum((files.get(f) or {}).get("code", 0) for f in head))
+    return out
+
+
+def effort_table(efforts: list) -> str:
+    """efforts: [{variant: (ifa, lines)}] per cut-off -> Markdown with the median of each over the cut-offs."""
+    import statistics
+    names = list(efforts[0]) if efforts else []
+    rows = ["| variant | IFA, median | lines of code in the list, median |", "|---|---:|---:|"]
+    for name in names:
+        ifas = [e[name][0] for e in efforts]
+        lines = [e[name][1] for e in efforts]
+        rows.append(f"| {name} | {statistics.median(ifas):g} | {int(statistics.median(lines)):,} |")
+    return "\n".join(rows)
+
+
 def table(results: list, noun: str = "fixed") -> str:
     """results: [(t, files fixed that were in the pool, pool size, {variant: hits})], oldest first -> Markdown.
     `noun` says what the outcome is: fixed, bug-inducing (R-SZZ) or labelled."""
@@ -184,6 +216,7 @@ def main(argv=None) -> int:
     p.add_argument("--top", type=int, default=watch.WATCH_TOP)
     p.add_argument("--szz", action="store_true", help="also score against R-SZZ bug-inducing commits (one git blame per fix and file: minutes)")
     p.add_argument("--labels", metavar="CSV", help="also score against independent bug-inducing labels (ApacheJIT's CSV, Defectors' file rows, or one hash per line)")
+    p.add_argument("--end", metavar="YYYY-MM-DD", help="count the cut-offs back from this date rather than the last commit: a labelled dataset that stops earlier (ApacheJIT ends in 2019)")
     args = p.parse_args(argv)
     meta = load._read_json(args.out, "meta.json", {})
     log_path = os.path.join(args.out, "log.txt")
@@ -201,8 +234,8 @@ def main(argv=None) -> int:
     if args.labels and not labels:
         print(f"evaluate: no bug-inducing commits read from {args.labels}", file=sys.stderr)
         return 2
-    results, induced_results, labelled_results = [], [], []
-    for t in cutoffs(meta["last_date"], args.windows, args.horizon):
+    results, induced_results, labelled_results, labelled_effort = [], [], [], []
+    for t in cutoffs(args.end or meta["last_date"], args.windows, args.horizon):
         rev = trend.rev_before(args.repo, t, end_of_day=False)
         if not rev:
             continue                      # the history does not reach back this far
@@ -220,6 +253,7 @@ def main(argv=None) -> int:
         if labels:
             marked = labelled_between(commits, labels, t, end)
             labelled_results.append((t, len(marked & pool), len(pool), score(report, marked, args.top)))
+            labelled_effort.append(effort(report, marked, args.top))
         print(f"evaluate: {t} done", file=sys.stderr)
     if not results:
         print("evaluate: no cut-off falls inside the history", file=sys.stderr)
@@ -233,6 +267,8 @@ def main(argv=None) -> int:
     if labelled_results:
         print(f"\nAgainst the files the bug-inducing commits labelled in {os.path.basename(args.labels)} touched inside each window:\n")
         print(table(labelled_results, noun="labelled"))
+        print(f"\nWhat each list costs a reviewer against the same labels: initial false alarms before the first labelled file, and the lines of code in its top {args.top}:\n")
+        print(effort_table(labelled_effort))
     print(f"\n`--all` exports {spread['all']:,} commits ({spread['fix_all']:,} fixes); HEAD reaches {spread['head']:,} ({spread['fix_head']:,} fixes).")
     return 0
 

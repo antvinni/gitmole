@@ -263,7 +263,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json"), *revs_args], "stdout": None, "deps": ["git-log"]},
         {"name": "signing", "argv": [sys.executable, "-m", "gitmole.signing", out_dir], "stdout": None, "deps": []},   # the gpgsig headers, no keyring
         {"name": "hygiene", "argv": [sys.executable, "-m", "gitmole.hygiene", out_dir], "stdout": None, "deps": []},   # the Scorecard checks, from the clone
-        {"name": "provenance", "argv": [sys.executable, "-m", "gitmole.provenance", out_dir], "stdout": None, "deps": []},   # trailers, cohorts, agent files
+        {"name": "provenance", "argv": [sys.executable, "-m", "gitmole.provenance", out_dir], "stdout": None, "deps": ["scc", "change analysis"]},   # trailers, cohorts, agent files; the watch list for the hit rate
     ]
     workers = procs or blame.default_procs()
     if lizard:

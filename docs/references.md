@@ -20,7 +20,7 @@ citation in its `rule.ref`, so a reader checking the JSON sees it where the numb
 - Herzig and Zeller, "The Impact of Tangled Code Changes," *MSR* 2013. [IEEE](https://ieeexplore.ieee.org/document/6624018/): oversized fixes out of the fix pool (`maat.oversized`) and the `tangled_commits` finding.
 - Huang, Xia and Lo, "Revisiting supervised and unsupervised models for effort-aware just-in-time defect prediction," *EMSE* 24, 2018. [PDF](https://xin-xia.github.io/publication/emse182.pdf): the caveat on effort-aware rankings behind `--risk`.
 - Kamei et al., "A Large-Scale Empirical Study of Just-in-Time Quality Assurance," *TSE* 39(6), 2013. [PDF](https://posl.ait.kyushu-u.ac.jp/~kamei/publications/Kamei_TSE2013.pdf): `watch.change_factors`, the change reasons on `--risk`.
-- Keshavarz and Nagappan, "ApacheJIT: A Large Dataset for Just-In-Time Defect Prediction," *MSR* 2022. [arXiv:2203.00101](https://ar5iv.labs.arxiv.org/html/2203.00101): the label shape `evaluate --labels` reads.
+- Keshavarz and Nagappan, "ApacheJIT: A Large Dataset for Just-In-Time Defect Prediction," *MSR* 2022. [arXiv:2203.00101](https://ar5iv.labs.arxiv.org/html/2203.00101), [data](https://github.com/hosseinkshvrz/apachejit): the label shape `evaluate --labels` reads, and the fourteen-repository table in `docs/validation.md`.
 - Lanza and Marinescu, *Object-Oriented Metrics in Practice*, Springer 2006: the brain method, the `brain_methods` finding.
 - Lavazza, Abualhaija, Morasca and Tosi, "An empirical evaluation of the 'Cognitive Complexity' measure as a predictor of code understandability," *JSS* 197, 2023. [ACM](https://dl.acm.org/doi/10.1016/j.jss.2022.111561): why cognitive complexity sits beside nesting in `structure.py` rather than replacing CCN.
 - Mahbub, Shuvo and Rahman, "Defectors: A Large, Diverse Python Dataset for Defect Prediction," *MSR* 2023. [arXiv:2303.04738](https://www.arxiv.org/pdf/2303.04738): dropping oversized fixes; the file-level label shape `evaluate --labels` reads.
@@ -39,7 +39,7 @@ citation in its `rule.ref`, so a reader checking the JSON sees it where the numb
 - "Self-Admitted Technical Debt in methods: a large-scale study," 2024. [arXiv:2411.13777](https://arxiv.org/html/2411.13777v2): the evidence behind `debt_in_hotspots`.
 - "Revisiting the Identification of the Co-evolution of Production and Test Code," *TOSEM* 2023. [ACM](https://dl.acm.org/doi/10.1145/3607183): `maat.test_cochange`.
 - "The Distribution of Commit Sizes in Open Source," 2014. [arXiv:1408.4974](https://arxiv.org/pdf/1408.4974): the repository's own 99th percentile in `maat.sweeping` and `maat.oversized`.
-- "Critical Considerations on Effort-aware Software Defect Prediction Metrics," 2025. [arXiv:2504.19181](https://arxiv.org/abs/2504.19181): initial false alarms beside hits in the backtest, *not built*.
+- "Critical Considerations on Effort-aware Software Defect Prediction Metrics," 2025. [arXiv:2504.19181](https://arxiv.org/abs/2504.19181): initial false alarms and the inspection budget beside hits in `evaluate.effort`.
 - "On the Prevalence and Usage of Commit Signing on GitHub," *EASE* 2025. [arXiv:2504.19215](https://arxiv.org/abs/2504.19215): `signing.py`.
 - "TypoSmart," 2025. [arXiv:2502.20528](https://arxiv.org/html/2502.20528v1): why typosquatting by edit distance is not done.
 - "Detecting AI Coding Agents in Open Source: A Validated Multi-Method Census of 180 Million Repositories," 2026. [arXiv:2606.24429](https://arxiv.org/html/2606.24429v1): the trailer inventory in `provenance.py`, and why it keeps no list of products.
@@ -107,7 +107,7 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 - OpenSSF, "Detecting Malicious Packages Using the OSV API," May 2026. [post](https://openssf.org/blog/2026/05/20/detecting-malicious-packages-using-the-osv-api/): `MAL-` records in the offline database.
 - Nesbitt, "Git submodules as a package manager," September 2026. [post](https://nesbitt.io/2026/09/01/git-submodules-as-a-package-manager.html): the submodule checks.
 - Anchore, "SBOMs and the EU CRA." [post](https://anchore.com/sbom/eu-cra/): an SBOM emitter, *not built*.
-- GitClear, "AI Code Quality and the Maintainability Gap," 2026, and "AI Assistant Code Quality," 2025. [2026](https://www.gitclear.com/the_ai_code_quality_maintainability_gap), [2025](https://www.gitclear.com/ai_assistant_code_quality_2025_research): the duplication rate a year back.
+- GitClear, "AI Code Quality and the Maintainability Gap," 2026, and "AI Assistant Code Quality," 2025. [2026](https://www.gitclear.com/the_ai_code_quality_maintainability_gap), [2025](https://www.gitclear.com/ai_assistant_code_quality_2025_research): the duplication rate a year back, and the moved and two-week churned lines in `provenance.lines`.
 - CodeRabbit, "State of AI vs Human Code Generation." [post](https://www.coderabbit.ai/blog/state-of-ai-vs-human-code-generation-report): why the cohort imports no prior.
 - Google Cloud, "Announcing the 2025 DORA Report." [post](https://cloud.google.com/blog/products/ai-machine-learning/announcing-the-2025-dora-report): the same.
 - METR, "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity," July 2025. [post](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/): the same.
