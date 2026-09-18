@@ -144,7 +144,7 @@ class Coupling(unittest.TestCase):
 class Authors(unittest.TestCase):
     def test_distinct_authors_and_revisions_per_entity(self):
         rows = {r["entity"]: r for r in maat.authors(maat.parse_log(LOG))}
-        self.assertEqual(rows["src/a.py"], {"entity": "src/a.py", "n-authors": 3, "n-revs": 7})
+        self.assertEqual(rows["src/a.py"], {"entity": "src/a.py", "n-authors": 3, "n-revs": 7, "minor": 0})
         self.assertEqual(rows["src/c.py"]["n-authors"], 1)
 
 
@@ -350,7 +350,7 @@ class WriteAll(unittest.TestCase):
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
             self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-fixes.csv",
-                                     "maat-plumbing.csv", "maat-revisions.csv"])
+                                     "maat-plumbing.csv", "maat-revisions.csv", "maat-soc.csv"])
             self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))
             with open(os.path.join(d, "maat-revisions.csv")) as fh:
                 self.assertEqual(fh.readline().strip(), "entity,n-revs")
@@ -390,6 +390,127 @@ class Until(unittest.TestCase):
         self.assertEqual(rows, {"src/a.py": "2", "src/b.py": "2"})
         self.assertEqual(act["fix_commits"], 0)
         self.assertEqual(act["until"], "2026-03-10")
+
+
+def _commit(h, files, author="Ann", date="2026-01-05", subject="work", co_authors=()):
+    return {"hash": h, "date": date, "time": f"{date}T10:00:00+00:00", "author": author, "subject": subject,
+            "files": list(files), "co_authors": list(co_authors)}
+
+
+class CoAuthors(unittest.TestCase):
+    LOG = ("--a1--2026-01-10T09:15:00+00:00--Ann--feat: pair work\x1fBob <bob@x.com>\x1fdependabot[bot] <1234+dependabot[bot]@users.noreply.github.com>\x1fAnn <ann@x.com>\x1fBob <bob@x.com>\n"
+           "10\t0\tsrc/a.py\n"
+           "5\t1\tsrc/b.py\n"
+           "\n"
+           "--b2--2026-02-10T14:00:00+00:00--Cat--solo\x1f\n"
+           "2\t2\tsrc/a.py\n")
+
+    def test_co_authored_by_trailers_name_the_other_people_on_the_commit(self):
+        commits = maat.parse_log(self.LOG)
+        self.assertEqual(commits[0]["subject"], "feat: pair work", "the trailers are split off the subject")
+        self.assertEqual(commits[0]["co_authors"], ["Bob"], "the author is not their own co-author, a bot is nobody, a repeat is one person")
+        self.assertEqual(commits[1]["co_authors"], [])
+        self.assertEqual(maat.parse_log(LOG)[0]["co_authors"], [], "a log written before trailers were exported still parses")
+
+    def test_co_authors_are_canonicalised_like_authors(self):
+        commits = maat.parse_log(self.LOG, aliases={"Bob": "Robert"})
+        self.assertEqual(commits[0]["co_authors"], ["Robert"])
+
+    def test_co_authors_count_as_authors_of_the_file_and_share_its_lines(self):
+        commits = maat.parse_log(self.LOG)
+        rows = {r["entity"]: r for r in maat.authors(commits)}
+        self.assertEqual(rows["src/a.py"]["n-authors"], 3, "Ann, Bob and Cat")
+        own = {(r["entity"], r["author"]): (r["added"], r["deleted"]) for r in maat.entity_ownership(commits)}
+        self.assertEqual(own[("src/a.py", "Ann")], (5, 0))
+        self.assertEqual(own[("src/a.py", "Bob")], (5, 0))
+        self.assertEqual(own[("src/b.py", "Ann")], (3, 1), "the odd line and the odd deletion go to the committer")
+        self.assertEqual(own[("src/b.py", "Bob")], (2, 0))
+        totals = maat.author_totals(commits)
+        self.assertEqual(totals["Bob"], {"commits": 1, "added": 7, "deleted": 0, "first": "2026-01-10", "last": "2026-01-10"})
+        self.assertEqual(maat.activity(commits)["timeline"]["Bob"], {"2026-01": 1})
+
+
+class MinorContributors(unittest.TestCase):
+    def test_authors_under_five_percent_of_a_files_commits_are_minor(self):
+        commits = [_commit(f"m{i}", [("core/big.py", 1, 0)], author="Ann") for i in range(38)]
+        commits += [_commit("x1", [("core/big.py", 1, 0)], author="Bob"), _commit("x2", [("core/big.py", 1, 0)], author="Cat")]
+        commits += [_commit("s1", [("core/small.py", 1, 0)], author="Ann"), _commit("s2", [("core/small.py", 1, 0)], author="Bob")]
+        rows = {r["entity"]: r for r in maat.authors(commits)}
+        self.assertEqual(rows["core/big.py"], {"entity": "core/big.py", "n-authors": 3, "n-revs": 40, "minor": 2}, "1 of 40 commits is 2.5%")
+        self.assertEqual(rows["core/small.py"]["minor"], 0, "1 of 2 commits is half")
+
+
+class SumOfCoupling(unittest.TestCase):
+    def test_total_co_changes_and_partners_per_entity(self):
+        commits = [_commit(f"c{i}", [("hub.py", 1, 0), (f"leaf{i % 3}.py", 1, 0)]) for i in range(15)]
+        commits.append(_commit("big", [(f"f{i}.py", 1, 0) for i in range(40)]))
+        rows = {r["entity"]: r for r in maat.soc(commits)}
+        self.assertEqual(rows["hub.py"], {"entity": "hub.py", "soc": 15, "partners": 3}, "15 co-changes over 3 files, each shared 5 times")
+        self.assertEqual(rows["leaf0.py"], {"entity": "leaf0.py", "soc": 5, "partners": 1})
+        self.assertNotIn("f1.py", rows, "a commit over the changeset cap is not coupling, as in coupling()")
+        self.assertEqual([r["entity"] for r in maat.soc(commits)][0], "hub.py", "the most coupled first")
+
+
+class Sweeping(unittest.TestCase):
+    def _history(self):
+        commits = [_commit(f"c{i}", [("src/a.py", 3, 1), (f"src/f{i % 7}.py", 2, 1)], subject="work") for i in range(200)]
+        commits.append(_commit("fmt1", [(f"src/f{i}.py", 4, 4) for i in range(60)], subject="Reformat with black", date="2026-03-01"))
+        commits.append(_commit("imp1", [(f"lib/v{i}.py", 100, 0) for i in range(60)], subject="Import the vendored library"))
+        commits.append(_commit("ren1", [(f"src/g{i}.py", 1, 1) for i in range(25)], subject="Rename Foo to Bar everywhere", date="2026-04-01"))
+        return commits
+
+    def test_a_commit_over_the_99th_percentile_of_files_with_as_many_lines_out_as_in_is_sweeping(self):
+        swept = maat.sweeping(self._history())
+        self.assertEqual([c["hash"] for c in swept], ["fmt1", "ren1"], "the import adds far more than it removes; the rename sweep is as symmetric as the reformat")
+
+    def test_a_small_history_needs_twenty_files_at_least(self):
+        commits = [_commit(f"c{i}", [("a.py", 1, 1)]) for i in range(5)] + [_commit("w", [(f"f{i}.py", 1, 1) for i in range(12)])]
+        self.assertEqual(maat.sweeping(commits), [], "12 files is the biggest commit here, but not a sweep")
+        commits.append(_commit("big", [(f"g{i}.py", 1, 1) for i in range(20)]))
+        self.assertEqual([c["hash"] for c in maat.sweeping(commits)], ["big"])
+
+    def test_write_all_leaves_sweeping_and_declared_commits_out_and_records_them(self):
+        commits = self._history()
+        commits.append(_commit("decl", [("src/a.py", 9, 2), ("src/f1.py", 3, 3)], subject="declared uninteresting", date="2026-05-01"))
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                for c in commits:
+                    fh.write(f"--{c['hash']}--{c['time']}--{c['author']}--{c['subject']}\n")
+                    fh.writelines(f"{a}\t{dd}\t{p}\n" for p, a, dd in c["files"])
+                    fh.write("\n")
+            maat.write_all(log, d, ignore_revs={"decl0000000000000000000000000000000000000"})
+            with open(os.path.join(d, "maat-revisions.csv")) as fh:
+                revs = dict(line.strip().split(",") for line in fh.readlines()[1:])
+            with open(os.path.join(d, "maat-authors.csv")) as fh:
+                authors = {line.split(",")[0]: line.strip().split(",") for line in fh.readlines()[1:]}
+            with open(os.path.join(d, "activity.json")) as fh:
+                act = json.load(fh)
+        self.assertEqual(revs["src/a.py"], "200", "the declared commit's revision is gone")
+        self.assertEqual(revs["src/f1.py"], "29", "200 / 7 rounded up, the reformat and the declared commit left out")
+        self.assertNotIn("src/g1.py", revs, "the rename sweep was its only commit")
+        self.assertEqual(sum(act["by_weekday"]), 204, "activity still counts every commit")
+        self.assertEqual([s["hash"] for s in act["sweeping"]], ["fmt1", "ren1"])
+        self.assertEqual(act["sweeping"][0], {"hash": "fmt1", "date": "2026-03-01", "author": "Ann", "subject": "Reformat with black",
+                                              "files": 60, "added": 240, "deleted": 240, "declared": False})
+        self.assertEqual(act["ignored_revs"], 1, "one declared commit was found in the log")
+
+    def test_a_declared_sweep_is_marked_declared(self):
+        act = maat.activity(self._history(), ignored={"fmt1"})
+        self.assertEqual([(s["hash"], s["declared"]) for s in act["sweeping"]], [("fmt1", True), ("ren1", False)])
+
+
+class IgnoreRevs(unittest.TestCase):
+    def test_reads_full_shas_past_comments_and_matches_abbreviated_hashes(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, ".git-blame-ignore-revs")
+            with open(path, "w") as fh:
+                fh.write("# Reformat with black\nabcdef0123456789abcdef0123456789abcdef01\n\n  FEDCBA9876543210fedcba9876543210fedcba98  # trailing note\nnot-a-sha\n")
+            revs = maat.read_ignore_revs([path, os.path.join(d, "missing")])
+        self.assertEqual(revs, {"abcdef0123456789abcdef0123456789abcdef01", "fedcba9876543210fedcba9876543210fedcba98"})
+        self.assertTrue(maat.is_ignored("abcdef0", revs))
+        self.assertTrue(maat.is_ignored("fedcba9876543210fedcba9876543210fedcba98", revs))
+        self.assertFalse(maat.is_ignored("abcdef1", revs))
 
 
 if __name__ == "__main__":
