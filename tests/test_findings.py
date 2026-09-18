@@ -233,6 +233,62 @@ class SizerConcerns(unittest.TestCase):
         self.assertEqual(advice("Biggest checkouts: Total size of files"), "Consider a sparse checkout for CI; the tree is the cost.")
 
 
+class SweepingCommits(unittest.TestCase):
+    def sweep(self, h, files, declared=False, subject="Reformat with black"):
+        return {"hash": h, "date": "2026-03-01", "author": "Ann", "subject": subject, "files": files, "added": 4 * files, "deleted": 4 * files, "declared": declared}
+
+    def test_undeclared_sweeps_are_listed_with_the_advice_to_declare_them(self):
+        r = report(activity={"sweeping": [self.sweep("fmt1", 1204), self.sweep("ren1", 60, subject="Rename Foo to Bar"), self.sweep("old1", 40, declared=True)],
+                             "ignored_revs": 1})
+        [f] = findings.sweeping_commits(r)
+        self.assertEqual((f["severity"], f["title"]), ("info", "Sweeping commits"))
+        self.assertIn("2 commits each touch 60 files or more and take out as many lines as they put in: fmt1 (1,204 files, 2026-03-01, Reformat with black); "
+                      "ren1 (60 files, 2026-03-01, Rename Foo to Bar). They are left out of the churn, coupling and ownership counts.", f["detail"])
+        self.assertEqual(f["advice"], "Add fmt1 and ren1 to .git-blame-ignore-revs so git blame and GitHub skip them too; 1 commit is declared there already.")
+        self.assertEqual(f["rule"], {"id": "sweeping_commits", "min_files": 20, "percentile": 0.99, "tolerance": 0.1})
+        self.assertEqual([c["hash"] for c in f["evidence"]["commits"]], ["fmt1", "ren1"])
+        self.assertEqual(f["evidence"]["declared"], 1)
+
+    def test_nothing_when_every_sweep_is_declared_or_there_is_none(self):
+        self.assertEqual(findings.sweeping_commits(report(activity={"sweeping": [self.sweep("a", 30, declared=True)], "ignored_revs": 1})), [])
+        self.assertEqual(findings.sweeping_commits(report(activity={"sweeping": []})), [])
+        self.assertEqual(findings.sweeping_commits(report()), [], "an output directory from before the record")
+
+
+class MinorContributors(unittest.TestCase):
+    def report(self, minors):
+        size = {f"src/f{i}.py": {"code": 1000 - i, "complexity": 1} for i in range(12)}
+        revisions = [{"entity": f"src/f{i}.py", "n-revs": 100 - i} for i in range(12)]
+        authors = [{"entity": f"src/f{i}.py", "n-authors": 3 + m, "n-revs": 100 - i, "minor": m} for i, m in enumerate(minors)]
+        ownership = [{"entity": f"src/f{i}.py", "author": "Ann", "added": 500, "deleted": 0} for i in range(12)]
+        return report(size={"files": size}, revisions=revisions, authors=authors, ownership=ownership)
+
+    def test_top_hotspots_with_five_or_more_minor_contributors_are_named(self):
+        [f] = findings.minor_contributors(self.report([12, 0, 6, 0, 0, 0, 0, 0, 0, 0, 9, 0]))
+        self.assertEqual((f["severity"], f["title"]), ("warning", "Many minor contributors"))
+        self.assertIn("2 of the top 10 hotspots have 5 or more contributors with under 5% of the file's commits each: src/f0.py (12 of 15 authors); "
+                      "src/f2.py (6 of 9 authors).", f["detail"])
+        self.assertNotIn("src/f10.py", f["detail"], "outside the top ten")
+        self.assertEqual(f["advice"], "Have Ann, who wrote most of src/f0.py, review changes to it from anyone else; "
+                                      "Bird et al. found the count of minor contributors the strongest ownership predictor of defects.")
+        self.assertEqual(f["rule"], {"id": "minor_contributors", "min_minor": 5, "warn_at": 10, "minor_share": 0.05, "top_n": 10})
+        self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 12, "authors": 15, "owner": "Ann"})
+
+    def test_info_below_ten_and_nothing_below_five(self):
+        [f] = findings.minor_contributors(self.report([5] + [0] * 11))
+        self.assertEqual(f["severity"], "info")
+        self.assertEqual(findings.minor_contributors(self.report([4] + [0] * 11)), [])
+        self.assertEqual(findings.minor_contributors(report()), [], "no size, no hotspots")
+
+    def test_test_files_and_files_out_of_the_pool_are_not_counted(self):
+        r = self.report([9] + [0] * 11)
+        r["size"]["files"]["tests/test_x.py"] = {"code": 5000, "complexity": 1}
+        r["revisions"].insert(0, {"entity": "tests/test_x.py", "n-revs": 500})
+        r["authors"].append({"entity": "tests/test_x.py", "n-authors": 40, "n-revs": 500, "minor": 30})
+        [f] = findings.minor_contributors(r)
+        self.assertNotIn("tests/test_x.py", f["detail"])
+
+
 class HotspotDominance(unittest.TestCase):
     def test_info_when_top_file_changes_twice_as_often_as_next(self):
         f = findings.hotspot_dominance(report(revisions=[{"entity": "meta.json", "n-revs": 128}, {"entity": "i.html", "n-revs": 51}]))

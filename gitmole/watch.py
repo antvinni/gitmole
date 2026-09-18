@@ -23,6 +23,8 @@ CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function 
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership
 COMPANION_DEGREE = 50   # a coupling worth mentioning
 COMPANION_REVS = 5      # ...over enough shared revisions to be a pattern
+MINOR_FLOOR = 3         # this many minor contributors (under 5% of the file's commits each) is a crowd worth naming
+PARTNERS_FLOOR = 20     # this many files it shares five or more commits with is a hub worth naming
 
 
 def _owners(report: dict) -> dict:
@@ -66,6 +68,8 @@ def risks(report: dict, min_revs: int = 2) -> list:
     worst = _worst_function(report)
     fixes = {f["entity"]: f for f in report.get("fixes") or []}
     n_authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
+    minors = {a["entity"]: a.get("minor", 0) for a in report.get("authors") or []}   # absent in an output directory from before 0.11
+    partners = {a["entity"]: a.get("partners", 0) for a in report.get("soc") or []}
     series = (report.get("trend") or {}).get("files") or {}
     last = (report.get("meta") or {}).get("last_date") or ""
 
@@ -81,6 +85,7 @@ def risks(report: dict, min_revs: int = 2) -> list:
         fn = worst.get(h["entity"])
         rows.append({"file": h["entity"], "revs": h["revs"], "recent_fixes": fx.get("recent-fixes", 0), "fixes": fx.get("n-fixes", 0),
                      "authors": n_authors.get(h["entity"]), "owner": owner, "owner_share": share,
+                     "minor": minors.get(h["entity"], 0), "partners": partners.get(h["entity"], 0),
                      "complexity": h["complexity"] or 0, "code": h["code"],
                      "function": fn, "companions": companions.get(h["entity"], []),
                      "trend": trend.change_over_year(series[h["entity"]], last) if last and h["entity"] in series else None})
@@ -128,6 +133,8 @@ def _reasons(r: dict) -> list:
         out.append(f"only {r['owner']} has touched it" if r["owner"] else "one author only")
     elif r["owner_share"] >= SOLO_SHARE and r["owner"]:
         out.append(f"{r['owner']} wrote {round(100 * r['owner_share'])}% of it")
+    if r.get("minor", 0) >= MINOR_FLOOR:
+        out.append(f"{r['minor']} of {r['authors']} authors are minor contributors")   # Bird et al.: the defect signal; the sole owner is the knowledge signal
     fn = r["function"]
     if fn and fn["ccn"] >= CCN_FLOOR:
         named = f"the function at line {fn['start']}" if fn.get("anonymous") else f"{fn['function']}()"
@@ -140,6 +147,8 @@ def _reasons(r: dict) -> list:
         more = len(r["companions"]) - 1
         tail = f" and {more} other{'s' if more != 1 else ''}" if more else ""
         out.append(f"changes with {other} ({degree}%){tail}")
+    if r.get("partners", 0) >= PARTNERS_FLOOR:
+        out.append(f"changes alongside {r['partners']} other files")   # sum of coupling: weakly coupled to everything
     return out
 
 
