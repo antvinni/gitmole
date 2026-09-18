@@ -52,11 +52,19 @@ def parse(spec):
 _TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|snapshots?|__snapshots__|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
                         r"|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+|[^/]*\.snap)$", re.I)
 
+# Suffix conventions of test frameworks, case-sensitive (Contest.java is not a Test, requests/ is not a
+# Tests/ target): JUnit/XCTest/NUnit's FooTest(s), hspec/ScalaTest's FooSpec, RSpec's _spec.rb, Foundry's
+# .t.sol, HDL testbenches tb_x / x_tb, and test-target directories such as AppTests/ or AppUITests/.
+_TEST_SUFFIX = re.compile(r"[A-Za-z0-9]Tests?\.(java|kt|kts|scala|groovy|swift|cs)$|[A-Za-z0-9]Spec\.(hs|lhs|scala|kt|groovy)$|_spec\.rb$|\.t\.sol$"
+                          r"|(^|/)tb_[^/]*\.(v|sv|vhd|vhdl)$|_tb\.(v|sv|vhd|vhdl)$|(^|/)[A-Za-z0-9]+Tests/")
+
 
 def is_test_path(path: str) -> bool:
     """A test file or anything under a tests directory (tests/, pending_tests/, e2e-tests/, test_utils/,
-    snapshots/ and .snap files): changes with every fix, so not a signal on its own."""
-    return bool(_TEST_PATH.search(path))
+    snapshots/ and .snap files): changes with every fix, so not a signal on its own. Also the suffix
+    conventions of test frameworks: FooTest.java, user_spec.rb, ParserSpec.hs, Vault.t.sol, tb_counter.v,
+    and AppTests/ directories."""
+    return bool(_TEST_PATH.search(path) or _TEST_SUFFIX.search(path))
 
 
 _DOC_PATH = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|\.(md|markdown|rst|txt|adoc|pyi|d\.ts)$", re.I)

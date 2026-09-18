@@ -103,6 +103,15 @@ class TestPaths(unittest.TestCase):
         for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md", "src/testimony.py", "snapshot.py"):
             self.assertFalse(filetypes.is_test_path(path), path)
 
+    def test_suffix_conventions_of_test_frameworks(self):
+        for path in ("com/example/FooTest.java", "com/example/FooTests.java", "src/FooTest.kt", "src/FooSpec.scala", "src/AppTests.cs",
+                     "app/models/user_spec.rb", "MyAppTests/UserTests.swift", "MyAppUITests/LaunchTests.swift", "MyAppTests/Mocks/Service.swift",
+                     "src/ParserSpec.hs", "src/ParserSpec.lhs", "src/Vault.t.sol", "rtl/tb_counter.v", "rtl/counter_tb.sv", "rtl/fifo_tb.vhdl", "tb_top.v"):
+            self.assertTrue(filetypes.is_test_path(path), path)
+        for path in ("com/example/Contest.java", "src/requests/client.py", "src/TestHelper.sol", "src/Latest.kt", "rtl/tbench.v",
+                     "rtl/outbound.v", "src/spec_writer.rb", "lib/Spec.hs"):   # case-sensitive: contest is not a Test, requests/ is not a Tests/ dir
+            self.assertFalse(filetypes.is_test_path(path), path)
+
     def test_documentation_files_and_directories(self):
         for path in ("README.md", "docs/GA4-API-INTEGRATION.md", "doc/guide.rst", "NOTES.txt", "a/b/CHANGELOG.markdown", "docs/conf.py", "x.adoc",
                      "docs_src/security/tutorial004.py", "docs-site/app.js", "doc_examples/x.py",
