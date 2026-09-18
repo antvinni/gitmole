@@ -66,3 +66,19 @@ class Clusters(unittest.TestCase):
         groups, rest = coupling.clusters(pairs)
         self.assertEqual(groups, [])
         self.assertEqual(rest, pairs)
+
+
+class Regime(unittest.TestCase):
+    def test_few_merges_and_squash_suffixes_on_most_subjects_is_squash_merged(self):
+        r = {"meta": {"commits": 1000, "merges": 3}, "activity": {"squash_subjects": 820}}
+        self.assertEqual(coupling.regime(r), ("squash", "82% of subjects end in (#NNNN) and 3 of 1,000 commits are merges: squash-merged, so the pairs describe pull requests, not edits"))
+
+    def test_many_merges_is_merge_commits_and_the_rest_is_linear(self):
+        self.assertEqual(coupling.regime({"meta": {"commits": 1000, "merges": 250}, "activity": {"squash_subjects": 10}})[0], "merge")
+        self.assertEqual(coupling.regime({"meta": {"commits": 1000, "merges": 250}, "activity": {"squash_subjects": 10}})[1],
+                         "250 of 1,000 commits are merges: merge commits carry no file list, so the pairs describe the commits on the branches")
+        self.assertEqual(coupling.regime({"meta": {"commits": 1000, "merges": 5}, "activity": {"squash_subjects": 30}}), ("linear", None),
+                         "rebase-merged or committed straight to the branch: nothing to caveat")
+        self.assertEqual(coupling.regime({"meta": {"commits": 0}, "activity": {}}), ("linear", None))
+        self.assertEqual(coupling.regime({"meta": {"commits": 1000}, "activity": {"squash_subjects": 900}}), ("linear", None),
+                         "an output directory from before the merge count records nothing")

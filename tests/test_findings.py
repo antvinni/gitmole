@@ -289,6 +289,31 @@ class MinorContributors(unittest.TestCase):
         self.assertNotIn("tests/test_x.py", f["detail"])
 
 
+class TangledCommits(unittest.TestCase):
+    def tangled(self, h, files, dirs, subject, date="2026-03-01"):
+        return {"hash": h, "date": date, "files": files, "dirs": dirs, "subject": subject}
+
+    def test_named_with_their_share_when_there_are_enough(self):
+        act = {"tangled_commits": 12, "tangled": [self.tangled("t1", 34, 9, "Fix the parser, add a cache and rename the helpers"),
+                                                  self.tangled("t2", 12, 4, "Add x; fix y")], "oversized_fixes": 3}
+        [f] = findings.tangled_commits(report(activity=act))
+        self.assertEqual((f["severity"], f["title"]), ("info", "Tangled commits"))
+        self.assertIn("12 of 100 commits (12%) touch 10 or more files across 4 or more directories under a subject that lists several changes: "
+                      "t1 (34 files, 9 directories, Fix the parser, add a cache and rename the helpers); t2 (12 files, 4 directories, Add x; fix y). "
+                      "A fix among them credits every file it touched, so 3 fixes over the repository's 99th percentile of lines changed are already left out of the fix counts.", f["detail"])
+        self.assertEqual(f["advice"], "Split a change that does several things before merge; the fix history stays readable and the coupling stays real.")
+        self.assertEqual(f["rule"], {"id": "tangled_commits", "min_files": 10, "min_dirs": 4, "min_clauses": 2, "min_share": 0.02, "min_count": 5})
+        self.assertEqual(f["evidence"]["count"], 12)
+        self.assertEqual(f["evidence"]["oversized_fixes"], 3)
+
+    def test_nothing_below_the_share_or_the_count(self):
+        act = {"tangled_commits": 1, "tangled": [self.tangled("t1", 34, 9, "a, b")]}
+        self.assertEqual(findings.tangled_commits(report(activity=act)), [], "one in a hundred is noise")
+        act = {"tangled_commits": 6, "tangled": [self.tangled("t1", 34, 9, "a, b")]}
+        self.assertEqual(len(findings.tangled_commits(report(activity=act))), 1, "six of a hundred is a habit")
+        self.assertEqual(findings.tangled_commits(report()), [])
+
+
 class HotspotDominance(unittest.TestCase):
     def test_info_when_top_file_changes_twice_as_often_as_next(self):
         f = findings.hotspot_dominance(report(revisions=[{"entity": "meta.json", "n-revs": 128}, {"entity": "i.html", "n-revs": 51}]))
@@ -1005,7 +1030,8 @@ class Advice(unittest.TestCase):
     def test_a_bug_magnet_can_be_rechecked_from_its_own_rule_and_evidence(self):
         f = findings.bug_magnets(report(fixes=[{"entity": "a.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5},
                                                {"entity": "b.py", "n-fixes": 3, "last-fix": "2026-08-01", "recent-fixes": 3}]))[0]
-        self.assertEqual(f["rule"], {"id": "bug_magnets", "min_recent": 3, "warn_at": 5, "window_months": 6, "fix": "the commit subject says so"})
+        self.assertEqual(f["rule"], {"id": "bug_magnets", "min_recent": 3, "warn_at": 5, "window_months": 6, "fix": "the commit subject says so",
+                                     "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing"})
         self.assertEqual(f["evidence"], {"count": 2, "files": [{"file": "a.py", "recent_fixes": 5, "fixes": 9}, {"file": "b.py", "recent_fixes": 3, "fixes": 3}]})
         self.assertTrue(all(x["recent_fixes"] >= f["rule"]["min_recent"] for x in f["evidence"]["files"]))
 

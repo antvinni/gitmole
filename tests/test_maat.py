@@ -350,7 +350,7 @@ class WriteAll(unittest.TestCase):
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
             self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-coupling.csv", "maat-entity-ownership.csv", "maat-fixes.csv",
-                                     "maat-plumbing.csv", "maat-revisions.csv", "maat-soc.csv"])
+                                     "maat-plumbing.csv", "maat-revisions.csv", "maat-soc.csv", "maat-tests.csv"])
             self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))
             with open(os.path.join(d, "maat-revisions.csv")) as fh:
                 self.assertEqual(fh.readline().strip(), "entity,n-revs")
@@ -442,8 +442,8 @@ class MinorContributors(unittest.TestCase):
 
 class SumOfCoupling(unittest.TestCase):
     def test_total_co_changes_and_partners_per_entity(self):
-        commits = [_commit(f"c{i}", [("hub.py", 1, 0), (f"leaf{i % 3}.py", 1, 0)]) for i in range(15)]
-        commits.append(_commit("big", [(f"f{i}.py", 1, 0) for i in range(40)]))
+        commits = [_commit(f"c{i}", [("hub.py", 1, 0), (f"leaf{i % 3}.py", 1, 0)], date=f"2026-01-{1 + i:02d}") for i in range(15)]
+        commits.append(_commit("big", [(f"f{i}.py", 1, 0) for i in range(40)], date="2026-02-01"))
         rows = {r["entity"]: r for r in maat.soc(commits)}
         self.assertEqual(rows["hub.py"], {"entity": "hub.py", "soc": 15, "partners": 3}, "15 co-changes over 3 files, each shared 5 times")
         self.assertEqual(rows["leaf0.py"], {"entity": "leaf0.py", "soc": 5, "partners": 1})
@@ -498,6 +498,96 @@ class Sweeping(unittest.TestCase):
     def test_a_declared_sweep_is_marked_declared(self):
         act = maat.activity(self._history(), ignored={"fmt1"})
         self.assertEqual([(s["hash"], s["declared"]) for s in act["sweeping"]], [("fmt1", True), ("ren1", False)])
+
+
+class Changesets(unittest.TestCase):
+    def test_a_ticket_shaped_key_in_the_subject(self):
+        self.assertEqual(maat.ticket_key("Add the parser (#1234)"), "#1234", "GitHub's squash-merge suffix")
+        self.assertEqual(maat.ticket_key("PROJ-42: handle nulls"), "PROJ-42", "a Jira-shaped key")
+        self.assertEqual(maat.ticket_key("Handle nulls. Fixes #77"), "#77")
+        self.assertEqual(maat.ticket_key("Closes #77 and refs #78"), "#77", "the first reference names the change")
+        self.assertIsNone(maat.ticket_key("Handle nulls"))
+        self.assertIsNone(maat.ticket_key("Use UTF-8 everywhere"), "UTF-8 is a word, not a ticket: a key opens the subject")
+        self.assertEqual(maat.ticket_key("[PROJ-42] handle nulls"), "PROJ-42")
+        self.assertIsNone(maat.ticket_key("bump to 2024-01"), "a date is not a key")
+
+    def test_commits_sharing_a_key_are_one_changeset_the_rest_group_by_author_and_day(self):
+        commits = [_commit("a1", [("x.py", 1, 0)], author="Ann", date="2026-01-05", subject="PROJ-1 start"),
+                   _commit("a2", [("y.py", 2, 0)], author="Bob", date="2026-01-09", subject="PROJ-1 finish"),
+                   _commit("b1", [("p.py", 1, 0), ("x.py", 1, 1)], author="Ann", date="2026-01-05", subject="tidy"),
+                   _commit("b2", [("q.py", 1, 0)], author="Ann", date="2026-01-05", subject="more tidy"),
+                   _commit("c1", [("q.py", 3, 0)], author="Ann", date="2026-01-06", subject="next day"),
+                   _commit("d1", [("r.py", 1, 0)], author="Cat", date="2026-01-05", subject="Cat's own (#9)"),
+                   _commit("d2", [("s.py", 1, 0)], author="Cat", date="2026-01-05", subject="Cat again (#10)")]
+        sets = maat.changesets(commits)
+        self.assertEqual([(c["hash"], c["commits"], sorted(p for p, _, _ in c["files"])) for c in sets],
+                         [("a1", 2, ["x.py", "y.py"]), ("b1", 2, ["p.py", "q.py", "x.py"]), ("c1", 1, ["q.py"]), ("d1", 1, ["r.py"]), ("d2", 1, ["s.py"])],
+                         "a key wins over the day; two squash merges by one person on one day stay apart")
+        self.assertEqual(sets[1]["files"], [("p.py", 1, 0), ("x.py", 1, 1), ("q.py", 1, 0)], "lines summed per path, first seen first")
+        self.assertEqual((sets[0]["author"], sets[0]["date"], sets[0]["subject"]), ("Ann", "2026-01-05", "PROJ-1 start"), "the first commit speaks for the set")
+
+    def test_coupling_and_sum_of_coupling_count_changesets_not_commits(self):
+        commits = []
+        for i in range(6):   # a rebase-merged feature: the model and its migration land as two commits by one author on one day
+            commits.append(_commit(f"m{i}", [("app/model.py", 5, 1)], author="Ann", date=f"2026-02-{10 + i:02d}", subject="model"))
+            commits.append(_commit(f"g{i}", [("app/migration.py", 5, 1)], author="Ann", date=f"2026-02-{10 + i:02d}", subject="migration"))
+        self.assertEqual(maat.coupling(commits), [{"entity": "app/migration.py", "coupled": "app/model.py", "degree": 100, "average-revs": 6}])
+        self.assertEqual(maat.soc(commits)[0], {"entity": "app/migration.py", "soc": 6, "partners": 1})
+
+    def test_the_changeset_cap_applies_after_grouping(self):
+        commits = [_commit(f"c{i}", [(f"f{i}.py", 1, 0), ("hub.py", 1, 0)], author="Ann", date="2026-03-01", subject="") for i in range(40)]
+        self.assertEqual(maat.coupling(commits), [], "forty small commits in a day are one sweep of forty files, over the cap")
+
+
+class TestCoChange(unittest.TestCase):
+    def test_share_of_a_files_changesets_that_also_touched_a_test(self):
+        commits = [_commit(f"a{i}", [("core/a.py", 1, 0), ("tests/test_a.py", 1, 0)]) for i in range(3)]
+        commits += [_commit(f"b{i}", [("core/a.py", 1, 0)], date="2026-02-01") for i in range(1)]
+        commits += [_commit(f"c{i}", [("core/b.py", 1, 0)], date=f"2026-03-{1 + i:02d}") for i in range(4)]
+        rows = {r["entity"]: r for r in maat.test_cochange(commits)}
+        self.assertEqual(rows["core/a.py"], {"entity": "core/a.py", "n-sets": 2, "with-tests": 1},
+                         "three same-day commits are one changeset with a test, the February one has none")
+        self.assertEqual(rows["core/b.py"], {"entity": "core/b.py", "n-sets": 4, "with-tests": 0})
+        self.assertNotIn("tests/test_a.py", rows, "a test file's own row would say nothing")
+
+
+class OversizedFixes(unittest.TestCase):
+    def _history(self):
+        commits = [_commit(f"c{i}", [("src/a.py", 3, 1)], subject="fix: small", date="2026-06-01") for i in range(200)]
+        commits.append(_commit("big", [(f"src/f{i}.py", 40, 40) for i in range(30)], subject="fix: everything at once", date="2026-06-02"))
+        commits.append(_commit("med", [("src/z.py", 300, 100)], subject="fix: medium", date="2026-06-03"))
+        return commits
+
+    def test_a_fix_over_the_99th_percentile_of_lines_changed_credits_nothing(self):
+        rows = {r["entity"]: r for r in maat.fixes(self._history(), now="2026-09-01")}
+        self.assertNotIn("src/f1.py", rows, "2,400 lines: over the 99th percentile and over the floor")
+        self.assertEqual(rows["src/z.py"]["n-fixes"], 1, "400 lines: under the 500-line floor, whatever the percentile")
+        self.assertEqual(rows["src/a.py"]["n-fixes"], 200)
+        self.assertEqual([c["hash"] for c in maat.oversized(self._history())], ["big"])
+        self.assertEqual(maat.activity(self._history())["oversized_fixes"], 1)
+
+    def test_fix_commits_is_the_pool_the_backtest_reads(self):
+        self.assertEqual([c["hash"] for c in maat.fix_commits(self._history())][-2:], ["c199", "med"])
+
+
+class Tangled(unittest.TestCase):
+    def test_many_files_across_many_directories_under_a_subject_with_several_clauses(self):
+        files = [(f"pkg{i % 5}/f{i}.py", 1, 1) for i in range(12)]
+        yes = _commit("t1", files, subject="Fix the parser, add a cache and rename the helpers")
+        one_thing = _commit("t2", files, subject="Rename the helpers (see foo(a, b))")
+        few_dirs = _commit("t3", [(f"pkg/f{i}.py", 1, 1) for i in range(12)], subject="Fix the parser, add a cache and rename the helpers")
+        self.assertTrue(maat.is_tangled(yes))
+        self.assertFalse(maat.is_tangled(one_thing), "a comma inside brackets is not a clause")
+        self.assertFalse(maat.is_tangled(few_dirs))
+        self.assertEqual(maat.clauses("Fix a; add b"), 2)
+        self.assertEqual(maat.clauses("Fix a & b + c"), 3)
+        act = maat.activity([yes, one_thing, few_dirs])
+        self.assertEqual(act["tangled_commits"], 1)
+        self.assertEqual(act["tangled"], [{"hash": "t1", "date": "2026-01-05", "files": 12, "dirs": 5, "subject": "Fix the parser, add a cache and rename the helpers"}])
+
+    def test_squash_subjects_are_counted(self):
+        commits = [_commit("s1", [("a.py", 1, 0)], subject="Add x (#12)"), _commit("s2", [("a.py", 1, 0)], subject="Add y (#13)"), _commit("r1", [("a.py", 1, 0)], subject="Add z")]
+        self.assertEqual(maat.activity(commits)["squash_subjects"], 2)
 
 
 class IgnoreRevs(unittest.TestCase):

@@ -37,8 +37,10 @@ def months_after(date: str, months: int) -> str:
 
 
 def fixed_between(commits: list, start: str, end: str) -> set:
-    """Source files a fix commit touched on or after `start` and before `end`. Test files change with every fix."""
-    return {p for c in maat.in_window(commits, start, end) if maat.is_fix(c.get("subject", ""))
+    """Source files a fix commit touched on or after `start` and before `end`. Test files change with
+    every fix; an oversized fix (over the whole history's 99th percentile of lines) is tangled by size."""
+    big = {c["hash"] for c in maat.oversized(commits)}
+    return {p for c in maat.in_window(commits, start, end) if maat.is_fix(c.get("subject", "")) and c["hash"] not in big
             for p, _, _ in c["files"] if not filetypes.is_test_path(p)}
 
 

@@ -229,6 +229,33 @@ def sweeping_commits(report: dict) -> list:
                                                              "deleted": c.get("deleted"), "subject": c.get("subject", "")} for c in swept[:10]]})]
 
 
+def tangled_commits(report: dict, min_share: float = 0.02, min_count: int = 5) -> list:
+    """Commits that do several things at once: ten or more files across four or more directories under
+    a subject that lists several changes. Herzig and Zeller (MSR 2013) found tangled fixes mislabel a
+    large share of the files they touch; the fix pool already leaves out fixes over the repository's
+    99th percentile of lines. A habit is worth a line, one such commit in a hundred is not."""
+    act = report.get("activity") or {}
+    count, listed = act.get("tangled_commits") or 0, act.get("tangled") or []
+    total = report["meta"].get("commits") or 0
+    if not count or not total or count < min_count or count / total < min_share:
+        return []
+    big = act.get("oversized_fixes") or 0
+
+    def one(c):
+        return f"{c['hash']} ({c['files']:,} files, {c['dirs']} directories, {textfmt.cut(c['subject'], 70)})"
+    sample = "; ".join(one(c) for c in listed[:3]) + (f" and {count - 3} more" if count > 3 and len(listed) >= 3 else "")
+    aside = (f", so {big} {'fix' if big == 1 else 'fixes'} over the repository's 99th percentile of lines changed {'is' if big == 1 else 'are'} already left out of the fix counts"
+             if big else "")
+    return [_f("info", "Tangled commits",
+               f"{count:,} of {total:,} commits ({_pct(count, total)}) touch {maat.TANGLED_FILES} or more files across {maat.TANGLED_DIRS} or more directories "
+               f"under a subject that lists several changes: {sample}. A fix among them credits every file it touched{aside}.",
+               "Split a change that does several things before merge; the fix history stays readable and the coupling stays real.",
+               rule={"id": "tangled_commits", "min_files": maat.TANGLED_FILES, "min_dirs": maat.TANGLED_DIRS, "min_clauses": maat.TANGLED_CLAUSES,
+                     "min_share": min_share, "min_count": min_count},
+               evidence={"count": count, "commits": total, "oversized_fixes": big,
+                         "sample": [{"hash": c["hash"], "date": c["date"], "files": c["files"], "dirs": c["dirs"], "subject": c["subject"]} for c in listed[:10]]})]
+
+
 def minor_contributors(report: dict, min_minor: int = 5, warn_at: int = 10, top_n: int = 10) -> list:
     """Top hotspots with a crowd of minor contributors, people with under 5% of the file's commits
     each. Bird et al. ("Don't Touch My Code!", FSE 2011) found that count the strongest ownership
@@ -377,7 +404,8 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     return [_f(sev, "Bug magnets",
                f"{len(hot)} file(s) were fixed {min_recent}+ times in the last six months: {listed}{more}.",
                f"Review {first} before the next release; fixes keep landing there.",
-               rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so"},
+               rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so",
+                     "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing"},
                evidence={"count": len(hot), "files": [{"file": f["entity"], "recent_fixes": f["recent-fixes"], "fixes": f["n-fixes"]} for f in hot[:10]]})]
 
 
@@ -705,7 +733,7 @@ def vulnerable_dependencies(report: dict) -> list:
 
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets,
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
-         sweeping_commits]
+         sweeping_commits, tangled_commits]
 
 
 def evaluate(report: dict) -> list:

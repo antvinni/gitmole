@@ -521,6 +521,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
         "path": repo_dir,
         "branch": _git(repo_dir, "rev-parse", "--abbrev-ref", "HEAD").strip(),
         "commits": len(dates),
+        "merges": int(_git(repo_dir, "rev-list", "--count", "--merges", "HEAD").strip() or 0),   # the merge regime: squash, merge commits or linear
         "first_date": min(dates) if dates else "",
         "first_date_all": min(all_dates) if all_dates else "",   # unwindowed: the backtest asks how long the history is
         "last_date": max(dates) if dates else "",
