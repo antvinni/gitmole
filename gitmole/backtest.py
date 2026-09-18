@@ -38,8 +38,10 @@ def snapshot_at(repo: str, rev: str, out_dir: str) -> tuple:
         subprocess.run(["git", "checkout-index", "-a", f"--prefix={tree}/"], cwd=repo, env=env, check=True, capture_output=True, text=True)
         size = subprocess.run(["scc", "--by-file", "--format", "json"], cwd=tree, capture_output=True, text=True, check=True).stdout
         # the text files of that tree, as blame.text_files lists HEAD's: git grep prints "rev:path"
-        listing = subprocess.run([*filetypes.GIT, "grep", "-I", "--name-only", "-z", "-e", "", rev], cwd=repo, capture_output=True).stdout
-        paths = sorted(p.decode("utf-8", "surrogateescape").split(":", 1)[1] for p in listing.split(b"\0") if p)
+        proc = subprocess.run([*filetypes.GIT, "grep", "-I", "--name-only", "-z", "-e", "", rev], cwd=repo, capture_output=True)
+        if proc.returncode not in (0, 1):   # 1 is grep's "no match" (an empty tree), not a failure
+            raise subprocess.CalledProcessError(proc.returncode, proc.args, proc.stdout, proc.stderr)
+        paths = sorted(p.decode("utf-8", "surrogateescape").split(":", 1)[1] for p in proc.stdout.split(b"\0") if p)
         attrs = filetypes.attributes(repo, paths, cached=True, env=env)
         return size, filetypes.generated_files(tree, paths, attrs), filetypes.vendored_paths(tree, paths, attrs)
 

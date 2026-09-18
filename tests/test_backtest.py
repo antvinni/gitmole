@@ -106,6 +106,26 @@ class Step(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertEqual(err.getvalue(), "backtest: fatal: not a tree object\n")
 
+    def test_a_failing_git_grep_fails_the_snapshot_instead_of_claiming_an_empty_classification(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as d:
+            history_repo(d)
+            out = os.path.join(d, "out")
+            os.makedirs(out)
+            real_run = subprocess.run
+
+            def fake_run(cmd, *a, **kw):
+                # only the git grep call fails; read-tree, checkout-index and scc run for real, so a
+                # failure in the classification listing itself is what this test pins down
+                if "grep" in cmd:
+                    return subprocess.CompletedProcess(cmd, 2, stdout=b"", stderr=b"fatal: boom\n")
+                return real_run(cmd, *a, **kw)
+
+            with patch("gitmole.backtest.subprocess.run", side_effect=fake_run):
+                with self.assertRaises(subprocess.CalledProcessError) as ctx:
+                    backtest.snapshot_at(d, "HEAD", out)
+        self.assertEqual(ctx.exception.returncode, 2, "a real git grep failure (not exit 1, which just means no matches) must surface")
+
     def test_missing_inputs_exit_2(self):
         import contextlib
         import io
