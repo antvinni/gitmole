@@ -182,7 +182,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    further down the list may have none), the files it always changes
    with, when it shares five or more commits with twenty or more other
    files, how many (Tornhill's sum of coupling: the file weakly coupled to
-   everything), and, over five or more changes, when a test file moved
+   everything), when it changed in twelve or more different months, how
+   many (Hassan's change entropy: scattered changes, which lost to the
+   ranking on the backtest and so stay a reason), and, over five or more changes, when a test file moved
    with at most a fifth of them (`no test changed in its 38 changes`, `a
    test changed in 4 of its 28 changes`; a repository with no test file
    anywhere says nothing), none of them entering the rank. Test files are left out, and so

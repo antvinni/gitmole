@@ -79,6 +79,15 @@ class Risks(unittest.TestCase):
         self.assertNotIn("alongside", " ".join(by["core/util.py"]["reasons"]))
         self.assertEqual(by["web/index.html"]["minor"], 0, "an output directory without the column reads as none")
 
+    def test_changes_scattered_over_many_months_are_a_reason(self):
+        r = report()
+        r["entropy"] = [{"entity": "core/parser.py", "periods": 14, "hcm": 2.1}, {"entity": "core/util.py", "periods": 6, "hcm": 0.4}]
+        by = {x["file"]: x for x in watch.risks(r)}
+        self.assertIn("changed in 14 different months", by["core/parser.py"]["reasons"])
+        self.assertNotIn("months", " ".join(by["core/util.py"]["reasons"]), "six months of changes is not scattered")
+        self.assertEqual(by["core/parser.py"]["periods"], 14)
+        self.assertIsNone({x["file"]: x for x in watch.risks(report())}["core/parser.py"]["periods"], "an output directory without the table")
+
     def test_tests_that_never_move_with_a_file_are_a_reason(self):
         r = report()
         r["tests"] = [{"entity": "core/parser.py", "n-sets": 38, "with-tests": 0}, {"entity": "core/util.py", "n-sets": 28, "with-tests": 4},
