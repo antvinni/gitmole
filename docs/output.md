@@ -282,7 +282,19 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Google's service-account docs, and a value whose line, or the two lines
    above it, calls it an example, sample, dummy, fake or placeholder or
    fills in a template field (the lines are read from the clone at scan
-   time, one `git show` per finding, and never written). Every
+   time, one `git show` per finding, and never written). Five more shapes:
+   a value the line shows outside any string literal, right after `=`,
+   `(` or `,`, in a language whose literals must be quoted (a register
+   assignment `PSW = EIPSW;` in a SLEIGH processor file, `id ==
+   idaapi.PLFM_386`), where the quotes before it are counted so a
+   credential inside a URL literal stays a finding, and shell and
+   configuration files, where `PASSWORD=x` is a literal, are not judged
+   this way; a masked value such as `elastic:XXXXXX`; a value that names a
+   file, such as an icon; a name that holds the keyword itself joined by
+   letters or underscores (`resetpassword`, `password_missing`); a GUID
+   in a table of GUIDs, like a list of interface ids; and a key header
+   that closes its own string literal, which is code writing a PEM file.
+   Every
    rule is about the whole value; nothing is skipped by prefix. To silence a
    false positive for good, copy its fingerprint from `secrets.json` into a
    `.betterleaksignore` at the repository root; betterleaks reads it on the

@@ -91,10 +91,50 @@ _PROSE = re.compile(r"^[A-Za-z][A-Za-z'-]*(\s+[A-Za-z][A-Za-z'-]*){4,}\s*$")
 _KEY_PATH = re.compile(r"^[a-z_]+(\.[a-z_]+)+$")
 
 
-def is_placeholder(value: str, line: str = "") -> bool:
+# Languages whose string literals must be quoted: there, a value the scanner matched without a quote in
+# front of it is a symbol or an expression (`PSW = EIPSW;`, `id == idaapi.PLFM_386`), not a literal. Shell,
+# configuration and markup are left out, since `PASSWORD=hunter2` is a literal there. sinc and slaspec are
+# SLEIGH processor specifications, which name registers like PSW.
+QUOTED_LANGUAGES = frozenset("""
+py pyi pyx js jsx mjs cjs ts tsx vue svelte java kt kts scala groovy gradle c cc cpp cxx h hh hpp hxx m mm cs fs go rs swift rb php
+dart ex exs lua r jl zig nim cr ml hs sql proto sinc slaspec
+""".split())
+_MASKED = re.compile(r"^[^:\s]+:(x{3,}|\*{3,}|<[^<>]+>|\.{3,})$", re.I)   # user:XXXXXX, user:****, user:<password>
+_FILE_REF = re.compile(r"\.(png|jpe?g|gif|svg|ico|icns|bmp|webp|pdf|html?|css|md|txt|xml|properties)\b", re.I)
+_LABEL = re.compile(r"^[A-Za-z_]*(pass(word|wd|phrase)|secret|token)[A-Za-z_]*$", re.I)   # resetpassword, password_missing: a name, not a value
+_HEADER_WRITTEN = re.compile(r"^-----BEGIN[ A-Z]*KEY-----(?:\\n)?[\"'`]")   # print("-----BEGIN ... KEY-----\n"): code writing a PEM file
+_UUID = re.compile(r"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b")
+
+
+def _unquoted(value: str, line: str, path: str) -> bool:
+    """Whether the source line shows `value` outside any string literal, right after an assignment, a
+    comparison, an opening parenthesis or a comma, in a language where a literal would be quoted. The
+    quotes before it are counted, so `"https://user:pass@host"` and `"?token=abc"` stay literals."""
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path.rsplit("/", 1)[-1] else ""
+    if ext not in QUOTED_LANGUAGES or not line:
+        return False
+    last = line.split("\n")[-1]
+    i = last.find(value)
+    if i < 0:
+        return False
+    before = last[:i]
+    plain = re.sub(r"\\.", "", before)   # an escaped quote does not open or close anything
+    if plain.count('"') % 2 or plain.count("'") % 2 or plain.count("`") % 2:
+        return False
+    return before.rstrip().endswith(("=", "(", ","))
+
+
+def is_placeholder(value: str, line: str = "", path: str = "") -> bool:
     """Whether `value` has a shape that cannot be a live secret. `line` is the source line the value
-    sat on, read from the clone at scan time and never written."""
+    sat on (with two above), read from the clone at scan time and never written; `path` is the file,
+    which with the line says whether the value was a quoted literal."""
     value = (value or "").strip()
+    if _HEADER_WRITTEN.match(value) or _MASKED.match(value) or (_FILE_REF.search(value) and not any(ch.isspace() for ch in value)) or _LABEL.match(value):
+        return True
+    if _unquoted(value, line or "", path or ""):
+        return True
+    if line and _UUID.fullmatch(value) and len(_UUID.findall(line)) >= 2:   # a table of interface ids, not a token
+        return True
     if (_VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value) or value.lower() in _EXAMPLE_WORDS
             or _ENV_REF.match(value) or _made_up(value) or _TEMPLATE_FIELD.search(value) or _PROSE.match(value) or _KEY_PATH.match(value)):
         return True
@@ -135,7 +175,7 @@ def sanitise(rows: list) -> list:
         value = r.get("Secret") or ""
         clean = {k: v for k, v in r.items() if k not in RAW_FIELDS}
         clean["SecretHash"] = digest(value, key)
-        clean["Placeholder"] = is_placeholder(value, r.get("Line") or "")   # the line is read here and dropped with the other raw fields
+        clean["Placeholder"] = is_placeholder(value, r.get("Line") or "", r.get("File") or "")   # read here and dropped with the other raw fields
         out.append(clean)
     return out
 

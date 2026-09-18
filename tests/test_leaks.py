@@ -344,3 +344,28 @@ class Group(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlaceholderShapes(unittest.TestCase):
+    def test_an_unquoted_symbol_in_a_language_that_quotes_literals(self):
+        self.assertTrue(leaks.is_placeholder("EIPSW", "    PSW = EIPSW;", "Ghidra/Processors/V850/data/languages/V850.sinc"))
+        self.assertTrue(leaks.is_placeholder("idaapi.PLFM_386", "if (idaapi.ph.id == idaapi.PLFM_386 and bits == 0):", "plugins/xmlexp.py"))
+        self.assertFalse(leaks.is_placeholder("hunter2real", "PASSWORD=hunter2real", "deploy/env.sh"), "a shell literal needs no quotes")
+        self.assertFalse(leaks.is_placeholder("s3cr3tPass", 'url = "https://user:s3cr3tPass@host/x"', "src/client.py"), "inside a literal")
+        self.assertFalse(leaks.is_placeholder("Zq8vLm2Rt7Kp", 'u = "https://host/?token=Zq8vLm2Rt7Kp"', "src/client.py"), "an = inside a literal")
+        self.assertFalse(leaks.is_placeholder("EIPSW", "", "x.sinc"), "no line, no judgement")
+
+    def test_masks_file_references_labels_and_code_writing_a_header(self):
+        self.assertTrue(leaks.is_placeholder("elastic:XXXXXX"))
+        self.assertTrue(leaks.is_placeholder("preferences-desktop-user-password.png"))
+        self.assertTrue(leaks.is_placeholder("EMPTY_ICON{images/lock.png[size(8"))
+        self.assertTrue(leaks.is_placeholder("resetpassword"))
+        self.assertTrue(leaks.is_placeholder("password_missing"))
+        self.assertTrue(leaks.is_placeholder("changeme"))
+        self.assertTrue(leaks.is_placeholder('-----BEGIN PRIVATE KEY-----");\n\t\twriter.println();'))
+        self.assertFalse(leaks.is_placeholder("P4ssw0rd!x9Q"))
+
+    def test_a_guid_in_a_table_of_guids_is_an_interface_id(self):
+        table = "EAAAC2D5-C290-11D1-905D-00C04FD9189D IDXA\nEAAAC2D6-C290-11D1-905D-00C04FD9189D IDXB\nEAAAC2D7-C290-11D1-905D-00C04FD9189D IDXC"
+        self.assertTrue(leaks.is_placeholder("EAAAC2D7-C290-11D1-905D-00C04FD9189D", table))
+        self.assertFalse(leaks.is_placeholder("EAAAC2D7-C290-11D1-905D-00C04FD9189D", "api_key = EAAAC2D7-C290-11D1-905D-00C04FD9189D"))
