@@ -77,7 +77,8 @@ has bumped the formula.
 
 The example reports name the gitmole version that made them. When a release
 changes the report, run `bin/render-examples` and commit the new
-`docs/examples/*.md` and README text block together.
+`docs/examples/*.md`; the README's table of examples carries each run's time,
+measured by hand on one machine with nothing else running.
 Bumping a pin is a separate decision: it changes the repository's history,
 not gitmole's output.
 
@@ -106,7 +107,7 @@ moves), and `render.py` draws the report.
 `bin/render-examples` clones the repositories listed in the script under
 `$TMPDIR/gitmole-examples/`, pins each to its recorded commit, runs gitmole
 with the recorded reference date and writes `docs/examples/<repo>.md`; for
-the featured one it prints the README's text block on stdout. Clones and
+the featured one it prints the report's opening as plain text on stdout. Clones and
 outputs are reused on a rerun; delete the directory to start clean.
 `python -m gitmole.evaluate CLONE OUT_DIR` replays the watch list at six
 cut-off dates against the fixes that followed each, next to the two factor

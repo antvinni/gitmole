@@ -43,7 +43,8 @@ def _ordered(found: list) -> list:
 
 def _options_differ(before_meta: dict, after_meta: dict) -> list:
     """The options that change what a run sees: --since and --file-types from meta's top level, --ignore and
-    --ignore-data from the manifest when both exports have one."""
+    --ignore-data from the manifest when both exports have one. --deep is recorded there too but only
+    decides whether code age, plots and duplicates ran, none of which reach the findings or the watch list."""
     out = [name for name in ("since", "file_types") if before_meta.get(name) != after_meta.get(name)]
     b, a = (before_meta.get("run") or {}).get("options"), (after_meta.get("run") or {}).get("options")
     if b is not None and a is not None:
