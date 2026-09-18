@@ -213,14 +213,36 @@ def clear_outputs(out_dir: str) -> None:
             os.remove(path)
 
 
+LOG_FORMAT = "--%h--%ad--%aN--%s%x1f%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x1f)"   # the subject, then each co-author, unit-separated
+
+
+def ignore_revs_files(repo_dir: str) -> list:
+    """The files in which the repository declares commits uninteresting: .git-blame-ignore-revs at the
+    root, the convention GitHub and the formatters' docs follow, and whatever blame.ignoreRevsFile
+    names (relative to the root), each once, only those that exist."""
+    out = []
+    conventional = os.path.join(repo_dir, ".git-blame-ignore-revs")
+    if os.path.isfile(conventional):
+        out.append(conventional)
+    proc = subprocess.run(["git", "config", "--get", "blame.ignoreRevsFile"], cwd=repo_dir, capture_output=True, text=True)
+    configured = proc.stdout.strip() if proc.returncode == 0 else ""
+    if configured:
+        path = os.path.normpath(configured if os.path.isabs(configured) else os.path.join(repo_dir, configured))
+        if os.path.isfile(path) and path not in out:
+            out.append(path)
+    return out
+
+
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
-         lizard: bool = False, duplicates: bool = True, trend: bool = True, samples: int = 12, backtest: str = None) -> list:
+         lizard: bool = False, duplicates: bool = True, trend: bool = True, samples: int = 12, backtest: str = None,
+         ignore_revs=()) -> list:
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
     type_args = ["--types", types] if types else []
-    blame_argv = [sys.executable, BLAME_SCRIPT, repo_dir, out_dir, "--procs", str(procs or blame.default_procs()), *ignores, *type_args, "--aliases", o("meta.json")]
+    revs_args = [x for path in ignore_revs for x in ("--ignore-revs", path)]
+    blame_argv = [sys.executable, BLAME_SCRIPT, repo_dir, out_dir, "--procs", str(procs or blame.default_procs()), *ignores, *type_args, "--aliases", o("meta.json"), "--log", log]
     theseus_argv = ["git-of-theseus-analyze", ".", "--branch", branch, "--outdir", o("theseus"),
                     "--procs", str(procs or os.cpu_count() or 2), "--interval", str(interval), *ignores]
     steps = [
@@ -228,8 +250,11 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
         {"name": "betterleaks", "argv": [sys.executable, LEAKS_SCRIPT, o("secrets.json")], "stdout": None, "deps": []},   # hashes the values before anything is written
         {"name": "osv-scanner", "argv": [sys.executable, DEPS_SCRIPT, o("dependencies.json")], "stdout": None, "deps": []},   # offline, against the local database
-        {"name": "git-log", "argv": [*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", "--pretty=format:--%h--%ad--%aN--%s", "-M"], "stdout": log, "deps": []},   # -M: a move is not an edit; HEAD, not --all: a backport on a release branch is not a second fix, and the stash is not a commit
-        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json")], "stdout": None, "deps": ["git-log"]},
+        # -M: a move is not an edit; -w --ignore-blank-lines: a whitespace-only hunk is not a changed line, so a reformat that only
+        # re-indents a file is not a revision of it; HEAD, not --all: a backport on a release branch is not a second fix, and the
+        # stash is not a commit
+        {"name": "git-log", "argv": [*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", f"--pretty=format:{LOG_FORMAT}", "-M", "-w", "--ignore-blank-lines"], "stdout": log, "deps": []},
+        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json"), *revs_args], "stdout": None, "deps": ["git-log"]},
     ]
     workers = procs or blame.default_procs()
     if lizard:
@@ -245,7 +270,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         steps.append({"name": "backtest", "argv": [sys.executable, "-m", "gitmole.backtest", out_dir, "--until", backtest],
                       "stdout": None, "deps": ["git-log", "change analysis"]})
     if age:
-        steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": []})
+        steps.append({"name": "code age", "argv": blame_argv, "stdout": None, "deps": ["git-log"]})   # the log names the co-authors a line is shared with
     if plots:
         steps += [
             {"name": "git-of-theseus", "argv": theseus_argv, "stdout": None, "deps": ["code age"] if age else []},
@@ -422,27 +447,75 @@ def text_bytes(repo_dir: str, ignore=()) -> int:
     return total
 
 
+_TRAILER_ID = re.compile(r"^\s*(?P<name>[^<]*?)\s*(?:<(?P<email>[^>]*)>)?\s*$")
+
+
+def _mailmap(repo_dir: str, pairs: list) -> dict:
+    """(name, email) -> (name, email) as .mailmap has it, for the identities git's --use-mailmap does
+    not touch (the trailers), through one git check-mailmap call. Nothing declared: each maps to itself."""
+    out = {p: p for p in pairs}
+    if not pairs:
+        return out
+    stdin = "".join(f"{n} <{e}>\n" for n, e in pairs).encode("utf-8", "surrogateescape")
+    proc = subprocess.run(["git", "check-mailmap", "--stdin"], cwd=repo_dir, input=stdin, capture_output=True)
+    if proc.returncode != 0:
+        return out
+    for pair, line in zip(pairs, proc.stdout.decode("utf-8", "replace").split("\n")):
+        m = _TRAILER_ID.match(line)
+        if m and m.group("name"):
+            out[pair] = (m.group("name"), m.group("email") or "")
+    return out
+
+
+def _co_author_rows(repo_dir: str, lines: list) -> tuple:
+    """The (date, name, email) rows of the people the Co-authored-by trailers name, through .mailmap,
+    and the alias map from a trailer's own spelling to the name git would show for it. Each is a row
+    per commit it is named on, like an author's, so the identity table counts the commits they share."""
+    raw = []
+    for line in lines:
+        if "\t" not in line:
+            continue
+        head, _, trailers = line.partition("\x1f")
+        date = head.split("\t", 1)[0]
+        for value in trailers.split("\x1f"):
+            m = _TRAILER_ID.match(value)
+            if m and m.group("name"):
+                raw.append((date, m.group("name"), m.group("email") or ""))
+    mapped = _mailmap(repo_dir, sorted({(n, e) for _, n, e in raw}))
+    rows = [[d, *mapped[(n, e)]] for d, n, e in raw]
+    renamed = {n: mapped[(n, e)][0] for n, e in mapped if mapped[(n, e)][0] != n}
+    return rows, renamed
+
+
 def collect_meta(repo_dir: str, since: str = None) -> dict:
     """Repository facts from git. The window (author date >= since) bounds the commit count, the
     date range and the identity table; aliases are merged over the whole history so blame and
     ownership keep merging people who have no commits in the window, and `first_date_all` keeps the
     date of the first commit of all so the backtest can still measure the whole history. Bots
     (anything named *[bot], anything merging with such a name, and names that say bot, CI, deploy
-    or automation) are counted apart under "bots", not as identities."""
+    or automation) are counted apart under "bots", not as identities. The people the Co-authored-by
+    trailers name are identities too, credited with the commits they are named on; a bot named only
+    in a trailer is nobody."""
     from collections import Counter
 
     from .load import parse_authors_log
 
-    lines = _git(repo_dir, "log", "HEAD", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").splitlines()
-    all_rows = [l.split("\t", 2) for l in lines if l.count("\t") == 2]
-    bot_names = identity.bot_names(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in all_rows)))
-    rows = [r for r in all_rows if r[1] not in bot_names]
+    lines = _git(repo_dir, "log", "HEAD", "--use-mailmap", "--format=%ad\t%aN\t%aE%x1f%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x1f)",
+                 "--date=short").split("\n")
+    all_rows = [l.partition("\x1f")[0].split("\t", 2) for l in lines if l.partition("\x1f")[0].count("\t") == 2]
+    co_rows, renamed = _co_author_rows(repo_dir, lines)
+    bot_names = identity.bot_names(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in all_rows + co_rows)))
+    rows = [r for r in all_rows + co_rows if r[1] not in bot_names]
     all_windowed = [r for r in all_rows if not since or r[0] >= since]
-    windowed = [r for r in all_windowed if r[1] not in bot_names]
+    windowed = [r for r in all_windowed + [r for r in co_rows if not since or r[0] >= since] if r[1] not in bot_names]
     dates = [r[0] for r in all_windowed]
     all_dates = [r[0] for r in all_rows]
     bots = Counter(n for _, n, e in all_windowed if n in bot_names)
     all_identities = identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in rows)))
+    aliases = {a["name"]: i["name"] for i in all_identities for a in i.get("aliases", [])}
+    canonical = {i["name"]: i["name"] for i in all_identities} | aliases
+    for spelling, name in renamed.items():   # a trailer's own spelling, to the name .mailmap gives it, to whatever that merged into
+        aliases.setdefault(spelling, canonical.get(name, name))
     meta = {
         "name": repo_name(repo_dir),
         "path": repo_dir,
@@ -453,7 +526,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
         "last_date": max(dates) if dates else "",
         "identities": identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in windowed))),
         "bots": [{"name": n, "commits": c} for n, c in sorted(bots.items(), key=lambda kv: (-kv[1], kv[0]))],
-        "aliases": {a["name"]: i["name"] for i in all_identities for a in i.get("aliases", [])},
+        "aliases": aliases,
     }
     if since:
         meta["since"] = since

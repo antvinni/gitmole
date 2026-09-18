@@ -4,7 +4,12 @@
 Writes theseus/cohorts.json and theseus/authors.json in the layout
 git-of-theseus produces (one sample, dated now), so the loader and the
 "surviving code by year" table work unchanged. Standalone on purpose:
-gitmole runs it as `python3 blame.py REPO OUT_DIR [--procs N] [--ignore GLOB]... [--aliases META_JSON]`.
+gitmole runs it as `python3 blame.py REPO OUT_DIR [--procs N] [--ignore GLOB]... [--aliases META_JSON] [--log LOG]`.
+
+With the change log, a line from a commit with Co-authored-by trailers is
+shared equally between its author and the people the trailers name, so a
+squash-merged repository does not attribute every line to whoever pressed
+the button.
 """
 from __future__ import annotations
 
@@ -12,6 +17,7 @@ import datetime as dt
 import fnmatch
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -25,17 +31,42 @@ def default_procs(cpu: int = None) -> int:
     return max(1, cpu - 2)
 
 
-def _low_priority():
+def _low_priority(shared: dict = None):
     try:
         os.nice(10)
     except OSError:
         pass
+    if shared:
+        set_co_authors(shared)
 
 
 try:
-    from . import filetypes
+    from . import filetypes, maat
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
+    import maat
+
+_CO_AUTHORS = {}       # abbreviated commit hash -> the co-authors' names; set in every worker by the pool initializer
+_HASH_LENGTHS = ()     # the abbreviation lengths the log used, so a blame's full hash can be looked up by prefix
+
+
+def co_authors_by_commit(log_text: str, aliases: dict = None) -> dict:
+    """From the change log, the commits that name co-authors: {hash: [names]}."""
+    return {c["hash"]: c["co_authors"] for c in maat.parse_log(log_text, aliases, types=None) if c["co_authors"]}
+
+
+def set_co_authors(shared: dict) -> None:
+    global _CO_AUTHORS, _HASH_LENGTHS
+    _CO_AUTHORS = dict(shared)
+    _HASH_LENGTHS = tuple(sorted({len(h) for h in _CO_AUTHORS}))
+
+
+def _shared_with(full_hash: str) -> list:
+    for n in _HASH_LENGTHS:
+        found = _CO_AUTHORS.get(full_hash[:n])
+        if found:
+            return found
+    return []
 
 
 def text_files(repo: str, ignore=()) -> list:
@@ -49,20 +80,33 @@ def code_files(repo: str, ignore=(), types=filetypes.DEFAULT) -> list:
     return [f for f in text_files(repo, ignore) if filetypes.matches(f, types)]
 
 
+_HEADER = re.compile(r"^[0-9a-f]{40,64} \d+ \d+")
+
+
 def blame_file(repo: str, path: str) -> dict:
-    """{(year, author): lines} for one file at HEAD."""
+    """{(year, author): lines} for one file at HEAD. A line from a commit with co-authors (see
+    set_co_authors) is split equally between everyone it credits, so the values are fractional
+    then; whole lines are rounded once, when the totals are written."""
     proc = subprocess.run(["git", "blame", "--line-porcelain", "HEAD", "--", path], cwd=repo, capture_output=True, text=True, errors="replace")
     if proc.returncode != 0:
         return {}
-    counts, author, year = Counter(), None, None
+    counts, author, year, crew = Counter(), None, None, []
     for line in proc.stdout.split("\n"):
         if line.startswith("author "):
             author = line[7:]
         elif line.startswith("author-time "):
             year = str(dt.datetime.fromtimestamp(int(line[12:]), dt.timezone.utc).year)
         elif line.startswith("\t"):
-            counts[(year, author)] += 1
-    return dict(counts)
+            if crew:
+                share = 1 / (1 + len(crew))
+                counts[(year, author)] += share
+                for who in crew:
+                    counts[(year, who)] += share
+            else:
+                counts[(year, author)] += 1
+        elif _HASH_LENGTHS and _HEADER.match(line):
+            crew = _shared_with(line.split(" ", 1)[0])
+    return {k: (int(v) if float(v).is_integer() else v) for k, v in counts.items()}
 
 
 def _job(args):
@@ -99,15 +143,21 @@ def _series(counter: Counter, label) -> dict:
     return {"labels": [label(k) for k, _ in items], "ts": [now], "y": [[n] for _, n in items]}
 
 
-def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, procs: int = None, types=filetypes.DEFAULT) -> dict:
+def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, procs: int = None, types=filetypes.DEFAULT, log_path: str = None) -> dict:
     aliases = aliases_from_meta(aliases_path) if aliases_path else {}
+    shared = {}
+    if log_path and os.path.exists(log_path):
+        with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
+            shared = co_authors_by_commit(fh.read(), aliases)
     files = code_files(repo, ignore, types)
     years, authors = Counter(), Counter()
-    with Pool(procs or default_procs(), initializer=_low_priority) as pool:
+    with Pool(procs or default_procs(), initializer=_low_priority, initargs=(shared,)) as pool:
         for counts in pool.imap_unordered(_job, [(repo, f) for f in files], chunksize=8):
             for (year, author), n in counts.items():
                 years[year] += n
                 authors[aliases.get(author, author)] += n
+    years = Counter({k: int(round(v)) for k, v in years.items()})
+    authors = Counter({k: int(round(v)) for k, v in authors.items() if round(v)})
     os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)
     cohorts = _series(years, lambda y: f"Code added in {y}")
     order = sorted(range(len(cohorts["labels"])), key=lambda i: cohorts["labels"][i])
@@ -121,7 +171,9 @@ def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, proc
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    procs, aliases, ignore, types = None, None, [], filetypes.DEFAULT
+    procs, aliases, ignore, types, log_path = None, None, [], filetypes.DEFAULT, None
+    while "--log" in args:
+        i = args.index("--log"); log_path = args[i + 1]; del args[i:i + 2]
     while "--types" in args:
         i = args.index("--types"); types = filetypes.parse(args[i + 1]); del args[i:i + 2]
     while "--procs" in args:
@@ -131,5 +183,5 @@ if __name__ == "__main__":
     while "--ignore" in args:
         i = args.index("--ignore"); ignore.append(args[i + 1]); del args[i:i + 2]
     if len(args) != 2:
-        sys.exit("usage: blame.py REPO OUT_DIR [--procs N] [--ignore GLOB]... [--aliases META_JSON] [--types LIST|all]")
-    print(json.dumps(write_all(args[0], args[1], ignore, aliases, procs, types)))
+        sys.exit("usage: blame.py REPO OUT_DIR [--procs N] [--ignore GLOB]... [--aliases META_JSON] [--types LIST|all] [--log LOG]")
+    print(json.dumps(write_all(args[0], args[1], ignore, aliases, procs, types, log_path)))

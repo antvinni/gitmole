@@ -258,7 +258,8 @@ class LoadReport(unittest.TestCase):
                 "maat-plumbing.csv": "entity,n-revs,tiny-revs\npkg/__init__.py,25,24\n",
                 "maat-coupling.csv": "entity,coupled,degree,average-revs\n",
                 "maat-age.csv": "entity,age-months\na.py,0\n",
-                "maat-authors.csv": "entity,n-authors,n-revs\na.py,1,3\n",
+                "maat-authors.csv": "entity,n-authors,n-revs,minor\na.py,1,3,0\n",
+                "maat-soc.csv": "entity,soc,partners\na.py,41,7\n",
                 "maat-fixes.csv": "entity,n-fixes,last-fix,recent-fixes\na.py,2,2026-01-05,1\n",
                 "repo-health.txt": "",
                 "secrets.json": "[]",
@@ -280,6 +281,8 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["plumbing"], [{"entity": "pkg/__init__.py", "n-revs": 25, "tiny-revs": 24}])
         self.assertEqual(r["coupling"], [])
         self.assertEqual(r["fixes"][0]["recent-fixes"], 1)
+        self.assertEqual(r["authors"], [{"entity": "a.py", "n-authors": 1, "n-revs": 3, "minor": 0}])
+        self.assertEqual(r["soc"], [{"entity": "a.py", "soc": 41, "partners": 7}], "sum of coupling, as numbers")
         self.assertEqual(r["cohorts"], {"Code added in 2026": 10})
         self.assertEqual(r["theseus_authors"], {"Ann": 10})
         self.assertEqual(r["sizer"], [])
