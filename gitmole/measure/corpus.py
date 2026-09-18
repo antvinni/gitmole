@@ -118,7 +118,7 @@ def fixture(kind: str, root: str) -> str:
             _commit(dest, f"binary {i}", date=f"2026-01-{5 + i:02d}T10:00:00+00:00")
         return dest
     if kind == "secret":   # a live-looking AWS key in source: a hand-made value, assembled here so this file holds none
-        key, secret = "AK" + "IA" + "Z3Q7XK2M9PLWR4TB", "u8Jq2pR7vN1x" + "Y6tB4mK9sW3cF0hL5dG2aZ8eQ7rT"
+        key, secret = "AK" + "IA" + "Z3Q7XK2MLPLWR4TB", "u8Jq2pR7vN1x" + "Y6tB4mK9sW3cF0hL5dG2aZ8eQ7rT"   # an access key id is base32: A-Z and 2-7
         _write(dest, "deploy.py", f'AWS_ACCESS_KEY_ID = "{key}"\nAWS_SECRET_ACCESS_KEY = "{secret}"\n')
         _commit(dest, "deploy settings")
         return dest
