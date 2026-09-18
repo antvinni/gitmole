@@ -76,7 +76,7 @@ since 2013, at a pinned commit:
   ork.js                                            commitLayoutEffectOnFiber() complexity 72       
   packages/react-reconciler/src/ReactFiberBeginWo   changed 361 times · fixed once in six months ·  
   rk.js                                             beginWork() complexity 52                       
-  ranked by revisions × lines of code; the reasons say what else counts against each file           
+  ranked by revisions × lines of code alone; the reasons say what to look at there                  
   6 months ago this list would have named 11 of the 46 files fixed since (a random 15 of the 1802   
   files that had changed more than once would name 0.3; the 15 most changed would name 7)           
 ```
