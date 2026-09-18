@@ -57,7 +57,8 @@ PATH = {"overflow": "fold", "no_wrap": False}
 CAPS = {"People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
 TREND_TOP = 10   # the trend step's own --top default: only those files have samples
-WATCH_CAP, WATCH_FULL = 5, 15   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
+WATCH_CAP = 5   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
+WATCH_FULL = watch.WATCH_TOP   # tied to watch's own cap: the --compare before side is sliced by what to_json wrote
 
 
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -978,8 +979,9 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
     for sec in secs:
         out += _md_section(sec)
     deps_line = dependencies_line(report)
+    rl = run_line(report)
     out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "",
-            *([run_line(report) + "  "] if run_line(report) else []), f"Full results and plots in {report['out_dir']}", ""]
+            *([rl + "  "] if rl else []), f"Full results and plots in {report['out_dir']}", ""]
     return "\n".join(out)
 
 

@@ -125,6 +125,7 @@ class Step(unittest.TestCase):
                 with self.assertRaises(subprocess.CalledProcessError) as ctx:
                     backtest.snapshot_at(d, "HEAD", out)
         self.assertEqual(ctx.exception.returncode, 2, "a real git grep failure (not exit 1, which just means no matches) must surface")
+        self.assertEqual(ctx.exception.stderr, "fatal: boom\n", "decoded so main() prints a string, not a bytes repr")
 
     def test_missing_inputs_exit_2(self):
         import contextlib

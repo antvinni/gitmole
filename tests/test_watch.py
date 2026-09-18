@@ -238,8 +238,8 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(watch.change_risk(report(), []), {"files": [], "total": 0.0, "watched": 0, "max_score": 0.0})
 
     def test_a_file_in_the_tree_with_no_revisions_in_the_window_is_not_scored(self):
-        # in size.files (so not "new file"), not a test path, but no maat-revisions row at all:
-        # 0 revisions in the window, so it is not the "changed once" case either.
+        # in size.files, not a test path, but no maat-revisions row at all: 0 revisions in the window,
+        # so it lands on "no revisions on record" rather than "changed once".
         r = report(size={"files": {**report()["size"]["files"], "core/idle.py": {"code": 50, "complexity": 0}}})
         out = watch.change_risk(r, ["core/idle.py"])
         self.assertEqual((out["files"][0]["score"], out["files"][0]["reasons"]), (0, ["no revisions on record"]))

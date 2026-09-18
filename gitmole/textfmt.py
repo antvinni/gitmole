@@ -33,8 +33,9 @@ def times(n: int) -> str:
 
 
 def join_and(items: list) -> str:
-    """"a"; "a and b"; "a, b and c": an English list, the last item joined with "and" instead of a comma."""
-    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+    """"a"; "a and b"; "a, b and c": an English list, the last item joined with "and" instead of a comma.
+    An empty list is "", not an IndexError."""
+    return "" if not items else items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
 _ADVICE_VERBS = ("Add ", "Set ", "Rotate ", "Pair ", "Rerun ", "Expect ", "Consider ", "Use ", "Review ", "Merge ", "Split ", "Move ", "Extract ")

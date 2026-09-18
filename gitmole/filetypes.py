@@ -2,6 +2,7 @@
 Standalone so blame.py and maat.py can import it as scripts."""
 from __future__ import annotations
 
+import functools
 import os
 import re
 import subprocess
@@ -161,10 +162,18 @@ def vendor_dirs(report: dict) -> tuple:
     return tuple((report.get("meta") or {}).get("vendored") or [])
 
 
+@functools.lru_cache(maxsize=8)
+def _vendor_split(dirs: tuple) -> tuple:
+    """The run's vendored list as the two things it actually is: file entries, matched exactly, and
+    directory entries, matched by prefix. Cached because every caller passes the same tuple."""
+    return frozenset(d for d in dirs if not d.endswith("/")), tuple(d for d in dirs if d.endswith("/"))
+
+
 def is_vendored(path: str, dirs=()) -> bool:
     """is_vendor_path, or listed by the run (see vendored_paths): a directory entry, ending in `/`, by
     prefix; a file entry exactly."""
-    return is_vendor_path(path) or any(path.startswith(d) if d.endswith("/") else path == d for d in dirs)
+    files, prefixes = _vendor_split(tuple(dirs))
+    return is_vendor_path(path) or path in files or path.startswith(prefixes)
 
 
 _SOURCE_EXT = {"c", "cc", "cpp", "cxx", "m", "mm"}
@@ -238,7 +247,7 @@ def attributes(repo: str, paths: list, cached: bool = False, env: dict = None) -
     stdin = b"".join(p.encode("utf-8", "surrogateescape") + b"\0" for p in paths)
     proc = subprocess.run(argv, cwd=repo, env=env, input=stdin, capture_output=True)
     if proc.returncode != 0:
-        return {}
+        return {}  # the main run goes on without linguist classifications; only the backtest raises on this
     out = {}
     fields = proc.stdout.split(b"\0")
     for i in range(0, len(fields) - 2, 3):   # -z prints path, attribute, value, each NUL-terminated

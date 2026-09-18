@@ -230,6 +230,16 @@ class TestPaths(unittest.TestCase):
                 fh.write("Copyright 2008, Google Inc.\n")
             self.assertEqual(filetypes.vendored_paths(d, ["lib/x/LICENSE"]), [], "nothing to compare against")
 
+    def test_is_vendored_matches_a_large_file_list_exactly_and_a_directory_by_prefix(self):
+        # linguist-vendored puts one entry per file, so a real run's list can run into the thousands;
+        # this pins correctness (exact file match, prefix directory match), not timing.
+        files = tuple(f"libs/pkg{i}/mod.js" for i in range(5000))
+        dirs = files + ("mypy/typeshed/",)
+        self.assertTrue(filetypes.is_vendored("libs/pkg2500/mod.js", dirs), "a file entry among 5,000, matched exactly")
+        self.assertFalse(filetypes.is_vendored("libs/pkg2500/mod.js2", dirs), "a file entry matches exactly, not as a prefix")
+        self.assertTrue(filetypes.is_vendored("mypy/typeshed/stdlib/_hashlib.pyi", dirs), "a directory entry, matched by prefix")
+        self.assertFalse(filetypes.is_vendored("mypy/checker.py", dirs))
+
     def test_vendored_trees(self):
         for path in ("vendor/github.com/x/y.go", "web/node_modules/a/index.js", "third_party/z/a.c", "thirdparty/a.c", "_vendor/a.py",
                      "external/lib/a.cpp", "requests/packages/urllib3/a.py", "pip/_vendor/six.py", "botocore/vendored/requests/a.py",

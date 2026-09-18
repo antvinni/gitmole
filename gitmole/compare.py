@@ -10,6 +10,9 @@ KEY_FIELDS = {"repo_health": "metric", "placeholder_identity": "email"}
 
 
 def key(finding: dict) -> tuple:
+    """A finding's identity across two reports: the rule id alone, unless the rule is one of KEY_FIELDS,
+    where one report can hold several findings for the same rule and the evidence field is what tells
+    them apart (a metric name, an email)."""
     rid = finding["rule"]["id"]
     field = KEY_FIELDS.get(rid)
     return (rid, (finding.get("evidence") or {}).get(field)) if field else (rid,)
@@ -22,9 +25,9 @@ def is_export(data) -> bool:
     KeyError instead of being refused here."""
     if not (isinstance(data, dict) and isinstance(data.get("meta"), dict) and "findings" in data and "watch" in data):
         return False
-    found = data.get("findings")
-    return isinstance(found, list) and all(
-        isinstance(f, dict) and isinstance(f.get("rule"), dict) and "id" in f["rule"] and "severity" in f for f in found)
+    found, watch_rows = data.get("findings"), data.get("watch")
+    return (isinstance(found, list) and isinstance(watch_rows, list) and all(isinstance(r, dict) for r in watch_rows) and
+            all(isinstance(f, dict) and isinstance(f.get("rule"), dict) and "id" in f["rule"] and "severity" in f for f in found))
 
 
 def _tally(found: list) -> dict:
@@ -53,7 +56,7 @@ def compare(before: dict, report: dict, found: list, top: int = watch.WATCH_TOP)
     b = {key(f): f for f in before.get("findings") or []}
     a = {key(f): f for f in found}
     persisting = [{**a[k], "was": b[k]["severity"]} for k in a if k in b]
-    before_watch = [r["file"] for r in (before.get("watch") or [])[:top]]
+    before_watch = [f for f in (r.get("file") for r in (before.get("watch") or [])[:top]) if f]
     after_watch = [r["file"] for r in watch.risks(report)[:top]]
     meta_b, meta_a = before.get("meta") or {}, report.get("meta") or {}
     return {"new": _ordered([a[k] for k in a if k not in b]), "resolved": _ordered([b[k] for k in b if k not in a]),

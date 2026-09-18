@@ -32,10 +32,14 @@ class Classifier:
         self.vendored = filetypes.vendor_dirs(report)
         self.amalgamations = hotspots.amalgamations(report)
         self.plumbing = filetypes.plumbing_paths(report)
+        self._reasons = {}   # memoised per instance: every hide pass in a report asks the same paths again
 
-    def reasons(self, path: str) -> list:
+    def reasons(self, path: str) -> tuple:
         """Every reason that applies, in REASONS order. `not in the tree` needs a tree to judge by: a run
-        whose scc step was killed classifies nothing as gone, so it cannot empty every table."""
+        whose scc step was killed classifies nothing as gone, so it cannot empty every table. Cached per
+        path and returned as a tuple so callers cannot mutate the cached result."""
+        if path in self._reasons:
+            return self._reasons[path]
         out = []
         if path in self.generated:
             out.append("generated")
@@ -53,7 +57,8 @@ class Classifier:
             out.append("not a source type")
         if self.tree and path not in self.tree:
             out.append("not in the tree")
-        return out
+        self._reasons[path] = tuple(out)
+        return self._reasons[path]
 
     def reason(self, path: str):
         """The first reason, or None for a file in the scored pool."""

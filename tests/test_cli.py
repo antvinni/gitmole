@@ -998,6 +998,12 @@ class Risk(unittest.TestCase):
             self.assertEqual(rc, 2)
             self.assertIn("--risk-threshold needs --risk", c.export_text())
 
+    def test_compare_checks_its_file_exists_before_any_run(self):
+        c = console()
+        rc = cli.main([".", "--compare", "/nonexistent/before.json"], console=c, tool_check=lambda **kw: 1 / 0)
+        self.assertEqual(rc, 2, "caught before the run: tool_check would raise if it were reached")
+        self.assertIn("--compare: no such file: /nonexistent/before.json", c.export_text())
+
     def test_compare_against_an_earlier_export(self):
         with tempfile.TemporaryDirectory() as d:
             self._repo(d)
@@ -1028,9 +1034,9 @@ class Risk(unittest.TestCase):
             err = console()
             self.assertEqual(cli.main([out, "--no-run", "--compare", os.path.join(d, "other.json")], console=err), 2)
             self.assertIn("describes elsewhere", err.export_text())
-        err = console()
-        self.assertEqual(cli.main(["someone/*", "--compare", before], console=err), 2)
-        self.assertIn("--compare needs one repository", err.export_text())
+            err = console()   # `before` must still exist: an owner/* target is rejected for being org, not for its file
+            self.assertEqual(cli.main(["someone/*", "--compare", before], console=err), 2)
+            self.assertIn("--compare needs one repository", err.export_text())
 
 
 class BacktestWindow(unittest.TestCase):

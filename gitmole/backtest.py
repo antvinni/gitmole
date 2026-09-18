@@ -40,7 +40,8 @@ def snapshot_at(repo: str, rev: str, out_dir: str) -> tuple:
         # the text files of that tree, as blame.text_files lists HEAD's: git grep prints "rev:path"
         proc = subprocess.run([*filetypes.GIT, "grep", "-I", "--name-only", "-z", "-e", "", rev], cwd=repo, capture_output=True)
         if proc.returncode not in (0, 1):   # 1 is grep's "no match" (an empty tree), not a failure
-            raise subprocess.CalledProcessError(proc.returncode, proc.args, proc.stdout, proc.stderr)
+            raise subprocess.CalledProcessError(proc.returncode, proc.args, proc.stdout.decode("utf-8", "replace"),
+                                                 proc.stderr.decode("utf-8", "replace"))
         paths = sorted(p.decode("utf-8", "surrogateescape").split(":", 1)[1] for p in proc.stdout.split(b"\0") if p)
         attrs = filetypes.attributes(repo, paths, cached=True, env=env)
         return size, filetypes.generated_files(tree, paths, attrs), filetypes.vendored_paths(tree, paths, attrs)

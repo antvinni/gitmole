@@ -155,8 +155,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    `fixtures/`, `testdata/`, `demos/`, `rules/` and `stubs/` directories
    and `.stub` files), which the complex functions table hides for the same
    reason: somebody else's code, or a specimen, is not this repository's
-   risk. Under `--since`, churn and ownership are windowed and the list
-   says so.
+   risk. Generated files, amalgamations and release plumbing leave the pool
+   too, for their own reasons rather than that one. Under `--since`, churn
+   and ownership are windowed and the list says so.
    `--full` and the exports show fifteen.
    With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
@@ -280,7 +281,7 @@ directory for a remote target:
 
 | File | From | What it is |
 |---|---|---|
-| `meta.json` | git | name, branch, commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`; what produced the run under `run` |
+| `meta.json` | git | name, branch, commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`; what produced the run under `run`; the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists |
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |

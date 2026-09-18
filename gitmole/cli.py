@@ -128,7 +128,8 @@ def _check_args(args, err, kind=None) -> int | None:
     if kind is None:
         bad = ("--yes needs --clean" if args.yes and not args.clean else
                "target required" if args.target is None and not args.clean else
-               "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk else None)
+               "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk else
+               "--compare: no such file: " + args.compare if args.compare and not os.path.isfile(args.compare) else None)
     elif kind == "path":
         bad = None
     else:

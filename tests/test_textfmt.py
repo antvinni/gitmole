@@ -25,6 +25,7 @@ class ShortenPath(unittest.TestCase):
 
 class JoinAnd(unittest.TestCase):
     def test_one_two_and_three_items(self):
+        self.assertEqual(textfmt.join_and([]), "")
         self.assertEqual(textfmt.join_and(["a"]), "a")
         self.assertEqual(textfmt.join_and(["a", "b"]), "a and b")
         self.assertEqual(textfmt.join_and(["a", "b", "c"]), "a, b and c")
