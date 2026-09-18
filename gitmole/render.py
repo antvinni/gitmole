@@ -297,10 +297,14 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     rows = [(r["file"], " · ".join(r["reasons"])) for r in ranked[:limit]]
     columns = [("file", PATH), ("why", {"overflow": "fold", "ratio": 3})]
     since = report["meta"].get("since")
-    notes = ["ranked by revisions × lines of code; the reasons say what else counts against each file" + (f"; commits since {since}" if since else "")]
+    # "alone": the reasons never move a file; a reader who sees fixes and ownership beside each row
+    # would otherwise take them for the ranking
+    notes = ["ranked by revisions × lines of code alone; the reasons say what to look at there" + (f"; commits since {since}" if since else "")]
     bt = watch.backtest(report)
     status = report["meta"].get("backtest") or {}
-    if bt:
+    if bt and not bt["fixed"]:
+        notes.append("nothing has been fixed since the cut-off six months ago, so there is nothing to score the list against")
+    elif bt:
         notes.append(f"6 months ago this list would have named {bt['hits']} of the {bt['fixed']} files fixed since "
                      f"(a random {bt['listed']} of the {bt['pool']} files that had changed more than once would name {bt['expected']}; "
                      f"the {bt['listed']} most changed would name {bt['baselines']['churn']})"
