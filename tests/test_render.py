@@ -1,3 +1,4 @@
+import json
 import io
 import unittest
 
@@ -282,6 +283,30 @@ class Report(unittest.TestCase):
                       "reverted 6% against 1% for the rest, fixes 11% against 18%, a file changed again within two weeks 57% against 46%", caption)
         self.assertIn("12% of commits land in bursts of five or more within ten minutes; 80% have conventional-commit subjects; commits come in 20 hours of the day", caption)
         self.assertIn("## Trailers", render.markdown(r, []))
+
+    def test_the_json_is_the_same_bytes_for_the_same_clone_whatever_the_run(self):
+        import copy
+        a = sample_report()
+        a["secrets"] = [{"rule": "k", "file": "b.py", "commit": "c2", "line": 3, "fingerprint": "f2", "value": "9f00aa11bb22", "placeholder": False},
+                        {"rule": "k", "file": "a.py", "commit": "c1", "line": 1, "fingerprint": "f1", "value": "12ab34cd56ef", "placeholder": False},
+                        {"rule": "k", "file": "c.py", "commit": "c3", "line": 2, "fingerprint": "f3", "value": "12ab34cd56ef", "placeholder": False}]
+        a["meta"]["age"] = {"status": "run", "projected_seconds": 3.14159, "files": 10}
+        a["structure"] = {"status": "run", "cached": 0, "files": {}}
+        b = copy.deepcopy(a)
+        for row, other in zip(b["secrets"], ("0000ffff1111", "aaaabbbbcccc", "aaaabbbbcccc")):
+            row["value"] = other                     # another run: another random key, the same grouping
+        b["secrets"].reverse()                       # and betterleaks free to report in another order
+        b["meta"]["age"]["projected_seconds"] = 2.71828
+        b["structure"]["cached"] = 40
+        b["out_dir"] = "/somewhere/else"
+        first, second = json.loads(render.dumps_json(a, [])), json.loads(render.dumps_json(b, []))
+        self.assertNotEqual(first["envelope"], second["envelope"], "timings, the output path and cache hits vary, and live in the envelope")
+        del first["envelope"], second["envelope"]
+        self.assertEqual(json.dumps(first, sort_keys=True), json.dumps(second, sort_keys=True))
+        self.assertEqual([r["value"] for r in first["secrets"]], ["v1", "v2", "v1"], "the same value, the same label, by the rows' sorted order")
+        text = render.dumps_json(a, [])
+        self.assertTrue(text.endswith("}\n"))
+        self.assertEqual(text, render.dumps_json(a, []))
 
     def test_the_secrets_line_says_what_lay_outside_reachable_history(self):
         r = sample_report()

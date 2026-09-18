@@ -167,8 +167,8 @@ class ParseFunctions(unittest.TestCase):
         rows = load.parse_functions('136,47,926,1,270,"@316-585@completions.go","completions.go",""," c * Command",316,585,"Run: func(c *Command) {",""\n'
                                     '4,2,36,0,4,"(anonymous)@1-4@routes.js","routes.js","(anonymous)","(anonymous)",1,4,"app.post(""/api/x"", async (req, res) => {",""\n'
                                     '4,2,14,2,4,"tracked@1-4@app.py","app.py","tracked","tracked( a , b )",1,4,"",""\n')
-        self.assertEqual([(r["function"], r["anonymous"]) for r in rows],
-                         [("Run: func(c *Command) {", True), ('app.post("/api/x", async (req, res) => {', True), ("tracked", False)])
+        self.assertEqual(sorted((r["function"], r["anonymous"]) for r in rows),
+                         sorted([("Run: func(c *Command) {", True), ('app.post("/api/x", async (req, res) => {', True), ("tracked", False)]))
 
     def test_a_suspect_span_carries_its_reason(self):
         rows = load.parse_functions('9,1,21,1,9,"tpl@1-9@tpl.js","tpl.js","tpl","tpl ( name )",1,9,"","opens a block at line 8 no deeper than its own start"\n')
@@ -177,7 +177,8 @@ class ParseFunctions(unittest.TestCase):
     def test_a_row_cut_short_by_a_killed_step_does_not_abort_the_report(self):
         rows = load.parse_functions(self.CSV + '5,3,40,1,5,"g@1-5@a.py","a.py","g","g( )",1,\n')
         self.assertEqual(len(rows), 3)
-        self.assertEqual((rows[2]["function"], rows[2]["end"]), ("g", 0))
+        g = next(r for r in rows if r["function"] == "g")
+        self.assertEqual(g["end"], 0)
 
 
 class ParseDuplicates(unittest.TestCase):
@@ -371,6 +372,12 @@ class LoadReport(unittest.TestCase):
         d = load.parse_duplicates_json({"rate": 6.1, "files": 10, "blocks": [], "then": {"date": "2025-09-17", "rev": "abc", "files": 9, "rate": 4.2}})
         self.assertEqual(d["then"], {"date": "2025-09-17", "rev": "abc", "files": 9, "rate": 4.2})
         self.assertNotIn("then", load.parse_duplicates_json({"rate": 6.1, "blocks": []}))
+
+    def test_function_rows_come_back_in_file_and_line_order_whatever_the_step_wrote(self):
+        text = ('3,2,20,1,3,"g@9-11@b.py","b.py","g","g( x )",9,11\n'
+                '3,2,20,1,3,"f@1-3@b.py","b.py","f","f( x )",1,3\n'
+                '3,2,20,1,3,"h@5-7@a.py","a.py","h","h( x )",5,7\n')
+        self.assertEqual([(f["file"], f["function"]) for f in load.parse_functions(text)], [("a.py", "h"), ("b.py", "f"), ("b.py", "g")])
 
     def test_no_signing_file_is_an_empty_record(self):
         import os, tempfile

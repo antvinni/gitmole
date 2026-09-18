@@ -182,6 +182,7 @@ def parse_functions(text: str) -> list:
         anonymous = name in ("", "(anonymous)")
         rows.append({"file": _rel(r[6]), "function": textfmt.cut(label if anonymous and label else name, NAME_CAP) or "(anonymous)", "anonymous": anonymous,
                      "ccn": _num(r[1]), "nloc": _num(r[0]), "params": _num(r[3]), "start": _num(r[9]), "end": _num(r[10]), "suspect": suspect})
+    rows.sort(key=lambda f: (f["file"], f["start"], f["end"], f["function"]))   # the function step works in parallel; the order is this one
     return rows
 
 
@@ -239,6 +240,8 @@ def parse_secrets(text: str) -> list:
             value, placeholder = None, False
         out.append({"rule": r.get("RuleID", ""), "file": r.get("File", ""), "commit": r.get("Commit", "")[:7], "line": r.get("StartLine"),
                     "fingerprint": r.get("Fingerprint", ""), "value": value, "placeholder": placeholder})
+    # betterleaks scans in parallel and does not promise an order; everything downstream reads the rows in this one
+    out.sort(key=lambda r: (r["file"], r["commit"], r["line"] or 0, r["rule"], r["fingerprint"]))
     return out
 
 

@@ -228,6 +228,9 @@ def scan_unreachable(repo: str, out_dir: str, found: dict) -> list:
         sha = os.path.basename(r.get("File") or "")
         r["File"] = f"(unreachable blob {sha[:12]})"
         r["Commit"] = ""
+        # betterleaks' own fingerprint names the scratch path the blob was written to; this one names the blob,
+        # so it is the same in every run and can go into .betterleaksignore
+        r["Fingerprint"] = f"unreachable:{sha}:{r.get('RuleID', '')}:{r.get('StartLine', '')}"
     return rows
 
 
