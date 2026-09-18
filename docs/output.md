@@ -261,8 +261,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    section says so and keeps those lines in the note. When `--since`,
    `--file-types`, `--ignore` or `--ignore-data` differ between the two
    runs, the caption's first line lists them, since the changes then partly
-   reflect the options. Markdown carries the section and the JSON carries it
-   under `compare`. The comparison never changes the exit code: `--fail-on`
+   reflect the options; when the two runs scanned against different
+   snapshots of the OSV database, it says so, since a new advisory moves the
+   vulnerable-dependency finding with no change to the code. Markdown
+   carries the section and the JSON carries it under `compare`. The comparison never changes the exit code: `--fail-on`
    reads this run alone.
 4. **Watch list**: the five source files most likely to need a fix next, with
    the reasons in words. Every source file still in the tree that changed
@@ -449,7 +451,7 @@ directory for a remote target:
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | betterleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
-| `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record), the database date; or a status: no lock files, no local database |
+| `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record), the database date and a digest of that snapshot; or a status: no lock files, no local database |
 | `log.txt` | git | the numstat log export the change analysis reads, whitespace ignored, with each commit's `Co-authored-by` trailers behind its subject |
 | `maat-revisions.csv` | change analysis | change frequency per file |
 | `maat-coupling.csv` | change analysis | files that change together, over logical changes (a ticket's commits, or one author's day) |

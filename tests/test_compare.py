@@ -36,7 +36,7 @@ class Compare(unittest.TestCase):
                          [("Repo health", "warning", "warning"), ("Bug magnets", "info", "warning")], "the after copy, with the severity it had")
         self.assertEqual((out["watch_entered"], out["watch_left"]), (["c.py"], ["b.py"]))
         self.assertEqual(out["tally"], {"before": {"critical": 0, "warning": 2, "info": 2}, "after": {"critical": 0, "warning": 2, "info": 1}})
-        self.assertEqual(out["before"], {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "date": "2026-09-10", "options_differ": ["ignore_data"]})
+        self.assertEqual(out["before"], {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "date": "2026-09-10", "options_differ": ["ignore_data"], "database": None})
 
     def test_compare_skips_watch_rows_without_a_file(self):
         self.before["watch"] = [{"file": "a.py"}, {"note": "no file field"}, {"file": "b.py"}]
@@ -46,7 +46,7 @@ class Compare(unittest.TestCase):
     def test_an_export_without_a_manifest_compares_findings_only(self):
         self.before["meta"].pop("run")
         out = compare.compare(self.before, self.after, self.after_findings)
-        self.assertEqual(out["before"], {"commit": None, "date": "2026-09-10", "options_differ": []})
+        self.assertEqual(out["before"], {"commit": None, "date": "2026-09-10", "options_differ": [], "database": None})
 
     def test_is_export(self):
         self.assertTrue(compare.is_export(self.before))

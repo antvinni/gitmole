@@ -4,6 +4,8 @@ The default report is the tighter one: the columns you actually read, capped row
 paths. `full` restores every column and row (Markdown export is always full)."""
 from __future__ import annotations
 
+import json
+
 from rich import box
 from rich.columns import Columns
 from rich.console import Console, Group
@@ -758,6 +760,10 @@ def compare_section(result: dict) -> dict:
     lines = []
     if before.get("options_differ"):
         lines.append(f"options differ: {', '.join(before['options_differ'])}; the changes partly reflect them")
+    db = before.get("database")
+    if db:
+        lines.append(f"the vulnerability database changed between the runs ({db.get('before') or '?'} to {db.get('after') or '?'}), "
+                     "so a dependency finding can move with no change to the code")
     lines.append(f"{against}, {before.get('date') or '?'} · {_tally_words(result['tally']['before'])} → {_tally_words(result['tally']['after'])}")
     columns = [("change", {}), ("what", {"overflow": "fold", "ratio": 3})]
     # an empty section prints heading + note and drops the caption (section_block, _md_section), so when
@@ -1091,6 +1097,35 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
     out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "",
             *([rl + "  "] if rl else []), f"Full results and plots in {report['out_dir']}", ""]
     return "\n".join(out)
+
+
+def _envelope(out: dict) -> dict:
+    """Move what differs between two runs of the same clone into `envelope`: the blame pass's measured
+    projection, the machine-local output directory, the structure cache's hits. Everything outside
+    it is the same bytes for the same commit and options, which the CI determinism job checks."""
+    import copy
+    out = copy.deepcopy(out)
+    env = {"out_dir": out.pop("out_dir", None)}
+    age = (out.get("meta") or {}).get("age")
+    if isinstance(age, dict) and "projected_seconds" in age:
+        env["projected_seconds"] = age.pop("projected_seconds")
+    struct = out.get("structure")
+    if isinstance(struct, dict) and "cached" in struct:
+        env["structure_cached"] = struct.pop("cached")
+    # the value hashes use a key made for each run; the same value gets the same label within an export
+    labels = {}
+    if isinstance(out.get("secrets"), list):
+        out["secrets"].sort(key=lambda r: (r.get("file") or "", r.get("commit") or "", r.get("line") or 0, r.get("rule") or "", r.get("fingerprint") or ""))
+    for row in out.get("secrets") or []:
+        if row.get("value"):
+            row["value"] = labels.setdefault(row["value"], f"v{len(labels) + 1}")
+    out["envelope"] = env
+    return out
+
+
+def dumps_json(report: dict, findings: list, risk: dict = None, compare: dict = None) -> str:
+    """The --json export as text: keys sorted, the run-specific values in `envelope`."""
+    return json.dumps(_envelope(to_json(report, findings, risk=risk, compare=compare)), indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
 def to_json(report: dict, findings: list, risk: dict = None, compare: dict = None) -> dict:

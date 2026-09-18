@@ -1,4 +1,5 @@
-"""Heuristics that turn a loaded report into a short list of flagged findings."""
+"""Heuristics that turn a loaded report into a short list of flagged findings. A rule that rests on a paper
+carries the short citation in its rule dict's `ref` (see REFS); docs/references.md has the full entries."""
 from __future__ import annotations
 
 import re
@@ -11,11 +12,23 @@ PLACEHOLDER_NAMES = {"your name", "unknown", "root", "user"}
 PLACEHOLDER_EMAIL = re.compile(r"(@example\.(com|org|net)$|^you@|^user@|^root@|@localhost$)")
 
 
+# The paper a rule rests on, as the short citation the rule dict carries in `ref`; the full entries are in
+# docs/references.md. A rule that is gitmole's own heuristic has none.
+REFS = {"minor_contributors": "Bird et al., FSE 2011", "tangled_commits": "Herzig and Zeller, MSR 2013",
+        "brain_methods": "Lanza and Marinescu, 2006", "tight_coupling": "Gall, Hajek and Jazayeri, ICSM 1998",
+        "hotspot_dominance": "Tornhill, Your Code as a Crime Scene, 2024", "trojan_source": "Boucher and Anderson, USENIX Security 2023",
+        "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
+        "unreferenced_files": "Romano et al., TSE 2020", "signoff_by_co_author": "Linux kernel, Documentation/process/coding-assistants.rst",
+        "deep_nesting": "SonarSource cognitive complexity; CodeScene code health"}
+
+
 def _f(severity: str, title: str, statement: str, advice: str, rule: dict, evidence: dict) -> dict:
     """A finding: the facts, then the next step. `detail` is the two joined for anyone reading the
     JSON; `advice` says which part is the step so the report can show it on its own line. `rule` is
     the rule's id and the thresholds it fired on, `evidence` the numbers they were compared with:
     between them a reader of the JSON can check the finding without reading this file."""
+    if rule.get("id") in REFS and "ref" not in rule:
+        rule = {**rule, "ref": REFS[rule["id"]]}
     return {"severity": severity, "title": title, "detail": f"{statement.rstrip()} {advice}", "advice": advice,
             "rule": rule, "evidence": evidence}
 

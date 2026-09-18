@@ -58,6 +58,28 @@ def database_date(base: str = None) -> str | None:
     return dt.datetime.fromtimestamp(newest).date().isoformat() if newest else None
 
 
+def database_digest(base: str = None) -> str | None:
+    """A digest of the local database snapshot: every file under the cache directories, by path, size
+    and modification time. Two runs against the same snapshot agree; a refresh changes it, which is how
+    --compare can say a dependency finding moved because the database did. None when there is none."""
+    import hashlib
+    base = cache_dir() if base is None else base
+    entries = []
+    for name in CACHE_DIRS:
+        root = os.path.join(base, name)
+        for dirpath, _, files in os.walk(root):
+            for f in files:
+                full = os.path.join(dirpath, f)
+                try:
+                    st = os.stat(full)
+                except OSError:
+                    continue
+                entries.append(f"{os.path.relpath(full, base)}\0{st.st_size}\0{int(st.st_mtime)}")
+    if not entries:
+        return None
+    return hashlib.sha256("\n".join(sorted(entries)).encode("utf-8", "surrogateescape")).hexdigest()[:16]
+
+
 def _key(version: str) -> tuple:
     return tuple(int(n) for n in _NUMBER.findall(version or ""))
 
@@ -94,7 +116,7 @@ def _score(groups: list, vulns: list) -> float | None:
 
 
 _WORDS = {"CRITICAL": 9.5, "HIGH": 8.0, "MODERATE": 5.5, "MEDIUM": 5.5, "LOW": 2.0}
-MALICIOUS_PREFIX = "MAL-"   # OpenSSF malicious-packages records, in the same OSV database; they carry no CVSS
+MALICIOUS_PREFIX = "MAL-"   # OpenSSF malicious-packages records (ossf/malicious-packages), in the same OSV database; they carry no CVSS
 
 
 def is_malicious(vulns: list) -> bool:
@@ -185,6 +207,7 @@ def main(argv=None) -> int:
             return 1
         result = summarise(data, os.getcwd())
         result["database_date"] = database_date()
+        result["database_digest"] = database_digest()
     else:
         print(f"deps.py: osv-scanner exited {proc.returncode}; no report written", file=sys.stderr)
         return proc.returncode

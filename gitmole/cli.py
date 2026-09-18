@@ -592,7 +592,7 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
             return 2
         comparison = _compare.compare(before, report, found)
     if args.json:
-        _write(json.dumps(render.to_json(report, found, risk=risk, compare=comparison), indent=2) + "\n", args.json, console)
+        _write(render.dumps_json(report, found, risk=risk, compare=comparison), args.json, console)
     if args.markdown:
         _write(render.markdown(report, found, full=args.full, risk=risk, base=args.risk, compare=comparison), args.markdown, console)
     if args.sarif:

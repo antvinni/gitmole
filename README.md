@@ -11,7 +11,7 @@ Free. Any Stack. Local. Offline. Deterministic. Fast.
 - **Free.** MIT licence, no paid tier, no account, no token. A local clone needs no credentials, and a public `owner/repo` is cloned with plain git. Your `gh` login is only used for private repositories and for `owner/*`, and only when you ask for them. The tools it runs are open source too.
 - **Any stack.** It reads what every repository has: the git log, git blame and the files themselves.
 - **Local & Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home; the vulnerability database is a copy you download once.
-- **Deterministic.** No AI at runtime. Every finding is a plain rule over counts you can recompute by hand. The JSON export carries each finding's rule and the numbers it fired on. The same clone gives the same report every time. 
+- **Deterministic.** No AI at runtime. Every finding is a plain rule over counts you can recompute by hand. The JSON export carries each finding's rule, the numbers it fired on and, where a rule rests on a paper, the citation. The same commit gives the same bytes: gitmole's own CI runs it twice on every commit, compares the exports and attests the report.
 
 ## Install
 
@@ -40,12 +40,17 @@ gitmole . --markdown report.md         # the same report as a Markdown document
 gitmole . --json report.json           # every table, the watch list and the findings
 gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
 gitmole . --risk main --risk-threshold 10  # exit 3 if the files changed since main hold over 10% of the risk
+gitmole . --sarif gitmole.sarif        # the findings for GitHub code scanning or GitLab
+gitmole . --compare last.json          # what changed since an earlier --json export
+gitmole analysis-repo --no-run --hook  # a coding agent's edit hook: history's view of the files it just touched
 gitmole . --since 2y --full            # the current team, every row and column
 gitmole --clean                        # list what gitmole left behind, delete on a yes
 ```
 
 A CI job that runs `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"`
-blocks on secrets in source files and still posts the report. Every option:
+blocks on secrets in source files and still posts the report. The same
+scoring wires into Claude Code, Cursor, Gemini CLI and pre-commit as a hook
+that exits 2 over a threshold. Every option:
 [docs/cli.md](https://github.com/antvinni/gitmole/blob/main/docs/cli.md).
 
 ## What you get
@@ -54,9 +59,9 @@ Reports on repositories you know, each at a pinned commit, published as gitmole 
 
 | Repository | Commit | Commits | Lines | gitmole run |
 |---|---|---:|---:|---:|
-| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | [`540ee5b5`](https://github.com/curl/curl/commit/540ee5b560cc6e775e11317048a13cc7e355bf91) | 39,758 | 247,179 | 61 s |
-| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | [`8cbdd4a8`](https://github.com/django/django/commit/8cbdd4a814397f81adf0129288f32b615bd1f94f) | 34,933 | 431,749 | 153 s |
-| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | [`2b19aecd`](https://github.com/facebook/react/commit/2b19aecd0e9111b774fad0fad9862e50bcb5bc8a) | 21,703 | 681,078 | 138 s |
+| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | [`540ee5b5`](https://github.com/curl/curl/commit/540ee5b560cc6e775e11317048a13cc7e355bf91) | 39,758 | 247,179 | 57 s |
+| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | [`8cbdd4a8`](https://github.com/django/django/commit/8cbdd4a814397f81adf0129288f32b615bd1f94f) | 34,933 | 431,749 | 132 s |
+| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | [`2b19aecd`](https://github.com/facebook/react/commit/2b19aecd0e9111b774fad0fad9862e50bcb5bc8a) | 21,703 | 681,078 | 151 s |
 
 Run times are one `gitmole CLONE` with every default step, on a MacBook Pro (M4, 16 GB).
 
@@ -77,6 +82,7 @@ you about a clone.
 | Which blocks of code appear more than once | [jscpd](https://github.com/kucherenko/jscpd) | brew |
 | Have secrets ever been committed | [betterleaks](https://github.com/betterleaks/betterleaks) | brew |
 | Do the dependencies have known vulnerabilities | [osv-scanner](https://github.com/google/osv-scanner), offline against a local copy of the OSV database | brew, plus a one-time database download |
+| How deeply nested is the code, what did the authors flag, what imports what | [tree-sitter](https://github.com/tree-sitter/py-tree-sitter) grammars for eleven languages | pip, opt-in with `gitmole[structure]` |
 
 Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/blob/main/docs/tools.md).
 
@@ -88,6 +94,7 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 - [Example reports](https://github.com/antvinni/gitmole/tree/main/docs/examples): curl, django and react at pinned commits, regenerated by `bin/render-examples`.
 - [Validation](https://github.com/antvinni/gitmole/blob/main/docs/validation.md): the watch list against other ways of ranking the same files at six cut-offs on three repositories.
 - [Why these tools](https://github.com/antvinni/gitmole/blob/main/docs/tools.md): the rationale, what was left out, licences.
+- [References](https://github.com/antvinni/gitmole/blob/main/docs/references.md): the research and tools gitmole's rules are built on.
 - [Development](https://github.com/antvinni/gitmole/blob/main/docs/development.md): setup, tests, releases, code layout.
 - [Contributing](https://github.com/antvinni/gitmole/blob/main/CONTRIBUTING.md): bugs, ideas, pull requests, security reports.
 

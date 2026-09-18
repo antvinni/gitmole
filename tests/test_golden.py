@@ -96,5 +96,25 @@ class Golden(unittest.TestCase):
             self.fail("report differs from tests/golden/report.txt (UPDATE_GOLDEN=1 to accept):\n" + diff)
 
 
+    def test_two_runs_of_the_same_commit_export_the_same_json_outside_the_envelope(self):
+        import json
+        with tempfile.TemporaryDirectory() as work:
+            repo = os.path.join(work, "demo")
+            os.makedirs(repo)
+            build_repo(repo)
+            exports = []
+            for i in range(2):
+                out = os.path.join(work, "out")   # the same output directory, as a CI job reruns into
+                c = Console(file=io.StringIO(), width=100, record=True, force_terminal=False, color_system=None)
+                target = os.path.join(work, f"report{i}.json")
+                with patch.dict(os.environ, HERMETIC_ENV):
+                    self.assertEqual(cli.main([repo, "--out", out, "--json", target], console=c), 0)
+                with open(target) as fh:
+                    data = json.load(fh)
+                del data["envelope"]
+                exports.append(json.dumps(data, sort_keys=True))
+        self.assertEqual(exports[0], exports[1], "same commit, same options, same bytes: the claim no inference-based reviewer can make")
+
+
 if __name__ == "__main__":
     unittest.main()

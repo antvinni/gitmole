@@ -297,6 +297,7 @@ fi
         [row] = rows
         self.assertRegex(row["File"], r"^\(unreachable blob [0-9a-f]{12}\)$")
         self.assertEqual(row["Commit"], "")
+        self.assertRegex(row["Fingerprint"], r"^unreachable:[0-9a-f]{40}:generic-api-key:1$", "no scratch path, the same in every run")
         self.assertNotIn(FAKE, json.dumps(rows))
         self.assertEqual((record["blobs"], record["scanned"], record["findings"]), (2, 2, 1))
         self.assertEqual(leftovers, ["secrets.json", "unreachable.json"], "the blobs written for the scan are gone")
