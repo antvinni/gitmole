@@ -241,11 +241,63 @@ git clone https://github.com/apache/zookeeper && gitmole zookeeper --out analysi
 python -m gitmole.evaluate zookeeper analysis-zookeeper --labels apachejit_total.csv
 ```
 
-The datasets live on Zenodo (10.5281/zenodo.5907001 and 10.5281/zenodo.7708984),
-which the environment this page was last regenerated in could not reach, so
-the fourteen-repository table is not here yet; the command above is what
-produces it, one repository at a time, and the labelled table prints under
-the fix-locality one.
+`--end DATE` counts the cut-offs back from a date other than the last
+commit, since ApacheJIT's labels stop in December 2019. Under the labelled
+table the evaluation prints what each list costs a reviewer: the initial
+false alarms (IFA) before its first labelled file, and the lines of code its
+top fifteen hold, the inspection budget. A ranking that favours small files
+can score well on hits per line and still send a reviewer through many
+files before one matters (arXiv 2504.19181), so both sit beside the hits.
+
+### Thirteen Apache repositories, ApacheJIT labels
+
+ApacheJIT's fourteen projects live in thirteen repositories (HDFS and
+MapReduce are in apache/hadoop). Each was cloned on 18 September 2026, run
+through gitmole, and evaluated with `--labels apachejit_total.csv --end
+2019-12-31`: six cut-offs from 2016-12-31 to 2019-06-30, a six-month
+horizon, the top fifteen. The labels come from the dataset's GitHub copy
+(github.com/hosseinkshvrz/apachejit), since the environment this page was
+regenerated in cannot reach Zenodo. Each cell is the labelled files a list
+named, summed over the six cut-offs; the first row is how many labelled
+files were in the pool the lists draw from.
+
+| variant | activemq | camel | cassandra | flink | groovy | hadoop | hbase | hive | ignite | kafka | spark | zeppelin | zookeeper | total |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| labelled files in the pool | 40 | 844 | 757 | 2403 | 182 | 645 | 1805 | 2285 | 2831 | 1678 | 828 | 440 | 118 | 14856 |
+| watch list (hotspot) | 8 | 20 | 59 | 68 | 19 | 42 | 75 | 84 | 89 | 80 | 39 | 57 | 34 | 674 |
+| factor product (max-scaled) | 10 | 21 | 62 | 74 | 17 | 45 | 73 | 81 | 88 | 85 | 38 | 60 | 34 | 688 |
+| factor product (rank-scaled) | 8 | 15 | 42 | 33 | 22 | 25 | 52 | 69 | 47 | 77 | 30 | 58 | 25 | 503 |
+| churn | 8 | 22 | 62 | 69 | 13 | 46 | 75 | 81 | 86 | 81 | 37 | 58 | 36 | 674 |
+| size | 10 | 21 | 53 | 42 | 26 | 35 | 69 | 75 | 78 | 78 | 31 | 53 | 26 | 597 |
+| recent fixes | 8 | 18 | 42 | 55 | 17 | 18 | 59 | 62 | 85 | 70 | 32 | 54 | 27 | 547 |
+| change entropy (HCM) | 3 | 19 | 45 | 65 | 15 | 26 | 68 | 74 | 78 | 81 | 42 | 59 | 25 | 600 |
+| random (expected) | 0.7 | 2.7 | 8.2 | 12.9 | 2.6 | 2.5 | 13.9 | 10.1 | 11.2 | 22.8 | 6.4 | 17.2 | 8.8 | 120 |
+
+| variant | IFA, median over repositories | lines of code in the list, median over repositories |
+|---|---:|---:|
+| watch list (hotspot) | 0 | 22,462 |
+| factor product (max-scaled) | 0 | 19,180 |
+| factor product (rank-scaled) | 0.5 | 13,946 |
+| churn | 0 | 18,573 |
+| size | 1 | 27,370 |
+| recent fixes | 0 | 13,265 |
+| change entropy (HCM) | 0 | 11,927 |
+
+Against labels nobody at gitmole chose, the **watch list names 674
+labelled files, 5.6 times what a random fifteen would (120)**. It ties churn
+alone (674) and trails the max-scaled factor product it replaced in 0.8 by
+fourteen (688, 2%). Change entropy (600), size (597), recent fixes (547) and
+the rank-scaled product (503) follow. The order differs from the three
+example repositories, where size led against R-SZZ: in these Java-heavy
+projects the labels follow change more than size, and the watch list, which
+multiplies the two, sits with the change-led lists. The median list sends a
+reviewer to a labelled file first (IFA 0) whichever variant ranks it, so the
+cost difference is in lines: the watch list's fifteen hold a median of
+22,462 lines against 18,573 for churn alone. The watch list keeps its
+ranking: it ties the best simple list here, it is ahead of churn on the
+example repositories against both fix locality and R-SZZ, and it does not
+need the fix labels the factor product leans on. Defectors (24 Python
+projects) is still not here; its data is only on Zenodo.
 
 ## Every ref, or the checked-out branch
 

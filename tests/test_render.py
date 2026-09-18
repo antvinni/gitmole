@@ -1502,3 +1502,18 @@ class Excerpt(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChangedLines(unittest.TestCase):
+    def test_two_windows_and_the_cohorts_when_there_are_marked_commits(self):
+        w = {"commits": 10, "added": 200, "moved": 20, "churned": 10, "moved_share": 0.1, "churn_share": 0.05}
+        rep = {"provenance": {"lines": {"windows": [{"label": "last year", "from": "2025-01-01", "to": "2026-01-01", **w},
+                                                    {"label": "the year before", "from": "2024-01-01", "to": "2025-01-01", **w, "added": 0, "moved_share": None, "churn_share": None}],
+                                        "cohort": {"marked": {**w, "commits": 2}, "rest": w}, "churn_days": 14},
+                               "cohort": {"cohort": {"commits": 2, "watch": 1}, "rest": {"commits": 8, "watch": 2}, "watch_top": 15, "share": 0.2}}}
+        sec = render.lines_section(rep)
+        self.assertEqual(sec["rows"][0], ["last year (2025-01-01 to 2026-01-01)", "10", "200", "10.0%", "5.0%"])
+        self.assertEqual(sec["rows"][1][3:], ["-", "-"])
+        self.assertEqual([r[0] for r in sec["rows"][2:]], ["marked commits, both years", "the rest, both years"])
+        self.assertIn("lines", render.FULL_ONLY)
+        self.assertIn("touched a file on the watch list's top 15 50% against 25%", render.trailers_section(rep)["caption"] or render.trailers_section(rep)["note"] or "")

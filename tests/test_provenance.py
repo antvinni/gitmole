@@ -110,6 +110,46 @@ class Agents(unittest.TestCase):
         self.assertNotIn("p4ss", json.dumps(out))
 
 
+class Lines(unittest.TestCase):
+    def _write(self, r, path, text, message, date):
+        with open(os.path.join(r.d, path), "w") as fh:
+            fh.write(text)
+        r.git("add", "-A", date=date)
+        r.git("commit", "-q", "-m", message, date=date)
+
+    def test_moved_and_churned_lines_by_year_and_cohort(self):
+        body = "".join(f"def function_number_{i}(argument):\n    return argument * {i} + compute_offset({i})\n" for i in range(6))
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            self._write(r, "c.py", "unrelated_value = compute_something()\n", "start", "2024-06-01T10:00:00")   # the year before
+            self._write(r, "a.py", body + "keep_this_line = 1\ntemporary_line = 2\n", "add a", "2025-06-01T10:00:00")
+            self._write(r, "a.py", body + "keep_this_line = 1\n", "drop the temporary line\n\nAssisted-by: Tool", "2025-06-05T10:00:00")
+            with open(os.path.join(d, "c.py"), "a") as fh:
+                fh.write(body)
+            self._write(r, "a.py", "keep_this_line = 1\n", "move the functions into c.py", "2025-07-01T10:00:00")
+            commits = provenance.read_commits(d)
+            marked = provenance.marker(provenance.trailers(commits))
+            out = provenance.lines(d, commits[-1]["time"], {c["hash"] for c in commits if marked(c)})
+        last, before = out["windows"]
+        self.assertEqual((before["commits"], before["added"]), (1, 1))
+        self.assertEqual(last["added"], len(body.splitlines()) * 2 + 2)
+        self.assertEqual(last["churned"], 1, "the temporary line went within four days; the kept line and the moved functions are not churn")
+        self.assertEqual(last["moved"], len(body.splitlines()), "git marks the functions as moved from a.py to b.py")
+        self.assertEqual(out["cohort"]["marked"]["commits"], 1)
+        self.assertEqual(out["cohort"]["rest"]["churned"], 1, "the churn belongs to the commit that added the line")
+
+
+class WatchHits(unittest.TestCase):
+    def test_each_cohort_counts_its_commits_touching_a_watched_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            history(d)
+            commits = provenance.read_commits(d)
+        inv = provenance.trailers(commits)
+        out = provenance.cohort(commits, inv, {"a.py"})
+        self.assertEqual((out["cohort"]["watch"], out["rest"]["watch"]), (1, 2), "the helper commit is marked; start and the fix are not")
+        self.assertNotIn("watch", provenance.cohort(commits, inv)["rest"], "no watch list, no count")
+
+
 class Step(unittest.TestCase):
     def test_the_step_writes_provenance_json(self):
         with tempfile.TemporaryDirectory() as d:
@@ -121,7 +161,7 @@ class Step(unittest.TestCase):
             self.assertEqual(p.returncode, 0, p.stderr)
             with open(os.path.join(out, "provenance.json")) as fh:
                 data = json.load(fh)
-        self.assertEqual(set(data), {"trailers", "cohort", "shape", "agents"})
+        self.assertEqual(set(data), {"trailers", "cohort", "shape", "agents", "lines"})
 
 
 if __name__ == "__main__":

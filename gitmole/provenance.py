@@ -12,6 +12,12 @@ writes provenance.json:
   changed again by another commit within two weeks. This repository against itself, with the share
   of commits the cohort covers beside it; no prior from elsewhere, since the best-controlled study
   found the spread between agents larger than the pooled difference.
+- lines: the lines added to code files in the last year and the year before, with the share git's
+  own moved-code detection marks as moved (`--color-moved`, blocks of twenty or more characters) and
+  the share deleted again within two weeks, in the same file with the same text: GitClear's moved and
+  churned lines, as a direction over this repository rather than a comparison with anyone else's.
+  The same two numbers per cohort, and each cohort's watch-list hit rate: the share of its commits
+  touching a file on the watch list's top fifteen.
 - shape: neutral descriptors (commits landing in bursts, conventional-commit subjects, how many hours
   of the day commits come in). Every one has a benign cause, and none is labelled.
 - agents: the agent instruction files by path convention (AGENTS.md, CLAUDE.md, GEMINI.md,
@@ -28,7 +34,7 @@ import os
 import re
 import subprocess
 import sys
-from collections import Counter
+from collections import Counter, deque
 
 try:
     from . import filetypes, leaks
@@ -44,6 +50,16 @@ _IDENT = re.compile(r"^\s*(?P<name>[^<]*?)\s*<(?P<email>[^>]*)>\s*$")
 _CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]*\))?!?: \S")
 BURST_SIZE, BURST_SECONDS = 5, 600
 RETOUCH_DAYS = 14
+YEAR = 365 * 86400
+WATCH_TOP = 15
+# data that inflates line counts without being code (the same set the code-age pass leaves out)
+DATA_EXCLUDES = [":(exclude,glob)**/*.json", ":(exclude,glob)**/*.lock", ":(exclude,glob)**/*.min.js", ":(exclude,glob)**/*.min.css",
+                 ":(exclude,glob)**/*.svg", ":(exclude,glob)**/*.map", ":(exclude,glob)**/*.csv", ":(exclude,glob)**/*.snap"]
+_COLORS = ["-c", "color.diff.new=green", "-c", "color.diff.newMoved=cyan", "-c", "color.diff.old=red", "-c", "color.diff.oldMoved=magenta",
+           "-c", "color.diff.meta=normal", "-c", "color.diff.frag=normal", "-c", "color.diff.func=normal", "-c", "color.diff.context=normal",
+           "-c", "color.diff.whitespace=normal", "-c", "color.diff.commit=normal"]
+_ADDED, _MOVED, _DELETED, _DELETED_MOVED = "\x1b[32m+", "\x1b[36m+", "\x1b[31m-", "\x1b[35m-"
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def read_commits(repo: str) -> list:
@@ -94,8 +110,8 @@ def trailers(commits: list) -> dict:
             "with_any": sum(1 for c in commits if c["trailers"]), "never_author": listing[:50], "signoff_by_co_author": signoff[:50]}
 
 
-def cohort(commits: list, inventory: dict) -> dict:
-    """The commits an `Assisted-by` trailer or a never-authoring co-author marks, against the rest."""
+def marker(inventory: dict):
+    """The predicate that marks a commit: an `Assisted-by` trailer, or a co-author who never authors."""
     marked_emails = {x["email"] for x in inventory["never_author"]}
 
     def marked(c):
@@ -106,6 +122,13 @@ def cohort(commits: list, inventory: dict) -> dict:
             if k.lower() == "co-authored-by" and ident and ident[1] in marked_emails:
                 return True
         return False
+    return marked
+
+
+def cohort(commits: list, inventory: dict, watch_files=None) -> dict:
+    """The commits an `Assisted-by` trailer or a never-authoring co-author marks, against the rest; with
+    `watch_files`, how many of each touched a file on the watch list."""
+    marked = marker(inventory)
 
     reverted = {c["subject"][len('Revert "'):-1] for c in commits if c["subject"].startswith('Revert "') and c["subject"].endswith('"')}
     by_file = {}
@@ -125,10 +148,105 @@ def cohort(commits: list, inventory: dict) -> dict:
                 again = True
                 break
         s["retouched"] += again
+        if watch_files:
+            s["watch"] += any(f in watch_files for f in c["files"])
     total = len(commits)
     return {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here",
             "share": round(stats[True]["commits"] / total, 3) if total else 0.0,
             "cohort": dict(stats[True]) or {"commits": 0}, "rest": dict(stats[False]) or {"commits": 0}}
+
+
+def _code_path(path: str, generated: set, vendored) -> bool:
+    return filetypes.matches(path, filetypes.DEFAULT) and path not in generated and not filetypes.is_vendored(path, vendored)
+
+
+def lines(repo: str, end: int, marked_hashes: set, generated=frozenset(), vendored=()) -> dict:
+    """Added, moved and churned lines in code files over the two years before `end` (a timestamp), from
+    one `git log -p` with git's moved-code colouring. A line is churned when a later commit, within two
+    weeks, deletes a line with the same text from the same file; blank lines and lines without three
+    letters or digits (a lone brace) are not matched, since any brace would pair with any other."""
+    start = end - 2 * YEAR
+    argv = ["git", *_COLORS, "-c", "core.quotePath=false", "log", "HEAD", "--reverse", "--no-merges", "-p", "-U0", "-M", "--color=always",
+            "--color-moved=blocks", "--color-moved-ws=allow-indentation-change", f"--since=@{start}", f"--until=@{end}",
+            f"--format={END}%H{SEP}%at", "--", ".", *DATA_EXCLUDES]
+    proc = subprocess.Popen(argv, cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    windows = {w: Counter() for w in ("last", "before")}
+    groups = {True: Counter(), False: Counter()}
+    pending = {}   # (path, text) -> [(time, window, marked)] of additions not yet churned
+    order = deque()   # (time, key) in the order added, so what is past two weeks can be dropped and memory stays bounded
+    t, window, is_marked, path, keep = 0, "last", False, None, False
+    for raw in proc.stdout:
+        line = raw.decode("utf-8", "replace").rstrip("\n")
+        if line.startswith(END):
+            h, _, at = line[1:].partition(SEP)
+            t = int(at or 0)
+            window = "last" if t > end - YEAR else "before"
+            is_marked = h in marked_hashes
+            windows[window]["commits"] += 1
+            groups[is_marked]["commits"] += 1
+            path = None
+            while order and t - order[0][0] > RETOUCH_DAYS * 86400:
+                old_t, key = order.popleft()
+                adds = pending.get(key)
+                if adds and adds[0][0] == old_t:
+                    adds.pop(0)
+                if not adds:
+                    pending.pop(key, None)
+            continue
+        if line.startswith("diff --git "):
+            plain = _ANSI.sub("", line)   # git ends even an uncoloured header with a reset
+            path = filetypes.unquote(plain.rsplit(" b/", 1)[-1]) if " b/" in plain else None
+            keep = bool(path) and _code_path(path, generated, vendored)
+            continue
+        if not keep:
+            continue
+        if line.startswith((_ADDED, _MOVED)):
+            text = _ANSI.sub("", line)[1:].strip()
+            moved = line.startswith(_MOVED)
+            for c in (windows[window], groups[is_marked]):
+                c["added"] += 1
+                c["moved"] += moved
+            if sum(ch.isalnum() for ch in text) >= 3:
+                pending.setdefault((path, text), []).append((t, window, is_marked))
+                order.append((t, (path, text)))
+        elif line.startswith((_DELETED, _DELETED_MOVED)):
+            text = _ANSI.sub("", line)[1:].strip()
+            adds = pending.get((path, text))
+            while adds and t - adds[0][0] > RETOUCH_DAYS * 86400:
+                adds.pop(0)   # too old to count, and older than any later deletion will reach
+            if adds and adds[0][0] < t:
+                at_, w, m = adds.pop(0)
+                windows[w]["churned"] += 1
+                groups[m]["churned"] += 1
+    proc.stdout.close()
+    proc.wait()
+
+    def shares(c):
+        added = c.get("added", 0)
+        return {"commits": c.get("commits", 0), "added": added, "moved": c.get("moved", 0), "churned": c.get("churned", 0),
+                "moved_share": round(c.get("moved", 0) / added, 4) if added else None,
+                "churn_share": round(c.get("churned", 0) / added, 4) if added else None}
+    day = lambda ts: dt.datetime.fromtimestamp(ts, dt.timezone.utc).date().isoformat()   # noqa: E731
+    return {"windows": [{"label": "last year", "from": day(end - YEAR), "to": day(end), **shares(windows["last"])},
+                        {"label": "the year before", "from": day(start), "to": day(end - YEAR), **shares(windows["before"])}],
+            "cohort": {"marked": shares(groups[True]), "rest": shares(groups[False])},
+            "churn_days": RETOUCH_DAYS, "moved": "git --color-moved=blocks"}
+
+
+def _watch_files(out_dir: str):
+    """The watch list's top files, when the change analysis and scc have written their outputs; None
+    otherwise, or when this runs as a script outside the package."""
+    if not (os.path.exists(os.path.join(out_dir, "size.json")) and os.path.exists(os.path.join(out_dir, "maat-revisions.csv"))):
+        return None
+    try:
+        from . import load, watch
+    except ImportError:
+        return None
+    try:
+        report = load.load_report(out_dir, nested=False)
+    except load.Unreadable:
+        return None
+    return {r["file"] for r in watch.risks(report)[:WATCH_TOP]}
 
 
 def shape(commits: list) -> dict:
@@ -231,7 +349,20 @@ def main(argv=None) -> int:
         print(f"provenance.py: {(e.stderr or b'').decode('utf-8', 'replace').strip() or e}", file=sys.stderr)
         return 1
     inventory = trailers(commits)
-    result = {"trailers": inventory, "cohort": cohort(commits, inventory), "shape": shape(commits), "agents": agents(repo)}
+    watch_files = _watch_files(args[0])
+    meta = {}
+    try:
+        with open(os.path.join(args[0], "meta.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+    except (OSError, ValueError):
+        pass
+    marked = marker(inventory)
+    result = {"trailers": inventory, "cohort": cohort(commits, inventory, watch_files), "shape": shape(commits), "agents": agents(repo)}
+    if watch_files is not None:
+        result["cohort"]["watch_top"] = WATCH_TOP
+    if commits:
+        result["lines"] = lines(repo, commits[-1]["time"], {c["hash"] for c in commits if marked(c)}, set(meta.get("generated") or []),
+                                filetypes.vendor_dirs({"meta": meta}))
     with open(os.path.join(args[0], "provenance.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh)
     return 0
