@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-from . import filetypes, hotspots, textfmt, trend
+from . import classify, filetypes, hotspots, textfmt, trend
 
 CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function is not worth naming
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership
@@ -69,12 +69,11 @@ def risks(report: dict, min_revs: int = 2) -> list:
     series = (report.get("trend") or {}).get("files") or {}
     last = (report.get("meta") or {}).get("last_date") or ""
 
-    plumb, derived = filetypes.plumbing_paths(report), hotspots.derived(report)
+    cls = classify.Classifier(report)
     rows = []
     for h in hotspots.ranked(report):
-        if (h["code"] is None or h["revs"] < min_revs or filetypes.is_test_path(h["entity"]) or filetypes.is_release(h["entity"], plumb)
-                or h["entity"] in derived):
-            continue   # a version file, a manifest or a build output changes for reasons that say nothing about its quality
+        if h["code"] is None or h["revs"] < min_revs or cls.reason(h["entity"]) is not None:
+            continue   # out of the pool: a test, a version file, a build output, somebody else's code, or gone
         fx = fixes.get(h["entity"], {})
         own = owners.get(h["entity"]) or Counter()
         owner, owner_lines = (own.most_common(1)[0] if own else (None, 0))
@@ -100,15 +99,23 @@ def risks(report: dict, min_revs: int = 2) -> list:
 def why_empty(report: dict, min_revs: int = 2) -> str:
     """Why risks() came back empty, for the report's one-line note: the honest reason, since files
     can well have changed even though none of them scored, and a flat "nothing changed" would be
-    a lie about them."""
+    a lie about them. The reasons are the classifier's, over the files that changed more than once."""
     churned = [h for h in hotspots.ranked(report) if h["revs"] >= min_revs]
     if not churned:
         return "nothing changed more than once"
-    if all(filetypes.is_test_path(h["entity"]) for h in churned):
+    cls = classify.Classifier(report)
+    reasons = {cls.reason(h["entity"]) for h in churned}
+    if reasons == {"test file"}:
         return "only test files changed more than once"
     if not (report.get("size") or {}).get("files"):
         return "no size data for the files that changed"
-    return "the files that changed more than once are no longer in the tree"
+    if reasons == {"not in the tree"}:
+        return "the files that changed more than once are no longer in the tree"
+    names = {"generated": "generated code", "vendored": "vendored code", "test file": "test files", "example code": "example code",
+             "release file": "release files", "amalgamation": "amalgamations", "not a source type": "files of other types",
+             "not in the tree": "files no longer in the tree"}
+    named = [names[r] for r in classify.REASONS if r in reasons]
+    return "only " + textfmt.join_and(named) + " changed more than once"
 
 
 def _reasons(r: dict) -> list:
@@ -141,26 +148,24 @@ WATCH_TOP = 15   # the same cap the report's --full watch list uses
 
 def change_risk(report: dict, files: list) -> dict:
     """The watch score of each touched file, and their sum: that total is a percentage of the
-    repository's revisions × lines of code. Files the watch list never scored get 0 and one reason
-    saying why."""
+    repository's revisions × lines of code. Files the watch list never scored get 0 and the
+    classifier's reason, or `changed once` / `no revisions on record`; `not in the tree` covers a
+    file the change deleted and, under --no-run, one added after the run."""
     ranked = risks(report)
     by_file = {r["file"]: r for r in ranked}
     watched = {r["file"] for r in ranked[:WATCH_TOP]}
-    in_tree = (report.get("size") or {}).get("files") or {}
+    cls = classify.Classifier(report)
     revs = {r["entity"]: r["n-revs"] for r in report.get("revisions") or []}
     rows = []
     for f in files:
         r = by_file.get(f)
         if r:
-            rows.append({"file": f, "score": r["score"], "reasons": r["reasons"], "watched": f in watched})
-        elif filetypes.is_test_path(f):
-            rows.append({"file": f, "score": 0, "reasons": ["test file"], "watched": False})
-        elif f not in in_tree:
-            rows.append({"file": f, "score": 0, "reasons": ["new file"], "watched": False})
-        elif revs.get(f) == 1:
-            rows.append({"file": f, "score": 0, "reasons": ["changed once"], "watched": False})
-        else:
-            rows.append({"file": f, "score": 0, "reasons": ["not scored"], "watched": False})
+            rows.append({"file": f, "score": r["score"], "reasons": r["reasons"], "reason": None, "watched": f in watched})
+            continue
+        why = cls.reason(f)
+        if why is None:
+            why = "changed once" if revs.get(f) == 1 else "no revisions on record"
+        rows.append({"file": f, "score": 0, "reasons": [why], "reason": why, "watched": False})
     rows.sort(key=lambda r: (-r["score"], r["file"]))
     return {"files": rows, "total": float(sum(r["score"] for r in rows)), "watched": sum(r["watched"] for r in rows),
             "max_score": float(ranked[0]["score"]) if ranked and rows else 0.0}

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import functools
 import importlib.util
 import json
 import os
@@ -144,6 +145,45 @@ def missing_tools(plots: bool = False, path: str = None) -> list:
 def has_lizard(finder=importlib.util.find_spec) -> bool:
     """lizard is a Python module run with this interpreter, so PATH says nothing about it."""
     return finder("lizard") is not None
+
+
+_VERSION_TOKEN = re.compile(r"\d+\.\d+[\w.-]*")
+
+
+@functools.lru_cache(maxsize=None)
+def tool_version(name: str, path: str = None) -> str | None:
+    """The version a tool prints for --version: the last version-shaped token on its first line
+    ("scc version 4.1.0", "git-sizer release 1.5.0", "osv-scanner version: 2.6.0"). None when the tool is
+    missing, hangs or prints none. Cached: a tool's version cannot change within a process, so a run with
+    several steps (or a test calling manifest() often) pays for one --version per tool, not one per call."""
+    try:
+        proc = subprocess.run([name, "--version"], capture_output=True, text=True, timeout=10, env=dict(os.environ, PATH=path or env_path()))
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    first = next((l for l in (proc.stdout + "\n" + proc.stderr).splitlines() if l.strip()), "")
+    found = _VERSION_TOKEN.findall(first)
+    return found[-1] if found else None
+
+
+def lizard_version() -> str | None:
+    """lizard is a module of this interpreter, so its version comes from the package metadata."""
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        return version("lizard")
+    except PackageNotFoundError:
+        return None
+
+
+def manifest(repo_dir: str, args, version_of=tool_version) -> dict:
+    """What produced this report: the commit analysed, gitmole's version, every tool's, and the options
+    that change what the steps see without being recorded elsewhere in meta.json (--since, --file-types,
+    --now and --gone are top-level fields already). Two reports that differ can then be told apart by cause."""
+    from . import __version__
+    names = ["git", *REQUIRED_TOOLS] + (PLOT_TOOLS if getattr(args, "plots", False) else [])
+    tools = {name: version_of(name) for name in names}
+    tools["lizard"] = lizard_version()
+    return {"commit": _git(repo_dir, "rev-parse", "HEAD").strip(), "gitmole": __version__, "tools": tools,
+            "options": {"ignore": list(args.ignore), "ignore_data": bool(args.ignore_data), "deep": bool(args.deep)}}
 
 
 # Everything a run writes besides meta.json and run.log. Removed before each run so a reused

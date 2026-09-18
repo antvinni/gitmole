@@ -81,6 +81,14 @@ class Risks(unittest.TestCase):
         self.assertNotIn("core/gone.py", files, "no longer in the tree")
         self.assertNotIn("core/once.py", files, "changed once")
 
+    def test_vendored_and_example_code_are_out_of_the_pool(self):
+        r = report()
+        r["size"]["files"].update({"vendor/lib/x.py": {"code": 300, "complexity": 3}, "examples/demo.py": {"code": 300, "complexity": 3},
+                                   "third/lib.js": {"code": 300, "complexity": 3}})
+        r["revisions"] += [{"entity": "vendor/lib/x.py", "n-revs": 9}, {"entity": "examples/demo.py", "n-revs": 9}, {"entity": "third/lib.js", "n-revs": 9}]
+        r["meta"]["vendored"] = ["third/lib.js"]
+        self.assertEqual([x["file"] for x in watch.risks(r)], ["web/index.html", "core/parser.py", "core/util.py"])
+
     def test_release_plumbing_is_not_on_the_list(self):
         r = report()
         r["size"]["files"].update({"setup.py": {"code": 6, "complexity": 0}, "version.go": {"code": 2, "complexity": 0}, "Makefile": {"code": 21, "complexity": 0}})
@@ -179,6 +187,9 @@ class WhyEmpty(unittest.TestCase):
         r = report(); r["size"] = {"files": {}}
         self.assertEqual(watch.why_empty(r), "no size data for the files that changed")
         self.assertEqual(watch.why_empty(report(revisions=[{"entity": "core/gone.py", "n-revs": 50}])), "the files that changed more than once are no longer in the tree")
+        r = report(revisions=[{"entity": "vendor/a.py", "n-revs": 9}, {"entity": "examples/b.py", "n-revs": 9}])
+        r["size"]["files"].update({"vendor/a.py": {"code": 1, "complexity": 0}, "examples/b.py": {"code": 1, "complexity": 0}})
+        self.assertEqual(watch.why_empty(r), "only vendored code and example code changed more than once")
 
 
 class ChangeRisk(unittest.TestCase):
@@ -193,12 +204,13 @@ class ChangeRisk(unittest.TestCase):
         by = {f["file"]: f for f in out["files"]}
         self.assertGreater(by["core/parser.py"]["score"], by["core/util.py"]["score"])
         self.assertIn("changed 40 times", by["core/parser.py"]["reasons"][0])
-        self.assertEqual((by["core/new.py"]["score"], by["core/new.py"]["reasons"]), (0, ["new file"]))
+        self.assertEqual((by["core/new.py"]["score"], by["core/new.py"]["reasons"], by["core/new.py"]["reason"]), (0, ["not in the tree"], "not in the tree"),
+                         "a file the change deleted, or one added after the run: no scc row either way")
         self.assertEqual((by["core/once.py"]["score"], by["core/once.py"]["reasons"]), (0, ["changed once"]))
         self.assertEqual((by["tests/test_parser.py"]["score"], by["tests/test_parser.py"]["reasons"]), (0, ["test file"]))
-        # Test file path that's also new reports "test file" (test file wins over new file)
+        self.assertIsNone(by["core/parser.py"]["reason"], "a scored row carries reason None")
         test_new_file_out = watch.change_risk(r, ["tests/data/new_fixture.py"])
-        self.assertEqual(test_new_file_out["files"][0]["reasons"], ["test file"])
+        self.assertEqual(test_new_file_out["files"][0]["reasons"], ["test file"], "the classifier's reason before the tree check")
         self.assertAlmostEqual(out["total"], by["core/parser.py"]["score"] + by["core/util.py"]["score"])
         self.assertEqual(out["watched"], 2, "both are in the top 15 of the watch list")
         self.assertEqual(out["max_score"], watch.risks(r)[0]["score"])
@@ -210,15 +222,27 @@ class ChangeRisk(unittest.TestCase):
         out = watch.change_risk(r, ["core/util.py"])
         self.assertEqual(out["max_score"], watch.risks(r)[0]["score"], "max_score is repo-wide max, not touched max")
 
+    def test_every_touched_file_gets_the_classifier_reason(self):
+        r = report()
+        r["size"]["files"].update({"package.json": {"code": 30, "complexity": 0}, "gen/api.pb.go": {"code": 3000, "complexity": 10},
+                                   "vendor/lib/x.py": {"code": 300, "complexity": 3}})
+        r["revisions"] += [{"entity": "package.json", "n-revs": 80}, {"entity": "gen/api.pb.go", "n-revs": 20},
+                           {"entity": "README.md", "n-revs": 15}, {"entity": "vendor/lib/x.py", "n-revs": 9}]
+        r["meta"]["generated"] = ["gen/api.pb.go"]
+        r["meta"]["file_types"] = None
+        by = {f["file"]: f["reasons"] for f in watch.change_risk(r, ["README.md", "package.json", "gen/api.pb.go", "vendor/lib/x.py"])["files"]}
+        self.assertEqual(by, {"README.md": ["not a source type"], "package.json": ["release file"], "gen/api.pb.go": ["generated"],
+                              "vendor/lib/x.py": ["vendored"]})
+
     def test_empty(self):
         self.assertEqual(watch.change_risk(report(), []), {"files": [], "total": 0.0, "watched": 0, "max_score": 0.0})
 
     def test_a_file_in_the_tree_with_no_revisions_in_the_window_is_not_scored(self):
-        # in size.files (so not "new file"), not a test path, but no maat-revisions row at all:
-        # 0 revisions in the window, so it is not the "changed once" case either.
+        # in size.files, not a test path, but no maat-revisions row at all: 0 revisions in the window,
+        # so it lands on "no revisions on record" rather than "changed once".
         r = report(size={"files": {**report()["size"]["files"], "core/idle.py": {"code": 50, "complexity": 0}}})
         out = watch.change_risk(r, ["core/idle.py"])
-        self.assertEqual((out["files"][0]["score"], out["files"][0]["reasons"]), (0, ["not scored"]))
+        self.assertEqual((out["files"][0]["score"], out["files"][0]["reasons"]), (0, ["no revisions on record"]))
 
 
 class Backtest(unittest.TestCase):

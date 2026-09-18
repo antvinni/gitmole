@@ -723,6 +723,45 @@ class GeneratedFiles(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(meta["vendored"], ["ext/gtest/"])
 
+    def _repo_with(self, repo, files):
+        import subprocess
+        subprocess.run(["git", "init", "-q", repo], check=True)
+        for path, content in files.items():
+            full = os.path.join(repo, path)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w") as fh:
+                fh.write(content)
+        subprocess.run(["git", "-C", repo, "add", "-A"], check=True)
+        subprocess.run(["git", "-C", repo, "-c", "user.name=t", "-c", "user.email=t@x", "commit", "-q", "-m", "init"], check=True)
+
+    _stub_planner = staticmethod(lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}])
+
+    def test_a_run_records_the_coverage_by_reason_over_every_tracked_text_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = os.path.join(d, "r")
+            self._repo_with(repo, {"src/a.py": "x = 1\n", "tests/test_a.py": "x = 1\n", "README.md": "hi\n", "gen/b.py": "# @generated\nx = 1\n"})
+            out = os.path.join(d, "out")
+            rc = cli.main([repo, "--out", out, "--ignore", "gen/*"], console=console(), tool_check=lambda **kw: [], planner=self._stub_planner,
+                          estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            self.assertEqual(rc, 0)
+            with open(os.path.join(out, "meta.json")) as fh:
+                meta = json.load(fh)
+        self.assertEqual(meta["generated"], ["gen/b.py"], "--ignore shapes blame and functions, never the classifier")
+        self.assertEqual(meta["coverage"], {"scored": 1, "test file": 1, "not a source type": 1, "generated": 1},
+                         "no size.json from the stub planner: nothing counts as not counted by scc, and every tracked text file is placed")
+
+    def test_a_run_records_the_credential_shaped_files_in_meta(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = os.path.join(d, "r")
+            self._repo_with(repo, {".env.production": "SECRET=1\n", ".env.example": "SECRET=\n"})
+            out = os.path.join(d, "out")
+            rc = cli.main([repo, "--out", out], console=console(), tool_check=lambda **kw: [], planner=self._stub_planner,
+                          estimator=lambda repo, interval, **kw: {"files": 2, "samples": 1, "blames": 2})
+            self.assertEqual(rc, 0)
+            with open(os.path.join(out, "meta.json")) as fh:
+                meta = json.load(fh)
+        self.assertEqual(meta["credential_files"], [".env.production"])
+
 
 class Clean(unittest.TestCase):
     """--clean lists what gitmole left behind and deletes on a yes. TMPDIR is pointed at a scratch dir so the
@@ -892,13 +931,13 @@ class Risk(unittest.TestCase):
             self.assertEqual(rc, 0)
             text = c.export_text()
             self.assertIn("Change risk (1 files since main)", text)
-            self.assertRegex(text, r"a\.py\s+new file", "the stub planner writes no size.json, so a.py is not in the tree data")
+            self.assertRegex(text, r"a\.py\s+no revisions on record", "the stub planner writes no size.json and no log, so a.py has no scc row and no revisions")
             c = console()
             rc = cli.main([out, "--no-run", "--risk", "main"], console=c)
             self.assertEqual(rc, 0)
             text = c.export_text()
             self.assertIn("Change risk (1 files since main)", text)
-            self.assertRegex(text, r"a\.py\s+new file", "the stub planner writes no size.json, so a.py is not in the tree data")
+            self.assertRegex(text, r"a\.py\s+no revisions on record", "the stub planner writes no size.json and no log, so a.py has no scc row and no revisions")
 
     def test_unknown_base_is_an_error(self):
         with tempfile.TemporaryDirectory() as d:
@@ -958,6 +997,46 @@ class Risk(unittest.TestCase):
             rc = cli.main([out, "--no-run", "--risk-threshold", "1"], console=c)
             self.assertEqual(rc, 2)
             self.assertIn("--risk-threshold needs --risk", c.export_text())
+
+    def test_compare_checks_its_file_exists_before_any_run(self):
+        c = console()
+        rc = cli.main([".", "--compare", "/nonexistent/before.json"], console=c, tool_check=lambda **kw: 1 / 0)
+        self.assertEqual(rc, 2, "caught before the run: tool_check would raise if it were reached")
+        self.assertIn("--compare: no such file: /nonexistent/before.json", c.export_text())
+
+    def test_compare_against_an_earlier_export(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = os.path.join(d, "out")
+            planner = lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            estimator = lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0}
+            before = os.path.join(d, "before.json")
+            rc = cli.main([d, "--out", out, "--json", before], console=console(), tool_check=lambda **kw: [], planner=planner, estimator=estimator)
+            self.assertEqual(rc, 0)
+            c = console()
+            rc = cli.main([out, "--no-run", "--compare", before], console=c)
+            self.assertEqual(rc, 0)
+            text = c.export_text()
+            self.assertIn("Since last report", text)
+            # not just "nothing changed" -- the watch list's own empty note ("nothing changed more than
+            # once") would make that assertion pass vacuously; pin the compare section's own printed text
+            self.assertIn("Since last report: nothing changed; against", text)
+            with open(os.path.join(d, "junk.json"), "w") as fh:
+                fh.write("[1, 2]")
+            err = console()
+            self.assertEqual(cli.main([out, "--no-run", "--compare", os.path.join(d, "junk.json")], console=err), 2)
+            self.assertIn("not a gitmole --json export", err.export_text())
+            with open(before) as fh:
+                other = json.load(fh)
+            other["meta"]["name"] = "elsewhere"
+            with open(os.path.join(d, "other.json"), "w") as fh:
+                json.dump(other, fh)
+            err = console()
+            self.assertEqual(cli.main([out, "--no-run", "--compare", os.path.join(d, "other.json")], console=err), 2)
+            self.assertIn("describes elsewhere", err.export_text())
+            err = console()   # `before` must still exist: an owner/* target is rejected for being org, not for its file
+            self.assertEqual(cli.main(["someone/*", "--compare", before], console=err), 2)
+            self.assertIn("--compare needs one repository", err.export_text())
 
 
 class BacktestWindow(unittest.TestCase):

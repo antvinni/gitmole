@@ -42,13 +42,14 @@ def fixed_between(commits: list, start: str, end: str) -> set:
             for p, _, _ in c["files"] if not filetypes.is_test_path(p)}
 
 
-def report_at(commits: list, t: str, size: dict, meta: dict) -> dict:
-    """The report watch.risks reads, from the commits before `t` and scc's listing of the tree at `t`.
+def report_at(commits: list, t: str, size: dict, meta: dict, generated: list, vendored: list) -> dict:
+    """The report watch.risks reads, from the commits before `t`, scc's listing of the tree at `t`, and
+    that tree's own generated and vendored files (snapshot_at classified the cut-off, not HEAD).
     No coupling and no functions: neither enters the score, and the pipeline's own backtest has no functions either."""
     past = maat.in_window(commits, until=t)
     bots = {b["name"] for b in meta.get("bots") or []}
     ownership = [r for r in maat.entity_ownership(past) if r["author"] not in bots and not identity.is_bot(r["author"])]
-    return {"meta": {"now": t, "generated": meta.get("generated") or []}, "size": size, "revisions": maat.revisions(past),
+    return {"meta": {"now": t, "generated": generated, "vendored": vendored}, "size": size, "revisions": maat.revisions(past),
             "plumbing": maat.plumbing(past), "authors": maat.authors(past), "ownership": ownership,
             "fixes": maat.fixes(past, now=t), "coupling": [], "functions": []}
 
@@ -163,8 +164,9 @@ def main(argv=None) -> int:
         rev = trend.rev_before(args.repo, t, end_of_day=False)
         if not rev:
             continue                      # the history does not reach back this far
-        size = load.parse_scc(backtest.size_at(args.repo, rev, args.out), types)
-        report = report_at(commits, t, size, meta)
+        size_json, generated, vendored = backtest.snapshot_at(args.repo, rev, args.out)
+        size = load.parse_scc(size_json, types)
+        report = report_at(commits, t, size, meta, generated, vendored)
         fixed = fixed_between(commits, t, months_after(t, args.horizon))
         pool = set(variants(report)["churn"])
         results.append((t, len(fixed & pool), len(pool), score(report, fixed, args.top)))

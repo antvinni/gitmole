@@ -36,14 +36,14 @@ next to it), with sizes, and deletes them after one y/N question.
 |---|---|
 | `--full` | Every section, column and row. Adds the hotspots, size, activity and code age tables; the default report keeps the columns you read, caps each table, elides long paths in the middle, hides test files, deleted files and vendored code, and shows a directory that changes as one as a single coupling row. |
 | `--out DIR` | The output directory. Default: `analysis-<repo>` next to a local clone, or in the current directory for a remote target. |
-| `--no-run` | Skip the tools and re-render the report from the output directory of an earlier run. Works with the exports and `--risk`. |
+| `--no-run` | Skip the tools and re-render the report from the output directory of an earlier run. Works with the exports, `--risk` and `--compare`. |
 | `--since WHEN` | Bound the history by author date: `2y`, `18m`, `90d` or a `YYYY-MM-DD` date. People, activity, timeline, hotspots and coupling then describe the current team rather than the founders. File ages and code age always cover the whole history, identity aliases are still merged over all of it, and an empty window is an error. |
 | `--plots` | Also draw the git-of-theseus code-age and survival charts. Needs `gitmole[plots]`. |
 | `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile. |
 | `--list-file-types` | List the file types in the tree with counts and whether each counts as code, then exit. |
 | `--clean [DIR]` | List the directories gitmole created, temp clones and `analysis-*` outputs under DIR, with their sizes, and delete them after a y/N question. The temp clones show as one row with their count; `--full` lists each one. Exit 0 whether you answer yes or no, 2 without a terminal. |
 | `--yes` | With `--clean`: delete without asking. For scripts and pipes. |
-| `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics, duplicates and plots. |
+| `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics, duplicates and plots. Never changes what a file is: the classifier reads every tracked file. |
 | `--ignore GLOB` | An extra ignore pattern for the same steps. Repeatable. |
 | `--workers N` | How many tools run at once. |
 | `--timeout S` | Seconds any single tool may run before it is killed. Default 900. A killed tool is marked in the report and the rest still renders. |
@@ -56,6 +56,7 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--fail-on LEVEL` | Exit 3 if any finding is at `critical`, `warning` or `info` or worse. |
 | `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
 | `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent. |
+| `--compare BEFORE.json` | Add a "Since last report" section against an earlier `--json` export of the same clone: findings new, resolved and persisting, files that entered or left the watch list. Works with `--no-run`; never changes the exit code; not with `owner/*`. |
 
 ## Exports and CI
 

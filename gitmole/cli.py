@@ -44,6 +44,7 @@ def parse_args(argv):
     p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
     p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) by their share of the repository's revisions × lines of code; needs a local path")
     p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the changed files hold more than N percent of the repository's revisions × lines of code")
+    p.add_argument("--compare", metavar="BEFORE_JSON", help="add a 'Since last report' section against an earlier --json export of the same clone")
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
     return p.parse_args(argv)
 
@@ -127,11 +128,13 @@ def _check_args(args, err, kind=None) -> int | None:
     if kind is None:
         bad = ("--yes needs --clean" if args.yes and not args.clean else
                "target required" if args.target is None and not args.clean else
-               "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk else None)
+               "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk else
+               "--compare: no such file: " + args.compare if args.compare and not os.path.isfile(args.compare) else None)
     elif kind == "path":
         bad = None
     else:
-        bad = ("--risk needs a local path" if args.risk else
+        bad = ("--compare needs one repository, not owner/*" if args.compare and kind == "org" else
+               "--risk needs a local path" if args.risk else
                "--list-file-types needs a local path" if args.list_file_types else None)
     if bad:
         err.print(f"[red]{bad}[/red]")
@@ -297,12 +300,14 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     types_spec = _types_spec(args.file_types)
 
     meta = run.collect_meta(repo_dir, since=args.since_date)
+    meta["run"] = run.manifest(repo_dir, args)   # what produced this report: commit, gitmole and tool versions, the options
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     meta["gone_months"] = args.gone
-    ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
-    tracked = blame.text_files(repo_dir, ignore)
-    meta["generated"] = filetypes.generated_files(repo_dir, tracked)   # hidden from the tables, out of the findings
-    meta["vendored"] = filetypes.vendored_dirs(repo_dir, tracked)     # somebody else's code, by the licence it carries
+    tracked = blame.text_files(repo_dir)   # every tracked text file: --ignore shapes blame, functions and duplicates, never what a file is
+    attrs = filetypes.attributes(repo_dir, tracked)   # one git check-attr pass, shared by the two lists below
+    meta["generated"] = filetypes.generated_files(repo_dir, tracked, attrs=attrs)   # hidden from the tables, out of the findings
+    meta["vendored"] = filetypes.vendored_paths(repo_dir, tracked, attrs=attrs)    # somebody else's code, by the licence it carries or the attribute it declares
+    meta["credential_files"] = filetypes.credential_files(filetypes.git_paths(repo_dir, "ls-files"))   # by name, over every tracked file
     if args.since_date and meta["commits"] == 0:
         raise NoCommits(f"no commits since {args.since_date}; widen --since")
     if args.now:
@@ -348,6 +353,17 @@ def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: boo
     meta["steps"] = {name: "run" if rc == 0 else (rc if isinstance(rc, str) else "failed") for name, rc in results.items()}
 
 
+def _coverage(repo_dir: str, out_dir: str) -> dict:
+    """How many tracked text files each reason claims, from the report as the steps left it. An
+    unreadable output directory (a killed run) records nothing rather than failing the run."""
+    from . import classify
+    try:
+        report = load.load_report(out_dir, nested=False)
+    except load.Unreadable:
+        return {}
+    return classify.coverage(classify.Classifier(report), blame.text_files(repo_dir))
+
+
 def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator) -> None:
     """Run the whole pipeline for one repository into out_dir."""
     os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)
@@ -372,6 +388,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         raise Interrupted()
 
     _record_statuses(meta, results, age_ok, plots_ok, lizard_ok, cut, duplicates_ok)
+    meta["coverage"] = _coverage(repo_dir, out_dir)
     run.save_meta(meta, out_dir)
 
     failed = [n for n, rc in results.items() if rc != 0]
@@ -505,12 +522,30 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
             return 2
         from . import watch
         risk = {"base": args.risk, **watch.change_risk(report, files)}
+    comparison = None
+    if args.compare:
+        from . import compare as _compare
+        try:
+            with open(args.compare, encoding="utf-8") as fh:
+                before = json.load(fh)
+        except (OSError, ValueError) as e:
+            err.print(f"[red]--compare {args.compare}:[/red] {e}", soft_wrap=True)
+            return 2
+        if not _compare.is_export(before):
+            err.print(f"[red]--compare {args.compare}:[/red] not a gitmole --json export (it needs meta, findings with rule ids, and watch; "
+                      "exports from before 0.8.0 have no rule ids)", soft_wrap=True)
+            return 2
+        if before["meta"].get("name") != report["meta"].get("name"):
+            err.print(f"[red]--compare {args.compare}:[/red] it describes {before['meta'].get('name')}, this run describes {report['meta'].get('name')}; "
+                      "the two exports must be of the same clone", soft_wrap=True)
+            return 2
+        comparison = _compare.compare(before, report, found)
     if args.json:
-        _write(json.dumps(render.to_json(report, found, risk=risk), indent=2) + "\n", args.json, console)
+        _write(json.dumps(render.to_json(report, found, risk=risk, compare=comparison), indent=2) + "\n", args.json, console)
     if args.markdown:
-        _write(render.markdown(report, found, full=args.full, risk=risk, base=args.risk), args.markdown, console)
+        _write(render.markdown(report, found, full=args.full, risk=risk, base=args.risk, compare=comparison), args.markdown, console)
     if "-" not in (args.json, args.markdown):
-        render.report(report, found, console, full=args.full, risk=risk, base=args.risk)
+        render.report(report, found, console, full=args.full, risk=risk, base=args.risk, compare=comparison)
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
         return 3
     if risk is not None and args.risk_threshold is not None and risk["total"] > args.risk_threshold:

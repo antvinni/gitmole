@@ -2,7 +2,7 @@
 Standalone so blame.py and maat.py can import it as scripts."""
 from __future__ import annotations
 
-import fnmatch
+import functools
 import os
 import re
 import subprocess
@@ -53,11 +53,19 @@ def parse(spec):
 _TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|snapshots?|__snapshots__|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
                         r"|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+|[^/]*\.snap)$", re.I)
 
+# Suffix conventions of test frameworks, case-sensitive (Contest.java is not a Test, requests/ is not a
+# Tests/ target): JUnit/XCTest/NUnit's FooTest(s), hspec/ScalaTest's FooSpec, RSpec's _spec.rb, Foundry's
+# .t.sol, HDL testbenches tb_x / x_tb, and test-target directories such as AppTests/ or AppUITests/.
+_TEST_SUFFIX = re.compile(r"[A-Za-z0-9]Tests?\.(java|kt|kts|scala|groovy|swift|cs)$|[A-Za-z0-9]Spec\.(hs|lhs|scala|kt|groovy)$|_spec\.rb$|\.t\.sol$"
+                          r"|(^|/)tb_[^/]*\.(v|sv|vhd|vhdl)$|_tb\.(v|sv|vhd|vhdl)$|(^|/)[A-Za-z0-9]+Tests/")
+
 
 def is_test_path(path: str) -> bool:
     """A test file or anything under a tests directory (tests/, pending_tests/, e2e-tests/, test_utils/,
-    snapshots/ and .snap files): changes with every fix, so not a signal on its own."""
-    return bool(_TEST_PATH.search(path))
+    snapshots/ and .snap files): changes with every fix, so not a signal on its own. Also the suffix
+    conventions of test frameworks: FooTest.java, user_spec.rb, ParserSpec.hs, Vault.t.sol, tb_counter.v,
+    and AppTests/ directories."""
+    return bool(_TEST_PATH.search(path) or _TEST_SUFFIX.search(path))
 
 
 _DOC_PATH = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|\.(md|markdown|rst|txt|adoc|pyi|d\.ts)$", re.I)
@@ -129,33 +137,43 @@ def _read_head(repo: str, path: str, size: int = 20_000) -> str:
         return ""
 
 
-def vendored_dirs(repo: str, paths: list) -> list:
-    """Directories holding somebody else's code, by licence: a nested LICENSE or COPYING whose
-    copyright lines name none of the holders the root licence names (mypy/typeshed/, a bundled
-    googletest). A monorepo's own packages carry the same holder and stay. Without a root licence
-    naming anyone there is nothing to compare against."""
+def vendored_paths(repo: str, paths: list, attrs: dict = None) -> list:
+    """Somebody else's code, as the repository itself says: directories holding a nested LICENSE or
+    COPYING whose copyright lines name none of the holders the root licence names (mypy/typeshed/, a
+    bundled googletest), each ending in `/`; and every file marked linguist-vendored in .gitattributes,
+    as git resolves it. A monorepo's own packages carry the same holder and stay. Without a root licence
+    naming anyone there is no licence comparison. `attrs` is attributes() when the caller has it."""
+    attrs = attributes(repo, paths) if attrs is None else attrs
+    out = {p for p in paths if "linguist-vendored" in attrs.get(p, ())}
     ours = set()
     for p in paths:
         if "/" not in p and _LICENCE_NAME.match(p):
             ours |= _holders(_read_head(repo, p))
-    if not ours:
-        return []
-    out = set()
-    for p in paths:
-        head, _, name = p.rpartition("/")
-        if head and _LICENCE_NAME.match(name) and not (_holders(_read_head(repo, p)) & ours):
-            out.add(head + "/")
+    if ours:
+        for p in paths:
+            head, _, name = p.rpartition("/")
+            if head and _LICENCE_NAME.match(name) and not (_holders(_read_head(repo, p)) & ours):
+                out.add(head + "/")
     return sorted(out)
 
 
 def vendor_dirs(report: dict) -> tuple:
-    """The vendored directories a run found by licence (see vendored_dirs)."""
+    """The vendored directories and files a run found (see vendored_paths)."""
     return tuple((report.get("meta") or {}).get("vendored") or [])
 
 
+@functools.lru_cache(maxsize=8)
+def _vendor_split(dirs: tuple) -> tuple:
+    """The run's vendored list as the two things it actually is: file entries, matched exactly, and
+    directory entries, matched by prefix. Cached because every caller passes the same tuple."""
+    return frozenset(d for d in dirs if not d.endswith("/")), tuple(d for d in dirs if d.endswith("/"))
+
+
 def is_vendored(path: str, dirs=()) -> bool:
-    """is_vendor_path, or under a directory the run found to be vendored by licence."""
-    return is_vendor_path(path) or any(path.startswith(d) for d in dirs)
+    """is_vendor_path, or listed by the run (see vendored_paths): a directory entry, ending in `/`, by
+    prefix; a file entry exactly."""
+    files, prefixes = _vendor_split(tuple(dirs))
+    return is_vendor_path(path) or path in files or path.startswith(prefixes)
 
 
 _SOURCE_EXT = {"c", "cc", "cpp", "cxx", "m", "mm"}
@@ -188,40 +206,65 @@ def is_release(path: str, plumbing=frozenset()) -> bool:
     return is_release_path(path) or path in plumbing
 
 
+# File names that exist to hold a login: dotenv files and their per-environment variants, the network and
+# package-index credential files, SSH private keys and the .ssh directory. Cross-ecosystem conventions of
+# tooling, like Makefile above; a template (.env.example) is not one.
+_CREDENTIAL_NAME = re.compile(r"^(\.env(\..+)?|\.netrc|_netrc|\.pypirc|\.dockercfg|id_(rsa|dsa|ecdsa|ed25519))$")
+_CREDENTIAL_TEMPLATE = re.compile(r"^\.env\.(.+\.)?(example|sample|template|dist)$")
+_SSH_DIR = re.compile(r"(^|/)\.ssh/")
+
+
+def is_credential_path(path: str) -> bool:
+    """A file that by its name holds a credential, tracked: a finding whatever its contents, unless it
+    sits in test or example code, where a specimen is expected."""
+    if is_test_path(path) or is_sample_path(path):
+        return False
+    if _SSH_DIR.search(path):
+        return True
+    name = path.rsplit("/", 1)[-1].lower()
+    return bool(_CREDENTIAL_NAME.match(name)) and not _CREDENTIAL_TEMPLATE.match(name)
+
+
+def credential_files(paths: list) -> list:
+    return sorted(p for p in paths if is_credential_path(p))
+
+
 # What a generated file says about itself in its first lines: protoc, ajv, code generators of every kind.
 _GENERATED = re.compile(r"auto[- ]?generated|generated (by|from|file|code|automatically|with)|do not (edit|modify)|@generated|code generated", re.I)
 GENERATED_HEAD_LINES = 5
 _GENERATED_NAME = re.compile(r"\.(min\.js|min\.css|bundle\.js|map)$|(^|/)dist/", re.I)   # a build output by name: nobody edits a bundle, a source map or dist/
 
 
-def _generated_patterns(repo: str) -> list:
-    """The .gitattributes patterns marked linguist-generated at the repository root."""
-    try:
-        with open(os.path.join(repo, ".gitattributes"), encoding="utf-8", errors="replace") as fh:
-            lines = fh.read().splitlines()
-    except OSError:
-        return []
-    out = []
-    for line in lines:
-        parts = line.split()
-        if len(parts) >= 2 and any(p in ("linguist-generated", "linguist-generated=true") for p in parts[1:]):
-            out.append(parts[0].lstrip("/"))
+def attributes(repo: str, paths: list, cached: bool = False, env: dict = None) -> dict:
+    """path -> the linguist attributes git sets on it (linguist-generated, linguist-vendored), resolved by
+    git itself, so a nested .gitattributes and info/attributes count exactly as they do for git. `cached`
+    reads the .gitattributes files of the index instead of the working tree: with GIT_INDEX_FILE in `env`
+    pointing at a temporary index, that is the tree at another commit (the backtest). A plain directory
+    that is no repository, or a git that fails, attributes nothing."""
+    if not paths:
+        return {}
+    argv = [*GIT, "check-attr", "--stdin", "-z", *(["--cached"] if cached else []), "linguist-generated", "linguist-vendored"]
+    stdin = b"".join(p.encode("utf-8", "surrogateescape") + b"\0" for p in paths)
+    proc = subprocess.run(argv, cwd=repo, env=env, input=stdin, capture_output=True)
+    if proc.returncode != 0:
+        return {}  # the main run goes on without linguist classifications; only the backtest raises on this
+    out = {}
+    fields = proc.stdout.split(b"\0")
+    for i in range(0, len(fields) - 2, 3):   # -z prints path, attribute, value, each NUL-terminated
+        path, attr, value = (f.decode("utf-8", "surrogateescape") for f in fields[i:i + 3])
+        if value in ("set", "true"):
+            out.setdefault(path, set()).add(attr)
     return out
 
 
-def _attribute_match(path: str, pattern: str) -> bool:
-    if "/" in pattern:
-        return fnmatch.fnmatchcase(path, pattern) or fnmatch.fnmatchcase(path, pattern.rstrip("/") + "/*")
-    return fnmatch.fnmatchcase(path.rsplit("/", 1)[-1], pattern)
-
-
-def generated_files(repo: str, paths: list) -> list:
-    """The tracked files that are generated: marked linguist-generated in .gitattributes, or saying so
-    in their first lines. Their complexity and churn are the generator's, not the repository's."""
-    patterns = _generated_patterns(repo)
+def generated_files(repo: str, paths: list, attrs: dict = None) -> list:
+    """The tracked files that are generated: a build output by name, marked linguist-generated (as git
+    resolves it), or saying so in their first lines. Their complexity and churn are the generator's, not
+    the repository's. `attrs` is attributes() when the caller already has it."""
+    attrs = attributes(repo, paths) if attrs is None else attrs
     out = []
     for path in paths:
-        if _GENERATED_NAME.search(path) or any(_attribute_match(path, p) for p in patterns):
+        if _GENERATED_NAME.search(path) or "linguist-generated" in attrs.get(path, ()):
             out.append(path)
             continue
         try:

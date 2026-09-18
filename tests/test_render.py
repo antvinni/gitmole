@@ -46,9 +46,9 @@ def _section_text(text: str, heading: str) -> str:
     return text[text.index(heading):]
 
 
-def rendered(report, findings, width=120, full=False):
+def rendered(report, findings, width=120, full=False, compare=None):
     console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
-    render.report(report, findings, console, full=full)
+    render.report(report, findings, console, full=full, compare=compare)
     return console.export_text()
 
 
@@ -568,6 +568,23 @@ class Report(unittest.TestCase):
         self.assertIn("nothing over complexity 10 (1 function measured)", fn)
         self.assertNotIn("hidden", fn)
 
+    def test_header_shows_the_commit_when_the_run_recorded_one_and_the_run_line_closes_full_and_markdown(self):
+        r = sample_report()
+        r["meta"]["run"] = {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "gitmole": "0.10.0",
+                            "tools": {"git": "2.55.0", "scc": "4.1.0", "jscpd": None, "lizard": "1.24.0"},
+                            "options": {"ignore": ["*.min.js"], "ignore_data": True, "deep": False}}
+        line = "gitmole 0.10.0 · git 2.55.0 · scc 4.1.0 · lizard 1.24.0 · --ignore *.min.js --ignore-data"
+        self.assertEqual(render.run_line(r), line, "a tool with no version is left out")
+        self.assertIn("@ 540ee5b5", rendered(r, []))
+        self.assertIn(line, rendered(r, [], full=True))
+        self.assertNotIn("gitmole 0.10.0", rendered(r, []), "the default report stays tight")
+        md = render.markdown(r, [])
+        self.assertIn("branch main @ 540ee5b5", md)
+        self.assertIn(f"\n{line}  \nFull results and plots in", md)
+        r["meta"].pop("run")
+        self.assertIsNone(render.run_line(r))
+        self.assertNotIn("@ ", render.markdown(r, []).split("\n")[2], "an older output directory: the branch alone")
+
 
 class HideTests(unittest.TestCase):
     """render._hide_tests: the rows dropped from the default tables and the caption that counts them."""
@@ -612,6 +629,17 @@ class HideTests(unittest.TestCase):
         kept, note = self.hide(["app.py"] + [f"tests/test_{i}.py" for i in range(12)])
         self.assertEqual(kept, ["app.py"])
         self.assertEqual(note, "12 test files hidden; --full shows them")   # hiding happens before any row cap
+
+    def test_a_vendored_test_is_hidden_by_the_tests_rule(self):
+        """Not a discriminating case: is_test_path already matches vendor/x_test.go by its _test.go
+        suffix alone, so this passed before the classifier existed too. What it does verify: _hide_tests
+        with no classifier and no report still builds one and hides a row whose first reason is vendored."""
+        rows = [{"path": "vendor/x_test.go"}, {"path": "src/a.go"}]
+        kept, note = render._hide_tests(rows, lambda r: r["path"], False)
+        self.assertEqual([r["path"] for r in kept], ["src/a.go"],
+                         "_hide_tests(classifier=None, no report) hides a row whose first reason is vendored")
+        self.assertEqual(note, "1 test file hidden; --full shows them",
+                         "_hide_tests(classifier=None, no report) still writes the test-file caption note")
 
 
 class Activity(unittest.TestCase):
@@ -817,6 +845,16 @@ class FullOnlySections(unittest.TestCase):
         from gitmole import run
         self.assertLessEqual(set(render.CORE_STEPS), {s["name"] for s in run.plan("/r", "/o")},
                              "a renamed step would otherwise stop being named in the header")
+
+    def test_full_header_and_markdown_carry_the_coverage_line(self):
+        r = sample_report()
+        r["meta"]["coverage"] = {"scored": 3900, "test file": 610, "generated": 120}
+        line = "4,630 files: 3,900 scored · 120 generated · 610 test files"
+        self.assertIn(line, rendered(r, [], full=True))
+        self.assertNotIn(line, rendered(r, []), "the default header stays as tight as it is")
+        self.assertIn(line, render.markdown(r, []))
+        r["meta"].pop("coverage")
+        self.assertNotIn("files:", render.markdown(r, []).split("## Findings")[0], "an older output directory has no coverage record")
 
 
 class KnowledgeMap(unittest.TestCase):
@@ -1210,7 +1248,7 @@ class Json(unittest.TestCase):
 class ChangeRisk(unittest.TestCase):
     RISK = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times", "fixed 5 times in six months"], "watched": True},
                       {"file": "core/util.py", "score": 0.6, "reasons": ["changed 30 times"], "watched": True},
-                      {"file": "core/new.py", "score": 0, "reasons": ["new file"], "watched": False}],
+                      {"file": "core/new.py", "score": 0, "reasons": ["not in the tree"], "watched": False}],
             "total": 3.6, "watched": 2, "max_score": 3.0}
 
     def test_section_has_a_bar_scaled_to_the_worst_file_in_the_repo(self):
@@ -1257,6 +1295,35 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(j["change_risk"]["base"], "main")
         self.assertEqual(j["change_risk"]["total"], 3.6)
         self.assertNotIn("change_risk", render.to_json(sample_report(), []))
+
+
+class Compare(unittest.TestCase):
+    def test_compare_section_lists_the_buckets_and_the_watch_moves(self):
+        result = {"new": [{"severity": "warning", "title": "Credential-shaped files tracked"}],
+                  "resolved": [{"severity": "info", "title": "Reverts"}],
+                  "persisting": [{"severity": "info", "title": "Bug magnets", "was": "warning"}, {"severity": "warning", "title": "Repo health", "was": "warning"}],
+                  "watch_entered": ["c.py"], "watch_left": ["b.py"],
+                  "tally": {"before": {"critical": 0, "warning": 2, "info": 2}, "after": {"critical": 0, "warning": 2, "info": 1}},
+                  "before": {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "date": "2026-09-10", "options_differ": ["ignore_data"]}}
+        sec = render.compare_section(result)
+        self.assertEqual(sec["title"], "Since last report")
+        self.assertEqual(sec["rows"], [["new", "warning · Credential-shaped files tracked"], ["resolved", "info · Reverts"],
+                                       ["persisting", "warning → info · Bug magnets"], ["persisting", "warning · Repo health"],
+                                       ["entered the watch list", "c.py"], ["left the watch list", "b.py"]],
+                         "_section stringifies every row into a list, like every other section's rows")
+        self.assertEqual(sec["caption"], "options differ: ignore_data; the changes partly reflect them\n"
+                                         "against 540ee5b5, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note")
+        result["before"] = {"commit": None, "date": "2026-09-10", "options_differ": []}
+        self.assertEqual(render.compare_section(result)["caption"], "against an export without a run manifest, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note")
+        empty = {**result, "new": [], "resolved": [], "persisting": [], "watch_entered": [], "watch_left": []}
+        self.assertEqual(render.compare_section(empty)["note"],
+                         "nothing changed; against an export without a run manifest, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note",
+                         "the empty case folds the caption's lines into the note, or the reader loses the against-commit and tally")
+        r = sample_report()
+        text = rendered(r, [], compare=result)
+        self.assertIn("Since last report", text)
+        self.assertIn("## Since last report", render.markdown(r, [], compare=result))
+        self.assertEqual(render.to_json(r, [], compare=result)["compare"], result)
 
 
 class Excerpt(unittest.TestCase):

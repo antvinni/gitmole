@@ -77,7 +77,8 @@ has bumped the formula.
 
 The example reports name the gitmole version that made them. When a release
 changes the report, run `bin/render-examples` and commit the new
-`docs/examples/*.md` and README text block together.
+`docs/examples/*.md`; the README's table of examples carries each run's time,
+measured by hand on one machine with nothing else running.
 Bumping a pin is a separate decision: it changes the repository's history,
 not gitmole's output.
 
@@ -92,18 +93,21 @@ code-age pass (its output mimics git-of-theseus so one loader serves both),
 written, `duplicates.py` runs jscpd and keeps the blocks without their text,
 `deps.py` runs osv-scanner offline and keeps one row per vulnerable package,
 `identity.py` merges author aliases, `load.py` parses the outputs,
-`findings.py` holds the heuristics, `coupling.py` folds a directory that
-changes as one into a cluster, `watch.py` builds the watch list (the
-pool, each file's share, the reasons), `hotspots.py` is the one ranking
-both it and the hotspots table use, `trend.py` is complexity over time
-for the top hotspots, `clean.py` finds and removes what gitmole left
-behind, and `render.py` draws the report.
+`classify.py` gives every table, the watch list and `--risk` one answer for
+why a file is out of the scored pool, `findings.py` holds the heuristics,
+`coupling.py` folds a directory that changes as one into a cluster,
+`watch.py` builds the watch list (the pool, each file's share, the reasons),
+`hotspots.py` is the one ranking both it and the hotspots table use,
+`trend.py` is complexity over time for the top hotspots, `clean.py` finds
+and removes what gitmole left behind, `compare.py` is the difference between
+two reports (the findings new, resolved and persisting, the watch list's
+moves), and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates
 `docs/banner.svg` from the banner code.
 `bin/render-examples` clones the repositories listed in the script under
 `$TMPDIR/gitmole-examples/`, pins each to its recorded commit, runs gitmole
 with the recorded reference date and writes `docs/examples/<repo>.md`; for
-the featured one it prints the README's text block on stdout. Clones and
+the featured one it prints the report's opening as plain text on stdout. Clones and
 outputs are reused on a rerun; delete the directory to start clean.
 `python -m gitmole.evaluate CLONE OUT_DIR` replays the watch list at six
 cut-off dates against the fixes that followed each, next to the two factor

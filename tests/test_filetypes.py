@@ -6,6 +6,16 @@ import unittest
 from gitmole import filetypes
 
 
+def git_repo(d: str, files: dict) -> None:
+    """A repository at `d` holding `files` (path -> text), staged, so git check-attr can read its .gitattributes."""
+    for path, text in files.items():
+        os.makedirs(os.path.join(d, os.path.dirname(path)) or d, exist_ok=True)
+        with open(os.path.join(d, path), "w") as fh:
+            fh.write(text)
+    subprocess.run(["git", "init", "-q"], cwd=d, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=d, check=True)
+
+
 class Parse(unittest.TestCase):
     def test_default_when_unset(self):
         self.assertIs(filetypes.parse(None), filetypes.DEFAULT)
@@ -93,6 +103,15 @@ class TestPaths(unittest.TestCase):
         for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md", "src/testimony.py", "snapshot.py"):
             self.assertFalse(filetypes.is_test_path(path), path)
 
+    def test_suffix_conventions_of_test_frameworks(self):
+        for path in ("com/example/FooTest.java", "com/example/FooTests.java", "src/FooTest.kt", "src/FooSpec.scala", "src/AppTests.cs",
+                     "app/models/user_spec.rb", "MyAppTests/UserTests.swift", "MyAppUITests/LaunchTests.swift", "MyAppTests/Mocks/Service.swift",
+                     "src/ParserSpec.hs", "src/ParserSpec.lhs", "src/Vault.t.sol", "rtl/tb_counter.v", "rtl/counter_tb.sv", "rtl/fifo_tb.vhdl", "tb_top.v"):
+            self.assertTrue(filetypes.is_test_path(path), path)
+        for path in ("com/example/Contest.java", "src/requests/client.py", "src/TestHelper.sol", "src/Latest.kt", "rtl/tbench.v",
+                     "rtl/outbound.v", "src/spec_writer.rb", "lib/Spec.hs"):   # case-sensitive: contest is not a Test, requests/ is not a Tests/ dir
+            self.assertFalse(filetypes.is_test_path(path), path)
+
     def test_documentation_files_and_directories(self):
         for path in ("README.md", "docs/GA4-API-INTEGRATION.md", "doc/guide.rst", "NOTES.txt", "a/b/CHANGELOG.markdown", "docs/conf.py", "x.adoc",
                      "docs_src/security/tutorial004.py", "docs-site/app.js", "doc_examples/x.py",
@@ -124,6 +143,15 @@ class TestPaths(unittest.TestCase):
         for path in ("lib/version_check.py", "src/app.py", "docs/versions.md", "Makefile", "lib/sinatra/base.rb"):
             self.assertFalse(filetypes.is_release_path(path), path)
 
+    def test_credential_shaped_file_names(self):
+        for path in (".env", ".env.production", "app/.env.local", ".env.production.local", ".netrc", "home/_netrc", ".pypirc", ".dockercfg",
+                     "deploy/id_rsa", "id_ed25519", ".ssh/config", "ops/.ssh/known_hosts", ".ENV"):
+            self.assertTrue(filetypes.is_credential_path(path), path)
+        for path in (".env.example", ".env.sample", "app/.env.template", ".env.dist", "deploy/id_rsa.pub", "prod.env", "src/env.py",
+                     "fixtures/.env", "tests/.netrc", "examples/id_rsa", ".npmrc", "server.pem", "keys/app.key"):
+            self.assertFalse(filetypes.is_credential_path(path), path)
+        self.assertEqual(filetypes.credential_files(["b/.env", "a.py", ".netrc"]), [".netrc", "b/.env"])
+
     def test_generated_files_by_header_marker_or_attribute(self):
         with tempfile.TemporaryDirectory() as d:
             files = {
@@ -139,16 +167,42 @@ class TestPaths(unittest.TestCase):
                 "static/app.js.map": "{}\n",
                 "src/Foundation/resources/renderer/dist/scripts.js": "var e=1;\n",   # a dist/ directory is build output by name
                 "src/distance.py": "x = 1\n",
+                "out/report.txt": "plain\n",                # attributed at the root
+                "pkg/gen/a.txt": "plain\n",                 # attributed by a nested .gitattributes, which git honours
+                "pkg/other.txt": "plain\n",
+                ".gitattributes": "* text=auto\nout/* linguist-generated=true\n",
+                "pkg/.gitattributes": "gen/*.txt linguist-generated\n",
             }
-            for path, text in files.items():
-                os.makedirs(os.path.join(d, os.path.dirname(path)), exist_ok=True)
-                with open(os.path.join(d, path), "w") as fh:
-                    fh.write(text)
-            with open(os.path.join(d, ".gitattributes"), "w") as fh:
-                fh.write("* text=auto\ndist/* linguist-generated=true\n*.min.js linguist-generated\n")
+            git_repo(d, files)
             found = filetypes.generated_files(d, sorted(files))
-        self.assertEqual(found, ["dist/bundle.js", "gen/schema.py", "internal/js/renderkatex.bundle.js", "lib/config-validator.js", "pb/api.pb.go",
+        self.assertEqual(found, ["dist/bundle.js", "gen/schema.py", "internal/js/renderkatex.bundle.js", "lib/config-validator.js",
+                                 "out/report.txt", "pb/api.pb.go", "pkg/gen/a.txt",
                                  "src/Foundation/resources/renderer/dist/scripts.js", "static/app.js.map", "static/app.min.css"])
+
+    def test_attributes_come_from_git_and_a_plain_directory_has_none(self):
+        with tempfile.TemporaryDirectory() as d:
+            git_repo(d, {"third/lib.js": "x\n", "main.go": "y\n", ".gitattributes": "third/** linguist-vendored\n"})
+            self.assertEqual(filetypes.attributes(d, ["third/lib.js", "main.go"]), {"third/lib.js": {"linguist-vendored"}})
+            self.assertEqual(filetypes.attributes(d, []), {})
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(filetypes.attributes(d, ["a.py"]), {}, "no repository: nothing is attributed, nothing fails")
+
+    def test_linguist_vendored_paths_join_the_licence_found_directories(self):
+        with tempfile.TemporaryDirectory() as d:
+            files = {
+                "LICENSE": "MIT License\n\nCopyright (c) 2012-2023 Jukka Lehtosalo and contributors\n",
+                "mypy/typeshed/LICENSE": "Apache License\nVersion 2.0\n\"Licensor\" shall mean the copyright owner or entity\n",
+                "mypy/checker.py": "x = 1\n",
+                "third/lib.js": "x\n",
+                ".gitattributes": "third/** linguist-vendored\n",
+            }
+            git_repo(d, files)
+            found = filetypes.vendored_paths(d, sorted(files))
+        self.assertEqual(found, ["mypy/typeshed/", "third/lib.js"], "a directory by licence ends in /, a file by attribute does not")
+        self.assertTrue(filetypes.is_vendored("mypy/typeshed/stdlib/_hashlib.pyi", found))
+        self.assertTrue(filetypes.is_vendored("third/lib.js", found))
+        self.assertFalse(filetypes.is_vendored("third/lib.js2", found), "a file entry matches exactly, not as a prefix")
+        self.assertFalse(filetypes.is_vendored("mypy/checker.py", found))
 
     def test_a_nested_licence_with_other_copyright_holders_marks_a_vendored_tree(self):
         with tempfile.TemporaryDirectory() as d:
@@ -163,7 +217,7 @@ class TestPaths(unittest.TestCase):
                 os.makedirs(os.path.join(d, os.path.dirname(path)) or d, exist_ok=True)
                 with open(os.path.join(d, path), "w") as fh:
                     fh.write(text)
-            found = filetypes.vendored_dirs(d, sorted(files))
+            found = filetypes.vendored_paths(d, sorted(files))
         self.assertEqual(found, ["mypy/typeshed/", "mypyc/external/googletest/"])
         self.assertTrue(filetypes.is_vendored("mypy/typeshed/stdlib/_hashlib.pyi", found))
         self.assertFalse(filetypes.is_vendored("mypy/checker.py", found))
@@ -174,7 +228,17 @@ class TestPaths(unittest.TestCase):
             os.makedirs(os.path.join(d, "lib", "x"))
             with open(os.path.join(d, "lib", "x", "LICENSE"), "w") as fh:
                 fh.write("Copyright 2008, Google Inc.\n")
-            self.assertEqual(filetypes.vendored_dirs(d, ["lib/x/LICENSE"]), [], "nothing to compare against")
+            self.assertEqual(filetypes.vendored_paths(d, ["lib/x/LICENSE"]), [], "nothing to compare against")
+
+    def test_is_vendored_matches_a_large_file_list_exactly_and_a_directory_by_prefix(self):
+        # linguist-vendored puts one entry per file, so a real run's list can run into the thousands;
+        # this pins correctness (exact file match, prefix directory match), not timing.
+        files = tuple(f"libs/pkg{i}/mod.js" for i in range(5000))
+        dirs = files + ("mypy/typeshed/",)
+        self.assertTrue(filetypes.is_vendored("libs/pkg2500/mod.js", dirs), "a file entry among 5,000, matched exactly")
+        self.assertFalse(filetypes.is_vendored("libs/pkg2500/mod.js2", dirs), "a file entry matches exactly, not as a prefix")
+        self.assertTrue(filetypes.is_vendored("mypy/typeshed/stdlib/_hashlib.pyi", dirs), "a directory entry, matched by prefix")
+        self.assertFalse(filetypes.is_vendored("mypy/checker.py", dirs))
 
     def test_vendored_trees(self):
         for path in ("vendor/github.com/x/y.go", "web/node_modules/a/index.js", "third_party/z/a.c", "thirdparty/a.c", "_vendor/a.py",

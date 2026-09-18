@@ -22,9 +22,11 @@ import tempfile
 from . import filetypes, load, maat, trend
 
 
-def size_at(repo: str, rev: str, out_dir: str) -> str:
-    """scc's --by-file JSON over the tree at rev, exported through a temporary index so no
-    archive is held in memory and export-ignore attributes do not thin the tree.
+def snapshot_at(repo: str, rev: str, out_dir: str) -> tuple:
+    """The tree at rev, measured and classified as it was then: scc's --by-file JSON, the generated files
+    and the vendored paths. Exported through a temporary index so no archive is held in memory and
+    export-ignore attributes do not thin the tree; the same index lets git check-attr read that tree's
+    .gitattributes, so the classification is the cut-off's, not HEAD's.
 
     The tree is written under `out_dir`, not the system temp directory: a SIGKILL cannot run the
     cleanup, and a checkout left next to the report is one the next run clears away."""
@@ -34,7 +36,15 @@ def size_at(repo: str, rev: str, out_dir: str) -> str:
         env = dict(os.environ, GIT_INDEX_FILE=os.path.join(tmp, "index"))
         subprocess.run(["git", "read-tree", rev], cwd=repo, env=env, check=True, capture_output=True, text=True)
         subprocess.run(["git", "checkout-index", "-a", f"--prefix={tree}/"], cwd=repo, env=env, check=True, capture_output=True, text=True)
-        return subprocess.run(["scc", "--by-file", "--format", "json"], cwd=tree, capture_output=True, text=True, check=True).stdout
+        size = subprocess.run(["scc", "--by-file", "--format", "json"], cwd=tree, capture_output=True, text=True, check=True).stdout
+        # the text files of that tree, as blame.text_files lists HEAD's: git grep prints "rev:path"
+        proc = subprocess.run([*filetypes.GIT, "grep", "-I", "--name-only", "-z", "-e", "", rev], cwd=repo, capture_output=True)
+        if proc.returncode not in (0, 1):   # 1 is grep's "no match" (an empty tree), not a failure
+            raise subprocess.CalledProcessError(proc.returncode, proc.args, proc.stdout.decode("utf-8", "replace"),
+                                                 proc.stderr.decode("utf-8", "replace"))
+        paths = sorted(p.decode("utf-8", "surrogateescape").split(":", 1)[1] for p in proc.stdout.split(b"\0") if p)
+        attrs = filetypes.attributes(repo, paths, cached=True, env=env)
+        return size, filetypes.generated_files(tree, paths, attrs), filetypes.vendored_paths(tree, paths, attrs)
 
 
 def main(argv=None) -> int:
@@ -66,7 +76,7 @@ def main(argv=None) -> int:
     types = filetypes.parse(meta.get("file_types"))
     maat.write_all(log_path, sub, os.path.join(args.out, "meta.json") if "aliases" in meta else None, types, now=until, until=until)
     try:
-        size = size_at(args.repo, rev, args.out)
+        size, generated, vendored = snapshot_at(args.repo, rev, args.out)
     except subprocess.CalledProcessError as e:
         first = ((e.stderr or "").strip().splitlines() or [f"{' '.join(e.cmd)} exited {e.returncode}"])[0]
         print(f"backtest: {first}", file=sys.stderr)
@@ -74,7 +84,8 @@ def main(argv=None) -> int:
     with open(os.path.join(sub, "size.json"), "w", encoding="utf-8") as fh:
         fh.write(size)
     with open(os.path.join(sub, "meta.json"), "w", encoding="utf-8") as fh:
-        json.dump({"now": until, "last_date": until, "file_types": meta.get("file_types"), "aliases": meta.get("aliases", {})}, fh)
+        json.dump({"now": until, "last_date": until, "file_types": meta.get("file_types"), "aliases": meta.get("aliases", {}),
+                   "generated": generated, "vendored": vendored}, fh)
     return 0
 
 

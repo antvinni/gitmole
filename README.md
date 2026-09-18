@@ -12,7 +12,6 @@ Free. Any Stack. Local. Offline. Deterministic. Fast.
 - **Any stack.** It reads what every repository has: the git log, git blame and the files themselves.
 - **Local & Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home; the vulnerability database is a copy you download once.
 - **Deterministic.** No AI at runtime. Every finding is a plain rule over counts you can recompute by hand. The JSON export carries each finding's rule and the numbers it fired on. The same clone gives the same report every time. 
-- **Fast.** A 4,400-commit repository takes under thirty seconds.
 
 ## Install
 
@@ -51,59 +50,15 @@ blocks on secrets in source files and still posts the report. Every option:
 
 ## What you get
 
-The opening of the report for [react](https://github.com/facebook/react), 21,703 commits
-since 2013, at a pinned commit:
+Reports on repositories you know, each at a pinned commit, published as gitmole wrote them:
 
-```text
-╭─ react ──────────────────────────────────────────────────────────────────────────────────────────╮
-│ 21703 commits  ·  2013-05-28 → 2026-09-16  ·  1843 identities  ·  branch main                    │
-│ 681,078 lines in 4781 files  ·  JavaScript, TypeScript, Rust, CSS                                │
-│ most commits on Wed at 15:00  ·  14% of commits are fixes  ·  1% of commits are reverts  ·  19%  │
-│ of surviving code from 2026                                                                      │
-│ 1 critical, 6 warnings, 9 notes                                                                  │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+| Repository | Commit | Commits | Lines | gitmole run |
+|---|---|---:|---:|---:|
+| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | [`540ee5b5`](https://github.com/curl/curl/commit/540ee5b560cc6e775e11317048a13cc7e355bf91) | 39,758 | 247,179 | 61 s |
+| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | [`8cbdd4a8`](https://github.com/django/django/commit/8cbdd4a814397f81adf0129288f32b615bd1f94f) | 34,933 | 431,749 | 153 s |
+| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | [`2b19aecd`](https://github.com/facebook/react/commit/2b19aecd0e9111b774fad0fad9862e50bcb5bc8a) | 21,703 | 681,078 | 138 s |
 
-◎ Watch list
-  file                                              why                                             
-  ──────────────────────────────────────────────────────────────────────────────────────────────────
-  packages/react-server/src/ReactFlightServer.js    changed 319 times · fixed once in six months ·  
-                                                    visitAsyncNodeImpl() complexity 46              
-  packages/react-server/src/ReactFizzServer.js      changed 297 times · fixed twice in six months · 
-                                                    retryNode() complexity 41                       
-  packages/react-reconciler/src/ReactFiberWorkLoo   changed 312 times · fixed 4 times in six months 
-  p.js                                              · flushSpawnedWork() complexity 48              
-  packages/react-reconciler/src/ReactFiberCommitW   changed 284 times · fixed 28 times ·            
-  ork.js                                            commitLayoutEffectOnFiber() complexity 72       
-  packages/react-reconciler/src/ReactFiberBeginWo   changed 361 times · fixed once in six months ·  
-  rk.js                                             beginWork() complexity 52                       
-  ranked by revisions × lines of code alone; the reasons say what to look at there                  
-  6 months ago this list would have named 11 of the 46 files fixed since (a random 15 of the 1802   
-  files that had changed more than once would name 0.3; the 15 most changed would name 7)           
-```
-
-The watch list is the point: the five source files most likely to need a fix
-next, the reasons in words, and a backtest that says how the same list, drawn
-six months earlier, would have done against the fixes that followed. The list
-ranks by revisions × lines of code: measured at six cut-offs on three
-repositories
-([validation](https://github.com/antvinni/gitmole/blob/main/docs/validation.md)),
-that named more of the files fixed next than churn alone, size alone or a
-weighted product of fixes, complexity and ownership. Between the header and that
-list the full report puts its findings, 16 for react (1 critical, 6 warnings, 9
-notes); below it, tables for people, the knowledge map, the timeline, change
-coupling, complex functions and repo health; `--full` adds the hotspots table
-behind the list, size, activity and code age. Every section is explained in
-[docs/output.md](https://github.com/antvinni/gitmole/blob/main/docs/output.md).
-
-Reports on repositories you know, each at a pinned commit with a fixed
-reference date, published as gitmole wrote them; the repo-health numbers
-come from git-sizer over the whole clone, so a fresh clone can differ there:
-
-| Repository | Commits | Lines | Watch list backtest |
-|---|---:|---:|---|
-| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | 39,758 | 247,179 | named 15 of the 238 files fixed in the next six months; a random pick would name 4.9, the 15 most changed 15 |
-| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | 34,933 | 431,749 | named 15 of the 213 files fixed in the next six months; a random pick would name 3.1, the 15 most changed 13 |
-| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | 21,703 | 681,078 | named 11 of the 46 files fixed in the next six months; a random pick would name 0.3, the 15 most changed 7 |
+Run times are one `gitmole CLONE` with every default step, on a MacBook Pro (M4, 16 GB).
 
 ## The tool set
 

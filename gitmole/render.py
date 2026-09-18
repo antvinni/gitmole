@@ -13,7 +13,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import coupling, filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
+from . import classify, coupling, filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -41,7 +41,7 @@ MONTH_WIDTH, INDENT, FLOOR, NAME_FLOOR = 6, 2, 3, 8
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
            "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
-           "Change risk": "◈"}
+           "Change risk": "◈", "Since last report": "⇄"}
 # the one column to read first in each table; the rest are dimmed
 KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "revs", "Change coupling": "degree",
               "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
@@ -57,7 +57,8 @@ PATH = {"overflow": "fold", "no_wrap": False}
 CAPS = {"People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
 TREND_TOP = 10   # the trend step's own --top default: only those files have samples
-WATCH_CAP, WATCH_FULL = 5, 15   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
+WATCH_CAP = 5   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
+WATCH_FULL = watch.WATCH_TOP   # tied to watch's own cap: the --compare before side is sliced by what to_json wrote
 
 
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -114,23 +115,27 @@ def _hide_rows(rows: list, path_of, full, pred, noun: str, plural=None) -> tuple
     return kept, note
 
 
-def _hide_tests(rows: list, path_of, full, noun="test file", plural=None) -> tuple:
+def _hide_by(rows: list, path_of, full, classifier, reasons, noun: str, plural=None) -> tuple:
+    """_hide_rows through the classifier: a row goes when any of its path's reasons is one the table hides."""
+    return _hide_rows(rows, path_of, full, lambda p: classifier.excluded(p, reasons), noun, plural)
+
+
+def _hide_tests(rows: list, path_of, full, noun="test file", plural=None, classifier=None) -> tuple:
     """Test files: they change with every fix, so they are not a signal on their own."""
-    return _hide_rows(rows, path_of, full, filetypes.is_test_path, noun, plural)
+    return _hide_by(rows, path_of, full, classifier or classify.Classifier({}), {"test file"}, noun, plural)
 
 
-def _hide_vendor(rows: list, path_of, full, noun="file in vendored code", plural="files in vendored code", report: dict = None) -> tuple:
-    """Vendored trees, by name or by the licence the run found: somebody else's code, not this repository's risk."""
-    dirs = filetypes.vendor_dirs(report or {})
-    return _hide_rows(rows, path_of, full, lambda p: filetypes.is_vendored(p, dirs), noun, plural)
+def _hide_vendor(rows: list, path_of, full, noun="file in vendored code", plural="files in vendored code", report: dict = None, classifier=None) -> tuple:
+    """Vendored trees, by name, by the licence the run found or by the attribute the repository declares:
+    somebody else's code, not this repository's risk."""
+    return _hide_by(rows, path_of, full, classifier or classify.Classifier(report or {}), {"vendored"}, noun, plural)
 
 
-def _hide_generated(rows: list, path_of, report: dict, full, noun="generated file", plural=None) -> tuple:
+def _hide_generated(rows: list, path_of, report: dict, full, noun="generated file", plural=None, classifier=None) -> tuple:
     """Generated files (a header marker or a linguist-generated attribute, found at run time) and
     amalgamations (other files pasted together, found from the function metrics): the generator's
     churn and complexity, not the repository's."""
-    generated = hotspots.derived(report)
-    return _hide_rows(rows, path_of, full, lambda p: p in generated, noun, plural)
+    return _hide_by(rows, path_of, full, classifier or classify.Classifier(report or {}), {"generated", "amalgamation"}, noun, plural)
 
 
 def _hide_release(pairs: list, full) -> tuple:
@@ -159,24 +164,25 @@ def _join_hidden(*notes) -> str:
     return "; ".join(parts) + HIDDEN_SUFFIX if parts else None
 
 
-def _hide_deleted(rows: list, report: dict, full) -> tuple:
-    """Drop hotspot rows for files no longer in the tree, unless `full` is True or there is no tree
-    listing to judge by: a deleted file's churn is history. Returns (rows, note) like _hide_tests."""
-    tree = (report.get("size") or {}).get("files") or {}
-    if full is True or not tree:
+def _hide_deleted(rows: list, report: dict, full, classifier=None) -> tuple:
+    """Drop hotspot rows for files no longer in the tree, unless `full` is True: a deleted file's churn
+    is history. The classifier judges nothing as gone without a tree listing, so a killed scc hides
+    nothing. Returns (rows, note) like _hide_tests."""
+    if full is True:
         return rows, None
-    kept = [h for h in rows if h["code"] is not None]
+    cls = classifier or classify.Classifier(report or {})
+    kept = [h for h in rows if not cls.excluded(h["entity"], {"not in the tree"})]
     hidden = len(rows) - len(kept)
     return kept, (f"{hidden} deleted file{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
-def _hide_gone(pairs: list, report: dict, full) -> tuple:
+def _hide_gone(pairs: list, report: dict, full, classifier=None) -> tuple:
     """Drop coupled pairs where either file is no longer in the tree, unless `full` is True: they
     describe a layout that no longer exists. Returns (pairs, note) like _hide_tests."""
-    tree = (report.get("size") or {}).get("files") or {}
-    if full is True or not tree:
+    if full is True:
         return pairs, None
-    kept = [p for p in pairs if p["entity"] in tree and p["coupled"] in tree]
+    cls = classifier or classify.Classifier(report or {})
+    kept = [p for p in pairs if not (cls.excluded(p["entity"], {"not in the tree"}) or cls.excluded(p["coupled"], {"not in the tree"}))]
     hidden = len(pairs) - len(kept)
     return kept, (f"{hidden} historical pair{'s' if hidden != 1 else ''} hidden; --full shows them" if hidden else None)
 
@@ -237,6 +243,8 @@ def summary(report: dict) -> dict:
         "languages": [l["name"] for l in report["size"]["languages"][:4]],
         "since": m.get("since"),
         "pulse": pulse(report),
+        "coverage": m.get("coverage") or {},
+        "commit": (m.get("run") or {}).get("commit"),
     }
 
 
@@ -447,12 +455,12 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
+    cls = classify.Classifier(report)
     scored = hotspots.ranked(report)
-    scored, hidden_note = _hide_tests(scored, lambda h: h["entity"], full)
-    scored, deleted_note = _hide_deleted(scored, report, full)
-    scored, generated_note = _hide_generated(scored, lambda h: h["entity"], report, full)
-    plumb = filetypes.plumbing_paths(report)
-    scored, release_note = _hide_rows(scored, lambda h: h["entity"], full, lambda p: filetypes.is_release(p, plumb), "release file")
+    scored, hidden_note = _hide_tests(scored, lambda h: h["entity"], full, classifier=cls)
+    scored, deleted_note = _hide_deleted(scored, report, full, classifier=cls)
+    scored, generated_note = _hide_generated(scored, lambda h: h["entity"], report, full, classifier=cls)
+    scored, release_note = _hide_by(scored, lambda h: h["entity"], full, cls, {"release file"}, "release file")
     hidden_note = _join_hidden(hidden_note, deleted_note, generated_note, release_note)
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
@@ -481,13 +489,14 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
 
 
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:
+    cls = classify.Classifier(report)
     pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))
-    pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair")
-    pairs, gone_note = _hide_gone(pairs, report, full)
+    pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair", classifier=cls)
+    pairs, gone_note = _hide_gone(pairs, report, full, classifier=cls)
     pairs, release_note = _hide_release(pairs, full)
     pairs, header_note = _hide_header_pairs(pairs, full)
-    pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs", report=report)
-    pairs, generated_note = _hide_generated(pairs, lambda p: (p["entity"], p["coupled"]), report, full, noun="generated pair", plural="generated pairs")
+    pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs", report=report, classifier=cls)
+    pairs, generated_note = _hide_generated(pairs, lambda p: (p["entity"], p["coupled"]), report, full, noun="generated pair", plural="generated pairs", classifier=cls)
     gone_note = _join_hidden(gone_note, release_note, header_note, vendor_note, generated_note)
     groups, cluster_note = [], None
     if full is not True:
@@ -551,12 +560,13 @@ CCN_FLOOR = 10  # lizard's own "complex" threshold; below it a function is not w
 
 def functions_section(report: dict, full: bool = True, width=None) -> dict:
     """Functions at or over the complexity floor, worst first, from lizard when it is installed."""
+    cls = classify.Classifier(report)
     measured = report.get("functions") or []
     funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
-    funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full, noun="function in a test file", plural="functions in test files")
-    funcs, vendor_note = _hide_vendor(funcs, lambda f: f["file"], full, noun="function in vendored code", plural="functions in vendored code", report=report)
-    funcs, sample_note = _hide_rows(funcs, lambda f: f["file"], full, filetypes.is_sample_path, "function in example code", "functions in example code")
-    funcs, generated_note = _hide_generated(funcs, lambda f: f["file"], report, full, noun="function in a generated file", plural="functions in generated files")
+    funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full, noun="function in a test file", plural="functions in test files", classifier=cls)
+    funcs, vendor_note = _hide_vendor(funcs, lambda f: f["file"], full, noun="function in vendored code", plural="functions in vendored code", report=report, classifier=cls)
+    funcs, sample_note = _hide_by(funcs, lambda f: f["file"], full, cls, {"example code"}, "function in example code", "functions in example code")
+    funcs, generated_note = _hide_generated(funcs, lambda f: f["file"], report, full, noun="function in a generated file", plural="functions in generated files", classifier=cls)
     hidden_note = _join_hidden(hidden_note, vendor_note, sample_note, generated_note)
     limit = _limit("Complex functions", full)
     shown = funcs[:limit]
@@ -629,6 +639,30 @@ def health_section(report: dict, full: bool = True, width=None) -> dict:
                     note=None if rows else "nothing flagged")
 
 
+def _tally_words(counts: dict) -> str:
+    return textfmt.tally([{"severity": s} for s, n in counts.items() for _ in range(n)])
+
+
+def compare_section(result: dict) -> dict:
+    """Since last report: the findings that are new, resolved or persisting (with the severity they had),
+    and the files that entered or left the watch list."""
+    rows = [("new", f"{f['severity']} · {f['title']}") for f in result["new"]]
+    rows += [("resolved", f"{f['severity']} · {f['title']}") for f in result["resolved"]]
+    rows += [("persisting", (f"{f['was']} → {f['severity']}" if f["was"] != f["severity"] else f["severity"]) + f" · {f['title']}") for f in result["persisting"]]
+    rows += [("entered the watch list", p) for p in result["watch_entered"]] + [("left the watch list", p) for p in result["watch_left"]]
+    before = result["before"]
+    against = f"against {before['commit'][:8]}" if before.get("commit") else "against an export without a run manifest"
+    lines = []
+    if before.get("options_differ"):
+        lines.append(f"options differ: {', '.join(before['options_differ'])}; the changes partly reflect them")
+    lines.append(f"{against}, {before.get('date') or '?'} · {_tally_words(result['tally']['before'])} → {_tally_words(result['tally']['after'])}")
+    columns = [("change", {}), ("what", {"overflow": "fold", "ratio": 3})]
+    # an empty section prints heading + note and drops the caption (section_block, _md_section), so when
+    # there is nothing to show, the caption's own lines fold into the note instead of vanishing with it
+    note = None if rows else "; ".join(["nothing changed"] + lines)
+    return _section("Since last report", columns, rows, note=note, caption="\n".join(lines))
+
+
 BUILDERS = [watch_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
             hotspots_section, coupling_section, age_section, functions_section, health_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
@@ -688,6 +722,18 @@ def dependencies_pass(report: dict):
     return "No known vulnerabilities in dependencies", detail
 
 
+def run_line(report: dict):
+    """'gitmole 0.10.0 · git 2.55.0 · scc 4.1.0 · … · --ignore-data': what produced the report, from the run
+    manifest; None for an output directory written before it existed. A tool without a version is left out."""
+    manifest = (report.get("meta") or {}).get("run")
+    if not manifest:
+        return None
+    parts = [f"gitmole {manifest.get('gitmole', '?')}"] + [f"{n} {v}" for n, v in (manifest.get("tools") or {}).items() if v]
+    opts = manifest.get("options") or {}
+    flags = [f"--ignore {g}" for g in opts.get("ignore") or []] + (["--ignore-data"] if opts.get("ignore_data") else []) + (["--deep"] if opts.get("deep") else [])
+    return " · ".join(parts + ([" ".join(flags)] if flags else []))
+
+
 def checks_passed(report: dict) -> list:
     """The checks that ran and passed, secrets first: said out loud rather than left to silence."""
     return [p for p in (secrets_pass(report), dependencies_pass(report)) if p]
@@ -716,15 +762,18 @@ def dependencies_line(report: dict):
 
 # --- rich ------------------------------------------------------------------
 
-def header(report: dict, findings: list = ()) -> Panel:
+def header(report: dict, findings: list = (), full: bool = False) -> Panel:
     s = summary(report)
     body = Text()
     body.append(f"{s['commits']} commits", style="bold")
     body.append(f"  ·  {s['first_date']} → {s['last_date']}")
     if s["since"]:
         body.append(f"  ·  since {s['since']}", style="yellow")
-    body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}  ·  branch {s['branch']}\n")
+    body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}"
+                f"  ·  branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "\n")
     body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}\n")
+    if full and s["coverage"]:
+        body.append(classify.coverage_line(s["coverage"]) + "\n", style="dim")
     if s["pulse"]:
         body.append("  ·  ".join(s["pulse"]) + "\n", style="dim")
     tally = textfmt.tally(list(findings))
@@ -838,9 +887,11 @@ def _partners(secs: list) -> dict:
     return out
 
 
-def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None) -> None:
-    console.print(header(report, findings))
+def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> None:
+    console.print(header(report, findings, full=full))
     console.print(findings_panel(findings, report))
+    if compare is not None:
+        print_section(console, compare_section(compare))
     secs = sections(report, full=full, width=console.width)
     by_id = {s["id"]: s for s in secs}
     partners = _partners(secs) if console.width >= SIDE_BY_SIDE_MIN_WIDTH else {}
@@ -865,6 +916,8 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
     deps_line = dependencies_line(report)
     if deps_line:
         console.print(Text(deps_line[0], style=deps_line[1]))
+    if full and (line := run_line(report)):
+        console.print(Text(line, style="dim"), soft_wrap=True)
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
 
 
@@ -892,34 +945,47 @@ def _md_findings(findings: list, report: dict = None) -> list:
     return out
 
 
-def markdown(report: dict, findings: list, full: bool = False, risk: dict = None, base: str = None) -> str:
+def _md_section(sec: dict) -> list:
+    """A section's Markdown: the heading, then its table (or note), then its caption."""
+    out = ["", f"## {sec['title']}", ""]
+    if not sec["rows"]:
+        out.append(f"_{sec['note'] or 'nothing'}_")
+        return out
+    out.append("| " + " | ".join(sec["columns"]) + " |")
+    out.append("| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]) + " |")
+    out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sec["rows"]]
+    if sec.get("caption"):
+        out += ["", f"_{sec['caption']}_"]
+    return out
+
+
+def markdown(report: dict, findings: list, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> str:
     s = summary(report)
     out = [f"# {s['name']}", "",
-           f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "") + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
-           f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["pulse"] else ""),
+           f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
+           + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}"
+           + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "  ",
+           f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["coverage"] or s["pulse"] else ""),
+           *([classify.coverage_line(s["coverage"]) + ("  " if s["pulse"] else "")] if s["coverage"] else []),
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
            "## Findings", ""]
     out += _md_findings(findings, report)
+    if compare is not None:
+        out += _md_section(compare_section(compare))
     secs = sections(report, full=True if full else "markdown")
     if risk is not None:
         after = next((i for i, sec in enumerate(secs) if sec["id"] == "watch"), len(secs) - 1)
         secs = secs[:after + 1] + [risk_section(risk, base, full=True if full else "markdown")] + secs[after + 1:]
     for sec in secs:
-        out += ["", f"## {sec['title']}", ""]
-        if not sec["rows"]:
-            out.append(f"_{sec['note'] or 'nothing'}_")
-            continue
-        out.append("| " + " | ".join(sec["columns"]) + " |")
-        out.append("| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]) + " |")
-        out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sec["rows"]]
-        if sec.get("caption"):
-            out += ["", f"_{sec['caption']}_"]
+        out += _md_section(sec)
     deps_line = dependencies_line(report)
-    out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "", f"Full results and plots in {report['out_dir']}", ""]
+    rl = run_line(report)
+    out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "",
+            *([rl + "  "] if rl else []), f"Full results and plots in {report['out_dir']}", ""]
     return "\n".join(out)
 
 
-def to_json(report: dict, findings: list, risk: dict = None) -> dict:
+def to_json(report: dict, findings: list, risk: dict = None, compare: dict = None) -> dict:
     out = {**{k: v for k, v in report.items() if k != "backtest"}, "findings": findings,   # the sub-report is a report of its own
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
@@ -928,6 +994,8 @@ def to_json(report: dict, findings: list, risk: dict = None) -> dict:
         out["watch_backtest"] = bt
     if risk is not None:
         out["change_risk"] = risk
+    if compare is not None:
+        out["compare"] = compare
     return out
 
 

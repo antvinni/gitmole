@@ -73,6 +73,18 @@ def secrets_found(report: dict) -> list:
     return out
 
 
+def credential_files(report: dict) -> list:
+    """Tracked files whose name says they hold a login (.env.production, .netrc, id_rsa): a finding by the
+    name alone, whatever betterleaks made of the contents. The run lists them in meta.json."""
+    paths = (report.get("meta") or {}).get("credential_files") or []
+    if not paths:
+        return []
+    shown = ", ".join(paths[:5]) + (f" and {len(paths) - 5} more" if len(paths) > 5 else "")
+    return [_f("warning", "Credential-shaped files tracked", f"{_plural(len(paths), 'credential-shaped file')} tracked: {shown}.",
+               "Move the values to the environment, git rm the files and add them to .gitignore; a template belongs in .env.example.",
+               rule={"id": "credential_files", "by": "file name"}, evidence={"count": len(paths), "files": paths[:10]})]
+
+
 def _all_identities(report: dict):
     """Every identity row plus its aliases, flattened."""
     for i in report["meta"].get("identities") or []:
@@ -624,8 +636,8 @@ def vulnerable_dependencies(report: dict) -> list:
     return out
 
 
-RULES = [dormant, secrets_found, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets, reverts, brain_methods,
-         complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss]
+RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets,
+         reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss]
 
 
 def evaluate(report: dict) -> list:

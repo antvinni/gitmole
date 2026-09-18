@@ -18,11 +18,17 @@ def history_repo(d):
     git("init", "-q", date="2025-01-01")
     with open(os.path.join(d, "calm.py"), "w") as fh: fh.write("x = 1\n")
     with open(os.path.join(d, "hot.py"), "w") as fh: fh.write("def f():\n    return 1\n")
+    os.makedirs(os.path.join(d, "gen"), exist_ok=True)
+    with open(os.path.join(d, "gen", "out.py"), "w") as fh: fh.write("# @generated\nx = 1\n")
+    os.makedirs(os.path.join(d, "vend"), exist_ok=True)
+    with open(os.path.join(d, "vend", "lib.py"), "w") as fh: fh.write("x = 1\n")
+    with open(os.path.join(d, ".gitattributes"), "w") as fh: fh.write("vend/** linguist-vendored\n")
     git("add", "-A", date="2025-01-01"); git("commit", "-q", "-m", "start", date="2025-01-01")
     for i, date in enumerate(["2025-02-01", "2025-04-01", "2025-06-01", "2025-08-01", "2025-10-01"], start=2):
         with open(os.path.join(d, "hot.py"), "a") as fh: fh.write(f"def f{i}():\n    return {i}\n")
         git("commit", "-q", "-am", f"grow {i}", date=date)
     with open(os.path.join(d, "hot.py"), "a") as fh: fh.write("# fixed\n")
+    os.remove(os.path.join(d, "gen", "out.py"))   # gone by HEAD; still there at the cut-off
     git("commit", "-q", "-am", "fix: crash in hot", date="2026-04-01")
     with open(os.path.join(d, "calm.py"), "a") as fh: fh.write("y = 2\n")
     git("commit", "-q", "-am", "tweak calm", date="2026-06-01")
@@ -55,11 +61,14 @@ class Step(unittest.TestCase):
                 meta = json.load(fh)
             listing = sorted(os.listdir(out))
         self.assertEqual(listing, ["backtest", "log.txt", "meta.json"], "the exported tree is cleaned up")
-        self.assertEqual(revs, {"hot.py": "6", "calm.py": "1"}, "the fix and the tweak are after the cut-off")
-        self.assertEqual(sorted(f["Location"] for r in size for f in r["Files"]), ["calm.py", "hot.py"])
+        self.assertEqual(revs, {"hot.py": "6", "calm.py": "1", "gen/out.py": "1", "vend/lib.py": "1"},
+                         "the fix and the tweak are after the cut-off; gen/out.py and vend/lib.py were only added, not yet touched again")
+        self.assertEqual(sorted(f["Location"] for r in size for f in r["Files"]), ["calm.py", "gen/out.py", "hot.py", "vend/lib.py"])
         hot = next(f for r in size for f in r["Files"] if f["Location"] == "hot.py")
         self.assertEqual(hot["Code"], 12, "hot.py as it was on 2025-10-01: six two-line functions")
-        self.assertEqual(meta, {"now": "2025-12-01", "last_date": "2025-12-01", "file_types": None, "aliases": {}})
+        self.assertEqual(meta, {"now": "2025-12-01", "last_date": "2025-12-01", "file_types": None, "aliases": {},
+                                "generated": ["gen/out.py"], "vendored": ["vend/lib.py"]},
+                         "classified at the cut-off: gen/out.py was still there, and the attribute is read from that tree's .gitattributes")
 
     def test_export_ignored_files_are_still_measured(self):
         with tempfile.TemporaryDirectory() as d:
@@ -92,10 +101,31 @@ class Step(unittest.TestCase):
             export(d, out)
             boom = subprocess.CalledProcessError(128, ["git", "read-tree"], stderr="fatal: not a tree object\nsecond line\n")
             err = io.StringIO()
-            with patch.object(backtest, "size_at", side_effect=boom), contextlib.redirect_stderr(err):
+            with patch.object(backtest, "snapshot_at", side_effect=boom), contextlib.redirect_stderr(err):
                 rc = backtest.main([out, "--until", "2025-12-01", "--repo", d])
         self.assertEqual(rc, 2)
         self.assertEqual(err.getvalue(), "backtest: fatal: not a tree object\n")
+
+    def test_a_failing_git_grep_fails_the_snapshot_instead_of_claiming_an_empty_classification(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as d:
+            history_repo(d)
+            out = os.path.join(d, "out")
+            os.makedirs(out)
+            real_run = subprocess.run
+
+            def fake_run(cmd, *a, **kw):
+                # only the git grep call fails; read-tree, checkout-index and scc run for real, so a
+                # failure in the classification listing itself is what this test pins down
+                if "grep" in cmd:
+                    return subprocess.CompletedProcess(cmd, 2, stdout=b"", stderr=b"fatal: boom\n")
+                return real_run(cmd, *a, **kw)
+
+            with patch("gitmole.backtest.subprocess.run", side_effect=fake_run):
+                with self.assertRaises(subprocess.CalledProcessError) as ctx:
+                    backtest.snapshot_at(d, "HEAD", out)
+        self.assertEqual(ctx.exception.returncode, 2, "a real git grep failure (not exit 1, which just means no matches) must surface")
+        self.assertEqual(ctx.exception.stderr, "fatal: boom\n", "decoded so main() prints a string, not a bytes repr")
 
     def test_missing_inputs_exit_2(self):
         import contextlib
