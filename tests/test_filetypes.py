@@ -252,3 +252,34 @@ class TestPaths(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HeaderVendoring(unittest.TestCase):
+    def test_a_directory_whose_file_headers_name_somebody_else(self):
+        with tempfile.TemporaryDirectory() as d:
+            apache_root = 'Apache License\nVersion 2.0\n(c) You must retain, in the Source form of any Derivative Works\nCopyright [yyyy] [name of copyright owner]\n'
+            files = {"LICENSE": apache_root,
+                     "src/py/LICENSE": 'Licensed under the Apache License, Version 2.0 (the "License");\n',   # our own package's notice, naming nobody
+                     "src/py/agent.py": "x = 1\n",
+                     "lib/lz/a.c": "/*\nCopyright (c) 2015-2016, Apple Inc. All rights reserved.\n*/\nint a;\n",
+                     "lib/lz/b.c": "/*\nCopyright (c) 2015-2016, Apple Inc. All rights reserved.\n*/\nint b;\n",
+                     "lib/lz/c.h": "/*\nCopyright (c) 2015-2016, Apple Inc.\n*/\n",
+                     "tools/x.py": "# Copyright (C) 2019 Ann Author\nx = 1\n",
+                     "tools/y.py": "# Copyright (C) 2020 Ann Author\ny = 1\n",
+                     **{f"core/m{i}.c": "int m;\n" for i in range(30)}}
+            git_repo(d, files)
+            env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="Ann Author", GIT_AUTHOR_EMAIL="ann@x",
+                       GIT_COMMITTER_NAME="Ann Author", GIT_COMMITTER_EMAIL="ann@x")
+            subprocess.run(["git", "commit", "-q", "-m", "start"], cwd=d, check=True, env=env)
+            found = filetypes.vendored_paths(d, sorted(files))
+        self.assertEqual(found, ["lib/lz/"], "a root template names nobody, so the unnamed package licence is not a stranger's; "
+                                             "Ann Author commits here, so her headers are ours")
+
+
+class DocsAndExercises(unittest.TestCase):
+    def test_a_projectdocs_directory_and_exercise_files(self):
+        self.assertTrue(filetypes.is_doc_path("GhidraDocs/GhidraClass/Intro.html"))
+        self.assertTrue(filetypes.is_sample_path("GhidraDocs/GhidraClass/ExerciseFiles/Advanced/animals"))
+        self.assertTrue(filetypes.is_sample_path("course/exercises/1/a.py"))
+        self.assertFalse(filetypes.is_doc_path("src/Docsify/a.js"))
+        self.assertFalse(filetypes.is_sample_path("GPL/DMG/data/os/win_x86_32/llio_amd64.dll"))

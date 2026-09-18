@@ -102,6 +102,12 @@ dart ex exs lua r jl zig nim cr ml hs sql proto sinc slaspec
 _MASKED = re.compile(r"^[^:\s]+:(x{3,}|\*{3,}|<[^<>]+>|\.{3,})$", re.I)   # user:XXXXXX, user:****, user:<password>
 _FILE_REF = re.compile(r"\.(png|jpe?g|gif|svg|ico|icns|bmp|webp|pdf|html?|css|md|txt|xml|properties)\b", re.I)
 _LABEL = re.compile(r"^[A-Za-z_]*(pass(word|wd|phrase)|secret|token)[A-Za-z_]*$", re.I)   # resetpassword, password_missing: a name, not a value
+
+
+def _is_label(value: str) -> bool:
+    """A name built on the keyword, in one case as names are written (resetpassword, CURLOPT_PASSWD,
+    password_missing); a mixed-case word such as MyCompanySecret is more likely a chosen password."""
+    return bool(_LABEL.match(value)) and (value == value.lower() or value == value.upper())
 _HEADER_WRITTEN = re.compile(r"^-----BEGIN[ A-Z]*KEY-----(?:\\n)?[\"'`]")   # print("-----BEGIN ... KEY-----\n"): code writing a PEM file
 _UUID = re.compile(r"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b")
 
@@ -129,7 +135,7 @@ def is_placeholder(value: str, line: str = "", path: str = "") -> bool:
     sat on (with two above), read from the clone at scan time and never written; `path` is the file,
     which with the line says whether the value was a quoted literal."""
     value = (value or "").strip()
-    if _HEADER_WRITTEN.match(value) or _MASKED.match(value) or (_FILE_REF.search(value) and not any(ch.isspace() for ch in value)) or _LABEL.match(value):
+    if _HEADER_WRITTEN.match(value) or _MASKED.match(value) or (_FILE_REF.search(value) and not any(ch.isspace() for ch in value)) or _is_label(value):
         return True
     if _unquoted(value, line or "", path or ""):
         return True

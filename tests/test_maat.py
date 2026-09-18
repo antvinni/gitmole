@@ -717,3 +717,10 @@ class ComponentPairs(unittest.TestCase):
         pairs = {(r["entity"], r["coupled"]) for r in maat.components(commits)}
         self.assertNotIn(("gradle/", "gradle/root/"), pairs)
         self.assertIn(("app/", "gradle/root/"), pairs)
+
+
+class ClausesAfterAnd(unittest.TestCase):
+    def test_a_one_word_part_after_and_joins_nouns_not_changes(self):
+        self.assertEqual(maat.clauses("GP-1005: Added new agent for lldb on macOS and Linux"), 1)
+        self.assertEqual(maat.clauses("Fix parser and update docs"), 2)
+        self.assertEqual(maat.clauses("Delete Deprecated plugins, GADP"), 2, "a comma still separates")

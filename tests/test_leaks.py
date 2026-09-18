@@ -364,6 +364,8 @@ class PlaceholderShapes(unittest.TestCase):
         self.assertTrue(leaks.is_placeholder("changeme"))
         self.assertTrue(leaks.is_placeholder('-----BEGIN PRIVATE KEY-----");\n\t\twriter.println();'))
         self.assertFalse(leaks.is_placeholder("P4ssw0rd!x9Q"))
+        self.assertTrue(leaks.is_placeholder("CURLOPT_PASSWD"))
+        self.assertFalse(leaks.is_placeholder("MyCompanySecret"), "mixed case reads as a chosen password, not a name")
 
     def test_a_guid_in_a_table_of_guids_is_an_interface_id(self):
         table = "EAAAC2D5-C290-11D1-905D-00C04FD9189D IDXA\nEAAAC2D6-C290-11D1-905D-00C04FD9189D IDXB\nEAAAC2D7-C290-11D1-905D-00C04FD9189D IDXC"

@@ -1517,3 +1517,15 @@ class ChangedLines(unittest.TestCase):
         self.assertEqual([r[0] for r in sec["rows"][2:]], ["marked commits, both years", "the rest, both years"])
         self.assertIn("lines", render.FULL_ONLY)
         self.assertIn("touched a file on the watch list's top 15 50% against 25%", render.trailers_section(rep)["caption"] or render.trailers_section(rep)["note"] or "")
+
+
+class PeopleMerges(unittest.TestCase):
+    def test_merges_are_counted_apart_and_left_out_of_the_share(self):
+        rep = {"meta": {"identities": [{"name": "Rya", "email": "r@x", "commits": 70, "merges": 60},
+                                       {"name": "Dee", "email": "d@x", "commits": 30}]}}
+        sec = render.people_section(rep)
+        self.assertEqual([c for c in sec["columns"]], ["author", "email", "commits", "merges", "share", "surviving code"])
+        self.assertEqual(sec["rows"][0][:5], ["Dee", "d@x", "30", "0", "75%"], "Dee wrote three quarters of the non-merge commits")
+        self.assertIn("leave out merges", sec["caption"])
+        plain = render.people_section({"meta": {"identities": [{"name": "Dee", "email": "d@x", "commits": 30}]}})
+        self.assertNotIn("merges", plain["columns"])
