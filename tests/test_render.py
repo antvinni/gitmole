@@ -257,6 +257,32 @@ class Report(unittest.TestCase):
         self.assertEqual(short, " · ".join(many[:6]) + " · 3 more")
         self.assertEqual(full, " · ".join(many))
 
+    def test_the_duplication_direction_is_a_header_phrase(self):
+        r = sample_report()
+        r["duplicates"] = {"rate": 6.1, "blocks": [], "then": {"date": "2025-09-10", "rate": 4.2, "files": 30}}
+        self.assertIn("6.1% of lines duplicated, up from 4.2% a year before", render.pulse(r))
+        r["duplicates"]["then"]["rate"] = 6.1
+        self.assertIn("6.1% of lines duplicated, as a year before", render.pulse(r))
+        del r["duplicates"]["then"]
+        self.assertFalse([x for x in render.pulse(r) if "duplicated" in x])
+
+    def test_provenance_is_a_full_only_section_of_trailers_with_the_cohort_and_shape_below(self):
+        r = sample_report()
+        r["provenance"] = {"trailers": {"commits": 363, "keys": {"Co-authored-by": 40, "Signed-off-by": 12, "Assisted-by": 5}, "with_any": 50,
+                                        "never_author": [{"name": "Helper", "email": "h@x", "commits": 30}], "signoff_by_co_author": []},
+                           "cohort": {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here", "share": 0.096,
+                                      "cohort": {"commits": 35, "reverted": 2, "fixes": 4, "retouched": 20},
+                                      "rest": {"commits": 328, "reverted": 3, "fixes": 60, "retouched": 150}},
+                           "shape": {"burst_share": 0.12, "conventional_share": 0.8, "hours_used": 20}, "agents": {}}
+        self.assertNotIn("Trailers", rendered(r, [], width=200))
+        block = _section_text(rendered(r, [], width=200, full=True), "Trailers")
+        self.assertRegex(block, r"Co-authored-by\s+40\s+11%")
+        caption = render.trailers_section(r)["caption"]
+        self.assertIn("marked commits (an Assisted-by trailer, or a co-author who never authors a commit here): 35, 10% of the history; "
+                      "reverted 6% against 1% for the rest, fixes 11% against 18%, a file changed again within two weeks 57% against 46%", caption)
+        self.assertIn("12% of commits land in bursts of five or more within ten minutes; 80% have conventional-commit subjects; commits come in 20 hours of the day", caption)
+        self.assertIn("## Trailers", render.markdown(r, []))
+
     def test_the_secrets_line_says_what_lay_outside_reachable_history(self):
         r = sample_report()
         r["unreachable"] = {"objects": 0, "blobs": 0, "scanned": 0, "findings": 0}

@@ -369,6 +369,9 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     from . import maat as _maat
     cut = _maat.months_before(meta["last_date"], 6) if meta["last_date"] else None
     first = meta.get("first_date_all") or meta["first_date"]   # the backtest reads the whole history, window or not
+    year = _maat.months_before(meta["last_date"], 12) if meta["last_date"] else None
+    if year and first and first <= year:
+        meta["duplicates"]["then"] = year   # the rate a year back, when the history reaches it
     if cut and first and first <= _maat.months_before(cut, 6):
         meta["backtest"] = {"status": "planned", "until": cut}
     else:
@@ -427,7 +430,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
                     since=args.since_date, lizard=lizard_ok, duplicates=duplicates_ok, backtest=cut, ignore_revs=run.ignore_revs_files(repo_dir),
-                    structure=getattr(args, "structure", False))
+                    structure=getattr(args, "structure", False), duplicates_then=meta["duplicates"].get("then"))
     run.save_meta(meta, out_dir)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
     if _control.cancelled.is_set():

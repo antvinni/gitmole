@@ -226,7 +226,7 @@ class Plan(unittest.TestCase):
     def test_lists_every_tool_and_theseus_plots_depend_on_analyze(self):
         steps = run.plan("/r", "/o")
         names = [s["name"] for s in steps]
-        for expected in ["scc", "git-sizer", "betterleaks", "git-log", "change analysis", "code age", "signing", "hygiene"]:
+        for expected in ["scc", "git-sizer", "betterleaks", "git-log", "change analysis", "code age", "signing", "hygiene", "provenance"]:
             self.assertIn(expected, names)
         self.assertEqual(by_name(steps)["signing"]["argv"][1:], ["-m", "gitmole.signing", "/o"], "commit signing coverage, read from the objects, no keyring")
         self.assertEqual(by_name(steps)["signing"]["deps"], [], "it reads meta.json for the bot names, written before the steps start")
@@ -249,6 +249,14 @@ class Plan(unittest.TestCase):
         self.assertIn("-M", by["git-log"]["argv"], "renames are followed so a move to src/ credits nobody with the moved lines")
         self.assertNotIn("--no-renames", by["git-log"]["argv"])
         self.assertEqual(by["git-log"]["argv"][:4], ["git", "-c", "core.quotePath=false", "log"], "non-ASCII paths must not be octal-escaped and quoted")
+
+    def test_provenance_runs_as_a_module_and_duplicates_measure_a_year_back(self):
+        steps = by_name(run.plan("/r", "/o", duplicates_then="2025-09-17"))
+        self.assertEqual(steps["provenance"]["argv"][1:], ["-m", "gitmole.provenance", "/o"])
+        argv = steps["duplicates"]["argv"]
+        self.assertEqual(argv[argv.index("--then") + 1], "2025-09-17")
+        self.assertNotIn("--then", by_name(run.plan("/r", "/o"))["duplicates"]["argv"])
+        self.assertIn("provenance.json", run.OUTPUTS)
 
     def test_the_structure_step_is_optional_and_runs_the_module(self):
         self.assertNotIn("structure", by_name(run.plan("/r", "/o")))

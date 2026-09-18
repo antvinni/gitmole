@@ -289,6 +289,12 @@ def pulse(report: dict) -> list:
     signed = signing_phrase(report)
     if signed:
         out.append(signed)
+    dup = report.get("duplicates") or {}
+    then = dup.get("then") or {}
+    if dup.get("rate") is not None and then.get("rate") is not None and max(dup["rate"], then["rate"]) >= 0.5:
+        now, before = dup["rate"], then["rate"]
+        way = "as a year before" if round(now, 1) == round(before, 1) else f"{'up' if now > before else 'down'} from {before:.1f}% a year before"
+        out.append(f"{now:.1f}% of lines duplicated, {way}")
     return out
 
 
@@ -517,6 +523,27 @@ def signing_section(report: dict, full: bool = True, width=None) -> dict:
     return _section("Signing by year", columns, rows, caption="; ".join(parts))
 
 
+def trailers_section(report: dict, full: bool = True, width=None) -> dict:
+    """The trailer keys the history carries, with the cohort comparison and the neutral commit-shape
+    descriptors below: --full and Markdown only. Read, never inferred; nothing is labelled."""
+    prov = report.get("provenance") or {}
+    tr, co, sh = prov.get("trailers") or {}, prov.get("cohort") or {}, prov.get("shape") or {}
+    columns = [("trailer", {}), ("commits", RIGHT), ("share", RIGHT)]
+    total = tr.get("commits") or 0
+    rows = [(k, n, _pct(n, total)) for k, n in (tr.get("keys") or {}).items()]
+    notes = []
+    marked, rest = co.get("cohort") or {}, co.get("rest") or {}
+    if marked.get("commits"):
+        def pair(key):
+            return f"{_pct(marked.get(key, 0), marked['commits'])} against {_pct(rest.get(key, 0), rest.get('commits') or 0)}"
+        notes.append(f"marked commits ({co.get('definition')}): {marked['commits']:,}, {round(100 * co.get('share', 0))}% of the history; "
+                     f"reverted {pair('reverted')} for the rest, fixes {pair('fixes')}, a file changed again within two weeks {pair('retouched')}")
+    if sh:
+        notes.append(f"{round(100 * sh.get('burst_share', 0))}% of commits land in bursts of five or more within ten minutes; "
+                     f"{round(100 * sh.get('conventional_share', 0))}% have conventional-commit subjects; commits come in {sh.get('hours_used', 0)} hours of the day")
+    return _section("Trailers", columns, rows, note=None if rows else "no trailers", caption="\n".join(notes) or None)
+
+
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     """Change frequency times size, Tornhill-style. Files no longer in the tree sort last. Drawn
     under `--full` and in the Markdown export only; the default terminal report leaves it to the
@@ -740,10 +767,10 @@ def compare_section(result: dict) -> dict:
 
 
 BUILDERS = [watch_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
-            hotspots_section, coupling_section, signing_section, age_section, functions_section, health_section]
+            hotspots_section, coupling_section, signing_section, trailers_section, age_section, functions_section, health_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
 # do next; Hotspots ranks the files the watch list already leads with, by the same product.
-FULL_ONLY = {"size", "activity", "age", "hotspots", "signing"}
+FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers"}
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:

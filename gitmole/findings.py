@@ -1022,9 +1022,76 @@ def unreferenced_files(report: dict) -> list:
                rule={"id": "unreferenced_files", "ref": "Romano et al., TSE 2020"}, evidence={"count": n, "files": paths[:10]})]
 
 
+def _agents(report: dict) -> dict:
+    return ((report.get("provenance") or {}).get("agents")) or {}
+
+
+def agent_approval_disabled(report: dict) -> list:
+    """A committed agent configuration that turns approval prompts off: every clone that picks the
+    settings up runs the agent's tools without asking."""
+    rows = _agents(report).get("approval_disabled") or []
+    if not rows:
+        return []
+    listed = "; ".join(f"{r['file']} sets {r['setting']}" for r in rows)
+    return [_f("warning", "Agent approval prompts turned off in the repository", f"{listed}. Anyone who opens the clone with that agent runs its tools unasked.",
+               "Move the setting to your personal settings file, which is not committed, and keep the shared one to what everyone should get.",
+               rule={"id": "agent_approval_disabled", "by": "tracked agent settings"}, evidence={"settings": rows})]
+
+
+def agent_local_settings(report: dict) -> list:
+    rows = _agents(report).get("local_settings") or []
+    if not rows:
+        return []
+    return [_f("warning", "Personal agent settings tracked", f"{_files_list(rows)} {'is' if len(rows) == 1 else 'are'} tracked; the file is meant for one machine and to stay out of git.",
+               f"git rm --cached {rows[0]} and add it to .gitignore.",
+               rule={"id": "agent_local_settings", "by": "path convention"}, evidence={"files": rows})]
+
+
+def mcp_literal_env(report: dict) -> list:
+    """An MCP server declaration whose environment holds a literal value long enough to be a
+    credential rather than a ${VAR} reference. The key is named, the value never."""
+    rows = [(m["file"], x) for m in _agents(report).get("mcp") or [] for x in m.get("literal_env") or []]
+    if not rows:
+        return []
+    listed = "; ".join(f"{x['server']} sets {x['key']} in {f} to a literal value" for f, x in rows[:5])
+    f0, x0 = rows[0]
+    return [_f("warning", "Literal values in MCP server declarations", f"{listed}. A committed declaration shares whatever it holds.",
+               f"Replace the value of {x0['key']} with ${{{x0['key']}}} and set it in the environment; rotate it if it was a live credential.",
+               rule={"id": "mcp_literal_env", "min_length": 16, "placeholders": "left out"},
+               evidence={"entries": [{"file": f, "server": x["server"], "key": x["key"]} for f, x in rows[:10]]})]
+
+
+def agent_instructions_drift(report: dict, min_months: int = 6, min_commits: int = 100) -> list:
+    """Agent instruction files (AGENTS.md and the like) far behind the code they describe."""
+    last = (report.get("meta") or {}).get("last_date") or ""
+    stale = [r for r in _agents(report).get("instructions") or []
+             if last and _months_apart(r["last"], last) >= min_months and r["commits_behind"] >= min_commits]
+    if not stale:
+        return []
+    listed = "; ".join(f"{r['file']} last changed on {r['last']}, {_months_apart(r['last'], last)} months and {r['commits_behind']:,} commits before the last commit" for r in stale)
+    return [_f("info", "Agent instructions behind the code", f"{listed}.",
+               f"Read {stale[0]['file']} against the tree and update what moved; an agent follows it literally.",
+               rule={"id": "agent_instructions_drift", "min_months": min_months, "min_commits": min_commits},
+               evidence={"files": stale})]
+
+
+def signoff_by_co_author(report: dict, min_commits: int = 2) -> list:
+    """An identity that signs off commits it co-authors but never authors one: the Linux kernel's policy
+    on coding assistants forbids an agent to add Signed-off-by, since the DCO is a human's statement."""
+    rows = [r for r in ((report.get("provenance") or {}).get("trailers") or {}).get("signoff_by_co_author") or [] if r["commits"] >= min_commits]
+    if not rows:
+        return []
+    listed = "; ".join(f"{r['name']} <{r['email']}> signs off {_plural(r['commits'], 'commit')} but never authors one" for r in rows[:3])
+    return [_f("info", "Sign-offs by identities that only co-author", f"{listed}.",
+               "A Signed-off-by line certifies the Developer Certificate of Origin; have a person who authors commits add it.",
+               rule={"id": "signoff_by_co_author", "min_commits": min_commits, "ref": "Linux kernel, Documentation/process/coding-assistants.rst"},
+               evidence={"identities": rows[:10]})]
+
+
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets,
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
-         sweeping_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, unreferenced_files]
+         sweeping_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, unreferenced_files,
+         agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author]
 
 
 def evaluate(report: dict) -> list:

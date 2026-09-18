@@ -103,6 +103,19 @@ class Script(unittest.TestCase):
                              pair("src/a.py", "untracked.py", fragment="def f(x): secret sauce")],
               "statistics": {"total": {"percentage": 50.0}}}
 
+    def test_then_measures_the_tree_as_it_stood_at_a_date_as_well(self):
+        p, argv, cwd, written, leftovers, repo = self._run(self.REPORT, extra=["--then", "2099-01-01"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        then = written["then"]
+        self.assertEqual(then["date"], "2099-01-01")
+        self.assertEqual(len(then["rev"]), 12)
+        self.assertEqual(then["files"], written["files"], "the code files tracked at that commit: here the same as HEAD's")
+        self.assertEqual(then["rate"], written["rate"], "the same tree, the same rate")
+        self.assertEqual(leftovers, ["duplicates.json"], "the exported tree is removed again")
+        p, _, _, written, _, _ = self._run(self.REPORT, extra=["--then", "1990-01-01"])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("then", written, "no commit before that date: nothing to compare")
+
     def test_runs_jscpd_in_the_repo_and_writes_the_folded_blocks_without_the_fragments(self):
         p, argv, cwd, written, leftovers, repo = self._run(self.REPORT, extra=["--ignore", "vendor/**"])
         self.assertEqual(p.returncode, 0, p.stderr)

@@ -218,7 +218,10 @@ gitmole keeps them in check:
 - the duplicates step runs jscpd over the tracked code files, in seconds,
   but jscpd holds every token in memory: about a gigabyte per 25 MB of
   tracked text. Above 80 MB of tracked text the step is skipped with a
-  message that says how much memory it would need; `--deep` forces it. Older
+  message that says how much memory it would need; `--deep` forces it. With a
+  year of history jscpd runs a second time, over the tree as it stood a year
+  before the last commit, exported under the output directory and removed
+  again, so the report can say which way duplication is going. Older
   scripts that pass `--duplicates` still parse; the flag does nothing now;
 - `--ignore-data` excludes data-like files (csv, json, lock files, minified
   and vendored assets) from blame, from the function metrics and from the
