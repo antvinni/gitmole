@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import classify, coupling, filetypes, hotspots, knowledge, leaks, loss, maat, textfmt, trend
+from . import classify, coupling, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, textfmt, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -29,6 +29,8 @@ def _f(severity: str, title: str, statement: str, advice: str, rule: dict, evide
     between them a reader of the JSON can check the finding without reading this file."""
     if rule.get("id") in REFS and "ref" not in rule:
         rule = {**rule, "ref": REFS[rule["id"]]}
+    if rule.get("id") in osps.RULE_CONTROLS and "osps" not in rule:   # the OSPS Baseline controls it gives evidence for
+        rule = {**rule, "osps": list(osps.RULE_CONTROLS[rule["id"]])}
     return {"severity": severity, "title": title, "detail": f"{statement.rstrip()} {advice}", "advice": advice,
             "rule": rule, "evidence": evidence}
 
@@ -698,7 +700,8 @@ def _vuln_statement(rows: list, sources: int) -> str:
         if r.get("malicious"):
             score = ", malicious"
         fixed = f", fixed in {r['fixed']}" if r.get("fixed") else ", no fix yet"
-        return f"{r['name']} {r['version']} ({ref}{score}{fixed}) in {r['source']}"
+        loaded = ", imported by no tracked source" if r.get("imported") is False else ""
+        return f"{r['name']} {r['version']} ({ref}{score}{fixed}{loaded}) in {r['source']}"
     listed = "; ".join(one(r) for r in rows[:3])
     more = f" and {len(rows) - 3} more" if len(rows) > 3 else ""
     return f"{_plural(len(rows), 'vulnerable package')} in {_plural(sources, 'lock file')}: {listed}{more}."
@@ -740,7 +743,8 @@ def vulnerable_dependencies(report: dict) -> list:
                       evidence={"lock_files": sources,
                                 "packages": [{"name": r["name"], "version": r["version"], "source": r["source"], "score": r.get("score"),
                                               "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
-                                              "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious"))} for r in group[:10]]}))
+                                              "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious")),
+                                              "imported": r.get("imported", "unknown")} for r in group[:10]]}))
     return out
 
 
@@ -753,7 +757,8 @@ def hygiene_findings(report: dict) -> list:
     stands in for without the GitHub API. Nothing for an output directory from before the step."""
     h = report.get("hygiene") or {}
     out = []
-    for check in (_hygiene_actions, _hygiene_lockfiles, _hygiene_updates, _hygiene_presence, _hygiene_confusion, _hygiene_install, _hygiene_binaries, _hygiene_submodules, _hygiene_symlinks, _hygiene_trojan):
+    for check in (_hygiene_actions, _hygiene_lockfiles, _hygiene_updates, _hygiene_presence, _hygiene_confusion, _hygiene_install, _hygiene_binaries, _hygiene_submodules, _hygiene_symlinks, _hygiene_trojan,
+                  _hygiene_unused, _hygiene_licence, _hygiene_copyleft):
         check(h, out)
     return out
 
@@ -906,6 +911,59 @@ def _hygiene_trojan(h: dict, out: list) -> None:
                       f"Look at {first['file']}:{first['line']} in a hex view first, and remove the character unless it is in a string that must hold it.",
                       rule={"id": "trojan_source", "cve": "CVE-2021-42574"},
                       evidence={"bidi": (tj.get("bidi") or [])[:10], "mixed_script": (tj.get("mixed_script") or [])[:10]}))
+
+
+def _hygiene_unused(h: dict, out: list) -> None:
+    im = h.get("imports") or {}
+    rows = im.get("unused") or []
+    if not rows:
+        return
+    by_manifest = {}
+    for r in rows:
+        by_manifest.setdefault(r["manifest"], []).append(r["package"])
+    listed = "; ".join(f"{_files_list(v)} in {k}" for k, v in list(by_manifest.items())[:3])
+    n = im.get("count", len(rows))
+    first = rows[0]
+    out.append(_f("info", "Declared dependencies nothing imports",
+                  f"{n} runtime {'dependency is' if n == 1 else 'dependencies are'} declared and never imported by a tracked file, nor named in a script or configuration: {listed}.",
+                  f"Remove {first['package']} from {first['manifest']} if nothing loads it at run time; an unused dependency is still installed, scanned and updated.",
+                  rule={"id": "unused_dependencies", "reads": "package.json dependencies, go.mod direct requirements, Cargo.toml [dependencies]"},
+                  evidence={"count": n, "manifests": im.get("manifests", 0), "unused": rows[:10]}))
+
+
+def _hygiene_licence(h: dict, out: list) -> None:
+    lic = h.get("licences") or {}
+    declared = lic.get("declared") or []
+    if lic.get("approved") is False or lic.get("mismatch"):
+        named = "; ".join(f"{d['source']} declares {d['expression']}" for d in declared)
+        parts = []
+        if lic.get("mismatch"):
+            parts.append(f"{named}, but {lic['files'][0]} is the {lic['file_licence']} text")
+        if lic.get("approved") is False:
+            parts.append(f"the declared licence ({textfmt.join_and([d['expression'] for d in declared] or [lic.get('file_licence') or ''])}) is not OSI- or FSF-approved")
+        out.append(_f("warning" if lic.get("approved") is False else "info", "Project licence as declared", "; ".join(parts) + ".",
+                      "Make the manifests and the licence file name the same licence; a packager reads the manifest, a lawyer the file." if lic.get("mismatch")
+                      else "Say so plainly in the README if the project is source-available rather than open source.",
+                      rule={"id": "project_licence", "reads": "root manifests and the licence file"},
+                      evidence={"declared": declared, "file": (lic.get("files") or [None])[0], "file_licence": lic.get("file_licence"),
+                                "approved": lic.get("approved"), "mismatch": bool(lic.get("mismatch"))}))
+
+
+def _hygiene_copyleft(h: dict, out: list) -> None:
+    lic = h.get("licences") or {}
+    strong = lic.get("strong") or []
+    if not strong or lic.get("project") != licences.PERMISSIVE:
+        return
+    n = lic.get("strong_count", len(strong))
+    listed = _files_list([f"{d['name']} {d['version']} ({d['expression']})" for d in strong])
+    own = textfmt.join_and(sorted({d["expression"] for d in lic.get("declared") or []} | ({lic["file_licence"]} if lic.get("file_licence") else set())))
+    weak = f" {lic['weak_count']} more declare{'s' if lic.get('weak_count') == 1 else ''} weak copyleft (LGPL, MPL, EPL), which a dependency usually may." if lic.get("weak_count") else ""
+    out.append(_f("warning", "Copyleft dependencies in a permissive project",
+                  f"The project declares {own}, and {n} runtime {'dependency' if n == 1 else 'dependencies'} in {textfmt.join_and(sorted({d['lockfile'] for d in strong}))} "
+                  f"{'declares' if n == 1 else 'declare'} a strong copyleft licence: {listed}.{weak} Declared, as the lock file records it, not read from the package's files.",
+                  f"Check whether {strong[0]['name']} is distributed with the project; if it is, its licence terms reach the whole work.",
+                  rule={"id": "copyleft_dependencies", "reads": "package-lock.json and composer.lock licence fields, runtime packages only"},
+                  evidence={"project": own, "count": n, "weak": lic.get("weak_count", 0), "dependencies": lic.get("dependencies", 0), "strong": strong[:10]}))
 
 
 def _aside_path(path: str) -> bool:

@@ -116,7 +116,10 @@ and removes what gitmole left behind, `compare.py` is the difference between
 two reports (the findings new, resolved and persisting, the watch list's
 moves), `hook.py` is the agent-hook gate behind `--hook`, `sarif.py` the SARIF export,
 `signing.py` reads commit signing coverage from the objects, `hygiene.py` the
-repository hygiene checks, `structure.py` the optional tree-sitter pass
+repository hygiene checks, `imports.py` which packages the tracked source
+imports, `licences.py` the declared licences and their SPDX expressions,
+`osps.py` the OSPS Baseline controls and the coverage table, `sbom.py` the
+CycloneDX document behind `--sbom`, `structure.py` the optional tree-sitter pass
 (nesting, cognitive complexity, debt markers, the import graph), `provenance.py`
 trailers, cohorts, commit shape and the agent files, `szz.py` finds
 bug-inducing commits by R-SZZ for the backtest, and `render.py` draws the report.

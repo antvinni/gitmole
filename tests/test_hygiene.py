@@ -96,7 +96,7 @@ class Presence(unittest.TestCase):
             r.write("docs/guide.md", "x\n")
             r.commit()
             out = hygiene.presence(d)
-        self.assertEqual(out, {"license": "LICENSE", "security_policy": None, "codeowners": ".github/CODEOWNERS", "codeowners_missing": ["/gone/"]})
+        self.assertEqual(out, {"license": "LICENSE", "security_policy": None, "contributing": None, "codeowners": ".github/CODEOWNERS", "codeowners_missing": ["/gone/"]})
 
 
 class DependencyConfusion(unittest.TestCase):
@@ -212,7 +212,7 @@ class Step(unittest.TestCase):
             self.assertEqual(p.returncode, 0, p.stderr)
             with open(os.path.join(out, "hygiene.json")) as fh:
                 data = json.load(fh)
-        self.assertEqual(set(data), {"actions", "lockfiles", "updates", "presence", "confusion", "install", "binaries", "submodules", "symlinks", "trojan"})
+        self.assertEqual(set(data), {"actions", "lockfiles", "updates", "presence", "confusion", "install", "binaries", "submodules", "symlinks", "trojan", "licences", "imports"})
         self.assertEqual(data["presence"]["license"], "LICENSE")
 
 

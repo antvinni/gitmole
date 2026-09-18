@@ -1317,8 +1317,9 @@ class Sections(unittest.TestCase):
         self.assertEqual(titles[:6], ["Watch list", "Watch list by component", "Size by language", "People", "Knowledge map", "Activity"])
         self.assertTrue(titles[6].startswith("Timeline"))
         self.assertTrue(titles[7].startswith("Hotspots"))
-        self.assertEqual(titles[-2], "Complex functions")
-        self.assertEqual(titles[-1], "Repo health (git-sizer concerns)")
+        self.assertEqual(titles[-3], "Complex functions")
+        self.assertEqual(titles[-2], "Repo health (git-sizer concerns)")
+        self.assertEqual(titles[-1], "OSPS Baseline")
         self.assertEqual([x["id"] for x in secs][:5], ["watch", "watch_by_component", "size", "people", "knowledge"])
         size = secs[2]
         self.assertEqual(size["columns"][:3], ["language", "files", "code"])
