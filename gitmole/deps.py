@@ -49,7 +49,7 @@ def cache_dir() -> str:
 
 
 def database_date(base: str = None) -> str | None:
-    """The day the local database was last refreshed (the newest file under it), or None when none."""
+    """The day the local database was last refreshed (the newest file under it), in UTC, or None when none."""
     base = cache_dir() if base is None else base
     newest = None
     for name in CACHE_DIRS:
@@ -61,7 +61,7 @@ def database_date(base: str = None) -> str | None:
                 except OSError:
                     continue
                 newest = mtime if newest is None else max(newest, mtime)
-    return dt.datetime.fromtimestamp(newest).date().isoformat() if newest else None
+    return dt.datetime.fromtimestamp(newest, dt.timezone.utc).date().isoformat() if newest else None
 
 
 def database_digest(base: str = None) -> str | None:

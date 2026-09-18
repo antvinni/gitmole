@@ -182,7 +182,7 @@ def hook_replay(clone: str, cache: str, out: str, anchors: int = 3, window_month
     queries = warned = correct = full = alarmed = 0
     for k in range(anchors, 0, -1):
         t = maat.months_before(last, 6 * k)
-        rev = subprocess.run(["git", "rev-list", "-1", f"--before={t}T00:00:00", "HEAD"], cwd=clone, capture_output=True, text=True).stdout.strip()
+        rev = subprocess.run(["git", "rev-list", "-1", f"--before={t}T00:00:00+00:00", "HEAD"], cwd=clone, capture_output=True, text=True).stdout.strip()
         if not rev:
             continue
         from .. import backtest

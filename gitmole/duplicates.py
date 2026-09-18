@@ -121,7 +121,7 @@ def run_jscpd(repo: str, out: str, procs: int, ignore=()) -> tuple:
 
 
 def rev_before(repo: str, date: str):
-    out = subprocess.run(["git", "rev-list", "-1", f"--before={date}T00:00:00", "HEAD"], cwd=repo, capture_output=True, text=True)
+    out = subprocess.run(["git", "rev-list", "-1", f"--before={date}T00:00:00+00:00", "HEAD"], cwd=repo, capture_output=True, text=True)
     return out.stdout.strip() or None
 
 
