@@ -197,6 +197,29 @@ def is_release(path: str, plumbing=frozenset()) -> bool:
     return is_release_path(path) or path in plumbing
 
 
+# File names that exist to hold a login: dotenv files and their per-environment variants, the network and
+# package-index credential files, SSH private keys and the .ssh directory. Cross-ecosystem conventions of
+# tooling, like Makefile above; a template (.env.example) is not one.
+_CREDENTIAL_NAME = re.compile(r"^(\.env(\..+)?|\.netrc|_netrc|\.pypirc|\.dockercfg|id_(rsa|dsa|ecdsa|ed25519))$")
+_CREDENTIAL_TEMPLATE = re.compile(r"^\.env\.(.+\.)?(example|sample|template|dist)$")
+_SSH_DIR = re.compile(r"(^|/)\.ssh/")
+
+
+def is_credential_path(path: str) -> bool:
+    """A file that by its name holds a credential, tracked: a finding whatever its contents, unless it
+    sits in test or example code, where a specimen is expected."""
+    if is_test_path(path) or is_sample_path(path):
+        return False
+    if _SSH_DIR.search(path):
+        return True
+    name = path.rsplit("/", 1)[-1].lower()
+    return bool(_CREDENTIAL_NAME.match(name)) and not _CREDENTIAL_TEMPLATE.match(name)
+
+
+def credential_files(paths: list) -> list:
+    return sorted(p for p in paths if is_credential_path(p))
+
+
 # What a generated file says about itself in its first lines: protoc, ajv, code generators of every kind.
 _GENERATED = re.compile(r"auto[- ]?generated|generated (by|from|file|code|automatically|with)|do not (edit|modify)|@generated|code generated", re.I)
 GENERATED_HEAD_LINES = 5

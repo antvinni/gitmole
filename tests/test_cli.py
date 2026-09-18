@@ -750,6 +750,18 @@ class GeneratedFiles(unittest.TestCase):
         self.assertEqual(meta["coverage"], {"scored": 1, "test file": 1, "not a source type": 1, "generated": 1},
                          "no size.json from the stub planner: nothing counts as not counted by scc, and every tracked text file is placed")
 
+    def test_a_run_records_the_credential_shaped_files_in_meta(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = os.path.join(d, "r")
+            self._repo_with(repo, {".env.production": "SECRET=1\n", ".env.example": "SECRET=\n"})
+            out = os.path.join(d, "out")
+            rc = cli.main([repo, "--out", out], console=console(), tool_check=lambda **kw: [], planner=self._stub_planner,
+                          estimator=lambda repo, interval, **kw: {"files": 2, "samples": 1, "blames": 2})
+            self.assertEqual(rc, 0)
+            with open(os.path.join(out, "meta.json")) as fh:
+                meta = json.load(fh)
+        self.assertEqual(meta["credential_files"], [".env.production"])
+
 
 class Clean(unittest.TestCase):
     """--clean lists what gitmole left behind and deletes on a yes. TMPDIR is pointed at a scratch dir so the

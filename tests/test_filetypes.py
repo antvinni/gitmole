@@ -143,6 +143,15 @@ class TestPaths(unittest.TestCase):
         for path in ("lib/version_check.py", "src/app.py", "docs/versions.md", "Makefile", "lib/sinatra/base.rb"):
             self.assertFalse(filetypes.is_release_path(path), path)
 
+    def test_credential_shaped_file_names(self):
+        for path in (".env", ".env.production", "app/.env.local", ".env.production.local", ".netrc", "home/_netrc", ".pypirc", ".dockercfg",
+                     "deploy/id_rsa", "id_ed25519", ".ssh/config", "ops/.ssh/known_hosts", ".ENV"):
+            self.assertTrue(filetypes.is_credential_path(path), path)
+        for path in (".env.example", ".env.sample", "app/.env.template", ".env.dist", "deploy/id_rsa.pub", "prod.env", "src/env.py",
+                     "fixtures/.env", "tests/.netrc", "examples/id_rsa", ".npmrc", "server.pem", "keys/app.key"):
+            self.assertFalse(filetypes.is_credential_path(path), path)
+        self.assertEqual(filetypes.credential_files(["b/.env", "a.py", ".netrc"]), [".netrc", "b/.env"])
+
     def test_generated_files_by_header_marker_or_attribute(self):
         with tempfile.TemporaryDirectory() as d:
             files = {

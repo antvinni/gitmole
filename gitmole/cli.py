@@ -304,6 +304,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     attrs = filetypes.attributes(repo_dir, tracked)   # one git check-attr pass, shared by the two lists below
     meta["generated"] = filetypes.generated_files(repo_dir, tracked, attrs=attrs)   # hidden from the tables, out of the findings
     meta["vendored"] = filetypes.vendored_paths(repo_dir, tracked, attrs=attrs)    # somebody else's code, by the licence it carries or the attribute it declares
+    meta["credential_files"] = filetypes.credential_files(filetypes.git_paths(repo_dir, "ls-files"))   # by name, over every tracked file
     if args.since_date and meta["commits"] == 0:
         raise NoCommits(f"no commits since {args.since_date}; widen --since")
     if args.now:

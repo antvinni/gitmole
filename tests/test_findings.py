@@ -93,6 +93,19 @@ class SecretsFound(unittest.TestCase):
         self.assertEqual(crit["title"], "5 secret(s) in history")
 
 
+class CredentialFiles(unittest.TestCase):
+    def test_warns_and_names_the_files(self):
+        r = {"meta": {"credential_files": [".env.production", "deploy/id_rsa"]}}
+        found = findings.credential_files(r)
+        self.assertEqual(len(found), 1)
+        f = found[0]
+        self.assertEqual((f["severity"], f["title"], f["rule"]["id"]), ("warning", "Credential-shaped files tracked", "credential_files"))
+        self.assertIn("2 credential-shaped files tracked: .env.production, deploy/id_rsa.", f["detail"])
+        self.assertEqual(f["evidence"], {"count": 2, "files": [".env.production", "deploy/id_rsa"]})
+        self.assertEqual(findings.credential_files({"meta": {}}), [], "an older output directory has no record and no finding")
+        self.assertIn(findings.credential_files, findings.RULES)
+
+
 class PlaceholderIdentity(unittest.TestCase):
     def test_warns_on_example_com_email_with_commit_share(self):
         r = report()
