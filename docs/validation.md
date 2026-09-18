@@ -23,8 +23,14 @@ at random would name. Each column heading says how many files of the pool
 were fixed in that window. Generated and vendored files are left out of the
 pool at every cut-off as they were at that cut-off: the tree is classified as
 it stood then, from its own headers, licences and `.gitattributes`. Since
-0.10 vendored and example code are out of the pool everywhere, so the numbers
-below are re-measured.
+0.10 vendored and example code are out of the pool everywhere, and since
+0.11 the log is read with whitespace ignored and the sweeping commits (a
+formatter run, a rename across the tree; 115 on curl, 76 on django, 20 on
+react) and the commits `.git-blame-ignore-revs` declares are left out of
+every count, so a file a formatter only re-indented is not a file that
+changed. The numbers below are measured that way; the pools are a little
+smaller than before (471 files at curl's first cut-off, against 497), and
+the watch list's total moved from 224 to 225.
 
 The variants: `watch list (hotspot)` is what gitmole ranks by, revisions ×
 lines of code. The two factor products are what it ranked by before 0.8,
@@ -38,43 +44,43 @@ the score 0.7 shipped) or taken as the file's rank among the scored files
 
 ### curl, top 15, 6-month horizon
 
-| variant | 2023-09-17 (139 of 497 fixed) | 2024-03-17 (143 of 508 fixed) | 2024-09-17 (163 of 518 fixed) | 2025-03-17 (139 of 527 fixed) | 2025-09-17 (342 of 538 fixed) | 2026-03-17 (195 of 527 fixed) | total |
+| variant | 2023-09-17 (137 of 471 fixed) | 2024-03-17 (142 of 485 fixed) | 2024-09-17 (160 of 504 fixed) | 2025-03-17 (134 of 517 fixed) | 2025-09-17 (264 of 524 fixed) | 2026-03-17 (177 of 511 fixed) | total |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | watch list (hotspot) | 15 | 14 | 14 | 13 | 15 | 15 | 86 |
 | factor product (max-scaled) | 15 | 14 | 14 | 13 | 15 | 15 | 86 |
-| factor product (rank-scaled) | 14 | 13 | 15 | 12 | 15 | 15 | 84 |
+| factor product (rank-scaled) | 14 | 14 | 15 | 13 | 15 | 15 | 86 |
 | churn | 15 | 14 | 13 | 13 | 15 | 15 | 85 |
 | size | 15 | 15 | 15 | 15 | 15 | 15 | 90 |
-| recent fixes | 13 | 14 | 14 | 14 | 15 | 15 | 85 |
-| random (expected) | 4.2 | 4.2 | 4.7 | 4.0 | 9.5 | 5.6 | 32.2 |
+| recent fixes | 14 | 14 | 14 | 14 | 15 | 15 | 86 |
+| random (expected) | 4.4 | 4.4 | 4.8 | 3.9 | 7.6 | 5.2 | 30.3 |
 
 `--all` exports 39,902 commits (7,470 fixes); HEAD reaches 39,758 (7,461 fixes).
 
 ### django, top 15, 6-month horizon
 
-| variant | 2023-09-08 (147 of 819 fixed) | 2024-03-08 (150 of 824 fixed) | 2024-09-08 (171 of 826 fixed) | 2025-03-08 (180 of 829 fixed) | 2025-09-08 (173 of 831 fixed) | 2026-03-08 (193 of 844 fixed) | total |
+| variant | 2023-09-08 (147 of 789 fixed) | 2024-03-08 (150 of 793 fixed) | 2024-09-08 (171 of 795 fixed) | 2025-03-08 (177 of 798 fixed) | 2025-09-08 (173 of 803 fixed) | 2026-03-08 (193 of 817 fixed) | total |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| watch list (hotspot) | 14 | 14 | 13 | 14 | 14 | 15 | 84 |
-| factor product (max-scaled) | 12 | 13 | 13 | 13 | 14 | 15 | 80 |
-| factor product (rank-scaled) | 13 | 13 | 12 | 12 | 13 | 14 | 77 |
-| churn | 12 | 10 | 12 | 10 | 13 | 13 | 70 |
+| watch list (hotspot) | 14 | 14 | 13 | 13 | 15 | 15 | 84 |
+| factor product (max-scaled) | 12 | 13 | 13 | 13 | 14 | 14 | 79 |
+| factor product (rank-scaled) | 13 | 13 | 12 | 13 | 13 | 14 | 78 |
+| churn | 12 | 11 | 12 | 10 | 12 | 12 | 69 |
 | size | 15 | 15 | 13 | 13 | 14 | 14 | 84 |
 | recent fixes | 13 | 14 | 14 | 14 | 14 | 13 | 82 |
-| random (expected) | 2.7 | 2.7 | 3.1 | 3.3 | 3.1 | 3.4 | 18.3 |
+| random (expected) | 2.8 | 2.8 | 3.2 | 3.3 | 3.2 | 3.5 | 18.8 |
 
 `--all` exports 52,840 commits (30,130 fixes); HEAD reaches 34,933 (20,452 fixes).
 
 ### react, top 15, 6-month horizon
 
-| variant | 2023-09-16 (81 of 1069 fixed) | 2024-03-16 (57 of 1094 fixed) | 2024-09-16 (63 of 1270 fixed) | 2025-03-16 (62 of 1292 fixed) | 2025-09-16 (74 of 1353 fixed) | 2026-03-16 (33 of 1375 fixed) | total |
+| variant | 2023-09-16 (79 of 946 fixed) | 2024-03-16 (55 of 979 fixed) | 2024-09-16 (63 of 1098 fixed) | 2025-03-16 (60 of 1172 fixed) | 2025-09-16 (74 of 1239 fixed) | 2026-03-16 (33 of 1261 fixed) | total |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| watch list (hotspot) | 7 | 6 | 12 | 10 | 9 | 10 | 54 |
+| watch list (hotspot) | 7 | 7 | 12 | 10 | 9 | 10 | 55 |
 | factor product (max-scaled) | 5 | 5 | 7 | 10 | 7 | 8 | 42 |
-| factor product (rank-scaled) | 7 | 6 | 11 | 12 | 10 | 8 | 54 |
+| factor product (rank-scaled) | 9 | 7 | 11 | 12 | 10 | 8 | 57 |
 | churn | 3 | 5 | 6 | 9 | 5 | 7 | 35 |
-| size | 8 | 5 | 8 | 9 | 7 | 8 | 45 |
-| recent fixes | 8 | 6 | 7 | 10 | 8 | 6 | 45 |
-| random (expected) | 1.1 | 0.8 | 0.7 | 0.7 | 0.8 | 0.4 | 4.5 |
+| size | 8 | 5 | 9 | 9 | 7 | 8 | 46 |
+| recent fixes | 8 | 6 | 7 | 9 | 8 | 6 | 44 |
+| random (expected) | 1.3 | 0.8 | 0.9 | 0.8 | 0.9 | 0.4 | 5.1 |
 
 `--all` exports 35,268 commits (4,501 fixes); HEAD reaches 21,703 (2,985 fixes).
 
@@ -82,13 +88,13 @@ the score 0.7 shipped) or taken as the file's rank among the scored files
 
 | variant | curl | django | react | total |
 |---|---:|---:|---:|---:|
-| watch list (hotspot) | 86 | 84 | 54 | 224 |
-| factor product (max-scaled) | 86 | 80 | 42 | 208 |
-| factor product (rank-scaled) | 84 | 77 | 54 | 215 |
-| churn | 85 | 70 | 35 | 190 |
-| size | 90 | 84 | 45 | 219 |
-| recent fixes | 85 | 82 | 45 | 212 |
-| random (expected) | 32.2 | 18.3 | 4.5 | 55.0 |
+| watch list (hotspot) | 86 | 84 | 55 | 225 |
+| factor product (max-scaled) | 86 | 79 | 42 | 207 |
+| factor product (rank-scaled) | 86 | 78 | 57 | 221 |
+| churn | 85 | 69 | 35 | 189 |
+| size | 90 | 84 | 46 | 220 |
+| recent fixes | 86 | 82 | 44 | 212 |
+| random (expected) | 30.3 | 18.8 | 5.1 | 54.2 |
 
 Of 270 possible: three repositories, six cut-offs, fifteen files.
 
@@ -97,23 +103,22 @@ Of 270 possible: three repositories, six cut-offs, fifteen files.
 Every list beats a random pick: by about three times on curl, four times on
 django and eight to twelve times on react. Beyond that:
 
-- **Revisions × lines of code does best**, 224 of 270: level with size alone
-  on django (84, two ahead of recent fixes) and with the rank-scaled factor
-  product on react (54, nine ahead of size and of recent fixes), and on curl
-  level with the max-scaled factor product, one ahead of churn and of recent
-  fixes, and four behind size alone. That is why the watch list ranks by it,
-  and why fixes, complexity and ownership are the reasons printed beside a
-  file and not part of its rank.
-- **Size alone comes second**, 219, and is the closest rival: it takes curl
-  outright (90 of 90) and ties django, and only react separates the two,
-  where it is nine behind.
-- **The factor products still trail the ranking that replaced them**: 215
-  rank-scaled, 208 max-scaled. Rank scaling is the better of the two, on
-  react above all (54 against 42), where it matches the watch list.
+- **Revisions × lines of code does best**, 225 of 270: level with size alone
+  on django (84, two ahead of recent fixes), two behind the rank-scaled
+  factor product on react (55 against 57, nine ahead of size), and on curl
+  level with both factor products and recent fixes, one ahead of churn and
+  four behind size alone. That is why the watch list ranks by it, and why
+  fixes, complexity and ownership are the reasons printed beside a file and
+  not part of its rank.
+- **The rank-scaled factor product comes second**, 221, and takes react
+  (57); **size alone**, 220, takes curl outright (90 of 90) and ties django,
+  and only react separates it from the watch list, where it is nine behind.
+- **The max-scaled factor product trails**, 207: what 0.7 shipped, and the
+  worst of the three on react (42).
 - **Recent fixes**, 212. A file fixed lately is likely to be fixed again;
   the list prints that count beside the file, right after how often it
   changed.
-- **Churn alone does worst**, 190. Its product with size, which is what the
+- **Churn alone does worst**, 189. Its product with size, which is what the
   watch list ranks by, does better than either factor alone in total, though
   not on curl, where size alone is ahead.
 - **curl is saturated.** Between 26% and 64% of its scored files get a

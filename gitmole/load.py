@@ -81,7 +81,8 @@ def parse_scc(text: str, types=None) -> dict:
     }
 
 
-NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs"}
+NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs",
+                   "minor", "soc", "partners"}
 
 
 def parse_maat_csv(text: str) -> list:
@@ -306,6 +307,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "plumbing": parse_maat_csv(_read(out_dir, "maat-plumbing.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
+        "soc": parse_maat_csv(_read(out_dir, "maat-soc.csv")),   # sum of coupling; empty for an output directory from before 0.11
         "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),
         "ownership": ownership,

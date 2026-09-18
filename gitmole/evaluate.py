@@ -42,11 +42,12 @@ def fixed_between(commits: list, start: str, end: str) -> set:
             for p, _, _ in c["files"] if not filetypes.is_test_path(p)}
 
 
-def report_at(commits: list, t: str, size: dict, meta: dict, generated: list, vendored: list) -> dict:
-    """The report watch.risks reads, from the commits before `t`, scc's listing of the tree at `t`, and
-    that tree's own generated and vendored files (snapshot_at classified the cut-off, not HEAD).
-    No coupling and no functions: neither enters the score, and the pipeline's own backtest has no functions either."""
-    past = maat.in_window(commits, until=t)
+def report_at(commits: list, t: str, size: dict, meta: dict, generated: list, vendored: list, ignored: set = frozenset()) -> dict:
+    """The report watch.risks reads, from the commits before `t` (less the sweeps and the declared, as
+    the pipeline leaves them out), scc's listing of the tree at `t`, and that tree's own generated and
+    vendored files (snapshot_at classified the cut-off, not HEAD). No coupling and no functions: neither
+    enters the score, and the pipeline's own backtest has no functions either."""
+    past = maat.analysed(maat.in_window(commits, until=t), ignored)
     bots = {b["name"] for b in meta.get("bots") or []}
     ownership = [r for r in maat.entity_ownership(past) if r["author"] not in bots and not identity.is_bot(r["author"])]
     return {"meta": {"now": t, "generated": generated, "vendored": vendored}, "size": size, "revisions": maat.revisions(past),
@@ -159,6 +160,9 @@ def main(argv=None) -> int:
     aliases = maat.aliases_from_meta(os.path.join(args.out, "meta.json")) if "aliases" in meta else None
     with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
         commits = maat.parse_log(fh.read(), aliases, types)
+    from . import run
+    declared = maat.read_ignore_revs(run.ignore_revs_files(args.repo))
+    ignored = {c["hash"] for c in commits if declared and maat.is_ignored(c["hash"], declared)}
     results = []
     for t in cutoffs(meta["last_date"], args.windows, args.horizon):
         rev = trend.rev_before(args.repo, t, end_of_day=False)
@@ -166,7 +170,7 @@ def main(argv=None) -> int:
             continue                      # the history does not reach back this far
         size_json, generated, vendored = backtest.snapshot_at(args.repo, rev, args.out)
         size = load.parse_scc(size_json, types)
-        report = report_at(commits, t, size, meta, generated, vendored)
+        report = report_at(commits, t, size, meta, generated, vendored, ignored)
         fixed = fixed_between(commits, t, months_after(t, args.horizon))
         pool = set(variants(report)["churn"])
         results.append((t, len(fixed & pool), len(pool), score(report, fixed, args.top)))

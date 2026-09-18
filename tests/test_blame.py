@@ -104,5 +104,40 @@ class WriteAll(unittest.TestCase):
         self.assertEqual(dict(zip(authors["labels"], [y[0] for y in authors["y"]])), {"Ann": 3, "Bob": 3})
 
 
+class CoAuthors(unittest.TestCase):
+    def test_a_blame_line_is_shared_with_the_commits_co_authors(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            ann = dict(GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="a@x",
+                       GIT_AUTHOR_DATE="2026-03-01T00:00:00", GIT_COMMITTER_DATE="2026-03-01T00:00:00")
+            with open(os.path.join(d, "c.py"), "w") as fh:
+                fh.write("p\nq\nr\ns\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "pair\n\nCo-authored-by: Cat <c@x>", **ann)
+            log = subprocess.run(["git", "log", "HEAD", "--numstat", "--date=iso-strict", "-M",
+                                  "--pretty=format:--%h--%ad--%aN--%s%x1f%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x1f)"],
+                                 cwd=d, capture_output=True, text=True, check=True).stdout
+            shared = blame.co_authors_by_commit(log)
+            self.assertEqual(list(shared.values()), [["Cat"]])
+            blame.set_co_authors(shared)
+            try:
+                self.assertEqual(blame.blame_file(d, "c.py"), {("2026", "Ann"): 2, ("2026", "Cat"): 2}, "four lines, two people")
+                self.assertEqual(blame.blame_file(d, "a.py"), {("2024", "Ann"): 3, ("2026", "Bobby"): 1}, "a commit without trailers is its author's")
+            finally:
+                blame.set_co_authors({})
+            out = os.path.join(d, "out")
+            os.makedirs(os.path.join(out, "theseus"))
+            with open(os.path.join(out, "log.txt"), "w") as fh:
+                fh.write(log)
+            blame.write_all(d, out, procs=2, log_path=os.path.join(out, "log.txt"))
+            with open(os.path.join(out, "theseus", "authors.json")) as fh:
+                authors = json.load(fh)
+        self.assertEqual(dict(zip(authors["labels"], [y[0] for y in authors["y"]])), {"Ann": 5, "Bobby": 3, "Cat": 2},
+                         "whole lines: the shares are rounded once, at the end")
+
+
 if __name__ == "__main__":
     unittest.main()

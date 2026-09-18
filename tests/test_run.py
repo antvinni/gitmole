@@ -230,10 +230,13 @@ class Plan(unittest.TestCase):
             self.assertNotIn(absent, names, "plots are opt-in")
         by = {s["name"]: s for s in steps}
         self.assertEqual(by["change analysis"]["deps"], ["git-log"])
-        self.assertEqual(by["code age"]["deps"], [])
+        self.assertEqual(by["code age"]["deps"], ["git-log"])
         self.assertEqual(by["scc"]["deps"], [])
         self.assertIn("--date=iso-strict", by["git-log"]["argv"])
-        self.assertIn("--pretty=format:--%h--%ad--%aN--%s", by["git-log"]["argv"])
+        self.assertIn("--pretty=format:--%h--%ad--%aN--%s%x1f%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x1f)", by["git-log"]["argv"],
+                      "the Co-authored-by trailers ride behind the subject, unit-separated, so a squash merge credits everyone it names")
+        self.assertIn("-w", by["git-log"]["argv"], "a whitespace-only hunk is not a changed line")
+        self.assertIn("--ignore-blank-lines", by["git-log"]["argv"])
         self.assertEqual(by["scc"]["stdout"], "/o/size.json")
         self.assertIn("--by-file", by["scc"]["argv"])
         self.assertIn("--use-mailmap", by["git-log"]["argv"])
@@ -333,6 +336,36 @@ class Plan(unittest.TestCase):
         argv = by["change analysis"]["argv"]
         self.assertTrue(argv[1].endswith("gitmole/maat.py"), argv)
         self.assertEqual(argv[2:], ["/o/log.txt", "/o", "--aliases", "/o/meta.json"])
+
+    def test_the_repositorys_ignore_revs_files_reach_the_change_analysis(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o", ignore_revs=["/r/.git-blame-ignore-revs", "/r/tools/revs.txt"])}
+        argv = by["change analysis"]["argv"]
+        self.assertEqual(argv[argv.index("--ignore-revs") + 1], "/r/.git-blame-ignore-revs")
+        self.assertEqual(argv.count("--ignore-revs"), 2)
+
+    def test_ignore_revs_files_are_the_conventional_one_and_the_configured_one(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args):
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True,
+                               env=dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null"))
+            git("init", "-q")
+            self.assertEqual(run.ignore_revs_files(d), [], "nothing declared")
+            open(os.path.join(d, ".git-blame-ignore-revs"), "w").close()
+            self.assertEqual(run.ignore_revs_files(d), [os.path.join(d, ".git-blame-ignore-revs")])
+            git("config", "blame.ignoreRevsFile", "tools/revs.txt")
+            self.assertEqual(run.ignore_revs_files(d), [os.path.join(d, ".git-blame-ignore-revs")], "configured but absent: nothing to read")
+            os.makedirs(os.path.join(d, "tools"))
+            open(os.path.join(d, "tools", "revs.txt"), "w").close()
+            self.assertEqual(run.ignore_revs_files(d), [os.path.join(d, ".git-blame-ignore-revs"), os.path.join(d, "tools/revs.txt")],
+                             "the configured file is relative to the repository root")
+            git("config", "blame.ignoreRevsFile", ".git-blame-ignore-revs")
+            self.assertEqual(run.ignore_revs_files(d), [os.path.join(d, ".git-blame-ignore-revs")], "the same file once")
+
+    def test_code_age_reads_the_change_log_for_co_authors(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o")}
+        argv = by["code age"]["argv"]
+        self.assertEqual(argv[argv.index("--log") + 1], "/o/log.txt")
+        self.assertEqual(by["code age"]["deps"], ["git-log"], "the log names the co-authors a blame line is shared with")
 
     def test_five_tools_required_by_default_and_theseus_with_plots(self):
         """Checked against a directory of stub executables, not this machine's PATH."""
@@ -579,6 +612,26 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual([i["name"] for i in meta["identities"]], ["Ann"])
         self.assertEqual(meta["commits"], 4, "the commit count is the whole history")
         self.assertEqual(meta["bots"], [{"name": "renovate[bot]", "commits": 2}, {"name": "dependabot[bot]", "commits": 1}])
+
+    def test_co_authors_named_in_trailers_are_identities_with_the_commits_they_share(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            base = dict(GIT_COMMITTER_NAME="x", GIT_COMMITTER_EMAIL="x@x", GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.com")
+            git("commit", "-q", "--allow-empty", "-m", "pair\n\nCo-authored-by: Bob Lee <bob@x.com>\nCo-authored-by: dependabot[bot] <1+dependabot[bot]@users.noreply.github.com>", **base)
+            git("commit", "-q", "--allow-empty", "-m", "solo", **base)
+            with open(os.path.join(d, ".mailmap"), "w") as fh:
+                fh.write("Robert Lee <robert@x.com> Bob Lee <bob@x.com>\n")
+            git("add", ".mailmap")
+            git("commit", "-q", "-m", "mailmap\n\nCo-authored-by: Bob Lee <bob@x.com>", **base)
+            meta = run.collect_meta(d)
+        self.assertEqual([(i["name"], i["email"], i["commits"]) for i in meta["identities"]],
+                         [("Ann", "ann@x.com", 3), ("Robert Lee", "robert@x.com", 2)], "the trailer identity, through .mailmap, with the commits it is named on")
+        self.assertEqual(meta["commits"], 3, "a co-author does not add a commit")
+        self.assertEqual(meta["bots"], [], "a bot named only in a trailer is nobody, not a bot with commits")
+        self.assertEqual(meta["aliases"].get("Bob Lee"), "Robert Lee", "the change analysis maps the trailer's name the way git would")
 
     def test_an_alias_of_a_declared_bot_is_a_bot_too(self):
         # fastapi: "github-actions <github-actions@github.com>" beside github-actions[bot]; same account, one declaration

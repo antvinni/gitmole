@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import coupling, filetypes, hotspots, knowledge, leaks, loss, textfmt, trend
+from . import classify, coupling, filetypes, hotspots, knowledge, leaks, loss, maat, textfmt, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -201,6 +201,61 @@ def sizer_concerns(report: dict) -> list:
                       rule={"id": "repo_health", "source": "git-sizer", "warning_at_concern": 2},
                       evidence={"metric": row["name"], "value": row["value"], "concern": row["concern"], "ref": row.get("ref") or None}))
     return out
+
+
+def sweeping_commits(report: dict) -> list:
+    """The commits the change analysis left out as sweeps (a formatter run, a rename across the tree:
+    over the repository's 99th percentile of files touched, with as many lines out as in) that the
+    repository has not declared in .git-blame-ignore-revs. Declaring them makes git blame and GitHub
+    skip them too, which is the repository's own mechanism for exactly this."""
+    act = report.get("activity") or {}
+    swept = [c for c in act.get("sweeping") or [] if not c.get("declared")]
+    if not swept:
+        return []
+    declared = act.get("ignored_revs") or 0
+
+    def one(c):
+        subject = f", {textfmt.cut(c['subject'], 60)}" if c.get("subject") else ""
+        return f"{c['hash']} ({c['files']:,} files, {c['date']}{subject})"
+    listed = "; ".join(one(c) for c in swept[:3]) + (f" and {len(swept) - 3} more" if len(swept) > 3 else "")
+    least = min(c["files"] for c in swept)
+    statement = (f"{_plural(len(swept), 'commit')} each touch {least:,} files or more and take out as many lines as they put in: {listed}. "
+                 "They are left out of the churn, coupling and ownership counts.")
+    named = textfmt.join_and([c["hash"] for c in swept[:3]]) + (" and the rest" if len(swept) > 3 else "")
+    already = f"; {_plural(declared, 'commit')} {'is' if declared == 1 else 'are'} declared there already" if declared else ""
+    return [_f("info", "Sweeping commits", statement, f"Add {named} to .git-blame-ignore-revs so git blame and GitHub skip them too{already}.",
+               rule={"id": "sweeping_commits", "min_files": maat.SWEEP_MIN_FILES, "percentile": maat.SWEEP_PERCENTILE, "tolerance": maat.SWEEP_TOLERANCE},
+               evidence={"declared": declared, "commits": [{"hash": c["hash"], "date": c["date"], "files": c["files"], "added": c.get("added"),
+                                                             "deleted": c.get("deleted"), "subject": c.get("subject", "")} for c in swept[:10]]})]
+
+
+def minor_contributors(report: dict, min_minor: int = 5, warn_at: int = 10, top_n: int = 10) -> list:
+    """Top hotspots with a crowd of minor contributors, people with under 5% of the file's commits
+    each. Bird et al. ("Don't Touch My Code!", FSE 2011) found that count the strongest ownership
+    predictor of defects, ahead of the sole owner, which is the knowledge risk the watch list names
+    separately. Over the watch list's own pool: test, vendored, example and generated files are out."""
+    minors = {a["entity"]: (a.get("minor", 0), a["n-authors"]) for a in report.get("authors") or []}
+    if not any(m for m, _ in minors.values()):
+        return []
+    cls = classify.Classifier(report)
+    top = [h["entity"] for h in hotspots.ranked(report) if h["code"] is not None and cls.reason(h["entity"]) is None][:top_n]
+    crowded = [(f, *minors[f]) for f in top if f in minors and minors[f][0] >= min_minor]
+    if not crowded:
+        return []
+    crowded.sort(key=lambda t: (-t[1], t[0]))
+    owners = {}
+    for r in report.get("ownership") or []:
+        if r.get("added", 0) > (owners.get(r["entity"]) or ("", 0))[1]:
+            owners[r["entity"]] = (r["author"], r["added"])
+    sev = "warning" if crowded[0][1] >= warn_at else "info"
+    listed = "; ".join(f"{f} ({m} of {n} authors)" for f, m, n in crowded[:5]) + (f" and {len(crowded) - 5} more" if len(crowded) > 5 else "")
+    first, owner = crowded[0][0], (owners.get(crowded[0][0]) or (None, 0))[0]
+    who = f"Have {owner}, who wrote most of {first}, review changes to it from anyone else" if owner else f"Give {first} an owner who reviews every change to it"
+    return [_f(sev, "Many minor contributors",
+               f"{len(crowded)} of the top {len(top)} hotspots have {min_minor} or more contributors with under {round(100 * maat.MINOR_SHARE)}% of the file's commits each: {listed}.",
+               f"{who}; Bird et al. found the count of minor contributors the strongest ownership predictor of defects.",
+               rule={"id": "minor_contributors", "min_minor": min_minor, "warn_at": warn_at, "minor_share": maat.MINOR_SHARE, "top_n": top_n},
+               evidence={"files": [{"file": f, "minor": m, "authors": n, "owner": (owners.get(f) or (None, 0))[0]} for f, m, n in crowded[:10]]})]
 
 
 def hotspot_dominance(report: dict, ratio: float = 2.0, minimum: int = 20) -> list:
@@ -649,7 +704,8 @@ def vulnerable_dependencies(report: dict) -> list:
 
 
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets,
-         reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss]
+         minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
+         sweeping_commits]
 
 
 def evaluate(report: dict) -> list:

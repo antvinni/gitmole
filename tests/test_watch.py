@@ -65,6 +65,20 @@ class Risks(unittest.TestCase):
         self.assertEqual(by["core/util.py"]["reasons"], ["changed 30 times", "fixed twice", "Ann wrote 95% of it"])
         self.assertEqual(by["web/index.html"]["reasons"], ["changed 60 times"])
 
+    def test_many_minor_contributors_and_a_wide_coupling_are_reasons(self):
+        r = report()
+        r["authors"] = [{"entity": "core/parser.py", "n-authors": 14, "n-revs": 40, "minor": 11}, {"entity": "core/util.py", "n-authors": 3, "n-revs": 30, "minor": 2}]
+        r["soc"] = [{"entity": "core/parser.py", "soc": 210, "partners": 41}, {"entity": "core/util.py", "soc": 12, "partners": 4}]
+        by = {x["file"]: x for x in watch.risks(r)}
+        self.assertEqual(by["core/parser.py"]["reasons"], ["changed 40 times", "fixed 5 times in six months", "Ann wrote 100% of it",
+                                                           "11 of 14 authors are minor contributors", "parse() complexity 41",
+                                                           "changes with core/ast.py (72%) and 1 other", "changes alongside 41 other files"])
+        self.assertEqual(by["core/parser.py"]["minor"], 11)
+        self.assertEqual(by["core/parser.py"]["partners"], 41)
+        self.assertNotIn("minor", " ".join(by["core/util.py"]["reasons"]), "two minor contributors of three is not a crowd")
+        self.assertNotIn("alongside", " ".join(by["core/util.py"]["reasons"]))
+        self.assertEqual(by["web/index.html"]["minor"], 0, "an output directory without the column reads as none")
+
     def test_a_nameless_function_is_named_by_its_line_and_a_suspect_span_is_passed_over(self):
         r = report()
         r["functions"] = [{"file": "core/parser.py", "function": 'app.post("/api/x", async (req, res) => {', "anonymous": True,

@@ -321,8 +321,26 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
         notes.append(status["reason"])
     elif status.get("status") in ("failed", "timeout"):
         notes.append(f"backtest {status['status']}")
+    left_out = sweeps_note(report)
+    if left_out:
+        notes.append(left_out)
     caption = "\n".join(notes)
     return _section("Watch list", columns, rows, note=None if rows else watch.why_empty(report), caption=caption if rows else None)
+
+
+def sweeps_note(report: dict):
+    """'2 sweeping commits (...) and 3 declared in .git-blame-ignore-revs are left out of every count', or
+    None when the change analysis left nothing out (or predates the record)."""
+    act = report.get("activity") or {}
+    swept, declared = [c for c in act.get("sweeping") or [] if not c.get("declared")], act.get("ignored_revs") or 0
+    parts = []
+    if swept:
+        parts.append(f"{len(swept)} sweeping commit{'s' if len(swept) != 1 else ''} (a formatter run, a rename across the tree)")
+    if declared:
+        parts.append(f"{declared} declared in .git-blame-ignore-revs")
+    if not parts:
+        return None
+    return " and ".join(parts) + (" are" if swept and declared or len(swept) > 1 or declared > 1 else " is") + " left out of every count"
 
 
 RISK_CAP = 15
@@ -453,6 +471,8 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     watch list, which ranks the same files. Built only for those two, it has no row cap of its
     own outside Markdown's."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
+    minors = {a["entity"]: a.get("minor", 0) for a in report.get("authors") or []}
+    partners = {a["entity"]: a.get("partners", 0) for a in report.get("soc") or []}
     ages = {a["entity"]: a["age-months"] for a in report.get("age") or []}
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
     cls = classify.Classifier(report)
@@ -475,10 +495,11 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     for h in scored[:limit]:
         gone = h["code"] is None
         rows.append((h["entity"], h["revs"], "-" if gone else f"{h['code']:,}", "-" if gone else h["complexity"],
-                     "-" if gone else f"{h['score']:,}", fixes.get(h["entity"], 0), authors.get(h["entity"], "-"), ages.get(h["entity"], "-"),
-                     trend_cell(h["entity"])))
-    columns = [("file", PATH), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT), ("fixes", RIGHT), ("authors", RIGHT), ("idle", RIGHT),
-               ("trend", RIGHT)]
+                     "-" if gone else f"{h['score']:,}", fixes.get(h["entity"], 0), authors.get(h["entity"], "-"), minors.get(h["entity"], "-"),
+                     partners.get(h["entity"], "-"), ages.get(h["entity"], "-"), trend_cell(h["entity"])))
+    # minors: contributors with under 5% of the file's commits; co-changes: files it shares five or more commits with (sum of coupling)
+    columns = [("file", PATH), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT), ("fixes", RIGHT), ("authors", RIGHT),
+               ("minors", RIGHT), ("co-changes", RIGHT), ("idle", RIGHT), ("trend", RIGHT)]
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
     note = None if rows else _empty_note(None, hidden_note, "no source hotspots")

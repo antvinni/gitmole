@@ -223,6 +223,30 @@ class Report(unittest.TestCase):
         self.assertIn("fixes", text)
         self.assertRegex(lines[1], r"static/apps-metadata.json\s+128\s+800\s+0\s+102,400\s+9\s")
 
+    def test_full_hotspots_carry_minor_contributors_and_co_change_columns(self):
+        r = sample_report()
+        r["authors"] = [{"entity": "static/apps-metadata.json", "n-authors": 4, "n-revs": 128, "minor": 2}]
+        r["soc"] = [{"entity": "static/apps-metadata.json", "soc": 300, "partners": 17}]
+        text = rendered(r, [], full=True, width=200)
+        text = text[text.index("◆ Hotspots"):]
+        self.assertIn("minors", text)
+        self.assertIn("co-changes", text)
+        line = next(l for l in text.splitlines() if "apps-metadata.json" in l)
+        self.assertRegex(line, r"128\s+800\s+0\s+102,400\s+9\s+4\s+2\s+17\s")
+        md = render.markdown(r, [])
+        self.assertNotIn("co-changes", md, "the Markdown table keeps its columns")
+
+    def test_the_watch_caption_counts_the_sweeping_commits_left_out(self):
+        r = sample_report()
+        r["activity"]["sweeping"] = [{"hash": "a", "files": 40, "declared": False}, {"hash": "b", "files": 30, "declared": True}]
+        r["activity"]["ignored_revs"] = 3
+        caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
+        self.assertIn("1 sweeping commit (a formatter run, a rename across the tree) and 3 declared in .git-blame-ignore-revs are left out of every count", caption,
+                      "a declared sweep is counted among the declared")
+        r["activity"]["sweeping"], r["activity"]["ignored_revs"] = [], 0
+        caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
+        self.assertNotIn("sweeping", caption)
+
     def test_footer_path_is_never_wrapped(self):
         r = sample_report()
         r["out_dir"] = "/very/long/" + "x" * 150 + "/analysis-demo"
@@ -1071,7 +1095,7 @@ class Layout(unittest.TestCase):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=True)}
         self.assertEqual(secs["Size by language"]["columns"], ["language", "files", "code", "share", "complexity"])
         self.assertIn("email", secs["People"]["columns"])
-        self.assertEqual(secs["Hotspots (score = revisions × lines of code)"]["columns"], ["file", "revs", "lines", "cplx", "score", "fixes", "authors", "idle", "trend"])
+        self.assertEqual(secs["Hotspots (score = revisions × lines of code)"]["columns"], ["file", "revs", "lines", "cplx", "score", "fixes", "authors", "minors", "co-changes", "idle", "trend"])
         self.assertIn("avg revs", secs["Change coupling"]["columns"])
 
     def test_row_caps_and_the_more_line(self):
