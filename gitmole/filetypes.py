@@ -79,7 +79,7 @@ def is_doc_path(path: str) -> bool:
     return bool(_DOC_PATH.search(path))
 
 
-_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules|stubs?|tutorials?|exercises?(files)?)(/|$)|\.stub$", re.I)
+_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules|stubs?|tutorials?|exercises?)(/|$)|\.stub$", re.I)
 _PACKAGE_EXAMPLE = re.compile(r"(^|/)(com|org|net|io|dev|me|co)/examples?(/|$)", re.I)   # Java's com.example.* is a package, not a sample
 
 
@@ -116,10 +116,12 @@ def is_release_path(path: str) -> bool:
 
 _LICENCE_NAME = re.compile(r"^(LICEN[CS]E|COPYING)(\.|-|_|$)", re.I)
 _HOLDER_STOP = {"copyright", "the", "and", "all", "rights", "reserved", "inc", "llc", "ltd", "contributors", "present", "authors",
-                "owner", "owners", "holder", "holders", "notice", "this", "above", "shall", "mean", "entity", "licensor"}
+                "owner", "owners", "holder", "holders", "notice", "this", "above", "shall", "mean", "entity", "licensor",
+                "spdx", "filecopyrighttext"}
 
 
-_NOTICE = re.compile(r"^\W*copyright\b|\(c\)|©", re.I)   # a notice line, not legal prose that mentions copyright
+_NOTICE = re.compile(r"^\W*copyright\b|\(c\)|©|SPDX-FileCopyrightText:", re.I)   # a notice line, not legal prose that mentions copyright
+_SPDX_NOTICE = re.compile(r"SPDX-FileCopyrightText:", re.I)   # REUSE's declared notice: a notice whatever it holds
 _YEAR = re.compile(r"\b(19|20)\d\d\b")
 _OPENS = re.compile(r"^\W*copyright\b.*(\(c\)|©)", re.I)
 # ...and it is dated, or opens "Copyright (c)": "Copyright [yyyy] [name of copyright owner]" is a template, and
@@ -127,16 +129,67 @@ _OPENS = re.compile(r"^\W*copyright\b.*(\(c\)|©)", re.I)
 
 
 def _is_notice(line: str) -> bool:
-    return bool(_NOTICE.search(line)) and bool(_YEAR.search(line) or _OPENS.search(line))
+    return bool(_SPDX_NOTICE.search(line)) or (bool(_NOTICE.search(line)) and bool(_YEAR.search(line) or _OPENS.search(line)))
+
+
+def _words(line: str) -> set:
+    return {t.lower() for t in re.findall(r"[A-Za-z]{3,}", line) if t.lower() not in _HOLDER_STOP}
 
 
 def _holders(text: str) -> set:
-    """The words that name whoever a licence's copyright notices belong to. A notice line has a year or
-    opens "Copyright (c)"; licence prose that merely mentions the copyright owner names nobody."""
+    """The words that name whoever a licence's copyright notices belong to. A notice line has a year,
+    opens "Copyright (c)" or is an SPDX-FileCopyrightText tag; licence prose that merely mentions the
+    copyright owner names nobody. A notice of years alone takes its holder from the next line, as GNU
+    code writes it ("Copyright (C) 1999, 2000, 2001" then "   Free Software Foundation, Inc.")."""
     out = set()
-    for line in text.splitlines():
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
         if _is_notice(line):
-            out |= {t.lower() for t in re.findall(r"[A-Za-z]{3,}", line) if t.lower() not in _HOLDER_STOP}
+            words = _words(line)
+            if not words and i + 1 < len(lines) and not _is_notice(lines[i + 1]):
+                words = _words(lines[i + 1])
+            out |= words
+    return out
+
+
+def reuse_annotations(repo: str, paths: list) -> list:
+    """[(path prefix, holders)] the repository declares in REUSE's .reuse/dep5 (Files: and Copyright:
+    paragraphs) or REUSE.toml ([[annotations]] path and SPDX-FileCopyrightText): the standard way to say
+    which files belong to whom, read before any notice has to be parsed. A glob's prefix is the part
+    before its first wildcard."""
+    out = []
+    tracked = set(paths)
+
+    def prefix(glob: str) -> str:
+        head = re.split(r"[*?\[]", glob, 1)[0]
+        return head if head.endswith("/") or head == glob else head.rsplit("/", 1)[0] + "/" if "/" in head else ""
+    if ".reuse/dep5" in tracked:
+        for para in re.split(r"\n\s*\n", _read_head(repo, ".reuse/dep5", 200_000)):
+            files, copyright, field = [], [], None
+            for line in para.split("\n"):
+                m = re.match(r"^([A-Za-z-]+):\s*(.*)$", line)
+                if m:
+                    field = m.group(1).lower()
+                    value = m.group(2)
+                elif line.startswith((" ", "\t")) and field:
+                    value = line.strip()
+                else:
+                    continue
+                if field == "files":
+                    files += value.split()
+                elif field == "copyright":
+                    copyright.append(value)
+            holders = set().union(*(_words(c) for c in copyright)) if copyright else set()
+            out += [(prefix(g), holders) for g in files if holders]
+    if "REUSE.toml" in tracked:
+        for block in _read_head(repo, "REUSE.toml", 200_000).split("[[annotations]]")[1:]:
+            path = re.search(r'^\s*path\s*=\s*(\[[^\]]*\]|"[^"]*")', block, re.M)   # a string or a list of strings
+            text = re.search(r'^\s*SPDX-FileCopyrightText\s*=\s*(\[[^\]]*\]|"[^"]*")', block, re.M)
+            if not path or not text:
+                continue
+            globs = re.findall(r'"([^"]+)"', path.group(1))
+            holders = set().union(*(_words(c) for c in re.findall(r'"([^"]+)"', text.group(1))))
+            out += [(prefix(g), holders) for g in globs if holders]
     return out
 
 
@@ -167,7 +220,8 @@ def header_vendored(repo: str, paths: list, ours: set) -> list:
             holders = _holders(head)
             if holders:
                 headed[p] = holders
-    if not headed:
+    declared = reuse_annotations(repo, paths)
+    if not headed and not declared:
         return []
     common = Counter(w for h in headed.values() for w in h)
     own = set(ours) | {w for w, n in common.items() if n >= HEADER_SHARE * sources}
@@ -184,7 +238,8 @@ def header_vendored(repo: str, paths: list, ours: set) -> list:
         foreign = [p for p in files if p in headed and theirs(headed[p])]
         if d and len(foreign) >= 2 and 2 * len(foreign) >= len(files):
             out.append(d + "/")
-    return out
+    out += [d for d, holders in declared if d and theirs(holders) and d not in out]   # REUSE says so outright
+    return sorted(out)
 
 
 def _read_head(repo: str, path: str, size: int = 20_000) -> str:
@@ -292,6 +347,37 @@ def credential_files(paths: list) -> list:
 # What a generated file says about itself in its first lines: protoc, ajv, code generators of every kind.
 _GENERATED = re.compile(r"auto[- ]?generated|generated (by|from|file|code|automatically|with)|do not (edit|modify)|@generated|code generated", re.I)
 GENERATED_HEAD_LINES = 5
+# Past a leading licence comment, only a comment that says it of this file: @generated, an upper-case DO NOT
+# EDIT, "this file is generated", or a tool's banner, a comment opening "A ..." that ends "generated by TOOL" or
+# "made by TOOL 1.2" (flex's "A lexical scanner generated by flex", Bison's "A Bison parser, made by GNU Bison
+# 3.7.4."). A comment that mentions generated code ("an auto-generated key", "the code generated by the
+# compiler", "Do not edit the code below") says nothing about the file it sits in.
+GENERATED_DEEP_LINES = 40
+_COMMENT_LINE = re.compile(r"^\s*(//|#|/\*|\*|--|;|<!--|%)")
+_GENERATED_DEEP = re.compile(r"@generated|(?<![\"'])DO NOT (?i:edit|modify)\b"
+                             r"|\b(?i:this|the) (?i:file|source|source code|code|header|module) (?i:is|was|has been) (?i:automatically |auto[- ]?)?(?i:generated)")
+_NOT_ARTICLE = r"(?!(?i:the|a|an|this|that|our|your|its|their)\b)"   # a tool has a name; "the compiler" is a description
+_GENERATED_BANNER = re.compile(r"^\W*(A|An)\b[^.]{0,60}?\b(generated by " + _NOT_ARTICLE + r"[A-Za-z][\w.+-]*( [A-Za-z][\w.+-]*)?( v?\d[\w.]*)?"
+                               r"|made by " + _NOT_ARTICLE + r"[A-Za-z][\w.+-]*( [A-Za-z][\w.+-]*)? v?\d[\w.]*)[\s.]*(\*/)?\s*$")
+
+
+def says_generated(text: str, name: str = "") -> bool:
+    """Whether a file's opening says it is generated: any marker in its first five lines, and past them,
+    within forty, a comment that says it of this file. A banner that names the file itself belongs to the
+    generator (curl's optiontable.pl holds the banner it writes), not to its output."""
+    lines = text.splitlines()
+    if any(_GENERATED.search(line) for line in lines[:GENERATED_HEAD_LINES]):
+        return True
+    for line in lines[GENERATED_HEAD_LINES:GENERATED_DEEP_LINES]:
+        if not _COMMENT_LINE.match(line):
+            continue
+        if name and name in line:
+            continue
+        if _GENERATED_DEEP.search(line) or _GENERATED_BANNER.search(_COMMENT_LINE.sub("", line)):
+            return True
+    return False
+
+
 _GENERATED_NAME = re.compile(r"\.(min\.js|min\.css|bundle\.js|map)$|(^|/)dist/", re.I)   # a build output by name: nobody edits a bundle, a source map or dist/
 
 
@@ -319,7 +405,7 @@ def attributes(repo: str, paths: list, cached: bool = False, env: dict = None) -
 
 def generated_files(repo: str, paths: list, attrs: dict = None) -> list:
     """The tracked files that are generated: a build output by name, marked linguist-generated (as git
-    resolves it), or saying so in their first lines. Their complexity and churn are the generator's, not
+    resolves it), or saying so in their opening (says_generated). Their complexity and churn are the generator's, not
     the repository's. `attrs` is attributes() when the caller already has it."""
     attrs = attributes(repo, paths) if attrs is None else attrs
     out = []
@@ -329,10 +415,10 @@ def generated_files(repo: str, paths: list, attrs: dict = None) -> list:
             continue
         try:
             with open(os.path.join(repo, path), "rb") as fh:
-                head = fh.read(2048)
+                head = fh.read(8192)   # forty lines of licence header can run past a couple of kilobytes
         except OSError:
             continue
-        if any(_GENERATED.search(line) for line in head.decode("utf-8", "replace").splitlines()[:GENERATED_HEAD_LINES]):
+        if says_generated(head.decode("utf-8", "replace"), path.rsplit("/", 1)[-1]):
             out.append(path)
     return sorted(out)
 
