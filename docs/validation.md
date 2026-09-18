@@ -6,7 +6,8 @@ The watch list is a heuristic. This page says how it did against what
 happened next, on three repositories at the commits pinned in
 `bin/render-examples`, and how other ways of ranking the same files did on
 the same question. Regenerate any table with
-`python -m gitmole.evaluate CLONE OUT_DIR`.
+`python -m gitmole.evaluate CLONE OUT_DIR`; `--szz` adds the tables against
+bug-inducing commits further down.
 
 ## Method
 
@@ -129,6 +130,107 @@ django and eight to twelve times on react. Beyond that:
   hit; size alone scores 90 of 90 there. The backtest line under a
   report's watch list has the same limit: on a repository where most files
   are fixed often, "named 15 of 15" says little.
+
+## Bug-inducing commits, by R-SZZ
+
+The tables above score fix locality: a fix-labelled commit touched the file
+in the six months after the cut-off. A file every fix touches, a changelog or
+a config, scores that way without ever being wrong. The SZZ family gives the
+other label, defect insertion: the commit that wrote the lines a fix removed.
+Rosa et al. measured the git-only variants against a developer-informed
+oracle and found R-SZZ, which keeps only the most recent commit a fix's
+removed lines blame to, the best of them at precision 0.66 against 0.39 for
+keeping every candidate. `python -m gitmole.evaluate CLONE OUT_DIR --szz`
+adds that outcome: for each fix landing in the six months after T, `git
+blame -w -C -C` of the parent at the lines the fix removed or changed (test,
+vendored, example and generated files are not candidates), the most recent
+commit blamed is the bug-inducing one, and a file it wrote is a hit when
+that commit is before T, so a list drawn at T could have known. An
+insert-only fix blames nothing, which is R-SZZ's known blind spot, and a fix
+whose bug was planted after T is not counted against any list. The outcome
+sets are a third to a quarter the size of the fix-locality ones, so the
+numbers below are smaller and the random baseline lower.
+
+### curl, top 15, 6-month horizon, R-SZZ
+
+| variant | 2023-09-17 (38 of 471 bug-inducing) | 2024-03-17 (43 of 485 bug-inducing) | 2024-09-17 (47 of 504 bug-inducing) | 2025-03-17 (48 of 517 bug-inducing) | 2025-09-17 (64 of 524 bug-inducing) | 2026-03-17 (46 of 511 bug-inducing) | total |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| watch list (hotspot) | 12 | 5 | 7 | 10 | 12 | 10 | 56 |
+| factor product (max-scaled) | 11 | 5 | 8 | 10 | 11 | 8 | 53 |
+| factor product (rank-scaled) | 13 | 8 | 9 | 10 | 10 | 7 | 57 |
+| churn | 11 | 6 | 7 | 11 | 11 | 9 | 55 |
+| size | 11 | 6 | 8 | 13 | 13 | 10 | 61 |
+| recent fixes | 10 | 4 | 8 | 10 | 12 | 11 | 55 |
+| random (expected) | 1.2 | 1.3 | 1.4 | 1.4 | 1.8 | 1.4 | 8.5 |
+
+### django, top 15, 6-month horizon, R-SZZ
+
+| variant | 2023-09-08 (79 of 789 bug-inducing) | 2024-03-08 (65 of 793 bug-inducing) | 2024-09-08 (91 of 795 bug-inducing) | 2025-03-08 (78 of 798 bug-inducing) | 2025-09-08 (95 of 803 bug-inducing) | 2026-03-08 (82 of 817 bug-inducing) | total |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| watch list (hotspot) | 12 | 10 | 9 | 8 | 12 | 11 | 62 |
+| factor product (max-scaled) | 11 | 9 | 9 | 8 | 10 | 9 | 56 |
+| factor product (rank-scaled) | 12 | 10 | 8 | 8 | 7 | 10 | 55 |
+| churn | 10 | 9 | 7 | 8 | 8 | 8 | 50 |
+| size | 14 | 12 | 10 | 10 | 11 | 9 | 66 |
+| recent fixes | 13 | 9 | 9 | 11 | 8 | 9 | 59 |
+| random (expected) | 1.5 | 1.2 | 1.7 | 1.5 | 1.8 | 1.5 | 9.2 |
+
+### react, top 15, 6-month horizon, R-SZZ
+
+| variant | 2023-09-16 (22 of 946 bug-inducing) | 2024-03-16 (16 of 979 bug-inducing) | 2024-09-16 (24 of 1098 bug-inducing) | 2025-03-16 (17 of 1172 bug-inducing) | 2025-09-16 (28 of 1239 bug-inducing) | 2026-03-16 (16 of 1261 bug-inducing) | total |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| watch list (hotspot) | 6 | 5 | 6 | 5 | 4 | 6 | 32 |
+| factor product (max-scaled) | 4 | 3 | 3 | 3 | 4 | 5 | 22 |
+| factor product (rank-scaled) | 6 | 4 | 6 | 6 | 5 | 5 | 32 |
+| churn | 2 | 3 | 2 | 3 | 1 | 3 | 14 |
+| size | 7 | 4 | 5 | 4 | 4 | 6 | 30 |
+| recent fixes | 6 | 4 | 5 | 5 | 4 | 4 | 28 |
+| random (expected) | 0.3 | 0.2 | 0.3 | 0.2 | 0.3 | 0.2 | 1.5 |
+
+### Totals, R-SZZ
+
+| variant | curl | django | react | total |
+|---|---:|---:|---:|---:|
+| watch list (hotspot) | 56 | 62 | 32 | 150 |
+| factor product (max-scaled) | 53 | 56 | 22 | 131 |
+| factor product (rank-scaled) | 57 | 55 | 32 | 144 |
+| churn | 55 | 50 | 14 | 119 |
+| size | 61 | 66 | 30 | 157 |
+| recent fixes | 55 | 59 | 28 | 142 |
+| random (expected) | 8.5 | 9.2 | 1.5 | 19.2 |
+
+Against defect insertion the order changes at the top: **size alone leads**,
+61, 66 and 30 for 157 of 270, and the **watch list is second** at
+150, ahead on react (32 against 30) and behind on curl and django by five and
+four. The rank-scaled factor product follows at 144, recent fixes at 142, the
+max-scaled product at 131 and churn alone, last again, at 119; a random
+fifteen would name 19. The reading: where a bug was planted is even more a
+matter of file size than where the next fix lands, and revisions × lines of
+code keeps most of that while staying ahead of every list that leans on
+churn or fixes. The watch list keeps its ranking; this page carries both
+outcomes so the trade is visible.
+
+## Independent labels
+
+`--labels CSV` scores the same lists against bug-inducing commits labelled by
+someone else: ApacheJIT (Keshavarz and Nagappan, MSR 2022; 106,674 commits
+across fourteen Apache repositories, SZZ plus six filters) in its own CSV
+shape (a `commit_id` column and a `buggy` flag), Defectors (Mahbub, Shuvo and
+Rahman, MSR 2023; 24 Python projects at file level) as rows of commit and
+path, or a bare list of hashes. The outcome at T is then the source files a
+labelled commit touched in the six months after T, the paths the label names
+when it names them. For one ApacheJIT repository:
+
+```bash
+git clone https://github.com/apache/zookeeper && gitmole zookeeper --out analysis-zookeeper
+python -m gitmole.evaluate zookeeper analysis-zookeeper --labels apachejit_total.csv
+```
+
+The datasets live on Zenodo (10.5281/zenodo.5907001 and 10.5281/zenodo.7708984),
+which the environment this page was last regenerated in could not reach, so
+the fourteen-repository table is not here yet; the command above is what
+produces it, one repository at a time, and the labelled table prints under
+the fix-locality one.
 
 ## Every ref, or the checked-out branch
 

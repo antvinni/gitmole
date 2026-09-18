@@ -20,7 +20,7 @@ import os
 import subprocess
 import sys
 
-from . import backtest, filetypes, identity, load, maat, trend, watch
+from . import backtest, filetypes, identity, load, maat, szz, trend, watch
 
 
 def cutoffs(last_date: str, windows: int, horizon: int) -> list:
@@ -42,6 +42,32 @@ def fixed_between(commits: list, start: str, end: str) -> set:
     big = {c["hash"] for c in maat.oversized(commits)}
     return {p for c in maat.in_window(commits, start, end) if maat.is_fix(c.get("subject", "")) and c["hash"] not in big
             for p, _, _ in c["files"] if not filetypes.is_test_path(p)}
+
+
+def induced_between(repo: str, commits: list, start: str, end: str, exclude=None) -> set:
+    """Source files a commit before `start` made buggy, by R-SZZ over the fixes landing on or after
+    `start` and before `end`: the outcome is defect insertion the list could have known about, not
+    fix locality. A fix whose bug-inducing commit is inside the horizon is not counted, since no
+    list drawn before `start` could have named it."""
+    out = set()
+    for c in maat.in_window(maat.fix_commits(commits), start, end):
+        found = szz.bug_inducing(repo, c["hash"], exclude)
+        if found and found["date"] < start:
+            out.update(p for p in found["files"] if not filetypes.is_test_path(p))
+    return out
+
+
+def labelled_between(commits: list, labels: dict, start: str, end: str) -> set:
+    """Source files an independently labelled bug-inducing commit touched on or after `start` and
+    before `end` (ApacheJIT, Defectors: see szz.read_labels): the paths the label names, or every
+    source file the commit touched. Either side may be abbreviated."""
+    out = set()
+    for c in maat.in_window(commits, start, end):
+        paths = next((v for k, v in labels.items() if k.startswith(c["hash"]) or c["hash"].startswith(k)), "none")
+        if paths == "none":
+            continue
+        out.update(p for p in (paths if paths is not None else [p for p, _, _ in c["files"]]) if not filetypes.is_test_path(p))
+    return out
 
 
 def report_at(commits: list, t: str, size: dict, meta: dict, generated: list, vendored: list, ignored: set = frozenset()) -> dict:
@@ -122,10 +148,11 @@ def score(report: dict, fixed: set, top: int) -> dict:
     return out
 
 
-def table(results: list) -> str:
-    """results: [(t, files fixed that were in the pool, pool size, {variant: hits})], oldest first -> Markdown."""
+def table(results: list, noun: str = "fixed") -> str:
+    """results: [(t, files fixed that were in the pool, pool size, {variant: hits})], oldest first -> Markdown.
+    `noun` says what the outcome is: fixed, bug-inducing (R-SZZ) or labelled."""
     names = list(results[0][3]) if results else []
-    head = "| variant | " + " | ".join(f"{t} ({fixed} of {pool} fixed)" for t, fixed, pool, _ in results) + " | total |"
+    head = "| variant | " + " | ".join(f"{t} ({fixed} of {pool} {noun})" for t, fixed, pool, _ in results) + " | total |"
     rule = "|---|" + "---:|" * (len(results) + 1)
     rows = []
     for name in names:
@@ -152,6 +179,8 @@ def main(argv=None) -> int:
     p.add_argument("--windows", type=int, default=6)
     p.add_argument("--horizon", type=int, default=6, metavar="MONTHS")
     p.add_argument("--top", type=int, default=watch.WATCH_TOP)
+    p.add_argument("--szz", action="store_true", help="also score against R-SZZ bug-inducing commits (one git blame per fix and file: minutes)")
+    p.add_argument("--labels", metavar="CSV", help="also score against independent bug-inducing labels (ApacheJIT's CSV, Defectors' file rows, or one hash per line)")
     args = p.parse_args(argv)
     meta = load._read_json(args.out, "meta.json", {})
     log_path = os.path.join(args.out, "log.txt")
@@ -165,7 +194,11 @@ def main(argv=None) -> int:
     from . import run
     declared = maat.read_ignore_revs(run.ignore_revs_files(args.repo))
     ignored = {c["hash"] for c in commits if declared and maat.is_ignored(c["hash"], declared)}
-    results = []
+    labels = szz.read_labels(args.labels) if args.labels else None
+    if args.labels and not labels:
+        print(f"evaluate: no bug-inducing commits read from {args.labels}", file=sys.stderr)
+        return 2
+    results, induced_results, labelled_results = [], [], []
     for t in cutoffs(meta["last_date"], args.windows, args.horizon):
         rev = trend.rev_before(args.repo, t, end_of_day=False)
         if not rev:
@@ -173,9 +206,17 @@ def main(argv=None) -> int:
         size_json, generated, vendored = backtest.snapshot_at(args.repo, rev, args.out)
         size = load.parse_scc(size_json, types)
         report = report_at(commits, t, size, meta, generated, vendored, ignored)
-        fixed = fixed_between(commits, t, months_after(t, args.horizon))
+        end = months_after(t, args.horizon)
+        fixed = fixed_between(commits, t, end)
         pool = set(variants(report)["churn"])
         results.append((t, len(fixed & pool), len(pool), score(report, fixed, args.top)))
+        if args.szz:
+            vendor = tuple(vendored)
+            induced = induced_between(args.repo, commits, t, end, exclude=lambda p: p in generated or filetypes.is_vendored(p, vendor) or filetypes.is_sample_path(p))
+            induced_results.append((t, len(induced & pool), len(pool), score(report, induced, args.top)))
+        if labels:
+            marked = labelled_between(commits, labels, t, end)
+            labelled_results.append((t, len(marked & pool), len(pool), score(report, marked, args.top)))
         print(f"evaluate: {t} done", file=sys.stderr)
     if not results:
         print("evaluate: no cut-off falls inside the history", file=sys.stderr)
@@ -183,6 +224,12 @@ def main(argv=None) -> int:
     spread = ref_spread(args.repo)
     print(f"### {meta.get('name', args.repo)}, top {args.top}, {args.horizon}-month horizon\n")
     print(table(results))
+    if induced_results:
+        print(f"\nAgainst the files a commit before the cut-off made buggy, by R-SZZ over the fixes that followed (the most recent commit each fix's removed lines blame to):\n")
+        print(table(induced_results, noun="bug-inducing"))
+    if labelled_results:
+        print(f"\nAgainst the files the bug-inducing commits labelled in {os.path.basename(args.labels)} touched inside each window:\n")
+        print(table(labelled_results, noun="labelled"))
     print(f"\n`--all` exports {spread['all']:,} commits ({spread['fix_all']:,} fixes); HEAD reaches {spread['head']:,} ({spread['fix_head']:,} fixes).")
     return 0
 
