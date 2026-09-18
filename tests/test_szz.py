@@ -25,7 +25,7 @@ def make_repo(d):
     git("add", "-A", date="2025-01-01")
     git("commit", "-q", "-m", "one", date="2025-01-01")
     write("core/f.py", "a\nB\nc\nd\ne\n")
-    git("commit", "-q", "-am", "plant the bug", date="2025-02-01")
+    git("commit", "-q", "-am", "plant it", date="2025-02-01")
     write("core/f.py", "a\nB\nc\nD\ne\nf\n")
     write("core/g.py", "x\nY\n")
     git("commit", "-q", "-am", "change d, add f, touch g", date="2025-03-01")
@@ -34,34 +34,34 @@ def make_repo(d):
     git("commit", "-q", "-am", "fix: b", date="2025-04-01")
     write("core/g.py", "x\nY\nz\n")
     git("commit", "-q", "-am", "fix: add z", date="2025-05-01")
-    return {line.split()[1]: line.split()[0] for line in
+    return {line.split(" ", 1)[1]: line.split(" ", 1)[0] for line in
             subprocess.run(["git", "log", "--format=%H %s", "HEAD"], cwd=d, capture_output=True, text=True, check=True).stdout.splitlines()
-            if len(line.split()) > 1}
+            if " " in line}
 
 
 class DeletedRanges(unittest.TestCase):
     def test_the_parent_side_lines_a_fix_removed_or_changed_per_modified_file(self):
         with tempfile.TemporaryDirectory() as d:
             by = make_repo(d)
-            self.assertEqual(szz.deleted_ranges(d, by["fix:"]), {"core/f.py": [(2, 1)], "tests/test_f.py": []},
+            self.assertEqual(szz.deleted_ranges(d, by["fix: b"]), {"core/f.py": [(2, 1)], "tests/test_f.py": []},
                              "line 2 of the parent's f.py was changed; the test file only gained a line")
-            self.assertEqual(szz.deleted_ranges(d, by["plant"]), {"core/f.py": [(2, 1)]})
-            self.assertEqual(szz.deleted_ranges(d, by["change"]), {"core/f.py": [(4, 1)], "core/g.py": [(2, 1)]}, "an added line has no parent side")
+            self.assertEqual(szz.deleted_ranges(d, by["plant it"]), {"core/f.py": [(2, 1)]})
+            self.assertEqual(szz.deleted_ranges(d, by["change d, add f, touch g"]), {"core/f.py": [(4, 1)], "core/g.py": [(2, 1)]}, "an added line has no parent side")
 
 
 class BugInducing(unittest.TestCase):
     def test_the_most_recent_commit_blamed_for_a_fixs_deleted_lines_with_its_files(self):
         with tempfile.TemporaryDirectory() as d:
             by = make_repo(d)
-            found = szz.bug_inducing(d, by["fix:"])
-            self.assertEqual(found, {"commit": by["plant"], "date": "2025-02-01", "files": ["core/f.py"]},
+            found = szz.bug_inducing(d, by["fix: b"])
+            self.assertEqual(found, {"commit": by["plant it"], "date": "2025-02-01", "files": ["core/f.py"]},
                              "the fix removed line 2, which the February commit wrote; the March commit is not blamed")
-            self.assertIsNone(szz.bug_inducing(d, by["add"]), "an insert-only fix blames nothing: R-SZZ finds nothing for it")
+            self.assertIsNone(szz.bug_inducing(d, by["fix: add z"]), "an insert-only fix blames nothing: R-SZZ finds nothing for it")
 
     def test_files_the_caller_excludes_are_not_candidates(self):
         with tempfile.TemporaryDirectory() as d:
             by = make_repo(d)
-            self.assertIsNone(szz.bug_inducing(d, by["fix:"], exclude=lambda p: p.startswith("core/")))
+            self.assertIsNone(szz.bug_inducing(d, by["fix: b"], exclude=lambda p: p.startswith("core/")))
 
     def test_the_most_recent_of_several_candidates_wins(self):
         # R-SZZ: of the commits a fix's deleted lines blame to, only the latest is kept; Rosa et al. measured
@@ -77,7 +77,7 @@ class BugInducing(unittest.TestCase):
             git("commit", "-q", "-am", "fix: d and f", date="2025-06-01")
             fix = subprocess.run(["git", "rev-parse", "HEAD"], cwd=d, capture_output=True, text=True).stdout.strip()
             found = szz.bug_inducing(d, fix)
-            self.assertEqual((found["commit"], found["date"], found["files"]), (by["change"], "2025-03-01", ["core/f.py"]))
+            self.assertEqual((found["commit"], found["date"], found["files"]), (by["change d, add f, touch g"], "2025-03-01", ["core/f.py"]))
 
 
 class Labels(unittest.TestCase):

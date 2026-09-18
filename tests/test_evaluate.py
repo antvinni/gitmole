@@ -1,6 +1,10 @@
+import os
+import subprocess
+import tempfile
 import unittest
 
-from gitmole import evaluate
+from gitmole import evaluate, maat
+from tests.test_szz import make_repo
 
 
 def commit(date, subject, *files):
@@ -37,6 +41,32 @@ class Outcome(unittest.TestCase):
         commits = COMMITS + [commit(f"2025-05-{1 + i:02d}", "small", ("core/a.py", 1, 1)) for i in range(20)]
         commits.append(commit("2025-08-01", "fix: the big one", *[(f"core/g{i}.py", 100, 100) for i in range(10)]))
         self.assertEqual(evaluate.fixed_between(commits, "2025-07-01", "2025-09-01"), {"core/b.py"}, "2,000 lines over the 99th percentile: tangled by size, credits nothing")
+
+
+class Induced(unittest.TestCase):
+    def _log(self, d):
+        text = subprocess.run(["git", "log", "HEAD", "--numstat", "--date=iso-strict", "-M", "--pretty=format:--%h--%ad--%aN--%s"],
+                              cwd=d, capture_output=True, text=True, check=True).stdout
+        return maat.parse_log(text)
+
+    def test_files_a_commit_before_the_cut_off_made_buggy_as_a_fix_inside_the_horizon_shows(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            commits = self._log(d)
+            self.assertEqual(evaluate.induced_between(d, commits, "2025-03-15", "2025-09-15"), {"core/f.py"},
+                             "the April fix blames the February commit, which is before the cut-off")
+            self.assertEqual(evaluate.induced_between(d, commits, "2025-01-15", "2025-09-15"), set(),
+                             "the same fix, but the bug was planted after this cut-off: not something the list could have known")
+            self.assertEqual(evaluate.induced_between(d, commits, "2025-04-15", "2025-09-15"), set(), "the May fix only adds lines: R-SZZ finds nothing")
+
+    def test_labelled_commits_inside_the_horizon_name_their_source_files_or_the_paths_given(self):
+        with tempfile.TemporaryDirectory() as d:
+            by = make_repo(d)
+            commits = self._log(d)
+            labels = {by["plant it"][:9]: None, by["change d, add f, touch g"]: ["core/g.py", "docs/x.md"], by["fix: add z"]: None}
+            self.assertEqual(evaluate.labelled_between(commits, labels, "2025-01-15", "2025-02-15"), {"core/f.py"}, "an abbreviated label still matches")
+            self.assertEqual(evaluate.labelled_between(commits, labels, "2025-02-15", "2025-03-15"), {"core/g.py", "docs/x.md"}, "the paths the label names")
+            self.assertEqual(evaluate.labelled_between(commits, labels, "2025-04-15", "2025-06-15"), {"core/g.py"})
 
 
 class Score(unittest.TestCase):
@@ -103,6 +133,7 @@ class Table(unittest.TestCase):
             "| churn | 1 | 2 | 3 |",
             "| random (expected) | 0.4 | 0.6 | 1.0 |",
         ])
+        self.assertIn("(3 of 40 bug-inducing)", evaluate.table([("2025-02-28", 3, 40, {"churn": 1})], noun="bug-inducing"))
 
 
 if __name__ == "__main__":
