@@ -82,7 +82,7 @@ def parse_scc(text: str, types=None) -> dict:
 
 
 NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs",
-                   "minor", "soc", "partners", "n-sets", "with-tests"}
+                   "minor", "soc", "partners", "n-sets", "with-tests", "periods"}
 
 
 def parse_maat_csv(text: str) -> list:
@@ -309,6 +309,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
         "soc": parse_maat_csv(_read(out_dir, "maat-soc.csv")),   # sum of coupling; empty for an output directory from before 0.11
         "tests": parse_maat_csv(_read(out_dir, "maat-tests.csv")),   # test co-change per production file; empty before 0.12
+        "entropy": parse_maat_csv(_read(out_dir, "maat-entropy.csv")),   # Hassan's change entropy per file; empty before 0.13
         "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),
         "ownership": ownership,

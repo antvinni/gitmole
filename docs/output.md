@@ -201,7 +201,16 @@ How to read each part of the terminal report, and what each run writes to disk; 
    `release file`, `amalgamation`, `not a source type` and `not in the
    tree`, the last covering a file the change deleted and, under `--no-run`,
    one added after the run; otherwise `changed once`, or `no revisions on
-   record`.
+   record`. The caption adds Kamei's factors for the change (files,
+   directories and commits; lines added against the lines the files had;
+   how evenly it spreads; files changed this month; prior changes and
+   people; the author's prior commits) and the companions the change left
+   untouched (`not touched: core/ast.py, which changes with core/parser.py
+   72% of the time`); the JSON carries them under `change_risk.change` and
+   `change_risk.coupling_gaps`, and each scored file's rank, fix counts,
+   owner, share and minor contributors. `--hook` is the same scoring for a
+   coding agent's hook, see
+   [cli.md](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#agent-hooks).
 
    Under the watch list, one line says how the list would have done:
    gitmole reruns the change analysis as of six months before the last
@@ -342,6 +351,7 @@ directory for a remote target:
 | `maat-coupling.csv` | change analysis | files that change together, over logical changes (a ticket's commits, or one author's day) |
 | `maat-soc.csv` | change analysis | sum of coupling per file: its co-changes with any other file, and how many files it shares five or more commits with, over logical changes |
 | `maat-tests.csv` | change analysis | per production file, how many logical changes touched it and how many of those also touched a test file |
+| `maat-entropy.csv` | change analysis | Hassan's change entropy per file: the months it changed in, and its decayed history complexity (its share of each month's changes times that month's entropy over files, halved per month back) |
 | `maat-authors.csv` | change analysis | authors per file (co-authors included), and how many of them are minor contributors |
 | `maat-age.csv` | change analysis | months since last change per file |
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file, a commit's lines shared between its author and co-authors |

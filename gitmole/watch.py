@@ -15,6 +15,7 @@ function in the file is what the reasons name, since lizard has no reader for sh
 Makefiles and the like."""
 from __future__ import annotations
 
+import os
 from collections import Counter, defaultdict
 
 from . import classify, filetypes, hotspots, textfmt, trend
@@ -165,29 +166,89 @@ def _reasons(r: dict) -> list:
 WATCH_TOP = 15   # the same cap the report's --full watch list uses
 
 
-def change_risk(report: dict, files: list) -> dict:
+def change_risk(report: dict, files: list, stats: dict = None) -> dict:
     """The watch score of each touched file, and their sum: that total is a percentage of the
     repository's revisions × lines of code. Files the watch list never scored get 0 and the
     classifier's reason, or `changed once` / `no revisions on record`; `not in the tree` covers a
-    file the change deleted and, under --no-run, one added after the run."""
+    file the change deleted and, under --no-run, one added after the run. Each scored file carries
+    its context: hotspot rank, fix counts, owner and share, minor contributors, whether it is on
+    the watch list. `coupling_gaps` are the companions a touched file usually changes with that the
+    change did not touch (Zimmermann et al.'s ROSE: 66% precision at a 2% false-alarm rate). With
+    the diff's numbers (`stats`, see run.change_stats), `change` holds Kamei's factors as reasons."""
     ranked = risks(report)
     by_file = {r["file"]: r for r in ranked}
+    rank = {r["file"]: i + 1 for i, r in enumerate(ranked)}
     watched = {r["file"] for r in ranked[:WATCH_TOP]}
     cls = classify.Classifier(report)
     revs = {r["entity"]: r["n-revs"] for r in report.get("revisions") or []}
-    rows = []
+    touched = set(files)
+    rows, gaps = [], []
     for f in files:
         r = by_file.get(f)
         if r:
-            rows.append({"file": f, "score": r["score"], "reasons": r["reasons"], "reason": None, "watched": f in watched})
+            rows.append({"file": f, "score": r["score"], "reasons": r["reasons"], "reason": None, "watched": f in watched,
+                         "rank": rank[f], "recent_fixes": r["recent_fixes"], "fixes": r["fixes"], "owner": r["owner"], "owner_share": r["owner_share"],
+                         "minor": r.get("minor", 0)})
+            gaps += [{"file": f, "companion": other, "degree": degree} for other, degree in r["companions"] if other not in touched]
             continue
         why = cls.reason(f)
         if why is None:
             why = "changed once" if revs.get(f) == 1 else "no revisions on record"
-        rows.append({"file": f, "score": 0, "reasons": [why], "reason": why, "watched": False})
+        rows.append({"file": f, "score": 0, "reasons": [why], "reason": why, "watched": False,
+                     "rank": None, "recent_fixes": 0, "fixes": 0, "owner": None, "owner_share": 0.0, "minor": 0})
     rows.sort(key=lambda r: (-r["score"], r["file"]))
-    return {"files": rows, "total": float(sum(r["score"] for r in rows)), "watched": sum(r["watched"] for r in rows),
-            "max_score": float(ranked[0]["score"]) if ranked and rows else 0.0}
+    gaps.sort(key=lambda g: (-g["degree"], g["file"], g["companion"]))
+    out = {"files": rows, "total": float(sum(r["score"] for r in rows)), "watched": sum(r["watched"] for r in rows),
+           "max_score": float(ranked[0]["score"]) if ranked and rows else 0.0, "coupling_gaps": gaps, "pool": len(ranked)}
+    if stats is not None:
+        out["change"] = change_factors(report, stats)
+    return out
+
+
+RECENT_MONTHS = 1   # a touched file that changed this month is the AGE factor Kamei found most telling
+
+
+def change_factors(report: dict, stats: dict) -> dict:
+    """Kamei et al.'s just-in-time factors for one change, as named reasons beside the mass share, never
+    folded into it: the files and directories it touches (NF, ND) and the commits it spans, lines added
+    and removed against the lines those files had (LA/LT, LD/LT), how evenly it spreads over its files
+    (entropy), how often those files changed before and by how many people (NUC, NDEV), how many
+    changed this month (AGE), and the author's prior commits here (EXP)."""
+    import math
+    files = list(stats.get("files") or [])
+    added, deleted = stats.get("added") or {}, stats.get("deleted") or {}
+    sizes = (report.get("size") or {}).get("files") or {}
+    la, ld = sum(added.get(f, 0) for f in files), sum(deleted.get(f, 0) for f in files)
+    lt = sum((sizes.get(f) or {}).get("code", 0) for f in files)
+    weights = [added.get(f, 0) + deleted.get(f, 0) for f in files]
+    total = sum(weights)
+    entropy = 0.0
+    if total and len(files) > 1:
+        entropy = -sum((w / total) * math.log2(w / total) for w in weights if w) / math.log2(len(files))
+    dirs = len({os.path.dirname(f) for f in files})
+    revs = {r["entity"]: r["n-revs"] for r in report.get("revisions") or []}
+    nuc = sum(revs.get(f, 0) for f in files)
+    recent = sum(1 for a in report.get("age") or [] if a["entity"] in files and a["age-months"] < RECENT_MONTHS)
+    developers = len({r["author"] for r in report.get("ownership") or [] if r["entity"] in files})
+    author = stats.get("author") or ""
+    prior = ((report.get("activity") or {}).get("authors_all") or {}).get(author, {}).get("commits", 0)
+    commits = stats.get("commits") or 0
+    reasons = [f"touches {textfmt.count(len(files), 'file')} across {textfmt.count(dirs, 'directory', 'directories')}, {textfmt.count(commits, 'commit')}"]
+    share = f" ({round(100 * la / lt)}%)" if lt else ""
+    reasons.append(f"adds {la:,} lines to {lt:,}{share}, removes {ld:,}" if lt else f"adds {la:,} lines, removes {ld:,}")
+    if len(files) > 1 and total:
+        if entropy < 0.5:
+            reasons.append("most of the change is in one file")
+        elif entropy >= 0.9:
+            reasons.append("spread evenly over its files")
+    if recent:
+        reasons.append(f"{recent} of the {len(files)} files changed this month")
+    if nuc:
+        reasons.append(f"the files have {nuc:,} prior changes by {textfmt.count(developers, 'person', 'people')}")
+    if author:
+        reasons.append(f"{author}'s first commit here" if not prior else f"{author} has {textfmt.count(prior, 'prior commit')} here")
+    return {"files": len(files), "dirs": dirs, "commits": commits, "added": la, "deleted": ld, "lines_before": lt, "entropy": round(entropy, 3),
+            "prior_revisions": nuc, "recent_files": recent, "developers": developers, "author": author, "author_commits": prior, "reasons": reasons}
 
 
 # What a simpler list would rank by. Churn alone is the one to beat: a file's past changes predict

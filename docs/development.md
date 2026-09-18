@@ -104,7 +104,8 @@ why a file is out of the scored pool, `findings.py` holds the heuristics,
 `trend.py` is complexity over time for the top hotspots, `clean.py` finds
 and removes what gitmole left behind, `compare.py` is the difference between
 two reports (the findings new, resolved and persisting, the watch list's
-moves), and `render.py` draws the report.
+moves), `hook.py` is the agent-hook gate behind `--hook`, `szz.py` finds
+bug-inducing commits by R-SZZ for the backtest, and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates
 `docs/banner.svg` from the banner code.
 `bin/render-examples` clones the repositories listed in the script under
@@ -120,7 +121,8 @@ commit before each cut-off made buggy, by R-SZZ over the fixes that followed
 (`szz.py`: the most recent commit a fix's removed lines blame to, one
 `git blame -w -C -C` per fix and file, so minutes on a large history), and
 `--labels CSV` a third against independent bug-inducing labels in
-ApacheJIT's, Defectors' or a bare-hash shape; the results are in
+ApacheJIT's, Defectors' or a bare-hash shape; the variants include Hassan's
+change entropy (`maat.entropy`, decayed over calendar months); the results are in
 [validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md).
 
 The change analysis (hotspots, coupling, ownership, age) is gitmole's own

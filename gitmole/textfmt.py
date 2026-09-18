@@ -100,3 +100,8 @@ def tally(findings: list) -> str:
     if counts["info"]:
         parts.append(f"{counts['info']} note" + ("s" if counts["info"] != 1 else ""))
     return ", ".join(parts) if parts else "nothing flagged"
+
+
+def count(n: int, word: str, plural: str = None) -> str:
+    """'1 file', '3 files', '2 directories': a number with its noun."""
+    return f"{n:,} {word if n == 1 else (plural or word + 's')}"

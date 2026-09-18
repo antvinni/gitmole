@@ -542,6 +542,31 @@ def changed_files(repo_dir: str, base: str) -> list:
     return sorted(p.decode("utf-8", "surrogateescape") for p in proc.stdout.split(b"\0") if p)
 
 
+def change_stats(repo_dir: str, base: str) -> dict:
+    """What a change is, for the Kamei factors: the files that differ between the merge base with
+    `base` and HEAD, lines added and deleted per file (whitespace ignored, as the change log is), the
+    author of HEAD and how many commits the change spans. ValueError when git refuses."""
+    files = changed_files(repo_dir, base)
+    proc = subprocess.run([*filetypes.GIT, "diff", "--numstat", "-w", "--ignore-blank-lines", f"{base}...HEAD"], cwd=repo_dir, capture_output=True)
+    if proc.returncode != 0:
+        raise ValueError((proc.stderr.decode("utf-8", "replace").strip() or f"git diff {base}...HEAD failed"))
+    added, deleted = {f: 0 for f in files}, {f: 0 for f in files}
+    for line in proc.stdout.decode("utf-8", "surrogateescape").split("\n"):
+        parts = line.split("\t", 2)
+        if len(parts) != 3:
+            continue
+        a, d, path = parts
+        path = filetypes.unquote(path)
+        if " => " in path:
+            path = path.split(" => ", 1)[1].rstrip("}") if "{" not in path else path
+        added[path] = int(a) if a.isdigit() else 0
+        deleted[path] = int(d) if d.isdigit() else 0
+    author = subprocess.run(["git", "log", "-1", "--use-mailmap", "--format=%aN", "HEAD"], cwd=repo_dir, capture_output=True).stdout.decode("utf-8", "replace").strip()
+    count = subprocess.run(["git", "rev-list", "--count", f"{base}..HEAD"], cwd=repo_dir, capture_output=True, text=True).stdout.strip()
+    return {"files": files, "added": {f: added.get(f, 0) for f in files}, "deleted": {f: deleted.get(f, 0) for f in files},
+            "author": author, "commits": int(count) if count.isdigit() else 0}
+
+
 def save_meta(meta: dict, out_dir: str) -> None:
     with open(os.path.join(out_dir, "meta.json"), "w") as fh:
         json.dump(meta, fh, indent=2)

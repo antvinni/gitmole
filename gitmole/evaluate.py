@@ -80,7 +80,8 @@ def report_at(commits: list, t: str, size: dict, meta: dict, generated: list, ve
     ownership = [r for r in maat.entity_ownership(past) if r["author"] not in bots and not identity.is_bot(r["author"])]
     return {"meta": {"now": t, "generated": generated, "vendored": vendored}, "size": size, "revisions": maat.revisions(past),
             "plumbing": maat.plumbing(past), "authors": maat.authors(past), "ownership": ownership,
-            "fixes": maat.fixes(past, now=t), "coupling": [], "functions": []}
+            "fixes": maat.fixes(past, now=t), "coupling": [], "functions": [],
+            "entropy": {r["entity"]: r["hcm"] for r in maat.entropy(past, now=t)}}
 
 
 SOLO_WEIGHT = 1.5       # how much single ownership lifts a factor product
@@ -136,6 +137,8 @@ def variants(report: dict) -> dict:
     for name, key in watch.BASELINES.items():
         out[name] = watch.ranked_by(rows, key)
     out["recent fixes"] = watch.ranked_by(rows, lambda r: (r["recent_fixes"], r["revs"]))
+    hcm = report.get("entropy") or {}
+    out["change entropy (HCM)"] = watch.ranked_by(rows, lambda r: (hcm.get(r["file"], 0.0), r["revs"]))   # Hassan's decayed HCM, the one metric with published evidence of beating churn
     return out
 
 
