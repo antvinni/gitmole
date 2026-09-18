@@ -47,7 +47,7 @@ class Summarise(unittest.TestCase):
         lodash = out["vulnerable"][1]
         self.assertEqual(lodash, {"name": "lodash", "version": "4.17.15", "ecosystem": "npm", "source": "frontend/yarn.lock",
                                   "ids": ["GHSA-1", "GHSA-2"], "aliases": ["CVE-2020-8203", "CVE-2021-23337"], "advisories": 1,
-                                  "score": 7.2, "severity": "high", "summary": "Command injection", "fixed": "4.17.19"})
+                                  "score": 7.2, "severity": "high", "summary": "Command injection", "fixed": "4.17.19", "malicious": False})
         self.assertEqual(out["vulnerable"][0]["severity"], "critical")
         self.assertNotIn("affected", json.dumps(out), "the advisories' full text stays out of the output directory")
 
@@ -70,8 +70,25 @@ class Summarise(unittest.TestCase):
         row = deps.summarise({"results": [{"source": {"path": "a.lock"}, "packages": [pkg]}]}, "/r")["vulnerable"][0]
         self.assertEqual(row["severity"], "unknown")
 
+    def test_a_malicious_package_advisory_is_critical_whatever_its_score_and_leads(self):
+        """OpenSSF's malicious-packages records are MAL- ids in the same OSV database; they carry no CVSS,
+        so without this rule a known-malicious package lands in the unknown bucket."""
+        rows = [package("minimist", "0.0.8", [vuln("GHSA-3", ["CVE-2021-44906"], fixed="1.2.6", name="minimist")], max_severity="9.8"),
+                package("evil-pad", "1.0.2", [vuln("MAL-2026-1234", (), "Malicious code in evil-pad (npm)", name="evil-pad")], max_severity=""),
+                package("aliased", "2.0.0", [vuln("GHSA-9", ["MAL-2026-99"], name="aliased")], max_severity="")]
+        out = deps.summarise({"results": [{"source": {"path": "package-lock.json"}, "packages": rows}]}, "/r")
+        self.assertEqual([(r["name"], r["severity"], r["malicious"]) for r in out["vulnerable"]],
+                         [("aliased", "critical", True), ("evil-pad", "critical", True), ("minimist", "critical", False)],
+                         "malicious first, by name; then by score")
+        self.assertIsNone(out["vulnerable"][1]["score"], "the score stays what the advisory says: nothing")
+        self.assertEqual(out["vulnerable"][1]["ids"], ["MAL-2026-1234"])
+
     def test_an_empty_scan(self):
         self.assertEqual(deps.summarise({"results": []}, "/r"), {"status": "scanned", "sources": [], "packages": 0, "vulnerable": []})
+
+    def test_a_row_says_it_is_not_malicious(self):
+        row = deps.summarise(report(), "/repo")["vulnerable"][0]
+        self.assertIs(row["malicious"], False)
 
 
 class DatabaseDate(unittest.TestCase):

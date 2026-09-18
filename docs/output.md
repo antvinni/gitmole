@@ -65,9 +65,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    for the one-time download). One row per package with an advisory: the
    CVE or advisory id, the worst CVSS score, and the version that fixes it.
    A package pinned by a lock file in the source tree is a warning, critical
-   when an advisory scores 9.0 or more; a package pinned only by a lock file
-   under tests, examples, docs or vendored code is a note. The advice names
-   the package to upgrade first. An advisory that does not apply to your
+   when an advisory scores 9.0 or more or is a `MAL-` record (OpenSSF's
+   malicious-packages list ships in the same database; those records carry
+   no score, and a malicious package is critical whatever its score); a
+   package pinned only by a lock file under tests, examples, docs or
+   vendored code is a note. The advice names the package to upgrade first,
+   or, for a malicious one, to remove. An advisory that does not apply to your
    code is silenced in `osv-scanner.toml` at the repository root. The footer
    line says how many packages in how many lock files were checked and how
    old the database copy is; without lock files, or without the database, it
@@ -286,7 +289,7 @@ directory for a remote target:
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems |
 | `secrets.json` | betterleaks | secret-looking strings across all history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
-| `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version), the database date; or a status: no lock files, no local database |
+| `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record), the database date; or a status: no lock files, no local database |
 | `log.txt` | git | the numstat log export the change analysis reads |
 | `maat-revisions.csv` | change analysis | change frequency per file |
 | `maat-coupling.csv` | change analysis | files that change together |
