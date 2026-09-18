@@ -90,8 +90,12 @@ parallel step wrote them in, and each secret's keyed hash (the key is made
 for one run) is replaced by a stable label, `v1`, `v2`, the same value
 getting the same label. What does differ from one run to the next sits in
 one top-level key, `envelope`: the blame pass's measured projection, the
-output directory, the structure cache's hits. gitmole's own CI runs it
-twice on every commit, compares the two exports without the envelope, and
+output directory, the clone's path on this machine, the structure cache's
+hits, and each step's wall time and peak memory. gitmole's own CI runs it
+twice on every commit, once more in another time zone and the C locale, and
+once on Linux, compares the exports without the envelope (a section an
+external tool produces only when both platforms ran the same version of
+it), and
 on `main` attests the report with `actions/attest`, so a report can be
 checked as coming from that commit and that workflow:
 

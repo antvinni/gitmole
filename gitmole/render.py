@@ -1152,6 +1152,8 @@ def _envelope(out: dict) -> dict:
     out = copy.deepcopy(out)
     env = {"out_dir": out.pop("out_dir", None)}
     meta = out.get("meta") or {}
+    if "path" in meta:   # where the clone sits on this machine
+        env["path"] = meta.pop("path")
     for key in ("step_seconds", "step_peak_mb"):   # what each step cost on this machine, this time
         if key in meta:
             env[key] = meta.pop(key)
