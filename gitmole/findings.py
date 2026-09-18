@@ -68,12 +68,17 @@ def secrets_found(report: dict) -> list:
     flagged as placeholders and are not a finding."""
     groups = leaks.group(report.get("secrets") or [])
 
-    vendored = filetypes.vendor_dirs(report)
+    vendored, generated = filetypes.vendor_dirs(report), _generated(report)
 
     def in_source(g):
-        return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f) or filetypes.is_vendored(f, vendored))
+        return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f) or filetypes.is_vendored(f, vendored)
+                        or filetypes.is_mock_path(f) or filetypes.is_tooling_path(f) or f in generated)
                    for f in g["files"])
-    source = [g for g in groups if in_source(g)]
+
+    def possible(g):   # only the scanner's generic rules found it, and it graded every sighting low
+        return g["rule"].startswith("generic-") and g.get("confidence") == "low"
+    source = [g for g in groups if in_source(g) and not possible(g)]
+    maybe = [g for g in groups if in_source(g) and possible(g)]
     aside = [g for g in groups if not in_source(g)]
     ignore = "Add the fingerprint of any false positive from secrets.json to .betterleaksignore in the repository."
     out = []
@@ -81,8 +86,13 @@ def secrets_found(report: dict) -> list:
         out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source),
                       f"Rotate them; deleting the file does not remove them from git. {ignore}",
                       rule={"id": "secrets_in_source", "scanner": "betterleaks", "placeholders": "left out"}, evidence=_secret_evidence(source)))
+    if maybe:
+        out.append(_f("warning", f"{len(maybe)} possible secret(s) in source", _secret_statement(maybe),
+                      f"Look at each: the scanner's generic rules found them and graded every sighting low, which is how an ordinary assignment "
+                      f"or a hash reads as well as a key. {ignore}",
+                      rule={"id": "secrets_possible", "scanner": "betterleaks", "confidence": "low", "rules": "generic-*"}, evidence=_secret_evidence(maybe)))
     if aside:
-        out.append(_f("warning", f"{len(aside)} secret(s) only in test, example, vendored or documentation files", _secret_statement(aside),
+        out.append(_f("warning", f"{len(aside)} secret(s) only in test, example, vendored, generated or documentation files", _secret_statement(aside),
                       f"Confirm they are fixtures or templates, not live keys. {ignore}",
                       rule={"id": "secrets_aside", "scanner": "betterleaks", "placeholders": "left out"}, evidence=_secret_evidence(aside)))
     return out

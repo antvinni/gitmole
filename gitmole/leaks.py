@@ -180,10 +180,16 @@ def sanitise(rows: list) -> list:
     for r in rows:
         value = r.get("Secret") or ""
         clean = {k: v for k, v in r.items() if k not in RAW_FIELDS}
+        attrs = r.get("Attributes") if isinstance(r.get("Attributes"), dict) else {}
+        if attrs.get("confidence") in ("low", "medium", "high"):   # the scanner's own grade, kept; the rest of Attributes can quote the value
+            clean["Confidence"] = attrs["confidence"]
         clean["SecretHash"] = digest(value, key)
         clean["Placeholder"] = is_placeholder(value, r.get("Line") or "", r.get("File") or "")   # read here and dropped with the other raw fields
         out.append(clean)
     return out
+
+
+CONFIDENCE = {"low": 0, "medium": 1, "high": 2}
 
 
 def group(rows: list) -> list:
@@ -197,7 +203,8 @@ def group(rows: list) -> list:
             continue
         key = r.get("value") or ("row", i)
         if key not in groups:
-            groups[key] = {"value": r.get("value"), "rule": r["rule"], "files": [], "commits": [], "_places": set(), "test": True, "docs": True}
+            groups[key] = {"value": r.get("value"), "rule": r["rule"], "files": [], "commits": [], "_places": set(), "test": True, "docs": True,
+                           "confidence": None}
             order.append(key)
         g = groups[key]
         if r["file"] not in g["files"]:
@@ -205,6 +212,8 @@ def group(rows: list) -> list:
         if r["commit"] not in g["commits"]:
             g["commits"].append(r["commit"])
         g["_places"].add((r["commit"], r["file"], r.get("line")))
+        if CONFIDENCE.get(r.get("confidence"), -1) > CONFIDENCE.get(g["confidence"], -1):   # the scanner's highest grade for the value
+            g["confidence"] = r.get("confidence")
         g["test"] = g["test"] and filetypes.is_test_path(r["file"])
         g["docs"] = g["docs"] and filetypes.is_doc_path(r["file"])
     out = []

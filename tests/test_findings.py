@@ -47,7 +47,7 @@ class SecretsFound(unittest.TestCase):
         self.assertIn("1 distinct value in 2 places: generic-api-key in app/settings.py (c1, c2)", crit["detail"])
         self.assertIn("Rotate", crit["advice"])
         self.assertIn(".betterleaksignore", crit["advice"])
-        self.assertEqual(warn["title"], "2 secret(s) only in test, example, vendored or documentation files")
+        self.assertEqual(warn["title"], "2 secret(s) only in test, example, vendored, generated or documentation files")
         self.assertIn("2 distinct values in 3 places", warn["detail"])
         self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
         self.assertIn(".betterleaksignore", warn["advice"])
@@ -62,7 +62,7 @@ class SecretsFound(unittest.TestCase):
                             self.row("h3", "pkg/testdata/creds.yaml", "c3")])
         f = findings.secrets_found(r)
         self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertEqual(f[0]["title"], "3 secret(s) only in test, example, vendored or documentation files")
+        self.assertEqual(f[0]["title"], "3 secret(s) only in test, example, vendored, generated or documentation files")
         r = report(secrets=[self.row("h1", "examples/app.py", "c1"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
 
@@ -77,7 +77,7 @@ class SecretsFound(unittest.TestCase):
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508")])
         f = findings.secrets_found(r)
         self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertEqual(f[0]["title"], "1 secret(s) only in test, example, vendored or documentation files")
+        self.assertEqual(f[0]["title"], "1 secret(s) only in test, example, vendored, generated or documentation files")
         self.assertIn("fixtures or templates", f[0]["advice"])
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
@@ -1333,3 +1333,25 @@ class ImportCommits(unittest.TestCase):
         self.assertEqual(f[0]["rule"]["id"], "import_commits")
         self.assertIn("79d8f164f8 by Dan (12,449 files, 2,800,751 lines, 42% of every line the history adds", f[0]["detail"])
         self.assertEqual(findings.import_commits(report(activity={})), [])
+
+
+class SecretsByConfidence(unittest.TestCase):
+    def _row(self, value, rule, file, confidence):
+        return {"rule": rule, "file": file, "commit": "abc1234", "line": 3, "fingerprint": value, "value": value, "placeholder": False, "confidence": confidence}
+
+    def test_a_generic_hit_graded_low_everywhere_is_a_possible_secret(self):
+        rows = [self._row("v1", "generic-api-key", "scripts/genproto.sh", "low"), self._row("v2", "generic-password", "app/db.py", "low"),
+                self._row("v2", "generic-password", "app/db2.py", "medium"), self._row("v3", "aws-access-token", "app/aws.py", "low")]
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
+        self.assertEqual(f["secrets_possible"]["severity"], "warning")
+        self.assertIn("1 possible secret(s)", f["secrets_possible"]["title"])
+        self.assertIn("2 secret(s)", f["secrets_in_source"]["title"], "one medium sighting keeps a value critical; a provider's rule stays critical")
+
+    def test_generated_mock_tooling_and_testdata_files_are_aside(self):
+        rows = [self._row("g", "generic-password", "api/registry.pb.go", "medium"), self._row("m", "generic-api-key", "discovery/openstack/mock.go", "medium"),
+                self._row("h", "private-key", "hack/scripts-dev/certs/server.key.insecure", "high"), self._row("t", "ibm-cloud-user-api-key", "cmd/tsdb/testdata.20k", "high"),
+                self._row("f", "private-key", "integration/fixtures-expired/server.key", "high"), self._row("w", "private-key", "Godeps/_workspace/src/x/server.key", "high")]
+        r = report(secrets=rows, meta={"name": "r", "commits": 100, "identities": [], "generated": ["api/registry.pb.go"]})
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(r)}
+        self.assertNotIn("secrets_in_source", f)
+        self.assertIn("6 secret(s) only in", f["secrets_aside"]["title"])

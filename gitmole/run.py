@@ -45,6 +45,17 @@ _OWNER_REPO = re.compile(r"^[\w.-]+/[\w.-]+$")
 _URL = re.compile(r"^(https?://|git@|ssh://)")
 
 
+def has_commits(repo: str) -> bool:
+    """Whether HEAD names a commit: a repository initialised and never committed to has nothing to analyse."""
+    return subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"], capture_output=True).returncode == 0
+
+
+def is_shallow(repo: str) -> bool:
+    """A shallow clone (git clone --depth): git-sizer refuses one, and its history stops at the graft."""
+    out = subprocess.run(["git", "-C", repo, "rev-parse", "--is-shallow-repository"], capture_output=True, text=True).stdout.strip()
+    return out == "true"
+
+
 def classify_target(target: str) -> tuple:
     if os.path.isdir(target):
         probe = subprocess.run(["git", "-C", target, "rev-parse", "--git-dir"], capture_output=True, text=True)
@@ -260,7 +271,8 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
                     "--procs", str(procs or os.cpu_count() or 2), "--interval", str(interval), *ignores]
     steps = [
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
-        {"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []},
+        *([] if is_shallow(repo_dir) else   # git-sizer needs the whole object graph; the run records why it is missing
+          [{"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []}]),
         {"name": "betterleaks", "argv": [sys.executable, LEAKS_SCRIPT, o("secrets.json")], "stdout": None, "deps": []},   # hashes the values before anything is written
         {"name": "osv-scanner", "argv": [sys.executable, DEPS_SCRIPT, o("dependencies.json")], "stdout": None, "deps": []},   # offline, against the local database
         # -M: a move is not an edit; -w --ignore-blank-lines: a whitespace-only hunk is not a changed line, so a reformat that only

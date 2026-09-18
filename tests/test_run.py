@@ -827,3 +827,29 @@ class LaunchInsideAnotherGitmole(unittest.TestCase):
             self.assertEqual(p.returncode, 0, p.stderr)
             self.assertEqual(p.stdout.strip(), "ok")
             self.assertTrue(os.path.exists(stats))
+
+
+class EmptyAndShallow(unittest.TestCase):
+    def _git(self, d, *args):
+        env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x",
+                   GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+        subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=env)
+
+    def test_an_empty_repository_has_no_commits_and_a_shallow_clone_skips_git_sizer(self):
+        with tempfile.TemporaryDirectory() as d:
+            src, shallow = os.path.join(d, "src"), os.path.join(d, "shallow")
+            os.makedirs(src)
+            self._git(src, "init", "-q")
+            self.assertFalse(run.has_commits(src))
+            for i in range(3):
+                with open(os.path.join(src, "a.txt"), "w") as fh:
+                    fh.write(str(i))
+                self._git(src, "add", "-A")
+                self._git(src, "commit", "-q", "-m", f"c{i}")
+            self.assertTrue(run.has_commits(src))
+            self.assertFalse(run.is_shallow(src))
+            self._git(d, "clone", "-q", "--depth", "1", "file://" + src, shallow)
+            self.assertTrue(run.is_shallow(shallow))
+            names = {s["name"] for s in run.plan(shallow, os.path.join(d, "out"))}
+            self.assertNotIn("git-sizer", names)
+            self.assertIn("git-sizer", {s["name"] for s in run.plan(src, os.path.join(d, "out"))})

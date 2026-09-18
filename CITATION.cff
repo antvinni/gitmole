@@ -12,7 +12,7 @@ authors:
 repository-code: "https://github.com/antvinni/gitmole"
 url: "https://github.com/antvinni/gitmole"
 license: MIT
-version: 0.27.0
+version: 0.28.0
 date-released: 2026-09-18
 keywords:
   - git

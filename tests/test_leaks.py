@@ -317,7 +317,7 @@ class Group(unittest.TestCase):
         groups = leaks.group(rows)
         self.assertEqual([g["value"] for g in groups], ["h1", "h2", "h3"], "source first, then by places; placeholders left out")
         self.assertEqual(groups[0], {"value": "h1", "rule": "generic-api-key", "files": ["app/settings.py"], "commits": ["c1", "c2"],
-                                     "places": 2, "test": False, "docs": False})
+                                     "places": 2, "test": False, "docs": False, "confidence": None})
         self.assertEqual(groups[1]["files"], ["tests/data/a.html", "app/tests/data/a.html"])
         self.assertEqual(groups[1]["places"], 2)
         self.assertTrue(groups[1]["test"])

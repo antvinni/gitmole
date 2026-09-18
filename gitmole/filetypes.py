@@ -60,6 +60,24 @@ _TEST_SUFFIX = re.compile(r"[A-Za-z0-9]Tests?\.(java|kt|kts|scala|groovy|swift|c
                           r"|(^|/)tb_[^/]*\.(v|sv|vhd|vhdl)$|_tb\.(v|sv|vhd|vhdl)$|(^|/)[A-Za-z0-9]+Tests/")
 
 
+_MOCK_PATH = re.compile(r"(^|/)mocks?/|(^|/)mock_[^/]+$|(^|/)mock\.[a-z]+$|_mocks?\.[a-z]+$", re.I)   # gomock's mock_x.go, x_mock.go, mocks/
+
+
+def is_mock_path(path: str) -> bool:
+    """A test double by the conventions mock generators and test suites use: a mocks/ directory, mock.go,
+    mock_x.go, x_mock.go. A value in one is a fake for a test, not a credential in use."""
+    return bool(_MOCK_PATH.search(path))
+
+
+_TOOLING_PATH = re.compile(r"(^|/)hack/")
+
+
+def is_tooling_path(path: str) -> bool:
+    """Developer tooling by the Go ecosystem's convention: hack/ holds the scripts and local test setups
+    that build and run the project, not what it ships."""
+    return bool(_TOOLING_PATH.search(path))
+
+
 def is_test_path(path: str) -> bool:
     """A test file or anything under a tests directory (tests/, pending_tests/, e2e-tests/, test_utils/,
     snapshots/ and .snap files): changes with every fix, so not a signal on its own. Also the suffix
@@ -79,7 +97,8 @@ def is_doc_path(path: str) -> bool:
     return bool(_DOC_PATH.search(path))
 
 
-_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules|stubs?|tutorials?|exercises?(files)?)(/|$)|\.stub$", re.I)
+_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?([-_][\w-]+)?|testdata|demos?|rules|stubs?|tutorials?|exercises?(files)?)(/|$)"
+                          r"|\.stub$|(^|/)testdata[._-][^/]*$", re.I)   # fixtures-expired/, a testdata.20k file
 _PACKAGE_EXAMPLE = re.compile(r"(^|/)(com|org|net|io|dev|me|co)/examples?(/|$)", re.I)   # Java's com.example.* is a package, not a sample
 
 
@@ -92,7 +111,7 @@ def is_sample_path(path: str) -> bool:
     return bool(_SAMPLE_PATH.search(path)) and not _PACKAGE_EXAMPLE.search(path)
 
 
-_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps|\.yarn)(/|$)|^[^/]+/packages/", re.I)
+_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps|\.yarn|Godeps/_workspace)(/|$)|^[^/]+/packages/", re.I)   # Godeps/_workspace: godep's vendoring
 
 
 def is_vendor_path(path: str) -> bool:
