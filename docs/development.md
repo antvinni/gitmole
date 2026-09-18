@@ -142,6 +142,18 @@ commit before each cut-off made buggy, by R-SZZ over the fixes that followed
 ApacheJIT's, Defectors' or a bare-hash shape; the variants include Hassan's
 change entropy (`maat.entropy`, decayed over calendar months); the results are in
 [validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md).
+`python -m gitmole.measure` is the harness of
+[measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md):
+`run --ref TAG` runs a release from its own source over the corpus in
+`measure/corpus.json` and writes `docs/measurements/<version>.json`,
+`history` does that for every release tag not yet recorded, `extras` runs the
+current tree's sensitivity sweep, description checks, hook replay and
+determinism check, `report` redraws `docs/measurement-history.md` and the
+graphs in `docs/evolution/`, and `labels dump|score` handle the hand labels.
+Clones, fixtures and run outputs go under `$GITMOLE_MEASURE_DIR` (default
+`$TMPDIR/gitmole-measure`); `GITMOLE_LABELS_DIR` points at ApacheJIT's
+`dataset/` for the holdout. Runs are sequential, so the recorded times and
+memory are comparable, and each records the load average it ran under.
 
 The change analysis (hotspots, coupling, ownership, age) is gitmole's own
 code, written after the ideas in Adam Tornhill's code-maat but sharing no

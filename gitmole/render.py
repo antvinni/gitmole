@@ -1151,7 +1151,11 @@ def _envelope(out: dict) -> dict:
     import copy
     out = copy.deepcopy(out)
     env = {"out_dir": out.pop("out_dir", None)}
-    age = (out.get("meta") or {}).get("age")
+    meta = out.get("meta") or {}
+    for key in ("step_seconds", "step_peak_mb"):   # what each step cost on this machine, this time
+        if key in meta:
+            env[key] = meta.pop(key)
+    age = meta.get("age")
     if isinstance(age, dict) and "projected_seconds" in age:
         env["projected_seconds"] = age.pop("projected_seconds")
     struct = out.get("structure")

@@ -376,8 +376,9 @@ def _run_step(argv, cwd, env, stdout, stderr, timeout, control: Control = None):
 
 
 def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_start=None, on_done=None,
-            timeout: float = None, control: Control = None) -> dict:
-    """Run steps concurrently, honouring deps. Returns {name: returncode | 'skipped' | 'timeout' | 'cancelled'}."""
+            timeout: float = None, control: Control = None, stats: dict = None) -> dict:
+    """Run steps concurrently, honouring deps. Returns {name: returncode | 'skipped' | 'timeout' | 'cancelled'}.
+    With `stats`, each step runs under gitmole.stepstat and stats[name] gets its seconds and peak memory."""
     results = {}
     lock = threading.Lock()
     package_parent = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -392,13 +393,24 @@ def execute(steps: list, log_path: str, cwd: str = None, workers: int = 6, on_st
             log.write(f"\n==> {step['name']}: {' '.join(step['argv'])}\n")
             log.flush()
             out = open(step["stdout"], "w") if step["stdout"] else log
+            argv, stat_file = step["argv"], None
+            if stats is not None:
+                stat_file = f"{log_path}.{abs(hash(step['name']))}.stat"
+                argv = [sys.executable, "-m", "gitmole.stepstat", stat_file, "--", *argv]
             try:
-                rc = _run_step(step["argv"], cwd, env, out, log, timeout, control)
+                rc = _run_step(argv, cwd, env, out, log, timeout, control)
                 if rc == "timeout":
                     log.write(f"==> {step['name']}: killed after {timeout}s timeout\n")
             finally:
                 if step["stdout"]:
                     out.close()
+                if stat_file:
+                    try:
+                        with open(stat_file) as fh:
+                            stats[step["name"]] = json.load(fh)
+                        os.remove(stat_file)
+                    except (OSError, ValueError):
+                        pass
         return step["name"], rc
 
     with ThreadPoolExecutor(max_workers=workers) as pool:

@@ -434,13 +434,17 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
                     since=args.since_date, lizard=lizard_ok, duplicates=duplicates_ok, backtest=cut, ignore_revs=run.ignore_revs_files(repo_dir),
                     structure=getattr(args, "structure", False), duplicates_then=meta["duplicates"].get("then"))
     run.save_meta(meta, out_dir)
-    results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout)
+    stats = {}
+    results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout, stats=stats)
     if _control.cancelled.is_set():
         killed = [n for n, rc in results.items() if rc == "cancelled"]
         ui.print(f"[red]interrupted:[/red] killed {len(killed)} step(s)")
         raise Interrupted()
 
     _record_statuses(meta, results, age_ok, plots_ok, lizard_ok, cut, duplicates_ok)
+    # what each step cost, for the measurement harness's runtime guard; they vary, so --json keeps them in its envelope
+    meta["step_seconds"] = {n: s["seconds"] for n, s in sorted(stats.items())}
+    meta["step_peak_mb"] = {n: s["peak_mb"] for n, s in sorted(stats.items())}
     meta["coverage"] = _coverage(repo_dir, out_dir)
     run.save_meta(meta, out_dir)
 
@@ -508,7 +512,7 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
     return 0
 
 
-def _execute(steps, log_path, repo_dir, workers, console, timeout=None) -> dict:
+def _execute(steps, log_path, repo_dir, workers, console, timeout=None, stats: dict = None) -> dict:
     """Run the steps under a Live display: the banner pulsing above a status line."""
     active, lock = set(), threading.Lock()
     started = time.monotonic()
@@ -537,7 +541,7 @@ def _execute(steps, log_path, repo_dir, workers, console, timeout=None) -> dict:
     results = {}
     with Live(view(), console=console, refresh_per_second=10, transient=False) as live:
         worker = threading.Thread(
-            target=lambda: results.update(run.execute(steps, log_path=log_path, cwd=repo_dir, workers=workers, on_start=on_start, on_done=on_done, timeout=timeout, control=_control)))
+            target=lambda: results.update(run.execute(steps, log_path=log_path, cwd=repo_dir, workers=workers, on_start=on_start, on_done=on_done, timeout=timeout, control=_control, stats=stats)))
         worker.start()
         while worker.is_alive():
             live.update(view())

@@ -1,0 +1,290 @@
+{
+ "about": "The measurement corpus (docs/measurement.md). development: tuning and eyeballing allowed. holdout: never read while tuning; run it when a release note is about to claim the tool got more effective. well-kept: chosen before running anything, by an outside criterion. awkward and gate: fixtures the harness builds.",
+ "reference_date": "2026-09-17",
+ "well_kept_criterion": "CNCF graduated projects (cncf.io/projects, graduated maturity), four Go projects of moderate size; chosen on 18 September 2026 before any gitmole run on them",
+ "holdout_labels": {
+  "apachejit": "github.com/hosseinkshvrz/apachejit dataset/apachejit_total.csv (Keshavarz and Nagappan, MSR 2022)"
+ },
+ "reserve": [
+  "rails/rails",
+  "pallets/flask",
+  "rust-lang/cargo",
+  "golang/go",
+  "kubernetes/kubernetes",
+  "nodejs/node",
+  "laravel/framework",
+  "spring-projects/spring-boot"
+ ],
+ "moves": [
+  {
+   "date": "2026-09-18",
+   "note": "the ApacheJIT repositories were read once, for the watch list's ranking decision (validation.md); nothing was tuned against them, so they stay the holdout"
+  }
+ ],
+ "repos": [
+  {
+   "name": "curl",
+   "url": "https://github.com/curl/curl",
+   "commit": "540ee5b560cc6e775e11317048a13cc7e355bf91",
+   "set": "development",
+   "size": "medium",
+   "ecosystem": "c"
+  },
+  {
+   "name": "django",
+   "url": "https://github.com/django/django",
+   "commit": "8cbdd4a814397f81adf0129288f32b615bd1f94f",
+   "set": "development",
+   "size": "medium",
+   "ecosystem": "python"
+  },
+  {
+   "name": "react",
+   "url": "https://github.com/facebook/react",
+   "commit": "2b19aecd0e9111b774fad0fad9862e50bcb5bc8a",
+   "set": "development",
+   "size": "large",
+   "ecosystem": "javascript"
+  },
+  {
+   "name": "gitmole",
+   "url": "https://github.com/antvinni/gitmole",
+   "commit": "23a54e15a01af6a531070791d32d5599e83f0480",
+   "set": "development",
+   "size": "small",
+   "ecosystem": "python",
+   "note": "the tool's own repository, v0.25.0; its history is two days long, so it has no cut-offs to rank at"
+  },
+  {
+   "name": "activemq",
+   "url": "https://github.com/apache/activemq",
+   "commit": "e851066e73a63ee231f66ea4a35827f5e9791451",
+   "set": "holdout",
+   "size": "medium",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "camel",
+   "url": "https://github.com/apache/camel",
+   "commit": "f225f7f93b8d17aab041083a658ad1ef21d67400",
+   "set": "holdout",
+   "size": "large",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "cassandra",
+   "url": "https://github.com/apache/cassandra",
+   "commit": "d48548c7afe91fc654f4dfd518628dd90ab16ccd",
+   "set": "holdout",
+   "size": "medium",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "flink",
+   "url": "https://github.com/apache/flink",
+   "commit": "4eb8666832f7fb6fd0a08c01ac93ed135b1dc11d",
+   "set": "holdout",
+   "size": "large",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "groovy",
+   "url": "https://github.com/apache/groovy",
+   "commit": "40e59c5c116e53e96013a06a97c09923b7752969",
+   "set": "holdout",
+   "size": "medium",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "hadoop",
+   "url": "https://github.com/apache/hadoop",
+   "commit": "a3febb258a28c1023a09ba29bc41c1b98a2c2cc7",
+   "set": "holdout",
+   "size": "large",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "hbase",
+   "url": "https://github.com/apache/hbase",
+   "commit": "5443d875001242453f8d9ad9d4a8cea7568be0b0",
+   "set": "holdout",
+   "size": "large",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "hive",
+   "url": "https://github.com/apache/hive",
+   "commit": "5bd2e79b6a2814f6386040c2905bd04993bdd1b5",
+   "set": "holdout",
+   "size": "large",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "ignite",
+   "url": "https://github.com/apache/ignite",
+   "commit": "c92cfbe0ee3385f3dc79e46270a8aac2d1176822",
+   "set": "holdout",
+   "size": "large",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "kafka",
+   "url": "https://github.com/apache/kafka",
+   "commit": "71497ad150cd0b83dc6be70892f556592795066f",
+   "set": "holdout",
+   "size": "medium",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "spark",
+   "url": "https://github.com/apache/spark",
+   "commit": "18af1f3d16a483dc328992142e71d93ff6937bbf",
+   "set": "holdout",
+   "size": "large",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "zeppelin",
+   "url": "https://github.com/apache/zeppelin",
+   "commit": "710edf257c43826ffabc47cefc2617e828e3363e",
+   "set": "holdout",
+   "size": "small",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "zookeeper",
+   "url": "https://github.com/apache/zookeeper",
+   "commit": "427f959f22813673d6adc0c2265ac33cda4bc052",
+   "set": "holdout",
+   "size": "small",
+   "ecosystem": "java",
+   "labels": "apachejit",
+   "end": "2019-12-31"
+  },
+  {
+   "name": "coredns",
+   "url": "https://github.com/coredns/coredns",
+   "commit": "010d8a8485d0c6c80bd524497da6917d27aa526c",
+   "set": "well-kept",
+   "size": "small",
+   "ecosystem": "go"
+  },
+  {
+   "name": "etcd",
+   "url": "https://github.com/etcd-io/etcd",
+   "commit": "5ef5d3c26b40543a0412b5839b8f24e83e167d90",
+   "set": "well-kept",
+   "size": "medium",
+   "ecosystem": "go"
+  },
+  {
+   "name": "containerd",
+   "url": "https://github.com/containerd/containerd",
+   "commit": "00a8ed44477ffe5a2c0a13f2f75a93afb3f8a17c",
+   "set": "well-kept",
+   "size": "medium",
+   "ecosystem": "go"
+  },
+  {
+   "name": "prometheus",
+   "url": "https://github.com/prometheus/prometheus",
+   "commit": "296080c0a504ea0e72941ef16143f0a9702b137b",
+   "set": "well-kept",
+   "size": "medium",
+   "ecosystem": "go"
+  },
+  {
+   "name": "awkward-empty",
+   "fixture": "empty",
+   "set": "awkward",
+   "size": "tiny"
+  },
+  {
+   "name": "awkward-one-commit",
+   "fixture": "one-commit",
+   "set": "awkward",
+   "size": "tiny"
+  },
+  {
+   "name": "awkward-detached",
+   "fixture": "detached",
+   "set": "awkward",
+   "size": "tiny"
+  },
+  {
+   "name": "awkward-shallow",
+   "fixture": "shallow",
+   "set": "awkward",
+   "size": "tiny"
+  },
+  {
+   "name": "awkward-submodule",
+   "fixture": "submodule",
+   "set": "awkward",
+   "size": "tiny"
+  },
+  {
+   "name": "awkward-non-utf8-path",
+   "fixture": "non-utf8-path",
+   "set": "awkward",
+   "size": "tiny"
+  },
+  {
+   "name": "awkward-huge-file",
+   "fixture": "huge-file",
+   "set": "awkward",
+   "size": "tiny"
+  },
+  {
+   "name": "awkward-binary-only",
+   "fixture": "binary-only",
+   "set": "awkward",
+   "size": "tiny"
+  },
+  {
+   "name": "gate-secret",
+   "fixture": "secret",
+   "set": "gate",
+   "size": "tiny",
+   "expect": "critical"
+  },
+  {
+   "name": "gate-trojan-source",
+   "fixture": "trojan-source",
+   "set": "gate",
+   "size": "tiny",
+   "expect": "critical"
+  },
+  {
+   "name": "gate-submodule-credentials",
+   "fixture": "submodule-credentials",
+   "set": "gate",
+   "size": "tiny",
+   "expect": "critical"
+  }
+ ]
+}
