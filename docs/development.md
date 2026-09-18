@@ -115,9 +115,16 @@ outputs are reused on a rerun; delete the directory to start clean.
 `python -m gitmole.evaluate CLONE OUT_DIR` replays the watch list at six
 cut-off dates against the fixes that followed each, next to the two factor
 products the list used to rank by, and lists ranked by churn alone, size
-alone and recent fixes; the results are in
+alone and recent fixes; `--szz` adds a second table against the files a
+commit before each cut-off made buggy, by R-SZZ over the fixes that followed
+(`szz.py`: the most recent commit a fix's removed lines blame to, one
+`git blame -w -C -C` per fix and file, so minutes on a large history), and
+`--labels CSV` a third against independent bug-inducing labels in
+ApacheJIT's, Defectors' or a bare-hash shape; the results are in
 [validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md).
 
 The change analysis (hotspots, coupling, ownership, age) is gitmole's own
 code, written after the ideas in Adam Tornhill's code-maat but sharing no
-code with it.
+code with it. The bug-inducing commits in `szz.py` follow Rosa et al.'s
+R-SZZ as pyszz_v2 describes it, written fresh over `git diff` and `git
+blame`, sharing no code with it.
