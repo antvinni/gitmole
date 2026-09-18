@@ -131,7 +131,7 @@ How to read each part of the terminal report, and what each run writes to disk; 
    With `gitmole[structure]` installed (see
    [install.md](https://github.com/antvinni/gitmole/blob/main/docs/install.md#structure-nesting-debt-markers-the-import-graph)),
    tree-sitter parses every tracked file in eleven languages, once per
-   file content, and four more findings can appear. Debt the authors
+   file content, and seven more findings can appear. Debt the authors
    flagged in hotspots: TODO, FIXME, XXX and HACK comments, the markers
    Maldonado and Shihab defined, in the top ten hotspots (three or more in
    one, or any in two). Deeply nested code: functions nested five levels or
@@ -153,6 +153,26 @@ How to read each part of the terminal report, and what each run writes to disk; 
    by name and left out, and a language where more than one file in twenty
    still looks unreferenced loads code by name and gets no list at all.
    Never "dead": a dynamic import does not show in an import graph.
+   Three shape rules, in the source files only (tests, examples,
+   documentation, vendored and generated files left out). Errors caught
+   and dropped: catch, except and rescue blocks with no statement and no
+   comment, five or more, a warning when one sits in a top hotspot; a
+   comment keeps a block out, since it says the error is ignored on
+   purpose, and in Python only a bare `except:` or one catching Exception
+   or BaseException counts, since `except KeyError: pass` is the
+   language's idiom. Addresses written into the code: IPv4 addresses in
+   string literals, loopback, `0.0.0.0`, broadcast and netmask shapes, the
+   RFC 5737 documentation ranges, a trailing `.0` (a network, or a
+   four-part version) and a first octet of 0 to 2 (how an ASN.1 object
+   identifier starts) left out, and literals inside attributes and
+   annotations too. Code left in comments: files with ten or more lines of
+   it, counted per block (a block comment, or line comments on consecutive
+   lines) when four lines in five read as a statement and one starts right
+   at the comment marker; prose with a worked example under it,
+   documentation comments and tool directives are not counted. These rules
+   run on the same tree-sitter pass rather than a second parser, the
+   roadmap's ast-grep: its rules would have been a second wheel for three
+   checks one cursor walk already makes.
    Flow-typed JavaScript parses with errors, and its metrics come from the
    partial tree. The watch list gains three reasons from the same step:
    `5 TODO/FIXME comments`, `parse() nested 6 deep`, and `defines 72
@@ -541,7 +561,7 @@ directory for a remote target:
 | `signing.json` | signing step | commits signed, by mechanism (gpg, ssh, x509), by year, humans against bots, per identity and over the last year, from the commit objects |
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave |
-| `structure.json` | structure step, `gitmole[structure]` only | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports, its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the possibly unreferenced files; or a status saying how to install it |
+| `structure.json` | structure step, `gitmole[structure]` only | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports, its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
 | `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the marked cohort against the rest, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
 | `run.log` | gitmole | every command run and its stderr |
 

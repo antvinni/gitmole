@@ -120,7 +120,8 @@ repository hygiene checks, `imports.py` which packages the tracked source
 imports, `licences.py` the declared licences and their SPDX expressions,
 `osps.py` the OSPS Baseline controls and the coverage table, `sbom.py` the
 CycloneDX document behind `--sbom`, `structure.py` the optional tree-sitter pass
-(nesting, cognitive complexity, debt markers, the import graph), `provenance.py`
+(nesting, cognitive complexity, debt markers, the import graph, and the shapes:
+empty catch blocks, addresses in literals, commented-out code), `provenance.py`
 trailers, cohorts, commit shape and the agent files, `szz.py` finds
 bug-inducing commits by R-SZZ for the backtest, and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates

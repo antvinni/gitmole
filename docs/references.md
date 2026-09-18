@@ -57,7 +57,7 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 - py-tree-sitter and the tree-sitter grammar wheels (MIT). [repo](https://github.com/tree-sitter/py-tree-sitter): `structure.py`, behind `gitmole[structure]`.
 - tree-sitter-language-pack 1.20.0. [PyPI](https://pypi.org/project/tree-sitter-language-pack/): considered and not used; it downloads its grammars at run time.
 - lizard, issue #432. [issue](https://github.com/terryyin/lizard/issues/432): why cognitive complexity comes from `structure.py`.
-- ast-grep-py. [PyPI](https://pypi.org/project/ast-grep-py/): shape rules, *not built*.
+- ast-grep-py. [PyPI](https://pypi.org/project/ast-grep-py/): considered for the shape rules and not used; they run on the tree-sitter pass `structure.py` already makes.
 - difftastic. [repo](https://github.com/Wilfred/difftastic): why AST diff over history is not done.
 - ossf/malicious-packages (OpenSSF). [repo](https://github.com/ossf/malicious-packages): `MAL-` advisories are critical in `deps.py`.
 - deps-lsp issue #646. [issue](https://github.com/bug-ops/deps-lsp/issues/646): the same `MAL-` severity bug, elsewhere.
@@ -76,6 +76,8 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 - CodeScene, terminology. [docs](https://docs.enterprise.codescene.io/versions/6.0.8/terminology/codescene-terminology.html): ticket-ID grouping in `maat.changesets`.
 - CodeScene, hotspots guide. [docs](https://docs.enterprise.codescene.io/versions/4.4.2/guides/technical/hotspots.html): the watch list by component and `component_coupling`.
 - SonarSource, Cognitive Complexity. [PDF](https://www.sonarsource.com/docs/CognitiveComplexity.pdf): cognitive complexity in `structure.py`.
+- SonarSource rules S108, S1313 and S125. [rules](https://rules.sonarsource.com/java/RSPEC-108/): an empty block with a comment is intentional, the addresses left out, commented-out code; `swallowed_errors`, `hardcoded_addresses` and `commented_out_code`.
+- RFC 5737, IPv4 address blocks reserved for documentation. [RFC](https://www.rfc-editor.org/rfc/rfc5737): the ranges `hardcoded_addresses` leaves out.
 - GitHub, SARIF support for code scanning. [docs](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support): `sarif.py`.
 - GitLab, SARIF reports. [docs](https://docs.gitlab.com/user/application_security/detect/sarif/): every SARIF result needs a rule id and, to be kept, a location.
 - GitHub, `.git-blame-ignore-revs`. [discussion](https://github.com/orgs/community/discussions/5033): declared commits left out in `maat.py`.
