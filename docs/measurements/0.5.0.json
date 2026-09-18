@@ -1,0 +1,645 @@
+{
+ "commit": "a882e3dd6d199494ead4565470cded21a69ba07d",
+ "measured": "2026-09-18",
+ "ref": "v0.5.0",
+ "reference_date": "2026-09-17",
+ "repos": {
+  "awkward-binary-only": {
+   "findings": 1,
+   "load": 6.66,
+   "measure_seconds": 0.3,
+   "peak_mb": 35,
+   "rc": 0,
+   "report_lines": 51,
+   "rules": [
+    "Unconfigured git identity"
+   ],
+   "seconds": 0.3,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 0,
+    "warning": 1
+   },
+   "status": "ok"
+  },
+  "awkward-detached": {
+   "findings": 2,
+   "load": 9.06,
+   "measure_seconds": 0.4,
+   "peak_mb": 35,
+   "rc": 0,
+   "report_lines": 64,
+   "rules": [
+    "Bus factor of one",
+    "Unconfigured git identity"
+   ],
+   "seconds": 0.4,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 0,
+    "warning": 2
+   },
+   "status": "ok"
+  },
+  "awkward-empty": {
+   "load": 9.06,
+   "measure_seconds": 0.1,
+   "note": "subprocess.CalledProcessError: Command '['git', 'log', '--format=%ct']' returned non-zero exit status 128.",
+   "peak_mb": 32,
+   "rc": 1,
+   "report_lines": 1,
+   "seconds": 0.1,
+   "set": "awkward",
+   "status": "crashed"
+  },
+  "awkward-huge-file": {
+   "findings": 4,
+   "load": 9.06,
+   "measure_seconds": 21.1,
+   "peak_mb": 1052,
+   "rc": 0,
+   "report_lines": 73,
+   "rules": [
+    "Bus factor of one",
+    "Knowledge islands",
+    "Repo health",
+    "Unconfigured git identity"
+   ],
+   "seconds": 21.1,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 3
+   },
+   "status": "ok"
+  },
+  "awkward-non-utf8-path": {
+   "findings": 2,
+   "load": 9.06,
+   "measure_seconds": 0.5,
+   "peak_mb": 35,
+   "rc": 0,
+   "report_lines": 60,
+   "rules": [
+    "Bus factor of one",
+    "Unconfigured git identity"
+   ],
+   "seconds": 0.4,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 0,
+    "warning": 2
+   },
+   "status": "ok"
+  },
+  "awkward-one-commit": {
+   "findings": 2,
+   "load": 9.06,
+   "measure_seconds": 0.4,
+   "peak_mb": 35,
+   "rc": 0,
+   "report_lines": 59,
+   "rules": [
+    "Bus factor of one",
+    "Unconfigured git identity"
+   ],
+   "seconds": 0.4,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 0,
+    "warning": 2
+   },
+   "status": "ok"
+  },
+  "awkward-shallow": {
+   "findings": 2,
+   "load": 9.06,
+   "measure_seconds": 0.4,
+   "peak_mb": 35,
+   "rc": 0,
+   "report_lines": 62,
+   "rules": [
+    "Bus factor of one",
+    "Unconfigured git identity"
+   ],
+   "seconds": 0.4,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 0,
+    "warning": 2
+   },
+   "status": "ok"
+  },
+  "awkward-submodule": {
+   "findings": 2,
+   "load": 9.06,
+   "measure_seconds": 0.4,
+   "peak_mb": 35,
+   "rc": 0,
+   "report_lines": 59,
+   "rules": [
+    "Bus factor of one",
+    "Unconfigured git identity"
+   ],
+   "seconds": 0.4,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 0,
+    "warning": 2
+   },
+   "status": "ok"
+  },
+  "curl": {
+   "findings": 9,
+   "load": 7.32,
+   "measure_seconds": 41.4,
+   "peak_mb": 355,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8022971407320527,
+      "best": 15,
+      "churn_auc": 0.7731323215997025,
+      "churn_hits": 15,
+      "churn_recall20": 0.152317880794702,
+      "cutoff": "2023-09-17",
+      "expected": 3.689,
+      "hits": 15,
+      "pool": 614,
+      "positives": 151,
+      "recall20": 0.1390728476821192
+     },
+     {
+      "auc": 0.6966337145441623,
+      "best": 15,
+      "churn_auc": 0.6733475479744137,
+      "churn_hits": 14,
+      "churn_recall20": 0.12121212121212122,
+      "cutoff": "2024-03-17",
+      "expected": 3.904,
+      "hits": 14,
+      "pool": 634,
+      "positives": 165,
+      "recall20": 0.11515151515151516
+     },
+     {
+      "auc": 0.80554910340983,
+      "best": 15,
+      "churn_auc": 0.7881399238130633,
+      "churn_hits": 13,
+      "churn_recall20": 0.11702127659574468,
+      "cutoff": "2024-09-17",
+      "expected": 4.365,
+      "hits": 14,
+      "pool": 646,
+      "positives": 188,
+      "recall20": 0.10638297872340426
+     },
+     {
+      "auc": 0.7113037109375,
+      "best": 15,
+      "churn_auc": 0.6861029730902778,
+      "churn_hits": 13,
+      "churn_recall20": 0.13194444444444445,
+      "cutoff": "2025-03-17",
+      "expected": 3.293,
+      "hits": 13,
+      "pool": 656,
+      "positives": 144,
+      "recall20": 0.1388888888888889
+     },
+     {
+      "auc": 0.7350062960964202,
+      "best": 15,
+      "churn_auc": 0.7261827666846555,
+      "churn_hits": 15,
+      "churn_recall20": 0.06764705882352941,
+      "cutoff": "2025-09-17",
+      "expected": 7.646,
+      "hits": 15,
+      "pool": 667,
+      "positives": 340,
+      "recall20": 0.06470588235294118
+     },
+     {
+      "auc": 0.7660074789511115,
+      "best": 15,
+      "churn_auc": 0.7516689990593958,
+      "churn_hits": 15,
+      "churn_recall20": 0.13186813186813187,
+      "cutoff": "2026-03-17",
+      "expected": 4.13,
+      "hits": 15,
+      "pool": 661,
+      "positives": 182,
+      "recall20": 0.11538461538461539
+     }
+    ],
+    "magnets": [],
+    "stability": {
+     "from": "2026-03-17",
+     "spearman": 0.9996548732641458,
+     "to": "2026-03-20",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 194,
+   "rules": [
+    "14 secret(s) in history",
+    "42 secret(s) only in test files",
+    "Brain methods",
+    "Bug magnets",
+    "Files that always change together",
+    "Knowledge islands",
+    "Knowledge loss",
+    "Repo health",
+    "Reverts"
+   ],
+   "seconds": 33.5,
+   "set": "development",
+   "severity": {
+    "critical": 1,
+    "info": 4,
+    "warning": 4
+   },
+   "status": "ok"
+  },
+  "django": {
+   "findings": 12,
+   "load": 7.92,
+   "measure_seconds": 99.9,
+   "peak_mb": 499,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.811265306122449,
+      "best": 15,
+      "churn_auc": 0.803948051948052,
+      "churn_hits": 12,
+      "churn_recall20": 0.6038961038961039,
+      "cutoff": "2023-09-08",
+      "expected": 2.245,
+      "hits": 12,
+      "pool": 1029,
+      "positives": 154,
+      "recall20": 0.6038961038961039
+     },
+     {
+      "auc": 0.8101833743644019,
+      "best": 15,
+      "churn_auc": 0.8041092423440628,
+      "churn_hits": 9,
+      "churn_recall20": 0.5986394557823129,
+      "cutoff": "2024-03-08",
+      "expected": 2.132,
+      "hits": 10,
+      "pool": 1034,
+      "positives": 147,
+      "recall20": 0.5986394557823129
+     },
+     {
+      "auc": 0.8438702841892092,
+      "best": 15,
+      "churn_auc": 0.8382642865764521,
+      "churn_hits": 12,
+      "churn_recall20": 0.6416184971098265,
+      "cutoff": "2024-09-08",
+      "expected": 2.507,
+      "hits": 11,
+      "pool": 1035,
+      "positives": 173,
+      "recall20": 0.6473988439306358
+     },
+     {
+      "auc": 0.8023275542457128,
+      "best": 15,
+      "churn_auc": 0.7975455111004983,
+      "churn_hits": 9,
+      "churn_recall20": 0.5775401069518716,
+      "cutoff": "2025-03-08",
+      "expected": 2.702,
+      "hits": 10,
+      "pool": 1038,
+      "positives": 187,
+      "recall20": 0.5828877005347594
+     },
+     {
+      "auc": 0.8604776115538235,
+      "best": 15,
+      "churn_auc": 0.854470244761356,
+      "churn_hits": 13,
+      "churn_recall20": 0.6759776536312849,
+      "cutoff": "2025-09-08",
+      "expected": 2.577,
+      "hits": 13,
+      "pool": 1042,
+      "positives": 179,
+      "recall20": 0.6871508379888268
+     },
+     {
+      "auc": 0.8034186023257318,
+      "best": 15,
+      "churn_auc": 0.7945956438112828,
+      "churn_hits": 13,
+      "churn_recall20": 0.5786802030456852,
+      "cutoff": "2026-03-08",
+      "expected": 2.788,
+      "hits": 14,
+      "pool": 1060,
+      "positives": 197,
+      "recall20": 0.5685279187817259
+     }
+    ],
+    "magnets": [],
+    "stability": {
+     "from": "2026-03-08",
+     "spearman": 0.9990376638074677,
+     "to": "2026-03-25",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 231,
+   "rules": [
+    "28 secret(s) in history",
+    "48 secret(s) only in test files",
+    "A large share of files is untouched",
+    "Brain methods",
+    "Bug magnets",
+    "Files that always change together",
+    "Knowledge islands",
+    "Knowledge loss",
+    "Repo health",
+    "Reverts"
+   ],
+   "seconds": 83.6,
+   "set": "development",
+   "severity": {
+    "critical": 1,
+    "info": 7,
+    "warning": 4
+   },
+   "status": "ok"
+  },
+  "gate-secret": {
+   "findings": 3,
+   "gate_fired": true,
+   "load": 6.66,
+   "measure_seconds": 0.4,
+   "peak_mb": 52,
+   "rc": 3,
+   "report_lines": 62,
+   "rules": [
+    "1 secret(s) in history",
+    "Bus factor of one",
+    "Unconfigured git identity"
+   ],
+   "seconds": 0.4,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 0,
+    "warning": 2
+   },
+   "status": "ok"
+  },
+  "gate-submodule-credentials": {
+   "findings": 2,
+   "gate_fired": false,
+   "load": 6.66,
+   "measure_seconds": 0.4,
+   "peak_mb": 36,
+   "rc": 0,
+   "report_lines": 59,
+   "rules": [
+    "Bus factor of one",
+    "Unconfigured git identity"
+   ],
+   "seconds": 0.4,
+   "set": "gate",
+   "severity": {
+    "critical": 0,
+    "info": 0,
+    "warning": 2
+   },
+   "status": "ok"
+  },
+  "gate-trojan-source": {
+   "findings": 2,
+   "gate_fired": false,
+   "load": 6.66,
+   "measure_seconds": 0.4,
+   "peak_mb": 36,
+   "rc": 0,
+   "report_lines": 59,
+   "rules": [
+    "Bus factor of one",
+    "Unconfigured git identity"
+   ],
+   "seconds": 0.4,
+   "set": "gate",
+   "severity": {
+    "critical": 0,
+    "info": 0,
+    "warning": 2
+   },
+   "status": "ok"
+  },
+  "gitmole": {
+   "findings": 6,
+   "load": 9.06,
+   "measure_seconds": 1.3,
+   "peak_mb": 86,
+   "ranking": {
+    "cutoffs": [],
+    "magnets": [],
+    "stability": null
+   },
+   "rc": 0,
+   "report_lines": 140,
+   "rules": [
+    "15 secret(s) only in test files",
+    "2 secret(s) in history",
+    "Bug magnets",
+    "Bus factor of one",
+    "Hotspots getting more complex",
+    "Knowledge islands"
+   ],
+   "seconds": 1.2,
+   "set": "development",
+   "severity": {
+    "critical": 1,
+    "info": 0,
+    "warning": 5
+   },
+   "status": "ok"
+  },
+  "react": {
+   "findings": 13,
+   "load": 9.86,
+   "measure_seconds": 69.0,
+   "peak_mb": 449,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.801867666031824,
+      "best": 15,
+      "churn_auc": 0.7900411623763592,
+      "churn_hits": 3,
+      "churn_recall20": 0.4634146341463415,
+      "cutoff": "2023-09-16",
+      "expected": 0.966,
+      "hits": 5,
+      "pool": 1273,
+      "positives": 82,
+      "recall20": 0.4878048780487805
+     },
+     {
+      "auc": 0.7242254137202012,
+      "best": 15,
+      "churn_auc": 0.7008383757381351,
+      "churn_hits": 5,
+      "churn_recall20": 0.43636363636363634,
+      "cutoff": "2024-03-16",
+      "expected": 0.634,
+      "hits": 5,
+      "pool": 1302,
+      "positives": 55,
+      "recall20": 0.4
+     },
+     {
+      "auc": 0.8515583228410286,
+      "best": 15,
+      "churn_auc": 0.8450645923524035,
+      "churn_hits": 6,
+      "churn_recall20": 0.5945945945945946,
+      "cutoff": "2024-09-16",
+      "expected": 0.676,
+      "hits": 7,
+      "pool": 1641,
+      "positives": 74,
+      "recall20": 0.6216216216216216
+     },
+     {
+      "auc": 0.7292470361670418,
+      "best": 15,
+      "churn_auc": 0.7289342467601764,
+      "churn_hits": 9,
+      "churn_recall20": 0.36893203883495146,
+      "cutoff": "2025-03-16",
+      "expected": 0.916,
+      "hits": 10,
+      "pool": 1686,
+      "positives": 103,
+      "recall20": 0.34951456310679613
+     },
+     {
+      "auc": 0.7197886595130454,
+      "best": 15,
+      "churn_auc": 0.7272182580750586,
+      "churn_hits": 5,
+      "churn_recall20": 0.32727272727272727,
+      "cutoff": "2025-09-16",
+      "expected": 0.927,
+      "hits": 7,
+      "pool": 1779,
+      "positives": 110,
+      "recall20": 0.3181818181818182
+     },
+     {
+      "auc": 0.8417316258351893,
+      "best": 15,
+      "churn_auc": 0.8341375897055184,
+      "churn_hits": 7,
+      "churn_recall20": 0.6111111111111112,
+      "cutoff": "2026-03-16",
+      "expected": 0.295,
+      "hits": 8,
+      "pool": 1832,
+      "positives": 36,
+      "recall20": 0.6388888888888888
+     }
+    ],
+    "magnets": [],
+    "stability": {
+     "from": "2026-03-16",
+     "spearman": 0.999312596907344,
+     "to": "2026-05-02",
+     "top_jaccard": 0.875
+    }
+   },
+   "rc": 0,
+   "report_lines": 247,
+   "rules": [
+    "1 secret(s) only in test files",
+    "5 secret(s) in history",
+    "A large share of files is untouched",
+    "Brain methods",
+    "Bug magnets",
+    "Files that always change together",
+    "Knowledge islands",
+    "Knowledge loss",
+    "Repo health",
+    "Reverts"
+   ],
+   "seconds": 56.6,
+   "set": "development",
+   "severity": {
+    "critical": 1,
+    "info": 7,
+    "warning": 5
+   },
+   "status": "ok"
+  }
+ },
+ "sets": [
+  "development",
+  "awkward",
+  "gate"
+ ],
+ "summary": {
+  "auc": 0.766,
+  "bug_magnets_ratio": null,
+  "churn_auc": 0.759,
+  "churn_headroom": 0.707,
+  "churn_recall20": 0.45,
+  "crashed": null,
+  "findings_median": 10.5,
+  "findings_p90": 12.7,
+  "gate_caught": [
+   1,
+   3
+  ],
+  "headroom": 0.734,
+  "headroom_ci": [
+   0.439,
+   0.936
+  ],
+  "peak_mb": 499,
+  "recall20": 0.444,
+  "report_lines": 212.5,
+  "robust": [
+   14,
+   15
+  ],
+  "scored_share": null,
+  "seconds": 174.9,
+  "stability_spearman": 0.999,
+  "stability_top15": 1.0,
+  "step_seconds": null,
+  "wins_losses_ties": [
+   9,
+   1,
+   8
+  ]
+ },
+ "version": "0.5.0"
+}

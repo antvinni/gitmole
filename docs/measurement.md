@@ -439,7 +439,7 @@ headroom and effort-aware recall sit beside it.
 `python -m gitmole.measure` implements this page as far as a machine can; see
 [development.md](https://github.com/antvinni/gitmole/blob/main/docs/development.md)
 for the commands and [measurement-history.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement-history.md)
-for every release measured with it.
+for every minor release measured with it, 0.2.0 to 0.26.0, and what the history shows.
 
 - **The harness** (step 1): `measure/corpus.json` pins the development set
   (curl, django, react, gitmole), the ApacheJIT holdout, a well-kept set

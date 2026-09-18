@@ -19,6 +19,12 @@ def _num(x, fmt="{:.2f}"):
     return "-" if x is None else fmt.format(x)
 
 
+def _short(note: str, n: int = 70) -> str:
+    """A failure note cut to its last clause: the exception's name and the start of its message."""
+    note = " ".join(str(note).split())
+    return note if len(note) <= n else note[:n - 1] + "…"
+
+
 def _share(pair):
     return None if not pair or not pair[1] else pair[0] / pair[1]
 
@@ -83,6 +89,10 @@ def page(history: list, extras: dict) -> str:
              "each cut-off. The holdout is not read here: it runs only for the release a note claims is more effective. "
              "A release that crashed or timed out on a development repository is drawn at the bottom of every graph "
              "with a red cross, and its row says why.", ""]
+    notes = os.path.join(corpus.ROOT, "measure", "history-notes.md")
+    if os.path.exists(notes):   # the reading of the history, written by hand; the rest of the page is generated
+        with open(notes, encoding="utf-8") as fh:
+            lines += [fh.read().strip(), ""]
     for name in ("ranking", "whole-ranking", "findings", "report-length", "runtime", "memory", "robustness"):
         lines += [f"![{name}](evolution/{name}.svg)", ""]
     lines += ["## By release", "",
@@ -96,7 +106,7 @@ def page(history: list, extras: dict) -> str:
     for r in history:
         s = r["summary"]
         if s.get("crashed"):
-            note = "crashed: " + "; ".join(f"{k}: {v}" for k, v in sorted(s["crashed"].items()))
+            note = "crashed: " + "; ".join(f"{k}: {_short(v)}" for k, v in sorted(s["crashed"].items()))
             lines.append(f"| {r['version']} | crashed | | | | | | | | | | {_num(_share(s.get('robust')), '{:.0%}')} | | | | {note.replace('|', '/')} |")
             continue
         ci = s.get("headroom_ci")
@@ -105,7 +115,8 @@ def page(history: list, extras: dict) -> str:
         wlt = "/".join(str(x) for x in s["wins_losses_ties"]) if s.get("wins_losses_ties") else "-"
         gate = f"{s['gate_caught'][0]}/{s['gate_caught'][1]}" if s.get("gate_caught") else "-"
         robust = f"{s['robust'][0]}/{s['robust'][1]}" if s.get("robust") else "-"
-        failed = [f"{n}: {x.get('note', x['status'])}" for n, x in sorted(r["repos"].items()) if x.get("status") not in ("ok", "refused")]
+        failed = [f"{n}: {_short(x.get('note') or x['status'])}" for n, x in sorted(r["repos"].items()) if x.get("status") not in ("ok", "refused")]
+        failed += [f"{n}: {len(x['steps_failed'])} step(s) failed" for n, x in sorted(r["repos"].items()) if x.get("status") == "ok" and x.get("steps_failed")]
         lines.append(f"| {r['version']} | {head} | {_num(s.get('churn_headroom'))} | {wlt} | {_num(s.get('auc'))} | {_pct(s.get('recall20'))} | "
                      f"{_num(s.get('stability_top15'))} | {_num(s.get('bug_magnets_ratio'))} | {_num(s.get('findings_median'), '{:g}')}/{_num(s.get('findings_p90'), '{:g}')} | "
                      f"{_num(s.get('report_lines'), '{:g}')} | {_pct(s.get('scored_share'))} | {robust} | {gate} | {_num(s.get('seconds'), '{:.0f}')} | "

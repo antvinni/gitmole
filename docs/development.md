@@ -146,7 +146,8 @@ change entropy (`maat.entropy`, decayed over calendar months); the results are i
 [measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md):
 `run --ref TAG` runs a release from its own source over the corpus in
 `measure/corpus.json` and writes `docs/measurements/<version>.json`,
-`history` does that for every release tag not yet recorded, `extras` runs the
+`history` does that for every release tag not yet recorded (`--releases minor`
+for the first shipped release of each x.y series only), `extras` runs the
 current tree's sensitivity sweep, description checks, hook replay and
 determinism check, `report` redraws `docs/measurement-history.md` and the
 graphs in `docs/evolution/`, and `labels dump|score` handle the hand labels.

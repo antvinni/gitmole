@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
+<rect width="900" height="300" fill="#ffffff"/>
+<text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Robustness, gate catch rate and scored share</text>
+<line x1="56" y1="244.0" x2="884" y2="244.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="248.0" text-anchor="end" fill="#1f2328">0%</text>
+<line x1="56" y1="193.0" x2="884" y2="193.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="197.0" text-anchor="end" fill="#1f2328">25%</text>
+<line x1="56" y1="142.0" x2="884" y2="142.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="146.0" text-anchor="end" fill="#1f2328">50%</text>
+<line x1="56" y1="91.0" x2="884" y2="91.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="95.0" text-anchor="end" fill="#1f2328">75%</text>
+<line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="44.0" text-anchor="end" fill="#1f2328">100%</text>
+<text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
+<text x="125.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
+<text x="194.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
+<text x="263.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="332.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="401.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="539.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="608.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
+<text x="677.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="746.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="815.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<polyline points="56.0,53.6 90.5,53.6 125.0,53.6 159.5,53.6 194.0,53.6 228.5,53.6 263.0,67.2 297.5,67.2 332.0,67.2 366.5,67.2 401.0,67.2 435.5,67.2 470.0,67.2 504.5,67.2 539.0,67.2 573.5,67.2 608.0,67.2 642.5,67.2 677.0,67.2 711.5,67.2 746.0,67.2 780.5,67.2 815.0,67.2 849.5,67.2 884.0,59.1" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="56.0,176.0 90.5,176.0 125.0,176.0 159.5,176.0 194.0,176.0 228.5,176.0 263.0,176.0 297.5,176.0 332.0,176.0 366.5,176.0 401.0,176.0 435.5,176.0 470.0,176.0 504.5,40.0 539.0,40.0 573.5,40.0 608.0,40.0 642.5,40.0 677.0,40.0 711.5,40.0 746.0,40.0 780.5,40.0 815.0,40.0 849.5,40.0 884.0,40.0" fill="none" stroke="#8250df" stroke-width="2"/>
+<polyline points="332.0,200.8 366.5,200.8 401.0,200.8 435.5,200.8 470.0,200.8 504.5,200.8 539.0,200.8 573.5,200.8 608.0,200.8 642.5,200.8 677.0,200.8 711.5,200.8 746.0,200.8 780.5,200.8 815.0,200.8 849.5,200.8 884.0,200.8" fill="none" stroke="#1a7f37" stroke-width="2"/>
+<line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
+<text x="84" y="286" fill="#1f2328">runs completed</text>
+<line x1="190" y1="282" x2="212" y2="282" stroke="#8250df" stroke-width="2"/>
+<text x="218" y="286" fill="#1f2328">gate cases caught</text>
+<line x1="345" y1="282" x2="367" y2="282" stroke="#1a7f37" stroke-width="2"/>
+<text x="373" y="286" fill="#1f2328">tracked text files scored</text>
+<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">awkward inputs and gate fixtures included</text>
+</svg>

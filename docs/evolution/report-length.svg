@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
+<rect width="900" height="300" fill="#ffffff"/>
+<text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Terminal report length (lines, median)</text>
+<line x1="56" y1="244.0" x2="884" y2="244.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="248.0" text-anchor="end" fill="#1f2328">0</text>
+<line x1="56" y1="193.0" x2="884" y2="193.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="197.0" text-anchor="end" fill="#1f2328">125</text>
+<line x1="56" y1="142.0" x2="884" y2="142.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="146.0" text-anchor="end" fill="#1f2328">250</text>
+<line x1="56" y1="91.0" x2="884" y2="91.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="95.0" text-anchor="end" fill="#1f2328">375</text>
+<line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
+<text x="50" y="44.0" text-anchor="end" fill="#1f2328">500</text>
+<text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
+<text x="125.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
+<text x="194.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
+<text x="263.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="332.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="401.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="539.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="608.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
+<text x="677.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="746.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="815.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<polyline points="56.0,157.5 90.5,157.5 125.0,157.3 159.5,157.3 194.0,156.5 228.5,154.6 263.0,153.6 297.5,164.2 332.0,164.2 366.5,152.0 401.0,153.0 435.5,153.0 470.0,151.0 504.5,145.9 539.0,145.9 573.5,145.7 608.0,145.7 642.5,138.5 677.0,138.5 711.5,138.5 746.0,138.5 780.5,138.5 815.0,138.9 849.5,138.5 884.0,138.5" fill="none" stroke="#0969da" stroke-width="2"/>
+<line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
+<text x="84" y="286" fill="#1f2328">lines at 100 columns</text>
+<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">the default report</text>
+</svg>
