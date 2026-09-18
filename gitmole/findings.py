@@ -587,13 +587,20 @@ def duplication(report: dict, min_lines: int = 30) -> list:
 
 
 CRITICAL_SCORE = 9.0   # CVSS: the band the advisories themselves call critical
+MALICIOUS_PREFIX = "MAL-"   # OpenSSF malicious-packages records: the package is malicious, whatever its score
 IGNORE_DEPS = "A vulnerability that does not apply to this code can be ignored in osv-scanner.toml at the repository root."
+
+
+def _malicious_id(r: dict) -> str:
+    return next((x for x in list(r.get("ids") or []) + list(r.get("aliases") or []) if str(x).startswith(MALICIOUS_PREFIX)), "")
 
 
 def _vuln_statement(rows: list, sources: int) -> str:
     def one(r):
-        ref = r["aliases"][0] if r.get("aliases") else (r["ids"][0] if r.get("ids") else "")
+        ref = _malicious_id(r) or (r["aliases"][0] if r.get("aliases") else (r["ids"][0] if r.get("ids") else ""))
         score = f", {r['score']:.1f}" if r.get("score") is not None else (f", {r['severity']}" if r.get("severity") not in (None, "unknown") else "")
+        if r.get("malicious"):
+            score = ", malicious"
         fixed = f", fixed in {r['fixed']}" if r.get("fixed") else ", no fix yet"
         return f"{r['name']} {r['version']} ({ref}{score}{fixed}) in {r['source']}"
     listed = "; ".join(one(r) for r in rows[:3])
@@ -622,17 +629,22 @@ def vulnerable_dependencies(report: dict) -> list:
                                       (other, "info", "Vulnerable dependencies only in test, example or vendored lock files")):
         if not group:
             continue
-        worst = group[0]   # the rows come sorted by score, highest first
-        sev = "critical" if group is source and worst.get("score") is not None and worst["score"] >= CRITICAL_SCORE else sev_default
+        worst = group[0]   # the rows come sorted malicious first, then by score, highest first
+        critical = worst.get("malicious") or (worst.get("score") is not None and worst["score"] >= CRITICAL_SCORE)
+        sev = "critical" if group is source and critical else sev_default
         sources = len({r["source"] for r in group})
-        target = f"Upgrade {worst['name']} to {worst['fixed']} in {worst['source']} first" if worst.get("fixed") else f"Look at {worst['name']} in {worst['source']} first, which has no fixed version yet"
-        why = f"; it scores {worst['score']:.1f}." if worst.get("score") is not None else "."
-        out.append(_f(sev, title, _vuln_statement(group, sources), f"{target}{why} {IGNORE_DEPS}",
-                      rule={"id": "vulnerable_dependencies" if group is source else "vulnerable_dependencies_aside", "critical_score": CRITICAL_SCORE},
+        if worst.get("malicious"):
+            target = f"Remove {worst['name']} {worst['version']} from {worst['source']} first; {_malicious_id(worst)} lists it as malicious, so no version fixes it."
+        else:
+            target = f"Upgrade {worst['name']} to {worst['fixed']} in {worst['source']} first" if worst.get("fixed") else f"Look at {worst['name']} in {worst['source']} first, which has no fixed version yet"
+            target += f"; it scores {worst['score']:.1f}." if worst.get("score") is not None else "."
+        out.append(_f(sev, title, _vuln_statement(group, sources), f"{target} {IGNORE_DEPS}",
+                      rule={"id": "vulnerable_dependencies" if group is source else "vulnerable_dependencies_aside", "critical_score": CRITICAL_SCORE,
+                            "malicious_prefix": MALICIOUS_PREFIX},
                       evidence={"lock_files": sources,
                                 "packages": [{"name": r["name"], "version": r["version"], "source": r["source"], "score": r.get("score"),
                                               "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
-                                              "aliases": list(r.get("aliases") or [])} for r in group[:10]]}))
+                                              "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious"))} for r in group[:10]]}))
     return out
 
 

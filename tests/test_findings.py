@@ -587,10 +587,10 @@ class Duplication(unittest.TestCase):
 
 
 class VulnerableDependencies(unittest.TestCase):
-    def row(self, name, version, source, score=7.5, fixed="9.9.9", aliases=("CVE-2024-1",), ids=("GHSA-x",)):
-        sev = "critical" if score is not None and score >= 9 else "high" if score is not None and score >= 7 else "unknown"
+    def row(self, name, version, source, score=7.5, fixed="9.9.9", aliases=("CVE-2024-1",), ids=("GHSA-x",), malicious=False):
+        sev = "critical" if malicious or (score is not None and score >= 9) else "high" if score is not None and score >= 7 else "unknown"
         return {"name": name, "version": version, "ecosystem": "npm", "source": source, "ids": list(ids), "aliases": list(aliases),
-                "advisories": 1, "score": score, "severity": sev, "summary": "", "fixed": fixed}
+                "advisories": 1, "score": score, "severity": sev, "summary": "", "fixed": fixed, "malicious": malicious}
 
     def deps(self, rows):
         return {"status": "scanned", "sources": [{"path": r["source"], "packages": 10} for r in rows], "packages": 10 * len(rows),
@@ -610,6 +610,23 @@ class VulnerableDependencies(unittest.TestCase):
         self.assertEqual(f["severity"], "critical")
         self.assertTrue(f["advice"].startswith("Upgrade minimist to 1.2.6 in package-lock.json first; it scores 9.8."), f["advice"])
         self.assertIn("2 vulnerable packages in 1 lock file", f["detail"])
+
+    def test_a_malicious_package_is_critical_without_a_score_and_the_advice_is_to_remove_it(self):
+        rows = [self.row("evil-pad", "1.0.2", "package-lock.json", score=None, fixed=None, aliases=(), ids=("MAL-2026-1234",), malicious=True),
+                self.row("lodash", "4.17.15", "package-lock.json", score=7.2)]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        self.assertEqual(f["severity"], "critical")
+        self.assertIn("evil-pad 1.0.2 (MAL-2026-1234, malicious, no fix yet) in package-lock.json", f["detail"])
+        self.assertEqual(f["advice"], "Remove evil-pad 1.0.2 from package-lock.json first; MAL-2026-1234 lists it as malicious, so no version fixes it. " + findings.IGNORE_DEPS)
+        self.assertEqual(f["rule"]["malicious_prefix"], "MAL-")
+        self.assertIs(f["evidence"]["packages"][0]["malicious"], True)
+        self.assertIs(f["evidence"]["packages"][1]["malicious"], False)
+
+    def test_a_malicious_package_in_a_test_lock_file_stays_a_note(self):
+        rows = [self.row("evil-pad", "1.0.2", "tests/e2e/package-lock.json", score=None, fixed=None, aliases=(), ids=("MAL-2026-1234",), malicious=True)]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        self.assertEqual(f["severity"], "info")
+        self.assertTrue(f["advice"].startswith("Remove evil-pad 1.0.2 from tests/e2e/package-lock.json first"), f["advice"])
 
     def test_test_example_and_vendored_lock_files_are_a_note_apart(self):
         rows = [self.row("a", "1", "tests/e2e/yarn.lock", score=9.8), self.row("b", "1", "examples/demo/Cargo.lock", score=None, fixed=None, aliases=()),

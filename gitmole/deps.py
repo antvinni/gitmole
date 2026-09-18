@@ -6,7 +6,7 @@ osv-scanner reads every lock file it knows (package-lock.json, yarn.lock, uv.loc
 Cargo.lock, Gemfile.lock and the rest) and matches the packages against a copy of the OSV database on
 this machine; with --offline nothing leaves the machine, and the copy is downloaded once by the user, never
 by gitmole. Its report repeats every advisory in full; this wrapper keeps one row per vulnerable package
-(ids, the CVE aliases, the worst score, the version that fixes it) and the lock files with their package
+(ids, the CVE aliases, the worst score, the version that fixes it, whether an advisory is a MAL- record) and the lock files with their package
 counts, and writes only that. Standalone, like leaks.py and duplicates.py.
 
 The same module reads the status back for the report footer.
@@ -94,11 +94,20 @@ def _score(groups: list, vulns: list) -> float | None:
 
 
 _WORDS = {"CRITICAL": 9.5, "HIGH": 8.0, "MODERATE": 5.5, "MEDIUM": 5.5, "LOW": 2.0}
+MALICIOUS_PREFIX = "MAL-"   # OpenSSF malicious-packages records, in the same OSV database; they carry no CVSS
+
+
+def is_malicious(vulns: list) -> bool:
+    """Whether any advisory, by id or alias, is a MAL- record: the package itself is malicious, not merely
+    vulnerable, and no score would say so."""
+    return any(str(x).startswith(MALICIOUS_PREFIX) for v in vulns for x in [v.get("id", "")] + list(v.get("aliases") or []))
 
 
 def _label(score, vulns: list) -> str:
     """critical / high / medium / low from the CVSS score, or from the advisory's own word when it has
-    no score, else unknown."""
+    no score, else unknown. A malicious package is critical whatever the score."""
+    if is_malicious(vulns):
+        return "critical"
     if score is None:
         words = [(v.get("database_specific") or {}).get("severity", "").upper() for v in vulns]
         known = [w for w in words if w in _WORDS]
@@ -137,8 +146,9 @@ def summarise(data: dict, cwd: str) -> dict:
                                "source": path, "ids": [v.get("id", "") for v in vulns], "aliases": aliases,
                                "advisories": len(groups) or len(vulns), "score": score, "severity": _label(score, vulns),
                                "summary": next((v.get("summary") for v in vulns if v.get("summary")), ""),
-                               "fixed": fixed_version(vulns, info.get("name", ""), info.get("version", ""))})
-    vulnerable.sort(key=lambda r: (-(r["score"] if r["score"] is not None else -1), r["name"], r["source"]))
+                               "fixed": fixed_version(vulns, info.get("name", ""), info.get("version", "")),
+                               "malicious": is_malicious(vulns)})
+    vulnerable.sort(key=lambda r: (not r["malicious"], -(r["score"] if r["score"] is not None else -1), r["name"], r["source"]))
     return {"status": "scanned", "sources": sources, "packages": packages, "vulnerable": vulnerable}
 
 
