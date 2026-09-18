@@ -73,7 +73,8 @@ def rev_before(repo: str, date: str, end_of_day: bool = True):
 
     Raises RuntimeError with git's own message when git fails: an unreadable repository is not
     the same answer as a history that does not reach back that far."""
-    bound = f"{date}T23:59:59" if end_of_day else f"{date}T00:00:00"
+    # in UTC: git reads a bound without a zone in the machine's own, and a report must not depend on where it ran
+    bound = f"{date}T23:59:59+00:00" if end_of_day else f"{date}T00:00:00+00:00"
     proc = subprocess.run(["git", "rev-list", "-1", f"--before={bound}", "HEAD"], cwd=repo, capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError((proc.stderr or "").strip().splitlines()[0] if (proc.stderr or "").strip()

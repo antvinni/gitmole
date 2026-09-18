@@ -1,0 +1,142 @@
+"""The measurement framework: its arithmetic against docs/measurement.md's own worked numbers, the graphs,
+the dashboard's crash rule, the fixtures and the sensitivity verdicts."""
+import json
+import os
+import subprocess
+import tempfile
+import unittest
+
+from gitmole.measure import corpus, dashboard, extras, harness, metrics, svg
+
+
+class Arithmetic(unittest.TestCase):
+    def test_headroom_puts_saturation_in_the_arithmetic(self):
+        self.assertAlmostEqual(metrics.headroom(86, 30.1, 90), 0.933, places=3, msg="curl's 0.93 in measurement.md, with 90 as its best possible")
+        self.assertIsNone(metrics.headroom(3, 5, 5), "no gap between random and perfect")
+
+    def test_auc_counts_positives_above_negatives(self):
+        self.assertEqual(metrics.auc(["a", "b", "c", "d"], {"a", "b"}), 1.0)
+        self.assertEqual(metrics.auc(["c", "d", "a", "b"], {"a", "b"}), 0.0)
+        self.assertEqual(metrics.auc(["a", "c", "b", "d"], {"a", "b"}), 0.75)
+        self.assertIsNone(metrics.auc(["a"], {"a"}))
+
+    def test_recall_at_an_effort_budget(self):
+        lines = {"big": 800, "small": 100, "mid": 100}
+        self.assertEqual(metrics.recall_at_effort(["big", "small", "mid"], lines, {"small"}, 0.2), 0.0, "the big file spends the budget first")
+        self.assertEqual(metrics.recall_at_effort(["small", "mid", "big"], lines, {"small", "big"}, 0.2), 0.5)
+
+    def test_stability_measures(self):
+        self.assertEqual(metrics.spearman(["a", "b", "c", "d"], ["a", "b", "c", "d"]), 1.0)
+        self.assertEqual(metrics.spearman(["a", "b", "c"], ["c", "b", "a"]), -1.0)
+        self.assertEqual(metrics.jaccard(["a", "b"], ["b", "c"]), 1 / 3)
+
+    def test_wilson_and_the_verdict_match_the_plan(self):
+        lo, hi = metrics.wilson(8, 10)
+        self.assertEqual((round(lo, 2), round(hi, 2)), (0.49, 0.94))
+        self.assertEqual(round(metrics.wilson(10, 10)[0], 2), 0.72)
+        self.assertEqual(metrics.verdict(20, 20), "sound", "twenty of twenty clears the line at 0.84")
+        self.assertEqual(metrics.verdict(8, 10), "undecided")
+        self.assertEqual(metrics.verdict(2, 20), "broken")
+        self.assertEqual(metrics.verdict(0, 0), "unlabelled")
+
+    def test_kappa(self):
+        self.assertEqual(metrics.kappa([(True, True), (False, False)]), 1.0)
+        self.assertAlmostEqual(metrics.kappa([(True, True), (True, False), (False, False), (False, True)]), 0.0)
+
+    def test_bootstrap_resamples_whole_repositories_and_is_seeded(self):
+        groups = {"a": [0.9, 0.8], "b": [0.2, 0.3], "c": [0.5]}
+        one = metrics.bootstrap(groups, metrics.median)
+        self.assertEqual(one, metrics.bootstrap(groups, metrics.median), "seeded: the same interval every time")
+        self.assertLessEqual(one[0], one[1])
+        self.assertIsNone(metrics.bootstrap({"a": [None]}, metrics.median))
+
+
+class Scoring(unittest.TestCase):
+    def test_one_cut_off_against_random_perfect_and_churn(self):
+        rank = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40}
+        s = harness.score(rank, {"a", "c", "z"}, top=2)
+        self.assertEqual((s["positives"], s["hits"], s["best"], s["churn_hits"]), (2, 1, 2, 1))
+        self.assertEqual(s["expected"], 1.0)
+
+    def test_matched_magnets(self):
+        rank = {"pool": [f"f{i}" for i in range(20)], "magnets": ["f0", "f1"]}
+        m = harness.magnets_at(rank, {"f0", "f2"})
+        self.assertEqual((m["named"], m["named_fixed"], m["matched"], m["matched_fixed"]), (2, 1, 0, 0), "f0 and f1 fill the top decile alone")
+        self.assertIsNone(harness.magnets_at({"pool": ["a"], "magnets": None}, set()))
+
+
+def _record(statuses):
+    repos = {}
+    for name, status in statuses.items():
+        rec = {"status": status, "set": "development", "findings": 4, "report_lines": 100, "seconds": 10, "peak_mb": 100}
+        if status == "ok":
+            rec["ranking"] = {"cutoffs": [{"cutoff": "2026-01-01", "pool": 40, "positives": 10, "hits": 6, "expected": 3.75, "best": 10, "churn_hits": 5,
+                                           "auc": 0.7, "churn_auc": 0.6, "recall20": 0.3, "churn_recall20": 0.2}]}
+        else:
+            rec["note"] = "Traceback: boom"
+        repos[name] = rec
+    return {"version": "9.9.9", "repos": repos}
+
+
+class Dashboard(unittest.TestCase):
+    def test_a_release_is_summarised(self):
+        s = dashboard.summarise(_record({"a": "ok", "b": "ok"}))
+        self.assertIsNone(s["crashed"])
+        self.assertAlmostEqual(s["headroom"], round((6 - 3.75) / (10 - 3.75), 3))
+        self.assertEqual(s["wins_losses_ties"], [2, 0, 0])
+        self.assertEqual(s["robust"], [2, 2])
+
+    def test_a_crash_on_any_development_repository_marks_the_release(self):
+        s = dashboard.summarise(_record({"a": "ok", "b": "crashed"}))
+        self.assertEqual(s["crashed"], {"b": "Traceback: boom"})
+        self.assertEqual(s["robust"], [1, 2])
+
+    def test_a_move_counts_only_outside_the_previous_interval(self):
+        self.assertEqual(dashboard.moved({"headroom_ci": [0.4, 0.6]}, {"headroom": 0.7}), "up")
+        self.assertEqual(dashboard.moved({"headroom_ci": [0.4, 0.6]}, {"headroom": 0.5}), "")
+
+
+class Graphs(unittest.TestCase):
+    def test_a_chart_draws_lines_bands_and_crashes_the_same_bytes_every_time(self):
+        args = ("t", ["0.1", "0.2", "0.3"], [{"label": "x", "values": [0.2, None, 0.8], "band": [[0.1, 0.3], None, [0.7, 0.9]]},
+                                            {"label": "y", "values": [0.5, 0.5, 0.5], "dashed": True}], [1], (0, 1), "%")
+        one = svg.chart(*args)
+        self.assertEqual(one, svg.chart(*args))
+        self.assertIn("stroke-dasharray", one)
+        self.assertIn("crashed", one)
+        self.assertTrue(one.startswith("<svg") and one.strip().endswith("</svg>"))
+
+
+class Fixtures(unittest.TestCase):
+    def test_every_fixture_builds(self):
+        with tempfile.TemporaryDirectory() as d:
+            for kind in ("empty", "one-commit", "detached", "shallow", "submodule", "non-utf8-path", "binary-only", "secret", "trojan-source", "submodule-credentials"):
+                path = corpus.fixture(kind, d)
+                self.assertTrue(os.path.isdir(path), kind)
+            head = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=os.path.join(d, "detached"), capture_output=True, text=True).stdout.strip()
+            self.assertEqual(head, "HEAD")
+            self.assertTrue(os.path.exists(os.path.join(d, "shallow", ".git", "shallow")))
+            names = subprocess.run(["git", "ls-files", "-z"], cwd=os.path.join(d, "non-utf8-path"), capture_output=True).stdout.split(b"\0")
+            self.assertIn(b"caf\xe9.py", names, "the Latin-1 name is in the commit")
+
+    def test_the_manifest_names_every_set_and_pins_every_clone(self):
+        m = corpus.load()
+        self.assertEqual({e["set"] for e in m["repos"]}, {"development", "holdout", "well-kept", "awkward", "gate"})
+        for e in m["repos"]:
+            self.assertTrue(e.get("fixture") or (e.get("url") and len(e.get("commit", "")) == 40), e["name"])
+        self.assertTrue(m["well_kept_criterion"])
+
+
+class Sensitivity(unittest.TestCase):
+    def _row(self, base, near):
+        return {"base": {"r": base}, "shifts": {"0.9": {"repos": {"r": near}}, "1.1": {"repos": {"r": near}}}}
+
+    def test_verdicts(self):
+        self.assertEqual(extras._verdict(self._row(4, {"findings": 4, "jaccard": 1.0})), "flat")
+        self.assertEqual(extras._verdict(self._row(4, {"findings": 9, "jaccard": 0.4})), "fragile")
+        self.assertEqual(extras._verdict(self._row(4, {"findings": 4, "jaccard": 0.6})), "moderate", "same count, different files")
+        self.assertEqual(extras._verdict(self._row(0, {"findings": 0, "jaccard": None})), "silent")
+
+
+if __name__ == "__main__":
+    unittest.main()

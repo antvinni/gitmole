@@ -52,7 +52,7 @@ class RevBefore(unittest.TestCase):
     def _repo(self, d):
         e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
                  GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x",
-                 GIT_AUTHOR_DATE="2025-06-01T10:00:00", GIT_COMMITTER_DATE="2025-06-01T10:00:00")
+                 GIT_AUTHOR_DATE="2025-06-01T22:30:00+00:00", GIT_COMMITTER_DATE="2025-06-01T22:30:00+00:00")
         subprocess.run(["git", "init", "-q", d], check=True, capture_output=True, env=e)
         subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "one"], cwd=d, check=True, capture_output=True, env=e)
 
@@ -62,6 +62,20 @@ class RevBefore(unittest.TestCase):
             self.assertTrue(trend.rev_before(d, "2025-06-01", end_of_day=True), "the trend samples include the day itself")
             self.assertIsNone(trend.rev_before(d, "2025-06-01", end_of_day=False), "the backtest cuts off as the day begins")
             self.assertTrue(trend.rev_before(d, "2025-06-02", end_of_day=False))
+
+    def test_the_day_is_a_utc_day_wherever_the_run_is(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)   # 22:30 UTC is already the next morning in Tokyo
+            old = os.environ.get("TZ")
+            os.environ["TZ"] = "Asia/Tokyo"
+            try:
+                self.assertTrue(trend.rev_before(d, "2025-06-01", end_of_day=True))
+                self.assertIsNone(trend.rev_before(d, "2025-06-01", end_of_day=False))
+            finally:
+                if old is None:
+                    del os.environ["TZ"]
+                else:
+                    os.environ["TZ"] = old
 
     def test_a_git_failure_raises_with_gits_own_message(self):
         with tempfile.TemporaryDirectory() as d:
