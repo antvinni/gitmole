@@ -47,9 +47,14 @@ def parse_args(argv):
     p.add_argument("--compare", metavar="BEFORE_JSON", help="add a 'Since last report' section against an earlier --json export of the same clone")
     p.add_argument("--hook", action="store_true", help="with --no-run: read an agent hook's JSON on stdin (or files after --), score the files it names like --risk, "
                                                        "print a summary the agent reads back, exit 2 when --risk-threshold is exceeded")
-    p.add_argument("files", nargs="*", help=argparse.SUPPRESS)   # --hook: the files to score, after --, for pre-commit
     p.add_argument("--version", action="version", version=f"gitmole {__version__}")
-    return p.parse_args(argv)
+    # --hook takes the files to score after --, pre-commit's way. Split them off here: Python 3.9's argparse
+    # cannot give a second positional a value once optionals sit between it and the first.
+    argv = list(argv)
+    files = argv[argv.index("--") + 1:] if "--" in argv else []
+    args = p.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
+    args.files = files
+    return args
 
 
 _control = run.Control()
