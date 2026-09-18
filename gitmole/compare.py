@@ -65,4 +65,13 @@ def compare(before: dict, report: dict, found: list, top: int = watch.WATCH_TOP)
             "watch_entered": [f for f in after_watch if f not in before_watch], "watch_left": [f for f in before_watch if f not in after_watch],
             "tally": {"before": _tally(before.get("findings") or []), "after": _tally(found)},
             "before": {"commit": (meta_b.get("run") or {}).get("commit"), "date": meta_b.get("last_date"),
-                       "options_differ": _options_differ(meta_b, meta_a)}}
+                       "options_differ": _options_differ(meta_b, meta_a), "database": _database_changed(before, report)}}
+
+
+def _database_changed(before: dict, report: dict):
+    """{before, after} dates when the two runs scanned against different snapshots of the OSV database,
+    else None: a new advisory changes the vulnerable-dependency finding without any change to the code."""
+    b, a = before.get("dependencies") or {}, report.get("dependencies") or {}
+    if b.get("database_digest") and a.get("database_digest") and b["database_digest"] != a["database_digest"]:
+        return {"before": b.get("database_date"), "after": a.get("database_date")}
+    return None

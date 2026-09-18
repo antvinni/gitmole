@@ -1,4 +1,6 @@
-"""The watch list: the source files most likely to be fixed next, and what to look at in each.
+"""The watch list: the source files most likely to be fixed next, and what to look at in each. Hotspots by
+revisions × lines of code, after Tornhill (Your Code as a Crime Scene); the change factors on --risk after
+Kamei et al. (TSE 2013), the coupling gaps after Zimmermann et al. (TSE 2005).
 
 Each source file that is still in the tree and changed more than once is ranked by revisions × lines
 of code, the product the Hotspots table uses: measured at six cut-offs on three repositories

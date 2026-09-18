@@ -760,6 +760,10 @@ def compare_section(result: dict) -> dict:
     lines = []
     if before.get("options_differ"):
         lines.append(f"options differ: {', '.join(before['options_differ'])}; the changes partly reflect them")
+    db = before.get("database")
+    if db:
+        lines.append(f"the vulnerability database changed between the runs ({db.get('before') or '?'} to {db.get('after') or '?'}), "
+                     "so a dependency finding can move with no change to the code")
     lines.append(f"{against}, {before.get('date') or '?'} · {_tally_words(result['tally']['before'])} → {_tally_words(result['tally']['after'])}")
     columns = [("change", {}), ("what", {"overflow": "fold", "ratio": 3})]
     # an empty section prints heading + note and drops the caption (section_block, _md_section), so when

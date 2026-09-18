@@ -271,7 +271,7 @@ class MinorContributors(unittest.TestCase):
         self.assertNotIn("src/f10.py", f["detail"], "outside the top ten")
         self.assertEqual(f["advice"], "Have Ann, who wrote most of src/f0.py, review changes to it from anyone else; "
                                       "Bird et al. found the count of minor contributors the strongest ownership predictor of defects.")
-        self.assertEqual(f["rule"], {"id": "minor_contributors", "min_minor": 5, "warn_at": 10, "minor_share": 0.05, "top_n": 10})
+        self.assertEqual(f["rule"], {"id": "minor_contributors", "min_minor": 5, "warn_at": 10, "minor_share": 0.05, "top_n": 10, "ref": "Bird et al., FSE 2011"})
         self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 12, "authors": 15, "owner": "Ann"})
 
     def test_info_below_ten_and_nothing_below_five(self):
@@ -302,7 +302,8 @@ class TangledCommits(unittest.TestCase):
                       "t1 (34 files, 9 directories, Fix the parser, add a cache and rename the helpers); t2 (12 files, 4 directories, Add x; fix y). "
                       "A fix among them credits every file it touched, so 3 fixes over the repository's 99th percentile of lines changed are already left out of the fix counts.", f["detail"])
         self.assertEqual(f["advice"], "Split a change that does several things before merge; the fix history stays readable and the coupling stays real.")
-        self.assertEqual(f["rule"], {"id": "tangled_commits", "min_files": 10, "min_dirs": 4, "min_clauses": 2, "min_share": 0.02, "min_count": 5})
+        self.assertEqual(f["rule"], {"id": "tangled_commits", "min_files": 10, "min_dirs": 4, "min_clauses": 2, "min_share": 0.02, "min_count": 5,
+                                     "ref": "Herzig and Zeller, MSR 2013"})
         self.assertEqual(f["evidence"]["count"], 12)
         self.assertEqual(f["evidence"]["oversized_fixes"], 3)
 
@@ -1247,3 +1248,23 @@ class AgentSurface(unittest.TestCase):
         self.assertEqual(self.by_id(self.rep()).get("signoff_by_co_author"), None)
         one = self.rep(trailers={"never_author": [], "signoff_by_co_author": [{"name": "Ghost", "email": "ghost@x.com", "commits": 1}]})
         self.assertIsNone(self.by_id(one).get("signoff_by_co_author"), "one commit is not a habit")
+
+
+class References(unittest.TestCase):
+    def test_every_rule_resting_on_a_paper_names_it_where_the_numbers_are(self):
+        expected = {"minor_contributors": "Bird et al., FSE 2011", "tangled_commits": "Herzig and Zeller, MSR 2013",
+                    "brain_methods": "Lanza and Marinescu, 2006", "tight_coupling": "Gall, Hajek and Jazayeri, ICSM 1998",
+                    "hotspot_dominance": "Tornhill, Your Code as a Crime Scene, 2024", "trojan_source": "Boucher and Anderson, USENIX Security 2023",
+                    "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
+                    "unreferenced_files": "Romano et al., TSE 2020"}
+        for rule, ref in expected.items():
+            self.assertEqual(findings.REFS[rule], ref, rule)
+        import os
+        page = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "references.md")).read()
+        for ref in expected.values():
+            surname = ref.split(",")[0].split(" and ")[0].split(" et al.")[0]
+            self.assertIn(surname, page, f"{ref} is on the references page")
+
+    def test_the_ref_reaches_the_rule_dict(self):
+        found = findings.tight_coupling(report(coupling=[{"entity": "a.py", "coupled": "b.py", "degree": 90, "average-revs": 10}]))
+        self.assertEqual(found[0]["rule"]["ref"], "Gall, Hajek and Jazayeri, ICSM 1998")

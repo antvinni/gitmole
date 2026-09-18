@@ -28,6 +28,50 @@ jobs:
       - name: Run the tests
         run: python -m unittest discover -s tests -t .
 
+  determinism:
+    name: same commit, same report
+    runs-on: macos-latest
+    permissions:
+      contents: read
+      id-token: write       # the attestation's signing identity, on pushes to main only
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the report reads the whole history
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the external tools
+        run: brew install scc git-sizer betterleaks jscpd osv-scanner
+      - name: Install gitmole
+        run: python -m pip install -e '.[structure]'
+      - name: Two runs of this commit export the same JSON outside the envelope
+        run: |
+          export GITMOLE_NOW="$(git log -1 --format=%cs)"   # the reference date is the commit's, not the runner clock's
+          gitmole . --out analysis --json first.json > /dev/null
+          gitmole . --out analysis --json report.json > /dev/null
+          python - <<'PY'
+          import json, sys
+          a, b = (json.load(open(p)) for p in ("first.json", "report.json"))
+          a.pop("envelope"), b.pop("envelope")
+          if json.dumps(a, sort_keys=True) != json.dumps(b, sort_keys=True):
+              sys.exit("two runs of the same commit exported different JSON outside the envelope")
+          json.dump({"gitmole": b["meta"]["run"]["gitmole"], "commit": b["meta"]["run"]["commit"], "tools": b["meta"]["run"]["tools"],
+                     "options": b["meta"]["run"]["options"]}, open("predicate.json", "w"), sort_keys=True)
+          PY
+      - name: Attest that this workflow produced this report from this commit
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/attest@v4
+        with:
+          subject-path: report.json
+          predicate-type: https://github.com/antvinni/gitmole/report/v1
+          predicate-path: predicate.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gitmole-report
+          path: report.json
+
   formula:
     name: homebrew formula
     runs-on: macos-latest

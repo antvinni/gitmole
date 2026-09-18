@@ -1,4 +1,5 @@
-"""The agent-hook gate: `gitmole OUT_DIR --no-run --hook [--risk-threshold N] [-- FILE...]`.
+"""The agent-hook gate: `gitmole OUT_DIR --no-run --hook [--risk-threshold N] [-- FILE...]`, after Codacy's
+argument for deterministic findings before inference and Zimmermann et al.'s co-change recommendations.
 
 Deterministic findings should run before inference, so the model reasons over a short list rather
 than rediscovering known issues. A linter says what is wrong in the diff; gitmole says what history

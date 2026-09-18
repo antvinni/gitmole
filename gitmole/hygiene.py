@@ -1,5 +1,6 @@
 """Repository hygiene from the clone alone: the checks OpenSSF Scorecard and the OSPS Baseline make
-through the GitHub API, done with file and git reads.
+through the GitHub API, done with file and git reads; Trojan Source after Boucher and Anderson (USENIX
+Security 2023).
 
 Runs as a pipeline step, `python -m gitmole.hygiene OUT_DIR`, from inside the repository, and writes
 hygiene.json; findings.py turns it into findings. Each check keys on a convention of the ecosystem (a

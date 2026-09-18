@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use gitmole in research or a report, please cite it as below."
+title: "gitmole: offline git repository analysis"
+abstract: >-
+  gitmole reads a git clone and reports where the risk is (a watch list ranked by revisions times lines of
+  code and measured against what was fixed next), who knows the code, how old it is, whether the repository
+  is healthy, and whether anything sensitive was ever committed. Every finding is a plain rule with its
+  thresholds and evidence in the JSON, and the same commit gives the same bytes.
+type: software
+authors:
+  - alias: antvinni
+repository-code: "https://github.com/antvinni/gitmole"
+url: "https://github.com/antvinni/gitmole"
+license: MIT
+version: 0.18.0
+date-released: 2026-09-18
+keywords:
+  - git
+  - mining software repositories
+  - hotspots
+  - change coupling
+  - code ownership
+  - defect prediction

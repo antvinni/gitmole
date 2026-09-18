@@ -284,6 +284,14 @@ class Report(unittest.TestCase):
         self.assertIn("12% of commits land in bursts of five or more within ten minutes; 80% have conventional-commit subjects; commits come in 20 hours of the day", caption)
         self.assertIn("## Trailers", render.markdown(r, []))
 
+    def test_the_comparison_says_when_the_vulnerability_database_changed(self):
+        result = {"new": [], "resolved": [], "persisting": [], "watch_entered": [], "watch_left": [],
+                  "tally": {"before": {"critical": 0, "warning": 0, "info": 0}, "after": {"critical": 0, "warning": 0, "info": 0}},
+                  "before": {"commit": "abc12345", "date": "2026-09-01", "options_differ": [], "database": {"before": "2026-09-01", "after": "2026-09-17"}}}
+        sec = render.compare_section(result)
+        text = (sec.get("caption") or "") + (sec.get("note") or "")
+        self.assertIn("the vulnerability database changed between the runs (2026-09-01 to 2026-09-17), so a dependency finding can move with no change to the code", text)
+
     def test_the_json_is_the_same_bytes_for_the_same_clone_whatever_the_run(self):
         import copy
         a = sample_report()

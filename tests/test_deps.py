@@ -101,6 +101,20 @@ class DatabaseDate(unittest.TestCase):
             os.utime(path, (1_600_000_000, 1_600_000_000))
             self.assertEqual(deps.database_date(d), "2020-09-13")
 
+    def test_the_digest_names_the_snapshot_and_changes_when_it_does(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(deps.database_digest(d))
+            os.makedirs(os.path.join(d, "osv-scalibr", "npm"))
+            path = os.path.join(d, "osv-scalibr", "npm", "all.zip")
+            with open(path, "w") as fh:
+                fh.write("a")
+            os.utime(path, (1_600_000_000, 1_600_000_000))
+            first = deps.database_digest(d)
+            self.assertRegex(first, r"^[0-9a-f]{16}$")
+            self.assertEqual(deps.database_digest(d), first)
+            os.utime(path, (1_600_000_100, 1_600_000_100))
+            self.assertNotEqual(deps.database_digest(d), first, "a refreshed copy is another snapshot")
+
     def test_the_explicit_variable_wins_over_the_platform_cache(self):
         from unittest.mock import patch
         with patch.dict(os.environ, {"OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY": "/x/y"}):

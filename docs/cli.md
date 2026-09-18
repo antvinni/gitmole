@@ -83,6 +83,21 @@ parsing its sentence:
  "evidence": {"count": 2, "files": [{"file": "lib/url.c", "recent_fixes": 5, "fixes": 41}]}}
 ```
 
+The same commit with the same options gives the same bytes. The export is
+written with its keys sorted, rows come back in one order whatever order a
+parallel step wrote them in, and each secret's keyed hash (the key is made
+for one run) is replaced by a stable label, `v1`, `v2`, the same value
+getting the same label. What does differ from one run to the next sits in
+one top-level key, `envelope`: the blame pass's measured projection, the
+output directory, the structure cache's hits. gitmole's own CI runs it
+twice on every commit, compares the two exports without the envelope, and
+on `main` attests the report with `actions/attest`, so a report can be
+checked as coming from that commit and that workflow:
+
+```bash
+gh attestation verify report.json --repo antvinni/gitmole
+```
+
 The JSON's `watch` rows carry a `trend` field: the change in the file's
 complexity over a year (`+54%`, `=` for under ten per cent either way, `-`
 when there is nothing to compare), and null when the file was not among the

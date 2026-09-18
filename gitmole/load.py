@@ -254,6 +254,8 @@ def parse_dependencies(data) -> dict:
     if data["status"] == "scanned":
         out.update({"sources": data.get("sources") or [], "packages": _num(data.get("packages")),
                     "vulnerable": data.get("vulnerable") or [], "database_date": data.get("database_date")})
+        if data.get("database_digest"):
+            out["database_digest"] = data["database_digest"]
     elif data["status"] == "no-database":
         out["download"] = data.get("download") or ""
     return out

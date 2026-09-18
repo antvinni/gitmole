@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Change analysis over a git log export, in the layout code-maat produced.
+"""Change analysis over a git log export, in the layout code-maat produced: revisions, coupling and sum of
+coupling after Adam Tornhill's code-maat, minor contributors after Bird et al. (FSE 2011), change entropy
+after Hassan (ICSE 2009), oversized fixes after Herzig and Zeller (MSR 2013); see docs/references.md.
 
 Standalone on purpose: gitmole runs it as a pipeline step with
 `python3 maat.py LOG OUT_DIR [--aliases META_JSON]` and it must not need the

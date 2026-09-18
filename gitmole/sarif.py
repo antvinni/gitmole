@@ -1,4 +1,4 @@
-"""The findings as SARIF 2.1.0, for GitHub code scanning and GitLab.
+"""The findings as SARIF 2.1.0, for GitHub code scanning and GitLab, as their SARIF documentation describes.
 
 `--json` already carries a rule id, thresholds and evidence per finding, which is most of a SARIF
 result. What the uploaders need on top: `version "2.1.0"`, `tool.driver` with `rules[]` (id,

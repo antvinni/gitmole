@@ -82,6 +82,15 @@ measured by hand on one machine with nothing else running.
 Bumping a pin is a separate decision: it changes the repository's history,
 not gitmole's output.
 
+## Determinism
+
+`--json` is the same bytes for the same commit and options, outside its
+`envelope` key. `tests/test_golden.py` checks that on the synthetic
+repository, and the `determinism` job in CI checks it on gitmole itself on
+every push, then attests the report on `main`. A new output that varies from
+run to run (a timing, a path, a cache count) belongs in the envelope; a list
+a parallel step writes belongs sorted where it is loaded.
+
 ## Code layout
 
 The code lives in `gitmole/`: `run.py` plans and executes the tools,

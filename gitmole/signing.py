@@ -1,4 +1,5 @@
-"""Commit signing coverage, read from the commit objects, with no keyring and no network.
+"""Commit signing coverage, read from the commit objects, with no keyring and no network (the measure the
+EASE 2025 study of commit signing on GitHub reports).
 
 `%G?` depends on the local keyring: on a fresh clone nearly every signed commit comes back E, cannot
 check. The keyring-independent reading is the `gpgsig` (or `gpgsig-sha256`) header in the commit
