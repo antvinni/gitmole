@@ -32,9 +32,21 @@ gets a footer line saying so, and a missing database is reported, not
 downloaded. To silence an advisory that does not apply to your code, add its
 id to `osv-scanner.toml` at the repository root, osv-scanner's own ignore file.
 
-What gitmole does not do: dead-code detection (that needs a symbol graph per
-language) and test coverage (that needs the project's own test run). It will
-not guess at either.
+**tree-sitter**, optional through `gitmole[structure]`, answers "how is the
+code shaped, and what imports what": nesting, compound conditions,
+cognitive complexity, the TODO and FIXME markers the authors left, and the
+import graph that says which co-changing files have no import between them.
+It is py-tree-sitter with one grammar wheel per language (Python,
+JavaScript, TypeScript, Go, Rust, Java, C, C++, Ruby, C#, PHP), each a
+compiled grammar inside an MIT wheel: nothing to compile, nothing fetched at
+run time. tree-sitter-language-pack, which covers 371 languages, was the
+first choice and was left out because it downloads its grammars when first
+used, which breaks the offline rule.
+
+What gitmole does not do: dead-code detection (the import graph can say
+"possibly unreferenced" for Python, JavaScript and TypeScript, never
+"dead"; the real thing needs a symbol graph per language) and test coverage
+(that needs the project's own test run). It will not guess at either.
 
 ## Considered and left out
 
@@ -91,3 +103,4 @@ processes. gitmole itself is MIT.
 | rich | MIT |
 | lizard | MIT |
 | git-of-theseus | Apache-2.0 |
+| py-tree-sitter and the tree-sitter grammars | MIT |
