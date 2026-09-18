@@ -28,9 +28,11 @@ it stood then, from its own headers, licences and `.gitattributes`. Since
 formatter run, a rename across the tree; 115 on curl, 76 on django, 20 on
 react) and the commits `.git-blame-ignore-revs` declares are left out of
 every count, so a file a formatter only re-indented is not a file that
-changed. The numbers below are measured that way; the pools are a little
-smaller than before (471 files at curl's first cut-off, against 497), and
-the watch list's total moved from 224 to 225.
+changed. Since 0.12 a fix that changes more lines than 99% of the
+repository's commits (never under 500) is not an outcome either: tangled by
+size, it credits none of its files. The numbers below are measured that
+way; the pools are a little smaller than before (471 files at curl's first
+cut-off, against 497), and the watch list's total moved from 224 to 225.
 
 The variants: `watch list (hotspot)` is what gitmole ranks by, revisions ×
 lines of code. The two factor products are what it ranked by before 0.8,
@@ -44,29 +46,29 @@ the score 0.7 shipped) or taken as the file's rank among the scored files
 
 ### curl, top 15, 6-month horizon
 
-| variant | 2023-09-17 (137 of 471 fixed) | 2024-03-17 (142 of 485 fixed) | 2024-09-17 (160 of 504 fixed) | 2025-03-17 (134 of 517 fixed) | 2025-09-17 (264 of 524 fixed) | 2026-03-17 (177 of 511 fixed) | total |
+| variant | 2023-09-17 (137 of 471 fixed) | 2024-03-17 (142 of 485 fixed) | 2024-09-17 (160 of 504 fixed) | 2025-03-17 (134 of 517 fixed) | 2025-09-17 (264 of 524 fixed) | 2026-03-17 (169 of 511 fixed) | total |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | watch list (hotspot) | 15 | 14 | 14 | 13 | 15 | 15 | 86 |
 | factor product (max-scaled) | 15 | 14 | 14 | 13 | 15 | 15 | 86 |
-| factor product (rank-scaled) | 14 | 14 | 15 | 13 | 15 | 15 | 86 |
+| factor product (rank-scaled) | 14 | 15 | 15 | 13 | 15 | 15 | 87 |
 | churn | 15 | 14 | 13 | 13 | 15 | 15 | 85 |
 | size | 15 | 15 | 15 | 15 | 15 | 15 | 90 |
-| recent fixes | 14 | 14 | 14 | 14 | 15 | 15 | 86 |
-| random (expected) | 4.4 | 4.4 | 4.8 | 3.9 | 7.6 | 5.2 | 30.3 |
+| recent fixes | 14 | 14 | 14 | 13 | 15 | 15 | 85 |
+| random (expected) | 4.4 | 4.4 | 4.8 | 3.9 | 7.6 | 5.0 | 30.1 |
 
 `--all` exports 39,902 commits (7,470 fixes); HEAD reaches 39,758 (7,461 fixes).
 
 ### django, top 15, 6-month horizon
 
-| variant | 2023-09-08 (147 of 789 fixed) | 2024-03-08 (150 of 793 fixed) | 2024-09-08 (171 of 795 fixed) | 2025-03-08 (177 of 798 fixed) | 2025-09-08 (173 of 803 fixed) | 2026-03-08 (193 of 817 fixed) | total |
+| variant | 2023-09-08 (147 of 789 fixed) | 2024-03-08 (143 of 793 fixed) | 2024-09-08 (170 of 795 fixed) | 2025-03-08 (173 of 798 fixed) | 2025-09-08 (173 of 803 fixed) | 2026-03-08 (182 of 817 fixed) | total |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | watch list (hotspot) | 14 | 14 | 13 | 13 | 15 | 15 | 84 |
-| factor product (max-scaled) | 12 | 13 | 13 | 13 | 14 | 14 | 79 |
+| factor product (max-scaled) | 12 | 13 | 13 | 12 | 14 | 14 | 78 |
 | factor product (rank-scaled) | 13 | 13 | 12 | 13 | 13 | 14 | 78 |
 | churn | 12 | 11 | 12 | 10 | 12 | 12 | 69 |
-| size | 15 | 15 | 13 | 13 | 14 | 14 | 84 |
-| recent fixes | 13 | 14 | 14 | 14 | 14 | 13 | 82 |
-| random (expected) | 2.8 | 2.8 | 3.2 | 3.3 | 3.2 | 3.5 | 18.8 |
+| size | 15 | 15 | 13 | 13 | 14 | 13 | 83 |
+| recent fixes | 13 | 14 | 15 | 14 | 14 | 13 | 83 |
+| random (expected) | 2.8 | 2.7 | 3.2 | 3.3 | 3.2 | 3.3 | 18.5 |
 
 `--all` exports 52,840 commits (30,130 fixes); HEAD reaches 34,933 (20,452 fixes).
 
@@ -89,12 +91,12 @@ the score 0.7 shipped) or taken as the file's rank among the scored files
 | variant | curl | django | react | total |
 |---|---:|---:|---:|---:|
 | watch list (hotspot) | 86 | 84 | 55 | 225 |
-| factor product (max-scaled) | 86 | 79 | 42 | 207 |
-| factor product (rank-scaled) | 86 | 78 | 57 | 221 |
+| factor product (max-scaled) | 86 | 78 | 42 | 206 |
+| factor product (rank-scaled) | 87 | 78 | 57 | 222 |
 | churn | 85 | 69 | 35 | 189 |
-| size | 90 | 84 | 46 | 220 |
-| recent fixes | 86 | 82 | 44 | 212 |
-| random (expected) | 30.3 | 18.8 | 5.1 | 54.2 |
+| size | 90 | 83 | 46 | 219 |
+| recent fixes | 85 | 83 | 44 | 212 |
+| random (expected) | 30.1 | 18.5 | 5.1 | 53.7 |
 
 Of 270 possible: three repositories, six cut-offs, fifteen files.
 
@@ -103,17 +105,18 @@ Of 270 possible: three repositories, six cut-offs, fifteen files.
 Every list beats a random pick: by about three times on curl, four times on
 django and eight to twelve times on react. Beyond that:
 
-- **Revisions × lines of code does best**, 225 of 270: level with size alone
-  on django (84, two ahead of recent fixes), two behind the rank-scaled
+- **Revisions × lines of code does best**, 225 of 270: first on django (84,
+  one ahead of size alone and of recent fixes), two behind the rank-scaled
   factor product on react (55 against 57, nine ahead of size), and on curl
-  level with both factor products and recent fixes, one ahead of churn and
-  four behind size alone. That is why the watch list ranks by it, and why
-  fixes, complexity and ownership are the reasons printed beside a file and
-  not part of its rank.
-- **The rank-scaled factor product comes second**, 221, and takes react
-  (57); **size alone**, 220, takes curl outright (90 of 90) and ties django,
-  and only react separates it from the watch list, where it is nine behind.
-- **The max-scaled factor product trails**, 207: what 0.7 shipped, and the
+  level with the max-scaled factor product, one ahead of churn and of recent
+  fixes, one behind the rank-scaled product and four behind size alone.
+  That is why the watch list ranks by it, and why fixes, complexity and
+  ownership are the reasons printed beside a file and not part of its rank.
+- **The rank-scaled factor product comes second**, 222, and takes curl by
+  one (87) and react (57); **size alone**, 219, takes curl outright (90 of
+  90) and is one behind on django, and only react separates it from the
+  watch list, where it is nine behind.
+- **The max-scaled factor product trails**, 206: what 0.7 shipped, and the
   worst of the three on react (42).
 - **Recent fixes**, 212. A file fixed lately is likely to be fixed again;
   the list prints that count beside the file, right after how often it
