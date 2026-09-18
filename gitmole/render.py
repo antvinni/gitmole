@@ -242,6 +242,7 @@ def summary(report: dict) -> dict:
         "languages": [l["name"] for l in report["size"]["languages"][:4]],
         "since": m.get("since"),
         "pulse": pulse(report),
+        "coverage": m.get("coverage") or {},
     }
 
 
@@ -723,7 +724,7 @@ def dependencies_line(report: dict):
 
 # --- rich ------------------------------------------------------------------
 
-def header(report: dict, findings: list = ()) -> Panel:
+def header(report: dict, findings: list = (), full: bool = False) -> Panel:
     s = summary(report)
     body = Text()
     body.append(f"{s['commits']} commits", style="bold")
@@ -732,6 +733,8 @@ def header(report: dict, findings: list = ()) -> Panel:
         body.append(f"  ·  since {s['since']}", style="yellow")
     body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}  ·  branch {s['branch']}\n")
     body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}\n")
+    if full and s["coverage"]:
+        body.append(classify.coverage_line(s["coverage"]) + "\n", style="dim")
     if s["pulse"]:
         body.append("  ·  ".join(s["pulse"]) + "\n", style="dim")
     tally = textfmt.tally(list(findings))
@@ -846,7 +849,7 @@ def _partners(secs: list) -> dict:
 
 
 def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None) -> None:
-    console.print(header(report, findings))
+    console.print(header(report, findings, full=full))
     console.print(findings_panel(findings, report))
     secs = sections(report, full=full, width=console.width)
     by_id = {s["id"]: s for s in secs}
@@ -903,7 +906,8 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
     s = summary(report)
     out = [f"# {s['name']}", "",
            f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "") + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}  ",
-           f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["pulse"] else ""),
+           f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["coverage"] or s["pulse"] else ""),
+           *([classify.coverage_line(s["coverage"]) + ("  " if s["pulse"] else "")] if s["coverage"] else []),
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
            "## Findings", ""]
     out += _md_findings(findings, report)

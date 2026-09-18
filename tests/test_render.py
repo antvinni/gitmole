@@ -829,6 +829,16 @@ class FullOnlySections(unittest.TestCase):
         self.assertLessEqual(set(render.CORE_STEPS), {s["name"] for s in run.plan("/r", "/o")},
                              "a renamed step would otherwise stop being named in the header")
 
+    def test_full_header_and_markdown_carry_the_coverage_line(self):
+        r = sample_report()
+        r["meta"]["coverage"] = {"scored": 3900, "test file": 610, "generated": 120}
+        line = "4,630 files: 3,900 scored · 120 generated · 610 test files"
+        self.assertIn(line, rendered(r, [], full=True))
+        self.assertNotIn(line, rendered(r, []), "the default header stays as tight as it is")
+        self.assertIn(line, render.markdown(r, []))
+        r["meta"].pop("coverage")
+        self.assertNotIn("files:", render.markdown(r, []).split("## Findings")[0], "an older output directory has no coverage record")
+
 
 class KnowledgeMap(unittest.TestCase):
     def test_section_lists_areas_with_owners(self):

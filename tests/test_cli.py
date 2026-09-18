@@ -723,6 +723,33 @@ class GeneratedFiles(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(meta["vendored"], ["ext/gtest/"])
 
+    def _repo_with(self, repo, files):
+        import subprocess
+        subprocess.run(["git", "init", "-q", repo], check=True)
+        for path, content in files.items():
+            full = os.path.join(repo, path)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "w") as fh:
+                fh.write(content)
+        subprocess.run(["git", "-C", repo, "add", "-A"], check=True)
+        subprocess.run(["git", "-C", repo, "-c", "user.name=t", "-c", "user.email=t@x", "commit", "-q", "-m", "init"], check=True)
+
+    _stub_planner = staticmethod(lambda repo, o, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}])
+
+    def test_a_run_records_the_coverage_by_reason_over_every_tracked_text_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = os.path.join(d, "r")
+            self._repo_with(repo, {"src/a.py": "x = 1\n", "tests/test_a.py": "x = 1\n", "README.md": "hi\n", "gen/b.py": "# @generated\nx = 1\n"})
+            out = os.path.join(d, "out")
+            rc = cli.main([repo, "--out", out, "--ignore", "gen/*"], console=console(), tool_check=lambda **kw: [], planner=self._stub_planner,
+                          estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
+            self.assertEqual(rc, 0)
+            with open(os.path.join(out, "meta.json")) as fh:
+                meta = json.load(fh)
+        self.assertEqual(meta["generated"], ["gen/b.py"], "--ignore shapes blame and functions, never the classifier")
+        self.assertEqual(meta["coverage"], {"scored": 1, "test file": 1, "not a source type": 1, "generated": 1},
+                         "no size.json from the stub planner: nothing counts as not counted by scc, and every tracked text file is placed")
+
 
 class Clean(unittest.TestCase):
     """--clean lists what gitmole left behind and deletes on a yes. TMPDIR is pointed at a scratch dir so the
