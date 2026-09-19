@@ -220,10 +220,10 @@ class ParseSecrets(unittest.TestCase):
     def test_returns_rule_file_commit_fingerprint_and_the_hashed_value(self):
         hashed = "0a1b2c" + "3d4e5f"   # built at runtime so secret scanners do not flag this file
         text = json.dumps([{"RuleID": "aws-access-token", "File": "config.py", "Commit": "abc1234def", "StartLine": 3,
-                            "Fingerprint": "abc1234def:config.py:aws-access-token:3", "SecretHash": hashed, "Placeholder": False}])
+                            "Fingerprint": "abc1234def:config.py:aws-access-token:3", "SecretHash": hashed, "Placeholder": False, "Confidence": "high"}])
         self.assertEqual(load.parse_secrets(text), [
             {"rule": "aws-access-token", "file": "config.py", "commit": "abc1234", "line": 3,
-             "fingerprint": "abc1234def:config.py:aws-access-token:3", "value": hashed, "placeholder": False},
+             "fingerprint": "abc1234def:config.py:aws-access-token:3", "value": hashed, "placeholder": False, "confidence": "high"},
         ])
 
     def test_a_report_from_before_the_wrapper_is_hashed_on_load_and_never_keeps_the_value(self):

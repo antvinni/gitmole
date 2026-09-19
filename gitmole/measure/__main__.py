@@ -83,6 +83,7 @@ def main(argv=None) -> int:
     r.add_argument("--ref", action="append", default=[], help="a release tag, or worktree (default)")
     r.add_argument("--sets", default=DEFAULT_SETS)
     r.add_argument("--only", action="append", default=[], help="only these corpus entries")
+    r.add_argument("--merge", action="store_true", help="add these runs to the release's existing record instead of replacing it")
     h = sub.add_parser("history")
     h.add_argument("--sets", default=DEFAULT_SETS)
     h.add_argument("--force", action="store_true", help="measure a release again even when its record exists")
@@ -96,7 +97,16 @@ def main(argv=None) -> int:
     root = corpus.workspace()
     if args.command == "run":
         for ref in args.ref or ["worktree"]:
-            print(write(measure(ref, args.sets.split(","), manifest, root, set(args.only) or None)))
+            record = measure(ref, args.sets.split(","), manifest, root, set(args.only) or None)
+            existing = os.path.join(RECORDS, f"{record['version']}.json")
+            if args.merge and os.path.exists(existing):
+                with open(existing, encoding="utf-8") as fh:
+                    old = json.load(fh)
+                old["repos"].update(record["repos"])
+                old["sets"] = sorted(set(old.get("sets") or []) | set(record["sets"]))
+                old["summary"] = dashboard.summarise(old)
+                record = old
+            print(write(record))
         return 0
     if args.command == "history":
         have = {r["version"] for r in dashboard.load_history(RECORDS)} if os.path.isdir(RECORDS) else set()

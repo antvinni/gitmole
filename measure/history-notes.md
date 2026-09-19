@@ -24,7 +24,9 @@
   repository (`git log` fails before the first commit), and from 0.8.0 git-sizer fails on a shallow clone.
   0.26.0 added a third: its per-step wrapper ran as `python -m`, which searches the analysed repository first,
   so on gitmole's own history every step imported that repository's older gitmole and failed. The measurement
-  found it; the release after 0.26.0 fixes it.
+  found it; the release after 0.26.0 fixes it. 0.28.0 fixes the other two: an empty repository is refused
+  with exit code 2 and a one-line reason, and a shallow clone skips git-sizer and says why, so robustness
+  is 21 of 21.
 - **Stability reads 1.00 in every release.** Fifty commits span three days on curl and at most seven weeks on
   react, too short for the top fifteen to change; the measure needs a longer horizon to say anything.
 - **No release crashed on a development repository,** so no point sits at the bottom of the graphs.
@@ -49,4 +51,25 @@
   field in generated protobuf code, prometheus for key-shaped strings in `cmd/tsdb/testdata.20k`. None is
   labelled yet, but on a first reading each is a fixture or generated code, which would put the false
   alarm rate at three in four where the page asks for near zero. This is the most urgent thing the
-  measurement found.
+  measurement found. The labels confirmed all three, and 0.28.0 is at none of four (below).
+- **0.28.0's headroom fell because the development set widened, not because the ranking changed.**
+  Ghidra and binutils-gdb joined curl, django and react (measure/corpus.json, moves), so that intervals
+  over repositories could narrow. On the three original repositories every number is the same as in
+  0.27.0 (curl 0.93, django 0.93, react 0.62). Ghidra (0.36, 2 wins and 3 losses against churn) and
+  binutils-gdb (0.55) bring the median to 0.62, with an interval of 0.36 to 0.93, and churn's to 0.52.
+  The run time of the set rose from 284 to 674 seconds for the same reason; binutils-gdb alone takes six
+  minutes. Compare 0.28.0 onwards with each other, not with the rows above it.
+- **0.28.0 acted on the measurement rather than adding rules.** The 0.28.0 findings sheet was labelled
+  (182 findings, one labeller). Three rules came out broken: `secrets_in_source`, `secrets_possible` and
+  `trojan_source`. The false alarms behind them were a documentation URI, a CI database password, right-to-left
+  marks in Arabic locale strings, and the bytes of a generated protobuf descriptor. Each was retuned by
+  shape, and `hotspot_dominance`, which never fired, was deleted. The criticals went from 3 of 4 well-kept
+  repositories to none. On the development set only react keeps one: a token-shaped string in an
+  unreachable blob, which has no path that would say what it is. The gate still catches 3 of 3.
+  Findings per repository fell from 19.5 to 18.5 (median), and the report from 296 to 278 lines.
+- **What the ranking is for** is now said plainly in validation.md: churn weighted by size. At the top
+  it is a few files ahead of churn, over the whole pool it is better (ROC-AUC), and per line read it is
+  worse. A twelve-month recency variant won on the development set and drew on the holdout, so it was
+  not shipped.
+- **Peak memory is highest on prometheus,** about 4 GB, in the well-kept set, which the memory graph does not
+  plot. The graph plots the development set, where react's 3 GB is still the peak.

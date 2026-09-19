@@ -50,7 +50,7 @@ def parse(spec):
     return {t.strip().lstrip(".").lower() for t in spec.split(",") if t.strip()}
 
 
-_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|snapshots?|__snapshots__|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
+_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|testsuite|snapshots?|__snapshots__|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
                         r"|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+|[^/]*\.snap)$", re.I)
 
 # Suffix conventions of test frameworks, case-sensitive (Contest.java is not a Test, requests/ is not a
@@ -58,6 +58,24 @@ _TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|snapshots?|_
 # .t.sol, HDL testbenches tb_x / x_tb, and test-target directories such as AppTests/ or AppUITests/.
 _TEST_SUFFIX = re.compile(r"[A-Za-z0-9]Tests?\.(java|kt|kts|scala|groovy|swift|cs)$|[A-Za-z0-9]Spec\.(hs|lhs|scala|kt|groovy)$|_spec\.rb$|\.t\.sol$"
                           r"|(^|/)tb_[^/]*\.(v|sv|vhd|vhdl)$|_tb\.(v|sv|vhd|vhdl)$|(^|/)[A-Za-z0-9]+Tests/")
+
+
+_MOCK_PATH = re.compile(r"(^|/)mocks?/|(^|/)mock_[^/]+$|(^|/)mock\.[a-z]+$|_mocks?\.[a-z]+$", re.I)   # gomock's mock_x.go, x_mock.go, mocks/
+
+
+def is_mock_path(path: str) -> bool:
+    """A test double by the conventions mock generators and test suites use: a mocks/ directory, mock.go,
+    mock_x.go, x_mock.go. A value in one is a fake for a test, not a credential in use."""
+    return bool(_MOCK_PATH.search(path))
+
+
+_TOOLING_PATH = re.compile(r"(^|/)hack/")
+
+
+def is_tooling_path(path: str) -> bool:
+    """Developer tooling by the Go ecosystem's convention: hack/ holds the scripts and local test setups
+    that build and run the project, not what it ships."""
+    return bool(_TOOLING_PATH.search(path))
 
 
 def is_test_path(path: str) -> bool:
@@ -79,7 +97,8 @@ def is_doc_path(path: str) -> bool:
     return bool(_DOC_PATH.search(path))
 
 
-_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?|testdata|demos?|rules|stubs?|tutorials?|exercises?(files)?)(/|$)|\.stub$", re.I)
+_SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?([-_][\w-]+)?|testdata|demos?|rules|stubs?|tutorials?|exercises?(files)?)(/|$)"
+                          r"|\.stub$|(^|/)testdata[._-][^/]*$", re.I)   # fixtures-expired/, a testdata.20k file
 _PACKAGE_EXAMPLE = re.compile(r"(^|/)(com|org|net|io|dev|me|co)/examples?(/|$)", re.I)   # Java's com.example.* is a package, not a sample
 
 
@@ -92,7 +111,7 @@ def is_sample_path(path: str) -> bool:
     return bool(_SAMPLE_PATH.search(path)) and not _PACKAGE_EXAMPLE.search(path)
 
 
-_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps|\.yarn)(/|$)|^[^/]+/packages/", re.I)
+_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps|\.yarn|Godeps/_workspace)(/|$)|^[^/]+/packages/", re.I)   # Godeps/_workspace: godep's vendoring
 
 
 def is_vendor_path(path: str) -> bool:

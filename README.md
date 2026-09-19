@@ -75,7 +75,13 @@ says how). On the three development repositories, revisions × lines of code
 (from 0.8.0) closed most of the gap between random and perfect, and later
 releases added findings rather than accuracy. On thirteen Apache repositories
 held out from tuning, the current release closes 61% of that gap and draws
-with churn alone, so the development numbers are the optimistic end:
+with churn alone, so the development numbers are the optimistic end.
+
+The watch list is churn weighted by size. At the top it names about as many
+soon-to-be-fixed files as churn alone, and it orders the whole pool better,
+but per line read it finds fewer. A recency-weighted variant won on the
+development repositories and drew on the held-out ones, so it was not
+shipped ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md#what-the-ranking-is-for)):
 
 <img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/ranking.svg" width="900" alt="Headroom of the watch list by release, against churn alone">
 <img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/findings.svg" width="900" alt="Findings per repository by release">

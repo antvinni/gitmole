@@ -48,8 +48,12 @@ def coverage(report: dict, found: list) -> list:
     rows = []
 
     fired = _fired(found, "OSPS-BR-07.01")
+    # what the scan found that is not a secret in source: said beside "met", so the row does not read as nothing found
+    lesser = [f["title"] for f in found if (f.get("rule") or {}).get("id") in ("secrets_possible", "secrets_aside")]
     rows.append(_row("OSPS-BR-07.01", "gap" if fired else "met" if report.get("secrets_scanned") else "not checked",
-                     "; ".join(f["title"] for f in fired) if fired else "the secrets scan over every branch found none" if report.get("secrets_scanned") else "the secrets step did not run"))
+                     "; ".join(f["title"] for f in fired) if fired
+                     else ("no secret in source over every branch; " + "; ".join(lesser) if lesser else "the secrets scan over every branch found none")
+                     if report.get("secrets_scanned") else "the secrets step did not run"))
 
     for control, key, what in (("OSPS-GV-03.01", "contributing", "a contribution guide"), ("OSPS-VM-02.01", "security_policy", "a security policy"),
                                ("OSPS-LE-03.01", "license", "a licence file")):

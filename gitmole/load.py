@@ -248,7 +248,7 @@ def parse_secrets(text: str) -> list:
         else:
             value, placeholder = None, False
         out.append({"rule": r.get("RuleID", ""), "file": r.get("File", ""), "commit": r.get("Commit", "")[:7], "line": r.get("StartLine"),
-                    "fingerprint": r.get("Fingerprint", ""), "value": value, "placeholder": placeholder})
+                    "fingerprint": r.get("Fingerprint", ""), "value": value, "placeholder": placeholder, "confidence": r.get("Confidence")})
     # betterleaks scans in parallel and does not promise an order; everything downstream reads the rows in this one
     out.sort(key=lambda r: (r["file"], r["commit"], r["line"] or 0, r["rule"], r["fingerprint"]))
     return out

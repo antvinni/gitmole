@@ -47,7 +47,7 @@ class SecretsFound(unittest.TestCase):
         self.assertIn("1 distinct value in 2 places: generic-api-key in app/settings.py (c1, c2)", crit["detail"])
         self.assertIn("Rotate", crit["advice"])
         self.assertIn(".betterleaksignore", crit["advice"])
-        self.assertEqual(warn["title"], "2 secret(s) only in test, example, vendored or documentation files")
+        self.assertEqual(warn["title"], "2 secret(s) only in test, example, vendored, generated or documentation files")
         self.assertIn("2 distinct values in 3 places", warn["detail"])
         self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
         self.assertIn(".betterleaksignore", warn["advice"])
@@ -62,7 +62,7 @@ class SecretsFound(unittest.TestCase):
                             self.row("h3", "pkg/testdata/creds.yaml", "c3")])
         f = findings.secrets_found(r)
         self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertEqual(f[0]["title"], "3 secret(s) only in test, example, vendored or documentation files")
+        self.assertEqual(f[0]["title"], "3 secret(s) only in test, example, vendored, generated or documentation files")
         r = report(secrets=[self.row("h1", "examples/app.py", "c1"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
 
@@ -77,7 +77,7 @@ class SecretsFound(unittest.TestCase):
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508")])
         f = findings.secrets_found(r)
         self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertEqual(f[0]["title"], "1 secret(s) only in test, example, vendored or documentation files")
+        self.assertEqual(f[0]["title"], "1 secret(s) only in test, example, vendored, generated or documentation files")
         self.assertIn("fixtures or templates", f[0]["advice"])
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
@@ -315,22 +315,6 @@ class TangledCommits(unittest.TestCase):
         self.assertEqual(findings.tangled_commits(report()), [])
 
 
-class HotspotDominance(unittest.TestCase):
-    def test_info_when_top_file_changes_twice_as_often_as_next(self):
-        f = findings.hotspot_dominance(report(revisions=[{"entity": "meta.json", "n-revs": 128}, {"entity": "i.html", "n-revs": 51}]))
-        self.assertEqual(f[0]["severity"], "info")
-        self.assertIn("meta.json", f[0]["detail"])
-        self.assertTrue(f[0]["detail"].endswith("Consider splitting meta.json; every change lands there."), f[0]["detail"])
-
-    def test_a_test_file_is_not_a_hotspot_to_split(self):
-        r = report(revisions=[{"entity": "tests/test_render.py", "n-revs": 60}, {"entity": "gitmole/render.py", "n-revs": 20}, {"entity": "gitmole/cli.py", "n-revs": 5}])
-        f = findings.hotspot_dominance(r)
-        self.assertEqual(f[0]["advice"], "Consider splitting gitmole/render.py; every change lands there.")
-
-    def test_nothing_when_even(self):
-        self.assertEqual(findings.hotspot_dominance(report()), [])
-
-
 class TightCoupling(unittest.TestCase):
     def test_info_with_count_of_tight_pairs(self):
         pairs = [{"entity": "a", "coupled": "b", "degree": 100, "average-revs": 10},
@@ -411,18 +395,6 @@ class TightCoupling(unittest.TestCase):
 
 
 class ReleasePlumbing(unittest.TestCase):
-    def test_a_version_file_or_manifest_does_not_dominate_the_churn(self):
-        revs = [{"entity": "setup.py", "n-revs": 184}, {"entity": "requests/models.py", "n-revs": 60}, {"entity": "requests/api.py", "n-revs": 20}]
-        f = findings.hotspot_dominance(report(revisions=revs))
-        self.assertIn("requests/models.py changed 60 times", f[0]["detail"])
-        self.assertNotIn("setup.py", f[0]["detail"])
-
-    def test_a_file_the_change_log_shows_as_plumbing_does_not_dominate_the_churn(self):
-        revs = [{"entity": "fastapi/__init__.py", "n-revs": 331}, {"entity": "fastapi/routing.py", "n-revs": 187}, {"entity": "fastapi/utils.py", "n-revs": 70}]
-        r = report(revisions=revs, plumbing=[{"entity": "fastapi/__init__.py", "n-revs": 331, "tiny-revs": 300}])
-        f = findings.hotspot_dominance(r)
-        self.assertIn("fastapi/routing.py changed 187 times", f[0]["detail"])
-
     def test_a_generated_file_is_not_a_bug_magnet(self):
         fixes = [{"entity": "single_include/json.hpp", "n-fixes": 338, "last-fix": "2026-09-01", "recent-fixes": 43},
                  {"entity": "include/json.hpp", "n-fixes": 116, "last-fix": "2026-09-01", "recent-fixes": 15}]
@@ -1254,7 +1226,7 @@ class References(unittest.TestCase):
     def test_every_rule_resting_on_a_paper_names_it_where_the_numbers_are(self):
         expected = {"minor_contributors": "Bird et al., FSE 2011", "tangled_commits": "Herzig and Zeller, MSR 2013",
                     "brain_methods": "Lanza and Marinescu, 2006", "tight_coupling": "Gall, Hajek and Jazayeri, ICSM 1998",
-                    "hotspot_dominance": "Tornhill, Your Code as a Crime Scene, 2024", "trojan_source": "Boucher and Anderson, USENIX Security 2023",
+                    "trojan_source": "Boucher and Anderson, USENIX Security 2023",
                     "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
                     "unreferenced_files": "Romano et al., TSE 2020"}
         for rule, ref in expected.items():
@@ -1333,3 +1305,32 @@ class ImportCommits(unittest.TestCase):
         self.assertEqual(f[0]["rule"]["id"], "import_commits")
         self.assertIn("79d8f164f8 by Dan (12,449 files, 2,800,751 lines, 42% of every line the history adds", f[0]["detail"])
         self.assertEqual(findings.import_commits(report(activity={})), [])
+
+
+class SecretsByConfidence(unittest.TestCase):
+    def _row(self, value, rule, file, confidence):
+        return {"rule": rule, "file": file, "commit": "abc1234", "line": 3, "fingerprint": value, "value": value, "placeholder": False, "confidence": confidence}
+
+    def test_a_generic_hit_graded_low_everywhere_is_a_possible_secret(self):
+        rows = [self._row("v1", "generic-api-key", "scripts/genproto.sh", "low"), self._row("v2", "generic-password", "app/db.py", "low"),
+                self._row("v2", "generic-password", "app/db2.py", "medium"), self._row("v3", "aws-access-token", "app/aws.py", "low")]
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
+        self.assertEqual(f["secrets_possible"]["severity"], "info", "five of six labelled false: a note, not a warning")
+        self.assertIn("1 possible secret(s)", f["secrets_possible"]["title"])
+        self.assertIn("2 secret(s)", f["secrets_in_source"]["title"], "one medium sighting keeps a value critical; a provider's rule stays critical")
+
+    def test_generated_mock_tooling_and_testdata_files_are_aside(self):
+        rows = [self._row("g", "generic-password", "api/registry.pb.go", "medium"), self._row("m", "generic-api-key", "discovery/openstack/mock.go", "medium"),
+                self._row("h", "private-key", "hack/scripts-dev/certs/server.key.insecure", "high"), self._row("t", "ibm-cloud-user-api-key", "cmd/tsdb/testdata.20k", "high"),
+                self._row("f", "private-key", "integration/fixtures-expired/server.key", "high"), self._row("w", "private-key", "Godeps/_workspace/src/x/server.key", "high")]
+        r = report(secrets=rows, meta={"name": "r", "commits": 100, "identities": [], "generated": ["api/registry.pb.go"]})
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(r)}
+        self.assertNotIn("secrets_in_source", f)
+        self.assertIn("6 secret(s) only in", f["secrets_aside"]["title"])
+
+    def test_an_unreachable_copy_is_placed_by_the_located_ones(self):
+        rows = [self._row("t", "generic-password", "(unreachable blob 742c1cc5ebfb)", "medium"), self._row("t", "generic-password", "tests/mail/tests.py", "medium"),
+                self._row("u", "facebook-access-token", "(unreachable blob 00db21063ea1)", "high")]
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
+        self.assertIn("1 secret(s) only in", f["secrets_aside"]["title"], "its other copy is a test file")
+        self.assertIn("1 secret(s) in history", f["secrets_in_source"]["title"], "only ever unreachable: nowhere to say it is test data")

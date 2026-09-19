@@ -49,7 +49,7 @@ How to read each part of the terminal report, and what each run writes to disk; 
    (example.com and the like; the advice offers the `.mailmap` line that
    would merge it into the busiest real identity), one author owning most
    surviving code, git-sizer concerns (a large blob that is no longer in
-   the tree says so, since deleting it did not shrink the clone), one file dominating the churn, bug magnets (source
+   the tree says so, since deleting it did not shrink the clone), bug magnets (source
    files fixed three or more times in the last six months; a warning at
    five), reverts (5% of commits or five of them; a warning at 10%; names
    the file most often backed out when any file was backed out twice,
@@ -89,8 +89,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    over plain `http://` or `git://` (a warning), relative, or following a
    branch; symlinks that resolve outside the tree or into `.git/`; and
    Trojan Source, bidirectional control characters in source files
-   (CVE-2021-42574, critical) and identifiers that mix Latin with Cyrillic,
-   Greek or another confusable script (a warning). `hygiene.json` holds
+   (CVE-2021-42574, critical) and identifiers that mix Latin with
+   Cyrillic, Greek, Armenian or Cherokee letters that pass for Latin ones
+   (a Cyrillic `о` in `process`; a warning; `μs` is not one, since `μ`
+   reads as itself). Generated files are left out. `hygiene.json` holds
    every check's raw result.
 
    What the project declares about its dependencies and licence is read
@@ -265,7 +267,18 @@ How to read each part of the terminal report, and what each run writes to disk; 
    `.rst`, `.txt`, `.adoc`, anything under `docs/` or a CamelCase
    `ProjectDocs/`, and type stubs, `.pyi`
    and `.d.ts`, which declare shapes and hold no runtime values), where it
-   is usually a template, is a warning.
+   is usually a template, is a warning; so is a value found only in
+   generated files, mocks (`mock/`, `mocks/`, `mock_*`, `*_mock.*`),
+   tooling under `hack/`, `fixtures-*` directories or `testdata.*` files.
+   A copy in an unreachable blob has no path, so the value's other copies
+   decide; a value found only in unreachable blobs counts as source.
+   betterleaks grades each sighting low, medium or high. A value that only
+   the scanner's `generic-*` rules found, and that was graded low
+   everywhere, is a possible secret: an info note, since an ordinary
+   assignment or a hash reads the same way. A `generic-*` value that is
+   one word in one case (`PGPASSWORD: postgres`) is graded low whatever
+   its context, since that is a service default or a sample. A provider's
+   rule (an AWS key id, a Slack token) stays critical at any grade.
    Twelve shapes cannot be a live secret and are left out, counted on the
    footer line: version strings, tokens shortened with "...", a dotted
    path of lowercase words such as `passwords.password` (a translation or

@@ -283,3 +283,9 @@ class DocsAndExercises(unittest.TestCase):
         self.assertTrue(filetypes.is_sample_path("course/exercises/1/a.py"))
         self.assertFalse(filetypes.is_doc_path("src/Docsify/a.js"))
         self.assertFalse(filetypes.is_sample_path("GPL/DMG/data/os/win_x86_32/llio_amd64.dll"))
+
+
+class GnuTestsuite(unittest.TestCase):
+    def test_testsuite_directories_are_tests(self):
+        self.assertTrue(filetypes.is_test_path("gas/testsuite/gas/all/multibyte.s"))
+        self.assertTrue(filetypes.is_test_path("gdb/testsuite/gdb.base/break.c"))

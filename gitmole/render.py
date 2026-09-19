@@ -777,8 +777,9 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
 
 def health_section(report: dict, full: bool = True, width=None) -> dict:
     rows = [(r["name"], r["value"], "*" * r["concern"], r["ref"]) for r in report.get("sizer") or []]
-    return _section("Repo health (git-sizer concerns)", [("metric", {}), ("value", RIGHT), ("concern", {}), ("object", FOLD)], rows,
-                    note=None if rows else "nothing flagged")
+    note = None if rows else ("not measured: git-sizer needs a full clone, and this one is shallow" if (report.get("meta") or {}).get("shallow")
+                              else "nothing flagged")
+    return _section("Repo health (git-sizer concerns)", [("metric", {}), ("value", RIGHT), ("concern", {}), ("object", FOLD)], rows, note=note)
 
 
 def osps_section(report: dict, full: bool = True, width=None) -> dict:

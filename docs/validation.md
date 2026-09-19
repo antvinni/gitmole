@@ -9,6 +9,54 @@ the same question. Regenerate any table with
 `python -m gitmole.evaluate CLONE OUT_DIR`; `--szz` adds the tables against
 bug-inducing commits further down.
 
+## What the ranking is for
+
+The watch list is churn weighted by size: a file's revisions times its
+lines of code. Its purpose is to name the files most likely to be fixed in
+the next six months, counted per file named. It does not try to find the
+most bugs per line read. Measured on 19 September 2026 against the
+same pool at the same six cut-offs (`python -m gitmole.measure.signals`),
+on the development set (curl, django, react, Ghidra and binutils-gdb
+against fix locality; gitmole's own history is too short for a cut-off)
+and, once, on the thirteen held-out Apache repositories against ApacheJIT's
+labels. The ApacheJIT table further down comes from an earlier release,
+which classified the pool differently, so its totals differ from these:
+
+| | development, top-15 hits | holdout, top-15 hits | ROC-AUC beats churn | recall at 20% of lines beats churn |
+|---|---:|---:|---:|---:|
+| watch list | 298 | 724 | 5 of 5, 13 of 13 | 0 of 5, 1 of 13 |
+| churn | 281 | 704 | | |
+
+- **At the head of the list it is churn.** It names a few more fixed files
+  than churn alone: 17 more over five development repositories (three
+  ahead, one behind, one level) and 20 more over thirteen held-out ones
+  (eight ahead, four behind, one level). That is about 3%, and inside the
+  noise of any one repository.
+- **Over the whole pool it is better than churn.** Its ROC-AUC is higher
+  on every repository in both sets (median 0.83 against 0.74 on
+  development, 0.77 against 0.74 on the holdout). Size breaks the ties
+  between files that changed equally often, and big files that change
+  are fixed more often than small ones that change as much.
+- **Per line read it is worse.** Read the list from the top until you
+  have read 20% of the pool's lines. Churn alone reaches more of the
+  fixed files that way on every development repository and on twelve of
+  the thirteen held-out ones (median 0.15 against 0.10 on development,
+  0.18 against 0.13 on the holdout). The size weight spends that budget
+  on large files. Change entropy (HCM), which favours small, scattered
+  files, does better still per line on development (median 0.20). If
+  your budget is lines rather than files, sort the list by revisions.
+
+Recency does not earn a place either. On development, counting only the
+last twelve months of revisions beat the watch list on all five
+repositories (324 against 298), and six-month windows, 24-month windows
+and exponential decay did about as well (312 to 324). That variant was
+chosen before the holdout was read, and there it came to 729 against 724:
+ahead on six repositories and behind on seven. A 9% gain that shrinks to
+under 1% on labels nobody tuned against is selection on five
+repositories, so the ranking is unchanged. The intervals say the same: the
+development headroom is 0.62 with a 95% interval of 0.36 to 0.93 over
+repositories, too wide to show a gain of that size.
+
 ## Method
 
 For each of six cut-off dates T, six months apart, counting back from the

@@ -444,8 +444,20 @@ def symlinks(repo: str) -> dict:
 
 # --- Trojan Source ------------------------------------------------------------------------------
 
-BIDI = {0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069, 0x061C, 0x200E, 0x200F}
+# The embeddings, overrides and isolates Trojan Source reorders code with. The direction marks (U+200E, U+200F,
+# U+061C) only set the direction of neutral characters and are ordinary text in right-to-left locales.
+BIDI = {0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069}
 CONFUSABLE = {"CYRILLIC", "GREEK", "ARMENIAN", "CHEROKEE"}   # scripts whose letters pass for Latin ones
+# The letters of those scripts that Unicode's confusables data (UTS #39) maps to an ASCII letter. A token
+# spoofs a Latin identifier only when every letter of it reads as Latin; μs in a comment does not, pr\u043ecess does.
+LOOKALIKE = set(
+    "\u0430\u0435\u043e\u0440\u0441\u0443\u0445\u0455\u0456\u0458\u0501\u051b\u051d\u04bb\u04cf\u04af"   # Cyrillic а е о р с у х ѕ і ј ԁ ԛ ԝ һ ӏ ү
+    "\u0410\u0412\u0415\u041a\u041c\u041d\u041e\u0420\u0421\u0422\u0425\u0405\u0406\u0408\u04ae\u051a\u051c\u04c0"   # А В Е К М Н О Р С Т Х Ѕ І Ј Ү Ԛ Ԝ Ӏ
+    "\u03bf\u03b1\u03bd\u03c1\u03b9\u03b3\u03c5"   # Greek ο α ν ρ ι γ υ
+    "\u0391\u0392\u0395\u0396\u0397\u0399\u039a\u039c\u039d\u039f\u03a1\u03a4\u03a5\u03a7"   # Α Β Ε Ζ Η Ι Κ Μ Ν Ο Ρ Τ Υ Χ
+    "\u0585\u057d\u0570\u0578\u0581\u0566"   # Armenian օ ս հ ո ց զ
+    "\u13aa\u13f4\u13df\u13ac\u13bb\u13ab\u13e6\u13de\u13b7\u13e2\u13da\u13a2\u13d4\u13c3"   # Cherokee Ꭺ Ᏼ Ꮯ Ꭼ Ꮋ Ꭻ Ꮶ Ꮮ Ꮇ Ꮲ Ꮪ Ꭲ Ꮤ Ꮓ
+)
 _WORD = re.compile(r"[^\W\d]\w*")
 
 
@@ -456,15 +468,15 @@ def _script(c: str) -> str:
         return ""
 
 
-def trojan_source(repo: str) -> dict:
+def trojan_source(repo: str, generated=frozenset()) -> dict:
     """Bidirectional control characters in source files (CVE-2021-42574: code that reads one way and
-    compiles another), and identifiers that mix Latin with a confusable script (a Cyrillic о inside
-    `process`). Source files only, tests, examples, documentation and vendored code left out, so the
+    compiles another), and identifiers that mix Latin with a confusable script's look-alike letters (a
+    Cyrillic о inside `process`; a Greek μ before a unit reads as itself, and is not one). Source files only, tests, examples, documentation and vendored code left out, so the
     false-positive rate stays near zero; a whole word in one script is prose, not a trick."""
     bidi, mixed, files = [], [], 0
     for path in _tracked(repo):
-        if not filetypes.matches(path, filetypes.DEFAULT) or _aside(path) or filetypes.is_doc_path(path):
-            continue
+        if not filetypes.matches(path, filetypes.DEFAULT) or _aside(path) or filetypes.is_doc_path(path) or path in generated:
+            continue   # a generated file's bytes (a protobuf descriptor) are the generator's, not a reviewer's trap
         data = _read(repo, path)
         if data is None or b"\0" in data[:8000]:
             continue
@@ -483,7 +495,8 @@ def trojan_source(repo: str) -> dict:
                 if token.isascii():
                     continue
                 scripts = {_script(c) for c in token if c.isalpha()}
-                if "LATIN" in scripts and scripts & CONFUSABLE:
+                foreign = [c for c in token if c.isalpha() and _script(c) in CONFUSABLE]
+                if "LATIN" in scripts and foreign and all(c in LOOKALIKE for c in foreign):
                     mixed.append({"file": path, "line": n, "token": token, "scripts": sorted(scripts)})
     return {"files": files, "bidi": bidi[:CAP], "bidi_count": len(bidi), "mixed_script": mixed[:CAP], "mixed_script_count": len(mixed)}
 
@@ -499,9 +512,15 @@ def main(argv=None) -> int:
         print("usage: hygiene.py OUT_DIR", file=sys.stderr)
         return 2
     repo, out = os.getcwd(), {}
+    generated = set()
+    try:
+        with open(os.path.join(args[0], "meta.json"), encoding="utf-8") as fh:
+            generated = set(json.load(fh).get("generated") or [])   # the run's own classification, written before the steps
+    except (OSError, ValueError):
+        pass
     for key, check in CHECKS.items():
         try:
-            out[key] = check(repo)
+            out[key] = check(repo, generated) if key == "trojan" else check(repo)
         except (OSError, subprocess.SubprocessError, ValueError) as e:   # one check failing leaves the others standing
             print(f"hygiene.py: {key}: {e}", file=sys.stderr)
             out[key] = None

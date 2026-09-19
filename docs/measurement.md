@@ -471,11 +471,18 @@ for every minor release measured with it, 0.2.0 to 0.26.0, and what the history 
   checked against a second counter.
 - **Hand labels** (step 7): `labels dump` writes a blinded sheet and a key,
   `labels score` gives each rule its Wilson interval, verdict, actionable share
-  and Cohen's kappa. No finding is labelled yet; that needs people, and a
-  second labeller who did not write the rules.
+  and Cohen's kappa. The 0.28.0 sheet is labelled (182 findings, by one
+  labeller, `claude`), so kappa waits for a second labeller who did not
+  write the rules.
 - **The hook replay and the gate** (step 8): the two ROSE experiments at file
   granularity over the development set; the well-kept set's criticals are
-  counted and wait for labels.
+  counted, and since 0.28.0 there are none.
+- **Candidate rankings**: `python -m gitmole.measure.signals` ranks the
+  watch list's pool by other signals (churn, size, change entropy, windows
+  and decays of recent revisions × lines) at the same cut-offs. It is for
+  exploring on the development set. The holdout is read once, with
+  `--variant`, for the one candidate chosen there
+  ([validation.md](validation.md#what-the-ranking-is-for) has the result).
 - **Determinism** (step 9): the CI job compares a second time zone and the C
   locale on macOS, and a Linux run against the macOS one; `extras` repeats the
   time-zone and locale check on the development repositories.

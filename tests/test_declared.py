@@ -192,6 +192,15 @@ class OspsCoverage(unittest.TestCase):
         rows = {x["control"]: x["result"] for x in osps.coverage(r, findings.evaluate(r))}
         self.assertEqual(rows["OSPS-BR-07.01"], "gap")
 
+    def test_a_met_row_names_the_possible_and_aside_secrets_it_set_aside(self):
+        r = self._report(secrets=[{"rule": "generic-password", "file": "app/db.py", "commit": "abc1234", "line": 3, "value": "h1", "confidence": "low"},
+                                  {"rule": "private-key", "file": "tests/server.key", "commit": "abc1234", "line": 1, "value": "h2", "confidence": "high"}])
+        rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
+        self.assertEqual(rows["OSPS-BR-07.01"][0], "met")
+        self.assertTrue(rows["OSPS-BR-07.01"][1].startswith("no secret in source over every branch; "), rows["OSPS-BR-07.01"][1])
+        self.assertIn("1 possible secret(s) in source", rows["OSPS-BR-07.01"][1])
+        self.assertIn("1 secret(s) only in test", rows["OSPS-BR-07.01"][1], "not 'found none' while the findings list them")
+
     def test_nothing_run_is_not_checked_rather_than_met(self):
         r = report()
         rows = {x["control"]: x["result"] for x in osps.coverage(r, findings.evaluate(r))}
