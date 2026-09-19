@@ -104,6 +104,20 @@ Each release runs from its own source over the development set (curl, django and
 - **Ghidra's brain methods no longer lead with the Bison parser** (`slghparse.cc`'s `yyparse`), the one
   labelled finding the deeper generated markers answer: 241 functions where there were 250. containerd
   loses its false `repo_policy` finding. Nothing else in the record moved.
+- **0.30.0 asked whether the findings are worth acting on, not only whether they are true.** Nine rules
+  whose labelled findings were all true and none actionable (repository health, knowledge loss, authors
+  gone, minor contributors, reverts, duplication, stale files, component coupling, secrets only in tests)
+  are now named in one line of the default report. The report spells out 7.5 findings per repository where
+  it spelled out 18.5, and runs 220 lines where it ran 278. Of what it spells out, 69% is labelled
+  actionable, where it was 31%. That jump is by construction: the nine rules were chosen from these same
+  labels on these same repositories, so it shows the mechanism works, not that the report became more
+  useful in general. The test is labels the set was not chosen from, a second labeller's sample
+  (`measure/labels-second.jsonl`) and new findings on new repositories. Every label so far is one
+  labeller's, and that labeller wrote the rules.
+- **The long graphs now draw every release over the same four repositories** (curl, django, react and
+  gitmole), so the fall in headroom at 0.28.0 and the jump in run time, both from Ghidra and binutils-gdb
+  joining the development set, no longer show as moves. On the four, headroom is 0.93 and run time about
+  275 seconds from 0.26.0 to 0.30.0. The table above and the dashboard below still use the whole set.
 
 ![ranking](evolution/ranking.svg)
 
@@ -155,8 +169,9 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.27.0 | 0.93 [0.62, 0.93] | 0.71 | 12/0/6 | 0.82 | 45% | 1.00 | 2.06 | 16/21.8 | 258.5 | 21% | 15/17 | 3/3 | 284 | 2501 | awkward-empty: subprocess.CalledProcessError: Command '['git', 'log', '--format=%ct'…; awkward-shallow: 1 step(s) failed |
 | 0.28.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 278 | 21% | 21/21 | 3/3 | 674 | 3029 |  |
 | 0.29.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 278 | 21% | 21/21 | 3/3 | 680 | 3064 |  |
+| 0.30.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 21% | 21/21 | 3/3 | 709 | 2821 |  |
 
-## The dashboard for 0.29.0
+## The dashboard for 0.30.0
 
 | | set | value |
 |---|---|---|
@@ -166,10 +181,10 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | top-15 stability over 50 commits | development | 1.00 |
 | top-15 carried over from one cut-off to the next, six months | development | 0.94 |
 | findings per repository, median and p90 | development | 18.5 and 22 |
-| findings the default report spells out that are labelled actionable | development and well-kept | 31% of 174, 99% labelled |
+| findings the default report spells out that are labelled actionable | development and well-kept | 69% of 79, 98% labelled |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 1, undecided 28 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 680 s, 3064 MB |
+| wall time and peak memory | development | 709 s, 2821 MB |
 | scored share of tracked files | development | 21% |
 | unexplained description disagreements | development | 0 |
 

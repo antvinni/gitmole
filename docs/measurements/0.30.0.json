@@ -1,0 +1,3615 @@
+{
+ "commit": "67fceccd618cd725ea8f1a54d50cd18b26d6b6a4",
+ "measured": "2026-09-19",
+ "ref": "worktree",
+ "reference_date": "2026-09-17",
+ "repos": {
+  "awkward-binary-only": {
+   "findings": 2,
+   "load": 9.95,
+   "measure_seconds": 0.6,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 55,
+   "rules": [
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "seconds": 0.6,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 1
+   },
+   "shown": 2,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 28.2,
+    "change analysis": 20.5,
+    "code age": 24.3,
+    "duplicates": 25.7,
+    "functions": 29.1,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.3,
+    "osv-scanner": 47.4,
+    "provenance": 22.1,
+    "scc": 19.2,
+    "signing": 16.5,
+    "trend": 24.2
+   },
+   "step_seconds": {
+    "betterleaks": 0.09,
+    "change analysis": 0.03,
+    "code age": 0.07,
+    "duplicates": 0.08,
+    "functions": 0.09,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.12,
+    "osv-scanner": 0.08,
+    "provenance": 0.06,
+    "scc": 0.01,
+    "signing": 0.04,
+    "trend": 0.05
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-detached": {
+   "findings": 3,
+   "load": 12.53,
+   "measure_seconds": 0.7,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 67,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.7,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.5,
+    "change analysis": 20.8,
+    "code age": 24.3,
+    "duplicates": 25.7,
+    "functions": 29.1,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.2,
+    "osv-scanner": 48.1,
+    "provenance": 22.7,
+    "scc": 19.9,
+    "signing": 16.6,
+    "trend": 24.2
+   },
+   "step_seconds": {
+    "betterleaks": 0.09,
+    "change analysis": 0.05,
+    "code age": 0.18,
+    "duplicates": 0.07,
+    "functions": 0.17,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.14,
+    "osv-scanner": 0.08,
+    "provenance": 0.07,
+    "scc": 0.01,
+    "signing": 0.04,
+    "trend": 0.09
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-empty": {
+   "load": 12.53,
+   "measure_seconds": 0.1,
+   "note": "no commits yet: there is nothing to analyse",
+   "peak_mb": 31,
+   "rc": 2,
+   "report_lines": 1,
+   "seconds": 0.1,
+   "set": "awkward",
+   "status": "refused"
+  },
+  "awkward-huge-file": {
+   "findings": 5,
+   "load": 12.53,
+   "measure_seconds": 19.9,
+   "peak_mb": 1051,
+   "rc": 0,
+   "report_lines": 71,
+   "rules": [
+    "bus_factor",
+    "knowledge_islands",
+    "placeholder_identity",
+    "repo_health",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 19.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 2,
+    "warning": 3
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 121.2,
+    "change analysis": 20.6,
+    "code age": 1044.5,
+    "duplicates": 38.3,
+    "functions": 53.3,
+    "git-log": 80.1,
+    "git-sizer": 7.8,
+    "hygiene": 33.8,
+    "osv-scanner": 47.2,
+    "provenance": 316.4,
+    "scc": 32.8,
+    "signing": 16.7,
+    "trend": 53.9
+   },
+   "step_seconds": {
+    "betterleaks": 0.38,
+    "change analysis": 0.04,
+    "code age": 9.83,
+    "duplicates": 0.11,
+    "functions": 2.39,
+    "git-log": 0.07,
+    "git-sizer": 0.06,
+    "hygiene": 0.28,
+    "osv-scanner": 0.08,
+    "provenance": 1.63,
+    "scc": 0.03,
+    "signing": 0.05,
+    "trend": 0.11
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-non-utf8-path": {
+   "findings": 3,
+   "load": 12.53,
+   "measure_seconds": 0.7,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 60,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 0.5,
+   "seconds": 0.6,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.0,
+    "change analysis": 20.7,
+    "code age": 24.4,
+    "duplicates": 25.7,
+    "functions": 28.9,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.1,
+    "osv-scanner": 48.2,
+    "provenance": 22.4,
+    "scc": 19.8,
+    "signing": 16.6,
+    "trend": 24.3
+   },
+   "step_seconds": {
+    "betterleaks": 0.09,
+    "change analysis": 0.03,
+    "code age": 0.2,
+    "duplicates": 0.07,
+    "functions": 0.17,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.21,
+    "osv-scanner": 0.07,
+    "provenance": 0.14,
+    "scc": 0.01,
+    "signing": 0.03,
+    "trend": 0.14
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-one-commit": {
+   "findings": 3,
+   "load": 12.53,
+   "measure_seconds": 0.7,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 61,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.7,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.2,
+    "change analysis": 20.7,
+    "code age": 24.4,
+    "duplicates": 25.6,
+    "functions": 29.3,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.2,
+    "osv-scanner": 48.3,
+    "provenance": 22.3,
+    "scc": 19.8,
+    "signing": 16.6,
+    "trend": 24.2
+   },
+   "step_seconds": {
+    "betterleaks": 0.09,
+    "change analysis": 0.07,
+    "code age": 0.18,
+    "duplicates": 0.11,
+    "functions": 0.18,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.18,
+    "osv-scanner": 0.08,
+    "provenance": 0.08,
+    "scc": 0.01,
+    "signing": 0.04,
+    "trend": 0.08
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-shallow": {
+   "findings": 3,
+   "load": 12.53,
+   "measure_seconds": 0.7,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 62,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.6,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 33.9,
+    "change analysis": 20.8,
+    "code age": 24.6,
+    "duplicates": 25.7,
+    "functions": 29.2,
+    "git-log": 8.1,
+    "hygiene": 18.2,
+    "osv-scanner": 48.4,
+    "provenance": 22.3,
+    "scc": 20.0,
+    "signing": 16.6,
+    "trend": 24.2
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.04,
+    "code age": 0.17,
+    "duplicates": 0.11,
+    "functions": 0.16,
+    "git-log": 0.01,
+    "hygiene": 0.12,
+    "osv-scanner": 0.08,
+    "provenance": 0.12,
+    "scc": 0.01,
+    "signing": 0.04,
+    "trend": 0.11
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-submodule": {
+   "findings": 3,
+   "load": 12.53,
+   "measure_seconds": 0.7,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 61,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 0.5,
+   "seconds": 0.6,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 33.9,
+    "change analysis": 20.8,
+    "code age": 24.6,
+    "duplicates": 25.6,
+    "functions": 29.3,
+    "git-log": 8.3,
+    "git-sizer": 7.8,
+    "hygiene": 18.0,
+    "osv-scanner": 48.0,
+    "provenance": 22.3,
+    "scc": 20.3,
+    "signing": 16.6,
+    "trend": 24.4
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.04,
+    "code age": 0.19,
+    "duplicates": 0.12,
+    "functions": 0.18,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.19,
+    "osv-scanner": 0.08,
+    "provenance": 0.12,
+    "scc": 0.01,
+    "signing": 0.04,
+    "trend": 0.1
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "binutils-gdb": {
+   "finding_ids": [
+    {
+     "id": "853fff43f9cf984d",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "36f93aabc24fb1c7",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "3a77afd3d6243f65",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "de7ea34ab3e6f225",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "5594a0e6542cd7e6",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "035c18e628b4e5ae",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "ff64e4fbed2959aa",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "2a9631a792b6bc3a",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "ee2fd1630948e8ee",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "7257f7230537988c",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "bf67ee203741c081",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "cd40fb7313e08ab6",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "b7563232642b39f5",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "3904268f88f6d75d",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "25d515820910281d",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "cbeca20a22bd3cce",
+     "rule": "knowledge_islands",
+     "summary": false
+    },
+    {
+     "id": "ae7e951508e4a429",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "a93a2e0ba7ccc054",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "be8a8be7abdcca89",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "b1b550fe86e3b8b8",
+     "rule": "component_coupling",
+     "summary": true
+    }
+   ],
+   "findings": 20,
+   "load": 5.27,
+   "measure_seconds": 487.4,
+   "peak_mb": 1166,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8061369869519275,
+      "best": 15,
+      "churn_auc": 0.7101147296393476,
+      "churn_hits": 7,
+      "churn_recall20": 0.3333333333333333,
+      "cutoff": "2023-09-18",
+      "expected": 0.961,
+      "hits": 7,
+      "pool": 2903,
+      "positives": 186,
+      "recall20": 0.20430107526881722,
+      "top": [
+       "gas/config/tc-arm.c",
+       "binutils/readelf.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "opcodes/arm-dis.c",
+       "gas/config/tc-aarch64.c"
+      ]
+     },
+     {
+      "auc": 0.8394385174212459,
+      "best": 15,
+      "churn_auc": 0.7195187292182108,
+      "churn_hits": 9,
+      "churn_recall20": 0.48314606741573035,
+      "cutoff": "2024-03-18",
+      "expected": 0.454,
+      "hits": 9,
+      "pool": 2941,
+      "positives": 89,
+      "recall20": 0.33707865168539325,
+      "top": [
+       "gas/config/tc-arm.c",
+       "binutils/readelf.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "opcodes/arm-dis.c",
+       "gas/config/tc-aarch64.c"
+      ]
+     },
+     {
+      "auc": 0.8073760484766782,
+      "best": 15,
+      "churn_auc": 0.725475361013003,
+      "churn_hits": 10,
+      "churn_recall20": 0.4752475247524752,
+      "cutoff": "2024-09-18",
+      "expected": 0.508,
+      "hits": 11,
+      "pool": 2980,
+      "positives": 101,
+      "recall20": 0.3465346534653465,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     },
+     {
+      "auc": 0.8253309643625943,
+      "best": 15,
+      "churn_auc": 0.751382195128006,
+      "churn_hits": 12,
+      "churn_recall20": 0.4948453608247423,
+      "cutoff": "2025-03-18",
+      "expected": 0.484,
+      "hits": 11,
+      "pool": 3004,
+      "positives": 97,
+      "recall20": 0.3711340206185567,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     },
+     {
+      "auc": 0.914796652079001,
+      "best": 15,
+      "churn_auc": 0.8964999948270689,
+      "churn_hits": 7,
+      "churn_recall20": 0.6818181818181818,
+      "cutoff": "2025-09-18",
+      "expected": 0.331,
+      "hits": 9,
+      "pool": 2995,
+      "positives": 66,
+      "recall20": 0.5151515151515151,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     },
+     {
+      "auc": 0.8467151749663526,
+      "best": 15,
+      "churn_auc": 0.863875336473755,
+      "churn_hits": 3,
+      "churn_recall20": 0.5833333333333334,
+      "cutoff": "2026-03-18",
+      "expected": 0.238,
+      "hits": 4,
+      "pool": 3020,
+      "positives": 48,
+      "recall20": 0.4375,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elflink.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 577,
+      "matched_fixed": 109,
+      "named": 10,
+      "named_fixed": 5
+     },
+     {
+      "matched": 289,
+      "matched_fixed": 40,
+      "named": 10,
+      "named_fixed": 5
+     },
+     {
+      "matched": 590,
+      "matched_fixed": 61,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 295,
+      "matched_fixed": 43,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 297,
+      "matched_fixed": 42,
+      "named": 6,
+      "named_fixed": 3
+     },
+     {
+      "matched": 296,
+      "matched_fixed": 29,
+      "named": 10,
+      "named_fixed": 4
+     }
+    ],
+    "stability": {
+     "from": "2026-03-18",
+     "spearman": 0.9999979906769633,
+     "to": "2026-03-24",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 218,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "component_coupling",
+    "knowledge_islands",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor"
+   ],
+   "scored_share": 0.0797,
+   "seconds": 367.4,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 13,
+    "warning": 7
+   },
+   "shown": 7,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 412.7,
+    "betterleaks": 1165.8,
+    "change analysis": 409.4,
+    "functions": 402.8,
+    "git-log": 984.7,
+    "git-sizer": 780.6,
+    "hygiene": 384.1,
+    "osv-scanner": 56.1,
+    "provenance": 729.2,
+    "scc": 253.4,
+    "signing": 262.6,
+    "trend": 114.0
+   },
+   "step_seconds": {
+    "backtest": 16.11,
+    "betterleaks": 171.19,
+    "change analysis": 7.33,
+    "functions": 11.73,
+    "git-log": 284.15,
+    "git-sizer": 21.82,
+    "hygiene": 4.07,
+    "osv-scanner": 1.09,
+    "provenance": 30.53,
+    "scc": 0.59,
+    "signing": 3.22,
+    "trend": 4.93
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "containerd": {
+   "finding_ids": [
+    {
+     "id": "a3992933be266dfb",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "d6093b675f8b6b49",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "506d6b7aa86a0a5d",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "9ba64c884bdb16a1",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "cf98988a390283e5",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "1142127c7c38ce0e",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "d1387bbf5aa08437",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "2f584dcd6fc3b2a3",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "4f399b6d2b2323ce",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "0d91d9bc10c70ee6",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "64e988396839c447",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "bf28fc73ba8edd75",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "635fc7232b4f120d",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "5824036722c64312",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "c160ca416be1a9da",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "46f0bf96fe912cf6",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "a952e281e77b66e7",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "9b7d4b191bf2d79c",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "d9f50ebe11244f85",
+     "rule": "component_coupling",
+     "summary": true
+    }
+   ],
+   "findings": 19,
+   "load": 14.1,
+   "measure_seconds": 66.4,
+   "peak_mb": 2086,
+   "rc": 0,
+   "report_lines": 235,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "component_coupling",
+    "duplication",
+    "import_commits",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.1407,
+   "seconds": 65.9,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 15,
+    "warning": 4
+   },
+   "shown": 8,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 111.6,
+    "betterleaks": 382.0,
+    "change analysis": 110.9,
+    "code age": 243.5,
+    "duplicates": 2086.0,
+    "functions": 88.0,
+    "git-log": 358.3,
+    "git-sizer": 153.8,
+    "hygiene": 87.4,
+    "osv-scanner": 1387.4,
+    "provenance": 376.4,
+    "scc": 74.2,
+    "signing": 61.3,
+    "trend": 48.6
+   },
+   "step_seconds": {
+    "backtest": 5.43,
+    "betterleaks": 12.2,
+    "change analysis": 2.62,
+    "code age": 43.55,
+    "duplicates": 7.48,
+    "functions": 5.5,
+    "git-log": 11.87,
+    "git-sizer": 2.38,
+    "hygiene": 3.47,
+    "osv-scanner": 6.67,
+    "provenance": 6.15,
+    "scc": 0.11,
+    "signing": 0.51,
+    "trend": 3.6
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "coredns": {
+   "finding_ids": [
+    {
+     "id": "031e88abccdde13c",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "0da494ebb315a2ab",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "590ad82fd9fa497d",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "9951652363251961",
+     "rule": "complexity_growth",
+     "summary": false
+    },
+    {
+     "id": "10f49e4371162e7d",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "c0167ce89ad31806",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "69ed3525939cfc02",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "ebd6a6f88c40965f",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "cca8896a41357bf4",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "6f83e35370bcd03a",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "3d8d92c9a80c7d6c",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "17e832a9cd6d6f53",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "9bebedbfd03e30f5",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "ea728d096c0826ba",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "0f32a569fe476b33",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "137e10f0bab6f0e8",
+     "rule": "knowledge_islands",
+     "summary": false
+    },
+    {
+     "id": "80a703d768a09d50",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "29e4a5ec25136d5a",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "727c12a5d49ddd73",
+     "rule": "signoff_by_co_author",
+     "summary": false
+    },
+    {
+     "id": "a45c5499a5cb107f",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "339cb2d6a2babc0c",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "d0e4fd0281cbd246",
+     "rule": "component_coupling",
+     "summary": true
+    }
+   ],
+   "findings": 22,
+   "load": 7.63,
+   "measure_seconds": 18.4,
+   "peak_mb": 2231,
+   "rc": 0,
+   "report_lines": 231,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "complexity_growth",
+    "component_coupling",
+    "duplication",
+    "import_commits",
+    "knowledge_islands",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "signoff_by_co_author",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.3393,
+   "seconds": 18.1,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 16,
+    "warning": 6
+   },
+   "shown": 10,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 92.1,
+    "betterleaks": 363.0,
+    "change analysis": 89.6,
+    "code age": 75.2,
+    "duplicates": 170.5,
+    "functions": 30.0,
+    "git-log": 376.3,
+    "git-sizer": 67.5,
+    "hygiene": 19.5,
+    "osv-scanner": 2230.8,
+    "provenance": 248.1,
+    "scc": 29.2,
+    "signing": 30.9,
+    "trend": 39.8
+   },
+   "step_seconds": {
+    "backtest": 2.17,
+    "betterleaks": 8.42,
+    "change analysis": 1.52,
+    "code age": 5.49,
+    "duplicates": 0.66,
+    "functions": 0.91,
+    "git-log": 8.09,
+    "git-sizer": 0.65,
+    "hygiene": 0.57,
+    "osv-scanner": 4.48,
+    "provenance": 3.28,
+    "scc": 0.02,
+    "signing": 0.18,
+    "trend": 2.64
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "curl": {
+   "finding_ids": [
+    {
+     "id": "946f232b9629b46c",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "9ce32f7e9ad377f7",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "d2e185fb0a13a372",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "6b6ce4613a7b5aa7",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "036b509a79ee7161",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "345b0889110e9d15",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "c4a445f9953be9f9",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "c391eccfe83e14ef",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "913276e7a8de94a5",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "75a491342d07e6c6",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "3f9c6916fb56b576",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "b91906daba8392ad",
+     "rule": "authors_gone",
+     "summary": true
+    }
+   ],
+   "findings": 12,
+   "load": 3.24,
+   "measure_seconds": 80.8,
+   "peak_mb": 824,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8441176470588235,
+      "best": 15,
+      "churn_auc": 0.7776890756302521,
+      "churn_hits": 15,
+      "churn_recall20": 0.16176470588235295,
+      "cutoff": "2023-09-17",
+      "expected": 4.198,
+      "hits": 15,
+      "pool": 486,
+      "positives": 136,
+      "recall20": 0.14705882352941177,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "include/curl/curl.h",
+       "lib/transfer.c",
+       "lib/http2.c",
+       "src/tool_operate.c",
+       "src/tool_getparam.c",
+       "lib/connect.c",
+       "lib/imap.c",
+       "CMakeLists.txt",
+       "lib/vtls/schannel.c"
+      ]
+     },
+     {
+      "auc": 0.7545725054552668,
+      "best": 15,
+      "churn_auc": 0.6860741916286451,
+      "churn_hits": 14,
+      "churn_recall20": 0.13380281690140844,
+      "cutoff": "2024-03-17",
+      "expected": 4.286,
+      "hits": 14,
+      "pool": 497,
+      "positives": 142,
+      "recall20": 0.1267605633802817,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "include/curl/curl.h",
+       "src/tool_operate.c",
+       "lib/http2.c",
+       "src/tool_getparam.c",
+       "lib/transfer.c",
+       "lib/connect.c",
+       "CMakeLists.txt",
+       "lib/vtls/schannel.c",
+       "lib/imap.c"
+      ]
+     },
+     {
+      "auc": 0.8586027298850575,
+      "best": 15,
+      "churn_auc": 0.7938577586206896,
+      "churn_hits": 13,
+      "churn_recall20": 0.125,
+      "cutoff": "2024-09-17",
+      "expected": 4.724,
+      "hits": 14,
+      "pool": 508,
+      "positives": 160,
+      "recall20": 0.11875,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "src/tool_operate.c",
+       "include/curl/curl.h",
+       "lib/http2.c",
+       "CMakeLists.txt",
+       "src/tool_getparam.c",
+       "lib/transfer.c",
+       "lib/connect.c",
+       "lib/vtls/schannel.c",
+       "lib/setopt.c"
+      ]
+     },
+     {
+      "auc": 0.7662711466165414,
+      "best": 15,
+      "churn_auc": 0.7075697055137845,
+      "churn_hits": 13,
+      "churn_recall20": 0.15037593984962405,
+      "cutoff": "2025-03-17",
+      "expected": 3.859,
+      "hits": 13,
+      "pool": 517,
+      "positives": 133,
+      "recall20": 0.14285714285714285,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "CMakeLists.txt",
+       "src/tool_operate.c",
+       "include/curl/curl.h",
+       "lib/http2.c",
+       "src/tool_getparam.c",
+       "lib/connect.c",
+       "lib/transfer.c",
+       "lib/vtls/schannel.c",
+       "lib/imap.c"
+      ]
+     },
+     {
+      "auc": 0.8192583934421187,
+      "best": 15,
+      "churn_auc": 0.7502499192568555,
+      "churn_hits": 15,
+      "churn_recall20": 0.08949416342412451,
+      "cutoff": "2025-09-17",
+      "expected": 7.559,
+      "hits": 15,
+      "pool": 510,
+      "positives": 257,
+      "recall20": 0.07782101167315175,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "CMakeLists.txt",
+       "lib/urldata.h",
+       "include/curl/curl.h",
+       "lib/http2.c",
+       "src/tool_getparam.c",
+       "src/tool_operate.c",
+       "lib/vtls/schannel.c",
+       "lib/transfer.c",
+       "lib/imap.c",
+       "lib/setopt.c"
+      ]
+     },
+     {
+      "auc": 0.8144599303135889,
+      "best": 15,
+      "churn_auc": 0.7812318524970964,
+      "churn_hits": 15,
+      "churn_recall20": 0.14634146341463414,
+      "cutoff": "2026-03-17",
+      "expected": 4.92,
+      "hits": 15,
+      "pool": 500,
+      "positives": 164,
+      "recall20": 0.11585365853658537,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "CMakeLists.txt",
+       "lib/urldata.h",
+       "lib/http2.c",
+       "include/curl/curl.h",
+       "src/tool_getparam.c",
+       "src/tool_operate.c",
+       "lib/vtls/schannel.c",
+       "lib/setopt.c",
+       "lib/imap.c",
+       "lib/vssh/libssh2.c"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 88,
+      "matched_fixed": 63,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 89,
+      "matched_fixed": 38,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 92,
+      "matched_fixed": 73,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 146,
+      "matched_fixed": 68,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 92,
+      "matched_fixed": 80,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 40,
+      "matched_fixed": 37,
+      "named": 10,
+      "named_fixed": 10
+     }
+    ],
+    "stability": {
+     "from": "2026-03-17",
+     "spearman": 0.9999031298154234,
+     "to": "2026-03-20",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 179,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "duplication",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor"
+   ],
+   "scored_share": 0.1288,
+   "seconds": 63.6,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 7,
+    "warning": 5
+   },
+   "shown": 5,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 114.8,
+    "betterleaks": 359.8,
+    "change analysis": 112.0,
+    "code age": 253.1,
+    "duplicates": 823.8,
+    "functions": 53.2,
+    "git-log": 360.2,
+    "git-sizer": 293.2,
+    "hygiene": 52.4,
+    "osv-scanner": 52.4,
+    "provenance": 316.9,
+    "scc": 44.5,
+    "signing": 96.6,
+    "trend": 29.8
+   },
+   "step_seconds": {
+    "backtest": 4.17,
+    "betterleaks": 12.44,
+    "change analysis": 2.59,
+    "code age": 26.61,
+    "duplicates": 2.7,
+    "functions": 1.55,
+    "git-log": 19.57,
+    "git-sizer": 3.46,
+    "hygiene": 0.57,
+    "osv-scanner": 0.41,
+    "provenance": 12.17,
+    "scc": 0.08,
+    "signing": 1.47,
+    "trend": 2.54
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "django": {
+   "finding_ids": [
+    {
+     "id": "7bf76f46623f5de2",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "377086855763b1af",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "e85e9b9a059ea9e1",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "cba1d42e83979f7a",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "47555eb8b2e5beeb",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "0783bdff56c23693",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "60f63499292a6395",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "652c17b4e6583e52",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "9e91a2b5675b4bd3",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "f8455265c6dad862",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "0fde842bf1427b6e",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "9de469af839419e2",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "59f6bf088c67d4c5",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "d1adb74455bca969",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "85518b7bda9aac76",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "9d2003b09352ad83",
+     "rule": "lockfile_missing",
+     "summary": false
+    },
+    {
+     "id": "ec395e33eac11631",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "671b5e92f4e559f6",
+     "rule": "authors_gone",
+     "summary": true
+    }
+   ],
+   "findings": 18,
+   "load": 6.08,
+   "measure_seconds": 169.5,
+   "peak_mb": 1012,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8252255585013462,
+      "best": 15,
+      "churn_auc": 0.7882319090778305,
+      "churn_hits": 12,
+      "churn_recall20": 0.6394557823129252,
+      "cutoff": "2023-09-08",
+      "expected": 2.726,
+      "hits": 14,
+      "pool": 809,
+      "positives": 147,
+      "recall20": 0.6394557823129252,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/forms/models.py",
+       "django/db/models/expressions.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/models/options.py"
+      ]
+     },
+     {
+      "auc": 0.8124042409756695,
+      "best": 15,
+      "churn_auc": 0.787317930175073,
+      "churn_hits": 11,
+      "churn_recall20": 0.6054421768707483,
+      "cutoff": "2024-03-08",
+      "expected": 2.712,
+      "hits": 14,
+      "pool": 813,
+      "positives": 147,
+      "recall20": 0.564625850340136,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/forms/models.py",
+       "django/db/models/expressions.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/models/options.py"
+      ]
+     },
+     {
+      "auc": 0.853637717482111,
+      "best": 15,
+      "churn_auc": 0.8240619665104791,
+      "churn_hits": 12,
+      "churn_recall20": 0.6432748538011696,
+      "cutoff": "2024-09-08",
+      "expected": 3.147,
+      "hits": 14,
+      "pool": 815,
+      "positives": 171,
+      "recall20": 0.6198830409356725,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/migrations/operations/models.py"
+      ]
+     },
+     {
+      "auc": 0.791445412064571,
+      "best": 15,
+      "churn_auc": 0.7862857547436987,
+      "churn_hits": 10,
+      "churn_recall20": 0.6193181818181818,
+      "cutoff": "2025-03-08",
+      "expected": 3.227,
+      "hits": 13,
+      "pool": 818,
+      "positives": 176,
+      "recall20": 0.5738636363636364,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/backends/oracle/base.py"
+      ]
+     },
+     {
+      "auc": 0.8754379724321921,
+      "best": 15,
+      "churn_auc": 0.8448999555357937,
+      "churn_hits": 12,
+      "churn_recall20": 0.7052023121387283,
+      "cutoff": "2025-09-08",
+      "expected": 3.153,
+      "hits": 15,
+      "pool": 823,
+      "positives": 173,
+      "recall20": 0.6647398843930635,
+      "top": [
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/fields/__init__.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/backends/oracle/base.py"
+      ]
+     },
+     {
+      "auc": 0.7883504071447334,
+      "best": 15,
+      "churn_auc": 0.7650545048594694,
+      "churn_hits": 12,
+      "churn_recall20": 0.5904255319148937,
+      "cutoff": "2026-03-08",
+      "expected": 3.373,
+      "hits": 15,
+      "pool": 836,
+      "positives": 188,
+      "recall20": 0.5053191489361702,
+      "top": [
+       "django/db/models/query.py",
+       "django/db/models/fields/__init__.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/backends/oracle/base.py"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 152,
+      "matched_fixed": 77,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 234,
+      "matched_fixed": 77,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 153,
+      "matched_fixed": 86,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 236,
+      "matched_fixed": 109,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 237,
+      "matched_fixed": 124,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 158,
+      "matched_fixed": 79,
+      "named": 10,
+      "named_fixed": 9
+     }
+    ],
+    "stability": {
+     "from": "2026-03-08",
+     "spearman": 0.9999887251760635,
+     "to": "2026-03-25",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 223,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "duplication",
+    "knowledge_loss",
+    "lockfile_missing",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.1827,
+   "seconds": 141.9,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 12,
+    "warning": 6
+   },
+   "shown": 8,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 164.9,
+    "betterleaks": 511.6,
+    "change analysis": 157.9,
+    "code age": 222.8,
+    "duplicates": 1012.2,
+    "functions": 73.8,
+    "git-log": 465.9,
+    "git-sizer": 453.0,
+    "hygiene": 73.2,
+    "osv-scanner": 55.6,
+    "provenance": 387.4,
+    "scc": 60.8,
+    "signing": 82.8,
+    "trend": 39.0
+   },
+   "step_seconds": {
+    "backtest": 7.09,
+    "betterleaks": 29.46,
+    "change analysis": 3.11,
+    "code age": 63.06,
+    "duplicates": 4.3,
+    "functions": 2.05,
+    "git-log": 19.06,
+    "git-sizer": 5.57,
+    "hygiene": 1.13,
+    "osv-scanner": 0.5,
+    "provenance": 6.56,
+    "scc": 0.11,
+    "signing": 0.91,
+    "trend": 2.7
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "etcd": {
+   "finding_ids": [
+    {
+     "id": "f4f9bd08017833af",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "d766150d308f84e3",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "69d7fbe279b08566",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "c27bf1ea871e56a5",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "3585810645d1a44d",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "c23cd5c167769bca",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "8f15eb84146f4584",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "ea89bb564e8f23e8",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "a8abab1a2015f035",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "379c0d9e38e50ff9",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "7ed50d36d926700c",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "35b4721660605039",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "a60d56115599d2aa",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "a152567b3fb43dd4",
+     "rule": "component_coupling",
+     "summary": true
+    }
+   ],
+   "findings": 14,
+   "load": 8.73,
+   "measure_seconds": 42.0,
+   "peak_mb": 2397,
+   "rc": 0,
+   "report_lines": 182,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "component_coupling",
+    "duplication",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "truck_factor"
+   ],
+   "scored_share": 0.4278,
+   "seconds": 41.8,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 10,
+    "warning": 4
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 91.7,
+    "betterleaks": 302.5,
+    "change analysis": 88.3,
+    "code age": 83.8,
+    "duplicates": 374.5,
+    "functions": 34.8,
+    "git-log": 298.8,
+    "git-sizer": 135.8,
+    "hygiene": 32.4,
+    "osv-scanner": 2397.0,
+    "provenance": 146.7,
+    "scc": 34.0,
+    "signing": 64.6,
+    "trend": 34.7
+   },
+   "step_seconds": {
+    "backtest": 5.45,
+    "betterleaks": 15.92,
+    "change analysis": 3.77,
+    "code age": 21.52,
+    "duplicates": 1.48,
+    "functions": 1.22,
+    "git-log": 9.05,
+    "git-sizer": 2.16,
+    "hygiene": 0.82,
+    "osv-scanner": 31.32,
+    "provenance": 5.87,
+    "scc": 0.03,
+    "signing": 0.59,
+    "trend": 3.55
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gate-secret": {
+   "findings": 4,
+   "gate_fired": true,
+   "load": 9.95,
+   "measure_seconds": 0.7,
+   "peak_mb": 48,
+   "rc": 3,
+   "report_lines": 64,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy",
+    "secrets_in_source"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.6,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.9,
+    "change analysis": 20.6,
+    "code age": 24.3,
+    "duplicates": 25.7,
+    "functions": 29.0,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.2,
+    "osv-scanner": 47.8,
+    "provenance": 22.2,
+    "scc": 19.9,
+    "signing": 16.7,
+    "trend": 24.3
+   },
+   "step_seconds": {
+    "betterleaks": 0.11,
+    "change analysis": 0.07,
+    "code age": 0.18,
+    "duplicates": 0.12,
+    "functions": 0.17,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.17,
+    "osv-scanner": 0.08,
+    "provenance": 0.07,
+    "scc": 0.01,
+    "signing": 0.05,
+    "trend": 0.08
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gate-submodule-credentials": {
+   "findings": 4,
+   "gate_fired": true,
+   "load": 9.4,
+   "measure_seconds": 0.7,
+   "peak_mb": 48,
+   "rc": 3,
+   "report_lines": 64,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy",
+    "submodule_urls"
+   ],
+   "scored_share": 0.5,
+   "seconds": 0.6,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 36.7,
+    "change analysis": 20.8,
+    "code age": 24.7,
+    "duplicates": 25.7,
+    "functions": 29.0,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.4,
+    "osv-scanner": 47.4,
+    "provenance": 22.5,
+    "scc": 19.6,
+    "signing": 16.6,
+    "trend": 24.1
+   },
+   "step_seconds": {
+    "betterleaks": 0.11,
+    "change analysis": 0.04,
+    "code age": 0.19,
+    "duplicates": 0.07,
+    "functions": 0.16,
+    "git-log": 0.01,
+    "git-sizer": 0.04,
+    "hygiene": 0.23,
+    "osv-scanner": 0.08,
+    "provenance": 0.15,
+    "scc": 0.01,
+    "signing": 0.04,
+    "trend": 0.1
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gate-trojan-source": {
+   "findings": 4,
+   "gate_fired": true,
+   "load": 9.95,
+   "measure_seconds": 0.7,
+   "peak_mb": 48,
+   "rc": 3,
+   "report_lines": 66,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy",
+    "trojan_source"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.7,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.7,
+    "change analysis": 20.7,
+    "code age": 24.5,
+    "duplicates": 25.8,
+    "functions": 29.1,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.2,
+    "osv-scanner": 47.4,
+    "provenance": 22.4,
+    "scc": 19.5,
+    "signing": 16.7,
+    "trend": 24.2
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.05,
+    "code age": 0.21,
+    "duplicates": 0.07,
+    "functions": 0.19,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.26,
+    "osv-scanner": 0.08,
+    "provenance": 0.11,
+    "scc": 0.01,
+    "signing": 0.04,
+    "trend": 0.12
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "ghidra": {
+   "finding_ids": [
+    {
+     "id": "57730ab7d554144e",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "5632bfdfa60b9395",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "f0479152ba16f137",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "5e7987f03ef56f99",
+     "rule": "committed_binaries",
+     "summary": false
+    },
+    {
+     "id": "131a2a005007f6c6",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "baf3f201575e1617",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "25cb30cb61ec31f0",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "6fbc79c1b9ae3125",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "1a979e62be728342",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "6a9299865b5c1102",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "ec24a0d5c056e193",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "5456c8e23388ee4f",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "9a565caac5e7d492",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "d06e5198f9e69832",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "a8f6b685b35c5ddc",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "2155d0330c11a699",
+     "rule": "tangled_commits",
+     "summary": false
+    },
+    {
+     "id": "e28b1d92fff5710a",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "1ccf9dd6c37bb6cd",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "b233c3b3fb310448",
+     "rule": "component_coupling",
+     "summary": true
+    }
+   ],
+   "findings": 19,
+   "load": 9.4,
+   "measure_seconds": 99.3,
+   "peak_mb": 1066,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.7476182404976904,
+      "best": 15,
+      "churn_auc": 0.6865531427992005,
+      "churn_hits": 7,
+      "churn_recall20": 0.33240997229916897,
+      "cutoff": "2023-09-18",
+      "expected": 0.913,
+      "hits": 6,
+      "pool": 5934,
+      "positives": 361,
+      "recall20": 0.26869806094182824,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Configurations/Public_Release/src/global/docs/ChangeHistory.html",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/objects/DebuggerObjectsProvider.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java"
+      ]
+     },
+     {
+      "auc": 0.7494103545459029,
+      "best": 15,
+      "churn_auc": 0.678675658965304,
+      "churn_hits": 5,
+      "churn_recall20": 0.3558139534883721,
+      "cutoff": "2024-03-18",
+      "expected": 0.983,
+      "hits": 6,
+      "pool": 6561,
+      "positives": 430,
+      "recall20": 0.27674418604651163,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Configurations/Public_Release/src/global/docs/ChangeHistory.html",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/objects/DebuggerObjectsProvider.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java"
+      ]
+     },
+     {
+      "auc": 0.7343481142829879,
+      "best": 15,
+      "churn_auc": 0.6849113671256639,
+      "churn_hits": 8,
+      "churn_recall20": 0.3648351648351648,
+      "cutoff": "2024-09-18",
+      "expected": 0.989,
+      "hits": 5,
+      "pool": 6904,
+      "positives": 455,
+      "recall20": 0.23296703296703297,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Configurations/Public_Release/src/global/docs/ChangeHistory.html",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/objects/DebuggerObjectsProvider.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java"
+      ]
+     },
+     {
+      "auc": 0.6934370541778175,
+      "best": 15,
+      "churn_auc": 0.6579618968794305,
+      "churn_hits": 10,
+      "churn_recall20": 0.2876712328767123,
+      "cutoff": "2025-03-18",
+      "expected": 1.518,
+      "hits": 10,
+      "pool": 6494,
+      "positives": 657,
+      "recall20": 0.2176560121765601,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/heritage.cc"
+      ]
+     },
+     {
+      "auc": 0.7428415141221655,
+      "best": 15,
+      "churn_auc": 0.6952502959722403,
+      "churn_hits": 5,
+      "churn_recall20": 0.3553008595988539,
+      "cutoff": "2025-09-18",
+      "expected": 0.747,
+      "hits": 4,
+      "pool": 7012,
+      "positives": 349,
+      "recall20": 0.2607449856733524,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/heritage.cc"
+      ]
+     },
+     {
+      "auc": 0.7577143507225557,
+      "best": 15,
+      "churn_auc": 0.7324798173959192,
+      "churn_hits": 3,
+      "churn_recall20": 0.3257261410788382,
+      "cutoff": "2026-03-18",
+      "expected": 0.985,
+      "hits": 5,
+      "pool": 7339,
+      "positives": 482,
+      "recall20": 0.25311203319502074,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/slgh_compile.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 1177,
+      "matched_fixed": 183,
+      "named": 10,
+      "named_fixed": 7
+     },
+     {
+      "matched": 647,
+      "matched_fixed": 135,
+      "named": 10,
+      "named_fixed": 8
+     },
+     {
+      "matched": 2063,
+      "matched_fixed": 218,
+      "named": 10,
+      "named_fixed": 6
+     },
+     {
+      "matched": 1289,
+      "matched_fixed": 279,
+      "named": 10,
+      "named_fixed": 4
+     },
+     {
+      "matched": 1393,
+      "matched_fixed": 176,
+      "named": 10,
+      "named_fixed": 6
+     },
+     {
+      "matched": 2192,
+      "matched_fixed": 319,
+      "named": 10,
+      "named_fixed": 2
+     }
+    ],
+    "stability": {
+     "from": "2026-03-18",
+     "spearman": 0.9999116074675235,
+     "to": "2026-03-24",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 285,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "committed_binaries",
+    "component_coupling",
+    "import_commits",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "tangled_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.7687,
+   "seconds": 40.7,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 15,
+    "warning": 4
+   },
+   "shown": 10,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 412.7,
+    "betterleaks": 730.7,
+    "change analysis": 138.6,
+    "functions": 359.7,
+    "git-log": 533.8,
+    "git-sizer": 220.4,
+    "hygiene": 341.5,
+    "osv-scanner": 55.3,
+    "provenance": 1012.7,
+    "scc": 237.6,
+    "signing": 45.2,
+    "trend": 72.4
+   },
+   "step_seconds": {
+    "backtest": 7.34,
+    "betterleaks": 15.5,
+    "change analysis": 2.21,
+    "functions": 9.97,
+    "git-log": 15.22,
+    "git-sizer": 4.05,
+    "hygiene": 5.32,
+    "osv-scanner": 1.47,
+    "provenance": 7.49,
+    "scc": 0.36,
+    "signing": 0.59,
+    "trend": 1.49
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gitmole": {
+   "finding_ids": [
+    {
+     "id": "64661689458bd925",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "f56cc5096cef6c0e",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "85deaa10c66523c7",
+     "rule": "complexity_growth",
+     "summary": false
+    },
+    {
+     "id": "8a81123dbecb3890",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "77b403c1f77ff089",
+     "rule": "repo_policy",
+     "summary": false
+    },
+    {
+     "id": "00b6d945720e50e1",
+     "rule": "truck_factor",
+     "summary": false
+    }
+   ],
+   "findings": 6,
+   "load": 8.04,
+   "measure_seconds": 2.0,
+   "peak_mb": 84,
+   "ranking": {
+    "cutoffs": [],
+    "magnets": [],
+    "stability": null
+   },
+   "rc": 0,
+   "report_lines": 129,
+   "rules": [
+    "bug_magnets",
+    "complexity_growth",
+    "repo_policy",
+    "secrets_aside",
+    "tight_coupling",
+    "truck_factor"
+   ],
+   "scored_share": 0.3689,
+   "seconds": 1.9,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 3,
+    "warning": 3
+   },
+   "shown": 5,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 83.7,
+    "change analysis": 21.6,
+    "code age": 30.3,
+    "duplicates": 80.9,
+    "functions": 30.8,
+    "git-log": 22.9,
+    "git-sizer": 9.9,
+    "hygiene": 18.8,
+    "osv-scanner": 49.7,
+    "provenance": 35.5,
+    "scc": 24.4,
+    "signing": 17.1,
+    "trend": 24.8
+   },
+   "step_seconds": {
+    "betterleaks": 1.04,
+    "change analysis": 0.09,
+    "code age": 0.67,
+    "duplicates": 0.17,
+    "functions": 0.37,
+    "git-log": 0.17,
+    "git-sizer": 0.12,
+    "hygiene": 0.2,
+    "osv-scanner": 0.1,
+    "provenance": 0.44,
+    "scc": 0.01,
+    "signing": 0.05,
+    "trend": 0.41
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "prometheus": {
+   "finding_ids": [
+    {
+     "id": "734fffee9b8a47d6",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "0983d9984a2e17d3",
+     "rule": "credential_files",
+     "summary": false
+    },
+    {
+     "id": "9bae9279830e4e7d",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "3132ebbcb62c7f27",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "7087293a3ee3267b",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "3ce6502e76dfc4f2",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "b74291a7ec49c054",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "da5ce71a53ec5e2d",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "f3c18e4cc2de4ce0",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "35aa5268784aa5ac",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "da92b85a8d74eb3f",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "ba4c2f83507e429a",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "d6f78558e196da3c",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "ad1ff3dec25cbf61",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "f8630cab842c2f16",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "3e22f572bbf00e75",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "4c7e1985fafa5645",
+     "rule": "unused_dependencies",
+     "summary": false
+    },
+    {
+     "id": "85c9c564d1dc015f",
+     "rule": "agent_instructions_drift",
+     "summary": false
+    },
+    {
+     "id": "b98422ea8ab6cb9f",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "56fe1a091d03e8e7",
+     "rule": "authors_gone",
+     "summary": true
+    }
+   ],
+   "findings": 20,
+   "load": 11.77,
+   "measure_seconds": 51.7,
+   "peak_mb": 3916,
+   "rc": 0,
+   "report_lines": 229,
+   "rules": [
+    "agent_instructions_drift",
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "credential_files",
+    "duplication",
+    "import_commits",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unused_dependencies"
+   ],
+   "scored_share": 0.3896,
+   "seconds": 51.3,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 14,
+    "warning": 6
+   },
+   "shown": 9,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 101.5,
+    "betterleaks": 511.7,
+    "change analysis": 99.6,
+    "code age": 87.1,
+    "duplicates": 597.7,
+    "functions": 48.0,
+    "git-log": 435.8,
+    "git-sizer": 146.5,
+    "hygiene": 56.9,
+    "osv-scanner": 3915.9,
+    "provenance": 233.5,
+    "scc": 50.0,
+    "signing": 66.1,
+    "trend": 35.0
+   },
+   "step_seconds": {
+    "backtest": 3.24,
+    "betterleaks": 35.87,
+    "change analysis": 2.11,
+    "code age": 10.82,
+    "duplicates": 2.73,
+    "functions": 1.92,
+    "git-log": 24.66,
+    "git-sizer": 1.83,
+    "hygiene": 1.05,
+    "osv-scanner": 22.21,
+    "provenance": 5.31,
+    "scc": 0.04,
+    "signing": 0.53,
+    "trend": 3.99
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "react": {
+   "finding_ids": [
+    {
+     "id": "33dca0d93b42152c",
+     "rule": "secrets_in_source",
+     "summary": false
+    },
+    {
+     "id": "91c4e0cabe998960",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "7aa9ddd2ef378fa3",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "5edf093243bfab9e",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "28ba8760cab5ed9a",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "413c098951b77a5b",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "0874e2e3f41d4af0",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "8450bd3765ba586a",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "0b02b6db47a683bb",
+     "rule": "lockfile_drift",
+     "summary": false
+    },
+    {
+     "id": "218e5931cfc8d4bb",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "40868a0b92e4b0e1",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "354e916ee3fe5f1f",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "7b6897d717ebd505",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "e8de4ae19f6c2317",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "e88c81b922272c38",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "fcc05d636665ff80",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "5762675cfd66b505",
+     "rule": "knowledge_islands",
+     "summary": false
+    },
+    {
+     "id": "80021e4ddda4b606",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "b0d7188c8a1cffce",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "1647ff8f0a56e3a1",
+     "rule": "dependency_updates",
+     "summary": false
+    },
+    {
+     "id": "a451e34af7b65704",
+     "rule": "install_scripts",
+     "summary": false
+    },
+    {
+     "id": "3600fb8ada302873",
+     "rule": "unused_dependencies",
+     "summary": false
+    },
+    {
+     "id": "777bbace336df3c4",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "31b1ff2a0531c09e",
+     "rule": "authors_gone",
+     "summary": true
+    }
+   ],
+   "findings": 24,
+   "load": 8.48,
+   "measure_seconds": 120.5,
+   "peak_mb": 2821,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": null,
+      "best": 0,
+      "churn_auc": null,
+      "churn_hits": 0,
+      "churn_recall20": null,
+      "cutoff": "2023-09-16",
+      "expected": 0.0,
+      "hits": 0,
+      "pool": 0,
+      "positives": 0,
+      "recall20": null,
+      "top": []
+     },
+     {
+      "auc": 0.7508461235733963,
+      "best": 15,
+      "churn_auc": 0.6633412042502952,
+      "churn_hits": 5,
+      "churn_recall20": 0.45454545454545453,
+      "cutoff": "2024-03-16",
+      "expected": 0.843,
+      "hits": 7,
+      "pool": 979,
+      "positives": 55,
+      "recall20": 0.3090909090909091,
+      "top": [
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-devtools-shared/src/backend/renderer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactFiberClassComponent.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.8647422933137219,
+      "best": 15,
+      "churn_auc": 0.827603113317399,
+      "churn_hits": 6,
+      "churn_recall20": 0.746031746031746,
+      "cutoff": "2024-09-16",
+      "expected": 0.86,
+      "hits": 12,
+      "pool": 1099,
+      "positives": 63,
+      "recall20": 0.5714285714285714,
+      "top": [
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.8304881701108117,
+      "best": 15,
+      "churn_auc": 0.7750524109014675,
+      "churn_hits": 9,
+      "churn_recall20": 0.65,
+      "cutoff": "2025-03-16",
+      "expected": 0.767,
+      "hits": 10,
+      "pool": 1173,
+      "positives": 60,
+      "recall20": 0.45,
+      "top": [
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.7736080849288397,
+      "best": 15,
+      "churn_auc": 0.7180010198878123,
+      "churn_hits": 5,
+      "churn_recall20": 0.4594594594594595,
+      "cutoff": "2025-09-16",
+      "expected": 0.895,
+      "hits": 9,
+      "pool": 1240,
+      "positives": 74,
+      "recall20": 0.3108108108108108,
+      "top": [
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.8606652365806149,
+      "best": 15,
+      "churn_auc": 0.816628448849767,
+      "churn_hits": 7,
+      "churn_recall20": 0.6666666666666666,
+      "cutoff": "2026-03-16",
+      "expected": 0.392,
+      "hits": 10,
+      "pool": 1262,
+      "positives": 33,
+      "recall20": 0.6363636363636364,
+      "top": [
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 95,
+      "matched_fixed": 18,
+      "named": 8,
+      "named_fixed": 5
+     },
+     {
+      "matched": 106,
+      "matched_fixed": 32,
+      "named": 8,
+      "named_fixed": 6
+     },
+     {
+      "matched": 229,
+      "matched_fixed": 34,
+      "named": 7,
+      "named_fixed": 4
+     },
+     {
+      "matched": 120,
+      "matched_fixed": 20,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 123,
+      "matched_fixed": 18,
+      "named": 9,
+      "named_fixed": 4
+     }
+    ],
+    "stability": {
+     "from": "2026-03-16",
+     "spearman": 0.9999242685740721,
+     "to": "2026-05-02",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 273,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "dependency_updates",
+    "duplication",
+    "install_scripts",
+    "knowledge_islands",
+    "knowledge_loss",
+    "lockfile_drift",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_in_source",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions",
+    "unused_dependencies"
+   ],
+   "scored_share": 0.2404,
+   "seconds": 93.2,
+   "set": "development",
+   "severity": {
+    "critical": 1,
+    "info": 15,
+    "warning": 8
+   },
+   "shown": 13,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 185.4,
+    "betterleaks": 2821.4,
+    "change analysis": 156.3,
+    "code age": 146.2,
+    "duplicates": 904.3,
+    "functions": 146.6,
+    "git-log": 423.5,
+    "git-sizer": 223.4,
+    "hygiene": 147.6,
+    "osv-scanner": 104.6,
+    "provenance": 362.6,
+    "scc": 76.8,
+    "signing": 70.9,
+    "trend": 49.1
+   },
+   "step_seconds": {
+    "backtest": 9.95,
+    "betterleaks": 33.21,
+    "change analysis": 4.03,
+    "code age": 53.0,
+    "duplicates": 4.04,
+    "functions": 2.82,
+    "git-log": 15.42,
+    "git-sizer": 2.95,
+    "hygiene": 3.97,
+    "osv-scanner": 2.09,
+    "provenance": 16.79,
+    "scc": 0.11,
+    "signing": 0.62,
+    "trend": 2.83
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  }
+ },
+ "sets": [
+  "development",
+  "awkward",
+  "gate",
+  "well-kept"
+ ],
+ "summary": {
+  "auc": 0.819,
+  "bug_magnets_ratio": 3.859,
+  "carryover_top15": 0.941,
+  "churn_auc": 0.764,
+  "churn_headroom": 0.517,
+  "churn_recall20": 0.489,
+  "crashed": null,
+  "findings_median": 18.5,
+  "findings_p90": 22.0,
+  "gate_caught": [
+   3,
+   3
+  ],
+  "headroom": 0.621,
+  "headroom_ci": [
+   0.356,
+   0.934
+  ],
+  "peak_mb": 2821,
+  "recall20": 0.359,
+  "report_lines": 220.5,
+  "robust": [
+   21,
+   21
+  ],
+  "scored_share": 0.212,
+  "seconds": 708.7,
+  "shown_median": 7.5,
+  "stability_spearman": 1.0,
+  "stability_top15": 1.0,
+  "step_seconds": {
+   "backtest": 7.3,
+   "betterleaks": 22.5,
+   "change analysis": 2.8,
+   "code age": 39.8,
+   "duplicates": 3.4,
+   "functions": 2.4,
+   "git-log": 17.2,
+   "git-sizer": 3.8,
+   "hygiene": 2.5,
+   "osv-scanner": 0.8,
+   "provenance": 9.8,
+   "scc": 0.1,
+   "signing": 0.8,
+   "trend": 2.6
+  },
+  "well_kept_with_critical": [
+   0,
+   4
+  ],
+  "wins_losses_ties": [
+   17,
+   4,
+   9
+  ]
+ },
+ "version": "0.30.0"
+}
