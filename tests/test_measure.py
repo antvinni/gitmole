@@ -207,3 +207,13 @@ class CarriedLabels(unittest.TestCase):
                                                                                 {"id": "y", "rule": "reverts", "summary": True}]}}}
                 self.assertEqual(labels.usefulness(rec), {"actionable_share": 0.0, "labelled_share": 0.5, "shown": 2},
                                  "the summarised finding is not in the default report; one of the two shown carries a label")
+
+
+class Series(unittest.TestCase):
+    def test_a_repository_joining_the_development_set_does_not_move_the_series(self):
+        rec = _record({"a": "ok", "b": "ok"})
+        joined = json.loads(json.dumps(rec))
+        for name in ("c", "d"):   # two lower repositories move the median of four
+            joined["repos"][name] = {**joined["repos"]["a"], "ranking": {"cutoffs": [dict(joined["repos"]["a"]["ranking"]["cutoffs"][0], hits=4)]}}
+        self.assertEqual(dashboard.summarise(joined, only={"a", "b"})["headroom"], dashboard.summarise(rec)["headroom"])
+        self.assertNotEqual(dashboard.summarise(joined)["headroom"], dashboard.summarise(rec)["headroom"], "the whole set does move")
