@@ -133,11 +133,12 @@ def current(record: dict, extras: dict) -> list:
             ("median headroom at 15", "development", _num(s.get("headroom"))),
             ("recall at 20% of lines", "holdout" if s.get("holdout_recall20") is not None else "development", _pct(s.get("holdout_recall20") if s.get("holdout_recall20") is not None else s.get("recall20"))),
             ("top-15 stability over 50 commits", "development", _num(s.get("stability_top15"))),
+            ("top-15 carried over from one cut-off to the next, six months", "development", _num(s.get("carryover_top15"))),
             ("findings per repository, median and p90", "development", f"{_num(s.get('findings_median'), '{:g}')} and {_num(s.get('findings_p90'), '{:g}')}")]
     score = labels.score()
     rows.append(("rules sound, broken and undecided", "labelled sample", ", ".join(f"{k} {v}" for k, v in sorted(score["verdicts"].items())) or "no labels"))
     kept = s.get("well_kept_with_critical")
-    rows.append(("repositories with a critical labelled false", "well-kept", f"{kept[0]} of {kept[1]} fired a critical, none labelled yet" if kept else "not run for this record"))
+    rows.append(("repositories with a critical labelled false", "well-kept", f"{kept[0]} of {kept[1]} fired a critical" if kept else "not run for this record"))
     rows.append(("wall time and peak memory", "development", f"{_num(s.get('seconds'), '{:.0f}')} s, {_num(s.get('peak_mb'), '{:.0f}')} MB"))
     rows.append(("scored share of tracked files", "development", _pct(s.get("scored_share"))))
     desc = (extras or {}).get("description") or {}

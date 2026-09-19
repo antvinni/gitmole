@@ -163,6 +163,13 @@ is no published target, so establish the current value as the baseline and treat
 a large move as a regression to explain. `backtest.py` already reconstructs at
 arbitrary cut-offs, so this is aggregation, not new machinery.
 
+Fifty commits turned out to answer only the first half: every release reads
+1.00, since fifty commits are days on curl and weeks on react. Since 0.29.0 the
+record also keeps each cut-off's top fifteen, and the dashboard reports how
+much of it carries over from one cut-off to the next, six months later (the
+mean Jaccard overlap, median over repositories). That is the second half,
+whether the list answers to the repository at all.
+
 ### Noise
 
 gitmole is deterministic, so two runs never differ; the noise is in the sample.
@@ -388,6 +395,7 @@ when it leaves the previous release's interval.
 | median headroom at 15 | holdout | the ranking carries information |
 | recall at 20% of lines | holdout | the ranking is worth the reading effort |
 | top-15 stability over 50 commits | holdout | the list is usable by a human |
+| top-15 carried over across six months | development | the list responds to the repository |
 | findings per repository, median and p90 | holdout | the report stays short |
 | rules sound, broken and undecided | labelled sample | the findings are true |
 | repositories with a critical labelled false | well-kept | the gate is usable |

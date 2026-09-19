@@ -25,6 +25,15 @@ def _repo_ranking(rec: dict):
             "ties": sum(r["hits"] == r["churn_hits"] for r in rows)}
 
 
+def _carryover(rec: dict):
+    """The mean overlap (Jaccard) of the top fifteen between consecutive cut-offs, six months apart: 50
+    commits say the list does not thrash; this says whether it answers to half a year of change. None
+    for a record from before the tops were kept."""
+    tops = [r["top"] for r in ((rec.get("ranking") or {}).get("cutoffs") or []) if "error" not in r and r.get("top")]
+    pairs = [j for j in (metrics.jaccard(a, b) for a, b in zip(tops, tops[1:])) if j is not None]
+    return sum(pairs) / len(pairs) if pairs else None
+
+
 def _round(x, n=3):
     return None if x is None else round(x, n)
 
@@ -47,6 +56,7 @@ def summarise(record: dict) -> dict:
     stab = [((r.get("ranking") or {}).get("stability") or {}) for r in dev.values()]
     out["stability_top15"] = _round(metrics.median([s.get("top_jaccard") for s in stab]))
     out["stability_spearman"] = _round(metrics.median([s.get("spearman") for s in stab]))
+    out["carryover_top15"] = _round(metrics.median([_carryover(r) for r in dev.values()]))
     mags = [m for r in dev.values() for m in ((r.get("ranking") or {}).get("magnets") or [])]
     named, nf = sum(m["named"] for m in mags), sum(m["named_fixed"] for m in mags)
     matched, mf = sum(m["matched"] for m in mags), sum(m["matched_fixed"] for m in mags)

@@ -57,6 +57,7 @@ class Scoring(unittest.TestCase):
         s = harness.score(rank, {"a", "c", "z"}, top=2)
         self.assertEqual((s["positives"], s["hits"], s["best"], s["churn_hits"]), (2, 1, 2, 1))
         self.assertEqual(s["expected"], 1.0)
+        self.assertEqual(s["top"], ["a", "b"], "the list's own top, kept for the carry-over")
 
     def test_matched_magnets(self):
         rank = {"pool": [f"f{i}" for i in range(20)], "magnets": ["f0", "f1"]}
@@ -90,6 +91,13 @@ class Dashboard(unittest.TestCase):
         s = dashboard.summarise(_record({"a": "ok", "b": "crashed"}))
         self.assertEqual(s["crashed"], {"b": "Traceback: boom"})
         self.assertEqual(s["robust"], [1, 2])
+
+    def test_the_top_fifteen_carried_over_between_consecutive_cut_offs(self):
+        rec = _record({"a": "ok", "b": "ok"})
+        cut = rec["repos"]["a"]["ranking"]["cutoffs"][0]
+        rec["repos"]["a"]["ranking"]["cutoffs"] = [dict(cut, top=["x", "y"]), dict(cut, top=["x", "z"]), dict(cut, top=["x", "z"])]
+        self.assertAlmostEqual(dashboard.summarise(rec)["carryover_top15"], round((1 / 3 + 1) / 2, 3), msg="b kept no tops: the median of one repository")
+        self.assertIsNone(dashboard.summarise(_record({"a": "ok"}))["carryover_top15"], "a record from before the tops were kept")
 
     def test_a_move_counts_only_outside_the_previous_interval(self):
         self.assertEqual(dashboard.moved({"headroom_ci": [0.4, 0.6]}, {"headroom": 0.7}), "up")
