@@ -130,6 +130,19 @@ def _unquoted(value: str, line: str, path: str) -> bool:
     return before.rstrip().endswith(("=", "(", ","))
 
 
+def _repeats_nearby(value: str, line: str) -> bool:
+    """A short alphabetic value that is also a word of its own key or of the lines around it
+    (POSTGRES_PASSWORD: postgres; "USER": "postgres" above "PASSWORD": "postgres"): a service's default,
+    which a real password does not repeat."""
+    if not line or not re.fullmatch(r"[A-Za-z]{3,20}", value):
+        return False
+    last = line.split("\n")[-1]
+    i = last.find(value)
+    context = (line[: len(line) - len(last) + i] if i >= 0 else line) + " " + (last[i + len(value):] if i >= 0 else "")
+    words = {w.lower() for w in re.findall(r"[A-Za-z]+", context)}
+    return value.lower() in words
+
+
 def is_placeholder(value: str, line: str = "", path: str = "") -> bool:
     """Whether `value` has a shape that cannot be a live secret. `line` is the source line the value
     sat on (with two above), read from the clone at scan time and never written; `path` is the file,
@@ -138,6 +151,11 @@ def is_placeholder(value: str, line: str = "", path: str = "") -> bool:
     if _HEADER_WRITTEN.match(value) or _MASKED.match(value) or (_FILE_REF.search(value) and not any(ch.isspace() for ch in value)) or _is_label(value):
         return True
     if _unquoted(value, line or "", path or ""):
+        return True
+    if _repeats_nearby(value, line or ""):
+        return True
+    stripped = re.sub(r"[^A-Za-z0-9]", "", value).lower()
+    if stripped != value.lower() and stripped in _EXAMPLE_WORDS:   # pass?word, p-a-s-s-w-o-r-d: an example word with its punctuation
         return True
     if line and _UUID.fullmatch(value) and len(_UUID.findall(line)) >= 2:   # a table of interface ids, not a token
         return True
@@ -183,6 +201,8 @@ def sanitise(rows: list) -> list:
         attrs = r.get("Attributes") if isinstance(r.get("Attributes"), dict) else {}
         if attrs.get("confidence") in ("low", "medium", "high"):   # the scanner's own grade, kept; the rest of Attributes can quote the value
             clean["Confidence"] = attrs["confidence"]
+            if str(r.get("RuleID", "")).startswith("generic-") and _ONE_WORD.fullmatch(value):
+                clean["Confidence"] = "low"   # PGPASSWORD: postgres. The context raised it; a word of one case is a service default or a sample
         clean["SecretHash"] = digest(value, key)
         clean["Placeholder"] = is_placeholder(value, r.get("Line") or "", r.get("File") or "")   # read here and dropped with the other raw fields
         out.append(clean)
@@ -190,6 +210,7 @@ def sanitise(rows: list) -> list:
 
 
 CONFIDENCE = {"low": 0, "medium": 1, "high": 2}
+_ONE_WORD = re.compile(r"[a-z]{3,20}|[A-Z]{3,20}")
 
 
 def group(rows: list) -> list:
@@ -254,6 +275,9 @@ def unreachable(repo: str):
     return {"objects": objects, "blobs": len(blobs), "shas": sorted(blobs)}
 
 
+UNREACHABLE = "(unreachable blob "   # the File of a row from an unreachable blob, before its hash
+
+
 def scan_unreachable(repo: str, out_dir: str, found: dict) -> list:
     """betterleaks over the unreachable blobs, each written under the output directory by its hash and
     removed again; its rows name the blob as `(unreachable blob <hash>)`, with no commit."""
@@ -281,7 +305,7 @@ def scan_unreachable(repo: str, out_dir: str, found: dict) -> list:
         rows = (json.loads(text) if text else None) or []
     for r in rows:
         sha = os.path.basename(r.get("File") or "")
-        r["File"] = f"(unreachable blob {sha[:12]})"
+        r["File"] = f"{UNREACHABLE}{sha[:12]})"
         r["Commit"] = ""
         # betterleaks' own fingerprint names the scratch path the blob was written to; this one names the blob,
         # so it is the same in every run and can go into .betterleaksignore

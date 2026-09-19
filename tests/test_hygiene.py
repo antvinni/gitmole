@@ -192,11 +192,12 @@ class TrojanSource(unittest.TestCase):
             r.write("docs/notes.md", "\u202e not code\n")
             r.write("tests/test_a.py", "\u202e a fixture\n")
             r.write("src/c.py", "name = '\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439'\n")   # a whole Cyrillic word is one script
+            r.write("src/d.go", "// small overhead (<500\u03bcs per request)\n")   # a Greek μ before a unit reads as itself
             r.commit()
             out = hygiene.trojan_source(d)
         self.assertEqual(out["bidi"], [{"file": "src/a.py", "line": 2, "char": "U+202E"}, {"file": "src/a.py", "line": 3, "char": "U+2066"}])
         self.assertEqual(out["mixed_script"], [{"file": "src/b.py", "line": 2, "token": "pr\u043ecess", "scripts": ["CYRILLIC", "LATIN"]}])
-        self.assertEqual(out["files"], 3, "source files scanned; the doc and the test fixture are not")
+        self.assertEqual(out["files"], 4, "source files scanned; the doc and the test fixture are not")
 
 
 class Step(unittest.TestCase):
@@ -218,3 +219,16 @@ class Step(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TrojanRetuned(unittest.TestCase):
+    def test_direction_marks_are_text_and_generated_files_are_skipped(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("locale/ar/formats.py", 'DATE_FORMAT = "j F‏، Y"\n')
+            r.write("api/version.pb.go", 'var x = "x18Іabc"\n')
+            r.write("src/check.py", 'access = "user‮ admin"\n')
+            r.commit()
+            out = hygiene.trojan_source(d, {"api/version.pb.go"})
+        self.assertEqual([x["file"] for x in out["bidi"]], ["src/check.py"], "U+200F in a locale string is a direction mark, not an override")
+        self.assertEqual(out["mixed_script"], [], "a generated file's bytes are not a reviewer's trap")

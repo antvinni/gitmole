@@ -69,6 +69,8 @@ def score() -> dict:
     by_rule, pairs = {}, {"true": [], "actionable": []}
     by_id = {}
     for lab in labels:
+        if lab.get("unsure"):   # a labeller who could not decide adds nothing to either side
+            continue
         by_id.setdefault(lab["id"], []).append(lab)
     for fid, labs in by_id.items():
         rule = (key.get(fid) or {}).get("rule", "(unknown)")

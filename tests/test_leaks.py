@@ -167,6 +167,13 @@ class Sanitise(unittest.TestCase):
         self.assertTrue(clean["Placeholder"])
         self.assertNotIn("Line", clean)
 
+    def test_a_generic_hit_on_a_word_of_one_case_is_graded_low(self):
+        word = "pg" + "admin"   # built at runtime, like FAKE
+        row = dict(RAW[0], RuleID="generic-password", Secret=word, Line=f"PGPASSWORD: {word}", Attributes={"confidence": "medium"})
+        self.assertEqual(leaks.sanitise([row])[0]["Confidence"], "low", "a service default: the context raised it, the shape does not")
+        self.assertEqual(leaks.sanitise([dict(row, Secret=word + "9Q")])[0]["Confidence"], "medium", "digits or mixed case keep the scanner's grade")
+        self.assertEqual(leaks.sanitise([dict(row, RuleID="aws-access-token")])[0]["Confidence"], "medium", "a provider's rule keeps its grade")
+
 
 class Script(unittest.TestCase):
     """Runs the script against a stand-in betterleaks on PATH, so the wiring is tested without real keys."""
@@ -371,3 +378,15 @@ class PlaceholderShapes(unittest.TestCase):
         table = "EAAAC2D5-C290-11D1-905D-00C04FD9189D IDXA\nEAAAC2D6-C290-11D1-905D-00C04FD9189D IDXB\nEAAAC2D7-C290-11D1-905D-00C04FD9189D IDXC"
         self.assertTrue(leaks.is_placeholder("EAAAC2D7-C290-11D1-905D-00C04FD9189D", table))
         self.assertFalse(leaks.is_placeholder("EAAAC2D7-C290-11D1-905D-00C04FD9189D", "api_key = EAAAC2D7-C290-11D1-905D-00C04FD9189D"))
+
+
+class DefaultsAndPunctuatedWords(unittest.TestCase):
+    def test_a_value_repeating_its_key_or_its_neighbours_is_a_default(self):
+        self.assertTrue(leaks.is_placeholder("postgres", "    POSTGRES_PASSWORD: postgres"))
+        self.assertTrue(leaks.is_placeholder("postgres", '    "USER": "postgres",\n    "PASSWORD": "postgres",'))
+        self.assertFalse(leaks.is_placeholder("hunterzebra", 'password = "hunterzebra"'))
+        self.assertFalse(leaks.is_placeholder("postgres", ""), "no line, no judgement")
+
+    def test_an_example_word_with_punctuation_in_it(self):
+        self.assertTrue(leaks.is_placeholder("pass?word"))
+        self.assertFalse(leaks.is_placeholder("Xk9vTq2LmZ"))

@@ -50,7 +50,7 @@ def parse(spec):
     return {t.strip().lstrip(".").lower() for t in spec.split(",") if t.strip()}
 
 
-_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|snapshots?|__snapshots__|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
+_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|testsuite|snapshots?|__snapshots__|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
                         r"|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+|[^/]*\.snap)$", re.I)
 
 # Suffix conventions of test frameworks, case-sensitive (Contest.java is not a Test, requests/ is not a

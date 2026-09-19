@@ -1,0 +1,182 @@
+{"actionable": false, "id": "aedf05792818c230", "labeller": "claude", "reason": "the assembler's own bidi test in gas/testsuite/", "true": true}
+{"actionable": false, "id": "2a9631a792b6bc3a", "labeller": "claude", "reason": "low-graded generic hits: names, configs, hashes", "true": false}
+{"actionable": false, "id": "853fff43f9cf984d", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "36f93aabc24fb1c7", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "3a77afd3d6243f65", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": true, "id": "de7ea34ab3e6f225", "labeller": "claude", "reason": "the files keep being fixed", "true": true}
+{"actionable": false, "id": "5594a0e6542cd7e6", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": false, "id": "6d722a4bf4a52e47", "labeller": "claude", "reason": "2,117 functions: too many to act on", "true": true}
+{"actionable": false, "id": "dd916d7b089f709c", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": false, "id": "2cb4fe362c5da0cd", "labeller": "claude", "reason": "test inputs in binutils/testsuite/", "true": true}
+{"actionable": false, "id": "ee2fd1630948e8ee", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "7257f7230537988c", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "bf67ee203741c081", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "cd40fb7313e08ab6", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "b7563232642b39f5", "labeller": "claude", "reason": "counts are right; the most-reverted files are flags and build files", "true": true}
+{"actionable": false, "id": "ee08567f213d4ef5", "labeller": "claude", "reason": "pairs of test data or build modules", "true": true}
+{"actionable": false, "id": "25d515820910281d", "labeller": "claude", "reason": "deleting most of a mature tree is not advice", "true": true}
+{"actionable": true, "id": "e8f4c8cd546d1350", "labeller": "claude", "reason": "one author's area", "true": true}
+{"actionable": true, "id": "ae7e951508e4a429", "labeller": "claude", "reason": "copyright and rename sweeps; the ignore-revs advice is a one-line fix", "true": true}
+{"actionable": false, "id": "83fda9e8e073201e", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "7359d7cc91a26d1f", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "b1b550fe86e3b8b8", "labeller": "claude", "reason": "architectural or historical directories; nothing to do", "true": true}
+{"actionable": false, "id": "cf98988a390283e5", "labeller": "claude", "reason": "low-graded generic hits: names, configs, hashes", "true": false}
+{"actionable": false, "id": "a3992933be266dfb", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "d6093b675f8b6b49", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": false, "id": "506d6b7aa86a0a5d", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": false, "id": "9ba64c884bdb16a1", "labeller": "claude", "reason": "its own reusable workflows at @main", "true": true}
+{"actionable": false, "id": "1142127c7c38ce0e", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "d1387bbf5aa08437", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "2f584dcd6fc3b2a3", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": true, "id": "4f399b6d2b2323ce", "labeller": "claude", "reason": "the files keep being fixed", "true": true}
+{"actionable": false, "id": "0d91d9bc10c70ee6", "labeller": "claude", "reason": "counts are right; the most-reverted files are flags and build files", "true": true}
+{"actionable": true, "id": "7181a6c102b9c637", "labeller": "claude", "reason": "hand-written functions worth splitting", "true": true}
+{"actionable": true, "id": "bf28fc73ba8edd75", "labeller": "claude", "reason": "pairs of source files", "true": true}
+{"actionable": false, "id": "9943b15e340a4efd", "labeller": "claude", "reason": "blocks are in tests, examples or vendored copies", "true": true}
+{"actionable": false, "id": "5824036722c64312", "labeller": "claude", "reason": "deleting most of a mature tree is not advice", "true": true}
+{"actionable": true, "id": "c160ca416be1a9da", "labeller": "claude", "reason": "copyright and rename sweeps; the ignore-revs advice is a one-line fix", "true": true}
+{"actionable": false, "id": "46f0bf96fe912cf6", "labeller": "claude", "reason": "the imports are real; a note", "true": true}
+{"actionable": false, "id": "042b31356ad516a4", "labeller": "claude", "reason": "the security policy lives in docs/security/", "true": false}
+{"actionable": false, "id": "895fc5a279ad0005", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "fa888170b38d0298", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "d9f50ebe11244f85", "labeller": "claude", "reason": "architectural or historical directories; nothing to do", "true": true}
+{"actionable": false, "id": "031e88abccdde13c", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "0da494ebb315a2ab", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": true, "id": "590ad82fd9fa497d", "labeller": "claude", "reason": "hand-written functions worth splitting", "true": true}
+{"actionable": true, "id": "9951652363251961", "labeller": "claude", "reason": "growth is real", "true": true}
+{"actionable": false, "id": "10f49e4371162e7d", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": true, "id": "c0167ce89ad31806", "labeller": "claude", "reason": "tag-pinned actions", "true": true}
+{"actionable": false, "id": "69ed3525939cfc02", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "ebd6a6f88c40965f", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "cca8896a41357bf4", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "6f83e35370bcd03a", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": true, "id": "3d8d92c9a80c7d6c", "labeller": "claude", "reason": "the files keep being fixed", "true": true}
+{"actionable": false, "id": "17e832a9cd6d6f53", "labeller": "claude", "reason": "counts are right; the most-reverted files are flags and build files", "true": true}
+{"actionable": false, "id": "9bebedbfd03e30f5", "labeller": "claude", "reason": "pairs of test data or build modules", "true": true}
+{"actionable": false, "id": "ea728d096c0826ba", "labeller": "claude", "reason": "blocks are in tests, examples or vendored copies", "true": true}
+{"actionable": false, "id": "0f32a569fe476b33", "labeller": "claude", "reason": "deleting most of a mature tree is not advice", "true": true}
+{"actionable": true, "id": "137e10f0bab6f0e8", "labeller": "claude", "reason": "one author's area", "true": true}
+{"actionable": true, "id": "80a703d768a09d50", "labeller": "claude", "reason": "copyright and rename sweeps; the ignore-revs advice is a one-line fix", "true": true}
+{"actionable": false, "id": "29e4a5ec25136d5a", "labeller": "claude", "reason": "the imports are real; a note", "true": true}
+{"actionable": false, "id": "727c12a5d49ddd73", "labeller": "claude", "reason": "true; nothing for a maintainer to do", "true": true}
+{"actionable": true, "id": "a45c5499a5cb107f", "labeller": "claude", "reason": "truck factor of 2 or less is worth acting on", "true": true}
+{"actionable": false, "id": "339cb2d6a2babc0c", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "d0e4fd0281cbd246", "labeller": "claude", "reason": "architectural or historical directories; nothing to do", "true": true}
+{"actionable": false, "id": "651bbad7fab01a2f", "labeller": "claude", "reason": "a documentation example URI, ftp://us?er:pass?word@site.com", "true": false}
+{"actionable": false, "id": "a7d1ff2a4b0c42c1", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "9ce32f7e9ad377f7", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": true, "id": "d2e185fb0a13a372", "labeller": "claude", "reason": "the files keep being fixed", "true": true}
+{"actionable": false, "id": "6b6ce4613a7b5aa7", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": true, "id": "036b509a79ee7161", "labeller": "claude", "reason": "hand-written functions worth splitting", "true": true}
+{"actionable": false, "id": "345b0889110e9d15", "labeller": "claude", "reason": "counts are right; the most-reverted files are flags and build files", "true": true}
+{"actionable": false, "id": "c4a445f9953be9f9", "labeller": "claude", "reason": "pairs of test data or build modules", "true": true}
+{"actionable": false, "id": "c391eccfe83e14ef", "labeller": "claude", "reason": "blocks are in tests, examples or vendored copies", "true": true}
+{"actionable": false, "id": "913276e7a8de94a5", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": true, "id": "75a491342d07e6c6", "labeller": "claude", "reason": "copyright and rename sweeps; the ignore-revs advice is a one-line fix", "true": true}
+{"actionable": true, "id": "226a2b082d9067c5", "labeller": "claude", "reason": "truck factor of 2 or less is worth acting on", "true": true}
+{"actionable": false, "id": "b91906daba8392ad", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "e7df0ec8379e3141", "labeller": "claude", "reason": "CI service passwords: POSTGRES_PASSWORD: postgres", "true": false}
+{"actionable": false, "id": "ea7638eebe94563b", "labeller": "claude", "reason": "U+200F right-to-left marks in Arabic locale strings: legitimate, not an attack", "true": false}
+{"actionable": false, "id": "8a9a25e396421c60", "labeller": "claude", "reason": "low-graded generic hits: names, configs, hashes", "true": false}
+{"actionable": false, "id": "90841b05a3169b3a", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": true, "id": "377086855763b1af", "labeller": "claude", "reason": "the files keep being fixed", "true": true}
+{"actionable": false, "id": "e85e9b9a059ea9e1", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": true, "id": "cba1d42e83979f7a", "labeller": "claude", "reason": "hand-written functions worth splitting", "true": true}
+{"actionable": false, "id": "47555eb8b2e5beeb", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": true, "id": "0783bdff56c23693", "labeller": "claude", "reason": "tag-pinned actions", "true": true}
+{"actionable": false, "id": "652c17b4e6583e52", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "9e91a2b5675b4bd3", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "f8455265c6dad862", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "0fde842bf1427b6e", "labeller": "claude", "reason": "counts are right; the most-reverted files are flags and build files", "true": true}
+{"actionable": true, "id": "9de469af839419e2", "labeller": "claude", "reason": "pairs of source files", "true": true}
+{"actionable": false, "id": "59f6bf088c67d4c5", "labeller": "claude", "reason": "blocks are in tests, examples or vendored copies", "true": true}
+{"actionable": false, "id": "d1adb74455bca969", "labeller": "claude", "reason": "deleting most of a mature tree is not advice", "true": true}
+{"actionable": true, "id": "85518b7bda9aac76", "labeller": "claude", "reason": "copyright and rename sweeps; the ignore-revs advice is a one-line fix", "true": true}
+{"actionable": true, "id": "9d2003b09352ad83", "labeller": "claude", "reason": "no lock file for the JS tooling", "true": true}
+{"actionable": false, "id": "ec395e33eac11631", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "671b5e92f4e559f6", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": true, "id": "c2c93e12d13d698c", "labeller": "claude", "reason": "includes a real Codecov upload token", "true": true}
+{"actionable": false, "id": "fbe2d965a8754d58", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "d766150d308f84e3", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": true, "id": "69d7fbe279b08566", "labeller": "claude", "reason": "hand-written functions worth splitting", "true": true}
+{"actionable": false, "id": "c27bf1ea871e56a5", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": false, "id": "1501831040257d6b", "labeller": "claude", "reason": "bytes of a generated protobuf descriptor", "true": false}
+{"actionable": false, "id": "c23cd5c167769bca", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "8f15eb84146f4584", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "ea89bb564e8f23e8", "labeller": "claude", "reason": "counts are right; the most-reverted files are flags and build files", "true": true}
+{"actionable": false, "id": "a8abab1a2015f035", "labeller": "claude", "reason": "blocks are in tests, examples or vendored copies", "true": true}
+{"actionable": false, "id": "379c0d9e38e50ff9", "labeller": "claude", "reason": "deleting most of a mature tree is not advice", "true": true}
+{"actionable": true, "id": "7ed50d36d926700c", "labeller": "claude", "reason": "copyright and rename sweeps; the ignore-revs advice is a one-line fix", "true": true}
+{"actionable": false, "id": "35b4721660605039", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "a60d56115599d2aa", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "a152567b3fb43dd4", "labeller": "claude", "reason": "architectural or historical directories; nothing to do", "true": true}
+{"actionable": false, "id": "131a2a005007f6c6", "labeller": "claude", "reason": "a published AES key constant", "true": true}
+{"actionable": false, "id": "57730ab7d554144e", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "fef11aed3f0acab3", "labeller": "claude", "reason": "leads with a generated parser", "true": true}
+{"actionable": true, "id": "f0479152ba16f137", "labeller": "claude", "reason": "tag-pinned actions", "true": true}
+{"actionable": true, "id": "5e7987f03ef56f99", "labeller": "claude", "reason": "six driver DLLs", "true": true}
+{"actionable": false, "id": "baf3f201575e1617", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "25cb30cb61ec31f0", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "6fbc79c1b9ae3125", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": true, "id": "1a979e62be728342", "labeller": "claude", "reason": "the files keep being fixed", "true": true}
+{"actionable": false, "id": "6a9299865b5c1102", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": false, "id": "ec24a0d5c056e193", "labeller": "claude", "reason": "counts are right; the most-reverted files are flags and build files", "true": true}
+{"actionable": true, "id": "5456c8e23388ee4f", "labeller": "claude", "reason": "pairs of source files", "true": true}
+{"actionable": false, "id": "9a565caac5e7d492", "labeller": "claude", "reason": "deleting most of a mature tree is not advice", "true": true}
+{"actionable": true, "id": "d06e5198f9e69832", "labeller": "claude", "reason": "copyright and rename sweeps; the ignore-revs advice is a one-line fix", "true": true}
+{"actionable": false, "id": "a8f6b685b35c5ddc", "labeller": "claude", "reason": "the imports are real; a note", "true": true}
+{"actionable": false, "id": "2155d0330c11a699", "labeller": "claude", "reason": "counts are right; history cannot be retangled", "true": true}
+{"actionable": true, "id": "ed4867481b238349", "labeller": "claude", "reason": "truck factor of 2 or less is worth acting on", "true": true}
+{"actionable": false, "id": "1ccf9dd6c37bb6cd", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "b233c3b3fb310448", "labeller": "claude", "reason": "architectural or historical directories; nothing to do", "true": true}
+{"actionable": false, "id": "a3ef54cebf0009ec", "labeller": "claude", "reason": "low-graded generic hits: names, configs, hashes", "true": false}
+{"actionable": false, "id": "1bbfff8db2d87781", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": true, "id": "f56cc5096cef6c0e", "labeller": "claude", "reason": "the files keep being fixed", "true": true}
+{"actionable": true, "id": "85deaa10c66523c7", "labeller": "claude", "reason": "growth is real", "true": true}
+{"actionable": true, "id": "8a81123dbecb3890", "labeller": "claude", "reason": "pairs of source files", "true": true}
+{"actionable": true, "id": "77b403c1f77ff089", "labeller": "claude", "reason": "no SECURITY.md", "true": true}
+{"actionable": true, "id": "00b6d945720e50e1", "labeller": "claude", "reason": "truck factor of 2 or less is worth acting on", "true": true}
+{"actionable": false, "id": "0991e54f1cc0fb86", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "0983d9984a2e17d3", "labeller": "claude", "reason": "a tracked .env; its content could not be read here", "true": true}
+{"actionable": false, "id": "9bae9279830e4e7d", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": true, "id": "3132ebbcb62c7f27", "labeller": "claude", "reason": "the files keep being fixed", "true": true}
+{"actionable": false, "id": "7087293a3ee3267b", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": true, "id": "3ce6502e76dfc4f2", "labeller": "claude", "reason": "hand-written functions worth splitting", "true": true}
+{"actionable": false, "id": "b74291a7ec49c054", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "da5ce71a53ec5e2d", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "f3c18e4cc2de4ce0", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "35aa5268784aa5ac", "labeller": "claude", "reason": "counts are right; the most-reverted files are flags and build files", "true": true}
+{"actionable": true, "id": "da92b85a8d74eb3f", "labeller": "claude", "reason": "pairs of source files", "true": true}
+{"actionable": false, "id": "ba4c2f83507e429a", "labeller": "claude", "reason": "blocks are in tests, examples or vendored copies", "true": true}
+{"actionable": false, "id": "d6f78558e196da3c", "labeller": "claude", "reason": "deleting most of a mature tree is not advice", "true": true}
+{"actionable": false, "id": "ad1ff3dec25cbf61", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": true, "id": "f8630cab842c2f16", "labeller": "claude", "reason": "copyright and rename sweeps; the ignore-revs advice is a one-line fix", "true": true}
+{"actionable": false, "id": "3e22f572bbf00e75", "labeller": "claude", "reason": "the imports are real; a note", "true": true}
+{"actionable": false, "id": "1b59ac9adf5cae30", "labeller": "claude", "reason": "bootstrap-dark is imported from SCSS and sass runs in the build; only lodash is unused", "true": false}
+{"actionable": true, "id": "85c9c564d1dc015f", "labeller": "claude", "reason": "the file is behind", "true": true}
+{"actionable": false, "id": "9c4883722c149879", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "56fe1a091d03e8e7", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"id": "33dca0d93b42152c", "labeller": "claude", "reason": "a token-rule match in a minified bundle; the match could not be located", "unsure": true}
+{"id": "1cde759f27a43319", "labeller": "claude", "reason": "29 values not checked", "unsure": true}
+{"actionable": false, "id": "dfb2c2494055e336", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "7aa9ddd2ef378fa3", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "5edf093243bfab9e", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": true, "id": "28ba8760cab5ed9a", "labeller": "claude", "reason": "the files keep being fixed", "true": true}
+{"actionable": false, "id": "413c098951b77a5b", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": true, "id": "0874e2e3f41d4af0", "labeller": "claude", "reason": "hand-written functions worth splitting", "true": true}
+{"actionable": true, "id": "8450bd3765ba586a", "labeller": "claude", "reason": "tag-pinned actions", "true": true}
+{"actionable": true, "id": "0b02b6db47a683bb", "labeller": "claude", "reason": "the manifests moved after the locks", "true": true}
+{"actionable": false, "id": "40868a0b92e4b0e1", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "354e916ee3fe5f1f", "labeller": "claude", "reason": "git-sizer's figures; no maintainer restructures for these", "true": true}
+{"actionable": false, "id": "7b6897d717ebd505", "labeller": "claude", "reason": "counts are right; the most-reverted files are flags and build files", "true": true}
+{"actionable": false, "id": "e8de4ae19f6c2317", "labeller": "claude", "reason": "pairs of test data or build modules", "true": true}
+{"actionable": false, "id": "e88c81b922272c38", "labeller": "claude", "reason": "blocks are in tests, examples or vendored copies", "true": true}
+{"actionable": false, "id": "fcc05d636665ff80", "labeller": "claude", "reason": "deleting most of a mature tree is not advice", "true": true}
+{"actionable": true, "id": "5762675cfd66b505", "labeller": "claude", "reason": "one author's area", "true": true}
+{"actionable": false, "id": "80021e4ddda4b606", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": true, "id": "b0d7188c8a1cffce", "labeller": "claude", "reason": "copyright and rename sweeps; the ignore-revs advice is a one-line fix", "true": true}
+{"actionable": true, "id": "1647ff8f0a56e3a1", "labeller": "claude", "reason": "cargo lock files without an update tool", "true": true}
+{"actionable": false, "id": "a451e34af7b65704", "labeller": "claude", "reason": "declared lifecycle scripts of a dev playground", "true": true}
+{"actionable": true, "id": "3600fb8ada302873", "labeller": "claude", "reason": "three of four never named anywhere", "true": true}
+{"actionable": false, "id": "777bbace336df3c4", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "31b1ff2a0531c09e", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}

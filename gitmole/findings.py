@@ -16,7 +16,7 @@ PLACEHOLDER_EMAIL = re.compile(r"(@example\.(com|org|net)$|^you@|^user@|^root@|@
 # docs/references.md. A rule that is gitmole's own heuristic has none.
 REFS = {"minor_contributors": "Bird et al., FSE 2011", "tangled_commits": "Herzig and Zeller, MSR 2013",
         "brain_methods": "Lanza and Marinescu, 2006", "tight_coupling": "Gall, Hajek and Jazayeri, ICSM 1998",
-        "hotspot_dominance": "Tornhill, Your Code as a Crime Scene, 2024", "trojan_source": "Boucher and Anderson, USENIX Security 2023",
+        "trojan_source": "Boucher and Anderson, USENIX Security 2023",
         "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
         "unreferenced_files": "Romano et al., TSE 2020", "signoff_by_co_author": "Linux kernel, Documentation/process/coding-assistants.rst",
         "deep_nesting": "SonarSource cognitive complexity; CodeScene code health"}
@@ -70,10 +70,11 @@ def secrets_found(report: dict) -> list:
 
     vendored, generated = filetypes.vendor_dirs(report), _generated(report)
 
-    def in_source(g):
+    def in_source(g):   # a copy in an unreachable blob has no path: the value's located copies say where it lives
+        located = [f for f in g["files"] if not f.startswith(leaks.UNREACHABLE)] or g["files"]
         return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f) or filetypes.is_vendored(f, vendored)
                         or filetypes.is_mock_path(f) or filetypes.is_tooling_path(f) or f in generated)
-                   for f in g["files"])
+                   for f in located)
 
     def possible(g):   # only the scanner's generic rules found it, and it graded every sighting low
         return g["rule"].startswith("generic-") and g.get("confidence") == "low"
@@ -87,7 +88,7 @@ def secrets_found(report: dict) -> list:
                       f"Rotate them; deleting the file does not remove them from git. {ignore}",
                       rule={"id": "secrets_in_source", "scanner": "betterleaks", "placeholders": "left out"}, evidence=_secret_evidence(source)))
     if maybe:
-        out.append(_f("warning", f"{len(maybe)} possible secret(s) in source", _secret_statement(maybe),
+        out.append(_f("info", f"{len(maybe)} possible secret(s) in source", _secret_statement(maybe),
                       f"Look at each: the scanner's generic rules found them and graded every sighting low, which is how an ordinary assignment "
                       f"or a hash reads as well as a key. {ignore}",
                       rule={"id": "secrets_possible", "scanner": "betterleaks", "confidence": "low", "rules": "generic-*"}, evidence=_secret_evidence(maybe)))
@@ -333,22 +334,6 @@ def minor_contributors(report: dict, min_minor: int = 5, warn_at: int = 10, top_
                f"{who}; Bird et al. found the count of minor contributors the strongest ownership predictor of defects.",
                rule={"id": "minor_contributors", "min_minor": min_minor, "warn_at": warn_at, "minor_share": maat.MINOR_SHARE, "top_n": top_n},
                evidence={"files": [{"file": f, "minor": m, "authors": n, "owner": (owners.get(f) or (None, 0))[0]} for f, m, n in crowded[:10]]})]
-
-
-def hotspot_dominance(report: dict, ratio: float = 2.0, minimum: int = 20) -> list:
-    """One source file takes most of the churn. Test files are left out: they change with everything.
-    So is release plumbing: a version file or a manifest changes on every release by design."""
-    plumb = filetypes.plumbing_paths(report)
-    revs = sorted((r for r in report.get("revisions") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_release(r["entity"], plumb))),
-                  key=lambda r: -r["n-revs"])
-    if len(revs) < 2 or revs[0]["n-revs"] < minimum or revs[0]["n-revs"] < ratio * revs[1]["n-revs"]:
-        return []
-    top, nxt = revs[0], revs[1]
-    return [_f("info", "One file dominates the churn",
-               f"{top['entity']} changed {top['n-revs']} times, versus {nxt['n-revs']} for the next file ({nxt['entity']}).",
-               f"Consider splitting {top['entity']}; every change lands there.",
-               rule={"id": "hotspot_dominance", "ratio": ratio, "minimum": minimum},
-               evidence={"file": top["entity"], "revs": top["n-revs"], "next_file": nxt["entity"], "next_revs": nxt["n-revs"]})]
 
 
 def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> list:
@@ -1373,7 +1358,7 @@ def component_coupling(report: dict, min_degree: int = 30) -> list:
                evidence={"pairs": [{"a": p["entity"], "b": p["coupled"], "degree": p["degree"], "shared": p["shared"]} for p in pairs[:10]]})]
 
 
-RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, hotspot_dominance, bug_magnets,
+RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, bug_magnets,
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
          sweeping_commits, import_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, unreferenced_files,
          agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author,

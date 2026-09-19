@@ -84,6 +84,7 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 - git-cat-file(1). [man page](https://www.man7.org/linux//man-pages/man1/git-cat-file.1.html): `leaks.unreachable` and `signing.py`.
 - gitmodules(5). [docs](https://git-scm.com/docs/gitmodules): the submodule checks in `hygiene.py`.
 - Red Hat, RHSB-2021-007, CVE-2021-42574. [advisory](https://access.redhat.com/security/vulnerabilities/RHSB-2021-007): `trojan_source`.
+- Unicode Technical Standard #39, Unicode Security Mechanisms. [spec](https://www.unicode.org/reports/tr39/): the confusables data `hygiene.LOOKALIKE` takes the Latin look-alike letters from.
 - SLSA v1.2, source track. [spec](https://slsa.dev/spec/v1.2/source-requirements): signing coverage as evidence, never a level.
 - OpenSSF, Open Source Project Security Baseline. [site](https://baseline.openssf.org/), [controls](https://github.com/ossf/security-baseline): the hygiene checks, `rule.osps` and the coverage table in `osps.py`.
 - OpenSSF Scorecard. [site](https://scorecard.dev/): the `scorecard` key on each hygiene rule.
