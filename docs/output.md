@@ -77,7 +77,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    convention with no lock file in its directory or above it (a note); the
    ecosystems with a tracked lock file that `dependabot.yml` does not cover,
    or no update tool at all (Renovate covers every manager by itself); no
-   licence file, no `SECURITY.md`, and `CODEOWNERS` lines that match no
+   licence file, no `SECURITY.md` (at the root, in `.github/` or `docs/`,
+   or a README heading about security, such as "Reporting security
+   issues", that points to one elsewhere), and `CODEOWNERS` lines that match no
    tracked file; a scoped npm package resolved from another host than the
    one `.npmrc` declares for its scope (a warning), lock files that mix
    registries, and a pip `extra-index-url`; packages that run install
@@ -97,7 +99,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
 
    What the project declares about its dependencies and licence is read
    as declared, never detected. Declared dependencies nothing imports: a
-   `package.json` runtime dependency no tracked file imports, names in a
+   `package.json` runtime dependency no tracked file imports (a stylesheet's
+   `@import`, `@use` or `@forward` counts, `~` prefix and all), names in a
    quoted string of a configuration file, or runs from the manifest's
    scripts; a `go.mod` direct requirement no import path or `go:generate`
    line falls under; a Cargo.toml dependency no `name::` path, `use` or

@@ -16,6 +16,12 @@ class ImportScan(unittest.TestCase):
                 "import fs from 'node:fs'\nexport * from 'rxjs'\nconst c = await import('chalk')\nimport 'polyfill'\n")
         self.assertEqual(imports.scan_text("npm", text), {"left-pad", "@scope/pkg", "lodash", "rxjs", "chalk", "polyfill"})
 
+    def test_stylesheet_imports_load_npm_packages(self):
+        text = ("@import '~@forevolve/bootstrap-dark/scss/dark-variables';\n@use \"sass:math\";\n@use 'bootstrap/scss/functions' as f;\n"
+                "@forward \"@fontsource/inter\";\n@import url('~normalize.css');\n@import './partials/grid';\n")
+        self.assertEqual(imports.scan_text("npm", text), {"@forevolve/bootstrap-dark", "bootstrap", "@fontsource/inter", "normalize.css"},
+                         "sass: is a built-in module, ./ a local partial")
+
     def test_python_top_level_modules_in_normal_form(self):
         text = "import os, yaml as y\nfrom Foo_Bar.baz import q\nfrom . import sibling\n    import requests\n"
         self.assertEqual(imports.scan_text("PyPI", text), {"os", "yaml", "foo_bar", "requests"})

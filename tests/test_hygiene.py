@@ -99,6 +99,19 @@ class Presence(unittest.TestCase):
         self.assertEqual(out, {"license": "LICENSE", "security_policy": None, "contributing": None, "codeowners": ".github/CODEOWNERS", "codeowners_missing": ["/gone/"]})
 
 
+    def test_a_readme_heading_about_security_is_the_policy_the_project_points_to(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("README.md", "# tool\n\nText about security in passing.\n\n### Security audit\n\nx\n\n### Reporting security issues\n\nSee the org's SECURITY.md.\n")
+            r.commit()
+            self.assertEqual(hygiene.presence(d)["security_policy"], "README.md#Reporting security issues")
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("README.md", "# tool\n\nWe care about security.\n")
+            r.commit()
+            self.assertIsNone(hygiene.presence(d)["security_policy"], "a sentence is not a section")
+
+
 class DependencyConfusion(unittest.TestCase):
     def test_a_scoped_package_resolved_from_the_public_registry_against_a_private_npmrc_and_mixed_registries(self):
         with tempfile.TemporaryDirectory() as d:
