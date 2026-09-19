@@ -1463,6 +1463,12 @@ class Compare(unittest.TestCase):
                                          "against 540ee5b5, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note")
         result["before"] = {"commit": None, "date": "2026-09-10", "options_differ": []}
         self.assertEqual(render.compare_section(result)["caption"], "against an export without a run manifest, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note")
+        result["persisting"] = [{"severity": "critical", "title": "1 secret(s) in history", "was": "critical", "changed": [["values", 16, 1], ["places", 40, 2]]},
+                                {"severity": "warning", "title": "Duplicated code", "was": "warning",
+                                 "changed": [["a", 1, 2], ["b", 1, 2], ["c", 1, 2], ["d", 1, 2], ["rate_pct", 6.4, 5.25]]}]
+        self.assertEqual([r[1] for r in render.compare_section(result)["rows"] if r[0] == "persisting"],
+                         ["critical · 1 secret(s) in history (values 16 → 1; places 40 → 2)",
+                          "warning · Duplicated code (a 1 → 2; b 1 → 2; c 1 → 2; d 1 → 2; 1 more)"])
         empty = {**result, "new": [], "resolved": [], "persisting": [], "watch_entered": [], "watch_left": []}
         self.assertEqual(render.compare_section(empty)["note"],
                          "nothing changed; against an export without a run manifest, 2026-09-10 · 2 warnings, 2 notes → 2 warnings, 1 note",

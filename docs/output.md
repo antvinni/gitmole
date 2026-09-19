@@ -384,7 +384,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    row by the rule id with the metric (repo health) or the mailbox
    (unconfigured identity); each one is listed as new, resolved or
    persisting, and a persisting finding whose severity moved says
-   `warning → info`. Then the files that entered and the files that left
+   `warning → info`. A persisting finding whose counts moved says which,
+   from the numbers in its evidence (`values 16 → 1`, `files 3,217 →
+   3,400`), so a finding that shrank or grew is not read as unchanged; the
+   JSON keeps them as `changed`. Then the files that entered and the files that left
    the top fifteen of the watch list. The caption says what the comparison
    is against, `against 540ee5b5, 2026-09-10` from the before export's
    commit and last commit date or `against an export without a run

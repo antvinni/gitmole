@@ -794,12 +794,22 @@ def _tally_words(counts: dict) -> str:
     return textfmt.tally([{"severity": s} for s, n in counts.items() for _ in range(n)])
 
 
+def _changed_words(changed) -> str:
+    """ (values 16 → 1; places 40 → 2): the counts that moved under a persisting finding, first four."""
+    if not changed:
+        return ""
+    fmt = lambda v: f"{v:,}" if isinstance(v, int) else f"{v:,.1f}"   # noqa: E731
+    words = [f"{field.replace('_', ' ')} {fmt(b)} → {fmt(a)}" for field, b, a in changed[:4]]
+    return " (" + "; ".join(words) + (f"; {len(changed) - 4} more" if len(changed) > 4 else "") + ")"
+
+
 def compare_section(result: dict) -> dict:
     """Since last report: the findings that are new, resolved or persisting (with the severity they had),
     and the files that entered or left the watch list."""
     rows = [("new", f"{f['severity']} · {f['title']}") for f in result["new"]]
     rows += [("resolved", f"{f['severity']} · {f['title']}") for f in result["resolved"]]
-    rows += [("persisting", (f"{f['was']} → {f['severity']}" if f["was"] != f["severity"] else f["severity"]) + f" · {f['title']}") for f in result["persisting"]]
+    rows += [("persisting", (f"{f['was']} → {f['severity']}" if f["was"] != f["severity"] else f["severity"]) + f" · {f['title']}" + _changed_words(f.get("changed")))
+             for f in result["persisting"]]
     rows += [("entered the watch list", p) for p in result["watch_entered"]] + [("left the watch list", p) for p in result["watch_left"]]
     before = result["before"]
     against = f"against {before['commit'][:8]}" if before.get("commit") else "against an export without a run manifest"
