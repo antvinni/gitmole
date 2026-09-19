@@ -238,8 +238,8 @@ def change_risk(report: dict, files: list, stats: dict = None, ranked: list = No
     its context: hotspot rank, fix counts, owner and share, minor contributors, whether it is on
     the watch list. `coupling_gaps` are the companions a touched file usually changes with that the
     change did not touch, by ROSE's directed confidence (Zimmermann et al.): measured by leaving one file
-    out of real commits, about half the warnings name the file left out, and 4% of complete commits get
-    one (docs/validation.md). With
+    out of real commits on thirteen held-out repositories, 54% of the warnings name the file left out,
+    and 3% of complete commits get one (docs/validation.md). With
     the diff's numbers (`stats`, see run.change_stats), `change` holds Kamei's factors as reasons."""
     ranked = risks(report) if ranked is None else ranked   # a caller asking about many changes to one report builds the list once
     by_file = {r["file"]: r for r in ranked}

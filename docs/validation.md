@@ -382,15 +382,24 @@ twenty or more shared changes came first (median over five repositories):
 | confidence 70%, 20 shared, development | 0.60 | 3% | 9% |
 | degree 50%, 5 shared, holdout | 0.29 | 14% | 21% |
 | confidence 70%, 20 shared, holdout | 0.49 | 4% | 8% |
+| as shipped, development | 0.62 | 4% | 10% |
+| as shipped, holdout | 0.54 | 3% | 7% |
 
 It was then read once on the thirteen held-out Apache repositories, which
-need no labels for this. There it is right about half the time (0.49 at
-the median, 0.50 pooled over all 1,258 warnings). That is short of the
-development number and of the 0.5 bar, but it is 0.2 better than the old
-threshold, with a third of the false alarms. So 0.29 ships it and states
-the number: the warning is uncommon and right about half the time, where
-ROSE reported 66% at function granularity. `python -m gitmole.measure
-extras` replays it for the development set with every release.
+need no labels for this. There it was right about half the time (0.49 at
+the median, 0.50 pooled over all 1,258 warnings): short of the
+development number and just short of the 0.5 bar, but 0.2 better than
+the old threshold, with a third of the false alarms. The shipped code
+differs from the sweep in two ways. It counts logical changesets, as the
+coupling table does, where the sweep counted raw commits. And a companion
+must be a scored source file. Without that rule, every binutils-gdb change
+"left out" a ChangeLog, which every commit touched until 2021, and 75% of
+complete commits there raised an alarm. Replayed with the shipped code,
+the warning is right 62% of the time on the development set and 54% on the
+holdout (0.52 pooled over 1,056 warnings), and 3% of complete commits
+raise an alarm; ROSE reported 66% at function granularity. `python -m
+gitmole.measure extras` replays it on the development set with every
+release.
 
 ## Every ref, or the checked-out branch
 
