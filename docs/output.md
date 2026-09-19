@@ -526,8 +526,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    source files: a built-in list of code extensions plus names like Makefile
    and Dockerfile (`--file-types all` counts everything). In the default
    report, the complex functions table hides test files and generated
-   files (a file whose first lines say it was generated or must not be
-   edited, that `.gitattributes` marks `linguist-generated`, which git
+   files (a file whose first five lines say it was generated or must not be
+   edited, or, below a licence header and within forty lines, carries a
+   comment that says so of this file: `@generated`, an upper-case `DO NOT
+   EDIT`, "this file is generated", or a tool's banner such as Bison's "A
+   Bison parser, made by GNU Bison 3.7.4" (a script's heredoc is text it
+   writes, and ends the search); that `.gitattributes` marks `linguist-generated`, which git
    resolves as it does for itself, nested `.gitattributes` included, or
    that is a bundle, a minified file, a source map or anything under
    `dist/` by name, the run records them in `meta.json`; and an amalgamation, a
