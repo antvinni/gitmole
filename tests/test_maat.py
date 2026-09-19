@@ -350,7 +350,7 @@ class WriteAll(unittest.TestCase):
                 fh.write(LOG)
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
-            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-components.csv", "maat-coupling.csv", "maat-doa.csv",
+            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-companions.csv", "maat-components.csv", "maat-coupling.csv", "maat-doa.csv",
                                      "maat-entity-ownership.csv", "maat-entropy.csv", "maat-fixes.csv", "maat-latenight.csv", "maat-plumbing.csv",
                                      "maat-revisions.csv", "maat-soc.csv", "maat-tests.csv"])
             self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))
@@ -724,3 +724,15 @@ class ClausesAfterAnd(unittest.TestCase):
         self.assertEqual(maat.clauses("GP-1005: Added new agent for lldb on macOS and Linux"), 1)
         self.assertEqual(maat.clauses("Fix parser and update docs"), 2)
         self.assertEqual(maat.clauses("Delete Deprecated plugins, GADP"), 2, "a comma still separates")
+
+
+class Companions(unittest.TestCase):
+    def test_directed_confidence_keeps_a_small_file_that_moves_with_a_busy_one(self):
+        def c(i, files):
+            return {"hash": f"h{i:03d}", "date": f"2026-01-{1 + i % 28:02d}", "time": "", "author": f"a{i}", "subject": "work", "files": [(p, 1, 1) for p in files]}
+        commits = [c(i, ["core/small.py", "core/hub.py"]) for i in range(20)]           # every change to small.py touches hub.py
+        commits += [c(100 + i, ["core/hub.py"]) for i in range(80)]                      # hub.py mostly moves alone
+        rows = maat.companions(commits)
+        self.assertEqual(rows, [{"entity": "core/small.py", "companion": "core/hub.py", "confidence": 100, "shared": 20}],
+                         "20 of hub.py's 100 changes is 20%: not a companion that way; the symmetric degree would be 33% and drop both")
+        self.assertEqual(maat.companions(commits[:19] + commits[20:]), [], "19 shared changes are too few")

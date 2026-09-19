@@ -77,7 +77,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    convention with no lock file in its directory or above it (a note); the
    ecosystems with a tracked lock file that `dependabot.yml` does not cover,
    or no update tool at all (Renovate covers every manager by itself); no
-   licence file, no `SECURITY.md`, and `CODEOWNERS` lines that match no
+   licence file, no `SECURITY.md` (at the root, in `.github/` or `docs/`,
+   or a README heading about security, such as "Reporting security
+   issues", that points to one elsewhere), and `CODEOWNERS` lines that match no
    tracked file; a scoped npm package resolved from another host than the
    one `.npmrc` declares for its scope (a warning), lock files that mix
    registries, and a pip `extra-index-url`; packages that run install
@@ -97,7 +99,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
 
    What the project declares about its dependencies and licence is read
    as declared, never detected. Declared dependencies nothing imports: a
-   `package.json` runtime dependency no tracked file imports, names in a
+   `package.json` runtime dependency no tracked file imports (a stylesheet's
+   `@import`, `@use` or `@forward` counts, `~` prefix and all), names in a
    quoted string of a configuration file, or runs from the manifest's
    scripts; a `go.mod` direct requirement no import path or `go:generate`
    line falls under; a Cargo.toml dependency no `name::` path, `use` or
@@ -384,7 +387,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    row by the rule id with the metric (repo health) or the mailbox
    (unconfigured identity); each one is listed as new, resolved or
    persisting, and a persisting finding whose severity moved says
-   `warning → info`. Then the files that entered and the files that left
+   `warning → info`. A persisting finding whose counts moved says which,
+   from the numbers in its evidence (`values 16 → 1`, `files 3,217 →
+   3,400`), so a finding that shrank or grew is not read as unchanged; the
+   JSON keeps them as `changed`. Then the files that entered and the files that left
    the top fifteen of the watch list. The caption says what the comparison
    is against, `against 540ee5b5, 2026-09-10` from the before export's
    commit and last commit date or `against an export without a run
@@ -449,8 +455,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    directories and commits; lines added against the lines the files had;
    how evenly it spreads; files changed this month; prior changes and
    people; the author's prior commits) and the companions the change left
-   untouched (`not touched: core/ast.py, which changes with core/parser.py
-   72% of the time`); the JSON carries them under `change_risk.change` and
+   untouched (`not touched: core/ast.py, which moved in 72% of
+   core/parser.py's changes`); the JSON carries them under `change_risk.change` and
    `change_risk.coupling_gaps`, and each scored file's rank, fix counts,
    owner, share and minor contributors. `--hook` is the same scoring for a
    coding agent's hook, see
@@ -523,8 +529,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    source files: a built-in list of code extensions plus names like Makefile
    and Dockerfile (`--file-types all` counts everything). In the default
    report, the complex functions table hides test files and generated
-   files (a file whose first lines say it was generated or must not be
-   edited, that `.gitattributes` marks `linguist-generated`, which git
+   files (a file whose first five lines say it was generated or must not be
+   edited, or, below a licence header and within forty lines, carries a
+   comment that says so of this file: `@generated`, an upper-case `DO NOT
+   EDIT`, "this file is generated", or a tool's banner such as Bison's "A
+   Bison parser, made by GNU Bison 3.7.4" (a script's heredoc is text it
+   writes, and ends the search); that `.gitattributes` marks `linguist-generated`, which git
    resolves as it does for itself, nested `.gitattributes` included, or
    that is a bundle, a minified file, a source map or anything under
    `dist/` by name, the run records them in `meta.json`; and an amalgamation, a

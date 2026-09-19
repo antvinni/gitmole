@@ -192,6 +192,19 @@ def _codeowners_matches(pattern: str, paths: list) -> bool:
     return False
 
 
+_SECURITY_HEADING = re.compile(r"^#{1,6}\s+(.*\bsecurity\b.*?)\s*#*\s*$", re.I | re.M)
+
+
+def _readme_security(repo: str, tracked: list):
+    """`README.md#heading` when the root README has a Markdown heading about security ("Reporting security
+    issues"): the project saying where its policy is, often an organisation's SECURITY.md elsewhere, which
+    a clone cannot see."""
+    readme = next((p for p in tracked if "/" not in p and re.match(r"^readme(\.md|\.markdown)?$", p, re.I)), None)
+    headings = [h.strip() for h in _SECURITY_HEADING.findall(_text(repo, readme))] if readme else []
+    best = next((h for h in headings if re.search(r"report|vulnerab|disclos", h, re.I)), headings[0] if headings else None)   # how to report, over an audit
+    return f"{readme}#{best}" if best else None
+
+
 def presence(repo: str) -> dict:
     tracked = _tracked(repo)
     roots = ("", ".github/", "docs/")
@@ -204,7 +217,7 @@ def presence(repo: str) -> dict:
         return None
     licence = next((p for p in tracked if "/" not in p and re.match(r"^(licen[cs]e|copying)(\.|-|$)", p, re.I)), None) \
         or next(("LICENSES/" for p in tracked if p.startswith("LICENSES/")), None)   # the REUSE layout
-    policy = first(r"^security(\.md|\.txt|\.rst)?$")
+    policy = first(r"^security(\.md|\.txt|\.rst)?$") or _readme_security(repo, tracked)
     contributing = first(r"^contributing(\.md|\.txt|\.rst|\.adoc)?$")
     owners = first(r"^codeowners$")
     missing = []

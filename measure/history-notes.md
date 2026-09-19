@@ -73,3 +73,28 @@
   not shipped.
 - **Peak memory is highest on prometheus,** about 4 GB, in the well-kept set, which the memory graph does not
   plot. The graph plots the development set, where react's 3 GB is still the peak.
+- **0.29.0 retuned the hook's coupling warning rather than cutting it.** A companion is now a scored source
+  file that moved in at least 70% of the touched file's changesets, over at least twenty of them (ROSE's
+  directed confidence), where it was any file changing with it half the time by the symmetric degree. It
+  was chosen among eighteen thresholds on the development set, then read once on the thirteen held-out
+  repositories: precision 0.26 -> 0.60 on development and 0.29 -> 0.49 on the holdout, and complete commits
+  alarmed 10% -> 3% and 14% -> 4%. As shipped, counting changesets and naming only scored source files, it
+  is right 62% of the time on development and 54% on the holdout, with 3% of complete commits alarmed; see
+  validation.md. Companions have to be scored files because of binutils-gdb: over the full history, every
+  change there once touched a ChangeLog, and 75% of its complete commits alarmed until that rule was added.
+- **0.29.0's other changes follow the labels.** A README heading about security is the policy a project
+  points to (containerd). A stylesheet's `@import` loads an npm package (prometheus). A generated marker
+  below a licence header counts (Ghidra's Bison and flex parsers). The rest of the parked classification
+  work has no labelled finding behind it and stays parked.
+- **The osv-scanner step holds prometheus's peak,** 4 GB, not gitmole: osv-scanner 2.6 keeps about 1.3 GB
+  live per Go module with a large dependency graph (`documentation/examples/remote_storage/go.mod`), offline
+  and with or without `--no-resolve`. A Go memory limit and a single thread do not lower it. gitmole's own
+  steps stay under 1.1 GB.
+- **Stability over 50 commits is joined by carry-over across six months** from 0.29.0, the half of the
+  question fifty commits cannot answer. Its first reading is 0.94: from one cut-off to the next, six months
+  later, the top fifteen keeps nearly all its files (0.90 on curl and Ghidra, 1.00 on binutils-gdb). A list
+  ranked by whole-history revisions × lines hardly moves in half a year. The recency variant that would
+  move it did not beat it on the holdout (validation.md), so this is what the ranking is, not a fault to fix.
+- **Ghidra's brain methods no longer lead with the Bison parser** (`slghparse.cc`'s `yyparse`), the one
+  labelled finding the deeper generated markers answer: 241 functions where there were 250. containerd
+  loses its false `repo_policy` finding. Nothing else in the record moved.

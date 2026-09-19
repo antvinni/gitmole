@@ -38,6 +38,16 @@ class Compare(unittest.TestCase):
         self.assertEqual(out["tally"], {"before": {"critical": 0, "warning": 2, "info": 2}, "after": {"critical": 0, "warning": 2, "info": 1}})
         self.assertEqual(out["before"], {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "date": "2026-09-10", "options_differ": ["ignore_data"], "database": None})
 
+    def test_a_persisting_finding_says_which_counts_moved(self):
+        self.before["findings"].append(finding("secrets_in_source", "critical", "16 secret(s) in history", values=16, places=40, files=["a.py"]))
+        self.before["findings"].append(finding("stale_files", "info", "A large share of files is untouched", files=3217, stale=2482))
+        after = self.after_findings + [finding("secrets_in_source", "critical", "1 secret(s) in history", values=1, places=40, files=["b.py"]),
+                                       finding("stale_files", "info", "A large share of files is untouched", files=3400, stale=2482, partial=True)]
+        by = {f["rule"]["id"]: f["changed"] for f in compare.compare(self.before, self.after, after)["persisting"]}
+        self.assertEqual(by["secrets_in_source"], [["values", 16, 1]], "places did not move; the file list is a sample, not a count")
+        self.assertEqual(by["stale_files"], [["files", 3217, 3400]], "the note's base changed under it; a flag is not a count")
+        self.assertEqual(by["bug_magnets"], [], "no evidence either side")
+
     def test_compare_skips_watch_rows_without_a_file(self):
         self.before["watch"] = [{"file": "a.py"}, {"note": "no file field"}, {"file": "b.py"}]
         out = compare.compare(self.before, self.after, self.after_findings)

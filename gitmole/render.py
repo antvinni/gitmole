@@ -397,11 +397,11 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
 
 
 def gaps_line(gaps: list) -> str:
-    """'not touched: core/ast.py, which changes with core/parser.py 72% of the time, and core/lexer.py (55%)':
+    """'not touched: core/ast.py, which moved in 72% of core/parser.py's changes, and core/lexer.py (70%)':
     the companions a change left out, strongest first."""
     first = gaps[0]
     rest = [f"{g['companion']} ({g['degree']}%)" for g in gaps[1:4]]
-    line = f"not touched: {first['companion']}, which changes with {first['file']} {first['degree']}% of the time"
+    line = f"not touched: {first['companion']}, which moved in {first['degree']}% of {first['file']}'s changes"
     return line + (", and " + textfmt.join_and(rest) if rest else "") + (f" and {len(gaps) - 4} more" if len(gaps) > 4 else "")
 
 
@@ -794,12 +794,22 @@ def _tally_words(counts: dict) -> str:
     return textfmt.tally([{"severity": s} for s, n in counts.items() for _ in range(n)])
 
 
+def _changed_words(changed) -> str:
+    """ (values 16 → 1; places 40 → 2): the counts that moved under a persisting finding, first four."""
+    if not changed:
+        return ""
+    fmt = lambda v: f"{v:,}" if isinstance(v, int) else f"{v:,.1f}"   # noqa: E731
+    words = [f"{field.replace('_', ' ')} {fmt(b)} → {fmt(a)}" for field, b, a in changed[:4]]
+    return " (" + "; ".join(words) + (f"; {len(changed) - 4} more" if len(changed) > 4 else "") + ")"
+
+
 def compare_section(result: dict) -> dict:
     """Since last report: the findings that are new, resolved or persisting (with the severity they had),
     and the files that entered or left the watch list."""
     rows = [("new", f"{f['severity']} · {f['title']}") for f in result["new"]]
     rows += [("resolved", f"{f['severity']} · {f['title']}") for f in result["resolved"]]
-    rows += [("persisting", (f"{f['was']} → {f['severity']}" if f["was"] != f["severity"] else f["severity"]) + f" · {f['title']}") for f in result["persisting"]]
+    rows += [("persisting", (f"{f['was']} → {f['severity']}" if f["was"] != f["severity"] else f["severity"]) + f" · {f['title']}" + _changed_words(f.get("changed")))
+             for f in result["persisting"]]
     rows += [("entered the watch list", p) for p in result["watch_entered"]] + [("left the watch list", p) for p in result["watch_left"]]
     before = result["before"]
     against = f"against {before['commit'][:8]}" if before.get("commit") else "against an export without a run manifest"

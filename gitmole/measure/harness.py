@@ -177,7 +177,8 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
     return {"pool": len(pool), "positives": len(positives), "hits": h, "expected": round(exp, 3), "best": most, "churn_hits": ch,
             "auc": metrics.auc(pool, positives), "churn_auc": metrics.auc(churn, positives),
             "recall20": metrics.recall_at_effort(pool, rank["lines"], positives, total=rank.get("total_code")),
-            "churn_recall20": metrics.recall_at_effort(churn, rank["lines"], positives, total=rank.get("total_code"))}
+            "churn_recall20": metrics.recall_at_effort(churn, rank["lines"], positives, total=rank.get("total_code")),
+            "top": pool[:top]}   # for the carry-over between consecutive cut-offs
 
 
 def magnets_at(rank: dict, outcome: set) -> dict:

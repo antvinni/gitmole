@@ -4,7 +4,7 @@ buildable tree and a toolchain); a textual read of import statements, so it says
 `reachable`, and nothing is suppressed on it.
 
 Each ecosystem keys on its own import syntax: `import`/`require` specifiers in JavaScript and
-TypeScript, import paths in Go, `crate::` paths and `extern crate` in Rust, `import`/`from` in Python,
+TypeScript and `@import`/`@use`/`@forward` in stylesheets, import paths in Go, `crate::` paths and `extern crate` in Rust, `import`/`from` in Python,
 `require` in Ruby. Where the import name is the package name by the ecosystem's rules (npm, Go
 modules, Rust crates with `-` read as `_`), an absent import is `false`. Where it need not be (a Python
 distribution's modules, a gem's files), a match is `true` and no match is `unknown`: gitmole keeps no
@@ -24,10 +24,13 @@ except ImportError:  # run inside a script: the package directory is sys.path[0]
 
 LIMIT = 1_000_000   # bytes read per file: a larger file is generated or data, not code that imports
 JS = (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".vue", ".svelte", ".astro")
-EXTENSIONS = {"npm": JS, "PyPI": (".py", ".pyi"), "Go": (".go",), "crates.io": (".rs",), "RubyGems": (".rb", ".rake", ".gemspec")}
+STYLES = (".scss", ".sass", ".less", ".css", ".styl")   # a stylesheet loads npm packages too
+EXTENSIONS = {"npm": JS + STYLES, "PyPI": (".py", ".pyi"), "Go": (".go",), "crates.io": (".rs",), "RubyGems": (".rb", ".rake", ".gemspec")}
 EXACT = {"npm", "Go", "crates.io"}   # the import name is the package name: an absent import is false
 
 _JS_SPEC = re.compile(r"""(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*|\brequire\.resolve\s*\(\s*|\bexport\s*\*\s*from\s*)['"]([^'"\s]+)['"]""")
+# @import, @use and @forward in Sass, Less and CSS; `~` is webpack's "from node_modules" prefix
+_STYLE_SPEC = re.compile(r"""@(?:import|use|forward)\s+(?:\([^)]*\)\s*)?(?:url\(\s*)?['"]~?([^'"\s]+)['"]""")
 _PY_IMPORT = re.compile(r"^[ \t]*import[ \t]+([\w., \t]+)", re.M)
 _PY_FROM = re.compile(r"^[ \t]*from[ \t]+(\w[\w.]*)[ \t]+import\b", re.M)
 _GO_BLOCK = re.compile(r"^import\s*\((.*?)^\)", re.M | re.S)
@@ -74,7 +77,7 @@ def scan_text(ecosystem: str, text: str) -> set:
     """The names one file imports, in the form the ecosystem's packages are compared in."""
     found = set()
     if ecosystem == "npm":
-        found.update(p for p in (js_package(s) for s in _JS_SPEC.findall(text)) if p)
+        found.update(p for p in (js_package(s) for s in _JS_SPEC.findall(text) + _STYLE_SPEC.findall(text)) if p)
     elif ecosystem == "PyPI":
         for group in _PY_IMPORT.findall(text):
             for item in group.split(","):

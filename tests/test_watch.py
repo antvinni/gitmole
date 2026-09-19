@@ -31,6 +31,14 @@ def report(**overrides):
     return base
 
 
+def scored_companions(r):
+    """The fixture's companions as scored files: a companion the watch list does not score is not named."""
+    r["size"]["files"].update({"core/ast.py": {"code": 50, "complexity": 1}, "core/lexer.py": {"code": 50, "complexity": 1},
+                               "core/rare.py": {"code": 50, "complexity": 1}})
+    r["revisions"] = r["revisions"] + [{"entity": "core/ast.py", "n-revs": 20}, {"entity": "core/lexer.py", "n-revs": 15}, {"entity": "core/rare.py", "n-revs": 2}]
+    return r
+
+
 class Risks(unittest.TestCase):
     def test_ranks_by_revisions_times_lines_of_code(self):
         ranked = watch.risks(report())
@@ -57,7 +65,7 @@ class Risks(unittest.TestCase):
         self.assertEqual([x["score"] for x in ranked], [0.0, 0.0, 0.0], "revs × 0 is 0 for every row, so the sum is 0 and every score falls back to 0.0")
 
     def test_reasons_in_plain_words(self):
-        top = {r["file"]: r for r in watch.risks(report())}["core/parser.py"]
+        top = {r["file"]: r for r in watch.risks(scored_companions(report()))}["core/parser.py"]
         self.assertEqual(top["reasons"], ["changed 40 times", "fixed 5 times in six months",
                                           "only Ann has touched it", "parse() complexity 41",
                                           "changes with core/ast.py (72%) and 1 other"])
@@ -66,7 +74,7 @@ class Risks(unittest.TestCase):
         self.assertEqual(by["web/index.html"]["reasons"], ["changed 60 times"])
 
     def test_many_minor_contributors_and_a_wide_coupling_are_reasons(self):
-        r = report()
+        r = scored_companions(report())
         r["authors"] = [{"entity": "core/parser.py", "n-authors": 14, "n-revs": 40, "minor": 11}, {"entity": "core/util.py", "n-authors": 3, "n-revs": 30, "minor": 2}]
         r["soc"] = [{"entity": "core/parser.py", "soc": 210, "partners": 41}, {"entity": "core/util.py", "soc": 12, "partners": 4}]
         by = {x["file"]: x for x in watch.risks(r)}
@@ -179,10 +187,18 @@ class Risks(unittest.TestCase):
         self.assertEqual([x["file"] for x in watch.risks(r)], ["core/parser.py"])
 
     def test_test_companions_and_weak_pairs_are_not_reasons(self):
-        top = {r["file"]: r for r in watch.risks(report())}["core/parser.py"]
+        top = {r["file"]: r for r in watch.risks(scored_companions(report()))}["core/parser.py"]
         coupling = [r for r in top["reasons"] if r.startswith("changes with")][0]
         self.assertNotIn("test_parser", coupling)
         self.assertNotIn("rare", coupling, "2 shared revisions is not a pattern")
+
+    def test_the_directed_companions_table_wins_and_names_only_scored_files(self):
+        r = scored_companions(report(companions=[{"entity": "core/parser.py", "companion": "core/lexer.py", "confidence": 85, "shared": 30},
+                                                 {"entity": "core/parser.py", "companion": "ChangeLog", "confidence": 95, "shared": 38},
+                                                 {"entity": "core/lexer.py", "companion": "core/parser.py", "confidence": 90, "shared": 30}]))
+        by = {x["file"]: x for x in watch.risks(r)}
+        self.assertEqual(by["core/parser.py"]["companions"], [("core/lexer.py", 85)], "the coupling degree is not read when the table is there; ChangeLog is not scored")
+        self.assertEqual(watch.change_risk(r, ["core/parser.py"])["coupling_gaps"], [{"file": "core/parser.py", "companion": "core/lexer.py", "degree": 85}])
 
     def test_scc_complexity_stands_in_when_lizard_is_absent(self):
         r = report(functions=[])

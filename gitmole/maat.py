@@ -294,6 +294,37 @@ def coupling(commits: list, min_shared: int = 5, min_degree: int = 30, max_chang
     return rows
 
 
+COMPANION_CONFIDENCE = 70   # percent of a file's changesets that also touch the companion
+COMPANION_SHARED = 20       # ...over at least this many shared changesets
+
+
+def companions(commits: list, min_confidence: int = COMPANION_CONFIDENCE, min_shared: int = COMPANION_SHARED, max_changeset: int = 30) -> list:
+    """Directed pairs: `companion` changed in at least `min_confidence`% of the changesets that touched
+    `entity`, over at least `min_shared` of them. ROSE's confidence (Zimmermann et al., ICSE 2004), not
+    the symmetric degree: a small file that nearly always moves with a busy one is its companion even
+    when the busy one mostly moves alone. Measured for the hook on the development set and once on the
+    held-out Apache repositories (docs/validation.md)."""
+    sets = changesets(commits)
+    revs, shared = Counter(), Counter()
+    for c in sets:
+        paths = sorted({p for p, _, _ in c["files"]})
+        if len(paths) > max_changeset:
+            continue
+        revs.update(paths)
+        for a, b in itertools.combinations(paths, 2):
+            shared[(a, b)] += 1
+    rows = []
+    for (a, b), n in shared.items():
+        if n < min_shared:
+            continue
+        for x, y in ((a, b), (b, a)):
+            confidence = int(math.floor(100 * n / revs[x] + 0.5))
+            if confidence >= min_confidence:
+                rows.append({"entity": x, "companion": y, "confidence": confidence, "shared": n})
+    rows.sort(key=lambda r: (-r["confidence"], -r["shared"], r["entity"], r["companion"]))
+    return rows
+
+
 MINOR_SHARE = 0.05   # Bird et al., "Don't Touch My Code!": under this share of a file's commits, a contributor is minor
 
 
@@ -695,6 +726,7 @@ ANALYSES = {
     "revisions": (revisions, ["entity", "n-revs"]),
     "plumbing": (plumbing, ["entity", "n-revs", "tiny-revs"]),
     "coupling": (coupling, ["entity", "coupled", "degree", "average-revs"]),
+    "companions": (companions, ["entity", "companion", "confidence", "shared"]),
     "soc": (soc, ["entity", "soc", "partners"]),
     "tests": (test_cochange, ["entity", "n-sets", "with-tests"]),
     "authors": (authors, ["entity", "n-authors", "n-revs", "minor"]),

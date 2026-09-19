@@ -52,11 +52,23 @@ def _options_differ(before_meta: dict, after_meta: dict) -> list:
     return out
 
 
+def _number(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def changes(before: dict, after: dict) -> list:
+    """The counts a persisting finding's evidence changed, as [field, before, after]: a secrets finding that
+    went from 16 values to 1, or the untouched-files share over a different number of files, is the same
+    rule both times and would otherwise read as nothing changed. Scalars only; lists are capped samples."""
+    b, a = before.get("evidence") or {}, after.get("evidence") or {}
+    return [[k, b[k], a[k]] for k in sorted(set(b) & set(a)) if _number(b[k]) and _number(a[k]) and round(b[k], 6) != round(a[k], 6)]
+
+
 def compare(before: dict, report: dict, found: list, top: int = watch.WATCH_TOP) -> dict:
     """before: an earlier export; report and found: this run's loaded report and its findings."""
     b = {key(f): f for f in before.get("findings") or []}
     a = {key(f): f for f in found}
-    persisting = [{**a[k], "was": b[k]["severity"]} for k in a if k in b]
+    persisting = [{**a[k], "was": b[k]["severity"], "changed": changes(b[k], a[k])} for k in a if k in b]
     before_watch = [f for f in (r.get("file") for r in (before.get("watch") or [])[:top]) if f]
     after_watch = [r["file"] for r in watch.risks(report)[:top]]
     meta_b, meta_a = before.get("meta") or {}, report.get("meta") or {}

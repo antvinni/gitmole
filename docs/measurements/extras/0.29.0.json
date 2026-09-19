@@ -1,0 +1,7791 @@
+{
+ "description": {
+  "binutils-gdb": [
+   {
+    "agree": true,
+    "check": "commits in the history",
+    "gitmole": 127348,
+    "second": 127348,
+    "second_by": "git rev-list --count HEAD"
+   },
+   {
+    "agree": true,
+    "check": "lines per file",
+    "differ": [],
+    "differ_count": 0,
+    "gitmole": 38587,
+    "second": 38587,
+    "second_by": "newlines counted in each file scc measured"
+   },
+   {
+    "agree": true,
+    "check": "tracked text files classified",
+    "gitmole": 43367,
+    "second": 43367,
+    "second_by": "git grep -I (tracked, not binary)"
+   },
+   {
+    "agree": null,
+    "check": "signed commits among the last 200",
+    "gitmole": 12,
+    "second": null,
+    "second_by": "git log --format=%G? (unavailable: gpg is not installed)",
+    "unavailable": true
+   }
+  ],
+  "curl": [
+   {
+    "agree": true,
+    "check": "commits in the history",
+    "gitmole": 39758,
+    "second": 39758,
+    "second_by": "git rev-list --count HEAD"
+   },
+   {
+    "agree": true,
+    "check": "lines per file",
+    "differ": [],
+    "differ_count": 0,
+    "gitmole": 2286,
+    "second": 2286,
+    "second_by": "newlines counted in each file scc measured"
+   },
+   {
+    "agree": true,
+    "check": "tracked text files classified",
+    "gitmole": 4512,
+    "second": 4512,
+    "second_by": "git grep -I (tracked, not binary)"
+   },
+   {
+    "agree": null,
+    "check": "signed commits among the last 200",
+    "gitmole": 186,
+    "second": null,
+    "second_by": "git log --format=%G? (unavailable: gpg is not installed)",
+    "unavailable": true
+   }
+  ],
+  "django": [
+   {
+    "agree": true,
+    "check": "commits in the history",
+    "gitmole": 34933,
+    "second": 34933,
+    "second_by": "git rev-list --count HEAD"
+   },
+   {
+    "agree": true,
+    "check": "lines per file",
+    "differ": [],
+    "differ_count": 0,
+    "gitmole": 4356,
+    "second": 4356,
+    "second_by": "newlines counted in each file scc measured"
+   },
+   {
+    "agree": true,
+    "check": "tracked text files classified",
+    "gitmole": 5069,
+    "second": 5069,
+    "second_by": "git grep -I (tracked, not binary)"
+   },
+   {
+    "agree": null,
+    "check": "signed commits among the last 200",
+    "gitmole": 11,
+    "second": null,
+    "second_by": "git log --format=%G? (unavailable: gpg is not installed)",
+    "unavailable": true
+   }
+  ],
+  "ghidra": [
+   {
+    "agree": true,
+    "check": "commits in the history",
+    "gitmole": 18498,
+    "second": 18498,
+    "second_by": "git rev-list --count HEAD"
+   },
+   {
+    "agree": true,
+    "check": "lines per file",
+    "differ": [],
+    "differ_count": 0,
+    "gitmole": 17976,
+    "second": 17976,
+    "second_by": "newlines counted in each file scc measured"
+   },
+   {
+    "agree": true,
+    "check": "tracked text files classified",
+    "gitmole": 19154,
+    "second": 19154,
+    "second_by": "git grep -I (tracked, not binary)"
+   },
+   {
+    "agree": null,
+    "check": "signed commits among the last 200",
+    "gitmole": 0,
+    "second": null,
+    "second_by": "git log --format=%G? (unavailable: gpg is not installed)",
+    "unavailable": true
+   }
+  ],
+  "react": [
+   {
+    "agree": true,
+    "check": "commits in the history",
+    "gitmole": 21703,
+    "second": 21703,
+    "second_by": "git rev-list --count HEAD"
+   },
+   {
+    "agree": true,
+    "check": "lines per file",
+    "differ": [],
+    "differ_count": 0,
+    "gitmole": 7015,
+    "second": 7015,
+    "second_by": "newlines counted in each file scc measured"
+   },
+   {
+    "agree": true,
+    "check": "tracked text files classified",
+    "gitmole": 7192,
+    "second": 7192,
+    "second_by": "git grep -I (tracked, not binary)"
+   },
+   {
+    "agree": null,
+    "check": "signed commits among the last 200",
+    "gitmole": 200,
+    "second": null,
+    "second_by": "git log --format=%G? (unavailable: gpg is not installed)",
+    "unavailable": true
+   }
+  ]
+ },
+ "determinism": [
+  {
+   "identical": true,
+   "repo": "curl",
+   "variants": [
+    {
+     "LC_ALL": "C",
+     "TZ": "UTC"
+    },
+    {
+     "LC_ALL": "en_US.UTF-8",
+     "TZ": "Asia/Tokyo"
+    }
+   ]
+  },
+  {
+   "identical": true,
+   "repo": "django",
+   "variants": [
+    {
+     "LC_ALL": "C",
+     "TZ": "UTC"
+    },
+    {
+     "LC_ALL": "en_US.UTF-8",
+     "TZ": "Asia/Tokyo"
+    }
+   ]
+  }
+ ],
+ "hook": {
+  "binutils-gdb": {
+   "closure_alarms": 18,
+   "closure_false_alarm_rate": 0.109,
+   "complete_commits": 165,
+   "correct": 79,
+   "feedback": 0.185,
+   "precision": 0.572,
+   "queries": 745,
+   "warned": 138
+  },
+  "curl": {
+   "closure_alarms": 17,
+   "closure_false_alarm_rate": 0.038,
+   "complete_commits": 450,
+   "correct": 115,
+   "feedback": 0.096,
+   "precision": 0.615,
+   "queries": 1954,
+   "warned": 187
+  },
+  "django": {
+   "closure_alarms": 0,
+   "closure_false_alarm_rate": 0.0,
+   "complete_commits": 133,
+   "correct": 1,
+   "feedback": 0.002,
+   "precision": 1.0,
+   "queries": 535,
+   "warned": 1
+  },
+  "ghidra": {
+   "closure_alarms": 1,
+   "closure_false_alarm_rate": 0.004,
+   "complete_commits": 246,
+   "correct": 5,
+   "feedback": 0.008,
+   "precision": 0.5,
+   "queries": 1177,
+   "warned": 10
+  },
+  "react": {
+   "closure_alarms": 26,
+   "closure_false_alarm_rate": 0.107,
+   "complete_commits": 243,
+   "correct": 198,
+   "feedback": 0.235,
+   "precision": 0.7,
+   "queries": 1202,
+   "warned": 283
+  }
+ },
+ "measured": "2026-09-19",
+ "sensitivity": [
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 12,
+   "param": "months",
+   "rule": "dormant",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 6
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 9
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 11
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 13
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 15
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 18
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 0.01,
+   "param": "min_share",
+   "rule": "placeholder_identity",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.005
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.0075
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.009
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.011
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.0125
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.015
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 0.7,
+   "param": "threshold",
+   "rule": "bus_factor",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.35
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.525
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.63
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.77
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.875
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 1.05
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 200,
+   "param": "min_lines",
+   "rule": "bus_factor",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 100
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 150
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 180
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 220
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 250
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 300
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 3,
+   "param": "min_recent",
+   "rule": "bug_magnets",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.2
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.2
+      }
+     },
+     "value": 2
+    },
+    "0.9": null,
+    "1.1": null,
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.6
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.1
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.6
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.1
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    }
+   },
+   "verdict": "fragile"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 5,
+   "param": "warn_at",
+   "rule": "bug_magnets",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 6
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 6
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 8
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 5,
+   "param": "min_minor",
+   "rule": "minor_contributors",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.3333333333333333
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.75
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.75
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 6
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 6
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 8
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 10,
+   "param": "warn_at",
+   "rule": "minor_contributors",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 5
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 8
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 9
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 12
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 15
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 10,
+   "param": "top_n",
+   "rule": "minor_contributors",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.5
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.5
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.5
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.3333333333333333
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.5
+      }
+     },
+     "value": 5
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.8
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.8
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.8
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.8
+      }
+     },
+     "value": 8
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.9
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.9
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.9
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.9
+      }
+     },
+     "value": 9
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.8181818181818182
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.8181818181818182
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.8181818181818182
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.8181818181818182
+      }
+     },
+     "value": 11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.8181818181818182
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.6666666666666666
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.8181818181818182
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.6666666666666666
+      }
+     },
+     "value": 12
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.6666666666666666
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.6666666666666666
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.8181818181818182
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.75
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.42857142857142855
+      }
+     },
+     "value": 15
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 0.05,
+   "param": "min_share",
+   "rule": "reverts",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.025
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.0375
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.045
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.055
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.0625
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.075
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 5,
+   "param": "min_count",
+   "rule": "reverts",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 6
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 6
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 8
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 0.1,
+   "param": "warn_share",
+   "rule": "reverts",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.05
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.075
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.09
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.125
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.15
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 15,
+   "param": "min_ccn",
+   "rule": "brain_methods",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 8
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 11
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 14
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 16
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 19
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 22
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 100,
+   "param": "min_lines",
+   "rule": "brain_methods",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 50
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 75
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 90
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 110
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 125
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.6363636363636364
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 150
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 3,
+   "param": "min_growers",
+   "rule": "complexity_growth",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.0
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.0
+      }
+     },
+     "value": 2
+    },
+    "0.9": null,
+    "1.1": null,
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    }
+   },
+   "verdict": "fragile"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 25,
+   "param": "min_pct",
+   "rule": "complexity_growth",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.0
+      }
+     },
+     "value": 12
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.0
+      }
+     },
+     "value": 19
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.0
+      }
+     },
+     "value": 22
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 28
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 31
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 38
+    }
+   },
+   "verdict": "fragile"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 10,
+   "param": "top_n",
+   "rule": "complexity_growth",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 5
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 9
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 12
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 15
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 80,
+   "param": "min_degree",
+   "rule": "tight_coupling",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.3
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.125
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.1
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.6
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.8
+      }
+     },
+     "value": 40
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.3333333333333333
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.14285714285714285
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.16666666666666666
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.6363636363636364
+      }
+     },
+     "value": 60
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.42857142857142855
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.14285714285714285
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.7
+      }
+     },
+     "value": 72
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.3333333333333333
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.75
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.375
+      }
+     },
+     "value": 88
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.375
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.125
+      }
+     },
+     "value": 100
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": 0.0
+      }
+     },
+     "value": 120
+    }
+   },
+   "verdict": "fragile"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 5,
+   "param": "min_revs",
+   "rule": "tight_coupling",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.8
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.7777777777777778
+      }
+     },
+     "value": 6
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.8
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.7777777777777778
+      }
+     },
+     "value": 6
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.3333333333333333
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.125
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.6
+      }
+     },
+     "value": 8
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 0,
+    "react": 1
+   },
+   "default": 30,
+   "param": "min_lines",
+   "rule": "duplication",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 15
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 22
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 27
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 33
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 38
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 45
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 0,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 12,
+   "param": "months",
+   "rule": "stale_files",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 6
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 9
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 11
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 13
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 15
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 18
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 0,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 0.3,
+   "param": "share",
+   "rule": "stale_files",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.15
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.225
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.27
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.33
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.375
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.45
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 1
+   },
+   "default": 200,
+   "param": "min_lines",
+   "rule": "knowledge_islands",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 100
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 150
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 180
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 220
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 250
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 300
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 1
+   },
+   "default": 0.9,
+   "param": "min_share",
+   "rule": "knowledge_islands",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.45
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.675
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.81
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.99
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": 0.0
+      }
+     },
+     "value": 1.125
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": 0.0
+      }
+     },
+     "value": 1.35
+    }
+   },
+   "verdict": "fragile"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 1
+   },
+   "default": 0.01,
+   "param": "min_fraction",
+   "rule": "knowledge_islands",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.5
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.005
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.0075
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.009
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.011
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.0125
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.015
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 0,
+    "react": 1
+   },
+   "default": 0.1,
+   "param": "min_share",
+   "rule": "knowledge_loss",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.05
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.075
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.09
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.125
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.15
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 0,
+    "react": 1
+   },
+   "default": 0.3,
+   "param": "warn_share",
+   "rule": "knowledge_loss",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.15
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.225
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.27
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.33
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.375
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 0.45
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 1,
+    "react": 0
+   },
+   "default": 0.02,
+   "param": "min_share",
+   "rule": "tangled_commits",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.0
+      }
+     },
+     "value": 0.01
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.015
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.018
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.022
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.025
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.03
+    }
+   },
+   "verdict": "fragile"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 1,
+    "react": 0
+   },
+   "default": 5,
+   "param": "min_count",
+   "rule": "tangled_commits",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 6
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 6
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 3,
+   "param": "min_markers",
+   "rule": "debt_in_hotspots",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 2
+    },
+    "0.9": null,
+    "1.1": null,
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 2,
+   "param": "min_files",
+   "rule": "debt_in_hotspots",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 1
+    },
+    "0.75": null,
+    "0.9": null,
+    "1.1": null,
+    "1.25": null,
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 3
+    }
+   },
+   "verdict": "untested"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 10,
+   "param": "top_n",
+   "rule": "debt_in_hotspots",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 5
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 9
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 12
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 15
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 5,
+   "param": "min_nesting",
+   "rule": "deep_nesting",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 6
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 6
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 3,
+   "param": "min_bumps",
+   "rule": "deep_nesting",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 2
+    },
+    "0.9": null,
+    "1.1": null,
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 10,
+   "param": "top_n",
+   "rule": "deep_nesting",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 5
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 9
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 12
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 15
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 60,
+   "param": "min_degree",
+   "rule": "hidden_coupling",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 30
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 45
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 54
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 66
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 75
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 90
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 5,
+   "param": "min_revs",
+   "rule": "hidden_coupling",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 6
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 6
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 0.6,
+   "param": "min_resolved",
+   "rule": "hidden_coupling",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.3
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.45
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.54
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.66
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.75
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 0.9
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 6,
+   "param": "min_months",
+   "rule": "agent_instructions_drift",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.0
+      }
+     },
+     "value": 3
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 5
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 7
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 9
+    }
+   },
+   "verdict": "fragile"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 100,
+   "param": "min_commits",
+   "rule": "agent_instructions_drift",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 50
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 75
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 90
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 110
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 125
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 150
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 2,
+   "param": "min_commits",
+   "rule": "signoff_by_co_author",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.0
+      }
+     },
+     "value": 1
+    },
+    "0.75": null,
+    "0.9": null,
+    "1.1": null,
+    "1.25": null,
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 3
+    }
+   },
+   "verdict": "untested"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 20,
+   "param": "min_files",
+   "rule": "truck_factor",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 10
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 15
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 18
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 22
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 25
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 30
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 10,
+   "param": "area_files",
+   "rule": "truck_factor",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.6
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.7272727272727273
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 5
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.6
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 8
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.75
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 9
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.8888888888888888
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.6666666666666666
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.8888888888888888
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.5
+      }
+     },
+     "value": 12
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.5
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 0.6666666666666666
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.7777777777777778
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 0.5
+      }
+     },
+     "value": 15
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 1,
+    "django": 1,
+    "ghidra": 1,
+    "react": 1
+   },
+   "default": 5,
+   "param": "min_files",
+   "rule": "authors_gone",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 4
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 6
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 6
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "django": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 1,
+       "jaccard": 1.0
+      }
+     },
+     "value": 8
+    }
+   },
+   "verdict": "flat"
+  },
+  {
+   "base": {
+    "binutils-gdb": 1,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 1,
+    "react": 0
+   },
+   "default": 30,
+   "param": "min_degree",
+   "rule": "component_coupling",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.4
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.5
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 15
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.4
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 0.5
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 22
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "curl": {
+       "findings": 1,
+       "jaccard": 0.0
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 27
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.5
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 33
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 1,
+       "jaccard": 0.5
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 1,
+       "jaccard": 1.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 38
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": 0.0
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 45
+    }
+   },
+   "verdict": "fragile"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 5,
+   "param": "min_count",
+   "rule": "swallowed_errors",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 2
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 4
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 6
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 6
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 10,
+   "param": "top_n",
+   "rule": "swallowed_errors",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 5
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 9
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 12
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 15
+    }
+   },
+   "verdict": "silent"
+  },
+  {
+   "base": {
+    "binutils-gdb": 0,
+    "curl": 0,
+    "django": 0,
+    "ghidra": 0,
+    "react": 0
+   },
+   "default": 10,
+   "param": "min_lines",
+   "rule": "commented_out_code",
+   "shifts": {
+    "0.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 5
+    },
+    "0.75": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 8
+    },
+    "0.9": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 9
+    },
+    "1.1": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 11
+    },
+    "1.25": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 12
+    },
+    "1.5": {
+     "repos": {
+      "binutils-gdb": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "curl": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "django": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "ghidra": {
+       "findings": 0,
+       "jaccard": null
+      },
+      "react": {
+       "findings": 0,
+       "jaccard": null
+      }
+     },
+     "value": 15
+    }
+   },
+   "verdict": "silent"
+  }
+ ],
+ "version": "0.29.0"
+}
