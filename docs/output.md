@@ -35,7 +35,16 @@ How to read each part of the terminal report, and what each run writes to disk; 
 2. **Findings**: anything the heuristics flagged, worst first. Findings of
    the same kind are grouped into one entry with a list, and every finding
    ends with a next step that names the file, area or person to start with,
-   on its own line under the facts. Currently: a dormant repository (no
+   on its own line under the facts. The default report names the findings
+   of nine rules in one closing line instead of spelling them out ("7 more,
+   true but seldom acted on: Knowledge loss, Repo health (3) and Reverts;
+   --full lists them"): repository health, knowledge loss, authors gone,
+   minor contributors, reverts, duplication, stale files, component
+   coupling and secrets only in test or example files. Each was labelled
+   true five times or more and never as something to act on
+   ([measurement.md](measurement.md), "Hand labels"). `--full`, Markdown,
+   JSON (where they carry `"summary": true`), SARIF and `--fail-on` treat them
+   like any other finding. Currently: a dormant repository (no
    commits for twelve months or more, measured against the run's reference
    date, which also silences the untouched-files note),
    secrets in history (see below), credential-shaped files tracked (a

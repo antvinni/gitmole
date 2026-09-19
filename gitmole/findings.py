@@ -1365,9 +1365,20 @@ RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, plac
          truck_factor, authors_gone, component_coupling, swallowed_errors, hardcoded_addresses, commented_out_code]
 
 
+# Rules whose findings were true when labelled but never something to act on: five or more labelled in
+# measure/labels.jsonl and none of them actionable (docs/measurement.md, "Hand labels"). The default terminal
+# report names them in one line instead of spelling each out; --full, Markdown, JSON, SARIF and --fail-on
+# see every finding as before. A test holds this set to the labels, both ways.
+SUMMARISED = frozenset({"authors_gone", "component_coupling", "duplication", "knowledge_loss", "minor_contributors", "repo_health",
+                        "reverts", "secrets_aside", "stale_files"})
+
+
 def evaluate(report: dict) -> list:
     found = []
     for rule in RULES:
         found.extend(rule(report))
+    for f in found:
+        if f["rule"]["id"] in SUMMARISED:
+            f["summary"] = True   # the default report's one line, not a full entry
     found.sort(key=lambda f: SEVERITIES.index(f["severity"]))
     return found

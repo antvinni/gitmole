@@ -162,3 +162,14 @@ class Signals(unittest.TestCase):
         self.assertEqual(ranked["revs 12m x lines"][0], "core/util.py", "30 changes this year × 200 lines, against one each in 2020")
         self.assertEqual(ranked["churn"][0], "web/index.html")
         self.assertEqual(lines["core/parser.py"], 800)
+
+
+class SummarisedRules(unittest.TestCase):
+    def test_the_summarised_set_is_what_the_labels_say(self):
+        """A rule with five or more labelled findings, none of them actionable, is summarised; every summarised
+        rule is one. New labels that break this ask for the set to change with them."""
+        from gitmole import findings
+        from gitmole.measure import labels
+        rules = labels.score()["rules"]
+        inert = {r for r, v in rules.items() if v["labelled"] >= 5 and v["actionable_share"] == 0}
+        self.assertEqual(set(findings.SUMMARISED), inert)
