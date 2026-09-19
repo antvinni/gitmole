@@ -9,7 +9,14 @@ which maps the id back to rule and severity. Labellers add lines to measure/labe
 
 `score` joins the labels to the key and gives each rule its factual precision with a Wilson interval,
 its verdict (sound, broken, undecided, unlabelled against the 0.8 line), its actionable share, and
-Cohen's kappa where two labellers labelled the same findings."""
+Cohen's kappa where two labellers labelled the same findings.
+
+Labels carry forward. A finding's id is its rule, repository, pinned commit and evidence, so a finding
+that did not change keeps its id and its label from one release to the next. `dump` keeps every key row
+it has seen, copies each label to a new id whose repository, rule and statement match a labelled one
+(the evidence moved, the claim did not), and writes to the sheet only what is still unlabelled.
+`usefulness` gives a release its actionable share: of the findings its default report spells out, the
+share labelled actionable, beside how many of them carry a label at all."""
 from __future__ import annotations
 
 import hashlib
@@ -33,34 +40,91 @@ def _read(path: str) -> list:
         return [json.loads(l) for l in fh if l.strip()]
 
 
+LABELLED_SETS = ("development", "well-kept")
+
+
+def id_rows(name: str, commit, report_path: str) -> list:
+    """One row per finding of a run's --json export: id, rule, severity, whether the default report
+    only summarised it, and the statement. [] when the export is missing."""
+    try:
+        with open(report_path, encoding="utf-8") as fh:
+            found = json.load(fh).get("findings") or []
+    except (OSError, ValueError, TypeError):
+        return []
+    rows = []
+    for f in found:
+        rule = (f.get("rule") or {}).get("id", "")
+        rows.append({"id": finding_id(rule, name, commit, f.get("evidence")), "rule": rule, "severity": f.get("severity"),
+                     "summary": bool(f.get("summary")), "statement": f.get("detail", "")})
+    return rows
+
+
+def _write(path: str, rows: list) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r, sort_keys=True) + "\n")
+
+
 def dump(records_dir: str) -> tuple:
+    """(new findings on the sheet, labels carried forward, the sheet's path) for the latest release."""
     history = dashboard.load_history(records_dir)
     if not history:
         raise SystemExit("labels: no recorded release; run `python -m gitmole.measure run` first")
     latest = history[-1]
-    manifest = corpus.load()
-    commits = {e["name"]: e.get("commit") for e in manifest["repos"]}
-    sheet, key = [], []
+    commits = {e["name"]: e.get("commit") for e in corpus.load()["repos"]}
     root = corpus.workspace()
+    old_sheet = {r["id"]: r for r in _read(os.path.join(DIR, "labels-sheet.jsonl"))}
+    key = {}
+    for r in _read(os.path.join(DIR, "labels-key.jsonl")):   # every row ever dumped stays, with its statement
+        key[r["id"]] = {**r, "statement": r.get("statement") or (old_sheet.get(r["id"]) or {}).get("statement", "")}
+    labels = _read(os.path.join(DIR, "labels.jsonl"))
+    labelled = {}
+    for lab in labels:
+        labelled.setdefault(lab["id"], []).append(lab)
+    by_claim = {(r["repo"], r["rule"], r["statement"]): fid for fid, r in key.items() if fid in labelled and r["statement"]}
+    sheet, carried = [], []
     for name, rec in sorted(latest["repos"].items()):
-        if rec.get("set") not in ("development", "well-kept") or rec.get("status") != "ok":
+        if rec.get("set") not in LABELLED_SETS or rec.get("status") != "ok":
             continue
-        path = os.path.join(root, "runs", latest["version"], name, "report.json")
-        if not os.path.exists(path):
-            continue
-        with open(path, encoding="utf-8") as fh:
-            found = json.load(fh).get("findings") or []
-        for f in found:
-            rule = (f.get("rule") or {}).get("id", "")
-            fid = finding_id(rule, name, commits.get(name), f.get("evidence"))
-            sheet.append({"id": fid, "repo": name, "commit": commits.get(name), "statement": f.get("detail", "")})
-            key.append({"id": fid, "rule": rule, "severity": f.get("severity"), "repo": name, "version": latest["version"]})
+        for row in id_rows(name, commits.get(name), os.path.join(root, "runs", latest["version"], name, "report.json")):
+            fid = row["id"]
+            key.setdefault(fid, {"id": fid, "rule": row["rule"], "severity": row["severity"], "repo": name, "version": latest["version"],
+                                 "statement": row["statement"]})
+            if fid in labelled:
+                continue
+            source = by_claim.get((name, row["rule"], row["statement"]))
+            if source:
+                for lab in labelled[source]:
+                    copy = {**lab, "id": fid, "carried_from": source}
+                    carried.append(copy)
+                    labelled.setdefault(fid, []).append(copy)
+                continue
+            sheet.append({"id": fid, "repo": name, "commit": commits.get(name), "statement": row["statement"]})
+    if carried:
+        with open(os.path.join(DIR, "labels.jsonl"), "a", encoding="utf-8") as fh:
+            for lab in carried:
+                fh.write(json.dumps(lab, sort_keys=True) + "\n")
     sheet.sort(key=lambda r: r["id"])   # by hash, so rules and repositories come interleaved
-    for fname, rows in (("labels-sheet.jsonl", sheet), ("labels-key.jsonl", key)):
-        with open(os.path.join(DIR, fname), "w", encoding="utf-8") as fh:
-            for r in rows:
-                fh.write(json.dumps(r, sort_keys=True) + "\n")
-    return len(sheet), os.path.join(DIR, "labels-sheet.jsonl")
+    _write(os.path.join(DIR, "labels-sheet.jsonl"), sheet)
+    _write(os.path.join(DIR, "labels-key.jsonl"), sorted(key.values(), key=lambda r: r["id"]))
+    return len(sheet), len(carried), os.path.join(DIR, "labels-sheet.jsonl")
+
+
+def usefulness(record: dict, labels: list = None) -> dict:
+    """{actionable_share, labelled_share, shown}: over the labelled sets, the findings the release's default
+    report spells out (not summarised), the share of the labelled ones labelled actionable, and the share
+    that carry a label at all. Nones for a record from before finding ids were kept."""
+    labels = _read(os.path.join(DIR, "labels.jsonl")) if labels is None else labels
+    first = {}
+    for lab in labels:
+        if not lab.get("unsure"):
+            first.setdefault(lab["id"], lab)
+    shown = [row for rec in record["repos"].values() if rec.get("set") in LABELLED_SETS for row in rec.get("finding_ids") or [] if not row.get("summary")]
+    if not shown:
+        return {"actionable_share": None, "labelled_share": None, "shown": 0}
+    known = [first[row["id"]] for row in shown if row["id"] in first]
+    return {"actionable_share": round(sum(bool(l.get("actionable")) for l in known) / len(known), 3) if known else None,
+            "labelled_share": round(len(known) / len(shown), 3), "shown": len(shown)}
 
 
 def score() -> dict:
@@ -97,8 +161,8 @@ def score() -> dict:
 
 def main(action: str, records_dir: str) -> int:
     if action == "dump":
-        n, path = dump(records_dir)
-        print(f"{n} findings in {path}")
+        n, carried, path = dump(records_dir)
+        print(f"{n} findings to label in {path}; {carried} labels carried forward to findings whose statement did not change")
         return 0
     print(json.dumps(score(), indent=1, sort_keys=True))
     return 0

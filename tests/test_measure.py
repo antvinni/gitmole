@@ -173,3 +173,37 @@ class SummarisedRules(unittest.TestCase):
         rules = labels.score()["rules"]
         inert = {r for r, v in rules.items() if v["labelled"] >= 5 and v["actionable_share"] == 0}
         self.assertEqual(set(findings.SUMMARISED), inert)
+
+
+class CarriedLabels(unittest.TestCase):
+    def test_a_label_follows_a_finding_whose_statement_did_not_change(self):
+        from unittest import mock
+        from gitmole.measure import labels
+        commit = next(e for e in corpus.load()["repos"] if e["name"] == "curl").get("commit")
+        old = labels.finding_id("stale_files", "curl", commit, {"files": 100})
+        with tempfile.TemporaryDirectory() as d:
+            ldir, records, work = os.path.join(d, "measure"), os.path.join(d, "records"), os.path.join(d, "work")
+            for p in (ldir, records, os.path.join(work, "runs", "9.9.9", "curl")):
+                os.makedirs(p)
+            with open(os.path.join(ldir, "labels-key.jsonl"), "w") as fh:
+                fh.write(json.dumps({"id": old, "rule": "stale_files", "severity": "info", "repo": "curl", "version": "9.9.8", "statement": "S"}) + "\n")
+            with open(os.path.join(ldir, "labels.jsonl"), "w") as fh:
+                fh.write(json.dumps({"id": old, "labeller": "a", "true": True, "actionable": False}) + "\n")
+            with open(os.path.join(records, "9.9.9.json"), "w") as fh:
+                json.dump({"version": "9.9.9", "repos": {"curl": {"set": "development", "status": "ok"}}}, fh)
+            with open(os.path.join(work, "runs", "9.9.9", "curl", "report.json"), "w") as fh:
+                json.dump({"findings": [{"rule": {"id": "stale_files"}, "severity": "info", "detail": "S", "evidence": {"files": 101}},
+                                        {"rule": {"id": "bug_magnets"}, "severity": "warning", "detail": "B", "evidence": {"count": 3}, "summary": False}]}, fh)
+            with mock.patch.object(labels, "DIR", ldir), mock.patch.dict(os.environ, {"GITMOLE_MEASURE_DIR": work}):
+                n, carried, path = labels.dump(records)
+                self.assertEqual((n, carried), (1, 1), "the stale-files claim is unchanged; the bug magnets finding is new")
+                with open(path) as fh:
+                    self.assertEqual([json.loads(l)["statement"] for l in fh], ["B"])
+                again = labels.dump(records)
+                self.assertEqual(again[:2], (1, 0), "a second dump carries nothing twice")
+                new = labels.finding_id("stale_files", "curl", commit, {"files": 101})
+                rec = {"repos": {"curl": {"set": "development", "finding_ids": [{"id": new, "rule": "stale_files", "summary": False},
+                                                                                {"id": "x", "rule": "bug_magnets", "summary": False},
+                                                                                {"id": "y", "rule": "reverts", "summary": True}]}}}
+                self.assertEqual(labels.usefulness(rec), {"actionable_share": 0.0, "labelled_share": 0.5, "shown": 2},
+                                 "the summarised finding is not in the default report; one of the two shown carries a label")

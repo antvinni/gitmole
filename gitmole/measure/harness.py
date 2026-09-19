@@ -18,6 +18,7 @@ import time
 
 from .. import evaluate, maat, run, szz
 from . import corpus, metrics
+from . import labels as hand_labels   # `labels` is the ApacheJIT dict below
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 TOP = 15
@@ -120,6 +121,7 @@ def read_outputs(rec: dict) -> dict:
     out["findings"] = len(found)
     out["severity"] = {s: sum(1 for f in found if f.get("severity") == s) for s in ("critical", "warning", "info")}
     out["rules"] = sorted({(f.get("rule") or {}).get("id") or f.get("title", "") for f in found})
+    out["shown"] = sum(1 for f in found if not f.get("summary"))   # what the default report spells out
     meta = data.get("meta") or {}
     steps = meta.get("steps")
     if isinstance(steps, dict):
@@ -251,6 +253,8 @@ def measure_entry(src: str, entry: dict, root: str, reference: str, labels_dir: 
             rec["ranking"] = {"error": "labels not found"}
         else:
             rec["ranking"] = rank_repo(src, entry, clone, rec["out"], reference, os.path.join(root, "logs", name + ".txt"), labels)
+    if entry["set"] in hand_labels.LABELLED_SETS and rec.get("report"):   # for the actionable share, from the labels at report time
+        rec["finding_ids"] = [{k: row[k] for k in ("id", "rule", "summary")} for row in hand_labels.id_rows(name, entry.get("commit"), rec["report"])]
     rec["measure_seconds"] = round(time.monotonic() - started, 1)
     for k in ("out", "report"):
         rec.pop(k, None)
