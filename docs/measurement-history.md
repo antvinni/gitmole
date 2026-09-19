@@ -30,7 +30,9 @@ Each release runs from its own source over the development set (curl, django and
   repository (`git log` fails before the first commit), and from 0.8.0 git-sizer fails on a shallow clone.
   0.26.0 added a third: its per-step wrapper ran as `python -m`, which searches the analysed repository first,
   so on gitmole's own history every step imported that repository's older gitmole and failed. The measurement
-  found it; the release after 0.26.0 fixes it.
+  found it; the release after 0.26.0 fixes it. 0.28.0 fixes the other two: an empty repository is refused
+  with exit code 2 and a one-line reason, and a shallow clone skips git-sizer and says why, so robustness
+  is 21 of 21.
 - **Stability reads 1.00 in every release.** Fifty commits span three days on curl and at most seven weeks on
   react, too short for the top fifteen to change; the measure needs a longer horizon to say anything.
 - **No release crashed on a development repository,** so no point sits at the bottom of the graphs.
@@ -55,7 +57,28 @@ Each release runs from its own source over the development set (curl, django and
   field in generated protobuf code, prometheus for key-shaped strings in `cmd/tsdb/testdata.20k`. None is
   labelled yet, but on a first reading each is a fixture or generated code, which would put the false
   alarm rate at three in four where the page asks for near zero. This is the most urgent thing the
-  measurement found.
+  measurement found. The labels confirmed all three, and 0.28.0 is at none of four (below).
+- **0.28.0's headroom fell because the development set widened, not because the ranking changed.**
+  Ghidra and binutils-gdb joined curl, django and react (measure/corpus.json, moves), so that intervals
+  over repositories could narrow. On the three original repositories every number is the same as in
+  0.27.0 (curl 0.93, django 0.93, react 0.62). Ghidra (0.36, 2 wins and 3 losses against churn) and
+  binutils-gdb (0.55) bring the median to 0.62, with an interval of 0.36 to 0.93, and churn's to 0.52.
+  The run time of the set rose from 284 to 674 seconds for the same reason; binutils-gdb alone takes six
+  minutes. Compare 0.28.0 onwards with each other, not with the rows above it.
+- **0.28.0 acted on the measurement rather than adding rules.** The 0.28.0 findings sheet was labelled
+  (182 findings, one labeller). Three rules came out broken: `secrets_in_source`, `secrets_possible` and
+  `trojan_source`. The false alarms behind them were a documentation URI, a CI database password, right-to-left
+  marks in Arabic locale strings, and the bytes of a generated protobuf descriptor. Each was retuned by
+  shape, and `hotspot_dominance`, which never fired, was deleted. The criticals went from 3 of 4 well-kept
+  repositories to none. On the development set only react keeps one: a token-shaped string in an
+  unreachable blob, which has no path that would say what it is. The gate still catches 3 of 3.
+  Findings per repository fell from 19.5 to 18.5 (median), and the report from 296 to 278 lines.
+- **What the ranking is for** is now said plainly in validation.md: churn weighted by size. At the top
+  it is a few files ahead of churn, over the whole pool it is better (ROC-AUC), and per line read it is
+  worse. A twelve-month recency variant won on the development set and drew on the holdout, so it was
+  not shipped.
+- **Peak memory is highest on prometheus,** about 4 GB, in the well-kept set, which the memory graph does not
+  plot. The graph plots the development set, where react's 3 GB is still the peak.
 
 ![ranking](evolution/ranking.svg)
 
@@ -102,87 +125,21 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.24.0 | 0.93 [0.59, 0.93] | 0.71 | 13/0/5 | 0.81 | 38% | 1.00 | 2.04 | 16/21.8 | 257.5 | 21% | 13/15 | 3/3 | 283 | 2610 | awkward-empty: subprocess.CalledProcessError: Command '['git', 'log', '--format=%ct'…; awkward-shallow: 1 step(s) failed |
 | 0.25.0 | 0.93 [0.59, 0.93] | 0.71 | 13/0/5 | 0.82 | 38% | 1.00 | 2.03 | 16/21.8 | 258.5 | 21% | 13/15 | 3/3 | 284 | 2553 | awkward-empty: subprocess.CalledProcessError: Command '['git', 'log', '--format=%ct'…; awkward-shallow: 1 step(s) failed |
 | 0.26.0 | 0.93 [0.62, 0.93] | 0.71 | 12/0/6 | 0.82 | 45% | 1.00 | 2.06 | 16/21.8 | 258.5 | 21% | 29/32 | 3/3 | 286 | 2994 | awkward-empty: subprocess.CalledProcessError: Command '['git', 'log', '--format=%ct'…; awkward-shallow: 1 step(s) failed; gitmole: 9 step(s) failed |
+| 0.27.0 | 0.93 [0.62, 0.93] | 0.71 | 12/0/6 | 0.82 | 45% | 1.00 | 2.06 | 16/21.8 | 258.5 | 21% | 15/17 | 3/3 | 284 | 2501 | awkward-empty: subprocess.CalledProcessError: Command '['git', 'log', '--format=%ct'…; awkward-shallow: 1 step(s) failed |
+| 0.28.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 278 | 21% | 21/21 | 3/3 | 674 | 3029 |  |
 
-## The dashboard for 0.26.0
+## The dashboard for 0.28.0
 
 | | set | value |
 |---|---|---|
-| median headroom at 15 | holdout | 0.61 [0.335, 0.803] |
-| median headroom at 15 | development | 0.93 |
-| recall at 20% of lines | holdout | 40% |
+| median headroom at 15 | holdout | not run for this record |
+| median headroom at 15 | development | 0.62 |
+| recall at 20% of lines | development | 36% |
 | top-15 stability over 50 commits | development | 1.00 |
-| findings per repository, median and p90 | development | 16 and 21.8 |
-| rules sound, broken and undecided | labelled sample | unlabelled 29 |
-| repositories with a critical labelled false | well-kept | 3 of 4 fired a critical, none labelled yet |
-| wall time and peak memory | development | 286 s, 2994 MB |
+| findings per repository, median and p90 | development | 18.5 and 22 |
+| rules sound, broken and undecided | labelled sample | broken 3, sound 1, undecided 28 |
+| repositories with a critical labelled false | well-kept | 0 of 4 fired a critical, none labelled yet |
+| wall time and peak memory | development | 674 s, 3029 MB |
 | scored share of tracked files | development | 21% |
-| unexplained description disagreements | development | 0 |
-
-### Threshold sensitivity
-
-50 numeric thresholds across the rules, each moved 10, 25 and 50% either side on the development set: 21 flat, 6 fragile, 21 silent, 2 untested. None of them records where its value came from, so each counts as fitted until a line beside it says otherwise.
-
-| rule | threshold | default | verdict | findings at −10% / shipped / +10% |
-|---|---|---:|---|---|
-| agent_instructions_drift | min_months | 6 | fragile | 1 / 0 / 0 |
-| bug_magnets | min_recent | 3 | fragile | = / 3 / = |
-| complexity_growth | min_growers | 3 | fragile | = / 0 / = |
-| complexity_growth | min_pct | 25 | fragile | 1 / 0 / 0 |
-| component_coupling | min_degree | 30 | fragile | 1 / 0 / 0 |
-| tight_coupling | min_degree | 80 | fragile | 3 / 3 / 3 |
-| authors_gone | min_files | 5 | flat | 3 / 3 / 3 |
-| brain_methods | min_ccn | 15 | flat | 3 / 3 / 3 |
-| brain_methods | min_lines | 100 | flat | 3 / 3 / 3 |
-| bug_magnets | warn_at | 5 | flat | 3 / 3 / 3 |
-| duplication | min_lines | 30 | flat | 3 / 3 / 3 |
-| knowledge_islands | min_fraction | 0.01 | flat | 1 / 1 / 1 |
-| knowledge_islands | min_lines | 200 | flat | 1 / 1 / 1 |
-| knowledge_islands | min_share | 0.9 | flat | 1 / 1 / 1 |
-| knowledge_loss | min_share | 0.1 | flat | 3 / 3 / 3 |
-| knowledge_loss | warn_share | 0.3 | flat | 3 / 3 / 3 |
-| minor_contributors | min_minor | 5 | flat | 3 / 3 / 3 |
-| minor_contributors | top_n | 10 | flat | 3 / 3 / 3 |
-| minor_contributors | warn_at | 10 | flat | 3 / 3 / 3 |
-| reverts | min_count | 5 | flat | 3 / 3 / 3 |
-| reverts | min_share | 0.05 | flat | 3 / 3 / 3 |
-| reverts | warn_share | 0.1 | flat | 3 / 3 / 3 |
-| stale_files | months | 12 | flat | 2 / 2 / 2 |
-| stale_files | share | 0.3 | flat | 2 / 2 / 2 |
-| tight_coupling | min_revs | 5 | flat | 3 / 3 / 3 |
-| truck_factor | area_files | 10 | flat | 3 / 3 / 3 |
-| truck_factor | min_files | 20 | flat | 3 / 3 / 3 |
-
-### Description checks
-
-| repository | check | gitmole | second count | by |
-|---|---|---:|---:|---|
-| curl | commits in the history | 39758 | 39758 | git rev-list --count HEAD |
-| curl | lines per file | 2286 | 2286 | newlines counted in each file scc measured |
-| curl | tracked text files classified | 4512 | 4512 | git grep -I (tracked, not binary) |
-| curl | signed commits among the last 200 (not checked) | 186 | None | git log --format=%G? (unavailable: gpg is not installed) |
-| django | commits in the history | 34933 | 34933 | git rev-list --count HEAD |
-| django | lines per file | 4356 | 4356 | newlines counted in each file scc measured |
-| django | tracked text files classified | 5069 | 5069 | git grep -I (tracked, not binary) |
-| django | signed commits among the last 200 (not checked) | 11 | None | git log --format=%G? (unavailable: gpg is not installed) |
-| react | commits in the history | 21703 | 21703 | git rev-list --count HEAD |
-| react | lines per file | 7015 | 7015 | newlines counted in each file scc measured |
-| react | tracked text files classified | 7192 | 7192 | git grep -I (tracked, not binary) |
-| react | signed commits among the last 200 (not checked) | 200 | None | git log --format=%G? (unavailable: gpg is not installed) |
-
-### The hook's coupling warning, replayed
-
-Zimmermann et al.'s experiments at file granularity: leave one file out of a commit and see whether the warning names it (precision, and feedback: the share of queries that warn), and a complete commit, where any warning is a false alarm. ROSE's file-level figures are the bar.
-
-| repository | queries | feedback | precision | complete commits | closure false alarms |
-|---|---:|---:|---:|---:|---:|
-| curl | 1956 | 14% | 17% | 450 | 10% |
-| django | 535 | 6% | 0% | 133 | 4% |
-| react | 1202 | 54% | 43% | 243 | 36% |
-
-### Determinism across time zones and locales
-
-| repository | identical outside the envelope |
-|---|---|
-| curl | yes |
-| django | yes |
+| unexplained description disagreements | development | not run |
 
