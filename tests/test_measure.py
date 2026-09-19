@@ -140,3 +140,17 @@ class Sensitivity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Signals(unittest.TestCase):
+    def test_recent_revisions_times_lines_reorder_the_same_pool(self):
+        from gitmole.measure import signals
+        from tests.test_watch import report
+        commits = [{"hash": f"h{i}", "date": "2026-08-01", "author": "Ann", "subject": "work", "files": [("core/util.py", 1, 1)]} for i in range(30)]
+        commits += [{"hash": "old", "date": "2020-01-01", "author": "Ann", "subject": "work", "files": [("web/index.html", 1, 1), ("core/parser.py", 1, 1)]}]
+        ranked, lines = signals.variants(report(), commits, "2026-09-01")
+        self.assertEqual(ranked["watch list"], ["web/index.html", "core/parser.py", "core/util.py"])
+        self.assertEqual(sorted(ranked["revs 12m x lines"]), sorted(ranked["watch list"]), "every variant ranks the one pool")
+        self.assertEqual(ranked["revs 12m x lines"][0], "core/util.py", "30 changes this year × 200 lines, against one each in 2020")
+        self.assertEqual(ranked["churn"][0], "web/index.html")
+        self.assertEqual(lines["core/parser.py"], 800)
