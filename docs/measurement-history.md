@@ -79,6 +79,31 @@ Each release runs from its own source over the development set (curl, django and
   not shipped.
 - **Peak memory is highest on prometheus,** about 4 GB, in the well-kept set, which the memory graph does not
   plot. The graph plots the development set, where react's 3 GB is still the peak.
+- **0.29.0 retuned the hook's coupling warning rather than cutting it.** A companion is now a scored source
+  file that moved in at least 70% of the touched file's changesets, over at least twenty of them (ROSE's
+  directed confidence), where it was any file changing with it half the time by the symmetric degree. It
+  was chosen among eighteen thresholds on the development set, then read once on the thirteen held-out
+  repositories: precision 0.26 -> 0.60 on development and 0.29 -> 0.49 on the holdout, and complete commits
+  alarmed 10% -> 3% and 14% -> 4%. As shipped, counting changesets and naming only scored source files, it
+  is right 62% of the time on development and 54% on the holdout, with 3% of complete commits alarmed; see
+  validation.md. Companions have to be scored files because of binutils-gdb: over the full history, every
+  change there once touched a ChangeLog, and 75% of its complete commits alarmed until that rule was added.
+- **0.29.0's other changes follow the labels.** A README heading about security is the policy a project
+  points to (containerd). A stylesheet's `@import` loads an npm package (prometheus). A generated marker
+  below a licence header counts (Ghidra's Bison and flex parsers). The rest of the parked classification
+  work has no labelled finding behind it and stays parked.
+- **The osv-scanner step holds prometheus's peak,** 4 GB, not gitmole: osv-scanner 2.6 keeps about 1.3 GB
+  live per Go module with a large dependency graph (`documentation/examples/remote_storage/go.mod`), offline
+  and with or without `--no-resolve`. A Go memory limit and a single thread do not lower it. gitmole's own
+  steps stay under 1.1 GB.
+- **Stability over 50 commits is joined by carry-over across six months** from 0.29.0, the half of the
+  question fifty commits cannot answer. Its first reading is 0.94: from one cut-off to the next, six months
+  later, the top fifteen keeps nearly all its files (0.90 on curl and Ghidra, 1.00 on binutils-gdb). A list
+  ranked by whole-history revisions × lines hardly moves in half a year. The recency variant that would
+  move it did not beat it on the holdout (validation.md), so this is what the ranking is, not a fault to fix.
+- **Ghidra's brain methods no longer lead with the Bison parser** (`slghparse.cc`'s `yyparse`), the one
+  labelled finding the deeper generated markers answer: 241 functions where there were 250. containerd
+  loses its false `repo_policy` finding. Nothing else in the record moved.
 
 ![ranking](evolution/ranking.svg)
 
@@ -127,8 +152,9 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.26.0 | 0.93 [0.62, 0.93] | 0.71 | 12/0/6 | 0.82 | 45% | 1.00 | 2.06 | 16/21.8 | 258.5 | 21% | 29/32 | 3/3 | 286 | 2994 | awkward-empty: subprocess.CalledProcessError: Command '['git', 'log', '--format=%ct'…; awkward-shallow: 1 step(s) failed; gitmole: 9 step(s) failed |
 | 0.27.0 | 0.93 [0.62, 0.93] | 0.71 | 12/0/6 | 0.82 | 45% | 1.00 | 2.06 | 16/21.8 | 258.5 | 21% | 15/17 | 3/3 | 284 | 2501 | awkward-empty: subprocess.CalledProcessError: Command '['git', 'log', '--format=%ct'…; awkward-shallow: 1 step(s) failed |
 | 0.28.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 278 | 21% | 21/21 | 3/3 | 674 | 3029 |  |
+| 0.29.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 278 | 21% | 21/21 | 3/3 | 680 | 3064 |  |
 
-## The dashboard for 0.28.0
+## The dashboard for 0.29.0
 
 | | set | value |
 |---|---|---|
@@ -136,10 +162,91 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | median headroom at 15 | development | 0.62 |
 | recall at 20% of lines | development | 36% |
 | top-15 stability over 50 commits | development | 1.00 |
+| top-15 carried over from one cut-off to the next, six months | development | 0.94 |
 | findings per repository, median and p90 | development | 18.5 and 22 |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 1, undecided 28 |
-| repositories with a critical labelled false | well-kept | 0 of 4 fired a critical, none labelled yet |
-| wall time and peak memory | development | 674 s, 3029 MB |
+| repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
+| wall time and peak memory | development | 680 s, 3064 MB |
 | scored share of tracked files | development | 21% |
-| unexplained description disagreements | development | not run |
+| unexplained description disagreements | development | 0 |
+
+### Threshold sensitivity
+
+48 numeric thresholds across the rules, each moved 10, 25 and 50% either side on the development set: 21 flat, 8 fragile, 17 silent, 2 untested. None of them records where its value came from, so each counts as fitted until a line beside it says otherwise.
+
+| rule | threshold | default | verdict | findings at −10% / shipped / +10% |
+|---|---|---:|---|---|
+| agent_instructions_drift | min_months | 6 | fragile | 1 / 0 / 0 |
+| bug_magnets | min_recent | 3 | fragile | = / 5 / = |
+| complexity_growth | min_growers | 3 | fragile | = / 0 / = |
+| complexity_growth | min_pct | 25 | fragile | 1 / 0 / 0 |
+| component_coupling | min_degree | 30 | fragile | 3 / 2 / 2 |
+| knowledge_islands | min_share | 0.9 | fragile | 2 / 2 / 1 |
+| tangled_commits | min_share | 0.02 | fragile | 1 / 1 / 0 |
+| tight_coupling | min_degree | 80 | fragile | 5 / 5 / 5 |
+| authors_gone | min_files | 5 | flat | 5 / 5 / 5 |
+| brain_methods | min_ccn | 15 | flat | 5 / 5 / 5 |
+| brain_methods | min_lines | 100 | flat | 5 / 5 / 5 |
+| bug_magnets | warn_at | 5 | flat | 5 / 5 / 5 |
+| duplication | min_lines | 30 | flat | 3 / 3 / 3 |
+| knowledge_islands | min_fraction | 0.01 | flat | 2 / 2 / 2 |
+| knowledge_islands | min_lines | 200 | flat | 2 / 2 / 2 |
+| knowledge_loss | min_share | 0.1 | flat | 4 / 4 / 4 |
+| knowledge_loss | warn_share | 0.3 | flat | 4 / 4 / 4 |
+| minor_contributors | min_minor | 5 | flat | 5 / 5 / 5 |
+| minor_contributors | top_n | 10 | flat | 5 / 5 / 5 |
+| minor_contributors | warn_at | 10 | flat | 5 / 5 / 5 |
+| reverts | min_count | 5 | flat | 5 / 5 / 5 |
+| reverts | min_share | 0.05 | flat | 5 / 5 / 5 |
+| reverts | warn_share | 0.1 | flat | 5 / 5 / 5 |
+| stale_files | months | 12 | flat | 4 / 4 / 4 |
+| stale_files | share | 0.3 | flat | 4 / 4 / 4 |
+| tangled_commits | min_count | 5 | flat | 1 / 1 / 1 |
+| tight_coupling | min_revs | 5 | flat | 5 / 5 / 5 |
+| truck_factor | area_files | 10 | flat | 5 / 5 / 5 |
+| truck_factor | min_files | 20 | flat | 5 / 5 / 5 |
+
+### Description checks
+
+| repository | check | gitmole | second count | by |
+|---|---|---:|---:|---|
+| binutils-gdb | commits in the history | 127348 | 127348 | git rev-list --count HEAD |
+| binutils-gdb | lines per file | 38587 | 38587 | newlines counted in each file scc measured |
+| binutils-gdb | tracked text files classified | 43367 | 43367 | git grep -I (tracked, not binary) |
+| binutils-gdb | signed commits among the last 200 (not checked) | 12 | None | git log --format=%G? (unavailable: gpg is not installed) |
+| curl | commits in the history | 39758 | 39758 | git rev-list --count HEAD |
+| curl | lines per file | 2286 | 2286 | newlines counted in each file scc measured |
+| curl | tracked text files classified | 4512 | 4512 | git grep -I (tracked, not binary) |
+| curl | signed commits among the last 200 (not checked) | 186 | None | git log --format=%G? (unavailable: gpg is not installed) |
+| django | commits in the history | 34933 | 34933 | git rev-list --count HEAD |
+| django | lines per file | 4356 | 4356 | newlines counted in each file scc measured |
+| django | tracked text files classified | 5069 | 5069 | git grep -I (tracked, not binary) |
+| django | signed commits among the last 200 (not checked) | 11 | None | git log --format=%G? (unavailable: gpg is not installed) |
+| ghidra | commits in the history | 18498 | 18498 | git rev-list --count HEAD |
+| ghidra | lines per file | 17976 | 17976 | newlines counted in each file scc measured |
+| ghidra | tracked text files classified | 19154 | 19154 | git grep -I (tracked, not binary) |
+| ghidra | signed commits among the last 200 (not checked) | 0 | None | git log --format=%G? (unavailable: gpg is not installed) |
+| react | commits in the history | 21703 | 21703 | git rev-list --count HEAD |
+| react | lines per file | 7015 | 7015 | newlines counted in each file scc measured |
+| react | tracked text files classified | 7192 | 7192 | git grep -I (tracked, not binary) |
+| react | signed commits among the last 200 (not checked) | 200 | None | git log --format=%G? (unavailable: gpg is not installed) |
+
+### The hook's coupling warning, replayed
+
+Zimmermann et al.'s experiments at file granularity: leave one file out of a commit and see whether the warning names it (precision, and feedback: the share of queries that warn), and a complete commit, where any warning is a false alarm. ROSE's file-level figures are the bar.
+
+| repository | queries | feedback | precision | complete commits | closure false alarms |
+|---|---:|---:|---:|---:|---:|
+| binutils-gdb | 745 | 18% | 57% | 165 | 11% |
+| curl | 1954 | 10% | 62% | 450 | 4% |
+| django | 535 | 0% | 100% | 133 | 0% |
+| ghidra | 1177 | 1% | 50% | 246 | 0% |
+| react | 1202 | 24% | 70% | 243 | 11% |
+
+### Determinism across time zones and locales
+
+| repository | identical outside the envelope |
+|---|---|
+| curl | yes |
+| django | yes |
 
