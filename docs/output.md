@@ -455,8 +455,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    directories and commits; lines added against the lines the files had;
    how evenly it spreads; files changed this month; prior changes and
    people; the author's prior commits) and the companions the change left
-   untouched (`not touched: core/ast.py, which changes with core/parser.py
-   72% of the time`); the JSON carries them under `change_risk.change` and
+   untouched (`not touched: core/ast.py, which moved in 72% of
+   core/parser.py's changes`); the JSON carries them under `change_risk.change` and
    `change_risk.coupling_gaps`, and each scored file's rank, fix counts,
    owner, share and minor contributors. `--hook` is the same scoring for a
    coding agent's hook, see

@@ -188,19 +188,21 @@ def hook_replay(clone: str, cache: str, out: str, anchors: int = 3, window_month
         from .. import backtest
         size_json, generated, vendored = backtest.snapshot_at(clone, rev, out)
         report = evaluate.report_at(commits, t, load.parse_scc(size_json, None), {"bots": []}, generated, vendored)
-        report["coupling"] = maat.coupling(maat.analysed(maat.in_window(commits, until=t)))
-        pool = {r["file"] for r in watch.risks(report)}
+        history = maat.analysed(maat.in_window(commits, until=t))
+        report["coupling"], report["companions"] = maat.coupling(history), maat.companions(history)
+        ranked = watch.risks(report)
+        pool = {r["file"] for r in ranked}
         end = evaluate.months_after(t, window_months)
         for c in maat.in_window(commits, t, end):
             files = sorted({p for p, _, _ in c["files"] if p in pool})
             if not 2 <= len(files) <= max_files:
                 continue
             full += 1
-            if watch.change_risk(report, files)["coupling_gaps"]:
+            if watch.change_risk(report, files, ranked=ranked)["coupling_gaps"]:
                 alarmed += 1
             for f in files:
                 queries += 1
-                gaps = watch.change_risk(report, [x for x in files if x != f])["coupling_gaps"]
+                gaps = watch.change_risk(report, [x for x in files if x != f], ranked=ranked)["coupling_gaps"]
                 if gaps:
                     warned += 1
                     correct += any(g["companion"] == f for g in gaps)

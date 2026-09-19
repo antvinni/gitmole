@@ -1401,7 +1401,7 @@ class ChangeRisk(unittest.TestCase):
                     coupling_gaps=[{"file": "core/parser.py", "companion": "core/ast.py", "degree": 72}, {"file": "core/parser.py", "companion": "core/lexer.py", "degree": 55}])
         caption = render.risk_section(risk, "main", full=False)["caption"]
         self.assertIn("touches 3 files across 2 directories, 1 commit; adds 20 lines to 800 (2%), removes 4", caption)
-        self.assertIn("not touched: core/ast.py, which changes with core/parser.py 72% of the time, and core/lexer.py (55%)", caption)
+        self.assertIn("not touched: core/ast.py, which moved in 72% of core/parser.py's changes, and core/lexer.py (55%)", caption)
         self.assertEqual(sec["columns"], ["file", "risk", "why"])
         self.assertEqual(sec["rows"][0], ["core/parser.py", "▰▰▰▰▰▰▰▰▰▰", "changed 40 times · fixed 5 times in six months"])
         self.assertEqual(sec["rows"][1][1], "▰▰")

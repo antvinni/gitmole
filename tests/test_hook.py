@@ -48,7 +48,7 @@ class Gate(unittest.TestCase):
         with open(os.path.join(out, "maat-revisions.csv"), "w") as fh:
             fh.write("entity,n-revs\ncore/hot.py,40\ncore/cold.py,2\n")
         with open(os.path.join(out, "maat-coupling.csv"), "w") as fh:
-            fh.write("entity,coupled,degree,average-revs\ncore/hot.py,core/pair.py,80,20\n")
+            fh.write("entity,coupled,degree,average-revs\ncore/hot.py,core/cold.py,80,20\ncore/hot.py,CHANGES,90,20\n")
         return out
 
     def test_the_gate_reads_stdin_scores_the_named_files_and_exits_2_over_the_threshold(self):
@@ -64,7 +64,8 @@ class Gate(unittest.TestCase):
             self.assertIn("over the 50% threshold", stdout.getvalue().splitlines()[-1], "the reason also goes to stderr, which is what the agent shows on exit 2")
             self.assertEqual(printed["hookSpecificOutput"]["hookEventName"], "PostToolUse")
             self.assertIn("core/hot.py: 99.4% of the repository's revisions × lines of code (rank 1 of 2, on the watch list)", context)
-            self.assertIn("not touched: core/pair.py, which changes with core/hot.py 80% of the time", context)
+            self.assertIn("not touched: core/cold.py, which moved in 80% of core/hot.py's changes", context)
+            self.assertNotIn("CHANGES", context, "a companion is a scored source file, not a change log every commit touched")
             self.assertIn("total 99.4%, over the 50% threshold", context)
             stdout = io.StringIO()
             rc = cli.main([out, "--no-run", "--hook"], console=Console(file=stdout, width=200), stdin=io.StringIO(json.dumps(event)))

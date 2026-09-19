@@ -83,7 +83,7 @@ def parse_scc(text: str, types=None) -> dict:
 
 NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs",
                    "minor", "soc", "partners", "n-sets", "with-tests", "periods", "fa", "dl", "ac", "is_author", "is_author_decayed", "late",
-                   "depth", "shared"}
+                   "depth", "shared", "confidence"}
 FLOAT_COLUMNS = {"doa", "doa_decayed", "hcm"}
 
 
@@ -324,6 +324,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "plumbing": parse_maat_csv(_read(out_dir, "maat-plumbing.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
+        "companions": parse_maat_csv(_read(out_dir, "maat-companions.csv")),   # the hook's directed pairs; empty before 0.29
         "soc": parse_maat_csv(_read(out_dir, "maat-soc.csv")),   # sum of coupling; empty for an output directory from before 0.11
         "tests": parse_maat_csv(_read(out_dir, "maat-tests.csv")),   # test co-change per production file; empty before 0.12
         "entropy": parse_maat_csv(_read(out_dir, "maat-entropy.csv")),   # Hassan's change entropy per file; empty before 0.13

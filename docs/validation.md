@@ -347,6 +347,51 @@ example repositories against both fix locality and R-SZZ, and it does not
 need the fix labels the factor product leans on. Defectors (24 Python
 projects) is still not here; its data is only on Zenodo.
 
+## The hook's coupling warning
+
+`--hook` and `--risk` warn when a change leaves out a file that usually
+changes with one it touched. The warning is judged by ROSE's two
+experiments (Zimmermann et al., TSE 2005, sections 7.5 and 7.6), with
+coupling taken from the history before each of three anchors, six months
+apart, and the queries from the two months after each:
+
+- **Precision.** Leave one file out of each commit that touches between
+  two and twenty scored files, and count how often the warning names the
+  file that was left out.
+- **Feedback.** Count how often the warning speaks at all.
+- **False alarms.** Count how many complete commits get a warning, where
+  every warning is a false alarm.
+
+Until 0.29 a companion was any file that changed together with the
+touched one at least 50% of the time (the symmetric degree, over the
+average of the two files' changes) over at least five shared changes. On
+the development set that warning was right a quarter of the time, and on
+react it fired on a third of complete commits. Eighteen thresholds were
+tried on the development set: the symmetric degree at 50, 70 and 90, and
+ROSE's directed confidence at 0.5, 0.7 and 0.9 (the share of the touched
+file's changes that also moved the companion), each over at least 5, 10
+or 20 shared changes. The rule was set before the numbers were read. The
+warning stays only if some threshold reaches a median precision of 0.5,
+with at most 10% of complete commits alarmed and a warning on at least 5%
+of queries. Otherwise the warning goes. Directed confidence of 0.7 over
+twenty or more shared changes came first (median over five repositories):
+
+| | precision | complete commits alarmed | queries warned |
+|---|---:|---:|---:|
+| degree 50%, 5 shared (until 0.29), development | 0.26 | 10% | 14% |
+| confidence 70%, 20 shared, development | 0.60 | 3% | 9% |
+| degree 50%, 5 shared, holdout | 0.29 | 14% | 21% |
+| confidence 70%, 20 shared, holdout | 0.49 | 4% | 8% |
+
+It was then read once on the thirteen held-out Apache repositories, which
+need no labels for this. There it is right about half the time (0.49 at
+the median, 0.50 pooled over all 1,258 warnings). That is short of the
+development number and of the 0.5 bar, but it is 0.2 better than the old
+threshold, with a third of the false alarms. So 0.29 ships it and states
+the number: the warning is uncommon and right about half the time, where
+ROSE reported 66% at function granularity. `python -m gitmole.measure
+extras` replays it for the development set with every release.
+
 ## Every ref, or the checked-out branch
 
 Since 0.8 the change log is the checked-out branch's history, `git log

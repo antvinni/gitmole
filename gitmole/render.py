@@ -397,11 +397,11 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
 
 
 def gaps_line(gaps: list) -> str:
-    """'not touched: core/ast.py, which changes with core/parser.py 72% of the time, and core/lexer.py (55%)':
+    """'not touched: core/ast.py, which moved in 72% of core/parser.py's changes, and core/lexer.py (70%)':
     the companions a change left out, strongest first."""
     first = gaps[0]
     rest = [f"{g['companion']} ({g['degree']}%)" for g in gaps[1:4]]
-    line = f"not touched: {first['companion']}, which changes with {first['file']} {first['degree']}% of the time"
+    line = f"not touched: {first['companion']}, which moved in {first['degree']}% of {first['file']}'s changes"
     return line + (", and " + textfmt.join_and(rest) if rest else "") + (f" and {len(gaps) - 4} more" if len(gaps) > 4 else "")
 
 

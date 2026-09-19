@@ -46,8 +46,17 @@ def _owners(report: dict) -> dict:
 
 
 def _companions(report: dict) -> dict:
-    """entity -> [(other, degree)] for couplings strong and frequent enough to be a pattern, test files left out."""
+    """entity -> [(other, percent)]: the files a change to it usually touches too, test files left out.
+    From the directed confidence table (maat.companions) when the run wrote one; an output directory
+    from before 0.29 falls back to the symmetric coupling degree."""
     out = defaultdict(list)
+    if report.get("companions"):
+        for p in report["companions"]:
+            if not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["companion"])):
+                out[p["entity"]].append((p["companion"], p["confidence"]))
+        for v in out.values():
+            v.sort(key=lambda t: (-t[1], t[0]))
+        return out
     for p in report.get("coupling") or []:
         if p["degree"] < COMPANION_DEGREE or p["average-revs"] < COMPANION_REVS:
             continue
@@ -117,6 +126,9 @@ def risks(report: dict, min_revs: int = 2) -> list:
                      "trend": trend.change_over_year(series[h["entity"]], last) if last and h["entity"] in series else None})
     if not rows:
         return []
+    scored = {r["file"] for r in rows}
+    for r in rows:   # a companion is a scored source file: a ChangeLog every old commit touched is not one to warn about
+        r["companions"] = [(o, d) for o, d in r["companions"] if o in scored]
 
     pool = sum(r["revs"] * r["code"] for r in rows)
     for r in rows:
@@ -218,16 +230,18 @@ REASONS_SHOWN = 6   # the default terminal report's cap per row; --full, Markdow
 WATCH_TOP = 15   # the same cap the report's --full watch list uses
 
 
-def change_risk(report: dict, files: list, stats: dict = None) -> dict:
+def change_risk(report: dict, files: list, stats: dict = None, ranked: list = None) -> dict:
     """The watch score of each touched file, and their sum: that total is a percentage of the
     repository's revisions × lines of code. Files the watch list never scored get 0 and the
     classifier's reason, or `changed once` / `no revisions on record`; `not in the tree` covers a
     file the change deleted and, under --no-run, one added after the run. Each scored file carries
     its context: hotspot rank, fix counts, owner and share, minor contributors, whether it is on
     the watch list. `coupling_gaps` are the companions a touched file usually changes with that the
-    change did not touch (Zimmermann et al.'s ROSE: 66% precision at a 2% false-alarm rate). With
+    change did not touch, by ROSE's directed confidence (Zimmermann et al.): measured by leaving one file
+    out of real commits, about half the warnings name the file left out, and 4% of complete commits get
+    one (docs/validation.md). With
     the diff's numbers (`stats`, see run.change_stats), `change` holds Kamei's factors as reasons."""
-    ranked = risks(report)
+    ranked = risks(report) if ranked is None else ranked   # a caller asking about many changes to one report builds the list once
     by_file = {r["file"]: r for r in ranked}
     rank = {r["file"]: i + 1 for i, r in enumerate(ranked)}
     watched = {r["file"] for r in ranked[:WATCH_TOP]}

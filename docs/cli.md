@@ -126,10 +126,13 @@ The Change risk section, and `change_risk` in the JSON, carry what history
 says about the change beyond its total. Each scored file has its hotspot
 rank, fix counts, owner and share, minor-contributor count and whether it
 is on the watch list. `coupling_gaps` lists the companions a touched file
-usually changes with (50% of the time or more, over five or more shared
-commits) that the change did not touch: Zimmermann et al. measured such
-co-change recommendations at 66% precision with a 2% false-alarm rate, so
-one is rare and usually right. And `change` holds Kamei et al.'s
+usually changes with that the change did not touch: a file that moved in
+70% or more of the touched file's changes, over twenty or more of them
+(ROSE's directed confidence, after Zimmermann et al.). Replayed on real
+commits with one file left out, about half the warnings name the file that
+was left out, and 4% of complete commits get one on thirteen repositories
+nobody tuned it on ([validation.md](validation.md#the-hooks-coupling-warning));
+so one is uncommon and right about half the time. And `change` holds Kamei et al.'s
 just-in-time factors as named reasons beside the mass share, never folded
 into it: the files, directories and commits, lines added against the lines
 those files had, how evenly the change spreads over its files, how many of
