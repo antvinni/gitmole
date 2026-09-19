@@ -952,14 +952,23 @@ def header(report: dict, findings: list = (), full: bool = False) -> Panel:
     return Panel(body, title=f"[bold]{s['name']}[/bold]", title_align="left", border_style="blue")
 
 
-def findings_panel(findings: list, report: dict = None) -> Panel:
+def summary_line(findings: list) -> str:
+    """'7 more, true but seldom acted on: Knowledge loss, Repo health (3) and Reverts; --full lists them':
+    the findings of the rules the labels found never actionable, in one line of the default report."""
+    names = [g["title"] for g in textfmt.group_findings(findings)]   # a repeated title already reads "Repo health (3)"
+    return f"{len(findings)} more, true but seldom acted on: {textfmt.join_and(names)}; --full lists them"
+
+
+def findings_panel(findings: list, report: dict = None, full: bool = True) -> Panel:
     passed = checks_passed(report or {})
     if not findings and not passed:
         return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
+    brief = [] if full else [f for f in findings if f.get("summary")]
+    shown = [f for f in findings if f not in brief]
     grid = Table.grid(padding=(0, 1))
     grid.add_column(no_wrap=True)
     grid.add_column(overflow="fold")
-    for g in textfmt.group_findings(findings):
+    for g in textfmt.group_findings(shown):
         style = SEVERITY_STYLE[g["severity"]]
         body = Text(g["title"], style=style)
         for item in g["items"]:
@@ -967,6 +976,8 @@ def findings_panel(findings: list, report: dict = None) -> Panel:
         for advice in g["advice"]:
             body.append(f"\n↳ {advice}", style="dim italic")
         grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
+    if brief:
+        grid.add_row(Text("·", style="dim"), Text(summary_line(brief), style="dim"))
     if passed:   # last: problems first, then the checks that passed
         if not findings:
             grid.add_row(Text(""), Text("Nothing flagged.", style="green"))
@@ -1059,7 +1070,7 @@ def _partners(secs: list) -> dict:
 
 def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> None:
     console.print(header(report, findings, full=full))
-    console.print(findings_panel(findings, report))
+    console.print(findings_panel(findings, report, full=full))
     if compare is not None:
         print_section(console, compare_section(compare))
     secs = sections(report, full=full, width=console.width)

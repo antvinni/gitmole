@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
 <rect width="900" height="300" fill="#ffffff"/>
-<text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Findings per repository</text>
+<text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Is it useful? Findings the default report spells out that are worth acting on</text>
 <line x1="56" y1="244.0" x2="884" y2="244.0" stroke="#d0d7de" stroke-width="1"/>
-<text x="50" y="248.0" text-anchor="end" fill="#1f2328">0</text>
+<text x="50" y="248.0" text-anchor="end" fill="#1f2328">0%</text>
 <line x1="56" y1="193.0" x2="884" y2="193.0" stroke="#d0d7de" stroke-width="1"/>
-<text x="50" y="197.0" text-anchor="end" fill="#1f2328">6.25</text>
+<text x="50" y="197.0" text-anchor="end" fill="#1f2328">25%</text>
 <line x1="56" y1="142.0" x2="884" y2="142.0" stroke="#d0d7de" stroke-width="1"/>
-<text x="50" y="146.0" text-anchor="end" fill="#1f2328">12</text>
+<text x="50" y="146.0" text-anchor="end" fill="#1f2328">50%</text>
 <line x1="56" y1="91.0" x2="884" y2="91.0" stroke="#d0d7de" stroke-width="1"/>
-<text x="50" y="95.0" text-anchor="end" fill="#1f2328">19</text>
+<text x="50" y="95.0" text-anchor="end" fill="#1f2328">75%</text>
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
-<text x="50" y="44.0" text-anchor="end" fill="#1f2328">25</text>
+<text x="50" y="44.0" text-anchor="end" fill="#1f2328">100%</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
 <text x="115.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
 <text x="174.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
@@ -26,14 +26,11 @@
 <text x="765.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
 <text x="824.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
 <text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.0</text>
-<polyline points="56.0,158.3 85.6,158.3 115.1,158.3 144.7,158.3 174.3,158.3 203.9,158.3 233.4,158.3 263.0,158.3 292.6,158.3 322.1,142.0 351.7,142.0 381.3,142.0 410.9,142.0 440.4,129.8 470.0,129.8 499.6,129.8 529.1,129.8 558.7,113.4 588.3,113.4 617.9,113.4 647.4,113.4 677.0,113.4 706.6,113.4 736.1,113.4 765.7,113.4 795.3,113.4 824.9,121.6 854.4,121.6 884.0,121.6" fill="none" stroke="#0969da" stroke-width="2"/>
-<polyline points="56.0,140.4 85.6,140.4 115.1,140.4 144.7,140.4 174.3,140.4 203.9,134.7 233.4,134.7 263.0,134.7 292.6,134.7 322.1,118.3 351.7,118.3 381.3,118.3 410.9,118.3 440.4,88.1 470.0,88.1 499.6,88.1 529.1,88.1 558.7,71.8 588.3,66.1 617.9,66.1 647.4,66.1 677.0,66.1 706.6,66.1 736.1,66.1 765.7,66.1 795.3,66.1 824.9,62.8 854.4,62.8 884.0,62.8" fill="none" stroke="#8250df" stroke-width="2" stroke-dasharray="5 4"/>
-<polyline points="824.9,121.6 854.4,121.6 884.0,191.0" fill="none" stroke="#1a7f37" stroke-width="2"/>
+<polyline points="824.9,183.4 854.4,181.2 884.0,103.6" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="824.9,43.5 854.4,42.2 884.0,45.1" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
 <line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
-<text x="84" y="286" fill="#1f2328">median</text>
-<line x1="134" y1="282" x2="156" y2="282" stroke="#8250df" stroke-width="2" stroke-dasharray="5 4"/>
-<text x="162" y="286" fill="#1f2328">90th percentile</text>
-<line x1="275" y1="282" x2="297" y2="282" stroke="#1a7f37" stroke-width="2"/>
-<text x="303" y="286" fill="#1f2328">spelled out in the default report</text>
-<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">curl, django, react and gitmole; the report's brevity is the product</text>
+<text x="84" y="286" fill="#1f2328">labelled actionable</text>
+<line x1="225" y1="282" x2="247" y2="282" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="253" y="286" fill="#1f2328">carrying a label at all</text>
+<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">development and well-kept sets, hand labels (measure/labels.jsonl); none before 0.28.0</text>
 </svg>

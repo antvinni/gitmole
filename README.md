@@ -69,25 +69,33 @@ Run times are one `gitmole CLONE` with every default step, on a MacBook Pro (M4,
 ## Evolution
 
 Every release is run from its own source over the same pinned repositories and
-scored by the same yardstick, so the graphs show what each release changed
+judged by the same yardsticks, so the graphs show what each release changed
 ([measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md)
-says how). On the three development repositories, revisions × lines of code
-(from 0.8.0) closed most of the gap between random and perfect, and later
-releases added findings rather than accuracy. On thirteen Apache repositories
-held out from tuning, the current release closes 61% of that gap and draws
-with churn alone, so the development numbers are the optimistic end.
+says how). Three questions decide whether gitmole is getting better:
 
-The watch list is churn weighted by size. At the top it names about as many
-soon-to-be-fixed files as churn alone, and it orders the whole pool better,
-but per line read it finds fewer. A recency-weighted variant won on the
-development repositories and drew on the held-out ones, so it was not
-shipped ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md#what-the-ranking-is-for)):
+- **Is it right?** How much of the gap between a random and a perfect top
+  fifteen the watch list closes, against churn alone. It is drawn on the same
+  four repositories every release (curl, django, react and gitmole), and the
+  dots are thirteen Apache repositories nobody tuned against, scored by
+  independent labels. Revisions × lines of code (from 0.8.0) closed most of the
+  gap on the four. On the thirteen it closes 61% and draws with churn alone.
+  The watch list is churn weighted by size: at the top it names about as many
+  soon-to-be-fixed files as churn, it orders the whole pool better, and per
+  line read it finds fewer
+  ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md#what-the-ranking-is-for)).
+- **Is it useful?** Of the findings the default report spells out, the share
+  labelled worth acting on. The labels start at 0.28.0 and are, so far, one
+  labeller's.
+- **Does it run?** The share of awkward inputs (an empty repository, a shallow
+  clone, a detached head, a non-UTF-8 path) it completes, and of the gate's
+  planted problems it catches.
 
-<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/ranking.svg" width="900" alt="Headroom of the watch list by release, against churn alone">
-<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/findings.svg" width="900" alt="Findings per repository by release">
-<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/runtime.svg" width="900" alt="Run time of the development set by release">
+<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/ranking.svg" width="900" alt="Headroom of the watch list by release, against churn alone, with the held-out repositories">
+<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/useful.svg" width="900" alt="Share of the default report's findings labelled actionable, by release">
+<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/robustness.svg" width="900" alt="Runs completed and gate cases caught, by release">
 
-Every release's numbers, the other graphs and what they show:
+What it costs (findings per repository, report length, run time, memory) and
+every release's numbers:
 [measurement-history.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement-history.md).
 
 ## The tool set

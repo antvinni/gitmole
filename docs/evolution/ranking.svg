@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
 <rect width="900" height="300" fill="#ffffff"/>
-<text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Watch list: share of the gap from random to perfect it closes (headroom at 15)</text>
+<text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Is it right? The watch list's share of the gap from random to perfect (headroom at 15)</text>
 <line x1="56" y1="244.0" x2="884" y2="244.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="248.0" text-anchor="end" fill="#1f2328">0%</text>
 <line x1="56" y1="193.0" x2="884" y2="193.0" stroke="#d0d7de" stroke-width="1"/>
@@ -12,26 +12,29 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">100%</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="117.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
-<text x="178.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
-<text x="240.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="301.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
-<text x="362.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
-<text x="424.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="485.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
-<text x="546.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
-<text x="608.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="669.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
-<text x="730.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
-<text x="792.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="853.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
-<polygon points="56.0,53.1 86.7,53.1 117.3,53.1 148.0,53.1 178.7,53.1 209.3,53.1 240.0,53.1 270.7,53.1 301.3,53.5 332.0,53.5 362.7,53.5 393.3,53.5 424.0,53.5 454.7,53.5 485.3,53.5 516.0,53.5 546.7,53.5 577.3,53.5 608.0,53.5 638.7,53.5 669.3,53.5 700.0,53.5 730.7,53.5 761.3,53.5 792.0,53.5 822.7,53.5 853.3,53.5 884.0,53.5 884.0,171.4 853.3,171.4 822.7,117.3 792.0,117.3 761.3,124.0 730.7,124.0 700.0,124.0 669.3,124.0 638.7,124.0 608.0,124.0 577.3,124.0 546.7,124.0 516.0,124.0 485.3,124.0 454.7,124.0 424.0,124.0 393.3,124.0 362.7,124.0 332.0,124.0 301.3,125.9 270.7,121.0 240.0,121.0 209.3,154.4 178.7,154.4 148.0,154.4 117.3,154.4 86.7,154.4 56.0,154.4" fill="#0969da" fill-opacity="0.12" stroke="none"/>
-<polyline points="56.0,94.3 86.7,94.3 117.3,94.3 148.0,94.3 178.7,94.3 209.3,86.1 240.0,56.7 270.7,56.7 301.3,57.1 332.0,54.3 362.7,54.3 393.3,54.3 424.0,54.3 454.7,54.3 485.3,54.3 516.0,54.3 546.7,54.3 577.3,54.3 608.0,54.3 638.7,54.3 669.3,54.3 700.0,54.3 730.7,54.3 761.3,54.3 792.0,54.3 822.7,54.3 853.3,117.3 884.0,117.3" fill="none" stroke="#0969da" stroke-width="2"/>
-<polyline points="56.0,99.8 86.7,99.8 117.3,99.8 148.0,99.8 178.7,99.8 209.3,91.6 240.0,95.5 270.7,95.5 301.3,96.7 332.0,99.8 362.7,99.8 393.3,99.8 424.0,99.8 454.7,99.8 485.3,99.8 516.0,99.8 546.7,99.8 577.3,99.8 608.0,99.8 638.7,99.8 669.3,99.8 700.0,99.8 730.7,99.8 761.3,99.8 792.0,99.8 822.7,99.8 853.3,138.5 884.0,138.5" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="115.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
+<text x="174.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
+<text x="233.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="292.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="351.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
+<text x="410.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="529.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
+<text x="588.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="647.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="706.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
+<text x="765.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<text x="824.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.0</text>
+<polygon points="56.0,53.1 85.6,53.1 115.1,53.1 144.7,53.1 174.3,53.1 203.9,53.1 233.4,53.1 263.0,53.1 292.6,53.5 322.1,53.5 351.7,53.5 381.3,53.5 410.9,53.5 440.4,53.5 470.0,53.5 499.6,53.5 529.1,53.5 558.7,53.5 588.3,53.5 617.9,53.5 647.4,53.5 677.0,53.5 706.6,53.5 736.1,53.5 765.7,53.5 795.3,53.5 824.9,53.5 854.4,53.5 884.0,53.5 884.0,117.3 854.4,117.3 824.9,117.3 795.3,117.3 765.7,117.3 736.1,124.0 706.6,124.0 677.0,124.0 647.4,124.0 617.9,124.0 588.3,124.0 558.7,124.0 529.1,124.0 499.6,124.0 470.0,124.0 440.4,124.0 410.9,124.0 381.3,124.0 351.7,124.0 322.1,124.0 292.6,125.9 263.0,121.0 233.4,121.0 203.9,154.4 174.3,154.4 144.7,154.4 115.1,154.4 85.6,154.4 56.0,154.4" fill="#0969da" fill-opacity="0.12" stroke="none"/>
+<polyline points="56.0,94.3 85.6,94.3 115.1,94.3 144.7,94.3 174.3,94.3 203.9,86.1 233.4,56.7 263.0,56.7 292.6,57.1 322.1,54.3 351.7,54.3 381.3,54.3 410.9,54.3 440.4,54.3 470.0,54.3 499.6,54.3 529.1,54.3 558.7,54.3 588.3,54.3 617.9,54.3 647.4,54.3 677.0,54.3 706.6,54.3 736.1,54.3 765.7,54.3 795.3,54.3 824.9,54.3 854.4,54.3 884.0,54.3" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="56.0,99.8 85.6,99.8 115.1,99.8 144.7,99.8 174.3,99.8 203.9,91.6 233.4,95.5 263.0,95.5 292.6,96.7 322.1,99.8 351.7,99.8 381.3,99.8 410.9,99.8 440.4,99.8 470.0,99.8 499.6,99.8 529.1,99.8 558.7,99.8 588.3,99.8 617.9,99.8 647.4,99.8 677.0,99.8 706.6,99.8 736.1,99.8 765.7,99.8 795.3,99.8 824.9,99.8 854.4,99.8 884.0,99.8" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
+<circle cx="765.7" cy="118.7" r="2.5" fill="#bf3989"/>
 <line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="286" fill="#1f2328">watch list</text>
 <line x1="162" y1="282" x2="184" y2="282" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
 <text x="190" y="286" fill="#1f2328">churn alone</text>
-<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">development set, six cut-offs, fixes in the next six months</text>
+<line x1="275" y1="282" x2="297" y2="282" stroke="#bf3989" stroke-width="2"/>
+<text x="303" y="286" fill="#1f2328">watch list, 13 held-out repositories</text>
+<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">curl, django, react and gitmole (every release), six cut-offs, fixes in the next six months; dots: independent labels, repositories never tuned on</text>
 </svg>

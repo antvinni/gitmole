@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
 <rect width="900" height="300" fill="#ffffff"/>
-<text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Robustness, gate catch rate and scored share</text>
+<text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Does it run? Robustness, gate catch rate and scored share</text>
 <line x1="56" y1="244.0" x2="884" y2="244.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="248.0" text-anchor="end" fill="#1f2328">0%</text>
 <line x1="56" y1="193.0" x2="884" y2="193.0" stroke="#d0d7de" stroke-width="1"/>
@@ -12,23 +12,23 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">100%</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="117.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
-<text x="178.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
-<text x="240.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="301.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
-<text x="362.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
-<text x="424.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="485.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
-<text x="546.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
-<text x="608.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="669.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
-<text x="730.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
-<text x="792.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="853.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
-<polyline points="56.0,53.6 86.7,53.6 117.3,53.6 148.0,53.6 178.7,53.6 209.3,53.6 240.0,67.2 270.7,67.2 301.3,67.2 332.0,67.2 362.7,67.2 393.3,67.2 424.0,67.2 454.7,67.2 485.3,67.2 516.0,67.2 546.7,67.2 577.3,67.2 608.0,67.2 638.7,67.2 669.3,67.2 700.0,67.2 730.7,67.2 761.3,67.2 792.0,59.1 822.7,64.0 853.3,40.0 884.0,40.0" fill="none" stroke="#0969da" stroke-width="2"/>
-<polyline points="56.0,176.0 86.7,176.0 117.3,176.0 148.0,176.0 178.7,176.0 209.3,176.0 240.0,176.0 270.7,176.0 301.3,176.0 332.0,176.0 362.7,176.0 393.3,176.0 424.0,176.0 454.7,40.0 485.3,40.0 516.0,40.0 546.7,40.0 577.3,40.0 608.0,40.0 638.7,40.0 669.3,40.0 700.0,40.0 730.7,40.0 761.3,40.0 792.0,40.0 822.7,40.0 853.3,40.0 884.0,40.0" fill="none" stroke="#8250df" stroke-width="2"/>
-<polyline points="301.3,200.8 332.0,200.8 362.7,200.8 393.3,200.8 424.0,200.8 454.7,200.8 485.3,200.8 516.0,200.8 546.7,200.8 577.3,200.8 608.0,200.8 638.7,200.8 669.3,200.8 700.0,200.8 730.7,200.8 761.3,200.8 792.0,200.8 822.7,200.8 853.3,200.8 884.0,200.8" fill="none" stroke="#1a7f37" stroke-width="2"/>
+<text x="115.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
+<text x="174.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
+<text x="233.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="292.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="351.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
+<text x="410.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="529.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
+<text x="588.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="647.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="706.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
+<text x="765.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<text x="824.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.0</text>
+<polyline points="56.0,53.6 85.6,53.6 115.1,53.6 144.7,53.6 174.3,53.6 203.9,53.6 233.4,67.2 263.0,67.2 292.6,67.2 322.1,67.2 351.7,67.2 381.3,67.2 410.9,67.2 440.4,67.2 470.0,67.2 499.6,67.2 529.1,67.2 558.7,67.2 588.3,67.2 617.9,67.2 647.4,67.2 677.0,67.2 706.6,67.2 736.1,67.2 765.7,59.1 795.3,64.0 824.9,40.0 854.4,40.0 884.0,40.0" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="56.0,176.0 85.6,176.0 115.1,176.0 144.7,176.0 174.3,176.0 203.9,176.0 233.4,176.0 263.0,176.0 292.6,176.0 322.1,176.0 351.7,176.0 381.3,176.0 410.9,176.0 440.4,40.0 470.0,40.0 499.6,40.0 529.1,40.0 558.7,40.0 588.3,40.0 617.9,40.0 647.4,40.0 677.0,40.0 706.6,40.0 736.1,40.0 765.7,40.0 795.3,40.0 824.9,40.0 854.4,40.0 884.0,40.0" fill="none" stroke="#8250df" stroke-width="2"/>
+<polyline points="292.6,200.8 322.1,200.8 351.7,200.8 381.3,200.8 410.9,200.8 440.4,200.8 470.0,200.8 499.6,200.8 529.1,200.8 558.7,200.8 588.3,200.8 617.9,200.8 647.4,200.8 677.0,200.8 706.6,200.8 736.1,200.8 765.7,200.8 795.3,200.8 824.9,200.8 854.4,200.8 884.0,200.8" fill="none" stroke="#1a7f37" stroke-width="2"/>
 <line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="286" fill="#1f2328">runs completed</text>
 <line x1="190" y1="282" x2="212" y2="282" stroke="#8250df" stroke-width="2"/>

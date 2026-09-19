@@ -180,3 +180,27 @@
 {"actionable": true, "id": "3600fb8ada302873", "labeller": "claude", "reason": "three of four never named anywhere", "true": true}
 {"actionable": false, "id": "777bbace336df3c4", "labeller": "claude", "reason": "a healthy spread", "true": true}
 {"actionable": false, "id": "31b1ff2a0531c09e", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "035c18e628b4e5ae", "labeller": "claude", "reason": "2,107 functions: too many to act on", "true": true}
+{"id": "218e5931cfc8d4bb", "labeller": "claude", "reason": "28 values not checked", "unsure": true}
+{"actionable": true, "id": "3585810645d1a44d", "labeller": "claude", "reason": "includes a real Codecov upload token", "true": true}
+{"actionable": false, "id": "3904268f88f6d75d", "labeller": "claude", "reason": "pairs of related headers or test plugins", "true": true}
+{"actionable": true, "id": "3f9c6916fb56b576", "labeller": "claude", "reason": "truck factor of 2 or less is worth acting on", "true": true}
+{"actionable": true, "id": "4c7e1985fafa5645", "labeller": "claude", "reason": "lodash is unused; the react-app entries are build or peer packages, but the lead is right", "true": true}
+{"actionable": true, "id": "5632bfdfa60b9395", "labeller": "claude", "reason": "now leads with hand-written functions worth splitting", "true": true}
+{"actionable": false, "id": "60f63499292a6395", "labeller": "claude", "reason": "low-graded generic hits: names, configs, hashes", "true": false}
+{"actionable": false, "id": "635fc7232b4f120d", "labeller": "claude", "reason": "blocks are in tests, examples or vendored copies", "true": true}
+{"actionable": false, "id": "64661689458bd925", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": true, "id": "64e988396839c447", "labeller": "claude", "reason": "hand-written functions worth splitting", "true": true}
+{"actionable": false, "id": "734fffee9b8a47d6", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "7bf76f46623f5de2", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "91c4e0cabe998960", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "946f232b9629b46c", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "9b7d4b191bf2d79c", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "a93a2e0ba7ccc054", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "a952e281e77b66e7", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "b98422ea8ab6cb9f", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "be8a8be7abdcca89", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": true, "id": "cbeca20a22bd3cce", "labeller": "claude", "reason": "one author's area", "true": true}
+{"actionable": true, "id": "e28b1d92fff5710a", "labeller": "claude", "reason": "truck factor of 2 or less is worth acting on", "true": true}
+{"actionable": false, "id": "f4f9bd08017833af", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "ff64e4fbed2959aa", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}

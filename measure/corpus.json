@@ -1,6 +1,7 @@
 {
  "about": "The measurement corpus (docs/measurement.md). development: tuning and eyeballing allowed. holdout: never read while tuning; run it when a release note is about to claim the tool got more effective. well-kept: chosen before running anything, by an outside criterion. awkward and gate: fixtures the harness builds.",
  "reference_date": "2026-09-17",
+ "series": {"repos": ["curl", "django", "react", "gitmole"], "note": "the development set every release since 0.2.0 was measured on; the history's long graphs are drawn over these four, so a change to the development set does not read as a move. The dashboard and the per-release table use the whole set."},
  "well_kept_criterion": "CNCF graduated projects (cncf.io/projects, graduated maturity), four Go projects of moderate size; chosen on 18 September 2026 before any gitmole run on them",
  "holdout_labels": {
   "apachejit": "github.com/hosseinkshvrz/apachejit dataset/apachejit_total.csv (Keshavarz and Nagappan, MSR 2022)"

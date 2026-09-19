@@ -12,24 +12,24 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">1</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="117.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
-<text x="178.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
-<text x="240.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="301.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
-<text x="362.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
-<text x="424.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="485.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
-<text x="546.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
-<text x="608.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="669.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
-<text x="730.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
-<text x="792.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="853.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
-<polyline points="56.0,87.7 86.7,87.7 117.3,87.7 148.0,87.7 178.7,87.7 209.3,88.8 240.0,77.7 270.7,77.7 301.3,77.1 332.0,78.4 362.7,78.4 393.3,78.4 424.0,78.4 454.7,78.4 485.3,78.4 516.0,78.4 546.7,78.4 577.3,78.4 608.0,78.4 638.7,78.4 669.3,78.4 700.0,78.4 730.7,78.4 761.3,77.3 792.0,76.9 822.7,76.9 853.3,76.9 884.0,76.9" fill="none" stroke="#0969da" stroke-width="2"/>
-<polyline points="56.0,89.2 86.7,89.2 117.3,89.2 148.0,89.2 178.7,89.2 209.3,88.8 240.0,88.6 270.7,88.6 301.3,86.5 332.0,88.1 362.7,88.1 393.3,88.1 424.0,88.1 454.7,88.1 485.3,88.1 516.0,88.1 546.7,88.1 577.3,88.1 608.0,88.1 638.7,88.1 669.3,88.1 700.0,88.1 730.7,88.1 761.3,88.1 792.0,85.9 822.7,85.9 853.3,88.1 884.0,88.1" fill="none" stroke="#0969da" stroke-width="2" stroke-dasharray="5 4"/>
-<polyline points="56.0,153.4 86.7,153.4 117.3,153.4 148.0,153.4 178.7,153.4 209.3,155.9 240.0,182.8 270.7,182.8 301.3,166.3 332.0,166.5 362.7,166.5 393.3,166.5 424.0,166.5 454.7,166.5 485.3,166.5 516.0,166.5 546.7,166.5 577.3,166.5 608.0,166.5 638.7,166.5 669.3,166.5 700.0,166.5 730.7,166.5 761.3,166.5 792.0,152.2 822.7,152.2 853.3,170.8 884.0,170.8" fill="none" stroke="#8250df" stroke-width="2"/>
-<polyline points="56.0,152.2 86.7,152.2 117.3,152.2 148.0,152.2 178.7,152.2 209.3,151.0 240.0,151.0 270.7,151.0 301.3,128.5 332.0,126.1 362.7,126.1 393.3,126.1 424.0,126.1 454.7,126.1 485.3,126.1 516.0,126.1 546.7,126.1 577.3,126.1 608.0,126.1 638.7,126.1 669.3,126.1 700.0,126.1 730.7,126.1 761.3,126.1 792.0,115.7 822.7,115.7 853.3,144.2 884.0,144.2" fill="none" stroke="#8250df" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="115.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
+<text x="174.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
+<text x="233.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="292.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="351.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
+<text x="410.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="529.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
+<text x="588.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="647.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="706.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
+<text x="765.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<text x="824.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.0</text>
+<polyline points="56.0,87.7 85.6,87.7 115.1,87.7 144.7,87.7 174.3,87.7 203.9,88.8 233.4,77.7 263.0,77.7 292.6,77.1 322.1,78.4 351.7,78.4 381.3,78.4 410.9,78.4 440.4,78.4 470.0,78.4 499.6,78.4 529.1,78.4 558.7,78.4 588.3,78.4 617.9,78.4 647.4,78.4 677.0,78.4 706.6,78.4 736.1,77.3 765.7,76.9 795.3,76.9 824.9,76.9 854.4,76.9 884.0,76.9" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="56.0,89.2 85.6,89.2 115.1,89.2 144.7,89.2 174.3,89.2 203.9,88.8 233.4,88.6 263.0,88.6 292.6,86.5 322.1,88.1 351.7,88.1 381.3,88.1 410.9,88.1 440.4,88.1 470.0,88.1 499.6,88.1 529.1,88.1 558.7,88.1 588.3,88.1 617.9,88.1 647.4,88.1 677.0,88.1 706.6,88.1 736.1,88.1 765.7,85.9 795.3,85.9 824.9,85.9 854.4,85.9 884.0,85.9" fill="none" stroke="#0969da" stroke-width="2" stroke-dasharray="5 4"/>
+<polyline points="56.0,153.4 85.6,153.4 115.1,153.4 144.7,153.4 174.3,153.4 203.9,155.9 233.4,182.8 263.0,182.8 292.6,166.3 322.1,166.5 351.7,166.5 381.3,166.5 410.9,166.5 440.4,166.5 470.0,166.5 499.6,166.5 529.1,166.5 558.7,166.5 588.3,166.5 617.9,166.5 647.4,166.5 677.0,166.5 706.6,166.5 736.1,166.5 765.7,152.2 795.3,152.2 824.9,152.2 854.4,152.2 884.0,152.2" fill="none" stroke="#8250df" stroke-width="2"/>
+<polyline points="56.0,152.2 85.6,152.2 115.1,152.2 144.7,152.2 174.3,152.2 203.9,151.0 233.4,151.0 263.0,151.0 292.6,128.5 322.1,126.1 351.7,126.1 381.3,126.1 410.9,126.1 440.4,126.1 470.0,126.1 499.6,126.1 529.1,126.1 558.7,126.1 588.3,126.1 617.9,126.1 647.4,126.1 677.0,126.1 706.6,126.1 736.1,126.1 765.7,115.7 795.3,115.7 824.9,115.7 854.4,115.7 884.0,115.7" fill="none" stroke="#8250df" stroke-width="2" stroke-dasharray="5 4"/>
 <line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="286" fill="#1f2328">AUC</text>
 <line x1="113" y1="282" x2="135" y2="282" stroke="#0969da" stroke-width="2" stroke-dasharray="5 4"/>
@@ -38,5 +38,5 @@
 <text x="247" y="286" fill="#1f2328">recall at 20%</text>
 <line x1="346" y1="282" x2="368" y2="282" stroke="#8250df" stroke-width="2" stroke-dasharray="5 4"/>
 <text x="374" y="286" fill="#1f2328">recall, churn</text>
-<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">median over the development repositories</text>
+<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">median over curl, django, react and gitmole</text>
 </svg>

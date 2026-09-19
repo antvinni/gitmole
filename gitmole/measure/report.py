@@ -30,32 +30,42 @@ def _share(pair):
 
 
 def graphs(history: list) -> dict:
+    """The long graphs draw each release over the fixed series (corpus.json `series`), so a change to the
+    development set is not a move; robustness and the gate are fixtures, the holdout its own set."""
     labels_ = [r["version"] for r in history]
-    s = [r["summary"] for r in history]
-    crashed = [i for i, x in enumerate(s) if x.get("crashed")]
+    s = [r.get("series") or r["summary"] for r in history]
+    whole = [r["summary"] for r in history]
+    crashed = [i for i, x in enumerate(whole) if x.get("crashed")]
     col = lambda k: [x.get(k) for x in s]   # noqa: E731
+    useful = [r.get("useful") or {} for r in history]
     out = {}
-    out["ranking.svg"] = svg.chart("Watch list: share of the gap from random to perfect it closes (headroom at 15)", labels_, [
+    out["ranking.svg"] = svg.chart("Is it right? The watch list's share of the gap from random to perfect (headroom at 15)", labels_, [
         {"label": "watch list", "values": col("headroom"), "band": [x.get("headroom_ci") for x in s]},
-        {"label": "churn alone", "values": col("churn_headroom"), "dashed": True, "color": "#57606a"}], crashed, (0, 1), "%",
-        "development set, six cut-offs, fixes in the next six months")
+        {"label": "churn alone", "values": col("churn_headroom"), "dashed": True, "color": "#57606a"},
+        {"label": "watch list, 13 held-out repositories", "values": [x.get("holdout_headroom") for x in whole], "color": "#bf3989"}], crashed, (0, 1), "%",
+        "curl, django, react and gitmole (every release), six cut-offs, fixes in the next six months; dots: independent labels, repositories never tuned on")
+    out["useful.svg"] = svg.chart("Is it useful? Findings the default report spells out that are worth acting on", labels_, [
+        {"label": "labelled actionable", "values": [u.get("actionable_share") for u in useful]},
+        {"label": "carrying a label at all", "values": [u.get("labelled_share") for u in useful], "dashed": True, "color": "#57606a"}], crashed, (0, 1), "%",
+        "development and well-kept sets, hand labels (measure/labels.jsonl); none before 0.28.0")
     out["whole-ranking.svg"] = svg.chart("The whole ranking: ROC-AUC and recall at 20% of the lines", labels_, [
         {"label": "AUC", "values": col("auc")}, {"label": "AUC, churn", "values": col("churn_auc"), "dashed": True, "color": "#0969da"},
         {"label": "recall at 20%", "values": col("recall20"), "color": "#8250df"},
         {"label": "recall, churn", "values": col("churn_recall20"), "dashed": True, "color": "#8250df"}], crashed, (0, 1), "",
-        "median over the development repositories")
+        "median over curl, django, react and gitmole")
     out["findings.svg"] = svg.chart("Findings per repository", labels_, [
-        {"label": "median", "values": col("findings_median")}, {"label": "90th percentile", "values": col("findings_p90"), "dashed": True}],
-        crashed, None, "", "development set; the report's brevity is the product")
+        {"label": "median", "values": col("findings_median")}, {"label": "90th percentile", "values": col("findings_p90"), "dashed": True},
+        {"label": "spelled out in the default report", "values": col("shown_median"), "color": "#1a7f37"}],
+        crashed, None, "", "curl, django, react and gitmole; the report's brevity is the product")
     out["report-length.svg"] = svg.chart("Terminal report length (lines, median)", labels_, [
-        {"label": "lines at 100 columns", "values": col("report_lines")}], crashed, None, "", "the default report")
-    out["runtime.svg"] = svg.chart("Run time of the development set (seconds, one repository at a time)", labels_, [
+        {"label": "lines at 100 columns", "values": col("report_lines")}], crashed, None, "", "the default report, curl, django, react and gitmole")
+    out["runtime.svg"] = svg.chart("Run time of curl, django, react and gitmole (seconds, one repository at a time)", labels_, [
         {"label": "seconds", "values": col("seconds")}], crashed, None, "", "one laptop; each run records the load average")
     out["memory.svg"] = svg.chart("Peak memory of the largest process (MB)", labels_, [
-        {"label": "MB", "values": col("peak_mb")}], crashed, None, "", "the largest of the development runs")
-    out["robustness.svg"] = svg.chart("Robustness, gate catch rate and scored share", labels_, [
-        {"label": "runs completed", "values": [_share(x.get("robust")) for x in s]},
-        {"label": "gate cases caught", "values": [_share(x.get("gate_caught")) for x in s]},
+        {"label": "MB", "values": col("peak_mb")}], crashed, None, "", "the largest of the runs on curl, django, react and gitmole")
+    out["robustness.svg"] = svg.chart("Does it run? Robustness, gate catch rate and scored share", labels_, [
+        {"label": "runs completed", "values": [_share(x.get("robust")) for x in whole]},
+        {"label": "gate cases caught", "values": [_share(x.get("gate_caught")) for x in whole]},
         {"label": "tracked text files scored", "values": col("scored_share")}], crashed, (0, 1), "%",
         "awkward inputs and gate fixtures included")
     return out
@@ -88,12 +98,15 @@ def page(history: list, extras: dict) -> str:
              "six cut-offs by its own backtest, and the outcome is the files a fix commit touched in the six months after "
              "each cut-off. The holdout is not read here: it runs only for the release a note claims is more effective. "
              "A release that crashed or timed out on a development repository is drawn at the bottom of every graph "
-             "with a red cross, and its row says why.", ""]
+             "with a red cross, and its row says why. The graphs draw every release over the same four repositories, "
+             "curl, django, react and gitmole, so a repository joining the development set is not a move; the table "
+             "and the dashboard use the whole set. The first three graphs are the ones the README shows: is the "
+             "ranking right, are the findings worth acting on, does it run.", ""]
     notes = os.path.join(corpus.ROOT, "measure", "history-notes.md")
     if os.path.exists(notes):   # the reading of the history, written by hand; the rest of the page is generated
         with open(notes, encoding="utf-8") as fh:
             lines += [fh.read().strip(), ""]
-    for name in ("ranking", "whole-ranking", "findings", "report-length", "runtime", "memory", "robustness"):
+    for name in ("ranking", "useful", "robustness", "whole-ranking", "findings", "report-length", "runtime", "memory"):
         lines += [f"![{name}](evolution/{name}.svg)", ""]
     lines += ["## By release", "",
               "Headroom is (hits − random) / (perfect − random) at 15, the median over the development repositories, "
@@ -135,6 +148,9 @@ def current(record: dict, extras: dict) -> list:
             ("top-15 stability over 50 commits", "development", _num(s.get("stability_top15"))),
             ("top-15 carried over from one cut-off to the next, six months", "development", _num(s.get("carryover_top15"))),
             ("findings per repository, median and p90", "development", f"{_num(s.get('findings_median'), '{:g}')} and {_num(s.get('findings_p90'), '{:g}')}")]
+    u = record.get("useful") or {}
+    rows.append(("findings the default report spells out that are labelled actionable", "development and well-kept",
+                 f"{_pct(u.get('actionable_share'))} of {u.get('shown', 0)}, {_pct(u.get('labelled_share'))} labelled" if u.get("shown") else "no finding ids in this record"))
     score = labels.score()
     rows.append(("rules sound, broken and undecided", "labelled sample", ", ".join(f"{k} {v}" for k, v in sorted(score["verdicts"].items())) or "no labels"))
     kept = s.get("well_kept_with_critical")
@@ -197,8 +213,12 @@ def _extras(x: dict) -> list:
 
 def render(records_dir: str) -> list:
     history = dashboard.load_history(records_dir)
+    series = set((corpus.load().get("series") or {}).get("repos") or []) or None
+    marks = labels._read(os.path.join(labels.DIR, "labels.jsonl"))
     for r in history:
         r["summary"] = dashboard.summarise(r)
+        r["series"] = dashboard.summarise(r, only=series)
+        r["useful"] = labels.usefulness(r, marks)
     extras = None
     extras_dir = os.path.join(records_dir, "extras")
     if history and os.path.exists(os.path.join(extras_dir, f"{history[-1]['version']}.json")):

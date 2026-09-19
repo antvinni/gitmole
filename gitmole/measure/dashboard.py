@@ -38,10 +38,11 @@ def _round(x, n=3):
     return None if x is None else round(x, n)
 
 
-def summarise(record: dict) -> dict:
-    """The dashboard numbers for one release, from its per-repository records."""
+def summarise(record: dict, only=None) -> dict:
+    """The dashboard numbers for one release, from its per-repository records; with `only`, the
+    development set cut to those repositories (the like-for-like series the long graphs draw)."""
     repos = record["repos"]
-    dev = {n: r for n, r in repos.items() if r.get("set") == "development"}
+    dev = {n: r for n, r in repos.items() if r.get("set") == "development" and (only is None or n in only)}
     crashed = {n: r.get("note") or r["status"] for n, r in dev.items() if r["status"] in ("crashed", "timeout")}
     out = {"crashed": crashed or None}
     ranked = {n: _repo_ranking(r) for n, r in dev.items()}
@@ -64,6 +65,7 @@ def summarise(record: dict) -> dict:
     ok = [r for r in dev.values() if r["status"] == "ok"]
     out["findings_median"] = metrics.median([r.get("findings") for r in ok])
     out["findings_p90"] = _round(metrics.percentile([r.get("findings") for r in ok], 0.9), 1)
+    out["shown_median"] = metrics.median([r.get("shown") for r in ok])   # spelled out in the default report; None before 0.28.0's backfill
     out["report_lines"] = metrics.median([r.get("report_lines") for r in ok])
     out["scored_share"] = _round(metrics.median([r.get("scored_share") for r in ok]))
     out["seconds"] = _round(sum(r.get("seconds") or 0 for r in ok), 1) if ok else None

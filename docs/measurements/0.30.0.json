@@ -1,12 +1,12 @@
 {
- "commit": "50d9eefb1cb15517649d23f48d6a19c4038e7cea",
+ "commit": "67fceccd618cd725ea8f1a54d50cd18b26d6b6a4",
  "measured": "2026-09-19",
  "ref": "worktree",
  "reference_date": "2026-09-17",
  "repos": {
   "awkward-binary-only": {
    "findings": 2,
-   "load": 8.21,
+   "load": 9.95,
    "measure_seconds": 0.6,
    "peak_mb": 48,
    "rc": 0,
@@ -15,43 +15,44 @@
     "placeholder_identity",
     "repo_policy"
    ],
-   "seconds": 0.5,
+   "seconds": 0.6,
    "set": "awkward",
    "severity": {
     "critical": 0,
     "info": 1,
     "warning": 1
    },
+   "shown": 2,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 27.8,
+    "betterleaks": 28.2,
     "change analysis": 20.5,
     "code age": 24.3,
     "duplicates": 25.7,
-    "functions": 29.3,
+    "functions": 29.1,
     "git-log": 8.1,
     "git-sizer": 7.8,
-    "hygiene": 18.0,
-    "osv-scanner": 48.1,
+    "hygiene": 18.3,
+    "osv-scanner": 47.4,
     "provenance": 22.1,
-    "scc": 19.1,
-    "signing": 16.7,
-    "trend": 24.0
+    "scc": 19.2,
+    "signing": 16.5,
+    "trend": 24.2
    },
    "step_seconds": {
-    "betterleaks": 0.08,
+    "betterleaks": 0.09,
     "change analysis": 0.03,
     "code age": 0.07,
     "duplicates": 0.08,
     "functions": 0.09,
     "git-log": 0.01,
-    "git-sizer": 0.04,
+    "git-sizer": 0.05,
     "hygiene": 0.12,
     "osv-scanner": 0.08,
     "provenance": 0.06,
     "scc": 0.01,
     "signing": 0.04,
-    "trend": 0.06
+    "trend": 0.05
    },
    "steps": {
     "betterleaks": "run",
@@ -72,7 +73,7 @@
   },
   "awkward-detached": {
    "findings": 3,
-   "load": 10.33,
+   "load": 12.53,
    "measure_seconds": 0.7,
    "peak_mb": 48,
    "rc": 0,
@@ -83,43 +84,44 @@
     "repo_policy"
    ],
    "scored_share": 1.0,
-   "seconds": 0.6,
+   "seconds": 0.7,
    "set": "awkward",
    "severity": {
     "critical": 0,
     "info": 1,
     "warning": 2
    },
+   "shown": 3,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 34.8,
-    "change analysis": 20.5,
-    "code age": 24.5,
-    "duplicates": 26.1,
+    "betterleaks": 34.5,
+    "change analysis": 20.8,
+    "code age": 24.3,
+    "duplicates": 25.7,
     "functions": 29.1,
     "git-log": 8.1,
     "git-sizer": 7.8,
     "hygiene": 18.2,
-    "osv-scanner": 47.8,
-    "provenance": 22.8,
+    "osv-scanner": 48.1,
+    "provenance": 22.7,
     "scc": 19.9,
     "signing": 16.6,
-    "trend": 24.3
+    "trend": 24.2
    },
    "step_seconds": {
     "betterleaks": 0.09,
-    "change analysis": 0.03,
-    "code age": 0.17,
-    "duplicates": 0.14,
-    "functions": 0.16,
+    "change analysis": 0.05,
+    "code age": 0.18,
+    "duplicates": 0.07,
+    "functions": 0.17,
     "git-log": 0.01,
     "git-sizer": 0.05,
-    "hygiene": 0.17,
+    "hygiene": 0.14,
     "osv-scanner": 0.08,
-    "provenance": 0.1,
+    "provenance": 0.07,
     "scc": 0.01,
     "signing": 0.04,
-    "trend": 0.11
+    "trend": 0.09
    },
    "steps": {
     "betterleaks": "run",
@@ -139,7 +141,7 @@
    "steps_failed": []
   },
   "awkward-empty": {
-   "load": 10.33,
+   "load": 12.53,
    "measure_seconds": 0.1,
    "note": "no commits yet: there is nothing to analyse",
    "peak_mb": 31,
@@ -151,11 +153,11 @@
   },
   "awkward-huge-file": {
    "findings": 5,
-   "load": 10.54,
-   "measure_seconds": 19.7,
+   "load": 12.53,
+   "measure_seconds": 19.9,
    "peak_mb": 1051,
    "rc": 0,
-   "report_lines": 74,
+   "report_lines": 71,
    "rules": [
     "bus_factor",
     "knowledge_islands",
@@ -164,43 +166,44 @@
     "repo_policy"
    ],
    "scored_share": 1.0,
-   "seconds": 19.6,
+   "seconds": 19.8,
    "set": "awkward",
    "severity": {
     "critical": 0,
     "info": 2,
     "warning": 3
    },
+   "shown": 4,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 119.4,
-    "change analysis": 20.9,
-    "code age": 1044.4,
-    "duplicates": 38.0,
-    "functions": 53.5,
+    "betterleaks": 121.2,
+    "change analysis": 20.6,
+    "code age": 1044.5,
+    "duplicates": 38.3,
+    "functions": 53.3,
     "git-log": 80.1,
     "git-sizer": 7.8,
     "hygiene": 33.8,
-    "osv-scanner": 48.2,
+    "osv-scanner": 47.2,
     "provenance": 316.4,
-    "scc": 32.6,
+    "scc": 32.8,
     "signing": 16.7,
     "trend": 53.9
    },
    "step_seconds": {
-    "betterleaks": 0.35,
-    "change analysis": 0.05,
-    "code age": 9.7,
-    "duplicates": 0.08,
-    "functions": 2.36,
+    "betterleaks": 0.38,
+    "change analysis": 0.04,
+    "code age": 9.83,
+    "duplicates": 0.11,
+    "functions": 2.39,
     "git-log": 0.07,
-    "git-sizer": 0.05,
-    "hygiene": 0.2,
-    "osv-scanner": 0.07,
-    "provenance": 1.61,
+    "git-sizer": 0.06,
+    "hygiene": 0.28,
+    "osv-scanner": 0.08,
+    "provenance": 1.63,
     "scc": 0.03,
     "signing": 0.05,
-    "trend": 0.13
+    "trend": 0.11
    },
    "steps": {
     "betterleaks": "run",
@@ -221,9 +224,9 @@
   },
   "awkward-non-utf8-path": {
    "findings": 3,
-   "load": 10.54,
+   "load": 12.53,
    "measure_seconds": 0.7,
-   "peak_mb": 47,
+   "peak_mb": 48,
    "rc": 0,
    "report_lines": 60,
    "rules": [
@@ -232,43 +235,44 @@
     "repo_policy"
    ],
    "scored_share": 0.5,
-   "seconds": 0.7,
+   "seconds": 0.6,
    "set": "awkward",
    "severity": {
     "critical": 0,
     "info": 1,
     "warning": 2
    },
+   "shown": 3,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 33.9,
+    "betterleaks": 34.0,
     "change analysis": 20.7,
-    "code age": 24.8,
+    "code age": 24.4,
     "duplicates": 25.7,
-    "functions": 29.2,
-    "git-log": 8.2,
+    "functions": 28.9,
+    "git-log": 8.1,
     "git-sizer": 7.8,
-    "hygiene": 18.2,
-    "osv-scanner": 47.5,
+    "hygiene": 18.1,
+    "osv-scanner": 48.2,
     "provenance": 22.4,
-    "scc": 20.1,
+    "scc": 19.8,
     "signing": 16.6,
     "trend": 24.3
    },
    "step_seconds": {
-    "betterleaks": 0.1,
+    "betterleaks": 0.09,
     "change analysis": 0.03,
-    "code age": 0.19,
-    "duplicates": 0.09,
-    "functions": 0.19,
+    "code age": 0.2,
+    "duplicates": 0.07,
+    "functions": 0.17,
     "git-log": 0.01,
     "git-sizer": 0.05,
-    "hygiene": 0.19,
-    "osv-scanner": 0.09,
-    "provenance": 0.11,
+    "hygiene": 0.21,
+    "osv-scanner": 0.07,
+    "provenance": 0.14,
     "scc": 0.01,
-    "signing": 0.04,
-    "trend": 0.11
+    "signing": 0.03,
+    "trend": 0.14
    },
    "steps": {
     "betterleaks": "run",
@@ -289,7 +293,7 @@
   },
   "awkward-one-commit": {
    "findings": 3,
-   "load": 10.33,
+   "load": 12.53,
    "measure_seconds": 0.7,
    "peak_mb": 48,
    "rc": 0,
@@ -307,36 +311,37 @@
     "info": 1,
     "warning": 2
    },
+   "shown": 3,
    "status": "ok",
    "step_peak_mb": {
     "betterleaks": 34.2,
-    "change analysis": 20.5,
-    "code age": 24.5,
-    "duplicates": 25.8,
-    "functions": 29.0,
+    "change analysis": 20.7,
+    "code age": 24.4,
+    "duplicates": 25.6,
+    "functions": 29.3,
     "git-log": 8.1,
     "git-sizer": 7.8,
     "hygiene": 18.2,
-    "osv-scanner": 48.2,
-    "provenance": 22.5,
-    "scc": 20.0,
+    "osv-scanner": 48.3,
+    "provenance": 22.3,
+    "scc": 19.8,
     "signing": 16.6,
-    "trend": 24.4
+    "trend": 24.2
    },
    "step_seconds": {
     "betterleaks": 0.09,
-    "change analysis": 0.03,
-    "code age": 0.17,
-    "duplicates": 0.13,
-    "functions": 0.17,
+    "change analysis": 0.07,
+    "code age": 0.18,
+    "duplicates": 0.11,
+    "functions": 0.18,
     "git-log": 0.01,
-    "git-sizer": 0.04,
-    "hygiene": 0.17,
+    "git-sizer": 0.05,
+    "hygiene": 0.18,
     "osv-scanner": 0.08,
-    "provenance": 0.12,
+    "provenance": 0.08,
     "scc": 0.01,
     "signing": 0.04,
-    "trend": 0.1
+    "trend": 0.08
    },
    "steps": {
     "betterleaks": "run",
@@ -357,7 +362,7 @@
   },
   "awkward-shallow": {
    "findings": 3,
-   "load": 10.33,
+   "load": 12.53,
    "measure_seconds": 0.7,
    "peak_mb": 48,
    "rc": 0,
@@ -375,34 +380,35 @@
     "info": 1,
     "warning": 2
    },
+   "shown": 3,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 34.1,
-    "change analysis": 20.7,
-    "code age": 24.3,
+    "betterleaks": 33.9,
+    "change analysis": 20.8,
+    "code age": 24.6,
     "duplicates": 25.7,
-    "functions": 29.0,
+    "functions": 29.2,
     "git-log": 8.1,
-    "hygiene": 18.0,
-    "osv-scanner": 48.2,
-    "provenance": 22.4,
-    "scc": 19.8,
+    "hygiene": 18.2,
+    "osv-scanner": 48.4,
+    "provenance": 22.3,
+    "scc": 20.0,
     "signing": 16.6,
-    "trend": 24.1
+    "trend": 24.2
    },
    "step_seconds": {
     "betterleaks": 0.1,
     "change analysis": 0.04,
-    "code age": 0.16,
-    "duplicates": 0.07,
-    "functions": 0.15,
+    "code age": 0.17,
+    "duplicates": 0.11,
+    "functions": 0.16,
     "git-log": 0.01,
-    "hygiene": 0.1,
+    "hygiene": 0.12,
     "osv-scanner": 0.08,
-    "provenance": 0.1,
+    "provenance": 0.12,
     "scc": 0.01,
     "signing": 0.04,
-    "trend": 0.09
+    "trend": 0.11
    },
    "steps": {
     "betterleaks": "run",
@@ -422,7 +428,7 @@
   },
   "awkward-submodule": {
    "findings": 3,
-   "load": 10.54,
+   "load": 12.53,
    "measure_seconds": 0.7,
    "peak_mb": 48,
    "rc": 0,
@@ -440,33 +446,34 @@
     "info": 1,
     "warning": 2
    },
+   "shown": 3,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 35.0,
-    "change analysis": 20.5,
-    "code age": 24.5,
+    "betterleaks": 33.9,
+    "change analysis": 20.8,
+    "code age": 24.6,
     "duplicates": 25.6,
-    "functions": 29.1,
+    "functions": 29.3,
     "git-log": 8.3,
     "git-sizer": 7.8,
-    "hygiene": 18.2,
-    "osv-scanner": 47.7,
+    "hygiene": 18.0,
+    "osv-scanner": 48.0,
     "provenance": 22.3,
-    "scc": 20.2,
+    "scc": 20.3,
     "signing": 16.6,
     "trend": 24.4
    },
    "step_seconds": {
-    "betterleaks": 0.09,
-    "change analysis": 0.03,
-    "code age": 0.17,
-    "duplicates": 0.11,
-    "functions": 0.16,
+    "betterleaks": 0.1,
+    "change analysis": 0.04,
+    "code age": 0.19,
+    "duplicates": 0.12,
+    "functions": 0.18,
     "git-log": 0.01,
     "git-sizer": 0.05,
-    "hygiene": 0.17,
+    "hygiene": 0.19,
     "osv-scanner": 0.08,
-    "provenance": 0.11,
+    "provenance": 0.12,
     "scc": 0.01,
     "signing": 0.04,
     "trend": 0.1
@@ -493,17 +500,17 @@
     {
      "id": "853fff43f9cf984d",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "36f93aabc24fb1c7",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "3a77afd3d6243f65",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "de7ea34ab3e6f225",
@@ -513,7 +520,7 @@
     {
      "id": "5594a0e6542cd7e6",
      "rule": "minor_contributors",
-     "summary": false
+     "summary": true
     },
     {
      "id": "035c18e628b4e5ae",
@@ -523,7 +530,7 @@
     {
      "id": "ff64e4fbed2959aa",
      "rule": "knowledge_loss",
-     "summary": false
+     "summary": true
     },
     {
      "id": "2a9631a792b6bc3a",
@@ -533,27 +540,27 @@
     {
      "id": "ee2fd1630948e8ee",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "7257f7230537988c",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "bf67ee203741c081",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "cd40fb7313e08ab6",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "b7563232642b39f5",
      "rule": "reverts",
-     "summary": false
+     "summary": true
     },
     {
      "id": "3904268f88f6d75d",
@@ -563,7 +570,7 @@
     {
      "id": "25d515820910281d",
      "rule": "stale_files",
-     "summary": false
+     "summary": true
     },
     {
      "id": "cbeca20a22bd3cce",
@@ -583,18 +590,18 @@
     {
      "id": "be8a8be7abdcca89",
      "rule": "authors_gone",
-     "summary": false
+     "summary": true
     },
     {
      "id": "b1b550fe86e3b8b8",
      "rule": "component_coupling",
-     "summary": false
+     "summary": true
     }
    ],
    "findings": 20,
-   "load": 4.3,
-   "measure_seconds": 483.4,
-   "peak_mb": 1121,
+   "load": 5.27,
+   "measure_seconds": 487.4,
+   "peak_mb": 1166,
    "ranking": {
     "cutoffs": [
      {
@@ -824,7 +831,7 @@
     }
    },
    "rc": 0,
-   "report_lines": 272,
+   "report_lines": 218,
    "rules": [
     "authors_gone",
     "brain_methods",
@@ -842,42 +849,42 @@
     "truck_factor"
    ],
    "scored_share": 0.0797,
-   "seconds": 363.5,
+   "seconds": 367.4,
    "set": "development",
    "severity": {
     "critical": 0,
     "info": 13,
     "warning": 7
    },
-   "shown": 20,
+   "shown": 7,
    "status": "ok",
    "step_peak_mb": {
     "backtest": 412.7,
-    "betterleaks": 1120.9,
+    "betterleaks": 1165.8,
     "change analysis": 409.4,
-    "functions": 423.1,
-    "git-log": 990.1,
-    "git-sizer": 703.3,
-    "hygiene": 410.6,
-    "osv-scanner": 55.7,
-    "provenance": 736.4,
-    "scc": 243.1,
-    "signing": 282.7,
+    "functions": 402.8,
+    "git-log": 984.7,
+    "git-sizer": 780.6,
+    "hygiene": 384.1,
+    "osv-scanner": 56.1,
+    "provenance": 729.2,
+    "scc": 253.4,
+    "signing": 262.6,
     "trend": 114.0
    },
    "step_seconds": {
-    "backtest": 15.18,
-    "betterleaks": 168.24,
-    "change analysis": 7.27,
-    "functions": 11.22,
-    "git-log": 280.44,
-    "git-sizer": 20.82,
-    "hygiene": 3.9,
-    "osv-scanner": 1.13,
+    "backtest": 16.11,
+    "betterleaks": 171.19,
+    "change analysis": 7.33,
+    "functions": 11.73,
+    "git-log": 284.15,
+    "git-sizer": 21.82,
+    "hygiene": 4.07,
+    "osv-scanner": 1.09,
     "provenance": 30.53,
-    "scc": 0.61,
-    "signing": 3.29,
-    "trend": 4.91
+    "scc": 0.59,
+    "signing": 3.22,
+    "trend": 4.93
    },
    "steps": {
     "backtest": "run",
@@ -900,17 +907,17 @@
     {
      "id": "a3992933be266dfb",
      "rule": "secrets_aside",
-     "summary": false
+     "summary": true
     },
     {
      "id": "d6093b675f8b6b49",
      "rule": "minor_contributors",
-     "summary": false
+     "summary": true
     },
     {
      "id": "506d6b7aa86a0a5d",
      "rule": "knowledge_loss",
-     "summary": false
+     "summary": true
     },
     {
      "id": "9ba64c884bdb16a1",
@@ -925,17 +932,17 @@
     {
      "id": "1142127c7c38ce0e",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "d1387bbf5aa08437",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "2f584dcd6fc3b2a3",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "4f399b6d2b2323ce",
@@ -945,7 +952,7 @@
     {
      "id": "0d91d9bc10c70ee6",
      "rule": "reverts",
-     "summary": false
+     "summary": true
     },
     {
      "id": "64e988396839c447",
@@ -960,12 +967,12 @@
     {
      "id": "635fc7232b4f120d",
      "rule": "duplication",
-     "summary": false
+     "summary": true
     },
     {
      "id": "5824036722c64312",
      "rule": "stale_files",
-     "summary": false
+     "summary": true
     },
     {
      "id": "c160ca416be1a9da",
@@ -985,20 +992,20 @@
     {
      "id": "9b7d4b191bf2d79c",
      "rule": "authors_gone",
-     "summary": false
+     "summary": true
     },
     {
      "id": "d9f50ebe11244f85",
      "rule": "component_coupling",
-     "summary": false
+     "summary": true
     }
    ],
    "findings": 19,
-   "load": 11.34,
-   "measure_seconds": 63.1,
-   "peak_mb": 2109,
+   "load": 14.1,
+   "measure_seconds": 66.4,
+   "peak_mb": 2086,
    "rc": 0,
-   "report_lines": 304,
+   "report_lines": 235,
    "rules": [
     "authors_gone",
     "brain_methods",
@@ -1019,46 +1026,46 @@
     "unpinned_actions"
    ],
    "scored_share": 0.1407,
-   "seconds": 62.8,
+   "seconds": 65.9,
    "set": "well-kept",
    "severity": {
     "critical": 0,
     "info": 15,
     "warning": 4
    },
-   "shown": 19,
+   "shown": 8,
    "status": "ok",
    "step_peak_mb": {
-    "backtest": 110.8,
-    "betterleaks": 391.5,
-    "change analysis": 109.9,
-    "code age": 216.0,
-    "duplicates": 2108.7,
-    "functions": 87.8,
-    "git-log": 359.5,
-    "git-sizer": 154.0,
-    "hygiene": 88.3,
-    "osv-scanner": 1415.5,
-    "provenance": 376.2,
-    "scc": 75.8,
-    "signing": 61.2,
-    "trend": 51.2
+    "backtest": 111.6,
+    "betterleaks": 382.0,
+    "change analysis": 110.9,
+    "code age": 243.5,
+    "duplicates": 2086.0,
+    "functions": 88.0,
+    "git-log": 358.3,
+    "git-sizer": 153.8,
+    "hygiene": 87.4,
+    "osv-scanner": 1387.4,
+    "provenance": 376.4,
+    "scc": 74.2,
+    "signing": 61.3,
+    "trend": 48.6
    },
    "step_seconds": {
-    "backtest": 5.3,
-    "betterleaks": 11.39,
-    "change analysis": 2.56,
-    "code age": 40.96,
-    "duplicates": 6.68,
-    "functions": 4.82,
-    "git-log": 11.15,
-    "git-sizer": 2.03,
-    "hygiene": 3.22,
-    "osv-scanner": 6.24,
-    "provenance": 5.76,
+    "backtest": 5.43,
+    "betterleaks": 12.2,
+    "change analysis": 2.62,
+    "code age": 43.55,
+    "duplicates": 7.48,
+    "functions": 5.5,
+    "git-log": 11.87,
+    "git-sizer": 2.38,
+    "hygiene": 3.47,
+    "osv-scanner": 6.67,
+    "provenance": 6.15,
     "scc": 0.11,
-    "signing": 0.48,
-    "trend": 3.18
+    "signing": 0.51,
+    "trend": 3.6
    },
    "steps": {
     "backtest": "run",
@@ -1083,12 +1090,12 @@
     {
      "id": "031e88abccdde13c",
      "rule": "secrets_aside",
-     "summary": false
+     "summary": true
     },
     {
      "id": "0da494ebb315a2ab",
      "rule": "minor_contributors",
-     "summary": false
+     "summary": true
     },
     {
      "id": "590ad82fd9fa497d",
@@ -1103,7 +1110,7 @@
     {
      "id": "10f49e4371162e7d",
      "rule": "knowledge_loss",
-     "summary": false
+     "summary": true
     },
     {
      "id": "c0167ce89ad31806",
@@ -1113,22 +1120,22 @@
     {
      "id": "69ed3525939cfc02",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "ebd6a6f88c40965f",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "cca8896a41357bf4",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "6f83e35370bcd03a",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "3d8d92c9a80c7d6c",
@@ -1138,7 +1145,7 @@
     {
      "id": "17e832a9cd6d6f53",
      "rule": "reverts",
-     "summary": false
+     "summary": true
     },
     {
      "id": "9bebedbfd03e30f5",
@@ -1148,12 +1155,12 @@
     {
      "id": "ea728d096c0826ba",
      "rule": "duplication",
-     "summary": false
+     "summary": true
     },
     {
      "id": "0f32a569fe476b33",
      "rule": "stale_files",
-     "summary": false
+     "summary": true
     },
     {
      "id": "137e10f0bab6f0e8",
@@ -1183,20 +1190,20 @@
     {
      "id": "339cb2d6a2babc0c",
      "rule": "authors_gone",
-     "summary": false
+     "summary": true
     },
     {
      "id": "d0e4fd0281cbd246",
      "rule": "component_coupling",
-     "summary": false
+     "summary": true
     }
    ],
    "findings": 22,
-   "load": 6.16,
-   "measure_seconds": 17.1,
-   "peak_mb": 2131,
+   "load": 7.63,
+   "measure_seconds": 18.4,
+   "peak_mb": 2231,
    "rc": 0,
-   "report_lines": 299,
+   "report_lines": 231,
    "rules": [
     "authors_gone",
     "brain_methods",
@@ -1219,46 +1226,46 @@
     "unpinned_actions"
    ],
    "scored_share": 0.3393,
-   "seconds": 16.9,
+   "seconds": 18.1,
    "set": "well-kept",
    "severity": {
     "critical": 0,
     "info": 16,
     "warning": 6
    },
-   "shown": 22,
+   "shown": 10,
    "status": "ok",
    "step_peak_mb": {
-    "backtest": 92.6,
-    "betterleaks": 372.9,
-    "change analysis": 88.9,
+    "backtest": 92.1,
+    "betterleaks": 363.0,
+    "change analysis": 89.6,
     "code age": 75.2,
-    "duplicates": 170.1,
+    "duplicates": 170.5,
     "functions": 30.0,
-    "git-log": 388.0,
-    "git-sizer": 67.4,
-    "hygiene": 19.6,
-    "osv-scanner": 2131.3,
-    "provenance": 248.6,
-    "scc": 28.7,
-    "signing": 31.1,
-    "trend": 39.6
+    "git-log": 376.3,
+    "git-sizer": 67.5,
+    "hygiene": 19.5,
+    "osv-scanner": 2230.8,
+    "provenance": 248.1,
+    "scc": 29.2,
+    "signing": 30.9,
+    "trend": 39.8
    },
    "step_seconds": {
-    "backtest": 2.2,
-    "betterleaks": 7.46,
-    "change analysis": 1.41,
-    "code age": 5.01,
-    "duplicates": 0.59,
-    "functions": 0.68,
-    "git-log": 7.44,
-    "git-sizer": 0.51,
-    "hygiene": 0.4,
-    "osv-scanner": 3.61,
-    "provenance": 3.16,
+    "backtest": 2.17,
+    "betterleaks": 8.42,
+    "change analysis": 1.52,
+    "code age": 5.49,
+    "duplicates": 0.66,
+    "functions": 0.91,
+    "git-log": 8.09,
+    "git-sizer": 0.65,
+    "hygiene": 0.57,
+    "osv-scanner": 4.48,
+    "provenance": 3.28,
     "scc": 0.02,
-    "signing": 0.16,
-    "trend": 2.27
+    "signing": 0.18,
+    "trend": 2.64
    },
    "steps": {
     "backtest": "run",
@@ -1283,12 +1290,12 @@
     {
      "id": "946f232b9629b46c",
      "rule": "secrets_aside",
-     "summary": false
+     "summary": true
     },
     {
      "id": "9ce32f7e9ad377f7",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "d2e185fb0a13a372",
@@ -1298,7 +1305,7 @@
     {
      "id": "6b6ce4613a7b5aa7",
      "rule": "minor_contributors",
-     "summary": false
+     "summary": true
     },
     {
      "id": "036b509a79ee7161",
@@ -1308,7 +1315,7 @@
     {
      "id": "345b0889110e9d15",
      "rule": "reverts",
-     "summary": false
+     "summary": true
     },
     {
      "id": "c4a445f9953be9f9",
@@ -1318,12 +1325,12 @@
     {
      "id": "c391eccfe83e14ef",
      "rule": "duplication",
-     "summary": false
+     "summary": true
     },
     {
      "id": "913276e7a8de94a5",
      "rule": "knowledge_loss",
-     "summary": false
+     "summary": true
     },
     {
      "id": "75a491342d07e6c6",
@@ -1338,13 +1345,13 @@
     {
      "id": "b91906daba8392ad",
      "rule": "authors_gone",
-     "summary": false
+     "summary": true
     }
    ],
    "findings": 12,
-   "load": 1.43,
-   "measure_seconds": 74.0,
-   "peak_mb": 820,
+   "load": 3.24,
+   "measure_seconds": 80.8,
+   "peak_mb": 824,
    "ranking": {
     "cutoffs": [
      {
@@ -1574,7 +1581,7 @@
     }
    },
    "rc": 0,
-   "report_lines": 223,
+   "report_lines": 179,
    "rules": [
     "authors_gone",
     "brain_methods",
@@ -1590,46 +1597,46 @@
     "truck_factor"
    ],
    "scored_share": 0.1288,
-   "seconds": 57.3,
+   "seconds": 63.6,
    "set": "development",
    "severity": {
     "critical": 0,
     "info": 7,
     "warning": 5
    },
-   "shown": 12,
+   "shown": 5,
    "status": "ok",
    "step_peak_mb": {
     "backtest": 114.8,
-    "betterleaks": 352.2,
-    "change analysis": 111.3,
-    "code age": 265.4,
-    "duplicates": 820.1,
-    "functions": 53.4,
-    "git-log": 338.2,
-    "git-sizer": 285.7,
-    "hygiene": 52.5,
-    "osv-scanner": 52.3,
-    "provenance": 318.2,
-    "scc": 44.2,
-    "signing": 77.9,
-    "trend": 29.5
+    "betterleaks": 359.8,
+    "change analysis": 112.0,
+    "code age": 253.1,
+    "duplicates": 823.8,
+    "functions": 53.2,
+    "git-log": 360.2,
+    "git-sizer": 293.2,
+    "hygiene": 52.4,
+    "osv-scanner": 52.4,
+    "provenance": 316.9,
+    "scc": 44.5,
+    "signing": 96.6,
+    "trend": 29.8
    },
    "step_seconds": {
-    "backtest": 3.74,
-    "betterleaks": 10.96,
-    "change analysis": 2.09,
-    "code age": 23.47,
-    "duplicates": 2.01,
-    "functions": 1.17,
-    "git-log": 17.92,
-    "git-sizer": 2.84,
-    "hygiene": 0.43,
-    "osv-scanner": 0.31,
-    "provenance": 10.57,
-    "scc": 0.06,
-    "signing": 1.27,
-    "trend": 2.78
+    "backtest": 4.17,
+    "betterleaks": 12.44,
+    "change analysis": 2.59,
+    "code age": 26.61,
+    "duplicates": 2.7,
+    "functions": 1.55,
+    "git-log": 19.57,
+    "git-sizer": 3.46,
+    "hygiene": 0.57,
+    "osv-scanner": 0.41,
+    "provenance": 12.17,
+    "scc": 0.08,
+    "signing": 1.47,
+    "trend": 2.54
    },
    "steps": {
     "backtest": "run",
@@ -1654,7 +1661,7 @@
     {
      "id": "7bf76f46623f5de2",
      "rule": "secrets_aside",
-     "summary": false
+     "summary": true
     },
     {
      "id": "377086855763b1af",
@@ -1664,7 +1671,7 @@
     {
      "id": "e85e9b9a059ea9e1",
      "rule": "minor_contributors",
-     "summary": false
+     "summary": true
     },
     {
      "id": "cba1d42e83979f7a",
@@ -1674,7 +1681,7 @@
     {
      "id": "47555eb8b2e5beeb",
      "rule": "knowledge_loss",
-     "summary": false
+     "summary": true
     },
     {
      "id": "0783bdff56c23693",
@@ -1689,22 +1696,22 @@
     {
      "id": "652c17b4e6583e52",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "9e91a2b5675b4bd3",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "f8455265c6dad862",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "0fde842bf1427b6e",
      "rule": "reverts",
-     "summary": false
+     "summary": true
     },
     {
      "id": "9de469af839419e2",
@@ -1714,12 +1721,12 @@
     {
      "id": "59f6bf088c67d4c5",
      "rule": "duplication",
-     "summary": false
+     "summary": true
     },
     {
      "id": "d1adb74455bca969",
      "rule": "stale_files",
-     "summary": false
+     "summary": true
     },
     {
      "id": "85518b7bda9aac76",
@@ -1739,13 +1746,13 @@
     {
      "id": "671b5e92f4e559f6",
      "rule": "authors_gone",
-     "summary": false
+     "summary": true
     }
    ],
    "findings": 18,
-   "load": 5.06,
-   "measure_seconds": 158.8,
-   "peak_mb": 1010,
+   "load": 6.08,
+   "measure_seconds": 169.5,
+   "peak_mb": 1012,
    "ranking": {
     "cutoffs": [
      {
@@ -1975,7 +1982,7 @@
     }
    },
    "rc": 0,
-   "report_lines": 284,
+   "report_lines": 223,
    "rules": [
     "authors_gone",
     "brain_methods",
@@ -1995,46 +2002,46 @@
     "unpinned_actions"
    ],
    "scored_share": 0.1827,
-   "seconds": 132.0,
+   "seconds": 141.9,
    "set": "development",
    "severity": {
     "critical": 0,
     "info": 12,
     "warning": 6
    },
-   "shown": 18,
+   "shown": 8,
    "status": "ok",
    "step_peak_mb": {
-    "backtest": 163.5,
-    "betterleaks": 513.2,
-    "change analysis": 158.7,
-    "code age": 218.9,
-    "duplicates": 1010.4,
-    "functions": 73.7,
-    "git-log": 468.0,
-    "git-sizer": 433.1,
-    "hygiene": 72.9,
-    "osv-scanner": 54.2,
-    "provenance": 387.9,
-    "scc": 60.7,
-    "signing": 82.2,
-    "trend": 39.1
+    "backtest": 164.9,
+    "betterleaks": 511.6,
+    "change analysis": 157.9,
+    "code age": 222.8,
+    "duplicates": 1012.2,
+    "functions": 73.8,
+    "git-log": 465.9,
+    "git-sizer": 453.0,
+    "hygiene": 73.2,
+    "osv-scanner": 55.6,
+    "provenance": 387.4,
+    "scc": 60.8,
+    "signing": 82.8,
+    "trend": 39.0
    },
    "step_seconds": {
-    "backtest": 6.88,
-    "betterleaks": 24.97,
-    "change analysis": 2.84,
-    "code age": 56.32,
-    "duplicates": 3.33,
-    "functions": 1.8,
-    "git-log": 16.66,
-    "git-sizer": 4.44,
-    "hygiene": 1.23,
+    "backtest": 7.09,
+    "betterleaks": 29.46,
+    "change analysis": 3.11,
+    "code age": 63.06,
+    "duplicates": 4.3,
+    "functions": 2.05,
+    "git-log": 19.06,
+    "git-sizer": 5.57,
+    "hygiene": 1.13,
     "osv-scanner": 0.5,
-    "provenance": 6.31,
+    "provenance": 6.56,
     "scc": 0.11,
-    "signing": 0.71,
-    "trend": 2.53
+    "signing": 0.91,
+    "trend": 2.7
    },
    "steps": {
     "backtest": "run",
@@ -2059,12 +2066,12 @@
     {
      "id": "f4f9bd08017833af",
      "rule": "secrets_aside",
-     "summary": false
+     "summary": true
     },
     {
      "id": "d766150d308f84e3",
      "rule": "minor_contributors",
-     "summary": false
+     "summary": true
     },
     {
      "id": "69d7fbe279b08566",
@@ -2074,7 +2081,7 @@
     {
      "id": "c27bf1ea871e56a5",
      "rule": "knowledge_loss",
-     "summary": false
+     "summary": true
     },
     {
      "id": "3585810645d1a44d",
@@ -2084,27 +2091,27 @@
     {
      "id": "c23cd5c167769bca",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "8f15eb84146f4584",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "ea89bb564e8f23e8",
      "rule": "reverts",
-     "summary": false
+     "summary": true
     },
     {
      "id": "a8abab1a2015f035",
      "rule": "duplication",
-     "summary": false
+     "summary": true
     },
     {
      "id": "379c0d9e38e50ff9",
      "rule": "stale_files",
-     "summary": false
+     "summary": true
     },
     {
      "id": "7ed50d36d926700c",
@@ -2119,20 +2126,20 @@
     {
      "id": "a60d56115599d2aa",
      "rule": "authors_gone",
-     "summary": false
+     "summary": true
     },
     {
      "id": "a152567b3fb43dd4",
      "rule": "component_coupling",
-     "summary": false
+     "summary": true
     }
    ],
    "findings": 14,
-   "load": 6.72,
-   "measure_seconds": 39.0,
+   "load": 8.73,
+   "measure_seconds": 42.0,
    "peak_mb": 2397,
    "rc": 0,
-   "report_lines": 242,
+   "report_lines": 182,
    "rules": [
     "authors_gone",
     "brain_methods",
@@ -2149,46 +2156,46 @@
     "truck_factor"
    ],
    "scored_share": 0.4278,
-   "seconds": 38.9,
+   "seconds": 41.8,
    "set": "well-kept",
    "severity": {
     "critical": 0,
     "info": 10,
     "warning": 4
    },
-   "shown": 14,
+   "shown": 4,
    "status": "ok",
    "step_peak_mb": {
-    "backtest": 91.9,
-    "betterleaks": 304.2,
-    "change analysis": 88.1,
-    "code age": 84.1,
-    "duplicates": 380.8,
-    "functions": 32.9,
-    "git-log": 297.8,
-    "git-sizer": 135.2,
-    "hygiene": 31.8,
-    "osv-scanner": 2396.6,
-    "provenance": 146.5,
-    "scc": 34.2,
-    "signing": 65.1,
-    "trend": 34.5
+    "backtest": 91.7,
+    "betterleaks": 302.5,
+    "change analysis": 88.3,
+    "code age": 83.8,
+    "duplicates": 374.5,
+    "functions": 34.8,
+    "git-log": 298.8,
+    "git-sizer": 135.8,
+    "hygiene": 32.4,
+    "osv-scanner": 2397.0,
+    "provenance": 146.7,
+    "scc": 34.0,
+    "signing": 64.6,
+    "trend": 34.7
    },
    "step_seconds": {
-    "backtest": 5.12,
-    "betterleaks": 15.32,
-    "change analysis": 3.63,
-    "code age": 18.93,
-    "duplicates": 1.37,
-    "functions": 1.16,
-    "git-log": 8.81,
-    "git-sizer": 1.91,
-    "hygiene": 0.67,
-    "osv-scanner": 28.62,
-    "provenance": 5.26,
+    "backtest": 5.45,
+    "betterleaks": 15.92,
+    "change analysis": 3.77,
+    "code age": 21.52,
+    "duplicates": 1.48,
+    "functions": 1.22,
+    "git-log": 9.05,
+    "git-sizer": 2.16,
+    "hygiene": 0.82,
+    "osv-scanner": 31.32,
+    "provenance": 5.87,
     "scc": 0.03,
-    "signing": 0.56,
-    "trend": 3.3
+    "signing": 0.59,
+    "trend": 3.55
    },
    "steps": {
     "backtest": "run",
@@ -2211,7 +2218,7 @@
   "gate-secret": {
    "findings": 4,
    "gate_fired": true,
-   "load": 8.21,
+   "load": 9.95,
    "measure_seconds": 0.7,
    "peak_mb": 48,
    "rc": 3,
@@ -2223,43 +2230,44 @@
     "secrets_in_source"
    ],
    "scored_share": 1.0,
-   "seconds": 0.7,
+   "seconds": 0.6,
    "set": "gate",
    "severity": {
     "critical": 1,
     "info": 1,
     "warning": 2
    },
+   "shown": 4,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 35.2,
-    "change analysis": 20.7,
-    "code age": 24.5,
-    "duplicates": 25.8,
-    "functions": 29.2,
+    "betterleaks": 34.9,
+    "change analysis": 20.6,
+    "code age": 24.3,
+    "duplicates": 25.7,
+    "functions": 29.0,
     "git-log": 8.1,
     "git-sizer": 7.8,
-    "hygiene": 18.1,
+    "hygiene": 18.2,
     "osv-scanner": 47.8,
-    "provenance": 22.3,
-    "scc": 19.8,
-    "signing": 16.6,
-    "trend": 24.0
+    "provenance": 22.2,
+    "scc": 19.9,
+    "signing": 16.7,
+    "trend": 24.3
    },
    "step_seconds": {
-    "betterleaks": 0.1,
+    "betterleaks": 0.11,
     "change analysis": 0.07,
-    "code age": 0.15,
-    "duplicates": 0.11,
-    "functions": 0.16,
+    "code age": 0.18,
+    "duplicates": 0.12,
+    "functions": 0.17,
     "git-log": 0.01,
     "git-sizer": 0.05,
     "hygiene": 0.17,
     "osv-scanner": 0.08,
-    "provenance": 0.06,
+    "provenance": 0.07,
     "scc": 0.01,
-    "signing": 0.04,
-    "trend": 0.06
+    "signing": 0.05,
+    "trend": 0.08
    },
    "steps": {
     "betterleaks": "run",
@@ -2281,7 +2289,7 @@
   "gate-submodule-credentials": {
    "findings": 4,
    "gate_fired": true,
-   "load": 8.21,
+   "load": 9.4,
    "measure_seconds": 0.7,
    "peak_mb": 48,
    "rc": 3,
@@ -2293,43 +2301,44 @@
     "submodule_urls"
    ],
    "scored_share": 0.5,
-   "seconds": 0.7,
+   "seconds": 0.6,
    "set": "gate",
    "severity": {
     "critical": 1,
     "info": 1,
     "warning": 2
    },
+   "shown": 4,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 37.1,
-    "change analysis": 20.7,
-    "code age": 24.4,
-    "duplicates": 25.9,
-    "functions": 29.1,
+    "betterleaks": 36.7,
+    "change analysis": 20.8,
+    "code age": 24.7,
+    "duplicates": 25.7,
+    "functions": 29.0,
     "git-log": 8.1,
     "git-sizer": 7.8,
-    "hygiene": 18.2,
-    "osv-scanner": 48.2,
-    "provenance": 22.1,
-    "scc": 20.1,
-    "signing": 16.5,
-    "trend": 23.9
+    "hygiene": 18.4,
+    "osv-scanner": 47.4,
+    "provenance": 22.5,
+    "scc": 19.6,
+    "signing": 16.6,
+    "trend": 24.1
    },
    "step_seconds": {
     "betterleaks": 0.11,
-    "change analysis": 0.06,
-    "code age": 0.14,
-    "duplicates": 0.12,
-    "functions": 0.15,
+    "change analysis": 0.04,
+    "code age": 0.19,
+    "duplicates": 0.07,
+    "functions": 0.16,
     "git-log": 0.01,
     "git-sizer": 0.04,
-    "hygiene": 0.17,
+    "hygiene": 0.23,
     "osv-scanner": 0.08,
-    "provenance": 0.06,
+    "provenance": 0.15,
     "scc": 0.01,
     "signing": 0.04,
-    "trend": 0.06
+    "trend": 0.1
    },
    "steps": {
     "betterleaks": "run",
@@ -2351,7 +2360,7 @@
   "gate-trojan-source": {
    "findings": 4,
    "gate_fired": true,
-   "load": 8.21,
+   "load": 9.95,
    "measure_seconds": 0.7,
    "peak_mb": 48,
    "rc": 3,
@@ -2363,43 +2372,44 @@
     "trojan_source"
    ],
    "scored_share": 1.0,
-   "seconds": 0.6,
+   "seconds": 0.7,
    "set": "gate",
    "severity": {
     "critical": 1,
     "info": 1,
     "warning": 2
    },
+   "shown": 4,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 34.6,
+    "betterleaks": 34.7,
     "change analysis": 20.7,
-    "code age": 24.6,
-    "duplicates": 25.6,
-    "functions": 28.9,
-    "git-log": 8.2,
+    "code age": 24.5,
+    "duplicates": 25.8,
+    "functions": 29.1,
+    "git-log": 8.1,
     "git-sizer": 7.8,
-    "hygiene": 18.1,
-    "osv-scanner": 48.1,
+    "hygiene": 18.2,
+    "osv-scanner": 47.4,
     "provenance": 22.4,
     "scc": 19.5,
-    "signing": 16.6,
+    "signing": 16.7,
     "trend": 24.2
    },
    "step_seconds": {
-    "betterleaks": 0.09,
-    "change analysis": 0.03,
-    "code age": 0.18,
+    "betterleaks": 0.1,
+    "change analysis": 0.05,
+    "code age": 0.21,
     "duplicates": 0.07,
-    "functions": 0.15,
+    "functions": 0.19,
     "git-log": 0.01,
     "git-sizer": 0.05,
-    "hygiene": 0.1,
+    "hygiene": 0.26,
     "osv-scanner": 0.08,
-    "provenance": 0.14,
+    "provenance": 0.11,
     "scc": 0.01,
-    "signing": 0.03,
-    "trend": 0.13
+    "signing": 0.04,
+    "trend": 0.12
    },
    "steps": {
     "betterleaks": "run",
@@ -2423,7 +2433,7 @@
     {
      "id": "57730ab7d554144e",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "5632bfdfa60b9395",
@@ -2448,17 +2458,17 @@
     {
      "id": "baf3f201575e1617",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "25cb30cb61ec31f0",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "6fbc79c1b9ae3125",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "1a979e62be728342",
@@ -2468,12 +2478,12 @@
     {
      "id": "6a9299865b5c1102",
      "rule": "minor_contributors",
-     "summary": false
+     "summary": true
     },
     {
      "id": "ec24a0d5c056e193",
      "rule": "reverts",
-     "summary": false
+     "summary": true
     },
     {
      "id": "5456c8e23388ee4f",
@@ -2483,7 +2493,7 @@
     {
      "id": "9a565caac5e7d492",
      "rule": "stale_files",
-     "summary": false
+     "summary": true
     },
     {
      "id": "d06e5198f9e69832",
@@ -2508,18 +2518,18 @@
     {
      "id": "1ccf9dd6c37bb6cd",
      "rule": "authors_gone",
-     "summary": false
+     "summary": true
     },
     {
      "id": "b233c3b3fb310448",
      "rule": "component_coupling",
-     "summary": false
+     "summary": true
     }
    ],
    "findings": 19,
-   "load": 8.21,
-   "measure_seconds": 96.7,
-   "peak_mb": 1373,
+   "load": 9.4,
+   "measure_seconds": 99.3,
+   "peak_mb": 1066,
    "ranking": {
     "cutoffs": [
      {
@@ -2749,7 +2759,7 @@
     }
    },
    "rc": 0,
-   "report_lines": 341,
+   "report_lines": 285,
    "rules": [
     "authors_gone",
     "brain_methods",
@@ -2769,42 +2779,42 @@
     "unpinned_actions"
    ],
    "scored_share": 0.7687,
-   "seconds": 39.1,
+   "seconds": 40.7,
    "set": "development",
    "severity": {
     "critical": 0,
     "info": 15,
     "warning": 4
    },
-   "shown": 19,
+   "shown": 10,
    "status": "ok",
    "step_peak_mb": {
-    "backtest": 412.6,
-    "betterleaks": 660.3,
-    "change analysis": 138.4,
-    "functions": 356.3,
-    "git-log": 536.6,
-    "git-sizer": 220.3,
-    "hygiene": 341.6,
-    "osv-scanner": 55.6,
-    "provenance": 1013.1,
-    "scc": 219.0,
-    "signing": 46.6,
-    "trend": 72.6
+    "backtest": 412.7,
+    "betterleaks": 730.7,
+    "change analysis": 138.6,
+    "functions": 359.7,
+    "git-log": 533.8,
+    "git-sizer": 220.4,
+    "hygiene": 341.5,
+    "osv-scanner": 55.3,
+    "provenance": 1012.7,
+    "scc": 237.6,
+    "signing": 45.2,
+    "trend": 72.4
    },
    "step_seconds": {
-    "backtest": 7.01,
-    "betterleaks": 14.45,
-    "change analysis": 2.13,
-    "functions": 9.26,
-    "git-log": 14.4,
-    "git-sizer": 3.83,
-    "hygiene": 5.14,
-    "osv-scanner": 1.45,
-    "provenance": 7.39,
+    "backtest": 7.34,
+    "betterleaks": 15.5,
+    "change analysis": 2.21,
+    "functions": 9.97,
+    "git-log": 15.22,
+    "git-sizer": 4.05,
+    "hygiene": 5.32,
+    "osv-scanner": 1.47,
+    "provenance": 7.49,
     "scc": 0.36,
-    "signing": 0.57,
-    "trend": 1.42
+    "signing": 0.59,
+    "trend": 1.49
    },
    "steps": {
     "backtest": "run",
@@ -2827,7 +2837,7 @@
     {
      "id": "64661689458bd925",
      "rule": "secrets_aside",
-     "summary": false
+     "summary": true
     },
     {
      "id": "f56cc5096cef6c0e",
@@ -2856,16 +2866,16 @@
     }
    ],
    "findings": 6,
-   "load": 6.16,
+   "load": 8.04,
    "measure_seconds": 2.0,
-   "peak_mb": 83,
+   "peak_mb": 84,
    "ranking": {
     "cutoffs": [],
     "magnets": [],
     "stability": null
    },
    "rc": 0,
-   "report_lines": 136,
+   "report_lines": 129,
    "rules": [
     "bug_magnets",
     "complexity_growth",
@@ -2875,44 +2885,44 @@
     "truck_factor"
    ],
    "scored_share": 0.3689,
-   "seconds": 2.0,
+   "seconds": 1.9,
    "set": "development",
    "severity": {
     "critical": 0,
     "info": 3,
     "warning": 3
    },
-   "shown": 6,
+   "shown": 5,
    "status": "ok",
    "step_peak_mb": {
-    "betterleaks": 83.3,
+    "betterleaks": 83.7,
     "change analysis": 21.6,
-    "code age": 29.5,
-    "duplicates": 81.5,
-    "functions": 30.7,
-    "git-log": 22.6,
+    "code age": 30.3,
+    "duplicates": 80.9,
+    "functions": 30.8,
+    "git-log": 22.9,
     "git-sizer": 9.9,
     "hygiene": 18.8,
-    "osv-scanner": 49.3,
-    "provenance": 35.8,
-    "scc": 24.1,
-    "signing": 17.2,
-    "trend": 25.0
+    "osv-scanner": 49.7,
+    "provenance": 35.5,
+    "scc": 24.4,
+    "signing": 17.1,
+    "trend": 24.8
    },
    "step_seconds": {
-    "betterleaks": 1.01,
-    "change analysis": 0.1,
-    "code age": 0.63,
-    "duplicates": 0.21,
-    "functions": 0.3,
-    "git-log": 0.18,
-    "git-sizer": 0.11,
-    "hygiene": 0.25,
-    "osv-scanner": 0.12,
-    "provenance": 0.42,
-    "scc": 0.02,
+    "betterleaks": 1.04,
+    "change analysis": 0.09,
+    "code age": 0.67,
+    "duplicates": 0.17,
+    "functions": 0.37,
+    "git-log": 0.17,
+    "git-sizer": 0.12,
+    "hygiene": 0.2,
+    "osv-scanner": 0.1,
+    "provenance": 0.44,
+    "scc": 0.01,
     "signing": 0.05,
-    "trend": 0.4
+    "trend": 0.41
    },
    "steps": {
     "betterleaks": "run",
@@ -2936,7 +2946,7 @@
     {
      "id": "734fffee9b8a47d6",
      "rule": "secrets_aside",
-     "summary": false
+     "summary": true
     },
     {
      "id": "0983d9984a2e17d3",
@@ -2946,7 +2956,7 @@
     {
      "id": "9bae9279830e4e7d",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "3132ebbcb62c7f27",
@@ -2956,7 +2966,7 @@
     {
      "id": "7087293a3ee3267b",
      "rule": "minor_contributors",
-     "summary": false
+     "summary": true
     },
     {
      "id": "3ce6502e76dfc4f2",
@@ -2966,22 +2976,22 @@
     {
      "id": "b74291a7ec49c054",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "da5ce71a53ec5e2d",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "f3c18e4cc2de4ce0",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "35aa5268784aa5ac",
      "rule": "reverts",
-     "summary": false
+     "summary": true
     },
     {
      "id": "da92b85a8d74eb3f",
@@ -2991,17 +3001,17 @@
     {
      "id": "ba4c2f83507e429a",
      "rule": "duplication",
-     "summary": false
+     "summary": true
     },
     {
      "id": "d6f78558e196da3c",
      "rule": "stale_files",
-     "summary": false
+     "summary": true
     },
     {
      "id": "ad1ff3dec25cbf61",
      "rule": "knowledge_loss",
-     "summary": false
+     "summary": true
     },
     {
      "id": "f8630cab842c2f16",
@@ -3031,15 +3041,15 @@
     {
      "id": "56fe1a091d03e8e7",
      "rule": "authors_gone",
-     "summary": false
+     "summary": true
     }
    ],
    "findings": 20,
-   "load": 10.54,
-   "measure_seconds": 44.8,
-   "peak_mb": 4760,
+   "load": 11.77,
+   "measure_seconds": 51.7,
+   "peak_mb": 3916,
    "rc": 0,
-   "report_lines": 287,
+   "report_lines": 229,
    "rules": [
     "agent_instructions_drift",
     "authors_gone",
@@ -3060,46 +3070,46 @@
     "unused_dependencies"
    ],
    "scored_share": 0.3896,
-   "seconds": 44.6,
+   "seconds": 51.3,
    "set": "well-kept",
    "severity": {
     "critical": 0,
     "info": 14,
     "warning": 6
    },
-   "shown": 20,
+   "shown": 9,
    "status": "ok",
    "step_peak_mb": {
-    "backtest": 100.8,
-    "betterleaks": 504.0,
-    "change analysis": 97.4,
-    "code age": 91.0,
-    "duplicates": 611.2,
-    "functions": 48.2,
-    "git-log": 453.2,
-    "git-sizer": 147.1,
-    "hygiene": 57.7,
-    "osv-scanner": 4759.9,
-    "provenance": 233.9,
-    "scc": 50.2,
-    "signing": 65.5,
-    "trend": 35.1
+    "backtest": 101.5,
+    "betterleaks": 511.7,
+    "change analysis": 99.6,
+    "code age": 87.1,
+    "duplicates": 597.7,
+    "functions": 48.0,
+    "git-log": 435.8,
+    "git-sizer": 146.5,
+    "hygiene": 56.9,
+    "osv-scanner": 3915.9,
+    "provenance": 233.5,
+    "scc": 50.0,
+    "signing": 66.1,
+    "trend": 35.0
    },
    "step_seconds": {
-    "backtest": 2.92,
-    "betterleaks": 29.0,
-    "change analysis": 1.87,
-    "code age": 9.84,
-    "duplicates": 2.1,
-    "functions": 1.9,
-    "git-log": 19.65,
-    "git-sizer": 1.44,
-    "hygiene": 1.36,
-    "osv-scanner": 16.08,
-    "provenance": 5.09,
+    "backtest": 3.24,
+    "betterleaks": 35.87,
+    "change analysis": 2.11,
+    "code age": 10.82,
+    "duplicates": 2.73,
+    "functions": 1.92,
+    "git-log": 24.66,
+    "git-sizer": 1.83,
+    "hygiene": 1.05,
+    "osv-scanner": 22.21,
+    "provenance": 5.31,
     "scc": 0.04,
-    "signing": 0.44,
-    "trend": 3.39
+    "signing": 0.53,
+    "trend": 3.99
    },
    "steps": {
     "backtest": "run",
@@ -3129,17 +3139,17 @@
     {
      "id": "91c4e0cabe998960",
      "rule": "secrets_aside",
-     "summary": false
+     "summary": true
     },
     {
      "id": "7aa9ddd2ef378fa3",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "5edf093243bfab9e",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "28ba8760cab5ed9a",
@@ -3149,7 +3159,7 @@
     {
      "id": "413c098951b77a5b",
      "rule": "minor_contributors",
-     "summary": false
+     "summary": true
     },
     {
      "id": "0874e2e3f41d4af0",
@@ -3174,17 +3184,17 @@
     {
      "id": "40868a0b92e4b0e1",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "354e916ee3fe5f1f",
      "rule": "repo_health",
-     "summary": false
+     "summary": true
     },
     {
      "id": "7b6897d717ebd505",
      "rule": "reverts",
-     "summary": false
+     "summary": true
     },
     {
      "id": "e8de4ae19f6c2317",
@@ -3194,12 +3204,12 @@
     {
      "id": "e88c81b922272c38",
      "rule": "duplication",
-     "summary": false
+     "summary": true
     },
     {
      "id": "fcc05d636665ff80",
      "rule": "stale_files",
-     "summary": false
+     "summary": true
     },
     {
      "id": "5762675cfd66b505",
@@ -3209,7 +3219,7 @@
     {
      "id": "80021e4ddda4b606",
      "rule": "knowledge_loss",
-     "summary": false
+     "summary": true
     },
     {
      "id": "b0d7188c8a1cffce",
@@ -3239,13 +3249,13 @@
     {
      "id": "31b1ff2a0531c09e",
      "rule": "authors_gone",
-     "summary": false
+     "summary": true
     }
    ],
    "findings": 24,
-   "load": 6.86,
-   "measure_seconds": 111.8,
-   "peak_mb": 3064,
+   "load": 8.48,
+   "measure_seconds": 120.5,
+   "peak_mb": 2821,
    "ranking": {
     "cutoffs": [
      {
@@ -3453,7 +3463,7 @@
     }
    },
    "rc": 0,
-   "report_lines": 351,
+   "report_lines": 273,
    "rules": [
     "authors_gone",
     "brain_methods",
@@ -3478,46 +3488,46 @@
     "unused_dependencies"
    ],
    "scored_share": 0.2404,
-   "seconds": 86.0,
+   "seconds": 93.2,
    "set": "development",
    "severity": {
     "critical": 1,
     "info": 15,
     "warning": 8
    },
-   "shown": 24,
+   "shown": 13,
    "status": "ok",
    "step_peak_mb": {
-    "backtest": 188.8,
-    "betterleaks": 3064.1,
-    "change analysis": 163.1,
-    "code age": 147.1,
-    "duplicates": 1096.0,
-    "functions": 145.9,
-    "git-log": 438.7,
-    "git-sizer": 222.3,
-    "hygiene": 148.1,
-    "osv-scanner": 102.0,
-    "provenance": 372.6,
-    "scc": 78.2,
-    "signing": 71.1,
-    "trend": 48.7
+    "backtest": 185.4,
+    "betterleaks": 2821.4,
+    "change analysis": 156.3,
+    "code age": 146.2,
+    "duplicates": 904.3,
+    "functions": 146.6,
+    "git-log": 423.5,
+    "git-sizer": 223.4,
+    "hygiene": 147.6,
+    "osv-scanner": 104.6,
+    "provenance": 362.6,
+    "scc": 76.8,
+    "signing": 70.9,
+    "trend": 49.1
    },
    "step_seconds": {
-    "backtest": 12.11,
-    "betterleaks": 29.42,
-    "change analysis": 3.51,
-    "code age": 47.37,
-    "duplicates": 3.35,
-    "functions": 2.52,
-    "git-log": 13.73,
-    "git-sizer": 2.57,
-    "hygiene": 3.67,
-    "osv-scanner": 1.95,
-    "provenance": 16.13,
+    "backtest": 9.95,
+    "betterleaks": 33.21,
+    "change analysis": 4.03,
+    "code age": 53.0,
+    "duplicates": 4.04,
+    "functions": 2.82,
+    "git-log": 15.42,
+    "git-sizer": 2.95,
+    "hygiene": 3.97,
+    "osv-scanner": 2.09,
+    "provenance": 16.79,
     "scc": 0.11,
-    "signing": 0.59,
-    "trend": 2.54
+    "signing": 0.62,
+    "trend": 2.83
    },
    "steps": {
     "backtest": "run",
@@ -3563,32 +3573,33 @@
    0.356,
    0.934
   ],
-  "peak_mb": 3064,
+  "peak_mb": 2821,
   "recall20": 0.359,
-  "report_lines": 278.0,
+  "report_lines": 220.5,
   "robust": [
    21,
    21
   ],
   "scored_share": 0.212,
-  "seconds": 679.9,
+  "seconds": 708.7,
+  "shown_median": 7.5,
   "stability_spearman": 1.0,
   "stability_top15": 1.0,
   "step_seconds": {
-   "backtest": 7.0,
-   "betterleaks": 19.7,
-   "change analysis": 2.5,
-   "code age": 35.4,
-   "duplicates": 2.7,
-   "functions": 2.2,
-   "git-log": 15.5,
-   "git-sizer": 3.3,
+   "backtest": 7.3,
+   "betterleaks": 22.5,
+   "change analysis": 2.8,
+   "code age": 39.8,
+   "duplicates": 3.4,
+   "functions": 2.4,
+   "git-log": 17.2,
+   "git-sizer": 3.8,
    "hygiene": 2.5,
    "osv-scanner": 0.8,
-   "provenance": 9.0,
+   "provenance": 9.8,
    "scc": 0.1,
-   "signing": 0.6,
-   "trend": 2.5
+   "signing": 0.8,
+   "trend": 2.6
   },
   "well_kept_with_critical": [
    0,
@@ -3600,5 +3611,5 @@
    9
   ]
  },
- "version": "0.29.0"
+ "version": "0.30.0"
 }

@@ -1535,3 +1535,27 @@ class PeopleMerges(unittest.TestCase):
         self.assertIn("leave out merges", sec["caption"])
         plain = render.people_section({"meta": {"identities": [{"name": "Dee", "email": "d@x", "commits": 30}]}})
         self.assertNotIn("merges", plain["columns"])
+
+
+class SummaryLine(unittest.TestCase):
+    def _findings(self):
+        mk = lambda rid, sev, title, summary=False: {"severity": sev, "title": title, "detail": f"{title} detail", "advice": "act", "rule": {"id": rid},
+                                                     **({"summary": True} if summary else {})}   # noqa: E731
+        return [mk("secrets_in_source", "critical", "1 secret(s) in history"), mk("knowledge_loss", "warning", "Knowledge loss", True),
+                mk("repo_health", "info", "Repo health", True), mk("repo_health", "info", "Repo health", True), mk("bug_magnets", "warning", "Bug magnets")]
+
+    def _text(self, panel):
+        out = io.StringIO()
+        Console(file=out, width=200, color_system=None).print(panel)
+        return out.getvalue()
+
+    def test_the_default_report_names_summarised_findings_in_one_line(self):
+        text = self._text(render.findings_panel(self._findings(), {}, full=False))
+        self.assertIn("Bug magnets detail", text)
+        self.assertNotIn("Knowledge loss detail", text)
+        self.assertIn("3 more, true but seldom acted on: Knowledge loss and Repo health (2); --full lists them", text)
+
+    def test_full_spells_out_every_finding(self):
+        text = self._text(render.findings_panel(self._findings(), {}, full=True))
+        self.assertIn("Knowledge loss detail", text)
+        self.assertNotIn("seldom acted on", text)

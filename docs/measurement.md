@@ -485,6 +485,24 @@ for every minor release measured with it, 0.2.0 to 0.26.0, and what the history 
 - **The hook replay and the gate** (step 8): the two ROSE experiments at file
   granularity over the development set; the well-kept set's criticals are
   counted, and since 0.28.0 there are none.
+- **The headline** (0.30.0): three questions decide whether gitmole is getting
+  better, and the README draws one graph for each. *Is it right?* Headroom
+  against churn, with the holdout's readings as dots. *Is it useful?* Of the
+  findings the default report spells out, the share labelled actionable
+  (`labels.usefulness`, from the finding ids each record keeps). *Does it run?*
+  Robustness and the gate. Findings, report length, run time and memory are
+  costs, and they stay on the history page. The long graphs draw every release
+  over the same four repositories (`series` in `measure/corpus.json`), so a
+  repository joining the development set cannot read as a move.
+- **Labels carry forward**: a finding whose evidence did not change keeps its
+  id, and so its label. One whose repository, rule and statement match a
+  labelled finding gets a copy of that label (`carried_from`). Each `labels
+  dump` puts only the rest on the sheet.
+- **The summary line**: a rule with five or more labelled findings, none of
+  them actionable, is named in one line of the default report instead of
+  spelled out (`findings.SUMMARISED`; a test holds the set to the labels both
+  ways). That is how the usefulness graph is meant to move: the report says
+  less, and what it still says is more often worth doing.
 - **Candidate rankings**: `python -m gitmole.measure.signals` ranks the
   watch list's pool by other signals (churn, size, change entropy, windows
   and decays of recent revisions × lines) at the same cut-offs. It is for

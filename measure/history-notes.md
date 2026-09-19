@@ -98,3 +98,17 @@
 - **Ghidra's brain methods no longer lead with the Bison parser** (`slghparse.cc`'s `yyparse`), the one
   labelled finding the deeper generated markers answer: 241 functions where there were 250. containerd
   loses its false `repo_policy` finding. Nothing else in the record moved.
+- **0.30.0 asked whether the findings are worth acting on, not only whether they are true.** Nine rules
+  whose labelled findings were all true and none actionable (repository health, knowledge loss, authors
+  gone, minor contributors, reverts, duplication, stale files, component coupling, secrets only in tests)
+  are now named in one line of the default report. The report spells out 7.5 findings per repository where
+  it spelled out 18.5, and runs 220 lines where it ran 278. Of what it spells out, 69% is labelled
+  actionable, where it was 31%. That jump is by construction: the nine rules were chosen from these same
+  labels on these same repositories, so it shows the mechanism works, not that the report became more
+  useful in general. The test is labels the set was not chosen from, a second labeller's sample
+  (`measure/labels-second.jsonl`) and new findings on new repositories. Every label so far is one
+  labeller's, and that labeller wrote the rules.
+- **The long graphs now draw every release over the same four repositories** (curl, django, react and
+  gitmole), so the fall in headroom at 0.28.0 and the jump in run time, both from Ghidra and binutils-gdb
+  joining the development set, no longer show as moves. On the four, headroom is 0.93 and run time about
+  275 seconds from 0.26.0 to 0.30.0. The table above and the dashboard below still use the whole set.

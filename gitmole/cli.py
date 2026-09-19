@@ -38,7 +38,7 @@ def parse_args(argv):
     p.add_argument("--clean", action="store_true", help="list the directories gitmole created (temp clones, analysis-* under the target) and delete them after a y/N question, then exit")
     p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
     p.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
-    p.add_argument("--full", action="store_true", help="every section, column and row in the terminal report: adds hotspots, size, activity and code age, and the test files the default tables hide (the default is the tighter, readable one)")
+    p.add_argument("--full", action="store_true", help="every section, column and row in the terminal report: adds hotspots, size, activity and code age, the test files the default tables hide, and the findings the default names in one line (the default is the tighter, readable one)")
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
     p.add_argument("--sarif", metavar="PATH", help="write the findings as SARIF 2.1.0 to PATH, or - for stdout, for GitHub code scanning and GitLab")
