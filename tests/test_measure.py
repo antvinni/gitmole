@@ -114,6 +114,30 @@ class Graphs(unittest.TestCase):
         self.assertIn("crashed", one)
         self.assertTrue(one.startswith("<svg") and one.strip().endswith("</svg>"))
 
+    def test_release_labels_never_touch_and_both_ends_are_drawn(self):
+        """The README's ranking graph ran 0.31.0 and 0.32.0 together into "0.31.00.32.0": the tick step drew
+        every nth label and then forced the last one whatever sat beside it."""
+        import re
+        for count in (2, 5, 12, 32, 60):
+            labels = [f"0.{i}.0" for i in range(count)]
+            out = svg.chart("t", labels, [{"label": "x", "values": [0.5] * count}])
+            drawn = re.findall(r'<text x="([\d.]+)" y="\d+" text-anchor="middle"[^>]*>([^<]+)</text>', out)
+            with self.subTest(releases=count):
+                self.assertEqual((drawn[0][1], drawn[-1][1]), (labels[0], labels[-1]), "both ends are drawn")
+                gaps = [float(b[0]) - float(a[0]) for a, b in zip(drawn, drawn[1:])]
+                self.assertGreaterEqual(min(gaps), svg.TICK_GAP, "no two labels are closer than one label's width")
+
+    def test_the_note_has_a_line_below_the_legend(self):
+        """Both were drawn on the same baseline, so a long note ran through the legend's words."""
+        out = svg.chart("t", ["0.1", "0.2"], [{"label": "watch list", "values": [0.5, 0.6]},
+                                              {"label": "churn alone", "values": [0.4, 0.4], "dashed": True}],
+                        note="dots: independent labels, repositories never tuned on")
+        import re
+        legend = {float(y) for y in re.findall(r'<text x="[\d.]+" y="([\d.]+)" fill="#1f2328">(?:watch list|churn alone)</text>', out)}
+        note = {float(y) for y in re.findall(r'<text x="[\d.]+" y="([\d.]+)" fill="#57606a"[^>]*>dots:', out)}
+        self.assertEqual(len(legend), 1, "the legend is one line")
+        self.assertTrue(note and min(note) > max(legend), "and the note sits below it")
+
 
 class Fixtures(unittest.TestCase):
     def test_every_fixture_builds(self):
