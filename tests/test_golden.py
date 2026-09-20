@@ -81,7 +81,8 @@ class Golden(unittest.TestCase):
             out = os.path.join(work, "out")
             c = Console(file=io.StringIO(), width=100, record=True, force_terminal=False, color_system=None)
             with patch.dict(os.environ, HERMETIC_ENV):
-                rc = cli.main([repo, "--out", out], console=c)
+                # the toolchain note names this machine's tool versions, which no stored report can hold
+                rc = cli.main([repo, "--out", out], console=c, version_note=lambda found: None)
             self.assertEqual(rc, 0)
             actual = normalise(c.export_text(), out)
         if update_requested():

@@ -7,7 +7,12 @@ analysis can tell you about a repo.
 
 Five external tools: scc for size, git-sizer for repo health, betterleaks for
 secrets, jscpd for duplicated blocks, osv-scanner for known vulnerabilities in
-the dependencies. Everything about history is computed by gitmole from `git log`.
+the dependencies. Each is pinned to one version, listed in
+[gitmole/tools.py](https://github.com/antvinni/gitmole/blob/main/gitmole/tools.py)
+and installed with gitmole by the Homebrew formula, because their own rules
+decide part of the report: a tool that moved on its own would move the report
+under an unchanged gitmole version. A run with other versions still works and
+says so; `meta.json` records both. Everything about history is computed by gitmole from `git log`.
 lizard adds function-level metrics for two dozen languages when it is
 installed, in well under a second per thousand files. git-of-theseus only adds
 the plots, so it is off by default and only needed with `--plots`. betterleaks

@@ -14,7 +14,8 @@ its own environment and a `gitmole` command.
 
 ## macOS
 
-Homebrew installs gitmole and the five tools in one go. The tap lives in
+Homebrew installs gitmole and the five tools in one go, each at the version
+gitmole pins, into gitmole's own `libexec/tools`. The tap lives in
 the gitmole repository, so the first command names it by URL; the second marks it
 trusted, which Homebrew 7 requires before it will install from a third-party
 tap; after that the short name works everywhere, `brew upgrade` included.
@@ -25,6 +26,22 @@ brew trust antvinni/gitmole
 brew install gitmole
 ```
 
+Nothing else is needed: the tools come with gitmole rather than as separate
+formulae, so a `brew upgrade` of something else cannot move them. They sit
+beside gitmole's own environment and are not added to your PATH.
+
+## The pinned versions
+
+One gitmole version is one toolchain. The tools decide part of the report —
+betterleaks' rules decide what counts as a secret, scc's definitions decide
+what counts as a language — so they are pinned, and the version each release
+installs is listed in
+[gitmole/tools.py](https://github.com/antvinni/gitmole/blob/main/gitmole/tools.py).
+Every report records both what gitmole pinned and what it actually ran, under
+`run.tools` and `run.tools_pinned` in `meta.json`, and a run whose tools are
+not the pinned ones says so once on stderr. That is a note, not a refusal:
+gitmole runs with whatever versions are there.
+
 Without Homebrew, install the five tools yourself and use pipx:
 
 ```bash
@@ -34,8 +51,10 @@ pipx install gitmole
 
 ## Linux
 
-With Homebrew on Linux the same three commands work unchanged; all five tools
-are bottled there. Without Homebrew, take the tools from your package manager
+With Homebrew on Linux the same three commands work unchanged, and the pinned
+tools come with gitmole exactly as on macOS; on Linux arm64, where git-sizer
+publishes no build, the formula builds the pinned version from source, which
+needs Go at install time. Without Homebrew, take the tools from your package manager
 where it has them and from the projects' release pages otherwise; each ships
 a static binary, so dropping it into `~/.local/bin` is enough.
 

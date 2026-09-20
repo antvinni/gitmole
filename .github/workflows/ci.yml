@@ -207,10 +207,9 @@ jobs:
             -e "s|^  sha256 \".*\"$|  sha256 \"${SHA}\"|" Formula/gitmole.rb
           git commit -am "Homebrew formula: ${GITHUB_REF_NAME}"
           brew tap antvinni/gitmole "$PWD"
-          brew update-python-resources antvinni/gitmole/gitmole
-          cp "$(brew --repo antvinni/gitmole)/Formula/gitmole.rb" Formula/gitmole.rb
-          git diff --quiet || git commit -am "Homebrew formula: ${GITHUB_REF_NAME}" --amend --no-edit
-          git -C "$(brew --repo antvinni/gitmole)" reset --hard -q
+          # the python dependencies are pinned in pyproject.toml, so their resources move only when a
+          # release moves them: `brew update-python-resources` runs by hand, never here, since it would
+          # also rewrite the pinned tool resources (gitmole/tools.py)
           git -C "$(brew --repo antvinni/gitmole)" pull -q --ff-only "$PWD" main
           brew audit --strict --online antvinni/gitmole/gitmole
           brew install --build-from-source antvinni/gitmole/gitmole
