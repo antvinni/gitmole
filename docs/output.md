@@ -92,8 +92,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    ecosystems with a tracked lock file that `dependabot.yml` does not cover,
    or no update tool at all (Renovate covers every manager by itself); no
    licence file, no `SECURITY.md` (at the root, in `.github/` or `docs/`,
-   or a README heading about security, such as "Reporting security
-   issues", that points to one elsewhere), and `CODEOWNERS` lines that match no
+   or a heading about security in the README or CONTRIBUTING, such as
+   "Reporting security issues", that points to one elsewhere), and `CODEOWNERS` lines that match no
    tracked file; a scoped npm package resolved from another host than the
    one `.npmrc` declares for its scope (a warning), lock files that mix
    registries, and a pip `extra-index-url`; packages that run install

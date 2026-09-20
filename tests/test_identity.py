@@ -4,7 +4,7 @@ from gitmole import identity
 
 
 IDS = [
-    {"name": "Grzegorz Bankosz", "email": "g@thg.com", "commits": 25},
+    {"name": "Grzegorz Bankosz", "email": "g@a.com", "commits": 25},
     {"name": "thg-grzegorz-bankosz", "email": "1@users.noreply.github.com", "commits": 16},
     {"name": "Bob", "email": "bob@x.com", "commits": 40},
     {"name": "Robert", "email": "bob@x.com", "commits": 2},
@@ -41,7 +41,7 @@ class Merge(unittest.TestCase):
         self.assertEqual(merged, {"Robin Malfait": 1275, "Jo Li": 3, "joli": 1}, "a run-together name shorter than six letters could be anyone")
 
     def test_a_handle_of_initial_plus_surname_is_the_same_person(self):
-        ids = [{"name": "Niels Lohmann", "email": "mail@nlohmann.me", "commits": 3000}, {"name": "nlohmann", "email": "niels.lohmann@x.com", "commits": 60},
+        ids = [{"name": "Niels Lohmann", "email": "mail@a.com", "commits": 3000}, {"name": "nlohmann", "email": "niels.lohmann@x.com", "commits": 60},
                {"name": "Jo Li", "email": "jo@a.com", "commits": 3}, {"name": "jli", "email": "x@b.com", "commits": 1}]
         merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
         self.assertEqual(merged, {"Niels Lohmann": 3060, "Jo Li": 3, "jli": 1}, "an initial plus a short surname could be anyone")
@@ -54,12 +54,12 @@ class Merge(unittest.TestCase):
     def test_a_word_two_peoples_full_names_share_names_neither_of_them(self):
         # django: a bare "Jannis" under Jannis Vajen's email pulled Jannis Leidel's 895 commits into one row, and "david"
         # is David Smith's or David Sanders's; Tom Tromey spelt twice is still one person, so tromey stays his
-        ids = [{"name": "Jannis Leidel", "email": "jannis@leidel.info", "commits": 895}, {"name": "Jannis Vajen", "email": "jvajen@gmail.com", "commits": 2},
-               {"name": "Jannis", "email": "jvajen@gmail.com", "commits": 1}, {"name": "jannis", "email": "j@c.com", "commits": 1},
-               {"name": "David Smith", "email": "smithdc@gmail.com", "commits": 134}, {"name": "David Sanders", "email": "ds@a.com", "commits": 41},
-               {"name": "david", "email": "dakrauth@gmail.com", "commits": 1},
-               {"name": "Tom Tromey", "email": "tom@tromey.com", "commits": 3686}, {"name": "Author: Tom Tromey", "email": "tom@tromey.com", "commits": 1},
-               {"name": "Tom Tromey", "email": "tromey@redhat.com", "commits": 1703}, {"name": "tromey", "email": "tromey@svn", "commits": 2}]
+        ids = [{"name": "Jannis Leidel", "email": "jannis@a.com", "commits": 895}, {"name": "Jannis Vajen", "email": "jvajen@b.com", "commits": 2},
+               {"name": "Jannis", "email": "jvajen@b.com", "commits": 1}, {"name": "jannis", "email": "j@c.com", "commits": 1},
+               {"name": "David Smith", "email": "smithdc@a.com", "commits": 134}, {"name": "David Sanders", "email": "ds@a.com", "commits": 41},
+               {"name": "david", "email": "dakrauth@b.com", "commits": 1},
+               {"name": "Tom Tromey", "email": "tom@a.com", "commits": 3686}, {"name": "Author: Tom Tromey", "email": "tom@a.com", "commits": 1},
+               {"name": "Tom Tromey", "email": "tromey@b.com", "commits": 1703}, {"name": "tromey", "email": "tromey@svn", "commits": 2}]
         self.assertEqual(identity.shared_words(ids), frozenset({"jannis", "david"}))
         merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
         self.assertEqual(merged, {"Jannis Leidel": 895, "Jannis Vajen": 3, "jannis": 1, "David Smith": 134, "David Sanders": 41, "david": 1,
@@ -67,15 +67,15 @@ class Merge(unittest.TestCase):
 
     def test_a_bare_given_name_joins_nobody_by_name_alone(self):
         # flink's three Jacks under three unrelated emails, and a Steve beside django's one Steve Hiemstra
-        ids = [{"name": "Jack", "email": "jackwangcs@outlook.com", "commits": 2}, {"name": "Jack", "email": "yuanhanzhong666@gmail.com", "commits": 1},
+        ids = [{"name": "Jack", "email": "jack1@a.com", "commits": 2}, {"name": "Jack", "email": "jack2@b.com", "commits": 1},
                {"name": "Jack", "email": "1+bytesandwich@users.noreply.github.com", "commits": 1},
-               {"name": "Steve Hiemstra", "email": "speggy@gmail.com", "commits": 1}, {"name": "Steve", "email": "steve.k@gmail.com", "commits": 1}]
+               {"name": "Steve Hiemstra", "email": "speggy@a.com", "commits": 1}, {"name": "Steve", "email": "steve.k@b.com", "commits": 1}]
         self.assertEqual(len(identity.merge(ids)), 5)
 
     def test_merged_row_sums_commits_and_lists_aliases(self):
         merged = {m["name"]: m for m in identity.merge(IDS)}
         self.assertEqual(merged["Grzegorz Bankosz"]["commits"], 41)
-        self.assertEqual(merged["Grzegorz Bankosz"]["email"], "g@thg.com")
+        self.assertEqual(merged["Grzegorz Bankosz"]["email"], "g@a.com")
         self.assertEqual(merged["Grzegorz Bankosz"]["aliases"], [{"name": "thg-grzegorz-bankosz", "email": "1@users.noreply.github.com", "commits": 16}])
         self.assertEqual(merged["Bob"]["commits"], 42)
         self.assertEqual(merged["Ann"]["aliases"], [])
@@ -100,9 +100,9 @@ class Merge(unittest.TestCase):
 
     def test_the_mealie_shape_is_one_person(self):
         ids = [{"name": "Hayden", "email": "1+hay-kot@users.noreply.github.com", "commits": 1495},
-               {"name": "hay-kot", "email": "hay-kot@pm.me", "commits": 312},
+               {"name": "hay-kot", "email": "hay-kot@b.com", "commits": 312},
                {"name": "hay-kot", "email": "1+hay-kot@users.noreply.github.com", "commits": 40},
-               {"name": "Hayden", "email": "hay-kot@pm.me", "commits": 30}]
+               {"name": "Hayden", "email": "hay-kot@b.com", "commits": 30}]
         merged = identity.merge(ids)
         self.assertEqual([m["name"] for m in merged], ["Hayden"])
         self.assertEqual(merged[0]["commits"], 1877)
@@ -124,7 +124,7 @@ class IsBot(unittest.TestCase):
     def test_people_and_bare_product_names_are_not_bots(self):
         # a product name is not a rule: GitHub declares its bots with the [bot] suffix, and a name that
         # declares nothing is a person until an alias of it declares otherwise
-        for name, email in [("Ann", "ann@x.com"), ("Bob Otte", "bot@x.com"), ("Robot Lee", "r@x.com"), ("hay-kot", "hay-kot@pm.me"),
+        for name, email in [("Ann", "ann@x.com"), ("Bob Otte", "bot@x.com"), ("Robot Lee", "r@x.com"), ("hay-kot", "hay-kot@b.com"),
                             ("Dependabot", "dependabot@example.com"), ("Copilot", "198982749+Copilot@users.noreply.github.com"),
                             ("Cursor Agent", "cursoragent@cursor.com"), ("GitHub Actions", "actions@github.com")]:
             self.assertFalse(identity.is_bot(name, email), (name, email))
