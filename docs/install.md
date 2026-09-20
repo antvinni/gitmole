@@ -110,7 +110,9 @@ prints that command. The copy lives in osv-scanner's cache directory
 The structure step runs by default. Its grammars come with gitmole: py-tree-sitter
 and one compiled grammar per language (Python, JavaScript, TypeScript and
 TSX, Go, Rust, Java, C, C++, Ruby, C#, PHP), each pinned like the tools and each
-an MIT package. It needs Python 3.10 or newer, so a gitmole installed on 3.9
+an MIT package. Homebrew installs the grammars from their prebuilt wheels rather
+than building them, because six of the eleven publish source archives that omit
+the generated parser header and cannot be built at all. It needs Python 3.10 or newer, so a gitmole installed on 3.9
 skips the step and `meta.json` says why.
 
 `gitmole[structure]` still resolves, and now installs nothing extra. A grammar

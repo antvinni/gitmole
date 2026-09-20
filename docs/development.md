@@ -97,7 +97,11 @@ their resources and is run by hand when a pin moves, never by the release job,
 which would otherwise rewrite the pinned tool resources too.
 
 The tree-sitter grammars are among those pins, one per language, and the
-formula carries a source archive for each. They need Python 3.10, so a 3.9
+formula carries a prebuilt wheel for each, one per system and CPU: six of the
+eleven (cpp, java, php, ruby, rust, typescript) publish source archives that omit
+the generated `tree_sitter/parser.h` and build nowhere, so a wheel is the only
+form that installs. `tests/test_tools.py` checks that every pin has its four
+wheels. They need Python 3.10, so a 3.9
 install skips the structure step and says why; `tree-sitter-php` stops at
 0.23.9, the last version published with a source archive Homebrew can build.
 Moving a grammar is the same work as moving a tool, and the same reason to
