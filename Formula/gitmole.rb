@@ -146,7 +146,7 @@ class Gitmole < Formula
   def install
     venv = virtualenv_create(libexec, "python3.14")
     venv.pip_install resources.reject { |r| TOOLS.include?(r.name) }
-    venv.pip_install buildpath   # not pip_install_and_link: bin/gitmole is the wrapper written below
+    venv.pip_install buildpath # not pip_install_and_link: bin/gitmole is the wrapper written below
 
     # Each pinned tool is one executable at the root of its archive (jscpd's is under bin/, and Linux
     # arm64 has git-sizer's source instead of a build).
