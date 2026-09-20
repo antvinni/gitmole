@@ -132,6 +132,7 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 - [Development](https://github.com/antvinni/gitmole/blob/main/docs/development.md): setup, tests, releases, code layout.
 - [Pipeline](https://github.com/antvinni/gitmole/blob/main/docs/pipeline.md): how a change earns its place, and which decisions an agent does not make.
 - [Contributing](https://github.com/antvinni/gitmole/blob/main/CONTRIBUTING.md): bugs, ideas, pull requests, security reports.
+- [AGENTS.md](https://github.com/antvinni/gitmole/blob/main/AGENTS.md): the rules a coding agent working on gitmole follows, unattended or not.
 
 ## Safety
 

@@ -2,6 +2,8 @@
 
 How gitmole is built, and what keeps an agent-driven loop honest; back to [the README](https://github.com/antvinni/gitmole#readme).
 
+[AGENTS.md](https://github.com/antvinni/gitmole/blob/main/AGENTS.md) is this page's
+conclusions as rules, which an agent follows without reading the reasoning here.
 [development.md](https://github.com/antvinni/gitmole/blob/main/docs/development.md)
 is the mechanics — checkout, tests, releases.
 [measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md)
