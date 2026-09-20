@@ -43,7 +43,9 @@ class Pinned(unittest.TestCase):
                     continue
                 found = len(re.findall(rf"{wheel_name}-{re.escape(version)}-\S*\.whl", text))
                 self.assertEqual(found, 4, f"{name} {version}: one wheel for each system and CPU")
-        self.assertEqual(text.count("using :nounzip"), 44, "a wheel is not unpacked before pip sees it")
+        self.assertEqual(text.count("using: :nounzip"), 44, "a wheel is not unpacked before pip sees it")
+        self.assertIn('system libexec/"bin/python", "-m", "pip", "install"', text,
+                      "the venv is created without pip's script, so pip runs as a module")
 
     def test_differences_names_only_the_tools_that_moved(self):
         found = {"scc": "4.1.0", "git-sizer": "1.6.0", "betterleaks": None, "jscpd": "5.3.0",

@@ -347,7 +347,7 @@ class Gitmole < Formula
     # the grammars are wheels, which pip_install would refuse (--no-binary :all:), so they go in as files
     GRAMMARS.each do |name|
       resource(name).stage do
-        system libexec/"bin/pip", "install", "--no-deps", "--no-index", "--quiet", Dir["*.whl"].first
+        system libexec/"bin/python", "-m", "pip", "install", "--no-deps", "--no-index", Dir["*.whl"].first
       end
     end
     venv.pip_install buildpath # not pip_install_and_link: bin/gitmole is the wrapper written below
