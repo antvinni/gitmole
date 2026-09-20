@@ -54,7 +54,7 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 - code-maat (Adam Tornhill). [README](https://github.com/adamtornhill/code-maat/blob/master/README.md): the layout of `maat.py`, its temporal period behind `maat.changesets`, and `soc`.
 - pyszz_v2 (Rosa et al.). [repo](https://github.com/grosa1/pyszz_v2/): the reference R-SZZ `szz.py` follows.
 - Bus Factor Explorer (JetBrains Research). [repo](https://github.com/JetBrains-Research/bus-factor-explorer): the decay in `maat.doa`.
-- py-tree-sitter and the tree-sitter grammar wheels (MIT). [repo](https://github.com/tree-sitter/py-tree-sitter): `structure.py`, behind `gitmole[structure]`.
+- py-tree-sitter and the tree-sitter grammar wheels (MIT). [repo](https://github.com/tree-sitter/py-tree-sitter): `structure.py`, pinned and installed with gitmole.
 - tree-sitter-language-pack 1.20.0. [PyPI](https://pypi.org/project/tree-sitter-language-pack/): considered and not used; it downloads its grammars at run time.
 - lizard, issue #432. [issue](https://github.com/terryyin/lizard/issues/432): why cognitive complexity comes from `structure.py`.
 - ast-grep-py. [PyPI](https://pypi.org/project/ast-grep-py/): considered for the shape rules and not used; they run on the tree-sitter pass `structure.py` already makes.

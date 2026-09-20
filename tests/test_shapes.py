@@ -1,5 +1,5 @@
 """The shape rules on the tree-sitter pass: an error caught and dropped, an address written into a string
-literal, code left in a comment. The parsing tests need gitmole[structure]; the findings do not."""
+literal, code left in a comment. The parsing tests need the tree-sitter grammars; the findings do not."""
 import unittest
 
 from gitmole import findings, structure
@@ -31,7 +31,7 @@ class CommentedCode(unittest.TestCase):
             self.assertIsNone(structure._address(literal), literal)
 
 
-@unittest.skipUnless(HAVE, "gitmole[structure] not installed")
+@unittest.skipUnless(HAVE, "the tree-sitter grammars need Python 3.10 or newer")
 class Shapes(unittest.TestCase):
     def test_python_counts_only_the_broad_except_that_does_nothing(self):
         s = parse(".py", "try:\n    x()\nexcept:\n    pass\ntry:\n    y()\nexcept ValueError:\n    pass\n"

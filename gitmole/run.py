@@ -161,7 +161,7 @@ def missing_tools(plots: bool = False, path: str = None) -> list:
 
 
 def has_structure() -> bool:
-    """tree-sitter and at least one grammar wheel: the optional gitmole[structure] extra."""
+    """tree-sitter and at least one grammar: ordinary dependencies since 0.32.0, absent only below Python 3.10."""
     from . import structure
     return structure.available()
 
@@ -291,7 +291,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
     if lizard:
         steps.append({"name": "functions", "argv": [sys.executable, FUNCTIONS_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args],
                       "stdout": None, "deps": []})
-    if structure:   # tree-sitter: nesting, cognitive complexity, debt markers, the import graph; gitmole[structure] only
+    if structure:   # tree-sitter: nesting, cognitive complexity, debt markers, the import graph; Python 3.10 or newer
         steps.append({"name": "structure", "argv": [*module("structure"), out_dir, "--procs", str(workers)], "stdout": None, "deps": []})
     if duplicates:
         steps.append({"name": "duplicates", "argv": [sys.executable, DUPLICATES_SCRIPT, repo_dir, out_dir, "--procs", str(workers), *ignores, *type_args,

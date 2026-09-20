@@ -94,7 +94,7 @@ def risks(report: dict, min_revs: int = 2) -> list:
     tested = {t["entity"]: (t["n-sets"], t["with-tests"]) for t in report.get("tests") or []} if has_tests else {}
     periods = {e["entity"]: e["periods"] for e in report.get("entropy") or []}   # absent before 0.14
     late = {e["entity"]: (e["late"], e["n-revs"]) for e in report.get("latenight") or []}   # absent before 0.19
-    shape = (report.get("structure") or {}).get("files") or {}   # tree-sitter, with gitmole[structure]
+    shape = (report.get("structure") or {}).get("files") or {}   # tree-sitter, on Python 3.10 or newer
     nested = {}
     for f in (report.get("structure") or {}).get("functions") or []:
         if f["file"] not in nested or f["nesting"] > nested[f["file"]]["nesting"]:

@@ -139,3 +139,30 @@
   versions the machine happened to have. Records before it say which versions ran (`run.tools`) but were
   measured against whatever Homebrew had that week, so a report-shaping change in scc, betterleaks or
   jscpd is a possible cause for any move in the rows above this one.
+- **0.32.0 turns the structure step on, and the measurement found what that cost.** The tree-sitter grammars
+  ship with gitmole, so the step that reads nesting, debt markers and the import graph runs on every install
+  with Python 3.10 or newer, and the seven rules behind it reach the measurement for the first time. They add
+  one to six findings per repository, 35 over the set, and every one of them is on the findings sheet rather
+  than in the default report: no label has reached these rules, so the report names them in a line of its own
+  ("2 more from the structure step, not labelled yet") and the actionable share still measures only what it
+  spells out. The watch list does change, for the better: a file's reasons now include what the parser saw
+  (`http_rw_hd() nested 7 deep`) in place of a weaker one. The cost is two to eight report lines per
+  repository, 13 seconds over the whole set (689 to 702) and no measurable memory: the step runs beside the
+  others, not after them. Ghidra pays the most, 39 seconds to 46.
+- **Running it everywhere cost three fixes, none of which a test had caught.** The step had been opt-in, so
+  nothing had ever run it on an awkward input or under the determinism check. `structure._blobs` passed every
+  tracked path to `git ls-files`, about 1.4 MB of arguments for Ghidra's 12,000 deep Java paths where macOS
+  allows 1 MB, so the step died with "Argument list too long" on the repository it matters most for, and an
+  empty path list made git list the whole index, which is how the binary-only fixture met a `.bin` and
+  crashed. A path git hands over as surrogate escapes reached the JSON export, which writes UTF-8, and killed
+  the whole run on the non-UTF-8-path fixture; the step now writes the replaced form the other steps write,
+  which is also the form the tables it joins with hold. And the suffix index behind import resolution was
+  built by walking a set, so where two files answer one module name (django has two `json.py`) the winner
+  followed the hash seed: two runs of the same commit gave different import graphs and determinism read "no"
+  on django. Each has a test that fails against the old code. The shipped record is the run after all three:
+  robustness 21 of 21, determinism yes on both repositories, the gate 3 of 3.
+- **The new rules' thresholds are the fittest part of the release.** Sensitivity now covers them: eleven
+  thresholds are fragile where eight were, three of the new ones among them (`commented_out_code`'s ten
+  lines, `hidden_coupling`'s degree of 60, `swallowed_errors`'s count of five), and `deep_nesting`'s five
+  levels is moderate. None was chosen against a label, which is the other reason these findings stay out of
+  the default report until the sheet's 35 are labelled.

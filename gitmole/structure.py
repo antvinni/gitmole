@@ -2,7 +2,7 @@
 """Structure from tree-sitter: nesting, bumpy roads, complex conditionals, cognitive complexity,
 self-admitted debt, definitions per file and the import graph, for eleven languages.
 
-An optional step: it needs `gitmole[structure]`, which is py-tree-sitter and one grammar wheel per
+Runs by default since 0.32.0: py-tree-sitter and one grammar per
 language (tree-sitter-python, -javascript, -typescript, -go, -rust, -java, -c, -cpp, -ruby, -c-sharp,
 -php), each a compiled grammar inside an MIT wheel, so it installs with no compiler and parses with
 no network. A language whose grammar is not installed is skipped and counted.
@@ -488,8 +488,8 @@ def resolve(files: dict) -> tuple:
     and PHP module systems need the build, and their imports stay raw."""
     tracked = set(files)
     by_suffix = {}
-    for p in tracked:
-        parts = p.split("/")
+    for p in sorted(tracked):   # sorted, not set order: two files can answer one suffix (django has two json.py),
+        parts = p.split("/")    # and the first candidate wins, so hash order would make the import graph vary per run
         for i in range(len(parts)):
             by_suffix.setdefault("/".join(parts[i:]), []).append(p)
     # the top-level names a Python import can reach in this tree: every directory and module stem, so the
@@ -651,15 +651,20 @@ def entries_dirs(entries: set) -> set:
 
 
 def _blobs(repo: str, paths: list) -> dict:
-    """{path: (sha, bytes)} for tracked files, through one cat-file --batch; files over MAX_BYTES are
-    left out, since a file that size is data or a bundle."""
-    out = subprocess.run([*filetypes.GIT, "ls-files", "-s", "-z", "--", *paths], cwd=repo, capture_output=True).stdout
+    """{path: (sha, bytes)} for the tracked files in `paths`, through one cat-file --batch; files over
+    MAX_BYTES are left out, since a file that size is data or a bundle. git lists the whole index and the
+    paths are matched here: passing them as pathspecs overflows the argument list on a repository whose
+    paths are long, which is how Ghidra (12,000 deep Java paths, over the 1 MB macOS limit) lost this step
+    entirely with "Argument list too long"."""
+    wanted = set(paths)
+    out = subprocess.run([*filetypes.GIT, "ls-files", "-s", "-z"], cwd=repo, capture_output=True).stdout
     shas = {}
     for entry in out.split(b"\0"):
         if entry and b"\t" in entry:
             meta, path = entry.split(b"\t", 1)
-            if meta.startswith(b"100"):
-                shas[path.decode("utf-8", "surrogateescape")] = meta.split()[1].decode()
+            name = path.decode("utf-8", "surrogateescape")
+            if meta.startswith(b"100") and name in wanted:
+                shas[name] = meta.split()[1].decode()
     if not shas:
         return {}
     order = sorted(shas)
@@ -675,6 +680,20 @@ def _blobs(repo: str, paths: list) -> dict:
             result[p] = (shas[p], data[end + 1:end + 1 + size])
         pos = end + 1 + size + 1
     return result
+
+
+def printable(value):
+    """The result with every path in the form the other steps write: a byte that is not UTF-8 becomes U+FFFD.
+    git hands paths over as surrogate escapes so they round-trip into argv, but a report holds text, and the
+    tables this data joins with (the watch list, the hotspots) already hold the replaced form, so a surrogate
+    here would both break the JSON export ("surrogates not allowed") and match nothing."""
+    if isinstance(value, str):
+        return value.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+    if isinstance(value, dict):
+        return {printable(k): printable(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [printable(v) for v in value]
+    return value
 
 
 def collect(repo: str, procs: int = None, vendored=()) -> dict:
@@ -725,7 +744,7 @@ def main(argv=None) -> int:
         return 2
     out_dir = args[0]
     if not available():
-        result = {"status": "not-installed", "install": "pip install 'gitmole[structure]'"}
+        result = {"status": "not-installed", "install": "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+"}
     else:
         meta = {}
         meta_path = os.path.join(out_dir, "meta.json")
@@ -735,7 +754,7 @@ def main(argv=None) -> int:
         vendored = filetypes.vendor_dirs({"meta": meta})
         result = collect(os.getcwd(), procs, vendored)
     with open(os.path.join(out_dir, "structure.json"), "w", encoding="utf-8") as fh:
-        json.dump(result, fh)
+        json.dump(printable(result), fh)
     return 0
 
 

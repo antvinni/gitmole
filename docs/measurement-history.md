@@ -145,6 +145,33 @@ Each release runs from its own source over the development set (curl, django and
   versions the machine happened to have. Records before it say which versions ran (`run.tools`) but were
   measured against whatever Homebrew had that week, so a report-shaping change in scc, betterleaks or
   jscpd is a possible cause for any move in the rows above this one.
+- **0.32.0 turns the structure step on, and the measurement found what that cost.** The tree-sitter grammars
+  ship with gitmole, so the step that reads nesting, debt markers and the import graph runs on every install
+  with Python 3.10 or newer, and the seven rules behind it reach the measurement for the first time. They add
+  one to six findings per repository, 35 over the set, and every one of them is on the findings sheet rather
+  than in the default report: no label has reached these rules, so the report names them in a line of its own
+  ("2 more from the structure step, not labelled yet") and the actionable share still measures only what it
+  spells out. The watch list does change, for the better: a file's reasons now include what the parser saw
+  (`http_rw_hd() nested 7 deep`) in place of a weaker one. The cost is two to eight report lines per
+  repository, 13 seconds over the whole set (689 to 702) and no measurable memory: the step runs beside the
+  others, not after them. Ghidra pays the most, 39 seconds to 46.
+- **Running it everywhere cost three fixes, none of which a test had caught.** The step had been opt-in, so
+  nothing had ever run it on an awkward input or under the determinism check. `structure._blobs` passed every
+  tracked path to `git ls-files`, about 1.4 MB of arguments for Ghidra's 12,000 deep Java paths where macOS
+  allows 1 MB, so the step died with "Argument list too long" on the repository it matters most for, and an
+  empty path list made git list the whole index, which is how the binary-only fixture met a `.bin` and
+  crashed. A path git hands over as surrogate escapes reached the JSON export, which writes UTF-8, and killed
+  the whole run on the non-UTF-8-path fixture; the step now writes the replaced form the other steps write,
+  which is also the form the tables it joins with hold. And the suffix index behind import resolution was
+  built by walking a set, so where two files answer one module name (django has two `json.py`) the winner
+  followed the hash seed: two runs of the same commit gave different import graphs and determinism read "no"
+  on django. Each has a test that fails against the old code. The shipped record is the run after all three:
+  robustness 21 of 21, determinism yes on both repositories, the gate 3 of 3.
+- **The new rules' thresholds are the fittest part of the release.** Sensitivity now covers them: eleven
+  thresholds are fragile where eight were, three of the new ones among them (`commented_out_code`'s ten
+  lines, `hidden_coupling`'s degree of 60, `swallowed_errors`'s count of five), and `deep_nesting`'s five
+  levels is moderate. None was chosen against a label, which is the other reason these findings stay out of
+  the default report until the sheet's 35 are labelled.
 
 ![ranking](evolution/ranking.svg)
 
@@ -199,8 +226,9 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.30.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 21% | 21/21 | 3/3 | 709 | 2821 |  |
 | 0.30.1 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 23% | 21/21 | 3/3 | 718 | 2889 |  |
 | 0.31.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 23% | 21/21 | 3/3 | 689 | 3034 |  |
+| 0.32.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 697 | 3037 |  |
 
-## The dashboard for 0.31.0
+## The dashboard for 0.32.0
 
 | | set | value |
 |---|---|---|
@@ -209,33 +237,43 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | recall at 20% of lines | development | 36% |
 | top-15 stability over 50 commits | development | 1.00 |
 | top-15 carried over from one cut-off to the next, six months | development | 0.90 |
-| findings per repository, median and p90 | development | 18.5 and 22 |
+| findings per repository, median and p90 | development | 23.5 and 27.5 |
 | findings the default report spells out that are labelled actionable | development and well-kept | 68% of 79, 99% labelled |
-| rules sound, broken and undecided | labelled sample | broken 3, sound 2, undecided 27 |
+| rules sound, broken and undecided | labelled sample | broken 3, sound 3, undecided 26, unlabelled 7 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 689 s, 3034 MB |
+| wall time and peak memory | development | 697 s, 3037 MB |
 | scored share of tracked files | development | 23% |
 | unexplained description disagreements | development | 0 |
 
 ### Threshold sensitivity
 
-48 numeric thresholds across the rules, each moved 10, 25 and 50% either side on the development set: 21 flat, 8 fragile, 17 silent, 2 untested. None of them records where its value came from, so each counts as fitted until a line beside it says otherwise.
+48 numeric thresholds across the rules, each moved 10, 25 and 50% either side on the development set: 28 flat, 11 fragile, 1 moderate, 6 silent, 2 untested. None of them records where its value came from, so each counts as fitted until a line beside it says otherwise.
 
 | rule | threshold | default | verdict | findings at −10% / shipped / +10% |
 |---|---|---:|---|---|
 | agent_instructions_drift | min_months | 6 | fragile | 1 / 0 / 0 |
 | bug_magnets | min_recent | 3 | fragile | = / 5 / = |
+| commented_out_code | min_lines | 10 | fragile | 3 / 3 / 2 |
 | complexity_growth | min_growers | 3 | fragile | = / 0 / = |
 | complexity_growth | min_pct | 25 | fragile | 1 / 0 / 0 |
 | component_coupling | min_degree | 30 | fragile | 3 / 2 / 2 |
+| hidden_coupling | min_degree | 60 | fragile | 5 / 5 / 4 |
 | knowledge_islands | min_share | 0.9 | fragile | 2 / 2 / 1 |
+| swallowed_errors | min_count | 5 | fragile | 3 / 3 / 2 |
 | tangled_commits | min_share | 0.02 | fragile | 1 / 1 / 0 |
 | tight_coupling | min_degree | 80 | fragile | 5 / 5 / 5 |
+| deep_nesting | min_nesting | 5 | moderate | 5 / 5 / 5 |
 | authors_gone | min_files | 5 | flat | 5 / 5 / 5 |
 | brain_methods | min_ccn | 15 | flat | 5 / 5 / 5 |
 | brain_methods | min_lines | 100 | flat | 5 / 5 / 5 |
 | bug_magnets | warn_at | 5 | flat | 5 / 5 / 5 |
+| debt_in_hotspots | min_markers | 3 | flat | = / 4 / = |
+| debt_in_hotspots | top_n | 10 | flat | 4 / 4 / 4 |
+| deep_nesting | min_bumps | 3 | flat | = / 5 / = |
+| deep_nesting | top_n | 10 | flat | 5 / 5 / 5 |
 | duplication | min_lines | 30 | flat | 3 / 3 / 3 |
+| hidden_coupling | min_resolved | 0.6 | flat | 5 / 5 / 5 |
+| hidden_coupling | min_revs | 5 | flat | 5 / 5 / 5 |
 | knowledge_islands | min_fraction | 0.01 | flat | 2 / 2 / 2 |
 | knowledge_islands | min_lines | 200 | flat | 2 / 2 / 2 |
 | knowledge_loss | min_share | 0.1 | flat | 4 / 4 / 4 |
@@ -248,6 +286,7 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | reverts | warn_share | 0.1 | flat | 5 / 5 / 5 |
 | stale_files | months | 12 | flat | 4 / 4 / 4 |
 | stale_files | share | 0.3 | flat | 4 / 4 / 4 |
+| swallowed_errors | top_n | 10 | flat | 3 / 3 / 3 |
 | tangled_commits | min_count | 5 | flat | 1 / 1 / 1 |
 | tight_coupling | min_revs | 5 | flat | 5 / 5 / 5 |
 | truck_factor | area_files | 10 | flat | 5 / 5 / 5 |

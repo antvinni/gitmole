@@ -12,17 +12,18 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">500</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="138.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
-<text x="221.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="304.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
-<text x="387.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
-<text x="552.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="635.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
-<text x="718.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="801.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
-<polyline points="56.0,162.7 83.6,164.3 111.2,173.9 138.8,172.6 166.4,173.3 194.0,150.2 221.6,150.2 249.2,150.9 276.8,150.3 304.4,134.1 332.0,133.7 359.6,134.0 387.2,133.1 414.8,132.0 442.4,132.0 470.0,130.3 497.6,129.2 525.2,129.1 552.8,130.0 580.4,127.0 608.0,127.7 635.6,127.5 663.2,128.7 690.8,128.1 718.4,127.4 746.0,128.0 773.6,131.6 801.2,130.9 828.8,121.4 856.4,120.2 884.0,127.9" fill="none" stroke="#0969da" stroke-width="2"/>
+<text x="136.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
+<text x="216.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="296.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
+<text x="376.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="456.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
+<text x="536.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="616.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
+<text x="697.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<text x="777.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
+<text x="857.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.32.0</text>
+<polyline points="56.0,162.7 82.7,164.3 109.4,173.9 136.1,172.6 162.8,173.3 189.5,150.2 216.3,150.2 243.0,150.9 269.7,150.3 296.4,134.1 323.1,133.7 349.8,134.0 376.5,133.1 403.2,132.0 429.9,132.0 456.6,130.3 483.4,129.2 510.1,129.1 536.8,130.0 563.5,127.0 590.2,127.7 616.9,127.5 643.6,128.7 670.3,128.1 697.0,127.4 723.7,128.0 750.5,131.6 777.2,130.9 803.9,121.4 830.6,120.2 857.3,127.9 884.0,127.6" fill="none" stroke="#0969da" stroke-width="2"/>
 <line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="286" fill="#1f2328">seconds</text>
 <text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">one laptop; each run records the load average</text>

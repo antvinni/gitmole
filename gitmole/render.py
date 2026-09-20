@@ -959,12 +959,20 @@ def summary_line(findings: list) -> str:
     return f"{len(findings)} more, true but seldom acted on: {textfmt.join_and(names)}; --full lists them"
 
 
+def unjudged_line(findings: list) -> str:
+    """'4 more from the structure step, not labelled yet: Deep nesting and Debt in hotspots; --full lists them':
+    the rules whose worth nobody has judged (findings.UNJUDGED), kept out of the default report's entries."""
+    names = [g["title"] for g in textfmt.group_findings(findings)]
+    return f"{len(findings)} more from the structure step, not labelled yet: {textfmt.join_and(names)}; --full lists them"
+
+
 def findings_panel(findings: list, report: dict = None, full: bool = True) -> Panel:
     passed = checks_passed(report or {})
     if not findings and not passed:
         return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
-    brief = [] if full else [f for f in findings if f.get("summary")]
-    shown = [f for f in findings if f not in brief]
+    brief = [] if full else [f for f in findings if f.get("summary") and not f.get("unjudged")]
+    unjudged = [] if full else [f for f in findings if f.get("unjudged")]
+    shown = [f for f in findings if f not in brief and f not in unjudged]
     grid = Table.grid(padding=(0, 1))
     grid.add_column(no_wrap=True)
     grid.add_column(overflow="fold")
@@ -978,6 +986,8 @@ def findings_panel(findings: list, report: dict = None, full: bool = True) -> Pa
         grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
     if brief:
         grid.add_row(Text("·", style="dim"), Text(summary_line(brief), style="dim"))
+    if unjudged:
+        grid.add_row(Text("·", style="dim"), Text(unjudged_line(unjudged), style="dim"))
     if passed:   # last: problems first, then the checks that passed
         if not findings:
             grid.add_row(Text(""), Text("Nothing flagged.", style="green"))

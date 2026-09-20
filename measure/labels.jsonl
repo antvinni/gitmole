@@ -228,3 +228,4 @@
 {"actionable": false, "id": "f262d952c847f65b", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
 {"actionable": false, "id": "f4e51f301f62ca5a", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
 {"actionable": false, "id": "fb16392c624d2710", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": false, "carried_from": "89114bb5bd8e4119", "id": "da3effb0d47f9268", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}

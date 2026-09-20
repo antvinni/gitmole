@@ -27,6 +27,26 @@ class Pinned(unittest.TestCase):
     def test_the_wrapper_puts_the_pinned_tools_first_on_the_path(self):
         self.assertIn('libexec/"tools"', formula())
 
+    def test_the_formula_carries_every_pinned_grammar_wheel_for_every_platform(self):
+        """Six of the eleven grammars publish no buildable source archive, so the formula installs prebuilt
+        wheels: one per grammar per platform, at the version pyproject.toml pins."""
+        import re
+        with open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8") as fh:
+            pins = dict(re.findall(r'"(tree-sitter[\w-]*)==([\d.]+); python_version', fh.read()))
+        self.assertEqual(len(pins), 12, "py-tree-sitter and eleven grammars")
+        text = formula()
+        for name, version in sorted(pins.items()):
+            wheel_name = name.replace("-", "_")
+            with self.subTest(package=name):
+                if name == "tree-sitter":   # py-tree-sitter builds from its source archive
+                    self.assertIn(f"tree_sitter-{version}.tar.gz", text)
+                    continue
+                found = len(re.findall(rf"{wheel_name}-{re.escape(version)}-\S*\.whl", text))
+                self.assertEqual(found, 4, f"{name} {version}: one wheel for each system and CPU")
+        self.assertEqual(text.count("using: :nounzip"), 44, "a wheel is not unpacked before pip sees it")
+        self.assertIn('system libexec/"bin/python", "-m", "pip", "install"', text,
+                      "the venv is created without pip's script, so pip runs as a module")
+
     def test_differences_names_only_the_tools_that_moved(self):
         found = {"scc": "4.1.0", "git-sizer": "1.6.0", "betterleaks": None, "jscpd": "5.3.0",
                  "osv-scanner": "2.6.0", "lizard": "1.24.0"}

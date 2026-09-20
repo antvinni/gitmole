@@ -107,19 +107,16 @@ prints that command. The copy lives in osv-scanner's cache directory
 
 ## Structure: nesting, debt markers, the import graph
 
-The structure step is optional. It needs `gitmole[structure]`: py-tree-sitter
+The structure step runs by default. Its grammars come with gitmole: py-tree-sitter
 and one compiled grammar per language (Python, JavaScript, TypeScript and
-TSX, Go, Rust, Java, C, C++, Ruby, C#, PHP), each an MIT wheel with nothing to
-compile and nothing to download at run time. Python 3.10 or newer.
+TSX, Go, Rust, Java, C, C++, Ruby, C#, PHP), each pinned like the tools and each
+an MIT package. Homebrew installs the grammars from their prebuilt wheels rather
+than building them, because six of the eleven publish source archives that omit
+the generated parser header and cannot be built at all. It needs Python 3.10 or newer, so a gitmole installed on 3.9
+skips the step and `meta.json` says why.
 
-```bash
-pipx install 'gitmole[structure]'
-pipx inject gitmole tree-sitter tree-sitter-python tree-sitter-javascript   # or add grammars to an existing install
-```
-
-The Homebrew formula does not include it. Without it the step is skipped and
-`meta.json` says how to install it; a grammar that is missing skips its
-language only. Results are cached by blob hash under
+`gitmole[structure]` still resolves, and now installs nothing extra. A grammar
+that is missing skips its language only. Results are cached by blob hash under
 `~/Library/Caches/gitmole/structure` (`~/.cache/gitmole/structure` on
 Linux), so a file that has not changed is not parsed twice;
 `GITMOLE_CACHE` names another directory, or `off`.
@@ -128,7 +125,6 @@ Linux), so a file that has not changed is not parsed twice;
 
 ```bash
 pipx install 'gitmole[plots]'                                                # adds git-of-theseus for --plots
-pipx install 'gitmole[structure]'                                            # adds tree-sitter for the structure step
 pipx install gitmole==X.Y.Z                                                  # a pinned release, from the releases page
 pipx install git+https://github.com/antvinni/gitmole                        # main, unreleased
 ```
