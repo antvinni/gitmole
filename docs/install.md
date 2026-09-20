@@ -110,7 +110,7 @@ Linux), so a file that has not changed is not parsed twice;
 ```bash
 pipx install 'gitmole[plots]'                                                # adds git-of-theseus for --plots
 pipx install 'gitmole[structure]'                                            # adds tree-sitter for the structure step
-pipx install gitmole==0.4.0                                                  # a pinned release
+pipx install gitmole==X.Y.Z                                                  # a pinned release, from the releases page
 pipx install git+https://github.com/antvinni/gitmole                        # main, unreleased
 ```
 

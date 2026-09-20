@@ -112,3 +112,21 @@
   gitmole), so the fall in headroom at 0.28.0 and the jump in run time, both from Ghidra and binutils-gdb
   joining the development set, no longer show as moves. On the four, headroom is 0.93 and run time about
   275 seconds from 0.26.0 to 0.30.0. The table above and the dashboard below still use the whole set.
+- **0.30.1 fixed three classifications without adding a rule** (the first patch release under the written
+  semver rule in development.md). A `packages/` inside a top-level directory is vendored only when no
+  workspace manifest declares it, so react's `compiler/packages/` is react's own code again: the scored
+  share of the development set rose from 21% to 23%, react's watch list names the compiler, and its
+  backtest at the 2023-09 cut-off, where the merged-in compiler history is all the tree has, scores 26
+  files where it scored none. Headroom 0.62 and carry-over 0.94 -> 0.90 move only through react. An ELF
+  relocatable object is not an executable (Ghidra's two `.elf` disassembler inputs; six DLLs remain).
+  Identities merge by what the history's own names say instead of a list of common first names: a word
+  two people's full names share (David Smith, David Sanders), or a bare given name (Jack, George), no
+  longer joins anyone by name alone. Over the 23 measurement clones that splits about 280 groups the list
+  let through (binutils-gdb's five Jasons, django's Thomases and Jannis Leidel's 895 commits beside
+  Jannis Vajen's) and makes two wrong merges, a lowercase `steve` joining the one Steve of django and of
+  kafka. 22 findings whose wording changed were labelled; each kept its verdict.
+- **Report length was measured in a forced terminal all along.** Every record from 0.2.0 to 0.30.0 ran
+  with `FORCE_COLOR` inherited from the shell that started it, so the report printed its banner and 80
+  columns whatever `COLUMNS` said. A run started without it printed 11 lines fewer for the same code.
+  From 0.30.1 the harness sets the terminal itself, and the length column says "80 columns, banner
+  included", which is what it always measured.

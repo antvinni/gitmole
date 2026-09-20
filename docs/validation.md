@@ -14,7 +14,7 @@ bug-inducing commits further down.
 The watch list is churn weighted by size: a file's revisions times its
 lines of code. Its purpose is to name the files most likely to be fixed in
 the next six months, counted per file named. It does not try to find the
-most bugs per line read. Measured on 19 September 2026 against the
+most bugs per line read. Measured on 20 September 2026 against the
 same pool at the same six cut-offs (`python -m gitmole.measure.signals`),
 on the development set (curl, django, react, Ghidra and binutils-gdb
 against fix locality; gitmole's own history is too short for a cut-off)
@@ -24,32 +24,32 @@ which classified the pool differently, so its totals differ from these:
 
 | | development, top-15 hits | holdout, top-15 hits | ROC-AUC beats churn | recall at 20% of lines beats churn |
 |---|---:|---:|---:|---:|
-| watch list | 298 | 724 | 5 of 5, 13 of 13 | 0 of 5, 1 of 13 |
-| churn | 281 | 704 | | |
+| watch list | 310 | 724 | 5 of 5, 13 of 13 | 0 of 5, 1 of 13 |
+| churn | 289 | 704 | | |
 
 - **At the head of the list it is churn.** It names a few more fixed files
-  than churn alone: 17 more over five development repositories (three
+  than churn alone: 21 more over five development repositories (three
   ahead, one behind, one level) and 20 more over thirteen held-out ones
   (eight ahead, four behind, one level). That is about 3%, and inside the
   noise of any one repository.
 - **Over the whole pool it is better than churn.** Its ROC-AUC is higher
-  on every repository in both sets (median 0.83 against 0.74 on
+  on every repository in both sets (median 0.83 against 0.75 on
   development, 0.77 against 0.74 on the holdout). Size breaks the ties
   between files that changed equally often, and big files that change
   are fixed more often than small ones that change as much.
 - **Per line read it is worse.** Read the list from the top until you
   have read 20% of the pool's lines. Churn alone reaches more of the
   fixed files that way on every development repository and on twelve of
-  the thirteen held-out ones (median 0.15 against 0.10 on development,
+  the thirteen held-out ones (median 0.13 against 0.09 on development,
   0.18 against 0.13 on the holdout). The size weight spends that budget
   on large files. Change entropy (HCM), which favours small, scattered
-  files, does better still per line on development (median 0.20). If
+  files, does better still per line on development (median 0.18). If
   your budget is lines rather than files, sort the list by revisions.
 
 Recency does not earn a place either. On development, counting only the
 last twelve months of revisions beat the watch list on all five
-repositories (324 against 298), and six-month windows, 24-month windows
-and exponential decay did about as well (312 to 324). That variant was
+repositories (336 against 310), and six-month windows, 24-month windows
+and exponential decay did about as well (323 to 335). That variant was
 chosen before the holdout was read, and there it came to 729 against 724:
 ahead on six repositories and behind on seven. A 9% gain that shrinks to
 under 1% on labels nobody tuned against is selection on five
@@ -130,16 +130,22 @@ entropy, each month's weight halved for every month back from T.
 
 ### react, top 15, 6-month horizon
 
-| variant | 2023-09-16 (79 of 946 fixed) | 2024-03-16 (55 of 979 fixed) | 2024-09-16 (63 of 1098 fixed) | 2025-03-16 (60 of 1172 fixed) | 2025-09-16 (74 of 1239 fixed) | 2026-03-16 (33 of 1261 fixed) | total |
+| variant | 2023-09-16 (17 of 26 fixed) | 2024-03-16 (55 of 979 fixed) | 2024-09-16 (73 of 1203 fixed) | 2025-03-16 (97 of 1299 fixed) | 2025-09-16 (107 of 1401 fixed) | 2026-03-16 (36 of 1421 fixed) | total |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| watch list (hotspot) | 7 | 7 | 12 | 10 | 9 | 10 | 55 |
-| factor product (max-scaled) | 5 | 5 | 7 | 10 | 7 | 8 | 42 |
-| factor product (rank-scaled) | 9 | 7 | 11 | 12 | 10 | 8 | 57 |
-| churn | 3 | 5 | 6 | 9 | 5 | 7 | 35 |
-| size | 8 | 5 | 9 | 9 | 7 | 8 | 46 |
-| recent fixes | 8 | 6 | 7 | 9 | 8 | 6 | 44 |
-| change entropy (HCM) | 4 | 2 | 10 | 7 | 10 | 3 | 36 |
-| random (expected) | 1.3 | 0.8 | 0.9 | 0.8 | 0.9 | 0.4 | 5.1 |
+| watch list (hotspot) | 11 | 7 | 12 | 10 | 10 | 11 | 61 |
+| factor product (max-scaled) | 11 | 5 | 7 | 10 | 7 | 8 | 48 |
+| factor product (rank-scaled) | 12 | 7 | 11 | 11 | 9 | 8 | 58 |
+| churn | 11 | 5 | 6 | 9 | 5 | 7 | 43 |
+| size | 11 | 5 | 9 | 10 | 8 | 9 | 52 |
+| recent fixes | 11 | 6 | 10 | 9 | 9 | 7 | 52 |
+| change entropy (HCM) | 11 | 2 | 10 | 8 | 11 | 3 | 45 |
+| random (expected) | 9.8 | 0.8 | 0.9 | 1.1 | 1.1 | 0.4 | 14.1 |
+
+The first cut-off says nothing about ranking. react's compiler was developed in
+its own repository and merged in later, so at 2023-09-16 the tree the backtest
+checks out holds 26 scored files, all of the compiler, and a random fifteen of
+them would name 9.8 of the 17 that were fixed. Every variant scores 11 or 12
+there. The five later cut-offs are the ones that separate the lists.
 
 `--all` exports 35,268 commits (4,501 fixes); HEAD reaches 21,703 (2,985 fixes).
 
@@ -147,44 +153,46 @@ entropy, each month's weight halved for every month back from T.
 
 | variant | curl | django | react | total |
 |---|---:|---:|---:|---:|
-| watch list (hotspot) | 86 | 84 | 55 | 225 |
-| factor product (max-scaled) | 86 | 78 | 42 | 206 |
-| factor product (rank-scaled) | 87 | 78 | 57 | 222 |
-| churn | 85 | 69 | 35 | 189 |
-| size | 90 | 83 | 46 | 219 |
-| recent fixes | 85 | 83 | 44 | 212 |
-| change entropy (HCM) | 84 | 65 | 36 | 185 |
-| random (expected) | 30.1 | 18.5 | 5.1 | 53.7 |
+| watch list (hotspot) | 86 | 84 | 61 | 231 |
+| factor product (max-scaled) | 86 | 78 | 48 | 212 |
+| factor product (rank-scaled) | 87 | 78 | 58 | 223 |
+| churn | 85 | 69 | 43 | 197 |
+| size | 90 | 83 | 52 | 225 |
+| recent fixes | 85 | 83 | 52 | 220 |
+| change entropy (HCM) | 84 | 65 | 45 | 194 |
+| random (expected) | 30.1 | 18.5 | 14.1 | 62.7 |
 
 Of 270 possible: three repositories, six cut-offs, fifteen files.
 
 ## What the numbers say
 
 Every list beats a random pick: by about three times on curl, four times on
-django and eight to twelve times on react. Beyond that:
+django and four times on react, where react's first cut-off, with 26 files in
+the pool, lifts every variant and the random baseline alike. Beyond that:
 
-- **Revisions × lines of code does best**, 225 of 270: first on django (84,
-  one ahead of size alone and of recent fixes), two behind the rank-scaled
-  factor product on react (55 against 57, nine ahead of size), and on curl
-  level with the max-scaled factor product, one ahead of churn and of recent
-  fixes, one behind the rank-scaled product and four behind size alone.
-  That is why the watch list ranks by it, and why fixes, complexity and
-  ownership are the reasons printed beside a file and not part of its rank.
-- **The rank-scaled factor product comes second**, 222, and takes curl by
-  one (87) and react (57); **size alone**, 219, takes curl outright (90 of
-  90) and is one behind on django, and only react separates it from the
-  watch list, where it is nine behind.
-- **The max-scaled factor product trails**, 206: what 0.7 shipped, and the
-  worst of the three on react (42).
-- **Recent fixes**, 212. A file fixed lately is likely to be fixed again;
+- **Revisions × lines of code does best**, 231 of 270: first on django (84,
+  one ahead of size alone and of recent fixes), first on react (61, three
+  ahead of the rank-scaled factor product and nine ahead of size), and on
+  curl level with the max-scaled factor product, one ahead of churn and of
+  recent fixes, one behind the rank-scaled product and four behind size
+  alone. That is why the watch list ranks by it, and why fixes, complexity
+  and ownership are the reasons printed beside a file and not part of its
+  rank.
+- **Size alone comes second**, 225: it takes curl outright (90 of 90) and is
+  one behind on django, and react is where the watch list pulls away from it,
+  by nine.
+- **The rank-scaled factor product follows**, 223, and takes curl by one (87).
+- **Recent fixes**, 220. A file fixed lately is likely to be fixed again;
   the list prints that count beside the file, right after how often it
   changed.
-- **Churn alone does worst**, 189. Its product with size, which is what the
-  watch list ranks by, does better than either factor alone in total, though
-  not on curl, where size alone is ahead.
-- **Change entropy does not earn the rank**, 185: two behind the watch
-  list on curl (84), nineteen behind on django (65) and nineteen on
-  react (36), and behind size alone and recent fixes everywhere but curl.
+- **The max-scaled factor product trails**, 212: what 0.7 shipped, and the
+  worst of the three on django (78) and react (48).
+- **Churn alone**, 197. Its product with size, which is what the watch list
+  ranks by, does better than either factor alone in total, though not on
+  curl, where size alone is ahead.
+- **Change entropy does not earn the rank**, 194: two behind the watch
+  list on curl (84), nineteen behind on django (65) and sixteen on
+  react (45), and behind size alone and recent fixes everywhere but curl.
   The roadmap's own rule applies: it stays a reason, `changed in 14
   different months`, printed beside a file that changed in twelve or more,
   and never a rank.
@@ -240,34 +248,34 @@ numbers below are smaller and the random baseline lower.
 
 ### react, top 15, 6-month horizon, R-SZZ
 
-| variant | 2023-09-16 (22 of 946 bug-inducing) | 2024-03-16 (16 of 979 bug-inducing) | 2024-09-16 (24 of 1098 bug-inducing) | 2025-03-16 (17 of 1172 bug-inducing) | 2025-09-16 (28 of 1239 bug-inducing) | 2026-03-16 (16 of 1261 bug-inducing) | total |
+| variant | 2023-09-16 (8 of 26 bug-inducing) | 2024-03-16 (16 of 979 bug-inducing) | 2024-09-16 (30 of 1203 bug-inducing) | 2025-03-16 (29 of 1299 bug-inducing) | 2025-09-16 (33 of 1401 bug-inducing) | 2026-03-16 (18 of 1421 bug-inducing) | total |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| watch list (hotspot) | 6 | 5 | 6 | 5 | 4 | 6 | 32 |
-| factor product (max-scaled) | 4 | 3 | 3 | 3 | 4 | 5 | 22 |
-| factor product (rank-scaled) | 6 | 4 | 6 | 6 | 5 | 5 | 32 |
-| churn | 2 | 3 | 2 | 3 | 1 | 3 | 14 |
-| size | 7 | 4 | 5 | 4 | 4 | 6 | 30 |
-| recent fixes | 6 | 4 | 5 | 5 | 4 | 4 | 28 |
-| random (expected) | 0.3 | 0.2 | 0.3 | 0.2 | 0.3 | 0.2 | 1.5 |
+| watch list (hotspot) | 5 | 5 | 6 | 5 | 4 | 7 | 32 |
+| factor product (max-scaled) | 6 | 3 | 3 | 3 | 4 | 5 | 24 |
+| factor product (rank-scaled) | 6 | 4 | 6 | 5 | 6 | 6 | 33 |
+| churn | 6 | 3 | 2 | 3 | 1 | 3 | 18 |
+| size | 5 | 4 | 5 | 4 | 4 | 7 | 29 |
+| recent fixes | 6 | 4 | 7 | 5 | 4 | 5 | 31 |
+| random (expected) | 4.6 | 0.2 | 0.4 | 0.3 | 0.4 | 0.2 | 6.1 |
 
 ### Totals, R-SZZ
 
 | variant | curl | django | react | total |
 |---|---:|---:|---:|---:|
 | watch list (hotspot) | 56 | 62 | 32 | 150 |
-| factor product (max-scaled) | 53 | 56 | 22 | 131 |
-| factor product (rank-scaled) | 57 | 55 | 32 | 144 |
-| churn | 55 | 50 | 14 | 119 |
-| size | 61 | 66 | 30 | 157 |
-| recent fixes | 55 | 59 | 28 | 142 |
-| random (expected) | 8.5 | 9.2 | 1.5 | 19.2 |
+| factor product (max-scaled) | 53 | 56 | 24 | 133 |
+| factor product (rank-scaled) | 57 | 55 | 33 | 145 |
+| churn | 55 | 50 | 18 | 123 |
+| size | 61 | 66 | 29 | 156 |
+| recent fixes | 55 | 59 | 31 | 145 |
+| random (expected) | 8.5 | 9.2 | 6.1 | 23.8 |
 
 Against defect insertion the order changes at the top: **size alone leads**,
-61, 66 and 30 for 157 of 270, and the **watch list is second** at
-150, ahead on react (32 against 30) and behind on curl and django by five and
-four. The rank-scaled factor product follows at 144, recent fixes at 142, the
-max-scaled product at 131 and churn alone, last again, at 119; a random
-fifteen would name 19. The reading: where a bug was planted is even more a
+61, 66 and 29 for 156 of 270, and the **watch list is second** at
+150, ahead on react (32 against 29) and behind on curl and django by five and
+four. The rank-scaled factor product and recent fixes follow at 145, the
+max-scaled product at 133 and churn alone, last again, at 123; a random
+fifteen would name 24. The reading: where a bug was planted is even more a
 matter of file size than where the next fix lands, and revisions × lines of
 code keeps most of that while staying ahead of every list that leans on
 churn or fixes. The watch list keeps its ranking; this page carries both

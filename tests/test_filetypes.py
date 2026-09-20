@@ -242,12 +242,40 @@ class TestPaths(unittest.TestCase):
 
     def test_vendored_trees(self):
         for path in ("vendor/github.com/x/y.go", "web/node_modules/a/index.js", "third_party/z/a.c", "thirdparty/a.c", "_vendor/a.py",
-                     "external/lib/a.cpp", "requests/packages/urllib3/a.py", "pip/_vendor/six.py", "botocore/vendored/requests/a.py",
+                     "external/lib/a.cpp", "pip/_vendor/six.py", "botocore/vendored/requests/a.py",
                      "deps/lua/src/strbuf.c", "deps/jemalloc/Makefile", ".yarn/releases/yarn-4.18.0.cjs", ".yarn/plugins/x.cjs"):
             self.assertTrue(filetypes.is_vendor_path(path), path)
         for path in ("vendors.py", "src/vendoring/a.py", "node/a.js", "externals.txt", "app/main.go",
-                     "packages/runtime-core/src/renderer.ts", "packages-private/x.ts"):   # a monorepo's own packages/ at the root
+                     "packages/runtime-core/src/renderer.ts", "packages-private/x.ts",   # a monorepo's own packages/ at the root
+                     "requests/packages/urllib3/a.py"):   # decided with the repository in hand: packages_vendored
             self.assertFalse(filetypes.is_vendor_path(path), path)
+
+    def test_a_packages_dir_inside_a_package_is_vendored_unless_a_workspace_declares_it(self):
+        # requests/packages/ is the Python vendoring convention; react's compiler/package.json lists packages/* as its
+        # workspaces, so compiler/packages/ is react's own code, and so is a tree the root pnpm-workspace.yaml lists
+        with tempfile.TemporaryDirectory() as d:
+            files = {
+                "requests/packages/urllib3/a.py": "x = 1\n",
+                "compiler/package.json": '{"private": true, "workspaces": {"packages": ["packages/*"]}}\n',
+                "compiler/packages/babel-plugin/src/BuildHIR.ts": "export {}\n",
+                "tools/packages/lint/index.js": "x\n",
+                "site/packages/theme/index.js": "x\n",
+                "site/package.json": '{"workspaces": ["./packages/*", "!packages/old"]}\n',
+                "pnpm-workspace.yaml": "packages:\n  - 'tools/packages/*'\n  - apps/*\ncatalog:\n  react: ^19\n",
+                "packages/core/index.js": "x\n",
+            }
+            git_repo(d, files)
+            found = filetypes.vendored_paths(d, sorted(files))
+        self.assertEqual(found, ["requests/packages/"])
+        self.assertTrue(filetypes.is_vendored("requests/packages/urllib3/a.py", found))
+        self.assertFalse(filetypes.is_vendored("compiler/packages/babel-plugin/src/BuildHIR.ts", found))
+        self.assertFalse(filetypes.is_vendored("packages/core/index.js", found))
+
+    def test_a_broken_workspace_manifest_declares_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            files = {"compiler/package.json": '{"workspaces": ', "compiler/packages/a/index.js": "x\n"}
+            git_repo(d, files)
+            self.assertEqual(filetypes.vendored_paths(d, sorted(files)), ["compiler/packages/"])
 
 
 if __name__ == "__main__":

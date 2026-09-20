@@ -356,6 +356,13 @@ def install_scripts(repo: str) -> dict:
 _MAGIC = [(b"\x7fELF", "ELF"), (b"MZ", "PE"), (b"\xfe\xed\xfa\xce", "Mach-O"), (b"\xfe\xed\xfa\xcf", "Mach-O"),
           (b"\xce\xfa\xed\xfe", "Mach-O"), (b"\xcf\xfa\xed\xfe", "Mach-O"), (b"\xca\xfe\xba\xbe", "Mach-O")]
 _NATIVE = re.compile(r"\.(so(\.\d+)*|dll|dylib|jar|pyd|node|exe)$", re.I)
+ET_REL = 1   # an ELF header's e_type for a relocatable object: a linker's input, which nothing runs
+
+
+def _elf_relocatable(head: bytes) -> bool:
+    """Whether an ELF header describes a relocatable object (.o, a disassembler's test input): e_type sits at
+    byte 16, in the byte order byte 5 names."""
+    return len(head) >= 18 and int.from_bytes(head[16:18], "big" if head[5] == 2 else "little") == ET_REL
 
 
 def _binary_paths(repo: str) -> list:
@@ -373,13 +380,16 @@ def _binary_paths(repo: str) -> list:
 
 def binaries(repo: str) -> dict:
     """Executables by their first bytes (ELF, PE, Mach-O; a Java class shares Mach-O's fat magic and is
-    left alone), native libraries and archives by name, and binary blobs .gitattributes sends to LFS
-    that were committed as they are rather than as pointers."""
+    left alone, and so is an ELF relocatable object, which nothing runs), native libraries and archives by
+    name, and binary blobs .gitattributes sends to LFS that were committed as they are rather than as
+    pointers."""
     found = _binary_paths(repo)
     executables = []
     for path in found:
-        head = _read(repo, path, 8) or b""
+        head = _read(repo, path, 18) or b""
         fmt = next((name for magic, name in _MAGIC if head.startswith(magic)), None)
+        if fmt == "ELF" and _elf_relocatable(head):
+            continue
         if fmt and not path.endswith(".class"):
             executables.append({"file": path, "format": fmt})
     unpointed = []

@@ -204,3 +204,27 @@
 {"actionable": true, "id": "e28b1d92fff5710a", "labeller": "claude", "reason": "truck factor of 2 or less is worth acting on", "true": true}
 {"actionable": false, "id": "f4f9bd08017833af", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
 {"actionable": false, "id": "ff64e4fbed2959aa", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": true, "carried_from": "5762675cfd66b505", "id": "2782416bfaca00f3", "labeller": "claude", "reason": "one author's area", "true": true}
+{"actionable": true, "carried_from": "3600fb8ada302873", "id": "6e4b3e2479287c89", "labeller": "claude", "reason": "three of four never named anywhere", "true": true}
+{"actionable": true, "id": "2f880726534109d6", "labeller": "claude", "reason": "hand-written functions worth splitting; compiler/packages/ is react's own code again", "true": true}
+{"actionable": false, "id": "3289306ecf0e7e18", "labeller": "claude", "reason": "real values in tests, docs, vendored or generated files", "true": true}
+{"actionable": false, "id": "3e112221dd5701a7", "labeller": "claude", "reason": "declared lifecycle scripts of the compiler workspace's dev packages", "true": true}
+{"actionable": true, "id": "4011cfc1e32ec78d", "labeller": "claude", "reason": "the manifests moved after the locks; the compiler workspace's own packages now count", "true": true}
+{"actionable": false, "id": "503017698999ea36", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": true, "id": "503d8f66fc91a9dd", "labeller": "claude", "reason": "six driver DLLs; the two relocatable .elf test inputs no longer counted", "true": true}
+{"actionable": null, "id": "62bbfee168210d01", "labeller": "claude", "reason": "29 values not checked", "true": null}
+{"actionable": false, "id": "6af17e32f74f584a", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "6e81ab598b8a703c", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": false, "id": "73b58ff977e47e2b", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": false, "id": "8503f9d16ef6af05", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": false, "id": "85a398f5c3a9a2ce", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": false, "id": "89114bb5bd8e4119", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": false, "id": "b25b833418421095", "labeller": "claude", "reason": "by DOA's definition; normal turnover; the named authors are now the right people (Lucas Azzola, not a merged Lucas)", "true": true}
+{"actionable": false, "id": "bc83e7cec86a384a", "labeller": "claude", "reason": "a healthy spread", "true": true}
+{"actionable": false, "id": "bebffbb34b7330b1", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": false, "id": "c6d15941d790c7b7", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": false, "id": "e29b13e2b469fbd3", "labeller": "claude", "reason": "blocks are in tests, examples or vendored copies", "true": true}
+{"actionable": false, "id": "e40544b8a28cc746", "labeller": "claude", "reason": "fires on 10 of 10 hotspots in most large projects", "true": true}
+{"actionable": false, "id": "f262d952c847f65b", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}
+{"actionable": false, "id": "f4e51f301f62ca5a", "labeller": "claude", "reason": "by DOA's definition; normal turnover", "true": true}
+{"actionable": false, "id": "fb16392c624d2710", "labeller": "claude", "reason": "normal in a long-lived open-source project", "true": true}

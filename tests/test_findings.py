@@ -69,6 +69,7 @@ class SecretsFound(unittest.TestCase):
     def test_a_value_only_in_vendored_code_is_a_warning(self):
         # oauthlib's RFC test vectors inside requests/packages/: upstream's specimen, not this repository's credential
         r = report(secrets=[self.row("h1", "requests/packages/oauthlib/oauth1/rfc5849/parameters.py", "9576518")])
+        r["meta"]["vendored"] = ["requests/packages/"]
         f = findings.secrets_found(r)
         self.assertEqual([x["severity"] for x in f], ["warning"])
         self.assertIn("vendored", f[0]["title"])

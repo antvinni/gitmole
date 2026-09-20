@@ -51,6 +51,27 @@ class Merge(unittest.TestCase):
                {"name": "Alex", "email": "alex@a.com", "commits": 3}, {"name": "alex", "email": "alex@b.com", "commits": 2}]
         self.assertEqual(len(identity.merge(ids)), 4, "two Jeans and two Alexes may be four people")
 
+    def test_a_word_two_peoples_full_names_share_names_neither_of_them(self):
+        # django: a bare "Jannis" under Jannis Vajen's email pulled Jannis Leidel's 895 commits into one row, and "david"
+        # is David Smith's or David Sanders's; Tom Tromey spelt twice is still one person, so tromey stays his
+        ids = [{"name": "Jannis Leidel", "email": "jannis@leidel.info", "commits": 895}, {"name": "Jannis Vajen", "email": "jvajen@gmail.com", "commits": 2},
+               {"name": "Jannis", "email": "jvajen@gmail.com", "commits": 1}, {"name": "jannis", "email": "j@c.com", "commits": 1},
+               {"name": "David Smith", "email": "smithdc@gmail.com", "commits": 134}, {"name": "David Sanders", "email": "ds@a.com", "commits": 41},
+               {"name": "david", "email": "dakrauth@gmail.com", "commits": 1},
+               {"name": "Tom Tromey", "email": "tom@tromey.com", "commits": 3686}, {"name": "Author: Tom Tromey", "email": "tom@tromey.com", "commits": 1},
+               {"name": "Tom Tromey", "email": "tromey@redhat.com", "commits": 1703}, {"name": "tromey", "email": "tromey@svn", "commits": 2}]
+        self.assertEqual(identity.shared_words(ids), frozenset({"jannis", "david"}))
+        merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
+        self.assertEqual(merged, {"Jannis Leidel": 895, "Jannis Vajen": 3, "jannis": 1, "David Smith": 134, "David Sanders": 41, "david": 1,
+                                  "Tom Tromey": 5392})
+
+    def test_a_bare_given_name_joins_nobody_by_name_alone(self):
+        # flink's three Jacks under three unrelated emails, and a Steve beside django's one Steve Hiemstra
+        ids = [{"name": "Jack", "email": "jackwangcs@outlook.com", "commits": 2}, {"name": "Jack", "email": "yuanhanzhong666@gmail.com", "commits": 1},
+               {"name": "Jack", "email": "1+bytesandwich@users.noreply.github.com", "commits": 1},
+               {"name": "Steve Hiemstra", "email": "speggy@gmail.com", "commits": 1}, {"name": "Steve", "email": "steve.k@gmail.com", "commits": 1}]
+        self.assertEqual(len(identity.merge(ids)), 5)
+
     def test_merged_row_sums_commits_and_lists_aliases(self):
         merged = {m["name"]: m for m in identity.merge(IDS)}
         self.assertEqual(merged["Grzegorz Bankosz"]["commits"], 41)

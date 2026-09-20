@@ -62,8 +62,15 @@ def _spawn(argv: list, cwd: str, env: dict, stdout, stderr, timeout: float) -> s
         return "timeout"
 
 
+# Variables that decide whether rich treats the report's stdout as a terminal. Every record from 0.2.0 to 0.30.0
+# was made with a forced terminal (the banner printed, 80 columns, whatever COLUMNS says), so the harness sets that
+# itself instead of inheriting it from whoever started the run: without it the same release prints 11 lines fewer.
+_TTY_VARS = ("FORCE_COLOR", "TTY_COMPATIBLE", "TTY_INTERACTIVE", "CLICOLOR_FORCE")
+
+
 def _env(src: str, reference: str, extra: dict = None) -> dict:
-    env = dict(os.environ, PYTHONPATH=src, GITMOLE_NOW=reference, COLUMNS="100", TERM="dumb", NO_COLOR="1", PYTHONDONTWRITEBYTECODE="1")
+    env = {k: v for k, v in os.environ.items() if k not in _TTY_VARS}
+    env.update(PYTHONPATH=src, GITMOLE_NOW=reference, COLUMNS="100", TERM="dumb", NO_COLOR="1", PYTHONDONTWRITEBYTECODE="1", FORCE_COLOR="1")
     env.update(extra or {})
     return env
 

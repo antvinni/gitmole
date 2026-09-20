@@ -118,6 +118,24 @@ Each release runs from its own source over the development set (curl, django and
   gitmole), so the fall in headroom at 0.28.0 and the jump in run time, both from Ghidra and binutils-gdb
   joining the development set, no longer show as moves. On the four, headroom is 0.93 and run time about
   275 seconds from 0.26.0 to 0.30.0. The table above and the dashboard below still use the whole set.
+- **0.30.1 fixed three classifications without adding a rule** (the first patch release under the written
+  semver rule in development.md). A `packages/` inside a top-level directory is vendored only when no
+  workspace manifest declares it, so react's `compiler/packages/` is react's own code again: the scored
+  share of the development set rose from 21% to 23%, react's watch list names the compiler, and its
+  backtest at the 2023-09 cut-off, where the merged-in compiler history is all the tree has, scores 26
+  files where it scored none. Headroom 0.62 and carry-over 0.94 -> 0.90 move only through react. An ELF
+  relocatable object is not an executable (Ghidra's two `.elf` disassembler inputs; six DLLs remain).
+  Identities merge by what the history's own names say instead of a list of common first names: a word
+  two people's full names share (David Smith, David Sanders), or a bare given name (Jack, George), no
+  longer joins anyone by name alone. Over the 23 measurement clones that splits about 280 groups the list
+  let through (binutils-gdb's five Jasons, django's Thomases and Jannis Leidel's 895 commits beside
+  Jannis Vajen's) and makes two wrong merges, a lowercase `steve` joining the one Steve of django and of
+  kafka. 22 findings whose wording changed were labelled; each kept its verdict.
+- **Report length was measured in a forced terminal all along.** Every record from 0.2.0 to 0.30.0 ran
+  with `FORCE_COLOR` inherited from the shell that started it, so the report printed its banner and 80
+  columns whatever `COLUMNS` said. A run started without it printed 11 lines fewer for the same code.
+  From 0.30.1 the harness sets the terminal itself, and the length column says "80 columns, banner
+  included", which is what it always measured.
 
 ![ranking](evolution/ranking.svg)
 
@@ -170,8 +188,9 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.28.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 278 | 21% | 21/21 | 3/3 | 674 | 3029 |  |
 | 0.29.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 278 | 21% | 21/21 | 3/3 | 680 | 3064 |  |
 | 0.30.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 21% | 21/21 | 3/3 | 709 | 2821 |  |
+| 0.30.1 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 23% | 21/21 | 3/3 | 718 | 2889 |  |
 
-## The dashboard for 0.30.0
+## The dashboard for 0.30.1
 
 | | set | value |
 |---|---|---|
@@ -179,13 +198,13 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | median headroom at 15 | development | 0.62 |
 | recall at 20% of lines | development | 36% |
 | top-15 stability over 50 commits | development | 1.00 |
-| top-15 carried over from one cut-off to the next, six months | development | 0.94 |
+| top-15 carried over from one cut-off to the next, six months | development | 0.90 |
 | findings per repository, median and p90 | development | 18.5 and 22 |
-| findings the default report spells out that are labelled actionable | development and well-kept | 69% of 79, 98% labelled |
-| rules sound, broken and undecided | labelled sample | broken 3, sound 1, undecided 28 |
+| findings the default report spells out that are labelled actionable | development and well-kept | 68% of 79, 99% labelled |
+| rules sound, broken and undecided | labelled sample | broken 3, sound 2, undecided 27 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 709 s, 2821 MB |
-| scored share of tracked files | development | 21% |
+| wall time and peak memory | development | 718 s, 2889 MB |
+| scored share of tracked files | development | 23% |
 | unexplained description disagreements | development | 0 |
 
 ### Threshold sensitivity
@@ -259,7 +278,7 @@ Zimmermann et al.'s experiments at file granularity: leave one file out of a com
 | curl | 1954 | 10% | 62% | 450 | 4% |
 | django | 535 | 0% | 100% | 133 | 0% |
 | ghidra | 1177 | 1% | 50% | 246 | 0% |
-| react | 1202 | 24% | 70% | 243 | 11% |
+| react | 1387 | 20% | 70% | 288 | 9% |
 
 ### Determinism across time zones and locales
 
