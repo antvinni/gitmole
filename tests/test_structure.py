@@ -140,6 +140,29 @@ class Step(unittest.TestCase):
         self.assertEqual([f["name"] for f in data["functions"]], ["f"])
 
 
+class Blobs(unittest.TestCase):
+    def test_a_path_list_far_past_the_argument_limit_still_lists_the_wanted_files(self):
+        """Ghidra's 12,000 deep Java paths overflowed `git ls-files -- <paths>` with "Argument list too
+        long", and the structure step failed on the repositories it matters most for. git lists the index
+        and the paths are matched here, so the list's size no longer reaches a command line."""
+        with tempfile.TemporaryDirectory() as d:
+            repo = os.path.join(d, "repo")
+            os.makedirs(repo)
+            env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="A",
+                       GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+            with open(os.path.join(repo, "a.py"), "w") as fh:
+                fh.write("x = 1\n")
+            with open(os.path.join(repo, "b.py"), "w") as fh:
+                fh.write("y = 2\n")
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "commit", "-q", "-m", "c"], cwd=repo, check=True, env=env)
+            long_names = [f"src/{'deep/' * 12}module_{i:06d}.py" for i in range(20000)]   # ~2 MB of paths, twice the macOS limit
+            blobs = structure._blobs(repo, ["a.py", *long_names])
+        self.assertEqual(sorted(blobs), ["a.py"], "the tracked path is found and the absent ones are ignored")
+        self.assertEqual(blobs["a.py"][1], b"x = 1\n")
+
+
 class NotInstalled(unittest.TestCase):
     def test_without_tree_sitter_the_step_says_how_to_install_it(self):
         with tempfile.TemporaryDirectory() as out:

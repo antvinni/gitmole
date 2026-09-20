@@ -651,15 +651,20 @@ def entries_dirs(entries: set) -> set:
 
 
 def _blobs(repo: str, paths: list) -> dict:
-    """{path: (sha, bytes)} for tracked files, through one cat-file --batch; files over MAX_BYTES are
-    left out, since a file that size is data or a bundle."""
-    out = subprocess.run([*filetypes.GIT, "ls-files", "-s", "-z", "--", *paths], cwd=repo, capture_output=True).stdout
+    """{path: (sha, bytes)} for the tracked files in `paths`, through one cat-file --batch; files over
+    MAX_BYTES are left out, since a file that size is data or a bundle. git lists the whole index and the
+    paths are matched here: passing them as pathspecs overflows the argument list on a repository whose
+    paths are long, which is how Ghidra (12,000 deep Java paths, over the 1 MB macOS limit) lost this step
+    entirely with "Argument list too long"."""
+    wanted = set(paths)
+    out = subprocess.run([*filetypes.GIT, "ls-files", "-s", "-z"], cwd=repo, capture_output=True).stdout
     shas = {}
     for entry in out.split(b"\0"):
         if entry and b"\t" in entry:
             meta, path = entry.split(b"\t", 1)
-            if meta.startswith(b"100"):
-                shas[path.decode("utf-8", "surrogateescape")] = meta.split()[1].decode()
+            name = path.decode("utf-8", "surrogateescape")
+            if meta.startswith(b"100") and name in wanted:
+                shas[name] = meta.split()[1].decode()
     if not shas:
         return {}
     order = sorted(shas)
