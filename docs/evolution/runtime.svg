@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
-<rect width="900" height="300" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="314" viewBox="0 0 900 314" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
+<rect width="900" height="314" fill="#ffffff"/>
 <text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Run time of curl, django, react and gitmole (seconds, one repository at a time)</text>
 <line x1="56" y1="244.0" x2="884" y2="244.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="248.0" text-anchor="end" fill="#1f2328">0</text>
@@ -12,19 +12,18 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">500</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="136.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
-<text x="216.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="296.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
-<text x="376.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="456.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
-<text x="536.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="616.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
-<text x="697.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="777.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
-<text x="857.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.32.0</text>
-<polyline points="56.0,162.7 82.7,164.3 109.4,173.9 136.1,172.6 162.8,173.3 189.5,150.2 216.3,150.2 243.0,150.9 269.7,150.3 296.4,134.1 323.1,133.7 349.8,134.0 376.5,133.1 403.2,132.0 429.9,132.0 456.6,130.3 483.4,129.2 510.1,129.1 536.8,130.0 563.5,127.0 590.2,127.7 616.9,127.5 643.6,128.7 670.3,128.1 697.0,127.4 723.7,128.0 750.5,131.6 777.2,130.9 803.9,121.4 830.6,120.2 857.3,127.9 884.0,127.6" fill="none" stroke="#0969da" stroke-width="2"/>
-<line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
-<text x="84" y="286" fill="#1f2328">seconds</text>
-<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">one laptop; each run records the load average</text>
+<text x="185.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.7.0</text>
+<text x="263.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="340.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.13.1</text>
+<text x="418.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="495.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.19.0</text>
+<text x="573.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="651.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.25.0</text>
+<text x="728.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
+<text x="806.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.1</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.33.0</text>
+<polyline points="56.0,162.7 81.9,164.3 107.8,173.9 133.6,172.6 159.5,173.3 185.4,150.2 211.2,150.2 237.1,150.9 263.0,150.3 288.9,134.1 314.8,133.7 340.6,134.0 366.5,133.1 392.4,132.0 418.2,132.0 444.1,130.3 470.0,129.2 495.9,129.1 521.8,130.0 547.6,127.0 573.5,127.7 599.4,127.5 625.2,128.7 651.1,128.1 677.0,127.4 702.9,128.0 728.8,131.6 754.6,130.9 780.5,121.4 806.4,120.2 832.2,127.9 858.1,127.6 884.0,127.5" fill="none" stroke="#0969da" stroke-width="2"/>
+<line x1="56" y1="278" x2="78" y2="278" stroke="#0969da" stroke-width="2"/>
+<text x="84" y="282" fill="#1f2328">seconds</text>
+<text x="56" y="302" fill="#57606a" font-size="11">one laptop; each run records the load average</text>
 </svg>

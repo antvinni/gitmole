@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
-<rect width="900" height="300" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="314" viewBox="0 0 900 314" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
+<rect width="900" height="314" fill="#ffffff"/>
 <text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Peak memory of the largest process (MB)</text>
 <line x1="56" y1="244.0" x2="884" y2="244.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="248.0" text-anchor="end" fill="#1f2328">0</text>
@@ -12,19 +12,18 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">5,000</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="136.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
-<text x="216.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="296.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
-<text x="376.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="456.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
-<text x="536.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="616.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
-<text x="697.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="777.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
-<text x="857.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.32.0</text>
-<polyline points="56.0,223.2 82.7,223.1 109.4,223.2 136.1,223.6 162.8,223.9 189.5,212.1 216.3,201.4 243.0,210.0 269.7,200.1 296.4,200.7 323.1,201.6 349.8,201.8 376.5,209.2 403.2,120.5 429.9,135.5 456.6,120.5 483.4,130.5 510.1,138.4 536.8,124.0 563.5,120.8 590.2,151.0 616.9,150.9 643.6,137.5 670.3,139.8 697.0,121.8 723.7,142.0 750.5,120.4 777.2,119.0 803.9,128.9 830.6,126.1 857.3,120.2 884.0,120.1" fill="none" stroke="#0969da" stroke-width="2"/>
-<line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
-<text x="84" y="286" fill="#1f2328">MB</text>
-<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">the largest of the runs on curl, django, react and gitmole</text>
+<text x="185.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.7.0</text>
+<text x="263.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="340.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.13.1</text>
+<text x="418.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="495.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.19.0</text>
+<text x="573.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="651.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.25.0</text>
+<text x="728.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
+<text x="806.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.1</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.33.0</text>
+<polyline points="56.0,223.2 81.9,223.1 107.8,223.2 133.6,223.6 159.5,223.9 185.4,212.1 211.2,201.4 237.1,210.0 263.0,200.1 288.9,200.7 314.8,201.6 340.6,201.8 366.5,209.2 392.4,120.5 418.2,135.5 444.1,120.5 470.0,130.5 495.9,138.4 521.8,124.0 547.6,120.8 573.5,151.0 599.4,150.9 625.2,137.5 651.1,139.8 677.0,121.8 702.9,142.0 728.8,120.4 754.6,119.0 780.5,128.9 806.4,126.1 832.2,120.2 858.1,120.1 884.0,132.8" fill="none" stroke="#0969da" stroke-width="2"/>
+<line x1="56" y1="278" x2="78" y2="278" stroke="#0969da" stroke-width="2"/>
+<text x="84" y="282" fill="#1f2328">MB</text>
+<text x="56" y="302" fill="#57606a" font-size="11">the largest of the runs on curl, django, react and gitmole</text>
 </svg>

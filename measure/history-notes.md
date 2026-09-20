@@ -166,3 +166,15 @@
   lines, `hidden_coupling`'s degree of 60, `swallowed_errors`'s count of five), and `deep_nesting`'s five
   levels is moderate. None was chosen against a label, which is the other reason these findings stay out of
   the default report until the sheet's 35 are labelled.
+- **0.33.0 asks the reader, and drops gitmole's own false policy finding.** Every label behind the
+  actionable share is an agent's, so the tool now asks the one population that can answer: five yes/no
+  questions after a plain interactive run, written to a file the reader chooses to send. It asks once on a
+  machine, never in CI or behind an export flag, and gitmole uploads nothing, so the record is untouched by
+  it -- the harness has no terminal, so no run here was ever asked. The only number that moves is gitmole's
+  own, 8 findings to 7: `repo_policy` said it had no security policy while CONTRIBUTING.md#Security names
+  the reporting route, which is the same false alarm the README fallback fixed for containerd at 0.29.0.
+  Nothing else in the set changes.
+- **The graphs had run two release labels together.** The x axis drew every nth label and then forced the
+  last one whatever sat beside it, so the README's ranking graph read "0.31.00.32.0", and the caption was
+  drawn along the legend's baseline and through its words. Labels are now spaced by the room a label needs,
+  with both ends always drawn, and the note has a line of its own. Every graph on this page is redrawn.
