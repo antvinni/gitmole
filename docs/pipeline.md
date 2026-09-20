@@ -130,19 +130,28 @@ the interval it sits inside, the repository where it lost, the threshold it is
 sensitive to. A validator that has read the hypothesis is a rubber stamp with
 extra steps.
 
-The **labeller** decides whether a finding is true and whether anyone would act
-on it. Today every one of the 230 labels in `labels.jsonl` carries
-`"labeller": "claude"`, which means the precision figure for rules an agent
-wrote is computed by an agent. `kappa` is implemented, but agreement between two
-agent passes measures self-consistency, not correctness.
+The **labeller** decides whether a finding is true and whether anyone would act on it. Every one of
+the 231 labels in `labels.jsonl` carries `"labeller": "claude"`, so the precision figure for rules an
+agent wrote is computed by an agent. `kappa` is implemented, but agreement between two agent passes
+measures self-consistency, not correctness.
 
-The fix is not to stop using agents for labelling — it is the only way the
-volume is affordable. It is to anchor them. Sign a sample by hand each release,
-fifty findings stratified across rules, and publish kappa between the hand-signed
-anchor and the agent labels alongside the precision number. If that agreement is
-high, the agent labels carry weight and the cost stays near zero. If it is not,
-the precision numbers in the history need a footnote. Either way the reader can
-tell, which is the standard the rest of this project holds itself to.
+The usual fix is to anchor them: hand-sign a stratified sample each release and publish agreement
+against it. That is the right answer for a project with labelling capacity, and this one has not got
+it — a maintainer with a day job is not going to sign fifty findings a release, and a mechanism
+nobody performs is worse than none, because the history goes on quoting a number whose basis has
+quietly lapsed.
+
+So change what is measured rather than fake the anchor. Remediation asks the repository's own later
+history whether the named thing was fixed, which is evidence about maintainer behaviour rather than
+an opinion about it, and no agent enters. It answers a narrower question than `actionable` and it is
+biased toward the mechanical, both of which the harness states. That is a smaller claim honestly
+held, which beats a larger one resting on an anchor that was never signed.
+
+Three things follow. Rename the existing figure in the history to agent-labelled precision and say
+plainly that no human anchor exists. Keep the 231 labels as a snapshot and stop growing them; more
+agent labels add volume, not standing. And leave the slot open — the schema already carries a
+`labeller` field, so labels from users drop in without rework, and the ignore files they write are
+themselves labels, collected from people who looked and had a stake.
 
 ## What agents must not decide
 
@@ -167,6 +176,14 @@ repositories is overfitting with extra steps, and it is invisible afterwards.
 Every threshold should be principled with a citation, or swept — the sensitivity
 run from measurement.md tells you which ones are load-bearing. Record which kind
 each one is in a line beside it.
+
+**The corpus.** A repository an agent happened to clone is not a measurement repository. Random
+public repositories are a badly biased frame — most are personal, most are short-lived, the median
+has a handful of commits, and a third are not software development at all — so a rate averaged over
+them is dominated by projects gitmole has nothing to say about. They belong in the robustness lane:
+completion rate, crashes, timeouts, scored share, the performance envelope, and shaking out false
+positives. Adding one to the effectiveness corpus, or tuning against one, is a decision with a
+pre-registered criterion behind it, which is exactly what `corpus.json` records.
 
 **Golden files.** `UPDATE_GOLDEN=1` exists so an intended change to the report
 can be reviewed as a diff. An agent that regenerates it to make a test pass has
@@ -211,6 +228,46 @@ code. Revert rate, fix rate and watch-list hit rate for trailer-bearing against
 non-trailer commits, measured here, is both dogfooding and a dataset almost
 nobody else can produce — with the caveat the roadmap already records, that the
 local number is the finding and the global prior is not to be imported.
+
+## How it evolves itself
+
+Most projects cannot improve themselves because they cannot tell improvement from change. The
+measurement harness is what makes the difference here, and four loops can close on top of it.
+
+**Prune.** Remediation gives a per-rule number with nobody in it. A release job runs it over the
+corpus at a cut-off at least a horizon back and proposes demotion for any rule below its band's
+floor or sitting in `NOT_OBSERVABLE`. The decision stays human — that is the receipt the ratchet
+asks for — but the proposal writes itself, and the rule set converges on what repositories act on
+rather than on what seemed reasonable when it was written.
+
+**Calibrate.** Every threshold was chosen by eye, which is the weakest thing in the codebase. The
+sensitivity sweep plus remediation makes it objective: for each constant, run it wide, plot the
+share acted on against findings per repository, take the knee. Development to find it, holdout to
+confirm, and a line beside the constant recording that it was set this way, so a reader can still
+tell fitted from principled.
+
+**Rotate.** Built already: a contaminated holdout demotes to development, `reserve` promotes a
+replacement, recorded with a date.
+
+**Collect.** Users write labels without being asked. Every `.betterleaksignore` fingerprint and
+every ignored advisory id is a false positive marked by someone who looked at it and had a stake. A
+command that reports which of gitmole's own findings a repository's ignore files suppress turns that
+into a payload somebody pastes into an issue — labelled data from people with something at risk, and
+no labelling work here.
+
+What no loop provides is a new rule. Ideas come from papers, from users, from noticing. The nearest
+available thing is discovery rather than invention: invert the harness and ask not whether
+maintainers fixed what gitmole named, but what they repeatedly change across the corpus unprompted.
+A change thirty of forty repositories made in eighteen months is evidence a rule about it earns its
+place, found in behaviour rather than in a citation.
+
+**The trap, and it is the one this page keeps returning to.** If the share acted on becomes the
+objective, the loop optimises the proxy, and the proxy is biased toward the mechanical. Unguarded,
+gitmole evolves into a linter: every rule about pinning and deleting survives, every rule about
+design dies, and the thing that made it different — that it reads history rather than syntax — is
+selected out. Any automated objective therefore runs inside each band separately. Mechanical rules
+compete with mechanical rules, and a structural rule's floor is whatever structural rules actually
+reach.
 
 ## Cadence
 
