@@ -37,6 +37,10 @@ what keeps that report stable. gitmole validates it, announces it at the
 start of a run, and records it in `meta.json`, so a forgotten export cannot
 silently skew a real report.
 
+[pipeline.md](https://github.com/antvinni/gitmole/blob/main/docs/pipeline.md) is
+the loop around all of this: which lane a change is in, what it has to prove, and
+which decisions an agent is not allowed to make.
+
 ## Rules
 
 gitmole has no model; its judgement is the rules in `filetypes.py`,

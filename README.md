@@ -130,6 +130,7 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 - [Why these tools](https://github.com/antvinni/gitmole/blob/main/docs/tools.md): the rationale, what was left out, licences.
 - [References](https://github.com/antvinni/gitmole/blob/main/docs/references.md): the research and tools gitmole's rules are built on.
 - [Development](https://github.com/antvinni/gitmole/blob/main/docs/development.md): setup, tests, releases, code layout.
+- [Pipeline](https://github.com/antvinni/gitmole/blob/main/docs/pipeline.md): how a change earns its place, and which decisions an agent does not make.
 - [Contributing](https://github.com/antvinni/gitmole/blob/main/CONTRIBUTING.md): bugs, ideas, pull requests, security reports.
 
 ## Safety
