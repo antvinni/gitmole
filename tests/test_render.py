@@ -1559,3 +1559,16 @@ class SummaryLine(unittest.TestCase):
         text = self._text(render.findings_panel(self._findings(), {}, full=True))
         self.assertIn("Knowledge loss detail", text)
         self.assertNotIn("seldom acted on", text)
+
+    def test_the_structure_step_s_unlabelled_findings_get_a_line_of_their_own(self):
+        unjudged = [{"severity": "warning", "title": "Deep nesting", "detail": "deep", "advice": "act",
+                     "rule": {"id": "deep_nesting"}, "summary": True, "unjudged": True},
+                    {"severity": "info", "title": "Debt in hotspots", "detail": "debt", "advice": "act",
+                     "rule": {"id": "debt_in_hotspots"}, "summary": True, "unjudged": True}]
+        text = self._text(render.findings_panel(self._findings() + unjudged, {}, full=False))
+        self.assertIn("3 more, true but seldom acted on: Knowledge loss and Repo health (2); --full lists them", text)
+        self.assertIn("2 more from the structure step, not labelled yet: Deep nesting and Debt in hotspots; --full lists them", text)
+        self.assertNotIn("deep", text.replace("Deep nesting", ""))
+        full = self._text(render.findings_panel(self._findings() + unjudged, {}, full=True))
+        self.assertIn("deep", full)
+        self.assertNotIn("not labelled yet", full)

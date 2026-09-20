@@ -115,7 +115,7 @@ you about a clone.
 | Which blocks of code appear more than once | [jscpd](https://github.com/kucherenko/jscpd) | brew |
 | Have secrets ever been committed | [betterleaks](https://github.com/betterleaks/betterleaks) | brew |
 | Do the dependencies have known vulnerabilities | [osv-scanner](https://github.com/google/osv-scanner), offline against a local copy of the OSV database | brew, plus a one-time database download |
-| How deeply nested is the code, what did the authors flag, what imports what | [tree-sitter](https://github.com/tree-sitter/py-tree-sitter) grammars for eleven languages | pip, opt-in with `gitmole[structure]` |
+| How deeply nested is the code, what did the authors flag, what imports what | [tree-sitter](https://github.com/tree-sitter/py-tree-sitter) grammars for eleven languages | built in, pinned (Python 3.10+) |
 
 Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/blob/main/docs/tools.md).
 

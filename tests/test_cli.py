@@ -119,7 +119,7 @@ class FunctionMetrics(unittest.TestCase):
             self.assertEqual(calls[0]["structure"], have)
             self.assertEqual(meta["structure"]["status"], "run" if have else "skipped")
             if not have:
-                self.assertEqual(meta["structure"]["install"], "pip install 'gitmole[structure]'")
+                self.assertEqual(meta["structure"]["install"], "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+")
 
     def test_skipped_without_lizard(self):
         calls = []

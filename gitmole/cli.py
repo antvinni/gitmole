@@ -367,7 +367,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     lizard_ok = args.lizard
     meta["functions"] = {"status": "planned" if lizard_ok else "skipped"}   # "run" only once the step has finished
     meta["structure"] = ({"status": "planned"} if getattr(args, "structure", False)
-                         else {"status": "skipped", "install": "pip install 'gitmole[structure]'"})
+                         else {"status": "skipped", "install": "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+"})
     meta["duplicates"] = {"status": "planned" if duplicates_ok else "skipped", "text_mb": round(estimate.get("text_bytes", 0) / 1e6, 1),
                           "budget_mb": run.DUPLICATES_BUDGET_MB}
     meta["trend"] = {"status": "planned"}

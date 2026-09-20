@@ -42,8 +42,13 @@ How to read each part of the terminal report, and what each run writes to disk; 
    minor contributors, reverts, duplication, stale files, component
    coupling and secrets only in test or example files. Each was labelled
    true five times or more and never as something to act on
-   ([measurement.md](measurement.md), "Hand labels"). `--full`, Markdown,
-   JSON (where they carry `"summary": true`), SARIF and `--fail-on` treat them
+   ([measurement.md](measurement.md), "Hand labels"). A second line does the
+   same for the structure step's rules, which no label has reached yet ("4
+   more from the structure step, not labelled yet"): deep nesting, debt in
+   hotspots, hidden coupling, files nothing references, swallowed errors,
+   hardcoded addresses and commented-out code. `--full`, Markdown,
+   JSON (where they carry `"summary": true`, and the unlabelled ones
+   `"unjudged": true`), SARIF and `--fail-on` treat them
    like any other finding. Currently: a dormant repository (no
    commits for twelve months or more, measured against the run's reference
    date, which also silences the untouched-files note),
@@ -143,10 +148,14 @@ How to read each part of the terminal report, and what each run writes to disk; 
    access control and most of vulnerability management live in the
    forge's settings and are not in the table.
 
-   With `gitmole[structure]` installed (see
-   [install.md](https://github.com/antvinni/gitmole/blob/main/docs/install.md#structure-nesting-debt-markers-the-import-graph)),
+   The structure step runs by default (Python 3.10 or newer; see
+   [install.md](https://github.com/antvinni/gitmole/blob/main/docs/install.md#structure-nesting-debt-markers-the-import-graph)):
    tree-sitter parses every tracked file in eleven languages, once per
-   file content, and seven more findings can appear. Debt the authors
+   file content, and seven more findings can appear. No label has reached
+   any of them yet, so the default report names them in a line of their own
+   ("4 more from the structure step, not labelled yet") and `--full`,
+   Markdown, JSON, SARIF and `--fail-on` see each in full, exactly as they
+   see the rules the labels found inert (`findings.UNJUDGED`). Debt the authors
    flagged in hotspots: TODO, FIXME, XXX and HACK comments, the markers
    Maldonado and Shihab defined, in the top ten hotspots (three or more in
    one, or any in two). Deeply nested code: functions nested five levels or
@@ -647,7 +656,7 @@ directory for a remote target:
 | `signing.json` | signing step | commits signed, by mechanism (gpg, ssh, x509), by year, humans against bots, per identity and over the last year, from the commit objects |
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave |
-| `structure.json` | structure step, `gitmole[structure]` only | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports, its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
+| `structure.json` | structure step, Python 3.10 or newer | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports, its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
 | `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the marked cohort against the rest (with each side's watch-list hit rate), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
 | `run.log` | gitmole | every command run and its stderr |
 

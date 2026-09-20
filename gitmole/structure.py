@@ -2,7 +2,7 @@
 """Structure from tree-sitter: nesting, bumpy roads, complex conditionals, cognitive complexity,
 self-admitted debt, definitions per file and the import graph, for eleven languages.
 
-An optional step: it needs `gitmole[structure]`, which is py-tree-sitter and one grammar wheel per
+Runs by default since 0.32.0: py-tree-sitter and one grammar per
 language (tree-sitter-python, -javascript, -typescript, -go, -rust, -java, -c, -cpp, -ruby, -c-sharp,
 -php), each a compiled grammar inside an MIT wheel, so it installs with no compiler and parses with
 no network. A language whose grammar is not installed is skipped and counted.
@@ -725,7 +725,7 @@ def main(argv=None) -> int:
         return 2
     out_dir = args[0]
     if not available():
-        result = {"status": "not-installed", "install": "pip install 'gitmole[structure]'"}
+        result = {"status": "not-installed", "install": "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+"}
     else:
         meta = {}
         meta_path = os.path.join(out_dir, "meta.json")

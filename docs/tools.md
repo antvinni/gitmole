@@ -37,7 +37,7 @@ gets a footer line saying so, and a missing database is reported, not
 downloaded. To silence an advisory that does not apply to your code, add its
 id to `osv-scanner.toml` at the repository root, osv-scanner's own ignore file.
 
-**tree-sitter**, optional through `gitmole[structure]`, answers "how is the
+**tree-sitter**, installed with gitmole and pinned like the other tools, answers "how is the
 code shaped, and what imports what": nesting, compound conditions,
 cognitive complexity, the TODO and FIXME markers the authors left, the
 import graph that says which co-changing files have no import between them,

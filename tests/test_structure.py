@@ -20,7 +20,7 @@ def fn(result: dict, name: str) -> dict:
     return next(f for f in result["functions"] if f["name"] == name)
 
 
-@unittest.skipUnless(HAVE, "gitmole[structure] not installed")
+@unittest.skipUnless(HAVE, "the tree-sitter grammars need Python 3.10 or newer")
 class Metrics(unittest.TestCase):
     def test_nesting_cognitive_complexity_and_a_flat_else_if(self):
         r = parse(".py", "def f(x):\n"
@@ -107,7 +107,7 @@ class Resolve(unittest.TestCase):
         self.assertEqual(resolved["c"], 0.5)
 
 
-@unittest.skipUnless(HAVE, "gitmole[structure] not installed")
+@unittest.skipUnless(HAVE, "the tree-sitter grammars need Python 3.10 or newer")
 class Step(unittest.TestCase):
     def test_the_step_writes_structure_json_and_caches_by_blob(self):
         with tempfile.TemporaryDirectory() as d:
@@ -147,7 +147,7 @@ class NotInstalled(unittest.TestCase):
             with patch.object(structure, "available", return_value=False):
                 self.assertEqual(structure.main([out]), 0)
             with open(os.path.join(out, "structure.json")) as fh:
-                self.assertEqual(json.load(fh), {"status": "not-installed", "install": "pip install 'gitmole[structure]'"})
+                self.assertEqual(json.load(fh), {"status": "not-installed", "install": "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+"})
 
 
 if __name__ == "__main__":

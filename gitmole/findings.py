@@ -1372,6 +1372,13 @@ RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, plac
 SUMMARISED = frozenset({"authors_gone", "component_coupling", "duplication", "knowledge_loss", "minor_contributors", "repo_health",
                         "reverts", "secrets_aside", "stale_files"})
 
+# Rules nobody has labelled yet: the structure step's, which ran only where tree-sitter was installed by hand
+# until 0.32.0 and so never reached the measurement's findings sheet. They are named in a line of their own, so
+# the default report does not grow by rules whose worth is unmeasured; the labels decide where they belong, and
+# a rule moves out of here when its findings are labelled, into SUMMARISED or into the report proper.
+UNJUDGED = frozenset({"commented_out_code", "debt_in_hotspots", "deep_nesting", "hardcoded_addresses",
+                      "hidden_coupling", "swallowed_errors", "unreferenced_files"})
+
 
 def evaluate(report: dict) -> list:
     found = []
@@ -1380,5 +1387,8 @@ def evaluate(report: dict) -> list:
     for f in found:
         if f["rule"]["id"] in SUMMARISED:
             f["summary"] = True   # the default report's one line, not a full entry
+        elif f["rule"]["id"] in UNJUDGED:
+            f["summary"] = True
+            f["unjudged"] = True   # a line of its own: true or not, nobody has said whether it is worth acting on
     found.sort(key=lambda f: SEVERITIES.index(f["severity"]))
     return found

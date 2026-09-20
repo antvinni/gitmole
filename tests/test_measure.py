@@ -204,6 +204,16 @@ class SummarisedRules(unittest.TestCase):
         inert = {r for r, v in rules.items() if v["labelled"] >= 5 and v["actionable_share"] == 0}
         self.assertEqual(set(findings.SUMMARISED), inert)
 
+    def test_the_unjudged_set_is_the_rules_no_label_has_reached(self):
+        """findings.UNJUDGED holds the structure step's rules only while nobody has labelled them. A label on
+        one of them asks for it to leave the set: into the report proper, or into SUMMARISED."""
+        from gitmole import findings
+        from gitmole.measure import labels
+        rules = labels.score()["rules"]
+        labelled = {r for r, v in rules.items() if v["labelled"]}
+        self.assertEqual(set(findings.UNJUDGED) & labelled, set(), "these rules have labels now; decide where they belong")
+        self.assertEqual(set(findings.UNJUDGED) & set(findings.SUMMARISED), set(), "a rule is summarised or unjudged, not both")
+
 
 class CarriedLabels(unittest.TestCase):
     def test_a_label_follows_a_finding_whose_statement_did_not_change(self):

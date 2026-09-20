@@ -113,6 +113,68 @@ class Gitmole < Formula
     end
   end
 
+  # The tree-sitter grammars, pinned like everything else: the structure step (nesting, debt markers, the
+  # import graph) runs by default from 0.32.0, so these are ordinary dependencies rather than an extra.
+  # Each builds its C parser from the sdist here; tree-sitter-php stops at 0.23.9, the last with an sdist.
+  resource "tree-sitter" do
+    url "https://files.pythonhosted.org/packages/f7/03/5600b84aff2e6c4fe80cfebb4063fe2f50299521befe5f6092ab8c082f4a/tree_sitter-0.26.0.tar.gz"
+    sha256 "b40c219edccc4564530c96f8f1556f6202b37cda964d1cbd7bd2b7e68b40a245"
+  end
+
+  resource "tree-sitter-c" do
+    url "https://files.pythonhosted.org/packages/a6/c9/3834f3d9278251aea7312274971bc4c45b17aec2490fd4b884d93bd7019a/tree_sitter_c-0.24.2.tar.gz"
+    sha256 "1628584df0299b5a340aa63f8e67b6c97c91517f52fa7e7a4c557e40adb330a9"
+  end
+
+  resource "tree-sitter-c-sharp" do
+    url "https://files.pythonhosted.org/packages/9f/fb/7e2962bc1901daf264e7ce263b168e0139304a5f8f66c9b2baf20e550f87/tree_sitter_c_sharp-0.23.5.tar.gz"
+    sha256 "2635c7d5ec93e59f2e831b571bed99c4cc68a5d183a0994020aa769e1b990a71"
+  end
+
+  resource "tree-sitter-cpp" do
+    url "https://files.pythonhosted.org/packages/20/2c/4dd63d705a8933543cad9b92ff31be849b164fec91a6eb63475ebc9ce668/tree_sitter_cpp-0.23.4.tar.gz"
+    sha256 "6a59c4cebb1ad1dc2e8d586cf8a72b39d21b8108b7b139d089719e81a339e41d"
+  end
+
+  resource "tree-sitter-go" do
+    url "https://files.pythonhosted.org/packages/01/05/727308adbbc79bcb1c92fc0ea10556a735f9d0f0a5435a18f59d40f7fd77/tree_sitter_go-0.25.0.tar.gz"
+    sha256 "a7466e9b8d94dda94cae8d91629f26edb2d26166fd454d4831c3bf6dfa2e8d68"
+  end
+
+  resource "tree-sitter-java" do
+    url "https://files.pythonhosted.org/packages/fa/dc/eb9c8f96304e5d8ae1663126d89967a622a80937ad2909903569ccb7ec8f/tree_sitter_java-0.23.5.tar.gz"
+    sha256 "f5cd57b8f1270a7f0438878750d02ccc79421d45cca65ff284f1527e9ef02e38"
+  end
+
+  resource "tree-sitter-javascript" do
+    url "https://files.pythonhosted.org/packages/59/e0/e63103c72a9d3dfd89a31e02e660263ad84b7438e5f44ee82e443e65bbde/tree_sitter_javascript-0.25.0.tar.gz"
+    sha256 "329b5414874f0588a98f1c291f1b28138286617aa907746ffe55adfdcf963f38"
+  end
+
+  resource "tree-sitter-php" do
+    url "https://files.pythonhosted.org/packages/82/80/8847524fa52db064c7743c230786a2a4f1bf15946f365baa863c43510d27/tree_sitter_php-0.23.9.tar.gz"
+    sha256 "61189167e47dddf8b4186b590169a96e132580f7a883254b2e4dc74b0c628f68"
+  end
+
+  resource "tree-sitter-python" do
+    url "https://files.pythonhosted.org/packages/b8/8b/c992ff0e768cb6768d5c96234579bf8842b3a633db641455d86dd30d5dac/tree_sitter_python-0.25.0.tar.gz"
+    sha256 "b13e090f725f5b9c86aa455a268553c65cadf325471ad5b65cd29cac8a1a68ac"
+  end
+
+  resource "tree-sitter-ruby" do
+    url "https://files.pythonhosted.org/packages/09/5b/6d24be4fde4743481bd8e3fd24b434870cb6612238c8544b71fe129ed850/tree_sitter_ruby-0.23.1.tar.gz"
+    sha256 "886ed200bfd1f3ca7628bf1c9fefd42421bbdba70c627363abda67f662caa21e"
+  end
+
+  resource "tree-sitter-rust" do
+    url "https://files.pythonhosted.org/packages/b7/87/75cbd22b927267d310f76cca1ab3c1d9d41035dfa3eb9cc95f96ee199440/tree_sitter_rust-0.24.2.tar.gz"
+    sha256 "54fb02a5911e345308b405174465112479f56dc39e3f1e7744d7568595f00db9"
+  end
+
+  resource "tree-sitter-typescript" do
+    url "https://files.pythonhosted.org/packages/1e/fc/bb52958f7e399250aee093751e9373a6311cadbe76b6e0d109b853757f35/tree_sitter_typescript-0.23.2.tar.gz"
+    sha256 "7b167b5827c882261cb7a50dfa0fb567975f9b315e87ed87ad0a0a3aedb3834d"
+  end
   resource "lizard" do
     url "https://files.pythonhosted.org/packages/a5/c9/97837b967a1a6bb64acb0e1738e19a154393ae1a9a448b9958176be5b10a/lizard-1.24.0.tar.gz"
     sha256 "2e88a7af9d23a98d3f4a30767134361bd4b7dde02c410209c6c72732a43bbb65"
@@ -185,5 +247,8 @@ class Gitmole < Formula
     assert_match "1.8.1", shell_output("#{libexec}/tools/betterleaks --version")
     assert_match "2.6.0", shell_output("#{libexec}/tools/osv-scanner --version")
     assert_match "5.3.0", shell_output("#{libexec}/tools/jscpd --version")
+
+    # the structure step's grammars come with gitmole, so the step runs without anything else installed
+    system libexec/"bin/python", "-c", "import tree_sitter, tree_sitter_python, tree_sitter_php"
   end
 end
