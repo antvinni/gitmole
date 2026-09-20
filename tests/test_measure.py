@@ -127,6 +127,18 @@ class Fixtures(unittest.TestCase):
             names = subprocess.run(["git", "ls-files", "-z"], cwd=os.path.join(d, "non-utf8-path"), capture_output=True).stdout.split(b"\0")
             self.assertIn(b"caf\xe9.py", names, "the Latin-1 name is in the commit")
 
+    def test_the_trojan_fixture_holds_the_bidi_characters_and_the_builder_does_not(self):
+        # gitmole is in its own development set, so a literal U+202E here is a critical finding on gitmole
+        with tempfile.TemporaryDirectory() as d:
+            path = corpus.fixture("trojan-source", d)
+            with open(os.path.join(path, "check.py"), encoding="utf-8") as fh:
+                written = fh.read()
+        self.assertIn("\u202e", written, "the fixture is the point: it holds the characters")
+        with open(corpus.__file__, encoding="utf-8") as fh:
+            builder = fh.read()
+        for char in ("\u202e", "\u2066", "\u2069"):
+            self.assertNotIn(char, builder, "write them as escapes, as the secret fixture assembles its key")
+
     def test_the_run_environment_forces_a_terminal_whatever_the_caller_set(self):
         # 0.2.0 to 0.30.0 were measured with a forced terminal; a caller without FORCE_COLOR printed 11 lines fewer
         saved = {k: os.environ.get(k) for k in harness._TTY_VARS}

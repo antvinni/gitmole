@@ -122,8 +122,8 @@ def fixture(kind: str, root: str) -> str:
         _write(dest, "deploy.py", f'AWS_ACCESS_KEY_ID = "{key}"\nAWS_SECRET_ACCESS_KEY = "{secret}"\n')
         _commit(dest, "deploy settings")
         return dest
-    if kind == "trojan-source":
-        _write(dest, "check.py", 'def is_admin(user):\n    access = "user‮ ⁦# admin⁩ ⁦"\n    return access == "admin"\n')
+    if kind == "trojan-source":   # the bidi characters as escapes, like the secret above: the fixture holds them, this file does not
+        _write(dest, "check.py", 'def is_admin(user):\n    access = "user\u202e \u2066# admin\u2069 \u2066"\n    return access == "admin"\n')
         _commit(dest, "access check")
         return dest
     if kind == "submodule-credentials":

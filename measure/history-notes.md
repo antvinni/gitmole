@@ -130,3 +130,10 @@
   columns whatever `COLUMNS` said. A run started without it printed 11 lines fewer for the same code.
   From 0.30.1 the harness sets the terminal itself, and the length column says "80 columns, banner
   included", which is what it always measured.
+- **0.31.0 pins the toolchain and moves nothing else.** Every number in the record is the same as 0.30.1's
+  on every repository, which is what a release that only fixes where the tools come from should look like.
+  What it changes is what a record means: the tools are installed with gitmole at the versions
+  `gitmole/tools.py` names, so a row of this table now describes one toolchain rather than whichever
+  versions the machine happened to have. Records before it say which versions ran (`run.tools`) but were
+  measured against whatever Homebrew had that week, so a report-shaping change in scc, betterleaks or
+  jscpd is a possible cause for any move in the rows above this one.
