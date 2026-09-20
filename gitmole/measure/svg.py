@@ -5,8 +5,10 @@ from __future__ import annotations
 
 from xml.sax.saxutils import escape
 
-WIDTH, HEIGHT = 900, 300
-LEFT, RIGHT, TOP, BOTTOM = 56, 16, 40, 56
+WIDTH, HEIGHT = 900, 314
+LEFT, RIGHT, TOP, BOTTOM = 56, 16, 40, 70
+LEGEND_Y, NOTE_Y = HEIGHT - 32, HEIGHT - 12   # the note has a line of its own: on the legend's it collided
+TICK_GAP = 54                                 # pixels a release label needs, so 0.31.0 and 0.32.0 stay apart
 INK, GRID, CRASH = "#1f2328", "#d0d7de", "#cf222e"
 PALETTE = ["#0969da", "#8250df", "#1a7f37", "#bf8700", "#57606a"]
 
@@ -27,6 +29,21 @@ def _nice_top(v: float) -> float:
     return v
 
 
+def _ticks(count: int, x) -> list:
+    """Which release labels to draw: the first, the last, and as many between as fit without touching.
+    The last one wins a collision, since the newest release is the one a reader looks for."""
+    if count <= 1:
+        return list(range(count))
+    keep = [count - 1]
+    for i in range(count - 2, 0, -1):
+        if x(keep[-1]) - x(i) >= TICK_GAP:
+            keep.append(i)
+    while keep and keep[-1] != 0 and x(keep[-1]) - x(0) < TICK_GAP:
+        keep.pop()          # the first release is drawn, so whatever crowds it goes
+    keep.append(0)
+    return sorted(set(keep))
+
+
 def chart(title: str, labels: list, series: list, crashed: list = (), y_range=None, unit: str = "", note: str = "") -> str:
     """labels: the releases, oldest first. series: [{"label", "values", "band": [(lo, hi) | None], "dashed"}].
     crashed: indexes of crashed releases. y_range: (low, high) or None for 0 to a round top."""
@@ -45,10 +62,8 @@ def chart(title: str, labels: list, series: list, crashed: list = (), y_range=No
         v = lo + (hi - lo) * k / 4
         out.append(f'<line x1="{LEFT}" y1="{y(v):.1f}" x2="{WIDTH - RIGHT}" y2="{y(v):.1f}" stroke="{GRID}" stroke-width="1"/>')
         out.append(f'<text x="{LEFT - 6}" y="{y(v) + 4:.1f}" text-anchor="end" fill="{INK}">{escape(_fmt(v, unit))}</text>')
-    step = max(1, round(len(labels) / 12))
-    for i, lab in enumerate(labels):
-        if i % step == 0 or i == len(labels) - 1:
-            out.append(f'<text x="{x(i):.1f}" y="{HEIGHT - BOTTOM + 16}" text-anchor="middle" fill="{INK}" font-size="10">{escape(lab)}</text>')
+    for i in _ticks(len(labels), x):
+        out.append(f'<text x="{x(i):.1f}" y="{HEIGHT - BOTTOM + 16}" text-anchor="middle" fill="{INK}" font-size="10">{escape(labels[i]):s}</text>')
     for si, s in enumerate(series):
         color = s.get("color") or PALETTE[si % len(PALETTE)]
         band = s.get("band") or []
@@ -88,14 +103,14 @@ def chart(title: str, labels: list, series: list, crashed: list = (), y_range=No
     for si, s in enumerate(series):
         color = s.get("color") or PALETTE[si % len(PALETTE)]
         dash = ' stroke-dasharray="5 4"' if s.get("dashed") else ""
-        out.append(f'<line x1="{lx}" y1="{HEIGHT - 18}" x2="{lx + 22}" y2="{HEIGHT - 18}" stroke="{color}" stroke-width="2"{dash}/>')
-        out.append(f'<text x="{lx + 28}" y="{HEIGHT - 14}" fill="{INK}">{escape(s["label"])}</text>')
+        out.append(f'<line x1="{lx}" y1="{LEGEND_Y - 4}" x2="{lx + 22}" y2="{LEGEND_Y - 4}" stroke="{color}" stroke-width="2"{dash}/>')
+        out.append(f'<text x="{lx + 28}" y="{LEGEND_Y}" fill="{INK}">{escape(s["label"])}</text>')
         lx += 36 + 7 * len(s["label"])
     if crashed:
-        out.append(f'<path d="M{lx:.1f},{HEIGHT - 23} L{lx + 10:.1f},{HEIGHT - 13} M{lx:.1f},{HEIGHT - 13} L{lx + 10:.1f},{HEIGHT - 23}" stroke="{CRASH}" stroke-width="2"/>')
-        out.append(f'<text x="{lx + 16}" y="{HEIGHT - 14}" fill="{INK}">crashed</text>')
+        out.append(f'<path d="M{lx:.1f},{LEGEND_Y - 9} L{lx + 10:.1f},{LEGEND_Y + 1} M{lx:.1f},{LEGEND_Y + 1} L{lx + 10:.1f},{LEGEND_Y - 9}" stroke="{CRASH}" stroke-width="2"/>')
+        out.append(f'<text x="{lx + 16}" y="{LEGEND_Y}" fill="{INK}">crashed</text>')
         lx += 80
     if note:
-        out.append(f'<text x="{WIDTH - RIGHT}" y="{HEIGHT - 14}" text-anchor="end" fill="#57606a" font-size="11">{escape(note)}</text>')
+        out.append(f'<text x="{LEFT}" y="{NOTE_Y}" fill="#57606a" font-size="11">{escape(note)}</text>')
     out.append("</svg>")
     return "\n".join(out) + "\n"

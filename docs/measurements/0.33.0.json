@@ -1,0 +1,3902 @@
+{
+ "commit": "6235a5588125995cc732ce6c3ca470c81e71cbf3",
+ "measured": "2026-09-20",
+ "ref": "worktree",
+ "reference_date": "2026-09-17",
+ "repos": {
+  "awkward-binary-only": {
+   "findings": 2,
+   "load": 10.55,
+   "measure_seconds": 0.7,
+   "peak_mb": 47,
+   "rc": 0,
+   "report_lines": 55,
+   "rules": [
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "seconds": 0.6,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 1
+   },
+   "shown": 2,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 28.5,
+    "change analysis": 20.8,
+    "code age": 24.5,
+    "duplicates": 25.9,
+    "functions": 29.2,
+    "git-log": 8.2,
+    "git-sizer": 7.8,
+    "hygiene": 18.0,
+    "osv-scanner": 46.7,
+    "provenance": 22.2,
+    "scc": 19.0,
+    "signing": 16.6,
+    "structure": 24.4,
+    "trend": 24.2
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.06,
+    "code age": 0.09,
+    "duplicates": 0.08,
+    "functions": 0.13,
+    "git-log": 0.01,
+    "git-sizer": 0.04,
+    "hygiene": 0.14,
+    "osv-scanner": 0.08,
+    "provenance": 0.06,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.11,
+    "trend": 0.06
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-detached": {
+   "findings": 3,
+   "load": 14.35,
+   "measure_seconds": 0.9,
+   "peak_mb": 47,
+   "rc": 0,
+   "report_lines": 67,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.4,
+    "change analysis": 20.8,
+    "code age": 24.5,
+    "duplicates": 26.0,
+    "functions": 29.1,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.2,
+    "osv-scanner": 47.3,
+    "provenance": 22.7,
+    "scc": 20.0,
+    "signing": 16.7,
+    "structure": 26.5,
+    "trend": 24.4
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.07,
+    "code age": 0.34,
+    "duplicates": 0.19,
+    "functions": 0.39,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.13,
+    "osv-scanner": 0.08,
+    "provenance": 0.17,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.41,
+    "trend": 0.15
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-empty": {
+   "load": 14.35,
+   "measure_seconds": 0.2,
+   "note": "no commits yet: there is nothing to analyse",
+   "peak_mb": 47,
+   "rc": 2,
+   "report_lines": 1,
+   "seconds": 0.2,
+   "set": "awkward",
+   "status": "refused"
+  },
+  "awkward-huge-file": {
+   "findings": 5,
+   "load": 13.44,
+   "measure_seconds": 20.8,
+   "peak_mb": 1056,
+   "rc": 0,
+   "report_lines": 71,
+   "rules": [
+    "bus_factor",
+    "knowledge_islands",
+    "placeholder_identity",
+    "repo_health",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 20.7,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 2,
+    "warning": 3
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 119.7,
+    "change analysis": 20.9,
+    "code age": 1044.8,
+    "duplicates": 38.3,
+    "functions": 53.6,
+    "git-log": 80.1,
+    "git-sizer": 7.8,
+    "hygiene": 33.8,
+    "osv-scanner": 47.6,
+    "provenance": 316.1,
+    "scc": 32.3,
+    "signing": 16.6,
+    "structure": 55.6,
+    "trend": 54.7
+   },
+   "step_seconds": {
+    "betterleaks": 0.39,
+    "change analysis": 0.04,
+    "code age": 10.23,
+    "duplicates": 0.1,
+    "functions": 2.58,
+    "git-log": 0.08,
+    "git-sizer": 0.06,
+    "hygiene": 0.19,
+    "osv-scanner": 0.08,
+    "provenance": 1.76,
+    "scc": 0.03,
+    "signing": 0.05,
+    "structure": 0.32,
+    "trend": 0.18
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-non-utf8-path": {
+   "findings": 3,
+   "load": 13.44,
+   "measure_seconds": 0.9,
+   "peak_mb": 49,
+   "rc": 0,
+   "report_lines": 60,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 0.5,
+   "seconds": 0.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.7,
+    "change analysis": 20.9,
+    "code age": 24.6,
+    "duplicates": 26.1,
+    "functions": 29.2,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.2,
+    "osv-scanner": 48.7,
+    "provenance": 22.3,
+    "scc": 19.9,
+    "signing": 16.8,
+    "structure": 26.4,
+    "trend": 24.2
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.06,
+    "code age": 0.26,
+    "duplicates": 0.15,
+    "functions": 0.28,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.11,
+    "osv-scanner": 0.08,
+    "provenance": 0.15,
+    "scc": 0.01,
+    "signing": 0.05,
+    "structure": 0.3,
+    "trend": 0.14
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-one-commit": {
+   "findings": 3,
+   "load": 14.35,
+   "measure_seconds": 0.9,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 61,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 35.0,
+    "change analysis": 20.7,
+    "code age": 24.5,
+    "duplicates": 26.0,
+    "functions": 29.2,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.4,
+    "osv-scanner": 47.6,
+    "provenance": 22.5,
+    "scc": 19.8,
+    "signing": 16.6,
+    "structure": 26.4,
+    "trend": 24.3
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.04,
+    "code age": 0.29,
+    "duplicates": 0.14,
+    "functions": 0.21,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.17,
+    "osv-scanner": 0.08,
+    "provenance": 0.22,
+    "scc": 0.01,
+    "signing": 0.05,
+    "structure": 0.35,
+    "trend": 0.14
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-shallow": {
+   "findings": 3,
+   "load": 14.35,
+   "measure_seconds": 0.8,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 62,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.0,
+    "change analysis": 20.7,
+    "code age": 24.5,
+    "duplicates": 25.7,
+    "functions": 29.0,
+    "git-log": 8.1,
+    "hygiene": 18.2,
+    "osv-scanner": 47.9,
+    "provenance": 22.6,
+    "scc": 19.9,
+    "signing": 16.6,
+    "structure": 26.4,
+    "trend": 24.4
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.06,
+    "code age": 0.25,
+    "duplicates": 0.08,
+    "functions": 0.25,
+    "git-log": 0.01,
+    "hygiene": 0.11,
+    "osv-scanner": 0.08,
+    "provenance": 0.13,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.3,
+    "trend": 0.13
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-submodule": {
+   "findings": 3,
+   "load": 13.44,
+   "measure_seconds": 0.9,
+   "peak_mb": 47,
+   "rc": 0,
+   "report_lines": 61,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 0.5,
+   "seconds": 0.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.7,
+    "change analysis": 20.9,
+    "code age": 24.5,
+    "duplicates": 26.0,
+    "functions": 29.1,
+    "git-log": 8.3,
+    "git-sizer": 7.8,
+    "hygiene": 18.1,
+    "osv-scanner": 47.2,
+    "provenance": 22.5,
+    "scc": 20.0,
+    "signing": 16.5,
+    "structure": 26.4,
+    "trend": 24.3
+   },
+   "step_seconds": {
+    "betterleaks": 0.11,
+    "change analysis": 0.06,
+    "code age": 0.23,
+    "duplicates": 0.24,
+    "functions": 0.35,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.19,
+    "osv-scanner": 0.09,
+    "provenance": 0.16,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.33,
+    "trend": 0.14
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "binutils-gdb": {
+   "finding_ids": [
+    {
+     "id": "853fff43f9cf984d",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "36f93aabc24fb1c7",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "3a77afd3d6243f65",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "de7ea34ab3e6f225",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "8503f9d16ef6af05",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "035c18e628b4e5ae",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "ff64e4fbed2959aa",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "b4923eea94dd39dc",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "2a9631a792b6bc3a",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "ee2fd1630948e8ee",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "7257f7230537988c",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "bf67ee203741c081",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "cd40fb7313e08ab6",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "b7563232642b39f5",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "3904268f88f6d75d",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "25d515820910281d",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "cbeca20a22bd3cce",
+     "rule": "knowledge_islands",
+     "summary": false
+    },
+    {
+     "id": "ae7e951508e4a429",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "0a03bd75cd31e181",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "1c5b3aee1b185936",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "a93a2e0ba7ccc054",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "be8a8be7abdcca89",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "b1b550fe86e3b8b8",
+     "rule": "component_coupling",
+     "summary": true
+    },
+    {
+     "id": "e79a39ea42c2572c",
+     "rule": "commented_out_code",
+     "summary": true
+    }
+   ],
+   "findings": 24,
+   "load": 5.3,
+   "measure_seconds": 492.5,
+   "peak_mb": 1088,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8061369869519275,
+      "best": 15,
+      "churn_auc": 0.7101147296393476,
+      "churn_hits": 7,
+      "churn_recall20": 0.3333333333333333,
+      "cutoff": "2023-09-18",
+      "expected": 0.961,
+      "hits": 7,
+      "pool": 2903,
+      "positives": 186,
+      "recall20": 0.20430107526881722,
+      "top": [
+       "gas/config/tc-arm.c",
+       "binutils/readelf.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "opcodes/arm-dis.c",
+       "gas/config/tc-aarch64.c"
+      ]
+     },
+     {
+      "auc": 0.8394385174212459,
+      "best": 15,
+      "churn_auc": 0.7195187292182108,
+      "churn_hits": 9,
+      "churn_recall20": 0.48314606741573035,
+      "cutoff": "2024-03-18",
+      "expected": 0.454,
+      "hits": 9,
+      "pool": 2941,
+      "positives": 89,
+      "recall20": 0.33707865168539325,
+      "top": [
+       "gas/config/tc-arm.c",
+       "binutils/readelf.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "opcodes/arm-dis.c",
+       "gas/config/tc-aarch64.c"
+      ]
+     },
+     {
+      "auc": 0.8073760484766782,
+      "best": 15,
+      "churn_auc": 0.725475361013003,
+      "churn_hits": 10,
+      "churn_recall20": 0.4752475247524752,
+      "cutoff": "2024-09-18",
+      "expected": 0.508,
+      "hits": 11,
+      "pool": 2980,
+      "positives": 101,
+      "recall20": 0.3465346534653465,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     },
+     {
+      "auc": 0.8253309643625943,
+      "best": 15,
+      "churn_auc": 0.751382195128006,
+      "churn_hits": 12,
+      "churn_recall20": 0.4948453608247423,
+      "cutoff": "2025-03-18",
+      "expected": 0.484,
+      "hits": 11,
+      "pool": 3004,
+      "positives": 97,
+      "recall20": 0.3711340206185567,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     },
+     {
+      "auc": 0.914796652079001,
+      "best": 15,
+      "churn_auc": 0.8964999948270689,
+      "churn_hits": 7,
+      "churn_recall20": 0.6818181818181818,
+      "cutoff": "2025-09-18",
+      "expected": 0.331,
+      "hits": 9,
+      "pool": 2995,
+      "positives": 66,
+      "recall20": 0.5151515151515151,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     },
+     {
+      "auc": 0.8467151749663526,
+      "best": 15,
+      "churn_auc": 0.863875336473755,
+      "churn_hits": 3,
+      "churn_recall20": 0.5833333333333334,
+      "cutoff": "2026-03-18",
+      "expected": 0.238,
+      "hits": 4,
+      "pool": 3020,
+      "positives": 48,
+      "recall20": 0.4375,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elflink.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 577,
+      "matched_fixed": 109,
+      "named": 10,
+      "named_fixed": 5
+     },
+     {
+      "matched": 289,
+      "matched_fixed": 40,
+      "named": 10,
+      "named_fixed": 5
+     },
+     {
+      "matched": 590,
+      "matched_fixed": 61,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 295,
+      "matched_fixed": 43,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 297,
+      "matched_fixed": 42,
+      "named": 6,
+      "named_fixed": 3
+     },
+     {
+      "matched": 296,
+      "matched_fixed": 29,
+      "named": 10,
+      "named_fixed": 4
+     }
+    ],
+    "stability": {
+     "from": "2026-03-18",
+     "spearman": 0.9999979906769633,
+     "to": "2026-03-24",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 220,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "commented_out_code",
+    "component_coupling",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "hidden_coupling",
+    "knowledge_islands",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor"
+   ],
+   "scored_share": 0.0797,
+   "seconds": 371.2,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 16,
+    "warning": 8
+   },
+   "shown": 7,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 416.5,
+    "betterleaks": 1087.5,
+    "change analysis": 409.2,
+    "functions": 419.3,
+    "git-log": 943.4,
+    "git-sizer": 794.9,
+    "hygiene": 373.8,
+    "osv-scanner": 55.6,
+    "provenance": 732.8,
+    "scc": 243.8,
+    "signing": 242.7,
+    "structure": 350.9,
+    "trend": 113.9
+   },
+   "step_seconds": {
+    "backtest": 16.52,
+    "betterleaks": 172.4,
+    "change analysis": 7.41,
+    "functions": 12.2,
+    "git-log": 286.15,
+    "git-sizer": 22.41,
+    "hygiene": 4.39,
+    "osv-scanner": 1.11,
+    "provenance": 31.15,
+    "scc": 0.59,
+    "signing": 3.39,
+    "structure": 2.89,
+    "trend": 5.38
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "containerd": {
+   "finding_ids": [
+    {
+     "id": "a3992933be266dfb",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "d6093b675f8b6b49",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "506d6b7aa86a0a5d",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "9ba64c884bdb16a1",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "16a6291b532ad5e9",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "cf98988a390283e5",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "1142127c7c38ce0e",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "d1387bbf5aa08437",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "2f584dcd6fc3b2a3",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "4f399b6d2b2323ce",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "0d91d9bc10c70ee6",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "64e988396839c447",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "bf28fc73ba8edd75",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "635fc7232b4f120d",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "5824036722c64312",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "c160ca416be1a9da",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "46f0bf96fe912cf6",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "db6de12fee75dda4",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "a952e281e77b66e7",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "9b7d4b191bf2d79c",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "d9f50ebe11244f85",
+     "rule": "component_coupling",
+     "summary": true
+    },
+    {
+     "id": "4f1e637f5d222b9b",
+     "rule": "commented_out_code",
+     "summary": true
+    }
+   ],
+   "findings": 22,
+   "load": 22.17,
+   "measure_seconds": 68.0,
+   "peak_mb": 2095,
+   "rc": 0,
+   "report_lines": 239,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "commented_out_code",
+    "component_coupling",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "duplication",
+    "import_commits",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.1407,
+   "seconds": 67.5,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 17,
+    "warning": 5
+   },
+   "shown": 8,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 106.1,
+    "betterleaks": 366.2,
+    "change analysis": 110.9,
+    "code age": 209.2,
+    "duplicates": 2095.0,
+    "functions": 88.6,
+    "git-log": 341.0,
+    "git-sizer": 154.3,
+    "hygiene": 87.3,
+    "osv-scanner": 1372.1,
+    "provenance": 379.7,
+    "scc": 74.3,
+    "signing": 61.0,
+    "structure": 73.7,
+    "trend": 49.9
+   },
+   "step_seconds": {
+    "backtest": 5.46,
+    "betterleaks": 12.2,
+    "change analysis": 2.48,
+    "code age": 43.95,
+    "duplicates": 6.77,
+    "functions": 5.78,
+    "git-log": 12.07,
+    "git-sizer": 2.48,
+    "hygiene": 3.43,
+    "osv-scanner": 6.74,
+    "provenance": 6.26,
+    "scc": 0.12,
+    "signing": 0.54,
+    "structure": 0.92,
+    "trend": 2.99
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "coredns": {
+   "finding_ids": [
+    {
+     "id": "031e88abccdde13c",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "0da494ebb315a2ab",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "590ad82fd9fa497d",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "9951652363251961",
+     "rule": "complexity_growth",
+     "summary": false
+    },
+    {
+     "id": "73b58ff977e47e2b",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "c0167ce89ad31806",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "ba45100e0cd1f416",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "69ed3525939cfc02",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "ebd6a6f88c40965f",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "cca8896a41357bf4",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "6f83e35370bcd03a",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "3d8d92c9a80c7d6c",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "17e832a9cd6d6f53",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "9bebedbfd03e30f5",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "ea728d096c0826ba",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "0f32a569fe476b33",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "137e10f0bab6f0e8",
+     "rule": "knowledge_islands",
+     "summary": false
+    },
+    {
+     "id": "80a703d768a09d50",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "29e4a5ec25136d5a",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "727c12a5d49ddd73",
+     "rule": "signoff_by_co_author",
+     "summary": false
+    },
+    {
+     "id": "a45c5499a5cb107f",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "339cb2d6a2babc0c",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "d0e4fd0281cbd246",
+     "rule": "component_coupling",
+     "summary": true
+    }
+   ],
+   "findings": 23,
+   "load": 8.28,
+   "measure_seconds": 18.1,
+   "peak_mb": 2211,
+   "rc": 0,
+   "report_lines": 234,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "complexity_growth",
+    "component_coupling",
+    "deep_nesting",
+    "duplication",
+    "import_commits",
+    "knowledge_islands",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "signoff_by_co_author",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.3393,
+   "seconds": 17.8,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 16,
+    "warning": 7
+   },
+   "shown": 10,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 92.8,
+    "betterleaks": 375.4,
+    "change analysis": 90.3,
+    "code age": 75.4,
+    "duplicates": 170.3,
+    "functions": 30.1,
+    "git-log": 377.3,
+    "git-sizer": 67.1,
+    "hygiene": 19.7,
+    "osv-scanner": 2210.9,
+    "provenance": 248.1,
+    "scc": 29.8,
+    "signing": 31.2,
+    "structure": 42.4,
+    "trend": 39.1
+   },
+   "step_seconds": {
+    "backtest": 2.71,
+    "betterleaks": 7.9,
+    "change analysis": 1.43,
+    "code age": 5.53,
+    "duplicates": 0.69,
+    "functions": 0.86,
+    "git-log": 7.81,
+    "git-sizer": 0.53,
+    "hygiene": 0.37,
+    "osv-scanner": 3.98,
+    "provenance": 3.72,
+    "scc": 0.03,
+    "signing": 0.17,
+    "structure": 0.57,
+    "trend": 2.25
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "curl": {
+   "finding_ids": [
+    {
+     "id": "946f232b9629b46c",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "9ce32f7e9ad377f7",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "d2e185fb0a13a372",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "bebffbb34b7330b1",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "036b509a79ee7161",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "c9bd94f51d0bf061",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "345b0889110e9d15",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "c4a445f9953be9f9",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "c391eccfe83e14ef",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "f262d952c847f65b",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "75a491342d07e6c6",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "2713d9a9d7d0a4c9",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "3f9c6916fb56b576",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "b91906daba8392ad",
+     "rule": "authors_gone",
+     "summary": true
+    }
+   ],
+   "findings": 14,
+   "load": 2.12,
+   "measure_seconds": 75.6,
+   "peak_mb": 819,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8441176470588235,
+      "best": 15,
+      "churn_auc": 0.7776890756302521,
+      "churn_hits": 15,
+      "churn_recall20": 0.16176470588235295,
+      "cutoff": "2023-09-17",
+      "expected": 4.198,
+      "hits": 15,
+      "pool": 486,
+      "positives": 136,
+      "recall20": 0.14705882352941177,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "include/curl/curl.h",
+       "lib/transfer.c",
+       "lib/http2.c",
+       "src/tool_operate.c",
+       "src/tool_getparam.c",
+       "lib/connect.c",
+       "lib/imap.c",
+       "CMakeLists.txt",
+       "lib/vtls/schannel.c"
+      ]
+     },
+     {
+      "auc": 0.7545725054552668,
+      "best": 15,
+      "churn_auc": 0.6860741916286451,
+      "churn_hits": 14,
+      "churn_recall20": 0.13380281690140844,
+      "cutoff": "2024-03-17",
+      "expected": 4.286,
+      "hits": 14,
+      "pool": 497,
+      "positives": 142,
+      "recall20": 0.1267605633802817,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "include/curl/curl.h",
+       "src/tool_operate.c",
+       "lib/http2.c",
+       "src/tool_getparam.c",
+       "lib/transfer.c",
+       "lib/connect.c",
+       "CMakeLists.txt",
+       "lib/vtls/schannel.c",
+       "lib/imap.c"
+      ]
+     },
+     {
+      "auc": 0.8586027298850575,
+      "best": 15,
+      "churn_auc": 0.7938577586206896,
+      "churn_hits": 13,
+      "churn_recall20": 0.125,
+      "cutoff": "2024-09-17",
+      "expected": 4.724,
+      "hits": 14,
+      "pool": 508,
+      "positives": 160,
+      "recall20": 0.11875,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "src/tool_operate.c",
+       "include/curl/curl.h",
+       "lib/http2.c",
+       "CMakeLists.txt",
+       "src/tool_getparam.c",
+       "lib/transfer.c",
+       "lib/connect.c",
+       "lib/vtls/schannel.c",
+       "lib/setopt.c"
+      ]
+     },
+     {
+      "auc": 0.7662711466165414,
+      "best": 15,
+      "churn_auc": 0.7075697055137845,
+      "churn_hits": 13,
+      "churn_recall20": 0.15037593984962405,
+      "cutoff": "2025-03-17",
+      "expected": 3.859,
+      "hits": 13,
+      "pool": 517,
+      "positives": 133,
+      "recall20": 0.14285714285714285,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "CMakeLists.txt",
+       "src/tool_operate.c",
+       "include/curl/curl.h",
+       "lib/http2.c",
+       "src/tool_getparam.c",
+       "lib/connect.c",
+       "lib/transfer.c",
+       "lib/vtls/schannel.c",
+       "lib/imap.c"
+      ]
+     },
+     {
+      "auc": 0.8192583934421187,
+      "best": 15,
+      "churn_auc": 0.7502499192568555,
+      "churn_hits": 15,
+      "churn_recall20": 0.08949416342412451,
+      "cutoff": "2025-09-17",
+      "expected": 7.559,
+      "hits": 15,
+      "pool": 510,
+      "positives": 257,
+      "recall20": 0.07782101167315175,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "CMakeLists.txt",
+       "lib/urldata.h",
+       "include/curl/curl.h",
+       "lib/http2.c",
+       "src/tool_getparam.c",
+       "src/tool_operate.c",
+       "lib/vtls/schannel.c",
+       "lib/transfer.c",
+       "lib/imap.c",
+       "lib/setopt.c"
+      ]
+     },
+     {
+      "auc": 0.8144599303135889,
+      "best": 15,
+      "churn_auc": 0.7812318524970964,
+      "churn_hits": 15,
+      "churn_recall20": 0.14634146341463414,
+      "cutoff": "2026-03-17",
+      "expected": 4.92,
+      "hits": 15,
+      "pool": 500,
+      "positives": 164,
+      "recall20": 0.11585365853658537,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "CMakeLists.txt",
+       "lib/urldata.h",
+       "lib/http2.c",
+       "include/curl/curl.h",
+       "src/tool_getparam.c",
+       "src/tool_operate.c",
+       "lib/vtls/schannel.c",
+       "lib/setopt.c",
+       "lib/imap.c",
+       "lib/vssh/libssh2.c"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 88,
+      "matched_fixed": 63,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 89,
+      "matched_fixed": 38,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 92,
+      "matched_fixed": 73,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 146,
+      "matched_fixed": 68,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 92,
+      "matched_fixed": 80,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 40,
+      "matched_fixed": 37,
+      "named": 10,
+      "named_fixed": 10
+     }
+    ],
+    "stability": {
+     "from": "2026-03-17",
+     "spearman": 0.9999031298154234,
+     "to": "2026-03-20",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 181,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "deep_nesting",
+    "duplication",
+    "hidden_coupling",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor"
+   ],
+   "scored_share": 0.1288,
+   "seconds": 58.6,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 8,
+    "warning": 6
+   },
+   "shown": 5,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 113.3,
+    "betterleaks": 360.7,
+    "change analysis": 111.4,
+    "code age": 255.4,
+    "duplicates": 819.1,
+    "functions": 53.1,
+    "git-log": 351.7,
+    "git-sizer": 290.8,
+    "hygiene": 52.4,
+    "osv-scanner": 54.3,
+    "provenance": 318.7,
+    "scc": 45.0,
+    "signing": 96.7,
+    "structure": 67.9,
+    "trend": 29.8
+   },
+   "step_seconds": {
+    "backtest": 4.64,
+    "betterleaks": 11.32,
+    "change analysis": 2.14,
+    "code age": 24.29,
+    "duplicates": 2.06,
+    "functions": 1.35,
+    "git-log": 18.28,
+    "git-sizer": 3.29,
+    "hygiene": 0.47,
+    "osv-scanner": 0.52,
+    "provenance": 11.48,
+    "scc": 0.13,
+    "signing": 0.91,
+    "structure": 0.89,
+    "trend": 2.05
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "django": {
+   "finding_ids": [
+    {
+     "id": "7bf76f46623f5de2",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "377086855763b1af",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "e40544b8a28cc746",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "cba1d42e83979f7a",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "6e81ab598b8a703c",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "0783bdff56c23693",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "d5f774c08d7c9c20",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "60f63499292a6395",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "652c17b4e6583e52",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "9e91a2b5675b4bd3",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "f8455265c6dad862",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "0fde842bf1427b6e",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "9de469af839419e2",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "59f6bf088c67d4c5",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "d1adb74455bca969",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "85518b7bda9aac76",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "9d2003b09352ad83",
+     "rule": "lockfile_missing",
+     "summary": false
+    },
+    {
+     "id": "17827731ac5e68ee",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "1b15559b0637d031",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "a0b7e24b1c5141c2",
+     "rule": "unreferenced_files",
+     "summary": true
+    },
+    {
+     "id": "ec395e33eac11631",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "f4e51f301f62ca5a",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "79d76d4b9b5d28be",
+     "rule": "swallowed_errors",
+     "summary": true
+    }
+   ],
+   "findings": 23,
+   "load": 5.96,
+   "measure_seconds": 163.6,
+   "peak_mb": 1019,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8252255585013462,
+      "best": 15,
+      "churn_auc": 0.7882319090778305,
+      "churn_hits": 12,
+      "churn_recall20": 0.6394557823129252,
+      "cutoff": "2023-09-08",
+      "expected": 2.726,
+      "hits": 14,
+      "pool": 809,
+      "positives": 147,
+      "recall20": 0.6394557823129252,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/forms/models.py",
+       "django/db/models/expressions.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/models/options.py"
+      ]
+     },
+     {
+      "auc": 0.8124042409756695,
+      "best": 15,
+      "churn_auc": 0.787317930175073,
+      "churn_hits": 11,
+      "churn_recall20": 0.6054421768707483,
+      "cutoff": "2024-03-08",
+      "expected": 2.712,
+      "hits": 14,
+      "pool": 813,
+      "positives": 147,
+      "recall20": 0.564625850340136,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/forms/models.py",
+       "django/db/models/expressions.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/models/options.py"
+      ]
+     },
+     {
+      "auc": 0.853637717482111,
+      "best": 15,
+      "churn_auc": 0.8240619665104791,
+      "churn_hits": 12,
+      "churn_recall20": 0.6432748538011696,
+      "cutoff": "2024-09-08",
+      "expected": 3.147,
+      "hits": 14,
+      "pool": 815,
+      "positives": 171,
+      "recall20": 0.6198830409356725,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/migrations/operations/models.py"
+      ]
+     },
+     {
+      "auc": 0.791445412064571,
+      "best": 15,
+      "churn_auc": 0.7862857547436987,
+      "churn_hits": 10,
+      "churn_recall20": 0.6193181818181818,
+      "cutoff": "2025-03-08",
+      "expected": 3.227,
+      "hits": 13,
+      "pool": 818,
+      "positives": 176,
+      "recall20": 0.5738636363636364,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/backends/oracle/base.py"
+      ]
+     },
+     {
+      "auc": 0.8754379724321921,
+      "best": 15,
+      "churn_auc": 0.8448999555357937,
+      "churn_hits": 12,
+      "churn_recall20": 0.7052023121387283,
+      "cutoff": "2025-09-08",
+      "expected": 3.153,
+      "hits": 15,
+      "pool": 823,
+      "positives": 173,
+      "recall20": 0.6647398843930635,
+      "top": [
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/fields/__init__.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/backends/oracle/base.py"
+      ]
+     },
+     {
+      "auc": 0.7883504071447334,
+      "best": 15,
+      "churn_auc": 0.7650545048594694,
+      "churn_hits": 12,
+      "churn_recall20": 0.5904255319148937,
+      "cutoff": "2026-03-08",
+      "expected": 3.373,
+      "hits": 15,
+      "pool": 836,
+      "positives": 188,
+      "recall20": 0.5053191489361702,
+      "top": [
+       "django/db/models/query.py",
+       "django/db/models/fields/__init__.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/backends/oracle/base.py"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 152,
+      "matched_fixed": 77,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 234,
+      "matched_fixed": 77,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 153,
+      "matched_fixed": 86,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 236,
+      "matched_fixed": 109,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 237,
+      "matched_fixed": 124,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 158,
+      "matched_fixed": 79,
+      "named": 10,
+      "named_fixed": 9
+     }
+    ],
+    "stability": {
+     "from": "2026-03-08",
+     "spearman": 0.9999887251760635,
+     "to": "2026-03-25",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 228,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "duplication",
+    "hidden_coupling",
+    "knowledge_loss",
+    "lockfile_missing",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "swallowed_errors",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions",
+    "unreferenced_files"
+   ],
+   "scored_share": 0.1827,
+   "seconds": 135.9,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 16,
+    "warning": 7
+   },
+   "shown": 8,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 163.5,
+    "betterleaks": 506.3,
+    "change analysis": 157.9,
+    "code age": 219.1,
+    "duplicates": 1018.8,
+    "functions": 73.8,
+    "git-log": 460.3,
+    "git-sizer": 450.3,
+    "hygiene": 73.1,
+    "osv-scanner": 54.3,
+    "provenance": 386.7,
+    "scc": 60.0,
+    "signing": 82.5,
+    "structure": 116.2,
+    "trend": 39.6
+   },
+   "step_seconds": {
+    "backtest": 7.61,
+    "betterleaks": 26.06,
+    "change analysis": 2.99,
+    "code age": 58.98,
+    "duplicates": 3.67,
+    "functions": 2.21,
+    "git-log": 17.54,
+    "git-sizer": 5.24,
+    "hygiene": 1.0,
+    "osv-scanner": 0.5,
+    "provenance": 7.28,
+    "scc": 0.11,
+    "signing": 0.96,
+    "structure": 1.44,
+    "trend": 2.29
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "etcd": {
+   "finding_ids": [
+    {
+     "id": "f4f9bd08017833af",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "d766150d308f84e3",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "69d7fbe279b08566",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "fb16392c624d2710",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "1a9e0a2eb8f3fb4c",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "3585810645d1a44d",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "c23cd5c167769bca",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "8f15eb84146f4584",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "ea89bb564e8f23e8",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "a8abab1a2015f035",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "379c0d9e38e50ff9",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "7ed50d36d926700c",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "f5b0a9efd7dbdd03",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "35b4721660605039",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "a60d56115599d2aa",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "a152567b3fb43dd4",
+     "rule": "component_coupling",
+     "summary": true
+    }
+   ],
+   "findings": 16,
+   "load": 9.77,
+   "measure_seconds": 46.6,
+   "peak_mb": 2735,
+   "rc": 0,
+   "report_lines": 184,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "component_coupling",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "duplication",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "truck_factor"
+   ],
+   "scored_share": 0.4278,
+   "seconds": 46.3,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 11,
+    "warning": 5
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 93.5,
+    "betterleaks": 279.5,
+    "change analysis": 84.4,
+    "code age": 84.7,
+    "duplicates": 379.2,
+    "functions": 33.9,
+    "git-log": 280.8,
+    "git-sizer": 134.2,
+    "hygiene": 31.9,
+    "osv-scanner": 2735.3,
+    "provenance": 146.4,
+    "scc": 34.0,
+    "signing": 65.1,
+    "structure": 66.2,
+    "trend": 34.0
+   },
+   "step_seconds": {
+    "backtest": 6.57,
+    "betterleaks": 18.09,
+    "change analysis": 4.99,
+    "code age": 21.39,
+    "duplicates": 1.65,
+    "functions": 1.99,
+    "git-log": 12.42,
+    "git-sizer": 3.43,
+    "hygiene": 1.64,
+    "osv-scanner": 35.43,
+    "provenance": 6.97,
+    "scc": 0.04,
+    "signing": 0.89,
+    "structure": 1.12,
+    "trend": 2.79
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gate-secret": {
+   "findings": 4,
+   "gate_fired": true,
+   "load": 10.55,
+   "measure_seconds": 0.8,
+   "peak_mb": 48,
+   "rc": 3,
+   "report_lines": 64,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy",
+    "secrets_in_source"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 35.5,
+    "change analysis": 20.7,
+    "code age": 24.7,
+    "duplicates": 25.8,
+    "functions": 29.0,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.3,
+    "osv-scanner": 47.7,
+    "provenance": 22.3,
+    "scc": 19.7,
+    "signing": 16.6,
+    "structure": 26.4,
+    "trend": 24.4
+   },
+   "step_seconds": {
+    "betterleaks": 0.12,
+    "change analysis": 0.06,
+    "code age": 0.28,
+    "duplicates": 0.14,
+    "functions": 0.23,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.13,
+    "osv-scanner": 0.09,
+    "provenance": 0.17,
+    "scc": 0.01,
+    "signing": 0.05,
+    "structure": 0.34,
+    "trend": 0.18
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gate-submodule-credentials": {
+   "findings": 4,
+   "gate_fired": true,
+   "load": 10.55,
+   "measure_seconds": 0.8,
+   "peak_mb": 48,
+   "rc": 3,
+   "report_lines": 64,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy",
+    "submodule_urls"
+   ],
+   "scored_share": 0.5,
+   "seconds": 0.8,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 36.9,
+    "change analysis": 20.7,
+    "code age": 24.6,
+    "duplicates": 26.0,
+    "functions": 29.1,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.0,
+    "osv-scanner": 47.9,
+    "provenance": 22.6,
+    "scc": 20.0,
+    "signing": 16.6,
+    "structure": 26.4,
+    "trend": 24.4
+   },
+   "step_seconds": {
+    "betterleaks": 0.12,
+    "change analysis": 0.08,
+    "code age": 0.2,
+    "duplicates": 0.14,
+    "functions": 0.2,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.15,
+    "osv-scanner": 0.09,
+    "provenance": 0.17,
+    "scc": 0.01,
+    "signing": 0.05,
+    "structure": 0.31,
+    "trend": 0.15
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gate-trojan-source": {
+   "findings": 4,
+   "gate_fired": true,
+   "load": 10.55,
+   "measure_seconds": 0.8,
+   "peak_mb": 48,
+   "rc": 3,
+   "report_lines": 66,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy",
+    "trojan_source"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.4,
+    "change analysis": 20.7,
+    "code age": 24.5,
+    "duplicates": 26.0,
+    "functions": 29.0,
+    "git-log": 8.1,
+    "git-sizer": 7.8,
+    "hygiene": 18.0,
+    "osv-scanner": 47.6,
+    "provenance": 22.5,
+    "scc": 19.9,
+    "signing": 16.6,
+    "structure": 26.4,
+    "trend": 24.3
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.05,
+    "code age": 0.23,
+    "duplicates": 0.17,
+    "functions": 0.27,
+    "git-log": 0.01,
+    "git-sizer": 0.05,
+    "hygiene": 0.13,
+    "osv-scanner": 0.09,
+    "provenance": 0.15,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.33,
+    "trend": 0.15
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "ghidra": {
+   "finding_ids": [
+    {
+     "id": "57730ab7d554144e",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "5632bfdfa60b9395",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "f0479152ba16f137",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "503d8f66fc91a9dd",
+     "rule": "committed_binaries",
+     "summary": false
+    },
+    {
+     "id": "57fdad8fd2740439",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "131a2a005007f6c6",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "baf3f201575e1617",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "25cb30cb61ec31f0",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "6fbc79c1b9ae3125",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "1a979e62be728342",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "6a9299865b5c1102",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "ec24a0d5c056e193",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "5456c8e23388ee4f",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "9a565caac5e7d492",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "d06e5198f9e69832",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "a8f6b685b35c5ddc",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "2155d0330c11a699",
+     "rule": "tangled_commits",
+     "summary": false
+    },
+    {
+     "id": "3710bf17616ef841",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "71cafaa58a2508cc",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "e28b1d92fff5710a",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "1ccf9dd6c37bb6cd",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "b233c3b3fb310448",
+     "rule": "component_coupling",
+     "summary": true
+    },
+    {
+     "id": "e71dca01438fd633",
+     "rule": "swallowed_errors",
+     "summary": true
+    },
+    {
+     "id": "3311d19e3bcc3a5c",
+     "rule": "hardcoded_addresses",
+     "summary": true
+    },
+    {
+     "id": "88d9e12404b490ee",
+     "rule": "commented_out_code",
+     "summary": true
+    }
+   ],
+   "findings": 25,
+   "load": 9.87,
+   "measure_seconds": 102.0,
+   "peak_mb": 1095,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.7476182404976904,
+      "best": 15,
+      "churn_auc": 0.6865531427992005,
+      "churn_hits": 7,
+      "churn_recall20": 0.33240997229916897,
+      "cutoff": "2023-09-18",
+      "expected": 0.913,
+      "hits": 6,
+      "pool": 5934,
+      "positives": 361,
+      "recall20": 0.26869806094182824,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Configurations/Public_Release/src/global/docs/ChangeHistory.html",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/objects/DebuggerObjectsProvider.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java"
+      ]
+     },
+     {
+      "auc": 0.7494103545459029,
+      "best": 15,
+      "churn_auc": 0.678675658965304,
+      "churn_hits": 5,
+      "churn_recall20": 0.3558139534883721,
+      "cutoff": "2024-03-18",
+      "expected": 0.983,
+      "hits": 6,
+      "pool": 6561,
+      "positives": 430,
+      "recall20": 0.27674418604651163,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Configurations/Public_Release/src/global/docs/ChangeHistory.html",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/objects/DebuggerObjectsProvider.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java"
+      ]
+     },
+     {
+      "auc": 0.7343481142829879,
+      "best": 15,
+      "churn_auc": 0.6849113671256639,
+      "churn_hits": 8,
+      "churn_recall20": 0.3648351648351648,
+      "cutoff": "2024-09-18",
+      "expected": 0.989,
+      "hits": 5,
+      "pool": 6904,
+      "positives": 455,
+      "recall20": 0.23296703296703297,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Configurations/Public_Release/src/global/docs/ChangeHistory.html",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/objects/DebuggerObjectsProvider.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java"
+      ]
+     },
+     {
+      "auc": 0.6934370541778175,
+      "best": 15,
+      "churn_auc": 0.6579618968794305,
+      "churn_hits": 10,
+      "churn_recall20": 0.2876712328767123,
+      "cutoff": "2025-03-18",
+      "expected": 1.518,
+      "hits": 10,
+      "pool": 6494,
+      "positives": 657,
+      "recall20": 0.2176560121765601,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/heritage.cc"
+      ]
+     },
+     {
+      "auc": 0.7428415141221655,
+      "best": 15,
+      "churn_auc": 0.6952502959722403,
+      "churn_hits": 5,
+      "churn_recall20": 0.3553008595988539,
+      "cutoff": "2025-09-18",
+      "expected": 0.747,
+      "hits": 4,
+      "pool": 7012,
+      "positives": 349,
+      "recall20": 0.2607449856733524,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/heritage.cc"
+      ]
+     },
+     {
+      "auc": 0.7577143507225557,
+      "best": 15,
+      "churn_auc": 0.7324798173959192,
+      "churn_hits": 3,
+      "churn_recall20": 0.3257261410788382,
+      "cutoff": "2026-03-18",
+      "expected": 0.985,
+      "hits": 5,
+      "pool": 7339,
+      "positives": 482,
+      "recall20": 0.25311203319502074,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/slgh_compile.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 1177,
+      "matched_fixed": 183,
+      "named": 10,
+      "named_fixed": 7
+     },
+     {
+      "matched": 647,
+      "matched_fixed": 135,
+      "named": 10,
+      "named_fixed": 8
+     },
+     {
+      "matched": 2063,
+      "matched_fixed": 218,
+      "named": 10,
+      "named_fixed": 6
+     },
+     {
+      "matched": 1289,
+      "matched_fixed": 279,
+      "named": 10,
+      "named_fixed": 4
+     },
+     {
+      "matched": 1393,
+      "matched_fixed": 176,
+      "named": 10,
+      "named_fixed": 6
+     },
+     {
+      "matched": 2192,
+      "matched_fixed": 319,
+      "named": 10,
+      "named_fixed": 2
+     }
+    ],
+    "stability": {
+     "from": "2026-03-18",
+     "spearman": 0.9999116074675235,
+     "to": "2026-03-24",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 293,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "commented_out_code",
+    "committed_binaries",
+    "component_coupling",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "hardcoded_addresses",
+    "hidden_coupling",
+    "import_commits",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_possible",
+    "stale_files",
+    "swallowed_errors",
+    "sweeping_commits",
+    "tangled_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.7687,
+   "seconds": 43.1,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 20,
+    "warning": 5
+   },
+   "shown": 10,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 412.6,
+    "betterleaks": 689.0,
+    "change analysis": 138.6,
+    "functions": 355.1,
+    "git-log": 509.3,
+    "git-sizer": 220.3,
+    "hygiene": 344.4,
+    "osv-scanner": 56.0,
+    "provenance": 1032.2,
+    "scc": 230.4,
+    "signing": 45.7,
+    "structure": 590.8,
+    "trend": 72.8
+   },
+   "step_seconds": {
+    "backtest": 7.32,
+    "betterleaks": 16.32,
+    "change analysis": 2.15,
+    "functions": 11.01,
+    "git-log": 16.43,
+    "git-sizer": 5.16,
+    "hygiene": 6.87,
+    "osv-scanner": 1.63,
+    "provenance": 7.28,
+    "scc": 0.4,
+    "signing": 0.61,
+    "structure": 5.14,
+    "trend": 1.47
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gitmole": {
+   "finding_ids": [
+    {
+     "id": "64661689458bd925",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "f56cc5096cef6c0e",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "85deaa10c66523c7",
+     "rule": "complexity_growth",
+     "summary": false
+    },
+    {
+     "id": "866b31a1826f0b32",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "8a81123dbecb3890",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "2393d7b85b907a80",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "00b6d945720e50e1",
+     "rule": "truck_factor",
+     "summary": false
+    }
+   ],
+   "findings": 7,
+   "load": 7.44,
+   "measure_seconds": 2.0,
+   "peak_mb": 84,
+   "ranking": {
+    "cutoffs": [],
+    "magnets": [],
+    "stability": null
+   },
+   "rc": 0,
+   "report_lines": 129,
+   "rules": [
+    "bug_magnets",
+    "complexity_growth",
+    "deep_nesting",
+    "hidden_coupling",
+    "secrets_aside",
+    "tight_coupling",
+    "truck_factor"
+   ],
+   "scored_share": 0.3689,
+   "seconds": 1.9,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 3,
+    "warning": 4
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 83.9,
+    "change analysis": 21.5,
+    "code age": 31.0,
+    "duplicates": 78.4,
+    "functions": 30.3,
+    "git-log": 22.5,
+    "git-sizer": 9.4,
+    "hygiene": 19.0,
+    "osv-scanner": 48.8,
+    "provenance": 35.3,
+    "scc": 23.9,
+    "signing": 17.1,
+    "structure": 31.4,
+    "trend": 24.7
+   },
+   "step_seconds": {
+    "betterleaks": 1.1,
+    "change analysis": 0.19,
+    "code age": 0.71,
+    "duplicates": 0.23,
+    "functions": 0.5,
+    "git-log": 0.16,
+    "git-sizer": 0.09,
+    "hygiene": 0.21,
+    "osv-scanner": 0.1,
+    "provenance": 0.47,
+    "scc": 0.01,
+    "signing": 0.05,
+    "structure": 0.39,
+    "trend": 0.43
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "prometheus": {
+   "finding_ids": [
+    {
+     "id": "734fffee9b8a47d6",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "0983d9984a2e17d3",
+     "rule": "credential_files",
+     "summary": false
+    },
+    {
+     "id": "9bae9279830e4e7d",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "3132ebbcb62c7f27",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "c6d15941d790c7b7",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "3ce6502e76dfc4f2",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "eb42cfaf23f90a02",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "b74291a7ec49c054",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "da5ce71a53ec5e2d",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "f3c18e4cc2de4ce0",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "35aa5268784aa5ac",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "da92b85a8d74eb3f",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "ba4c2f83507e429a",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "d6f78558e196da3c",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "85a398f5c3a9a2ce",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "f8630cab842c2f16",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "3e22f572bbf00e75",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "4c7e1985fafa5645",
+     "rule": "unused_dependencies",
+     "summary": false
+    },
+    {
+     "id": "6487d9f137963a1d",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "e8b3b2bf067ed555",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "199251ac51966892",
+     "rule": "unreferenced_files",
+     "summary": true
+    },
+    {
+     "id": "85c9c564d1dc015f",
+     "rule": "agent_instructions_drift",
+     "summary": false
+    },
+    {
+     "id": "bc83e7cec86a384a",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "6af17e32f74f584a",
+     "rule": "authors_gone",
+     "summary": true
+    }
+   ],
+   "findings": 24,
+   "load": 14.63,
+   "measure_seconds": 48.8,
+   "peak_mb": 4412,
+   "rc": 0,
+   "report_lines": 233,
+   "rules": [
+    "agent_instructions_drift",
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "credential_files",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "duplication",
+    "hidden_coupling",
+    "import_commits",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unreferenced_files",
+    "unused_dependencies"
+   ],
+   "scored_share": 0.3896,
+   "seconds": 48.4,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 17,
+    "warning": 7
+   },
+   "shown": 9,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 94.0,
+    "betterleaks": 512.2,
+    "change analysis": 97.5,
+    "code age": 87.8,
+    "duplicates": 513.0,
+    "functions": 48.1,
+    "git-log": 449.0,
+    "git-sizer": 147.0,
+    "hygiene": 57.4,
+    "osv-scanner": 4412.0,
+    "provenance": 231.7,
+    "scc": 50.1,
+    "signing": 65.4,
+    "structure": 76.7,
+    "trend": 34.5
+   },
+   "step_seconds": {
+    "backtest": 4.68,
+    "betterleaks": 33.1,
+    "change analysis": 2.22,
+    "code age": 10.76,
+    "duplicates": 3.13,
+    "functions": 2.59,
+    "git-log": 22.39,
+    "git-sizer": 1.53,
+    "hygiene": 1.52,
+    "osv-scanner": 19.47,
+    "provenance": 6.89,
+    "scc": 0.04,
+    "signing": 0.54,
+    "structure": 0.99,
+    "trend": 2.96
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "react": {
+   "finding_ids": [
+    {
+     "id": "33dca0d93b42152c",
+     "rule": "secrets_in_source",
+     "summary": false
+    },
+    {
+     "id": "3289306ecf0e7e18",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "7aa9ddd2ef378fa3",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "5edf093243bfab9e",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "28ba8760cab5ed9a",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "413c098951b77a5b",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "2f880726534109d6",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "8450bd3765ba586a",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "4011cfc1e32ec78d",
+     "rule": "lockfile_drift",
+     "summary": false
+    },
+    {
+     "id": "7f3bd01e9af5cfb1",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "3b5850e421737344",
+     "rule": "swallowed_errors",
+     "summary": true
+    },
+    {
+     "id": "62bbfee168210d01",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "40868a0b92e4b0e1",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "354e916ee3fe5f1f",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "7b6897d717ebd505",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "e8de4ae19f6c2317",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "e29b13e2b469fbd3",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "fcc05d636665ff80",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "2782416bfaca00f3",
+     "rule": "knowledge_islands",
+     "summary": false
+    },
+    {
+     "id": "89114bb5bd8e4119",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "b0d7188c8a1cffce",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "1647ff8f0a56e3a1",
+     "rule": "dependency_updates",
+     "summary": false
+    },
+    {
+     "id": "3e112221dd5701a7",
+     "rule": "install_scripts",
+     "summary": false
+    },
+    {
+     "id": "6e4b3e2479287c89",
+     "rule": "unused_dependencies",
+     "summary": false
+    },
+    {
+     "id": "97ceab01dae88783",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "cfd312121ed8f63d",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "683d6204478e26b8",
+     "rule": "unreferenced_files",
+     "summary": true
+    },
+    {
+     "id": "503017698999ea36",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "b25b833418421095",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "5d332dec7e358d2c",
+     "rule": "commented_out_code",
+     "summary": true
+    }
+   ],
+   "findings": 30,
+   "load": 6.63,
+   "measure_seconds": 115.4,
+   "peak_mb": 2725,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.6797385620915033,
+      "best": 15,
+      "churn_auc": 0.6143790849673203,
+      "churn_hits": 11,
+      "churn_recall20": 0.8823529411764706,
+      "cutoff": "2023-09-16",
+      "expected": 9.808,
+      "hits": 11,
+      "pool": 26,
+      "positives": 17,
+      "recall20": 0.8235294117647058,
+      "top": [
+       "compiler/packages/babel-plugin-react-forget/src/HIR/BuildHIR.ts",
+       "compiler/packages/babel-plugin-react-forget/src/ReactiveScopes/CodegenReactiveFunction.ts",
+       "compiler/packages/babel-plugin-react-forget/src/HIR/HIR.ts",
+       "compiler/packages/babel-plugin-react-forget/src/HIR/visitors.ts",
+       "compiler/packages/sprout/src/SproutTodoFilter.ts",
+       "compiler/packages/babel-plugin-react-forget/src/ReactiveScopes/BuildReactiveFunction.ts",
+       "compiler/packages/babel-plugin-react-forget/src/HIR/PrintHIR.ts",
+       "compiler/packages/babel-plugin-react-forget/src/Entrypoint/Program.ts",
+       "compiler/packages/babel-plugin-react-forget/src/HIR/HIRBuilder.ts",
+       "compiler/packages/babel-plugin-react-forget/src/Entrypoint/Pipeline.ts",
+       "compiler/packages/babel-plugin-react-forget/src/Inference/InferReferenceEffects.ts",
+       "compiler/packages/babel-plugin-react-forget/src/ReactiveScopes/PruneNonEscapingScopes.ts",
+       "compiler/packages/babel-plugin-react-forget/src/ReactiveScopes/PropagateScopeDependencies.ts",
+       "compiler/packages/babel-plugin-react-forget/src/TypeInference/InferTypes.ts",
+       "compiler/packages/babel-plugin-react-forget/src/Optimization/ConstantPropagation.ts"
+      ]
+     },
+     {
+      "auc": 0.7508461235733963,
+      "best": 15,
+      "churn_auc": 0.6633412042502952,
+      "churn_hits": 5,
+      "churn_recall20": 0.45454545454545453,
+      "cutoff": "2024-03-16",
+      "expected": 0.843,
+      "hits": 7,
+      "pool": 979,
+      "positives": 55,
+      "recall20": 0.3090909090909091,
+      "top": [
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-devtools-shared/src/backend/renderer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactFiberClassComponent.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.8514467739786588,
+      "best": 15,
+      "churn_auc": 0.8173758220994877,
+      "churn_hits": 6,
+      "churn_recall20": 0.6301369863013698,
+      "cutoff": "2024-09-16",
+      "expected": 0.909,
+      "hits": 12,
+      "pool": 1204,
+      "positives": 73,
+      "recall20": 0.4657534246575342,
+      "top": [
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.802101276019573,
+      "best": 15,
+      "churn_auc": 0.7293278830415371,
+      "churn_hits": 9,
+      "churn_recall20": 0.4020618556701031,
+      "cutoff": "2025-03-16",
+      "expected": 1.119,
+      "hits": 10,
+      "pool": 1300,
+      "positives": 97,
+      "recall20": 0.35051546391752575,
+      "top": [
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.7739183776566955,
+      "best": 15,
+      "churn_auc": 0.7165301483058493,
+      "churn_hits": 5,
+      "churn_recall20": 0.35514018691588783,
+      "cutoff": "2025-09-16",
+      "expected": 1.145,
+      "hits": 10,
+      "pool": 1402,
+      "positives": 107,
+      "recall20": 0.27102803738317754,
+      "top": [
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "compiler/packages/babel-plugin-react-compiler/src/HIR/BuildHIR.ts",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js"
+      ]
+     },
+     {
+      "auc": 0.8621733205066539,
+      "best": 15,
+      "churn_auc": 0.8223304473304474,
+      "churn_hits": 7,
+      "churn_recall20": 0.6388888888888888,
+      "cutoff": "2026-03-16",
+      "expected": 0.38,
+      "hits": 11,
+      "pool": 1422,
+      "positives": 36,
+      "recall20": 0.6111111111111112,
+      "top": [
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "compiler/packages/babel-plugin-react-compiler/src/HIR/BuildHIR.ts",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 0,
+      "matched_fixed": 0,
+      "named": 10,
+      "named_fixed": 5
+     },
+     {
+      "matched": 95,
+      "matched_fixed": 18,
+      "named": 8,
+      "named_fixed": 5
+     },
+     {
+      "matched": 115,
+      "matched_fixed": 34,
+      "named": 8,
+      "named_fixed": 6
+     },
+     {
+      "matched": 253,
+      "matched_fixed": 50,
+      "named": 7,
+      "named_fixed": 4
+     },
+     {
+      "matched": 132,
+      "matched_fixed": 27,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 418,
+      "matched_fixed": 26,
+      "named": 9,
+      "named_fixed": 4
+     }
+    ],
+    "stability": {
+     "from": "2026-03-16",
+     "spearman": 0.9999335150379741,
+     "to": "2026-05-02",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 289,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "commented_out_code",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "dependency_updates",
+    "duplication",
+    "hidden_coupling",
+    "install_scripts",
+    "knowledge_islands",
+    "knowledge_loss",
+    "lockfile_drift",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_in_source",
+    "secrets_possible",
+    "stale_files",
+    "swallowed_errors",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions",
+    "unreferenced_files",
+    "unused_dependencies"
+   ],
+   "scored_share": 0.2695,
+   "seconds": 89.1,
+   "set": "development",
+   "severity": {
+    "critical": 1,
+    "info": 19,
+    "warning": 10
+   },
+   "shown": 13,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 174.1,
+    "betterleaks": 2724.6,
+    "change analysis": 157.3,
+    "code age": 146.0,
+    "duplicates": 1050.5,
+    "functions": 146.5,
+    "git-log": 451.1,
+    "git-sizer": 222.0,
+    "hygiene": 126.3,
+    "osv-scanner": 102.0,
+    "provenance": 371.5,
+    "scc": 76.1,
+    "signing": 71.0,
+    "structure": 160.6,
+    "trend": 48.4
+   },
+   "step_seconds": {
+    "backtest": 12.55,
+    "betterleaks": 32.24,
+    "change analysis": 3.71,
+    "code age": 49.89,
+    "duplicates": 3.29,
+    "functions": 2.85,
+    "git-log": 14.07,
+    "git-sizer": 2.66,
+    "hygiene": 4.12,
+    "osv-scanner": 1.99,
+    "provenance": 17.56,
+    "scc": 0.11,
+    "signing": 0.58,
+    "structure": 1.22,
+    "trend": 1.93
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  }
+ },
+ "sets": [
+  "development",
+  "awkward",
+  "gate",
+  "well-kept"
+ ],
+ "summary": {
+  "auc": 0.817,
+  "bug_magnets_ratio": 3.861,
+  "carryover_top15": 0.903,
+  "churn_auc": 0.738,
+  "churn_headroom": 0.517,
+  "churn_recall20": 0.489,
+  "crashed": null,
+  "findings_median": 23.5,
+  "findings_p90": 27.5,
+  "gate_caught": [
+   3,
+   3
+  ],
+  "headroom": 0.617,
+  "headroom_ci": [
+   0.356,
+   0.934
+  ],
+  "peak_mb": 2725,
+  "recall20": 0.359,
+  "report_lines": 224.0,
+  "robust": [
+   21,
+   21
+  ],
+  "scored_share": 0.226,
+  "seconds": 699.8,
+  "shown_median": 7.5,
+  "stability_spearman": 1.0,
+  "stability_top15": 1.0,
+  "step_seconds": {
+   "backtest": 7.6,
+   "betterleaks": 21.2,
+   "change analysis": 2.6,
+   "code age": 37.1,
+   "duplicates": 2.7,
+   "functions": 2.5,
+   "git-log": 17.0,
+   "git-sizer": 4.2,
+   "hygiene": 2.6,
+   "osv-scanner": 0.8,
+   "provenance": 9.4,
+   "scc": 0.1,
+   "signing": 0.8,
+   "structure": 1.3,
+   "trend": 2.0
+  },
+  "well_kept_with_critical": [
+   0,
+   4
+  ],
+  "wins_losses_ties": [
+   17,
+   4,
+   9
+  ]
+ },
+ "version": "0.33.0"
+}

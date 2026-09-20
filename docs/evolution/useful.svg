@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
-<rect width="900" height="300" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="314" viewBox="0 0 900 314" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif" font-size="12">
+<rect width="900" height="314" fill="#ffffff"/>
 <text x="56" y="22" font-size="15" font-weight="600" fill="#1f2328">Is it useful? Findings the default report spells out that are worth acting on</text>
 <line x1="56" y1="244.0" x2="884" y2="244.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="248.0" text-anchor="end" fill="#1f2328">0%</text>
@@ -12,22 +12,21 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">100%</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="136.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
-<text x="216.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="296.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
-<text x="376.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="456.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
-<text x="536.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="616.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
-<text x="697.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="777.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
-<text x="857.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.32.0</text>
-<polyline points="750.5,183.4 777.2,181.2 803.9,103.6 830.6,105.5 857.3,105.5 884.0,105.5" fill="none" stroke="#0969da" stroke-width="2"/>
-<polyline points="750.5,43.5 777.2,42.2 803.9,45.1 830.6,42.7 857.3,42.7 884.0,42.7" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
-<line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
-<text x="84" y="286" fill="#1f2328">labelled actionable</text>
-<line x1="225" y1="282" x2="247" y2="282" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
-<text x="253" y="286" fill="#1f2328">carrying a label at all</text>
-<text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">development and well-kept sets, hand labels (measure/labels.jsonl); none before 0.28.0</text>
+<text x="185.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.7.0</text>
+<text x="263.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="340.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.13.1</text>
+<text x="418.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="495.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.19.0</text>
+<text x="573.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="651.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.25.0</text>
+<text x="728.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
+<text x="806.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.1</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.33.0</text>
+<polyline points="728.8,183.4 754.6,181.2 780.5,103.6 806.4,105.5 832.2,105.5 858.1,105.5 884.0,106.3" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="728.8,43.5 754.6,42.2 780.5,45.1 806.4,42.7 832.2,42.7 858.1,42.7 884.0,42.7" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
+<line x1="56" y1="278" x2="78" y2="278" stroke="#0969da" stroke-width="2"/>
+<text x="84" y="282" fill="#1f2328">labelled actionable</text>
+<line x1="225" y1="278" x2="247" y2="278" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="253" y="282" fill="#1f2328">carrying a label at all</text>
+<text x="56" y="302" fill="#57606a" font-size="11">development and well-kept sets, hand labels (measure/labels.jsonl); none before 0.28.0</text>
 </svg>

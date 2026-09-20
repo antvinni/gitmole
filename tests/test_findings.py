@@ -131,7 +131,7 @@ class PlaceholderIdentity(unittest.TestCase):
     def test_a_stray_commit_below_one_percent_is_not_worth_a_warning(self):
         r = report()
         r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 4405},
-                                   {"name": "Elegant", "email": "user@elegant996.net", "commits": 1}]
+                                   {"name": "Elegant", "email": "user@a.com", "commits": 1}]
         self.assertEqual(findings.placeholder_identity(r), [])
         r["meta"]["identities"][1]["commits"] = 45
         self.assertEqual(findings.placeholder_identity(r)[0]["severity"], "warning")
@@ -458,7 +458,7 @@ class StaleFiles(unittest.TestCase):
 class IdentityMerges(unittest.TestCase):
     def test_are_not_a_finding(self):
         r = report()
-        r["meta"]["identities"] = [{"name": "Grzegorz Bankosz", "email": "g@thg.com", "commits": 41,
+        r["meta"]["identities"] = [{"name": "Grzegorz Bankosz", "email": "g@a.com", "commits": 41,
                                     "aliases": [{"name": "thg-grzegorz-bankosz", "email": "1@users.noreply.github.com", "commits": 16}]}]
         self.assertEqual([f["title"] for f in findings.evaluate(r)], [], "merged aliases are a People caption, not a finding")
         self.assertFalse(hasattr(findings, "duplicate_identities"))

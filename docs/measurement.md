@@ -186,6 +186,21 @@ per-repository difference), not by their totals. A release-over-release move
 counts as progress or regression only when it leaves the previous release's
 interval.
 
+### Labels from outside the project
+
+Every label in `measure/labels.jsonl` carries `"labeller": "claude"`, so the precision and actionable
+shares in the history are an agent's reading of rules an agent wrote, and `kappa` between two agent passes
+would measure self-consistency. `--feedback` (0.33.0) asks the one population that can answer: on a plain
+interactive run, gitmole asks five yes/no questions about the findings it spelled out and writes the
+answers to a file the reader chooses to send. Nothing is uploaded, and the file holds no path, name or
+value -- a rule id, a severity, the verdict, the version, and three bands.
+
+What comes back is per rule rather than per finding, so it cannot be joined to a labelled finding and
+cannot give a kappa. What it can give is the thing no label has: whether a rule's findings were worth
+acting on to someone whose repository nobody here has seen. Answers land under `"labeller": "user"`, are
+counted per rule beside the agent labels, and never replace them: a handful of answers from keen users is
+a biased sample, and the bias runs toward people who liked the tool enough to answer.
+
 ## Finding quality
 
 This is the unmeasured half of the tool, and it grew the most between 0.15 and

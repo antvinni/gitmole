@@ -10,7 +10,7 @@ Free. Any Stack. Local. Offline. Deterministic. Fast.
 
 - **Free.** MIT licence, no paid tier, no account, no token. A local clone needs no credentials, and a public `owner/repo` is cloned with plain git. Your `gh` login is only used for private repositories and for `owner/*`, and only when you ask for them. The tools it runs are open source too.
 - **Any stack.** It reads what every repository has: the git log, git blame and the files themselves.
-- **Local & Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home; the vulnerability database is a copy you download once.
+- **Local & Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home; the vulnerability database is a copy you download once. Once, on a run with a terminal, gitmole asks five yes/no questions about its own findings and writes your answers to a file it tells you how to send — it still uploads nothing, and `GITMOLE_NO_FEEDBACK=1` turns the question off for good.
 - **Deterministic.** No AI at runtime. Every finding is a plain rule over counts you can recompute by hand. The JSON export carries each finding's rule, the numbers it fired on and, where a rule rests on a paper, the citation. The same commit gives the same bytes: gitmole's own CI runs it twice on every commit, compares the exports and attests the report. One gitmole version is one toolchain, since the five tools are pinned and installed with it, and every report records the versions it ran.
 
 ## Install

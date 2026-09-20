@@ -172,6 +172,18 @@ Each release runs from its own source over the development set (curl, django and
   lines, `hidden_coupling`'s degree of 60, `swallowed_errors`'s count of five), and `deep_nesting`'s five
   levels is moderate. None was chosen against a label, which is the other reason these findings stay out of
   the default report until the sheet's 35 are labelled.
+- **0.33.0 asks the reader, and drops gitmole's own false policy finding.** Every label behind the
+  actionable share is an agent's, so the tool now asks the one population that can answer: five yes/no
+  questions after a plain interactive run, written to a file the reader chooses to send. It asks once on a
+  machine, never in CI or behind an export flag, and gitmole uploads nothing, so the record is untouched by
+  it -- the harness has no terminal, so no run here was ever asked. The only number that moves is gitmole's
+  own, 8 findings to 7: `repo_policy` said it had no security policy while CONTRIBUTING.md#Security names
+  the reporting route, which is the same false alarm the README fallback fixed for containerd at 0.29.0.
+  Nothing else in the set changes.
+- **The graphs had run two release labels together.** The x axis drew every nth label and then forced the
+  last one whatever sat beside it, so the README's ranking graph read "0.31.00.32.0", and the caption was
+  drawn along the legend's baseline and through its words. Labels are now spaced by the room a label needs,
+  with both ends always drawn, and the note has a line of its own. Every graph on this page is redrawn.
 
 ![ranking](evolution/ranking.svg)
 
@@ -227,8 +239,9 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.30.1 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 23% | 21/21 | 3/3 | 718 | 2889 |  |
 | 0.31.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 23% | 21/21 | 3/3 | 689 | 3034 |  |
 | 0.32.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 697 | 3037 |  |
+| 0.33.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 700 | 2725 |  |
 
-## The dashboard for 0.32.0
+## The dashboard for 0.33.0
 
 | | set | value |
 |---|---|---|
@@ -238,10 +251,10 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | top-15 stability over 50 commits | development | 1.00 |
 | top-15 carried over from one cut-off to the next, six months | development | 0.90 |
 | findings per repository, median and p90 | development | 23.5 and 27.5 |
-| findings the default report spells out that are labelled actionable | development and well-kept | 68% of 79, 99% labelled |
+| findings the default report spells out that are labelled actionable | development and well-kept | 68% of 78, 99% labelled |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 3, undecided 26, unlabelled 7 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 697 s, 3037 MB |
+| wall time and peak memory | development | 700 s, 2725 MB |
 | scored share of tracked files | development | 23% |
 | unexplained description disagreements | development | 0 |
 

@@ -111,6 +111,24 @@ class Presence(unittest.TestCase):
             r.commit()
             self.assertIsNone(hygiene.presence(d)["security_policy"], "a sentence is not a section")
 
+    def test_a_contributing_heading_about_security_counts_too(self):
+        """gitmole's own repository is the case: CONTRIBUTING.md#Security names the reporting route, and the
+        finding said there was no policy. A project that says how to report has one wherever it wrote it."""
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("README.md", "# tool\n\nNothing about that here.\n")
+            r.write("CONTRIBUTING.md", "# contributing\n\n## Security\n\nTo report a vulnerability, use private reporting.\n")
+            r.commit()
+            self.assertEqual(hygiene.presence(d)["security_policy"], "CONTRIBUTING.md#Security")
+
+    def test_the_readme_wins_when_both_name_one(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("README.md", "# tool\n\n## Reporting security issues\n\nHere.\n")
+            r.write("CONTRIBUTING.md", "# contributing\n\n## Security\n\nAlso here.\n")
+            r.commit()
+            self.assertEqual(hygiene.presence(d)["security_policy"], "README.md#Reporting security issues")
+
 
 class DependencyConfusion(unittest.TestCase):
     def test_a_scoped_package_resolved_from_the_public_registry_against_a_private_npmrc_and_mixed_registries(self):
