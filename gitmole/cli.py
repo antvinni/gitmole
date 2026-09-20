@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import os
 import shutil
 import signal
@@ -38,6 +39,8 @@ def parse_args(argv):
     p.add_argument("--clean", action="store_true", help="list the directories gitmole created (temp clones, analysis-* under the target) and delete them after a y/N question, then exit")
     p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
     p.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
+    p.add_argument("--feedback", action="store_true", help="ask five questions about the findings and write the answers to a file you can send; "
+                   "gitmole uploads nothing. Asked once on a plain interactive run anyway; GITMOLE_NO_FEEDBACK=1 turns it off for good")
     p.add_argument("--full", action="store_true", help="every section, column and row in the terminal report: adds hotspots, size, activity and code age, the test files the default tables hide, and the findings the default names in one line (the default is the tighter, readable one)")
     p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
     p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
@@ -622,11 +625,39 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
         _write(sbom.dumps(report, packages), args.sbom, console)
     if "-" not in (args.json, args.markdown, args.sarif, args.sbom):
         render.report(report, found, console, full=args.full, risk=risk, base=args.risk, compare=comparison)
+    _feedback(report, found, args, console, err)
     if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
         return 3
     if risk is not None and args.risk_threshold is not None and risk["total"] > args.risk_threshold:
         return 3
     return 0
+
+
+def _feedback(report: dict, found: list, args, console: Console, err: Console, ask=None) -> None:
+    """Ask the reader whether these findings were worth acting on, where asking is allowed (feedback.py).
+    Everything here goes to stderr after the report, so no export and no golden file can hold a word of it,
+    and any failure is silent: a question is never worth breaking a run over."""
+    from . import feedback
+    try:
+        path = feedback.state_path()
+        state = feedback.read_state(path) if path else {}
+        today = dt.date.today().isoformat()
+        if not feedback.should_ask(args, state, today):
+            return
+        answers = (ask or feedback.ask)(found, err.print, lambda text: input(text))
+        if path:
+            feedback.write_state(path, {**state, "asked": today, **({"answered": today} if answers else {"declined": True})})
+        if not answers:
+            return
+        target = os.path.join(os.path.abspath(args.out or "."), feedback.FILE_NAME) if getattr(args, "out", None) \
+            else os.path.abspath(feedback.FILE_NAME)
+        feedback.write(target, feedback.payload(answers, report, today, __version__))
+        for line in feedback.how_to_send(target, __version__):
+            err.print(f"[dim]{line}[/dim]", soft_wrap=True)
+    except (EOFError, KeyboardInterrupt):
+        pass          # no terminal after all, or the reader pressed ctrl-c: the run is already done
+    except Exception:   # noqa: BLE001 - a question is never worth breaking a finished run over
+        pass
 
 
 if __name__ == "__main__":
