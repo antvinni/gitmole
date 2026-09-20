@@ -136,6 +136,15 @@ Each release runs from its own source over the development set (curl, django and
   columns whatever `COLUMNS` said. A run started without it printed 11 lines fewer for the same code.
   From 0.30.1 the harness sets the terminal itself, and the length column says "80 columns, banner
   included", which is what it always measured.
+- **0.31.0 pins the toolchain and moves nothing else.** Every number in the record is the same as 0.30.1's
+  on every repository, findings, ranking, robustness and the gate alike; only the wall time (689 s against
+  718) and peak memory (3,034 MB against 2,889) differ, and those vary between runs on one machine. That is
+  what a release that only fixes where the tools come from should look like.
+  What it changes is what a record means: the tools are installed with gitmole at the versions
+  `gitmole/tools.py` names, so a row of this table now describes one toolchain rather than whichever
+  versions the machine happened to have. Records before it say which versions ran (`run.tools`) but were
+  measured against whatever Homebrew had that week, so a report-shaping change in scc, betterleaks or
+  jscpd is a possible cause for any move in the rows above this one.
 
 ![ranking](evolution/ranking.svg)
 
@@ -189,8 +198,9 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.29.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 278 | 21% | 21/21 | 3/3 | 680 | 3064 |  |
 | 0.30.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 21% | 21/21 | 3/3 | 709 | 2821 |  |
 | 0.30.1 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 23% | 21/21 | 3/3 | 718 | 2889 |  |
+| 0.31.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 23% | 21/21 | 3/3 | 689 | 3034 |  |
 
-## The dashboard for 0.30.1
+## The dashboard for 0.31.0
 
 | | set | value |
 |---|---|---|
@@ -203,7 +213,7 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | findings the default report spells out that are labelled actionable | development and well-kept | 68% of 79, 99% labelled |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 2, undecided 27 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 718 s, 2889 MB |
+| wall time and peak memory | development | 689 s, 3034 MB |
 | scored share of tracked files | development | 23% |
 | unexplained description disagreements | development | 0 |
 

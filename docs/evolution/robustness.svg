@@ -12,24 +12,19 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">100%</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="113.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
-<text x="170.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
-<text x="227.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="284.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
-<text x="341.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
-<text x="398.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="455.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
-<text x="512.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
-<text x="569.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="627.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
-<text x="684.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
-<text x="741.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="798.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
-<text x="855.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.1</text>
-<polyline points="56.0,53.6 84.6,53.6 113.1,53.6 141.7,53.6 170.2,53.6 198.8,53.6 227.3,67.2 255.9,67.2 284.4,67.2 313.0,67.2 341.5,67.2 370.1,67.2 398.6,67.2 427.2,67.2 455.7,67.2 484.3,67.2 512.8,67.2 541.4,67.2 569.9,67.2 598.5,67.2 627.0,67.2 655.6,67.2 684.1,67.2 712.7,67.2 741.2,59.1 769.8,64.0 798.3,40.0 826.9,40.0 855.4,40.0 884.0,40.0" fill="none" stroke="#0969da" stroke-width="2"/>
-<polyline points="56.0,176.0 84.6,176.0 113.1,176.0 141.7,176.0 170.2,176.0 198.8,176.0 227.3,176.0 255.9,176.0 284.4,176.0 313.0,176.0 341.5,176.0 370.1,176.0 398.6,176.0 427.2,40.0 455.7,40.0 484.3,40.0 512.8,40.0 541.4,40.0 569.9,40.0 598.5,40.0 627.0,40.0 655.6,40.0 684.1,40.0 712.7,40.0 741.2,40.0 769.8,40.0 798.3,40.0 826.9,40.0 855.4,40.0 884.0,40.0" fill="none" stroke="#8250df" stroke-width="2"/>
-<polyline points="284.4,200.8 313.0,200.8 341.5,200.8 370.1,200.8 398.6,200.8 427.2,200.8 455.7,200.8 484.3,200.8 512.8,200.8 541.4,200.8 569.9,200.8 598.5,200.8 627.0,200.8 655.6,200.8 684.1,200.8 712.7,200.8 741.2,200.8 769.8,200.8 798.3,200.8 826.9,200.8 855.4,200.8 884.0,197.9" fill="none" stroke="#1a7f37" stroke-width="2"/>
+<text x="138.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
+<text x="221.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="304.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
+<text x="387.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
+<text x="552.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="635.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
+<text x="718.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<text x="801.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
+<polyline points="56.0,53.6 83.6,53.6 111.2,53.6 138.8,53.6 166.4,53.6 194.0,53.6 221.6,67.2 249.2,67.2 276.8,67.2 304.4,67.2 332.0,67.2 359.6,67.2 387.2,67.2 414.8,67.2 442.4,67.2 470.0,67.2 497.6,67.2 525.2,67.2 552.8,67.2 580.4,67.2 608.0,67.2 635.6,67.2 663.2,67.2 690.8,67.2 718.4,59.1 746.0,64.0 773.6,40.0 801.2,40.0 828.8,40.0 856.4,40.0 884.0,40.0" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="56.0,176.0 83.6,176.0 111.2,176.0 138.8,176.0 166.4,176.0 194.0,176.0 221.6,176.0 249.2,176.0 276.8,176.0 304.4,176.0 332.0,176.0 359.6,176.0 387.2,176.0 414.8,40.0 442.4,40.0 470.0,40.0 497.6,40.0 525.2,40.0 552.8,40.0 580.4,40.0 608.0,40.0 635.6,40.0 663.2,40.0 690.8,40.0 718.4,40.0 746.0,40.0 773.6,40.0 801.2,40.0 828.8,40.0 856.4,40.0 884.0,40.0" fill="none" stroke="#8250df" stroke-width="2"/>
+<polyline points="276.8,200.8 304.4,200.8 332.0,200.8 359.6,200.8 387.2,200.8 414.8,200.8 442.4,200.8 470.0,200.8 497.6,200.8 525.2,200.8 552.8,200.8 580.4,200.8 608.0,200.8 635.6,200.8 663.2,200.8 690.8,200.8 718.4,200.8 746.0,200.8 773.6,200.8 801.2,200.8 828.8,200.8 856.4,197.9 884.0,197.9" fill="none" stroke="#1a7f37" stroke-width="2"/>
 <line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="286" fill="#1f2328">runs completed</text>
 <line x1="190" y1="282" x2="212" y2="282" stroke="#8250df" stroke-width="2"/>

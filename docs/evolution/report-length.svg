@@ -12,22 +12,17 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">500</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="113.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.4.0</text>
-<text x="170.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
-<text x="227.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="284.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
-<text x="341.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
-<text x="398.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="455.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
-<text x="512.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
-<text x="569.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="627.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
-<text x="684.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
-<text x="741.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="798.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
-<text x="855.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.1</text>
-<polyline points="56.0,157.5 84.6,157.5 113.1,157.3 141.7,157.3 170.2,156.5 198.8,154.6 227.3,153.6 255.9,164.2 284.4,164.2 313.0,152.0 341.5,153.0 370.1,153.0 398.6,151.0 427.2,145.9 455.7,145.9 484.3,145.7 512.8,145.7 541.4,138.5 569.9,138.5 598.5,138.5 627.0,138.5 655.6,138.5 684.1,138.9 712.7,138.5 741.2,138.5 769.8,138.5 798.3,140.6 826.9,140.6 855.4,162.0 884.0,162.0" fill="none" stroke="#0969da" stroke-width="2"/>
+<text x="138.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
+<text x="221.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="304.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
+<text x="387.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
+<text x="552.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="635.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
+<text x="718.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<text x="801.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
+<polyline points="56.0,157.5 83.6,157.5 111.2,157.3 138.8,157.3 166.4,156.5 194.0,154.6 221.6,153.6 249.2,164.2 276.8,164.2 304.4,152.0 332.0,153.0 359.6,153.0 387.2,151.0 414.8,145.9 442.4,145.9 470.0,145.7 497.6,145.7 525.2,138.5 552.8,138.5 580.4,138.5 608.0,138.5 635.6,138.5 663.2,138.9 690.8,138.5 718.4,138.5 746.0,138.5 773.6,140.6 801.2,140.6 828.8,162.0 856.4,162.0 884.0,162.0" fill="none" stroke="#0969da" stroke-width="2"/>
 <line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="286" fill="#1f2328">lines at 80 columns, banner included</text>
 <text x="884" y="286" text-anchor="end" fill="#57606a" font-size="11">the default report, curl, django, react and gitmole</text>
