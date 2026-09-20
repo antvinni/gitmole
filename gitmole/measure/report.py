@@ -58,7 +58,7 @@ def graphs(history: list) -> dict:
         {"label": "spelled out in the default report", "values": col("shown_median"), "color": "#1a7f37"}],
         crashed, None, "", "curl, django, react and gitmole; the report's brevity is the product")
     out["report-length.svg"] = svg.chart("Terminal report length (lines, median)", labels_, [
-        {"label": "lines at 100 columns", "values": col("report_lines")}], crashed, None, "", "the default report, curl, django, react and gitmole")
+        {"label": "lines at 80 columns, banner included", "values": col("report_lines")}], crashed, None, "", "the default report, curl, django, react and gitmole")
     out["runtime.svg"] = svg.chart("Run time of curl, django, react and gitmole (seconds, one repository at a time)", labels_, [
         {"label": "seconds", "values": col("seconds")}], crashed, None, "", "one laptop; each run records the load average")
     out["memory.svg"] = svg.chart("Peak memory of the largest process (MB)", labels_, [

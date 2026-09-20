@@ -165,6 +165,21 @@ class Binaries(unittest.TestCase):
         self.assertEqual(out["lfs_unpointed"], ["data/big.bin"], "declared for LFS, committed as a blob; the pointer file is fine")
         self.assertEqual(out["binaries"], 5, "the pointer file is text")
 
+    def test_an_elf_relocatable_object_is_not_an_executable(self):
+        # Ghidra's GnuDisassembler/data/big.elf and little.elf: a linker's input, kept as a disassembler's test data
+        def elf(big_endian: bool, e_type: int) -> bytes:
+            return b"\x7fELF\x01" + (b"\x02" if big_endian else b"\x01") + b"\x01" + b"\x00" * 9 + e_type.to_bytes(2, "big" if big_endian else "little") + b"\x00" * 30
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("data/big.elf", elf(True, 1), binary=True)
+            r.write("data/little.elf", elf(False, 1), binary=True)
+            r.write("bin/tool", elf(False, 2), binary=True)
+            r.write("lib/libx.so", elf(True, 3), binary=True)
+            r.commit()
+            out = hygiene.binaries(d)
+        self.assertEqual(out["executables"], [{"file": "bin/tool", "format": "ELF"}, {"file": "lib/libx.so", "format": "ELF"}])
+        self.assertEqual(out["executables_count"], 2)
+
 
 class Submodules(unittest.TestCase):
     def test_insecure_urls_credentials_relative_paths_and_floating_branches(self):

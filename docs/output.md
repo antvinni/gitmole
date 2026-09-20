@@ -94,7 +94,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    registries, and a pip `extra-index-url`; packages that run install
    scripts, lifecycle scripts in the repository's own `package.json`, and
    process or network calls in `setup.py`; executables by their magic bytes
-   (ELF, PE, Mach-O) outside test and example paths (a warning), and blobs
+   (ELF, PE, Mach-O; an ELF relocatable object, which nothing runs, is not
+   one) outside test and example paths (a warning), and blobs
    `.gitattributes` sends to LFS that were committed as they are;
    submodule URLs with credentials (critical; the credential is redacted),
    over plain `http://` or `git://` (a warning), relative, or following a
@@ -486,8 +487,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    "Fixed" means a commit whose subject says so, which is a proxy for a bug.
 5. **Tables**: people (identities merged on top of `.mailmap` when they
    share an email, two name words, the same name spelled identically
-   unless it is a bare common first name, a one-word handle that is a
-   distinctive word of the fuller name, the fuller name run together
+   unless it is one word that two people's full names in the history hold
+   or that is written as a given name (Jack, George), a one-word handle
+   that is a distinctive word of the fuller name, the fuller name run together
    (RobinMalfait), or an initial plus the surname (nlohmann); the caption says whose; merges
    counted in a column of their own and left out of the commit count and
    share, since merging every pull request is not writing the code; bots,
@@ -553,8 +555,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    and generated files in the Markdown export, since `--full` shows
    everything. The complex functions table also hides vendored code
    (`vendor/`, `vendored/`, `node_modules/`,
-   `third_party/`, `external/`, `deps/`, `.yarn/`, a `packages/` inside a package
-   such as `requests/packages/`, any directory whose own `LICENSE` or
+   `third_party/`, `external/`, `deps/`, `.yarn/`, a `packages/` inside a
+   top-level directory such as `requests/packages/` unless a `package.json`,
+   `pnpm-workspace.yaml` or `lerna.json` declares it a workspace (react's
+   `compiler/packages/`), any directory whose own `LICENSE` or
    `COPYING` names none of the copyright holders the root licence names,
    any directory where two or more source files, and at least half of
    them, open with a copyright notice naming somebody else: nobody the root

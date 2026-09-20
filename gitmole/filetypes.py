@@ -3,7 +3,9 @@ Standalone so blame.py and maat.py can import it as scripts."""
 from __future__ import annotations
 
 import functools
+import json
 import os
+import posixpath
 import re
 import subprocess
 from collections import Counter
@@ -111,14 +113,53 @@ def is_sample_path(path: str) -> bool:
     return bool(_SAMPLE_PATH.search(path)) and not _PACKAGE_EXAMPLE.search(path)
 
 
-_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps|\.yarn|Godeps/_workspace)(/|$)|^[^/]+/packages/", re.I)   # Godeps/_workspace: godep's vendoring
+_VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps|\.yarn|Godeps/_workspace)(/|$)", re.I)   # Godeps/_workspace: godep's vendoring
 
 
 def is_vendor_path(path: str) -> bool:
-    """Vendored and third-party trees: somebody else's code, so its complexity and its single
-    importer are not this repository's risk. A `packages/` inside a package (requests/packages/,
-    the Python vendoring convention) counts; a monorepo's own `packages/` at the root does not."""
+    """Vendored and third-party trees by name: somebody else's code, so its complexity and its single
+    importer are not this repository's risk. A `packages/` inside a top-level directory needs the
+    repository to decide (packages_vendored)."""
     return bool(_VENDOR_PATH.search(path))
+
+
+_PACKAGES_DIR = re.compile(r"^([^/]+)/packages/")
+
+
+def _workspace_globs(repo: str, manifest_dirs: list) -> set:
+    """The workspace patterns the package.json (`workspaces`, a list or {packages: [...]}), pnpm-workspace.yaml
+    (`packages:`) and lerna.json (`packages`) in `manifest_dirs` declare, each joined to its manifest's
+    directory: the trees a JavaScript monorepo says are its own. A manifest that does not parse declares
+    nothing; an exclusion (`!packages/old`) is left out."""
+    out = set()
+    for d in manifest_dirs:
+        at = (d + "/") if d else ""
+        found = []
+        for name, key in (("package.json", "workspaces"), ("lerna.json", "packages")):
+            try:
+                value = json.loads(_read_head(repo, at + name, 200_000) or "null")
+            except ValueError:
+                continue
+            value = value.get(key) if isinstance(value, dict) else None
+            value = value.get("packages") if isinstance(value, dict) else value
+            found += [g for g in value if isinstance(g, str)] if isinstance(value, list) else []
+        pnpm = re.search(r"^packages:[ \t]*\n((?:[ \t]+.*\n?|\n)*)", _read_head(repo, at + "pnpm-workspace.yaml"), re.M)
+        if pnpm:
+            found += re.findall(r"^[ \t]+-[ \t]*['\"]?([^'\"#\s]+)", pnpm.group(1), re.M)
+        out |= {posixpath.normpath(at + g) for g in found if not g.startswith("!")}
+    return out
+
+
+def packages_vendored(repo: str, paths: list) -> list:
+    """`X/packages/` inside a top-level directory, each ending in `/`: the Python vendoring convention
+    (requests/packages/), unless a workspace manifest in X or at the root declares that tree the
+    repository's own (react's compiler/package.json lists packages/* as its workspaces). A monorepo's
+    own `packages/` at the root is never a candidate."""
+    dirs = sorted({m.group(1) for p in paths if (m := _PACKAGES_DIR.match(p))})
+    if not dirs:
+        return []
+    globs = _workspace_globs(repo, ["", *dirs])
+    return [f"{d}/packages/" for d in dirs if not any(g == f"{d}/packages" or g.startswith(f"{d}/packages/") for g in globs)]
 
 
 _RELEASE_NAMES = {"version", "version.rb", "version.py", "version.go", "version.rs", "version.txt", "__version__.py", "package.json",
@@ -218,7 +259,8 @@ def vendored_paths(repo: str, paths: list, attrs: dict = None) -> list:
     """Somebody else's code, as the repository itself says: directories holding a nested LICENSE or
     COPYING whose copyright lines name none of the holders the root licence names (mypy/typeshed/, a
     bundled googletest), each ending in `/`; directories whose files' own headers name somebody else
-    (header_vendored); and every file marked linguist-vendored in .gitattributes,
+    (header_vendored); a `packages/` inside a top-level directory that no workspace declares
+    (packages_vendored); and every file marked linguist-vendored in .gitattributes,
     as git resolves it. A monorepo's own packages carry the same holder and stay. Without a root licence
     naming anyone there is no licence comparison. `attrs` is attributes() when the caller has it."""
     attrs = attributes(repo, paths) if attrs is None else attrs
@@ -233,6 +275,7 @@ def vendored_paths(repo: str, paths: list, attrs: dict = None) -> list:
             if head and _LICENCE_NAME.match(name) and not (_holders(_read_head(repo, p)) & ours):
                 out.add(head + "/")
     out.update(header_vendored(repo, paths, ours))
+    out.update(packages_vendored(repo, paths))
     return sorted(out)
 
 

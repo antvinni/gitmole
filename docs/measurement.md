@@ -149,7 +149,7 @@ size-inverse rankings win this metric easily, which is why it belongs beside the
 hit counts rather than replacing them
 ([arXiv 2504.19181](https://arxiv.org/abs/2504.19181)).
 
-**Report per repository, not only in total.** A total of 225 hides a change that
+**Report per repository, not only in total.** A total of 231 hides a change that
 helped curl by four and hurt react by three. Win, loss and tie counts per
 repository per cut-off show whether an improvement generalises or trades. The
 ApacheJIT table is the case in point: the watch list ties churn in total and the
@@ -175,7 +175,7 @@ whether the list answers to the repository at all.
 gitmole is deterministic, so two runs never differ; the noise is in the sample.
 Six cut-offs per repository are not six independent trials — consecutive lists
 share most of their files — and three repositories are three data points. The
-difference between 86 and 87 on curl, or between 225 and 222 in total, is
+difference between 86 and 87 on curl, or between 231 and 225 in total, is
 inside that noise.
 
 Every ranking number on the dashboard gets an interval: bootstrap over

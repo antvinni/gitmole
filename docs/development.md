@@ -60,7 +60,16 @@ gitmole change.
 
 ## Releases
 
-Versions are git tags. To release: bump `__version__` in `gitmole/__init__.py`,
+Versions are git tags and follow semantic versioning. A minor release (0.31.0)
+adds something: a finding, a section, a column, an option, an export, a tool.
+A patch release (0.30.1) only fixes what is there: a rule that misclassified
+a file, merged two people or named the wrong executable, a crash, the docs.
+A fix can still move the report and the measured numbers; its release gets
+its own record in `docs/measurements/` all the same. While the version is
+0.x, a change that removes or renames an option or a JSON key is a minor
+release and says so in its notes.
+
+To release: bump `__version__` in `gitmole/__init__.py`,
 merge, then tag that commit `vX.Y.Z` and push the tag. CI runs the tests, checks
 that the tag matches `__version__`, builds the sdist and wheel, and creates the
 GitHub release with notes generated from the merged pull requests and the

@@ -127,6 +127,24 @@ class Fixtures(unittest.TestCase):
             names = subprocess.run(["git", "ls-files", "-z"], cwd=os.path.join(d, "non-utf8-path"), capture_output=True).stdout.split(b"\0")
             self.assertIn(b"caf\xe9.py", names, "the Latin-1 name is in the commit")
 
+    def test_the_run_environment_forces_a_terminal_whatever_the_caller_set(self):
+        # 0.2.0 to 0.30.0 were measured with a forced terminal; a caller without FORCE_COLOR printed 11 lines fewer
+        saved = {k: os.environ.get(k) for k in harness._TTY_VARS}
+        try:
+            for k in harness._TTY_VARS:
+                os.environ.pop(k, None)
+            os.environ["TTY_INTERACTIVE"] = "1"
+            env = harness._env("/src", "2026-09-17")
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        self.assertEqual(env["FORCE_COLOR"], "1")
+        self.assertNotIn("TTY_INTERACTIVE", env)
+        self.assertEqual((env["PYTHONPATH"], env["GITMOLE_NOW"], env["NO_COLOR"]), ("/src", "2026-09-17", "1"))
+
     def test_the_manifest_names_every_set_and_pins_every_clone(self):
         m = corpus.load()
         self.assertEqual({e["set"] for e in m["repos"]}, {"development", "holdout", "well-kept", "awkward", "gate"})
