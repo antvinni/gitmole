@@ -93,8 +93,15 @@ Do not add labels. Every label in `labels.jsonl` already carries
   work in this tree has been lost that way twice).
 - Run the holdout, or read the holdout clones. Holdout numbers count only when a
   release-tag job produced them.
+- Clone or analyse a repository that is not already on this machine. Robustness
+  work uses the corpus clones and the fixtures `gitmole/measure/corpus.py` builds.
+  Fetching a stranger's repository unattended spends disk and network on your own
+  initiative, and hands arbitrary bytes to betterleaks, scc, jscpd and the
+  grammars while nobody is watching. Hunting false positives on a fresh
+  repository is good work; it is daylight work.
 - Add a repository to the measurement corpus. A repo you happened to clone is
-  not a measurement repo; random public repos belong in the robustness lane.
+  not a measurement repo, and which repositories count is a decision with a
+  criterion behind it, recorded in `measure/corpus.json`.
 - Turn on anything that reaches the network in a scan: `betterleaks` validation
   stays `--validation=false`, `osv-scanner` stays `--offline`.
 
