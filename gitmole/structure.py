@@ -488,8 +488,8 @@ def resolve(files: dict) -> tuple:
     and PHP module systems need the build, and their imports stay raw."""
     tracked = set(files)
     by_suffix = {}
-    for p in tracked:
-        parts = p.split("/")
+    for p in sorted(tracked):   # sorted, not set order: two files can answer one suffix (django has two json.py),
+        parts = p.split("/")    # and the first candidate wins, so hash order would make the import graph vary per run
         for i in range(len(parts)):
             by_suffix.setdefault("/".join(parts[i:]), []).append(p)
     # the top-level names a Python import can reach in this tree: every directory and module stem, so the
@@ -682,6 +682,20 @@ def _blobs(repo: str, paths: list) -> dict:
     return result
 
 
+def printable(value):
+    """The result with every path in the form the other steps write: a byte that is not UTF-8 becomes U+FFFD.
+    git hands paths over as surrogate escapes so they round-trip into argv, but a report holds text, and the
+    tables this data joins with (the watch list, the hotspots) already hold the replaced form, so a surrogate
+    here would both break the JSON export ("surrogates not allowed") and match nothing."""
+    if isinstance(value, str):
+        return value.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+    if isinstance(value, dict):
+        return {printable(k): printable(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [printable(v) for v in value]
+    return value
+
+
 def collect(repo: str, procs: int = None, vendored=()) -> dict:
     paths = [p for p in filetypes.git_paths(repo, "ls-files") if os.path.splitext(p)[1].lower() in GRAMMARS
              and not filetypes.is_vendored(p, vendored) and "node_modules/" not in p]
@@ -740,7 +754,7 @@ def main(argv=None) -> int:
         vendored = filetypes.vendor_dirs({"meta": meta})
         result = collect(os.getcwd(), procs, vendored)
     with open(os.path.join(out_dir, "structure.json"), "w", encoding="utf-8") as fh:
-        json.dump(result, fh)
+        json.dump(printable(result), fh)
     return 0
 
 

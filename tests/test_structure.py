@@ -106,6 +106,17 @@ class Resolve(unittest.TestCase):
         self.assertEqual(resolved["typescript"], 1.0)
         self.assertEqual(resolved["c"], 0.5)
 
+    def test_the_lowest_path_wins_when_several_files_answer_one_module_name(self):
+        """django has two json.py under django/, so an import of it has two candidates and the first wins. The
+        suffix index was built by walking a set, so which one came first followed the hash seed: two runs of the
+        same commit gave different import graphs, and the determinism check caught it at 0.32.0. Under a hundred
+        candidates, set order cannot coincide with sorted order by luck."""
+        files = {"app/main.py": {"language": "python", "imports": [["abs", "pkg.json"]]}}
+        for i in range(100):
+            files[f"d{i:03d}/pkg/json.py"] = {"language": "python", "imports": []}
+        edges, _ = structure.resolve(files)
+        self.assertEqual(edges["app/main.py"], ["d000/pkg/json.py"], "the lowest path, not whichever the set yielded first")
+
 
 @unittest.skipUnless(HAVE, "the tree-sitter grammars need Python 3.10 or newer")
 class Step(unittest.TestCase):
