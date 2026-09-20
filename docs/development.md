@@ -76,13 +76,20 @@ its own record in `docs/measurements/` all the same. While the version is
 release and says so in its notes.
 
 To release: bump `__version__` in `gitmole/__init__.py`,
-merge, then tag that commit `vX.Y.Z` and push the tag. CI runs the tests, checks
-that the tag matches `__version__`, builds the sdist and wheel, and creates the
-GitHub release with notes generated from the merged pull requests and the
-artefacts attached. The release job then bumps `Formula/gitmole.rb` on main
-to the new release, so `brew upgrade gitmole` follows within minutes; the tag
-also publishes to PyPI. Releases are listed at
+merge, then tag that commit `vX.Y.Z` and push the tag. CI runs the tests and
+checks that the tag matches `__version__`, and then waits: both release jobs run
+in the `pypi` environment, which requires a reviewer, so a tag pushed by mistake
+or by an agent stops at a prompt instead of publishing a version nobody can
+unpublish. Approve it and the job builds the sdist and wheel, creates the GitHub
+release with notes generated from the merged pull requests, audits and installs
+the formula from source, and opens a pull request bumping `Formula/gitmole.rb`;
+merging that is what makes `brew upgrade gitmole` follow. The tag publishes to
+PyPI after its own approval. Releases are listed at
 https://github.com/antvinni/gitmole/releases.
+
+So a release is three clicks: approve the release job, approve the publish job,
+merge the formula pull request. `main` takes pull requests only, and the tests,
+both determinism jobs and the formula job must be green before one can merge.
 
 The formula installs the last released tarball, not the checkout, so its
 dependencies have to satisfy the released code. A change that swaps or drops

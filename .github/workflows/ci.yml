@@ -158,6 +158,7 @@ jobs:
     environment: pypi       # a tag waits for a human here: nothing is released, bumped or published first
     permissions:
       contents: write
+      pull-requests: write   # the formula bump arrives as a pull request, since main takes no direct pushes
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -202,7 +203,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
-          git checkout -B main origin/main
+          git checkout -B "formula/${GITHUB_REF_NAME}" origin/main
           sed -i '' \
             -e "s|^  url \".*\"$|  url \"https://github.com/antvinni/gitmole/releases/download/${GITHUB_REF_NAME}/gitmole-${VERSION}.tar.gz\"|" \
             -e "s|^  sha256 \".*\"$|  sha256 \"${SHA}\"|" Formula/gitmole.rb
@@ -215,7 +216,12 @@ jobs:
           brew audit --strict --online antvinni/gitmole/gitmole
           brew install --build-from-source antvinni/gitmole/gitmole
           brew test antvinni/gitmole/gitmole
-          git push origin main
+          # main takes pull requests only, so the bump arrives as one: a branch this job can push, and a
+          # merge a person makes. The formula is verified above before either happens.
+          git push origin "formula/${GITHUB_REF_NAME}"
+          gh pr create --base main --head "formula/${GITHUB_REF_NAME}" \
+            --title "Homebrew formula: ${GITHUB_REF_NAME}" \
+            --body "The tarball this release built, audited and installed from source on this runner. Merging points \`brew upgrade gitmole\` at ${GITHUB_REF_NAME}."
 
   publish:
     name: publish to PyPI
