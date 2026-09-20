@@ -12,18 +12,19 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">100%</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="138.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
-<text x="221.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="304.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
-<text x="387.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
-<text x="552.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="635.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
-<text x="718.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="801.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
-<polyline points="773.6,183.4 801.2,181.2 828.8,103.6 856.4,105.5 884.0,105.5" fill="none" stroke="#0969da" stroke-width="2"/>
-<polyline points="773.6,43.5 801.2,42.2 828.8,45.1 856.4,42.7 884.0,42.7" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="136.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
+<text x="216.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="296.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
+<text x="376.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="456.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
+<text x="536.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="616.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
+<text x="697.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<text x="777.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
+<text x="857.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.32.0</text>
+<polyline points="750.5,183.4 777.2,181.2 803.9,103.6 830.6,105.5 857.3,105.5 884.0,105.5" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="750.5,43.5 777.2,42.2 803.9,45.1 830.6,42.7 857.3,42.7 884.0,42.7" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
 <line x1="56" y1="282" x2="78" y2="282" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="286" fill="#1f2328">labelled actionable</text>
 <line x1="225" y1="282" x2="247" y2="282" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
