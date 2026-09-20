@@ -84,6 +84,18 @@ an external tool keeps the old dependency in the formula through the version
 bump and the tag, and removes it in a separate commit after the release job
 has bumped the formula.
 
+### Moving a pinned tool
+
+`gitmole/tools.py` names the version of every tool a release installs, and
+`Formula/gitmole.rb` holds the archive and checksum for each platform;
+`tests/test_tools.py` fails when the two disagree. To move one: bump the table,
+bump the formula's resource (url and sha256 for both CPUs on both systems),
+then measure the release, since a tool's own rules decide part of the report and
+the measurement is where that shows. The python dependencies are pinned in
+`pyproject.toml` for the same reason; `brew update-python-resources` refreshes
+their resources and is run by hand when a pin moves, never by the release job,
+which would otherwise rewrite the pinned tool resources too.
+
 The example reports name the gitmole version that made them. When a release
 changes the report, run `bin/render-examples` and commit the new
 `docs/examples/*.md`; the README's table of examples carries each run's time,

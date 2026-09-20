@@ -15,7 +15,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 
-from . import __version__, banner, blame, filetypes, findings, load, loss, run
+from . import __version__, banner, blame, filetypes, findings, load, loss, run, tools
 
 
 def parse_args(argv):
@@ -71,7 +71,7 @@ def interrupt(*_):
 
 def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
          lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard, ask=None, stdin=None,
-         structure_check=run.has_structure) -> int:
+         structure_check=run.has_structure, version_note=tools.note) -> int:
     global _control
     _control = run.Control()
     if threading.current_thread() is threading.main_thread():
@@ -116,6 +116,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         err.print("[red]missing tools:[/red] " + ", ".join(missing))
         err.print(f"brew install {' '.join(run.REQUIRED_TOOLS)}; see README.md for other ways")
         return 2
+    moved = version_note({name: run.tool_version(name) for name in run.REQUIRED_TOOLS} | {"lizard": run.lizard_version()})
+    if moved:   # a tool's own rules decide part of the report, so a toolchain that is not the pinned one is said once
+        err.print(f"[yellow]{moved}[/yellow]")
     args.lizard = lizard_check()   # decided once, for every repository this run analyses
     args.structure = structure_check()
 

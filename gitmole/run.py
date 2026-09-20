@@ -198,15 +198,18 @@ def lizard_version() -> str | None:
         return None
 
 
-def manifest(repo_dir: str, args, version_of=tool_version) -> dict:
-    """What produced this report: the commit analysed, gitmole's version, every tool's, and the options
-    that change what the steps see without being recorded elsewhere in meta.json (--since, --file-types,
-    --now and --gone are top-level fields already). Two reports that differ can then be told apart by cause."""
-    from . import __version__
+def manifest(repo_dir: str, args, version_of=tool_version, lizard_of=lizard_version) -> dict:
+    """What produced this report: the commit analysed, gitmole's version, every tool's, the versions
+    gitmole pins (tools.PINNED) and any tool that is not at its pinned one, and the options that change
+    what the steps see without being recorded elsewhere in meta.json (--since, --file-types, --now and
+    --gone are top-level fields already). Two reports that differ can then be told apart by cause."""
+    from . import __version__, tools as pinned
     names = ["git", *REQUIRED_TOOLS] + (PLOT_TOOLS if getattr(args, "plots", False) else [])
-    tools = {name: version_of(name) for name in names}
-    tools["lizard"] = lizard_version()
-    return {"commit": _git(repo_dir, "rev-parse", "HEAD").strip(), "gitmole": __version__, "tools": tools,
+    found = {name: version_of(name) for name in names}
+    found["lizard"] = lizard_of()
+    moved = [{"tool": name, "pinned": want, "found": got} for name, want, got in pinned.differences(found)]
+    return {"commit": _git(repo_dir, "rev-parse", "HEAD").strip(), "gitmole": __version__, "tools": found,
+            "tools_pinned": dict(pinned.PINNED), "tools_moved": moved,
             "options": {"ignore": list(args.ignore), "ignore_data": bool(args.ignore_data), "deep": bool(args.deep)}}
 
 
