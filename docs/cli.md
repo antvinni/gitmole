@@ -92,7 +92,11 @@ for one run) is replaced by a stable label, `v1`, `v2`, the same value
 getting the same label. What does differ from one run to the next sits in
 one top-level key, `envelope`: the blame pass's measured projection, the
 output directory, the clone's path on this machine, the structure cache's
-hits, and each step's wall time and peak memory. gitmole's own CI runs it
+hits, each step's wall time and peak memory, and the count of objects no ref
+reaches — a reflog, a dropped stash, whatever gc has not collected — which
+belongs to the clone and not to the commit, so two clones of one commit
+differ there. A secret found in one of those objects is a finding this clone
+has and another does not. gitmole's own CI runs it
 twice on every commit, once more in another time zone and the C locale, and
 once on Linux, compares the exports without the envelope (a section an
 external tool produces only when both platforms ran the same version of
