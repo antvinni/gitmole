@@ -309,6 +309,38 @@ differently on purpose). Bugs get fixed; definitions get a sentence in
 output.md. The metric is the count of unexplained disagreements across the
 corpus, and it should be zero.
 
+## Claims: does a finding's text agree with its own numbers
+
+Everything above scores what the rules decide. None of it reads the sentence a
+person is given, so a finding can be true, useful and unreadable and score
+exactly the same. react's one critical finding at 0.33.0 read
+`facebook-access-token in (unreachable blob 00db21063ea1) (); facebook-access-token
+in (unreachable blob 00db21063ea1) ()`, and every number in that record was
+content with it.
+
+`claims.py` holds each finding to what its own text can be checked against, so
+there is nothing to tune and no threshold to sweep:
+
+- **A list that joined nothing** leaves its punctuation behind: `()`, `(, abc`,
+  `and 0 more`.
+- **A count of one does not take a plural** (`1 params`), and no word carries a
+  plural that cannot be one (`2 IPv4 addresss`).
+- **One entry is not printed twice** in the same list.
+
+A complaint is a defect rather than a score, so the number to want is zero, and
+the dashboard reads it as *findings whose text agrees with their own numbers*,
+over every set — the fixtures included, since a rule that rarely fires says its
+piece there. Two further shapes are counted apart as advisory, because they are
+judgements and not errors: a count over one followed by what reads as a singular
+is mostly `23 of 78` and units, and the `(s)` spelling is one decision about six
+rules rather than six defects.
+
+The checks were written against the 0.33.0 and 0.34.0 rounds, 242 findings over
+twenty repositories each, and two false positives were removed before they
+landed: a Go function named `errg.Go(func() error {` and a commit subject quoting
+`super()` both hold empty parentheses honestly. `python -m gitmole.measure claims`
+re-checks a round already run, in seconds, without measuring anything again.
+
 ## The gate
 
 For `--fail-on critical`, measure the **false alarm rate on well-kept

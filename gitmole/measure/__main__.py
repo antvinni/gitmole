@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import glob
 import json
 import os
 import subprocess
@@ -90,6 +91,8 @@ def main(argv=None) -> int:
     h.add_argument("--releases", choices=["all", "minor"], default="all", help="every tag, or only x.y.0 releases")
     sub.add_parser("extras")
     sub.add_parser("report")
+    cl = sub.add_parser("claims", help="check a round's findings against their own numbers, without measuring again")
+    cl.add_argument("--version", action="append", default=[], help="a release already run (default: the latest recorded)")
     lab = sub.add_parser("labels")
     lab.add_argument("action", choices=["dump", "score"])
     args = p.parse_args(argv)
@@ -114,6 +117,28 @@ def main(argv=None) -> int:
             if tag.lstrip("v") in have and not args.force:
                 continue
             print(write(measure(tag, args.sets.split(","), manifest, root)), flush=True)
+        return 0
+    if args.command == "claims":
+        from . import claims
+        versions = args.version or [dashboard.load_history(RECORDS)[-1]["version"]]
+        for version in versions:
+            total = {"checked": 0, "clean": 0, "advisory": 0}
+            complaints = []
+            for path in sorted(glob.glob(os.path.join(root, "runs", version, "*", "report.json"))):
+                name = os.path.basename(os.path.dirname(path))
+                try:
+                    with open(path, encoding="utf-8") as fh:
+                        found = (json.load(fh) or {}).get("findings") or []
+                except (OSError, ValueError):
+                    continue
+                one = claims.over(found)
+                for key in total:
+                    total[key] += one[key]
+                complaints += [(name, c["rule"], c["kind"]) for c in one["complaints"]]
+            print(f"{version}: {total['clean']} of {total['checked']} findings agree with their own numbers"
+                  f" ({total['advisory']} advisory)")
+            for name, rule, kind in complaints:
+                print(f"  {name}/{rule}: {kind}")
         return 0
     if args.command == "extras":
         from . import extras

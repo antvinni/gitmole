@@ -157,6 +157,9 @@ def current(record: dict, extras: dict) -> list:
     rows.append(("repositories with a critical labelled false", "well-kept", f"{kept[0]} of {kept[1]} fired a critical" if kept else "not run for this record"))
     rows.append(("wall time and peak memory", "development", f"{_num(s.get('seconds'), '{:.0f}')} s, {_num(s.get('peak_mb'), '{:.0f}')} MB"))
     rows.append(("scored share of tracked files", "development", _pct(s.get("scored_share"))))
+    clean = s.get("claims_clean")
+    rows.append(("findings whose text agrees with their own numbers", "every set",
+                 f"{clean[0]} of {clean[1]}" if clean else "not checked in this record"))
     desc = (extras or {}).get("description") or {}
     unexplained = sum(1 for checks in desc.values() for c in checks if c["agree"] is False and not c.get("explained"))
     rows.append(("unexplained description disagreements", "development", str(unexplained) if desc else "not run"))
