@@ -604,6 +604,21 @@ class Report(unittest.TestCase):
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
         self.assertIn("100%", full)
 
+    def test_default_coupling_hides_pairs_of_examples_and_says_so(self):
+        """curl's top two rows were docs/examples/ clusters: sibling programs showing one technique for
+        two protocols. An example paired with the code it demonstrates stays."""
+        r = sample_report()
+        for f in ("docs/examples/imap-ssl.c", "docs/examples/pop3-ssl.c", "docs/examples/http-post.c", "lib/http.c"):
+            r["size"]["files"][f] = {"code": 30, "complexity": 1}
+        r["coupling"] = [{"entity": "docs/examples/imap-ssl.c", "coupled": "docs/examples/pop3-ssl.c", "degree": 90, "average-revs": 20},
+                         {"entity": "docs/examples/http-post.c", "coupled": "lib/http.c", "degree": 70, "average-revs": 9}]
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("lib/http.c", coupling, "an example and the code it demonstrates still count")
+        self.assertNotIn("pop3-ssl.c", coupling)
+        self.assertIn("1 example pair hidden; --full shows them", coupling)
+        full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
+        self.assertIn("pop3-ssl.c", full)
+
     def test_default_coupling_hides_release_plumbing_pairs_and_says_so(self):
         r = sample_report()
         for f in ("lib/version.rb", "contrib/version.rb", "Gemfile", "Gemfile.lock"):
