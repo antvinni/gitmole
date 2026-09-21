@@ -338,6 +338,38 @@ class ChangeRisk(unittest.TestCase):
         self.assertIn("spread evenly over its files", c["reasons"])
         self.assertIn("New Person's first commit here", c["reasons"])
 
+    def test_the_commits_spelling_of_a_name_is_resolved_before_counting_its_history(self):
+        """gitmole's own report called its maintainer a first-time contributor: the branch's commits say
+        "vinni", the run merged that identity into "antvinni" with 140 commits, and meta.aliases held the
+        mapping. `git log --use-mailmap` only merges what a .mailmap declares, and this repository has none."""
+        r = report()
+        r["activity"] = {"authors_all": {"antvinni": {"commits": 140}}}
+        r["meta"]["aliases"] = {"vinni": "antvinni"}
+        stats = {"files": ["core/parser.py"], "added": {"core/parser.py": 50}, "deleted": {}, "author": "vinni", "commits": 1}
+        c = watch.change_risk(r, stats["files"], stats)["change"]
+        self.assertEqual((c["author"], c["author_commits"]), ("antvinni", 140))
+        self.assertIn("antvinni has 140 prior commits here", c["reasons"])
+        self.assertNotIn("vinni's first commit here", c["reasons"])
+
+    def test_without_an_alias_map_the_identities_are_read_instead(self):
+        """An export written before meta.aliases: identity.canonical_names over the identity table."""
+        r = report()
+        r["activity"] = {"authors_all": {"antvinni": {"commits": 140}}}
+        r["meta"].pop("aliases", None)
+        r["meta"]["identities"] = [{"name": "antvinni", "email": "a@b.com", "commits": 140, "aliases": [{"name": "vinni", "email": "a@b.com", "commits": 3}]}]
+        stats = {"files": ["core/parser.py"], "added": {"core/parser.py": 50}, "deleted": {}, "author": "vinni", "commits": 1}
+        c = watch.change_risk(r, stats["files"], stats)["change"]
+        self.assertEqual((c["author"], c["author_commits"]), ("antvinni", 140))
+
+    def test_a_name_no_alias_map_knows_is_left_as_it_is(self):
+        r = report()
+        r["activity"] = {"authors_all": {"antvinni": {"commits": 140}}}
+        r["meta"]["aliases"] = {"vinni": "antvinni"}
+        stats = {"files": ["core/parser.py"], "added": {"core/parser.py": 50}, "deleted": {}, "author": "Stranger", "commits": 1}
+        c = watch.change_risk(r, stats["files"], stats)["change"]
+        self.assertEqual((c["author"], c["author_commits"]), ("Stranger", 0))
+        self.assertIn("Stranger's first commit here", c["reasons"])
+
     def test_max_score_is_repo_wide_not_touched(self):
         # max_score should be the highest score in the repository, not the max of touched files
         r = report()
