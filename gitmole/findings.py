@@ -405,13 +405,26 @@ def dormant(report: dict, months: int = 12) -> list:
 def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
     """Files still in the tree that nobody has touched. The age table covers every path in the
     history, so paths that were deleted are left out here; they are not dead code, they are gone.
-    In a dormant repository every file is untouched because nothing is; the dormancy finding says so."""
+    In a dormant repository every file is untouched because nothing is; the dormancy finding says so.
+
+    Vendored and generated files are left out of both counts, as every other rule here leaves them out:
+    a checked-in jquery.js has not changed in years because nobody maintains it here, and deleting it is
+    not the advice. On django they were three of the ten files the finding named.
+
+    The evidence names files, not only how many: a count cannot be checked against a later tree
+    (measure/remediation.py NO_SUBJECTS), and a reader cannot act on one either. It names the largest
+    untouched ones rather than the oldest, because the advice is about dead code and a file's lines are
+    how much of it is at stake: on django the ten oldest are all empty `__init__.py` files, which nobody
+    would delete and no later tree would show deleted. Ties break by age and then by path, so the
+    same commit gives the same list."""
     if _dormant_months(report) >= months:
         return []
     age = report.get("age") or []
     tree = _tree(report)
     if tree:
         age = [a for a in age if a["entity"] in tree]
+    vendored, derived = filetypes.vendor_dirs(report), _generated(report)
+    age = [a for a in age if not (filetypes.is_vendored(a["entity"], vendored) or a["entity"] in derived)]
     if not age:
         return []
     stale = [a for a in age if a["age-months"] >= months]
@@ -420,7 +433,11 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
     return [_f("info", "A large share of files is untouched",
                f"{_pct(len(stale), len(age))} of files ({len(stale)}) have not changed in {months} months or more.",
                "Consider deleting what nobody has needed; dead code hides in untouched files.",
-               rule={"id": "stale_files", "months": months, "share": share}, evidence={"stale": len(stale), "files": len(age)})]
+               rule={"id": "stale_files", "months": months, "share": share},
+               evidence={"stale": len(stale), "files": len(age),
+                         "untouched": [a["entity"] for a in sorted(
+                             stale, key=lambda a: (-(tree.get(a["entity"], {}).get("code") or 0),
+                                                   -a["age-months"], a["entity"]))[:10]]})]
 
 
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
