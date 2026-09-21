@@ -446,6 +446,42 @@ class StaleFiles(unittest.TestCase):
     def test_nothing_when_fresh(self):
         self.assertEqual(findings.stale_files(report()), [])
 
+    def test_the_evidence_names_files_not_only_how_many(self):
+        """A count cannot be checked against a later tree, so the rule could not be scored at all
+        (remediation.NO_SUBJECTS), and a reader could not act on it either."""
+        age = [{"entity": f"old{i}.py", "age-months": 20 + i} for i in range(12)] + \
+              [{"entity": "fresh.py", "age-months": 0}]
+        evidence = findings.stale_files(report(age=age))[0]["evidence"]
+        self.assertEqual((evidence["stale"], evidence["files"]), (12, 13))
+        self.assertEqual(len(evidence["untouched"]), 10, "capped, like every other rule's evidence")
+        self.assertNotIn("fresh.py", evidence["untouched"])
+
+    def test_it_names_the_largest_untouched_files_not_the_oldest(self):
+        """The advice is to delete dead code, and a file's lines are how much of it is at stake: the
+        oldest files in a long-lived repository are its empty `__init__.py`s."""
+        age = [{"entity": "pkg/__init__.py", "age-months": 200},
+               {"entity": "legacy/parser.py", "age-months": 30},
+               {"entity": "legacy/tiny.py", "age-months": 40}]
+        tree = {"pkg/__init__.py": {"code": 0, "complexity": 0},
+                "legacy/parser.py": {"code": 900, "complexity": 40},
+                "legacy/tiny.py": {"code": 3, "complexity": 0}}
+        evidence = findings.stale_files(report(age=age, size={"files": tree}))[0]["evidence"]
+        self.assertEqual(evidence["untouched"], ["legacy/parser.py", "legacy/tiny.py", "pkg/__init__.py"],
+                         "largest first, then oldest")
+
+    def test_vendored_and_generated_files_count_neither_way(self):
+        """A checked-in jquery.js has not changed in years because nobody maintains it here, and the
+        advice is not to delete it. Out of the numerator and the denominator both, so the share is a
+        share of the repository's own files."""
+        age = [{"entity": "vendor/jquery.js", "age-months": 90}, {"entity": "api_pb2.py", "age-months": 90},
+               {"entity": "legacy/parser.py", "age-months": 90}, {"entity": "live.py", "age-months": 0}]
+        tree = {a["entity"]: {"code": 10, "complexity": 0} for a in age}
+        r = report(age=age, size={"files": tree})
+        r["meta"]["generated"] = ["api_pb2.py"]
+        f = findings.stale_files(r)
+        self.assertIn("50% of files (1)", f[0]["detail"], "one of two, not three of four")
+        self.assertEqual(f[0]["evidence"]["untouched"], ["legacy/parser.py"])
+
     def test_files_no_longer_in_the_tree_do_not_count(self):
         age = [{"entity": f"f{i}", "age-months": 12} for i in range(4)] + [{"entity": f"g{i}", "age-months": 0} for i in range(6)]
         in_tree = {f"f{i}": {"code": 1, "complexity": 0} for i in range(2)} | {f"g{i}": {"code": 1, "complexity": 0} for i in range(6)}
