@@ -44,14 +44,25 @@ def _plural(n: int, word: str) -> str:
 
 
 def _secret_statement(groups: list) -> str:
-    """'N distinct values in M places: rule in file (commits), ...' with at most three values named."""
+    """'N distinct values in M places: rule in file (commits), ...' with at most three values named.
+
+    A value found in an unreachable blob belongs to no commit, so its commit is the empty string. Those
+    are dropped rather than joined, and a value with no commit left names no parenthesis at all: react's
+    one critical finding read "in (unreachable blob 00db21063ea1) ()", and django's "(, d61f33f and 6
+    more)" with the empty string still in the list. Two distinct values can also be the same rule in the
+    same blob, which rendered as the same words twice with nothing to tell them apart; identical entries
+    are counted instead."""
     def one(g):
         others = len(g["files"]) - 1
         where = g["files"][0] + (f" and {_plural(others, 'other file')}" if others else "")
-        commits = ", ".join(g["commits"][:2]) + (f" and {len(g['commits']) - 2} more" if len(g["commits"]) > 2 else "")
-        return f"{g['rule']} in {where} ({commits})"
+        named = [c for c in g["commits"] if c]     # an unreachable blob is in no commit
+        commits = ", ".join(named[:2]) + (f" and {len(named) - 2} more" if len(named) > 2 else "")
+        return f"{g['rule']} in {where}" + (f" ({commits})" if commits else "")
     places = sum(g["places"] for g in groups)
-    sample = "; ".join(one(g) for g in groups[:3])
+    counts = {}                                    # insertion order, so the first three stay in their order
+    for text in (one(g) for g in groups[:3]):
+        counts[text] = counts.get(text, 0) + 1
+    sample = "; ".join(f"{n} values of {text}" if n > 1 else text for text, n in counts.items())
     more = f" and {len(groups) - 3} more" if len(groups) > 3 else ""
     return f"{_plural(len(groups), 'distinct value')} in {_plural(places, 'place')}: {sample}{more}."
 

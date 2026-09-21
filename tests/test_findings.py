@@ -52,6 +52,27 @@ class SecretsFound(unittest.TestCase):
         self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
         self.assertIn(".betterleaksignore", warn["advice"])
 
+    def test_a_value_from_an_unreachable_blob_names_no_commit_rather_than_an_empty_one(self):
+        """react's one critical finding read "in (unreachable blob 00db21063ea1) ()", and django's
+        "(, d61f33f and 6 more)": an unreachable blob is in no commit, so its commit is the empty string
+        and joining it left the comma behind."""
+        blob = "(unreachable blob 00db21063ea1)"
+        r = report(secrets=[self.row("h1", blob, commit=""), self.row("h2", "app/a.py", "c9")])
+        detail = findings.secrets_found(r)[0]["detail"]
+        self.assertIn(f"generic-api-key in {blob};", detail, "no parenthesis where there is no commit")
+        self.assertNotIn("()", detail)
+        self.assertNotIn("(,", detail)
+        self.assertIn("generic-api-key in app/a.py (c9)", detail, "a value with a commit still names it")
+
+    def test_two_values_that_read_the_same_are_counted_not_repeated(self):
+        """Two distinct values can be the same rule in the same blob at the same line, which rendered as
+        the same words twice with nothing to tell them apart."""
+        blob = "(unreachable blob 00db21063ea1)"
+        r = report(secrets=[self.row("h1", blob, commit="", rule="facebook-access-token"),
+                            self.row("h2", blob, commit="", rule="facebook-access-token")])
+        detail = findings.secrets_found(r)[0]["detail"]
+        self.assertIn(f"2 distinct values in 2 places: 2 values of facebook-access-token in {blob}.", detail)
+
     def test_test_only_secrets_do_not_fail_a_critical_gate(self):
         r = report(secrets=[self.row("h3", "tests/t.py")])
         self.assertEqual([f["severity"] for f in findings.secrets_found(r)], ["warning"])
