@@ -51,14 +51,25 @@ def _plural(n: int, word: str) -> str:
 
 
 def _secret_statement(groups: list) -> str:
-    """'N distinct values in M places: rule in file (commits), ...' with at most three values named."""
+    """'N distinct values in M places: rule in file (commits), ...' with at most three values named.
+
+    A value found in an unreachable blob belongs to no commit, so its commit is the empty string. Those
+    are dropped rather than joined, and a value with no commit left names no parenthesis at all: react's
+    one critical finding read "in (unreachable blob 00db21063ea1) ()", and django's "(, d61f33f and 6
+    more)" with the empty string still in the list. Two distinct values can also be the same rule in the
+    same blob, which rendered as the same words twice with nothing to tell them apart; identical entries
+    are counted instead."""
     def one(g):
         others = len(g["files"]) - 1
         where = g["files"][0] + (f" and {_plural(others, 'other file')}" if others else "")
-        commits = ", ".join(g["commits"][:2]) + (f" and {len(g['commits']) - 2} more" if len(g["commits"]) > 2 else "")
-        return f"{g['rule']} in {where} ({commits})"
+        named = [c for c in g["commits"] if c]     # an unreachable blob is in no commit
+        commits = ", ".join(named[:2]) + (f" and {len(named) - 2} more" if len(named) > 2 else "")
+        return f"{g['rule']} in {where}" + (f" ({commits})" if commits else "")
     places = sum(g["places"] for g in groups)
-    sample = "; ".join(one(g) for g in groups[:3])
+    counts = {}                                    # insertion order, so the first three stay in their order
+    for text in (one(g) for g in groups[:3]):
+        counts[text] = counts.get(text, 0) + 1
+    sample = "; ".join(f"{n} values of {text}" if n > 1 else text for text, n in counts.items())
     more = f" and {len(groups) - 3} more" if len(groups) > 3 else ""
     return f"{_plural(len(groups), 'distinct value')} in {_plural(places, 'place')}: {sample}{more}."
 
@@ -343,15 +354,30 @@ def minor_contributors(report: dict, min_minor: int = 5, warn_at: int = 10, top_
                evidence={"files": [{"file": f, "minor": m, "authors": n, "owner": (owners.get(f) or (None, 0))[0]} for f, m, n in crowded[:10]]})]
 
 
+def _both_specimens(a: str, b: str) -> bool:
+    """Whether a coupled pair is two pieces of example or documentation material rather than code the
+    repository runs. curl's docs/examples/imap-ssl.c and docs/examples/pop3-ssl.c show one technique for
+    two protocols, and docs/examples/smtp-expn.c and smtp-vrfy.c two commands of one: the "shared format,
+    duplicated rule or copied code" a coupling finding sends the reader to look for is what an example
+    family is for, and merging them would make each one worse at its job. Both sides must be specimens;
+    an example paired with the code it demonstrates is still reported, since that pair says the example
+    tracks the API."""
+    def specimen(p):
+        return filetypes.is_sample_path(p) or filetypes.is_doc_path(p)
+    return specimen(a) and specimen(b)
+
+
 def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> list:
     """A file and its test are expected to change together, so pairs with a test file on either side are
     left out; so are pairs where either file is no longer in the tree, which are history, not a dependency,
-    and pairs of release plumbing (two version files, a manifest and its lock file), which are a release."""
+    pairs of release plumbing (two version files, a manifest and its lock file), which are a release, and
+    pairs that are both example or documentation material (_both_specimens)."""
     tree, vendored, derived = _tree(report), filetypes.vendor_dirs(report), _generated(report)
     pairs = [p for p in report.get("coupling") or [] if p["degree"] >= min_degree and p["average-revs"] >= min_revs
              and not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))
              and not (p["entity"] in derived or p["coupled"] in derived)
              and not (filetypes.is_release_path(p["entity"]) and filetypes.is_release_path(p["coupled"]))
+             and not _both_specimens(p["entity"], p["coupled"])
              and not filetypes.is_header_pair(p["entity"], p["coupled"])
              and not (filetypes.is_vendored(p["entity"], vendored) or filetypes.is_vendored(p["coupled"], vendored))
              and not (tree and (p["entity"] not in tree or p["coupled"] not in tree))]
@@ -412,13 +438,26 @@ def dormant(report: dict, months: int = 12) -> list:
 def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
     """Files still in the tree that nobody has touched. The age table covers every path in the
     history, so paths that were deleted are left out here; they are not dead code, they are gone.
-    In a dormant repository every file is untouched because nothing is; the dormancy finding says so."""
+    In a dormant repository every file is untouched because nothing is; the dormancy finding says so.
+
+    Vendored and generated files are left out of both counts, as every other rule here leaves them out:
+    a checked-in jquery.js has not changed in years because nobody maintains it here, and deleting it is
+    not the advice. On django they were three of the ten files the finding named.
+
+    The evidence names files, not only how many: a count cannot be checked against a later tree
+    (measure/remediation.py NO_SUBJECTS), and a reader cannot act on one either. It names the largest
+    untouched ones rather than the oldest, because the advice is about dead code and a file's lines are
+    how much of it is at stake: on django the ten oldest are all empty `__init__.py` files, which nobody
+    would delete and no later tree would show deleted. Ties break by age and then by path, so the
+    same commit gives the same list."""
     if _dormant_months(report) >= months:
         return []
     age = report.get("age") or []
     tree = _tree(report)
     if tree:
         age = [a for a in age if a["entity"] in tree]
+    vendored, derived = filetypes.vendor_dirs(report), _generated(report)
+    age = [a for a in age if not (filetypes.is_vendored(a["entity"], vendored) or a["entity"] in derived)]
     if not age:
         return []
     stale = [a for a in age if a["age-months"] >= months]
@@ -427,7 +466,11 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
     return [_f("info", "A large share of files is untouched",
                f"{_pct(len(stale), len(age))} of files ({len(stale)}) have not changed in {months} months or more.",
                "Consider deleting what nobody has needed; dead code hides in untouched files.",
-               rule={"id": "stale_files", "months": months, "share": share}, evidence={"stale": len(stale), "files": len(age)})]
+               rule={"id": "stale_files", "months": months, "share": share},
+               evidence={"stale": len(stale), "files": len(age),
+                         "untouched": [a["entity"] for a in sorted(
+                             stale, key=lambda a: (-(tree.get(a["entity"], {}).get("code") or 0),
+                                                   -a["age-months"], a["entity"]))[:10]]})]
 
 
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
@@ -1141,7 +1184,8 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
     """Pairs that change together without an import between them, in either direction. Ajienka and
     Capiluppi found across 79 projects that many co-changed pairs have no structural dependency at
     all: such a pair is a shared format, a duplicated rule or copy-paste, and neither a pure-git nor a
-    pure-static tool can print it. Only for languages whose imports this graph mostly resolves."""
+    pure-static tool can print it. Only for languages whose imports this graph mostly resolves, and not
+    for a pair that is example or documentation material on both sides (_both_specimens)."""
     s = _structure(report)
     if not s:
         return []
@@ -1158,6 +1202,8 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
         if p["degree"] < min_degree or p["average-revs"] < min_revs or not (graphed(a) and graphed(b)):
             continue
         if filetypes.is_test_path(a) or filetypes.is_test_path(b) or filetypes.is_header_pair(a, b) or a in derived or b in derived:
+            continue
+        if _both_specimens(a, b):
             continue
         if tree and (a not in tree or b not in tree):
             continue

@@ -52,6 +52,27 @@ class SecretsFound(unittest.TestCase):
         self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
         self.assertIn(".betterleaksignore", warn["advice"])
 
+    def test_a_value_from_an_unreachable_blob_names_no_commit_rather_than_an_empty_one(self):
+        """react's one critical finding read "in (unreachable blob 00db21063ea1) ()", and django's
+        "(, d61f33f and 6 more)": an unreachable blob is in no commit, so its commit is the empty string
+        and joining it left the comma behind."""
+        blob = "(unreachable blob 00db21063ea1)"
+        r = report(secrets=[self.row("h1", blob, commit=""), self.row("h2", "app/a.py", "c9")])
+        detail = findings.secrets_found(r)[0]["detail"]
+        self.assertIn(f"generic-api-key in {blob};", detail, "no parenthesis where there is no commit")
+        self.assertNotIn("()", detail)
+        self.assertNotIn("(,", detail)
+        self.assertIn("generic-api-key in app/a.py (c9)", detail, "a value with a commit still names it")
+
+    def test_two_values_that_read_the_same_are_counted_not_repeated(self):
+        """Two distinct values can be the same rule in the same blob at the same line, which rendered as
+        the same words twice with nothing to tell them apart."""
+        blob = "(unreachable blob 00db21063ea1)"
+        r = report(secrets=[self.row("h1", blob, commit="", rule="facebook-access-token"),
+                            self.row("h2", blob, commit="", rule="facebook-access-token")])
+        detail = findings.secrets_found(r)[0]["detail"]
+        self.assertIn(f"2 distinct values in 2 places: 2 values of facebook-access-token in {blob}.", detail)
+
     def test_test_only_secrets_do_not_fail_a_critical_gate(self):
         r = report(secrets=[self.row("h3", "tests/t.py")])
         self.assertEqual([f["severity"] for f in findings.secrets_found(r)], ["warning"])
@@ -375,6 +396,19 @@ class TightCoupling(unittest.TestCase):
         self.assertNotIn("package.json", f[0]["detail"])
         self.assertEqual(findings.tight_coupling(report(coupling=pairs[:2])), [])
 
+    def test_two_examples_are_siblings_by_design(self):
+        """curl's docs/examples/imap-ssl.c and pop3-ssl.c show one technique for two protocols. The
+        shared format the advice sends the reader to find is what the family is for. One example paired
+        with the code it demonstrates is still a pair worth printing."""
+        pairs = [{"entity": "docs/examples/smtp-expn.c", "coupled": "docs/examples/smtp-vrfy.c", "degree": 100, "average-revs": 10},
+                 {"entity": "docs/examples/imap-ssl.c", "coupled": "docs/examples/pop3-ssl.c", "degree": 90, "average-revs": 10},
+                 {"entity": "docs/examples/http-post.c", "coupled": "lib/http.c", "degree": 85, "average-revs": 10}]
+        f = findings.tight_coupling(report(coupling=pairs))
+        self.assertIn("1 pair changes together", f[0]["detail"])
+        self.assertIn("lib/http.c", f[0]["detail"], "an example and the code it demonstrates still count")
+        self.assertNotIn("smtp-expn", f[0]["detail"])
+        self.assertEqual(findings.tight_coupling(report(coupling=pairs[:2])), [])
+
     def test_single_pair_reads_grammatically(self):
         pairs = [{"entity": "a", "coupled": "b", "degree": 100, "average-revs": 10}]
         f = findings.tight_coupling(report(coupling=pairs))
@@ -445,6 +479,42 @@ class StaleFiles(unittest.TestCase):
 
     def test_nothing_when_fresh(self):
         self.assertEqual(findings.stale_files(report()), [])
+
+    def test_the_evidence_names_files_not_only_how_many(self):
+        """A count cannot be checked against a later tree, so the rule could not be scored at all
+        (remediation.NO_SUBJECTS), and a reader could not act on it either."""
+        age = [{"entity": f"old{i}.py", "age-months": 20 + i} for i in range(12)] + \
+              [{"entity": "fresh.py", "age-months": 0}]
+        evidence = findings.stale_files(report(age=age))[0]["evidence"]
+        self.assertEqual((evidence["stale"], evidence["files"]), (12, 13))
+        self.assertEqual(len(evidence["untouched"]), 10, "capped, like every other rule's evidence")
+        self.assertNotIn("fresh.py", evidence["untouched"])
+
+    def test_it_names_the_largest_untouched_files_not_the_oldest(self):
+        """The advice is to delete dead code, and a file's lines are how much of it is at stake: the
+        oldest files in a long-lived repository are its empty `__init__.py`s."""
+        age = [{"entity": "pkg/__init__.py", "age-months": 200},
+               {"entity": "legacy/parser.py", "age-months": 30},
+               {"entity": "legacy/tiny.py", "age-months": 40}]
+        tree = {"pkg/__init__.py": {"code": 0, "complexity": 0},
+                "legacy/parser.py": {"code": 900, "complexity": 40},
+                "legacy/tiny.py": {"code": 3, "complexity": 0}}
+        evidence = findings.stale_files(report(age=age, size={"files": tree}))[0]["evidence"]
+        self.assertEqual(evidence["untouched"], ["legacy/parser.py", "legacy/tiny.py", "pkg/__init__.py"],
+                         "largest first, then oldest")
+
+    def test_vendored_and_generated_files_count_neither_way(self):
+        """A checked-in jquery.js has not changed in years because nobody maintains it here, and the
+        advice is not to delete it. Out of the numerator and the denominator both, so the share is a
+        share of the repository's own files."""
+        age = [{"entity": "vendor/jquery.js", "age-months": 90}, {"entity": "api_pb2.py", "age-months": 90},
+               {"entity": "legacy/parser.py", "age-months": 90}, {"entity": "live.py", "age-months": 0}]
+        tree = {a["entity"]: {"code": 10, "complexity": 0} for a in age}
+        r = report(age=age, size={"files": tree})
+        r["meta"]["generated"] = ["api_pb2.py"]
+        f = findings.stale_files(r)
+        self.assertIn("50% of files (1)", f[0]["detail"], "one of two, not three of four")
+        self.assertEqual(f[0]["evidence"]["untouched"], ["legacy/parser.py"])
 
     def test_files_no_longer_in_the_tree_do_not_count(self):
         age = [{"entity": f"f{i}", "age-months": 12} for i in range(4)] + [{"entity": f"g{i}", "age-months": 0} for i in range(6)]
@@ -1186,6 +1256,22 @@ class Structure(unittest.TestCase):
         self.assertEqual(f["rule"]["ref"], "Ajienka and Capiluppi, JSS 2017")
         r["structure"]["resolved"] = {"python": 0.3}
         self.assertNotIn("hidden_coupling", self.by_id(r), "a graph that resolves a third of the imports cannot say what is hidden")
+
+    def test_hidden_coupling_leaves_out_a_pair_of_examples(self):
+        """Two examples with no import between them are a family, not a dependency nobody named: all
+        seven of curl's hidden pairs were docs/examples programs."""
+        r = self.base()
+        for p in ("examples/a.py", "examples/b.py"):
+            r["size"]["files"][p] = {"code": 100, "complexity": 1}
+            r["structure"]["files"][p] = {"language": "python", "debt": 0, "imports": [], "definitions": 5,
+                                         "max_nesting": 1, "max_cognitive": 3}
+        r["coupling"] = [{"entity": "examples/a.py", "coupled": "examples/b.py", "degree": 90, "average-revs": 20},
+                         {"entity": "src/f0.py", "coupled": "src/f1.py", "degree": 80, "average-revs": 20}]
+        f = self.by_id(r)["hidden_coupling"]
+        self.assertIn("src/f0.py and src/f1.py", f["detail"])
+        self.assertNotIn("examples/", f["detail"])
+        r["coupling"] = r["coupling"][:1]
+        self.assertNotIn("hidden_coupling", self.by_id(r), "nothing left to say once the family is out")
 
     def test_one_more_hidden_pair_is_one_pair(self):
         """gitmole's own report read "(1 more pairs like them)"."""
