@@ -21,7 +21,8 @@ from . import __version__, banner, blame, filetypes, findings, load, loss, run, 
 
 def parse_args(argv):
     p = argparse.ArgumentParser(prog="gitmole", description="Analyse a git repository offline and print a report.")
-    p.add_argument("target", nargs="?", help="local clone path, owner/repo, or git URL; with --clean, the directory to look in (default .)")
+    p.add_argument("target", nargs="?", help="local clone path, owner/repo, or git URL; with --no-run, the output "
+                                             "directory to re-render; with --clean, the directory to look in (default .)")
     p.add_argument("--out", help="output directory (default: analysis-<repo> next to the clone, or in cwd for remote targets)")
     p.add_argument("--no-run", action="store_true", help="skip the tools; re-render the report from an existing output directory")
     p.add_argument("--workers", type=int, default=6, help="how many tools to run at once")
@@ -186,6 +187,23 @@ def _resolve_time(args, err, ui):
     return None, now
 
 
+def _no_run_hint(args, out_dir: str) -> list:
+    """What to say when --no-run is pointed at something that is not an output directory. With --no-run
+    the target is the directory a run wrote, not the clone, and --out has no part in it - which is easy
+    to get the wrong way round, since every other invocation takes the clone. If the directory a run
+    would have written is there, name it: the fix is then one line rather than a hunt."""
+    lines = ["--no-run re-renders a directory a run wrote, so the target is that directory, not the clone."]
+    if args.out:
+        lines.append(f"--out is not read with --no-run; pass the directory as the target instead of --out {args.out}.")
+    candidates = [os.path.abspath(args.out)] if args.out else []
+    candidates += [run.output_dir("path", out_dir, None), os.path.join(out_dir, f"analysis-{run.repo_name(out_dir)}")]
+    for cand in dict.fromkeys(candidates):
+        if cand != out_dir and os.path.isfile(os.path.join(cand, "meta.json")):
+            lines.append(f"Did you mean: gitmole {cand} --no-run")
+            break
+    return lines
+
+
 def _no_run(args, console, ui, err, stdin=None) -> int:
     """Handle --no-run: re-render an existing output directory instead of running the pipeline, or,
     with --hook, score the files an agent's hook names against it."""
@@ -195,6 +213,8 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
     out_dir = os.path.abspath(args.target)
     if not os.path.isfile(os.path.join(out_dir, "meta.json")):
         err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
+        for line in _no_run_hint(args, out_dir):
+            err.print(line, highlight=False, soft_wrap=True)   # a command wrapped mid-path cannot be pasted
         return 2
     if args.hook:
         return _hook(out_dir, args, console, err, sys.stdin if stdin is None else stdin)
