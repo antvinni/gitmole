@@ -151,6 +151,23 @@ def _hide_release(pairs: list, full) -> tuple:
     return kept, (f"{hidden} release pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
+def _hide_example_pairs(pairs: list, full) -> tuple:
+    """Coupled pairs where both files are example or documentation material. curl's
+    docs/examples/imap-ssl.c and docs/examples/pop3-ssl.c show one technique for two protocols, and
+    smtp-expn.c and smtp-vrfy.c two commands of one: each is a copy of its sibling, so they change
+    together by design and told the table's top two rows nothing. An example paired with the code it
+    demonstrates stays, since that pair says the example tracks the API."""
+    if full is True:
+        return pairs, None
+
+    def specimen(path):
+        return filetypes.is_sample_path(path) or filetypes.is_doc_path(path)
+
+    kept = [p for p in pairs if not (specimen(p["entity"]) and specimen(p["coupled"]))]
+    hidden = len(pairs) - len(kept)
+    return kept, (f"{hidden} example pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
+
+
 def _hide_header_pairs(pairs: list, full) -> tuple:
     """A C-family source file and its own header change together by construction."""
     if full is True:
@@ -644,10 +661,11 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs, hidden_note = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="test pair", classifier=cls)
     pairs, gone_note = _hide_gone(pairs, report, full, classifier=cls)
     pairs, release_note = _hide_release(pairs, full)
+    pairs, example_note = _hide_example_pairs(pairs, full)
     pairs, header_note = _hide_header_pairs(pairs, full)
     pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs", report=report, classifier=cls)
     pairs, generated_note = _hide_generated(pairs, lambda p: (p["entity"], p["coupled"]), report, full, noun="generated pair", plural="generated pairs", classifier=cls)
-    gone_note = _join_hidden(gone_note, release_note, header_note, vendor_note, generated_note)
+    gone_note = _join_hidden(gone_note, release_note, example_note, header_note, vendor_note, generated_note)
     groups, cluster_note = [], None
     if full is not True:
         # a directory whose files all change together is one row; --full lists every pair
