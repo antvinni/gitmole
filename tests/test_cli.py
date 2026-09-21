@@ -30,6 +30,45 @@ class NoRun(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("/nonexistent/analysis-x", c.export_text())
 
+    def test_no_run_pointed_at_a_clone_says_what_it_wanted_and_where_it_is(self):
+        """Every other invocation takes the clone, so `gitmole CLONE --no-run --out DIR` is the natural
+        mistake: --out is not read here, and the directory a run wrote is the target. The message names it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            clone, out = os.path.join(tmp, "curl"), os.path.join(tmp, "analysis-curl")
+            os.makedirs(clone)
+            os.makedirs(out)
+            _report_dir(out)
+            c = console()
+            rc = cli.main([clone, "--no-run", "--out", out], console=c)
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("the target is that directory, not the clone", text)
+        self.assertIn("--out is not read with --no-run", text)
+        self.assertIn(f"Did you mean: gitmole {out} --no-run", text)
+
+    def test_no_run_finds_the_output_directory_a_run_would_have_written(self):
+        """With no --out at all, the conventional analysis-<repo> beside the clone is named."""
+        with tempfile.TemporaryDirectory() as tmp:
+            clone = os.path.join(tmp, "curl")
+            os.makedirs(clone)
+            os.makedirs(os.path.join(tmp, "analysis-curl"))
+            _report_dir(os.path.join(tmp, "analysis-curl"))
+            c = console()
+            rc = cli.main([clone, "--no-run"], console=c)
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn(f"Did you mean: gitmole {os.path.join(tmp, 'analysis-curl')} --no-run", text)
+        self.assertNotIn("--out is not read", text, "nothing to say about a flag that was not passed")
+
+    def test_no_run_with_nothing_to_point_at_says_only_what_it_wanted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            c = console()
+            rc = cli.main([tmp, "--no-run"], console=c)
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("the target is that directory, not the clone", text)
+        self.assertNotIn("Did you mean", text, "no guess without a directory that holds a report")
+
     def test_terminal_no_run_prints_the_banner_with_the_version(self):
         from gitmole import __version__
         with tempfile.TemporaryDirectory() as out:
