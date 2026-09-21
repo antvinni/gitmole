@@ -146,6 +146,15 @@ class PlaceholderIdentity(unittest.TestCase):
         self.assertIn("Set user.name and user.email", f[0]["advice"])
         self.assertNotIn("<you@example.com>", f[0]["advice"], "no real identity to suggest, so no invented line")
 
+    def test_one_commit_is_one_commit(self):
+        """The claims check found this on every fixture the rule fires on: it read "made 1 commits".
+        A rule that only fires on the fixtures is one nobody reads in a development report."""
+        r = report()
+        r["meta"]["identities"] = [{"name": "Ann", "email": "ann@example.org", "commits": 1}]
+        self.assertIn('"Ann <ann@example.org>" made 1 commit (100%).', findings.placeholder_identity(r)[0]["detail"])
+        r["meta"]["identities"][0]["commits"] = 2
+        self.assertIn("made 2 commits (100%).", findings.placeholder_identity(r)[0]["detail"])
+
     def test_nothing_for_real_identities(self):
         self.assertEqual(findings.placeholder_identity(report()), [])
 
