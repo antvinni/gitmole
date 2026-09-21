@@ -346,7 +346,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    pass, removes them again, and reports what it finds as `(unreachable
    blob <hash>)`; the footer says how many it scanned, or that there were
    none, which is what a fresh clone looks like, since a clone fetches only
-   what a ref reaches. betterleaks' live validation of a found credential
+   what a ref reaches. What each clone happens to hold is its own, not the
+   commit's, so the counts sit in the `--json` export's `envelope` and a
+   secret found in one of those objects is a finding another clone of the
+   same commit will not have. betterleaks' live validation of a found credential
    is network, so gitmole passes `--validation=false` rather than rely on
    the default.
 
@@ -656,7 +659,7 @@ directory for a remote target:
 | `backtest/` | backtest step | the change analysis and size as of six months before the last commit |
 | `signing.json` | signing step | commits signed, by mechanism (gpg, ssh, x509), by year, humans against bots, per identity and over the last year, from the commit objects |
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
-| `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave |
+| `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave; a property of this clone, so the `--json` export carries the counts in its `envelope` |
 | `structure.json` | structure step, Python 3.10 or newer | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports, its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
 | `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the marked cohort against the rest (with each side's watch-list hit rate), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
 | `run.log` | gitmole | every command run and its stderr |
