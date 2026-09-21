@@ -396,6 +396,19 @@ class TightCoupling(unittest.TestCase):
         self.assertNotIn("package.json", f[0]["detail"])
         self.assertEqual(findings.tight_coupling(report(coupling=pairs[:2])), [])
 
+    def test_two_examples_are_siblings_by_design(self):
+        """curl's docs/examples/imap-ssl.c and pop3-ssl.c show one technique for two protocols. The
+        shared format the advice sends the reader to find is what the family is for. One example paired
+        with the code it demonstrates is still a pair worth printing."""
+        pairs = [{"entity": "docs/examples/smtp-expn.c", "coupled": "docs/examples/smtp-vrfy.c", "degree": 100, "average-revs": 10},
+                 {"entity": "docs/examples/imap-ssl.c", "coupled": "docs/examples/pop3-ssl.c", "degree": 90, "average-revs": 10},
+                 {"entity": "docs/examples/http-post.c", "coupled": "lib/http.c", "degree": 85, "average-revs": 10}]
+        f = findings.tight_coupling(report(coupling=pairs))
+        self.assertIn("1 pair changes together", f[0]["detail"])
+        self.assertIn("lib/http.c", f[0]["detail"], "an example and the code it demonstrates still count")
+        self.assertNotIn("smtp-expn", f[0]["detail"])
+        self.assertEqual(findings.tight_coupling(report(coupling=pairs[:2])), [])
+
     def test_single_pair_reads_grammatically(self):
         pairs = [{"entity": "a", "coupled": "b", "degree": 100, "average-revs": 10}]
         f = findings.tight_coupling(report(coupling=pairs))
@@ -1226,6 +1239,22 @@ class Structure(unittest.TestCase):
         self.assertEqual(f["rule"]["ref"], "Ajienka and Capiluppi, JSS 2017")
         r["structure"]["resolved"] = {"python": 0.3}
         self.assertNotIn("hidden_coupling", self.by_id(r), "a graph that resolves a third of the imports cannot say what is hidden")
+
+    def test_hidden_coupling_leaves_out_a_pair_of_examples(self):
+        """Two examples with no import between them are a family, not a dependency nobody named: all
+        seven of curl's hidden pairs were docs/examples programs."""
+        r = self.base()
+        for p in ("examples/a.py", "examples/b.py"):
+            r["size"]["files"][p] = {"code": 100, "complexity": 1}
+            r["structure"]["files"][p] = {"language": "python", "debt": 0, "imports": [], "definitions": 5,
+                                         "max_nesting": 1, "max_cognitive": 3}
+        r["coupling"] = [{"entity": "examples/a.py", "coupled": "examples/b.py", "degree": 90, "average-revs": 20},
+                         {"entity": "src/f0.py", "coupled": "src/f1.py", "degree": 80, "average-revs": 20}]
+        f = self.by_id(r)["hidden_coupling"]
+        self.assertIn("src/f0.py and src/f1.py", f["detail"])
+        self.assertNotIn("examples/", f["detail"])
+        r["coupling"] = r["coupling"][:1]
+        self.assertNotIn("hidden_coupling", self.by_id(r), "nothing left to say once the family is out")
 
     def test_possibly_unreferenced_files(self):
         r = self.base(unreferenced=["src/f11.py"], unreferenced_count=1)

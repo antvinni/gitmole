@@ -347,15 +347,30 @@ def minor_contributors(report: dict, min_minor: int = 5, warn_at: int = 10, top_
                evidence={"files": [{"file": f, "minor": m, "authors": n, "owner": (owners.get(f) or (None, 0))[0]} for f, m, n in crowded[:10]]})]
 
 
+def _both_specimens(a: str, b: str) -> bool:
+    """Whether a coupled pair is two pieces of example or documentation material rather than code the
+    repository runs. curl's docs/examples/imap-ssl.c and docs/examples/pop3-ssl.c show one technique for
+    two protocols, and docs/examples/smtp-expn.c and smtp-vrfy.c two commands of one: the "shared format,
+    duplicated rule or copied code" a coupling finding sends the reader to look for is what an example
+    family is for, and merging them would make each one worse at its job. Both sides must be specimens;
+    an example paired with the code it demonstrates is still reported, since that pair says the example
+    tracks the API."""
+    def specimen(p):
+        return filetypes.is_sample_path(p) or filetypes.is_doc_path(p)
+    return specimen(a) and specimen(b)
+
+
 def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> list:
     """A file and its test are expected to change together, so pairs with a test file on either side are
     left out; so are pairs where either file is no longer in the tree, which are history, not a dependency,
-    and pairs of release plumbing (two version files, a manifest and its lock file), which are a release."""
+    pairs of release plumbing (two version files, a manifest and its lock file), which are a release, and
+    pairs that are both example or documentation material (_both_specimens)."""
     tree, vendored, derived = _tree(report), filetypes.vendor_dirs(report), _generated(report)
     pairs = [p for p in report.get("coupling") or [] if p["degree"] >= min_degree and p["average-revs"] >= min_revs
              and not (filetypes.is_test_path(p["entity"]) or filetypes.is_test_path(p["coupled"]))
              and not (p["entity"] in derived or p["coupled"] in derived)
              and not (filetypes.is_release_path(p["entity"]) and filetypes.is_release_path(p["coupled"]))
+             and not _both_specimens(p["entity"], p["coupled"])
              and not filetypes.is_header_pair(p["entity"], p["coupled"])
              and not (filetypes.is_vendored(p["entity"], vendored) or filetypes.is_vendored(p["coupled"], vendored))
              and not (tree and (p["entity"] not in tree or p["coupled"] not in tree))]
@@ -1162,7 +1177,8 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
     """Pairs that change together without an import between them, in either direction. Ajienka and
     Capiluppi found across 79 projects that many co-changed pairs have no structural dependency at
     all: such a pair is a shared format, a duplicated rule or copy-paste, and neither a pure-git nor a
-    pure-static tool can print it. Only for languages whose imports this graph mostly resolves."""
+    pure-static tool can print it. Only for languages whose imports this graph mostly resolves, and not
+    for a pair that is example or documentation material on both sides (_both_specimens)."""
     s = _structure(report)
     if not s:
         return []
@@ -1179,6 +1195,8 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
         if p["degree"] < min_degree or p["average-revs"] < min_revs or not (graphed(a) and graphed(b)):
             continue
         if filetypes.is_test_path(a) or filetypes.is_test_path(b) or filetypes.is_header_pair(a, b) or a in derived or b in derived:
+            continue
+        if _both_specimens(a, b):
             continue
         if tree and (a not in tree or b not in tree):
             continue
