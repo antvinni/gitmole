@@ -82,14 +82,25 @@ in the `pypi` environment, which requires a reviewer, so a tag pushed by mistake
 or by an agent stops at a prompt instead of publishing a version nobody can
 unpublish. Approve it and the job builds the sdist and wheel, creates the GitHub
 release with notes generated from the merged pull requests, audits and installs
-the formula from source, and opens a pull request bumping `Formula/gitmole.rb`;
-merging that is what makes `brew upgrade gitmole` follow. The tag publishes to
-PyPI after its own approval. Releases are listed at
+the formula from source, and pushes the bump to `Formula/gitmole.rb` on a branch
+named `formula/<tag>`; merging that is what makes `brew upgrade gitmole` follow.
+The tag publishes to PyPI after its own approval. Releases are listed at
 https://github.com/antvinni/gitmole/releases.
 
-So a release is three clicks: approve the release job, approve the publish job,
-merge the formula pull request. `main` takes pull requests only, and the tests,
-both determinism jobs and the formula job must be green before one can merge.
+The job tries to open the pull request for that branch and does not fail if it
+cannot: opening one needs the repository's "Allow GitHub Actions to create and
+approve pull requests", which is off, because the same setting lets a workflow
+approve a pull request and so satisfy this ruleset's extra approval for
+unattributed changes — and the formula commit is the bot's. When it cannot, the
+run's summary says which branch to open. Publishing must not hang on a pull
+request being openable: v0.34.0 and v0.34.1 both failed on that line after the
+formula had been audited, built from source and tested, which skipped the publish
+job behind it.
+
+So a release is three or four clicks: approve the release job, approve the publish
+job, open the formula pull request if the run says to, merge it. `main` takes pull
+requests only, and the tests, both determinism jobs and the formula job must be
+green before one can merge.
 
 The formula installs the last released tarball, not the checkout, so its
 dependencies have to satisfy the released code. A change that swaps or drops
