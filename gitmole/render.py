@@ -1215,8 +1215,9 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
 
 def _envelope(out: dict) -> dict:
     """Move what differs between two runs of the same clone into `envelope`: the blame pass's measured
-    projection, the machine-local output directory, the structure cache's hits. Everything outside
-    it is the same bytes for the same commit and options, which the CI determinism job checks."""
+    projection, the machine-local output directory, the structure cache's hits, the unreachable objects
+    this clone happens to hold. Everything outside it is the same bytes for the same commit and options,
+    which the CI determinism job checks."""
     import copy
     out = copy.deepcopy(out)
     env = {"out_dir": out.pop("out_dir", None)}
@@ -1232,6 +1233,12 @@ def _envelope(out: dict) -> dict:
     struct = out.get("structure")
     if isinstance(struct, dict) and "cached" in struct:
         env["structure_cached"] = struct.pop("cached")
+    if "unreachable" in out:
+        # What no ref reaches is a property of this clone's object database, not of the commit: a reflog,
+        # a dropped stash, a fetch that left objects behind, whatever gc has not collected yet. Two clones
+        # of one commit hold different sets, which is why the CI job comparing macOS with Linux began
+        # failing on this key the day actions/checkout changed how it fetches.
+        env["unreachable"] = out.pop("unreachable")
     # the value hashes use a key made for each run; the same value gets the same label within an export
     labels = {}
     if isinstance(out.get("secrets"), list):

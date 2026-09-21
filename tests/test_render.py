@@ -326,7 +326,10 @@ class Report(unittest.TestCase):
                         {"rule": "k", "file": "c.py", "commit": "c3", "line": 2, "fingerprint": "f3", "value": "12ab34cd56ef", "placeholder": False}]
         a["meta"]["age"] = {"status": "run", "projected_seconds": 3.14159, "files": 10}
         a["structure"] = {"status": "run", "cached": 0, "files": {}}
+        a["unreachable"] = {"objects": 605, "blobs": 180, "scanned": 180, "findings": 6}
         b = copy.deepcopy(a)
+        # another clone of the same commit: its own reflog, its own dropped stashes, its own gc timing
+        b["unreachable"] = {"objects": 41, "blobs": 12, "scanned": 12, "findings": 0}
         for row, other in zip(b["secrets"], ("0000ffff1111", "aaaabbbbcccc", "aaaabbbbcccc")):
             row["value"] = other                     # another run: another random key, the same grouping
         b["secrets"].reverse()                       # and betterleaks free to report in another order
@@ -335,6 +338,10 @@ class Report(unittest.TestCase):
         b["out_dir"] = "/somewhere/else"
         first, second = json.loads(render.dumps_json(a, [])), json.loads(render.dumps_json(b, []))
         self.assertNotEqual(first["envelope"], second["envelope"], "timings, the output path and cache hits vary, and live in the envelope")
+        self.assertEqual(first["envelope"]["unreachable"], a["unreachable"],
+                         "what no ref reaches belongs to the clone, not the commit: CI compared it across two "
+                         "runners and failed the day actions/checkout changed how it fetches")
+        self.assertNotIn("unreachable", first, "and so it is not in the part promised to be the same bytes")
         del first["envelope"], second["envelope"]
         self.assertEqual(json.dumps(first, sort_keys=True), json.dumps(second, sort_keys=True))
         self.assertEqual([r["value"] for r in first["secrets"]], ["v1", "v2", "v1"], "the same value, the same label, by the rows' sorted order")

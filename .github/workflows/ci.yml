@@ -121,7 +121,7 @@ jobs:
           python3 - <<'PY'
           import json, sys
           a, b = (json.load(open(p)) for p in ("report.json", "report-linux.json"))
-          a.pop("envelope"), b.pop("envelope")
+          ea, eb = a.pop("envelope"), b.pop("envelope")
           # a section an external tool produces can only be compared when both platforms ran the same version of it
           made_by = {"jscpd": ["duplicates"], "osv-scanner": ["dependencies"], "scc": ["size"], "betterleaks": ["secrets"], "git-sizer": ["sizer"], "lizard": ["functions"]}
           ta, tb = a["meta"]["run"].pop("tools"), b["meta"]["run"].pop("tools")
@@ -131,8 +131,17 @@ jobs:
                   a.pop(key, None), b.pop(key, None)
           if skipped:
               print("tool versions differ, their sections not compared:", ", ".join(skipped))
+          # the objects no ref reaches belong to the clone, not to the commit (they are in the envelope for
+          # that reason), and a secret found in one of them is a finding this clone has and another does not
+          if ea.get("unreachable") != eb.get("unreachable"):
+              print(f"the clones hold different unreachable objects ({ea.get('unreachable')} against "
+                    f"{eb.get('unreachable')}), so what was scanned in them is not compared")
+              for key in ("secrets", "findings"):
+                  a.pop(key, None), b.pop(key, None)
           diff = sorted(k for k in set(a) | set(b) if json.dumps(a.get(k), sort_keys=True) != json.dumps(b.get(k), sort_keys=True))
           if diff:
+              for key in diff:   # say what differed, not only where: a key name alone cannot be acted on
+                  print(f"--- {key}\nmacOS: {json.dumps(a.get(key), sort_keys=True)[:600]}\nLinux: {json.dumps(b.get(key), sort_keys=True)[:600]}")
               sys.exit(f"macOS and Linux exported different JSON outside the envelope, in: {', '.join(diff)}")
           PY
 
