@@ -173,25 +173,51 @@ def _repo_wide_needs_tree(f: dict) -> bool:
     return False
 
 
+def _about(f: dict) -> str:
+    """What the rule is, from the rule dict alone. A SARIF reportingDescriptor describes the rule, and a
+    consumer shows it as the rule's documentation, so one run's numbers, paths and commits do not belong
+    in it: the occurrence text is `result.message`, which already carries the statement and the advice.
+    Under `--sarif-scope head` the finding's text also put back what the scope had just left out - curl's
+    secrets_aside rule named docs/MANUAL and five commit hashes in a document where every one of its
+    results had been dropped for not being in the tree."""
+    rule = f["rule"]
+    settings = ", ".join(f"{k} {v}" for k, v in sorted(rule.items()) if k not in ("id", "ref", "osps"))
+    parts = [f"gitmole's {rule['id']} rule."]
+    if settings:
+        parts.append(f"Settings: {settings}.")
+    if rule.get("ref"):
+        parts.append(f"Rests on {rule['ref']}.")
+    if rule.get("osps"):
+        parts.append("Evidence for " + ", ".join(rule["osps"]) + ".")
+    parts.append(HOMEPAGE)
+    return " ".join(parts)
+
+
 def _rule(f: dict) -> dict:
     rule = f["rule"]["id"]
     name = "".join(part.capitalize() for part in re.split(r"[^A-Za-z0-9]+", rule) if part)
-    return {"id": rule, "name": name, "shortDescription": {"text": f["title"]}, "fullDescription": {"text": f["detail"]},
-            "help": {"text": f["advice"], "markdown": f["advice"]}, "defaultConfiguration": {"level": LEVELS[f["severity"]]},
+    about = _about(f)
+    return {"id": rule, "name": name, "shortDescription": {"text": f["title"]}, "fullDescription": {"text": about},
+            "help": {"text": about, "markdown": about}, "defaultConfiguration": {"level": LEVELS[f["severity"]]},
             "properties": {"security-severity": SEVERITY[f["severity"]], "tags": ["gitmole", *f["rule"].get("osps", [])]}}
 
 
 def build(report: dict, found: list, scope: str = "head") -> dict:
     """The SARIF document: one run, gitmole as the driver, a rule per distinct finding id, a result
     per place. `scope` is head or history."""
+    found_results = results(report, found, scope)
+    # only the rules this document has a result for: a rule whose every result the scope dropped is not
+    # part of the document, and declaring it was how curl's head-scoped SARIF still carried secrets_aside
+    reported = {r["ruleId"] for r in found_results}
     rules, seen = [], set()
     for f in found:
-        if f["rule"]["id"] not in seen:
-            seen.add(f["rule"]["id"])
+        rule = f["rule"]["id"]
+        if rule in reported and rule not in seen:
+            seen.add(rule)
             rules.append(_rule(f))
     manifest = (report.get("meta") or {}).get("run") or {}
     run = {"tool": {"driver": {"name": "gitmole", "version": manifest.get("gitmole") or __version__, "informationUri": HOMEPAGE, "rules": rules}},
-           "results": results(report, found, scope),
+           "results": found_results,
            "properties": {"scope": scope, "repository": (report.get("meta") or {}).get("name")}}
     if manifest.get("commit"):
         run["versionControlProvenance"] = [{"revisionId": manifest["commit"]}]

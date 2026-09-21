@@ -24,8 +24,10 @@ class Document(unittest.TestCase):
         self.assertEqual(doc["$schema"], "https://json.schemastore.org/sarif-2.1.0.json")
         driver = doc["runs"][0]["tool"]["driver"]
         self.assertEqual((driver["name"], driver["version"], driver["informationUri"]), ("gitmole", "0.14.0", "https://github.com/antvinni/gitmole"))
-        self.assertEqual(driver["rules"], [{"id": "bug_magnets", "name": "BugMagnets", "shortDescription": {"text": "T"}, "fullDescription": {"text": "D"},
-                                            "help": {"text": "A", "markdown": "A"}, "defaultConfiguration": {"level": "warning"},
+        about = "gitmole's bug_magnets rule. https://github.com/antvinni/gitmole"
+        self.assertEqual(driver["rules"], [{"id": "bug_magnets", "name": "BugMagnets", "shortDescription": {"text": "T"},
+                                            "fullDescription": {"text": about}, "help": {"text": about, "markdown": about},
+                                            "defaultConfiguration": {"level": "warning"},
                                             "properties": {"security-severity": "5.0", "tags": ["gitmole"]}}])
         [result] = doc["runs"][0]["results"]
         self.assertEqual(result["ruleId"], "bug_magnets")
@@ -37,6 +39,33 @@ class Document(unittest.TestCase):
                          "rule, path, commit and line: stable across runs, nothing random in it")
         self.assertEqual(doc["runs"][0]["versionControlProvenance"], [{"repositoryUri": "https://github.com/antvinni/gitmole", "revisionId": "abc1234def"}]
                          if False else [{"revisionId": "abc1234def"}])
+
+    def test_a_rule_describes_itself_and_never_this_runs_paths_or_commits(self):
+        """A reportingDescriptor is the rule's documentation. curl's head-scoped SARIF had secrets_aside's
+        fullDescription naming docs/MANUAL and five commit hashes - paths and commits the scope had
+        dropped from every one of that rule's results."""
+        detail = "37 distinct values in 82 places: generic-password in docs/MANUAL (2f69240). Confirm them."
+        f = finding("stale_files", detail=detail, advice="Delete docs/MANUAL first.",
+                    evidence={"files": ["src/a.py"]}, months=12, share=0.3, ref="Bird et al., FSE 2011",
+                    osps=["OSPS-BR-07.01"])
+        [rule] = sarif.build(report(), [f])["runs"][0]["tool"]["driver"]["rules"]
+        self.assertEqual(rule["fullDescription"]["text"],
+                         "gitmole's stale_files rule. Settings: months 12, share 0.3. Rests on Bird et al., FSE 2011. "
+                         "Evidence for OSPS-BR-07.01. https://github.com/antvinni/gitmole")
+        self.assertEqual(rule["help"]["text"], rule["fullDescription"]["text"])
+        for leak in ("docs/MANUAL", "2f69240", "37 distinct"):
+            self.assertNotIn(leak, json.dumps(rule), "the rule says what it checks, not what it found here")
+        [result] = sarif.build(report(), [f])["runs"][0]["results"]
+        self.assertEqual(result["message"]["text"], detail, "the occurrence text is the result's, and is still there")
+
+    def test_a_rule_whose_every_result_the_scope_dropped_is_not_declared(self):
+        kept = finding("bug_magnets", evidence={"files": [{"file": "src/a.py"}]})
+        dropped = finding("duplication", evidence={"largest": [{"lines": 40, "places": [["gone/old.py", 1, 40]]}]})
+        head = sarif.build(report(), [kept, dropped])
+        self.assertEqual([r["id"] for r in head["runs"][0]["tool"]["driver"]["rules"]], ["bug_magnets"])
+        self.assertEqual({r["ruleId"] for r in head["runs"][0]["results"]}, {"bug_magnets"})
+        history = sarif.build(report(), [kept, dropped], scope="history")
+        self.assertEqual(sorted(r["id"] for r in history["runs"][0]["tool"]["driver"]["rules"]), ["bug_magnets", "duplication"])
 
     def test_levels_and_severities_follow_the_finding(self):
         doc = sarif.build(report(), [finding("dormant", "warning", evidence={}), finding("credential_files", "critical", evidence={"files": ["src/a.py"]}),
