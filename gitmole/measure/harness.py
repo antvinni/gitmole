@@ -17,7 +17,7 @@ import sys
 import time
 
 from .. import evaluate, maat, run, szz
-from . import corpus, metrics
+from . import claims, corpus, metrics
 from . import labels as hand_labels   # `labels` is the ApacheJIT dict below
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -129,6 +129,7 @@ def read_outputs(rec: dict) -> dict:
     out["severity"] = {s: sum(1 for f in found if f.get("severity") == s) for s in ("critical", "warning", "info")}
     out["rules"] = sorted({(f.get("rule") or {}).get("id") or f.get("title", "") for f in found})
     out["shown"] = sum(1 for f in found if not f.get("summary"))   # what the default report spells out
+    out["claims"] = claims.over(found)   # does each finding's text agree with its own numbers
     meta = data.get("meta") or {}
     steps = meta.get("steps")
     if isinstance(steps, dict):

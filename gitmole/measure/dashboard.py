@@ -76,6 +76,10 @@ def summarise(record: dict, only=None) -> dict:
             steps.setdefault(k, []).append(v)
     out["step_seconds"] = {k: _round(metrics.median(v), 1) for k, v in sorted(steps.items())} or None
     runs = [r for r in repos.values()]
+    # every set, not only development: the fixtures are where a rule that rarely fires says its piece
+    claimed = [r.get("claims") for r in runs if isinstance(r.get("claims"), dict)]
+    if claimed:
+        out["claims_clean"] = [sum(c.get("clean") or 0 for c in claimed), sum(c.get("checked") or 0 for c in claimed)]
     robust = [r["status"] in ("ok", "refused") and not r.get("steps_failed") for r in runs]
     out["robust"] = [sum(robust), len(robust)]
     gate = [r for r in runs if r.get("set") == "gate"]
