@@ -39,8 +39,15 @@ def _pct(part, whole) -> str:
     return f"{round(100 * part / whole)}%" if whole else "0%"
 
 
+_SIBILANT = re.compile(r"(s|x|z|ch|sh)$", re.I)   # address -> addresses, box -> boxes, branch -> branches
+
+
 def _plural(n: int, word: str) -> str:
-    return f"{n} {word}{'' if n == 1 else 's'}"
+    """A count and its noun, agreeing. A noun already ending in a sibilant takes -es: appending -s to
+    "IPv4 address" is what gave ghidra's report "2 IPv4 addresss"."""
+    if n == 1:
+        return f"{n} {word}"
+    return f"{n} {word}es" if _SIBILANT.search(word) else f"{n} {word}s"
 
 
 def _secret_statement(groups: list) -> str:
@@ -620,7 +627,7 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     hot = hotspots.top(report)
     sev = "warning" if any(f["file"] in hot for f in big) else "info"
-    listed = "; ".join(f"{f['function']} ({_place(f)}) complexity {f['ccn']}, {f['nloc']} lines, {f['params']} params" for f in big[:5])
+    listed = "; ".join(f"{f['function']} ({_place(f)}) complexity {f['ccn']}, {f['nloc']} lines, {_plural(f['params'], 'param')}" for f in big[:5])
     more = f" and {len(big) - 5} more" if len(big) > 5 else ""
     first = big[0]
     which = f"the anonymous function at {_place(first)}" if _anonymous(first) else f"{first['function']} in {first['file']}"
@@ -1161,7 +1168,7 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
         return []
     hidden.sort(key=lambda p: (-p["degree"], -p["average-revs"], p["entity"]))
     listed = "; ".join(f"{p['entity']} and {p['coupled']} change together {p['degree']}% of the time, and neither imports the other" for p in hidden[:3])
-    more = f" ({len(hidden) - 3} more pairs like them)" if len(hidden) > 3 else ""
+    more = f" ({_plural(len(hidden) - 3, 'more pair')} like them)" if len(hidden) > 3 else ""
     first = hidden[0]
     return [_f("info", "Coupling with no import behind it", f"{listed}{more}.",
                f"Look at why {first['entity']} and {first['coupled']} move together: a shared format, a duplicated rule or copied code is the usual answer.",
@@ -1350,7 +1357,7 @@ def component_coupling(report: dict, min_degree: int = 30) -> list:
     if not pairs:
         return []
     listed = "; ".join(f"{p['entity']} and {p['coupled']} change together in {p['degree']}% of their changes ({p['shared']} shared)" for p in pairs[:3])
-    more = f" ({len(pairs) - 3} more pairs)" if len(pairs) > 3 else ""
+    more = f" ({_plural(len(pairs) - 3, 'more pair')})" if len(pairs) > 3 else ""
     first = pairs[0]
     return [_f("info", "Components that change together", f"{listed}{more}.",
                f"Look at what {first['entity']} and {first['coupled']} share: a change that keeps landing in both is an interface nobody named.",
