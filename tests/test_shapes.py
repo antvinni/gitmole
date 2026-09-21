@@ -74,7 +74,12 @@ class ShapeFindings(unittest.TestCase):
                  "src/old.js": {"shapes": {"commented_code": 12, "commented_sample": [40, 90]}},
                  "src/some.js": {"shapes": {"commented_code": 3, "commented_sample": [5]}}}
         f = findings.hardcoded_addresses(_report(files))
+        self.assertIn("1 IPv4 address in string literals in 1 source file", f[0]["detail"])
         self.assertIn("10.0.0.7 at src/net.go:4", f[0]["detail"])
+        files["src/net.go"]["shapes"] = {"addresses": [{"line": 4, "value": "10.0.0.7"}, {"line": 9, "value": "10.0.0.8"}],
+                                         "addresses_count": 2}
+        f = findings.hardcoded_addresses(_report(files))
+        self.assertIn("2 IPv4 addresses in string literals in 1 source file", f[0]["detail"], "ghidra read '2 IPv4 addresss'")
         f = findings.commented_out_code(_report(files))
         self.assertEqual([x["file"] for x in f[0]["evidence"]["files"]], ["src/old.js"])
         self.assertIn("src/old.js (12 lines from line 40)", f[0]["detail"])

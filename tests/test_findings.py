@@ -567,6 +567,23 @@ class BugMagnets(unittest.TestCase):
         self.assertEqual(findings.bug_magnets(report()), [])
 
 
+class Plural(unittest.TestCase):
+    """The report is the product, so its prose agrees with its numbers. These three were found by reading
+    the six development reports, not the code."""
+
+    def test_a_noun_ending_in_a_sibilant_takes_es(self):
+        self.assertEqual(findings._plural(2, "IPv4 address"), "2 IPv4 addresses", "ghidra read '2 IPv4 addresss'")
+        self.assertEqual(findings._plural(1, "IPv4 address"), "1 IPv4 address")
+        for word, many in (("box", "boxes"), ("branch", "branches"), ("dish", "dishes")):
+            self.assertEqual(findings._plural(3, word), f"3 {many}")
+
+    def test_every_other_noun_the_rules_pass_still_takes_s(self):
+        for word in ("place", "commit", "other file", "source file", "pair", "more pair", "param", "path",
+                     "executable", "manifest", "lock file", "distinct value", "empty catch block", "function"):
+            self.assertEqual(findings._plural(2, word), f"2 {word}s")
+            self.assertEqual(findings._plural(1, word), f"1 {word}")
+
+
 class BrainMethods(unittest.TestCase):
     FUNCS = [{"file": "core/parser.py", "function": "parse", "ccn": 41, "nloc": 220, "params": 9, "start": 10, "end": 300},
              {"file": "core/util.py", "function": "tidy", "ccn": 16, "nloc": 120, "params": 2, "start": 1, "end": 130},
@@ -609,14 +626,14 @@ class BrainMethods(unittest.TestCase):
     def test_an_anonymous_function_is_named_by_its_place(self):
         fns = [{"file": "completions.go", "function": "(anonymous)", "ccn": 47, "nloc": 136, "params": 1, "start": 316, "end": 585}]
         f = findings.brain_methods(report(functions=fns))
-        self.assertIn("(anonymous) (completions.go:316) complexity 47, 136 lines, 1 params", f[0]["detail"])
+        self.assertIn("(anonymous) (completions.go:316) complexity 47, 136 lines, 1 param", f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Split the anonymous function at completions.go:316 first, before the next change lands there.")
 
     def test_a_labelled_nameless_function_is_listed_by_its_label_and_placed_by_its_line(self):
         fns = [{"file": "server/routes.ts", "function": 'app.post("/api/x", async (req, res) => {', "anonymous": True,
                 "ccn": 47, "nloc": 136, "params": 1, "start": 316, "end": 585, "suspect": ""}]
         f = findings.brain_methods(report(functions=fns))
-        self.assertIn('app.post("/api/x", async (req, res) => { (server/routes.ts:316) complexity 47, 136 lines, 1 params', f[0]["detail"])
+        self.assertIn('app.post("/api/x", async (req, res) => { (server/routes.ts:316) complexity 47, 136 lines, 1 param', f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Split the anonymous function at server/routes.ts:316 first, before the next change lands there.")
 
     def test_a_suspect_span_is_not_a_brain_method(self):
@@ -1255,6 +1272,15 @@ class Structure(unittest.TestCase):
         self.assertNotIn("examples/", f["detail"])
         r["coupling"] = r["coupling"][:1]
         self.assertNotIn("hidden_coupling", self.by_id(r), "nothing left to say once the family is out")
+
+    def test_one_more_hidden_pair_is_one_pair(self):
+        """gitmole's own report read "(1 more pairs like them)"."""
+        r = self.base()
+        r["coupling"] = [{"entity": f"src/f{i}.py", "coupled": f"src/f{i + 6}.py", "degree": 90 - i, "average-revs": 20}
+                         for i in range(4)]
+        self.assertIn("(1 more pair like them)", self.by_id(r)["hidden_coupling"]["detail"])
+        r["coupling"].append({"entity": "src/f4.py", "coupled": "src/f10.py", "degree": 85, "average-revs": 20})
+        self.assertIn("(2 more pairs like them)", self.by_id(r)["hidden_coupling"]["detail"])
 
     def test_possibly_unreferenced_files(self):
         r = self.base(unreferenced=["src/f11.py"], unreferenced_count=1)
