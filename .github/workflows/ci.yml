@@ -232,9 +232,18 @@ jobs:
           # main takes pull requests only, so the bump arrives as one: a branch this job can push, and a
           # merge a person makes. The formula is verified above before either happens.
           git push origin "formula/${GITHUB_REF_NAME}"
-          gh pr create --base main --head "formula/${GITHUB_REF_NAME}" \
+          # Opening the pull request needs the repository's "Allow GitHub Actions to create and approve
+          # pull requests", which is off on purpose: the same setting lets a workflow approve one, which
+          # would satisfy this ruleset's extra approval for unattributed changes, and the formula commit
+          # is the bot's. So publishing does not hang on it. The branch above is pushed and verified; if
+          # the pull request cannot be opened, the run says where to open it and the release carries on.
+          # v0.34.0 and v0.34.1 both failed here after the formula had been audited, built and tested.
+          if ! gh pr create --base main --head "formula/${GITHUB_REF_NAME}" \
             --title "Homebrew formula: ${GITHUB_REF_NAME}" \
-            --body "The tarball this release built, audited and installed from source on this runner. Merging points \`brew upgrade gitmole\` at ${GITHUB_REF_NAME}."
+            --body "The tarball this release built, audited and installed from source on this runner. Merging points \`brew upgrade gitmole\` at ${GITHUB_REF_NAME}."; then
+            echo "::warning::the formula pull request was not opened; open formula/${GITHUB_REF_NAME} by hand"
+            printf '%s\n' "The formula bump is on [\`formula/${GITHUB_REF_NAME}\`](https://github.com/antvinni/gitmole/pull/new/formula/${GITHUB_REF_NAME}), audited, installed from source and tested on this runner. Open and merge it to point \`brew upgrade gitmole\` at ${GITHUB_REF_NAME}." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   publish:
     name: publish to PyPI
