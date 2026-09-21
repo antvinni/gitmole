@@ -221,7 +221,11 @@ jobs:
           # the python dependencies are pinned in pyproject.toml, so their resources move only when a
           # release moves them: `brew update-python-resources` runs by hand, never here, since it would
           # also rewrite the pinned tool resources (gitmole/tools.py)
-          git -C "$(brew --repo antvinni/gitmole)" pull -q --ff-only "$PWD" main
+          # the bump lives on formula/<tag>, not on main: this checkout has no local main since the
+          # branch was created, and asking the tap for one failed the v0.34.0 release with
+          # "fatal: couldn't find remote ref main". Both branches are one lineage, so --ff-only holds
+          # whichever of them brew's clone of this directory landed on.
+          git -C "$(brew --repo antvinni/gitmole)" pull -q --ff-only "$PWD" "formula/${GITHUB_REF_NAME}"
           brew audit --strict --online antvinni/gitmole/gitmole
           brew install --build-from-source antvinni/gitmole/gitmole
           brew test antvinni/gitmole/gitmole
