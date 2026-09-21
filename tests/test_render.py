@@ -292,6 +292,25 @@ class Report(unittest.TestCase):
         text = (sec.get("caption") or "") + (sec.get("note") or "")
         self.assertIn("the vulnerability database changed between the runs (2026-09-01 to 2026-09-17), so a dependency finding can move with no change to the code", text)
 
+    def test_the_comparison_says_when_the_two_exports_came_from_different_gitmole_versions(self):
+        """A rule changes in most releases, so a finding can read as new or resolved with nothing about
+        the repository having changed."""
+        result = {"new": [], "resolved": [], "persisting": [], "watch_entered": [], "watch_left": [],
+                  "tally": {"before": {"critical": 0, "warning": 0, "info": 0}, "after": {"critical": 0, "warning": 0, "info": 0}},
+                  "before": {"commit": "abc12345", "date": "2026-09-01", "options_differ": [], "database": None,
+                             "gitmole": {"before": "0.30.0", "after": "0.33.0"}}}
+        sec = render.compare_section(result)
+        text = (sec.get("caption") or "") + (sec.get("note") or "")
+        self.assertIn("the earlier export was written by gitmole 0.30.0, this one by 0.33.0: "
+                      "a rule changed between them moves a finding with no change to the code", text)
+        result["before"]["gitmole"] = None
+        sec = render.compare_section(result)
+        self.assertNotIn("written by gitmole", (sec.get("caption") or "") + (sec.get("note") or ""))
+        result["before"]["tools"] = {"lizard": {"before": "1.23.0", "after": "1.24.0"}, "scc": {"before": "4.0.0", "after": "4.1.0"}}
+        sec = render.compare_section(result)
+        self.assertIn("a tool moved between the runs (lizard 1.23.0 → 1.24.0, scc 4.0.0 → 4.1.0), "
+                      "so its counts can move with no change to the code", (sec.get("caption") or "") + (sec.get("note") or ""))
+
     def test_the_watch_list_by_component_is_a_full_only_section(self):
         r = sample_report()
         self.assertNotIn("Watch list by component", rendered(r, [], width=200))

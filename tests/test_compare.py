@@ -36,7 +36,8 @@ class Compare(unittest.TestCase):
                          [("Repo health", "warning", "warning"), ("Bug magnets", "info", "warning")], "the after copy, with the severity it had")
         self.assertEqual((out["watch_entered"], out["watch_left"]), (["c.py"], ["b.py"]))
         self.assertEqual(out["tally"], {"before": {"critical": 0, "warning": 2, "info": 2}, "after": {"critical": 0, "warning": 2, "info": 1}})
-        self.assertEqual(out["before"], {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "date": "2026-09-10", "options_differ": ["ignore_data"], "database": None})
+        self.assertEqual(out["before"], {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "date": "2026-09-10", "options_differ": ["ignore_data"],
+                                         "database": None, "gitmole": None, "tools": {}})
 
     def test_a_persisting_finding_says_which_counts_moved(self):
         self.before["findings"].append(finding("secrets_in_source", "critical", "16 secret(s) in history", values=16, places=40, files=["a.py"]))
@@ -56,7 +57,34 @@ class Compare(unittest.TestCase):
     def test_an_export_without_a_manifest_compares_findings_only(self):
         self.before["meta"].pop("run")
         out = compare.compare(self.before, self.after, self.after_findings)
-        self.assertEqual(out["before"], {"commit": None, "date": "2026-09-10", "options_differ": [], "database": None})
+        self.assertEqual(out["before"], {"commit": None, "date": "2026-09-10", "options_differ": [], "database": None, "gitmole": None, "tools": {}})
+
+    def test_two_exports_from_different_gitmole_versions_say_so(self):
+        """Rules change in most releases, so a finding can be new or resolved here with nothing about the
+        repository having changed. The same caveat the OSV database already gets."""
+        self.assertIsNone(compare.compare(self.before, self.after, self.after_findings)["before"]["gitmole"],
+                          "neither export names a version, so there is nothing to compare")
+        self.before["meta"]["run"]["gitmole"] = "0.30.0"
+        self.after["meta"]["run"]["gitmole"] = "0.33.0"
+        self.assertEqual(compare.compare(self.before, self.after, self.after_findings)["before"]["gitmole"],
+                         {"before": "0.30.0", "after": "0.33.0"})
+        self.after["meta"]["run"]["gitmole"] = "0.30.0"
+        self.assertIsNone(compare.compare(self.before, self.after, self.after_findings)["before"]["gitmole"],
+                          "one version, one rule set: nothing to warn about")
+        self.before["meta"]["run"].pop("gitmole")
+        self.assertIsNone(compare.compare(self.before, self.after, self.after_findings)["before"]["gitmole"],
+                          "an export from before the run manifest cannot be compared this way")
+
+    def test_a_tool_that_moved_between_the_exports_is_named(self):
+        """scc counts differently, a lizard release parses a language better: the instrument moved, not
+        the repository. Both manifests already record every tool's version."""
+        self.before["meta"]["run"]["tools"] = {"scc": "4.1.0", "lizard": "1.23.0", "git": "2.55.0"}
+        self.after["meta"]["run"]["tools"] = {"scc": "4.1.0", "lizard": "1.24.0", "jscpd": "5.3.0"}
+        self.assertEqual(compare.compare(self.before, self.after, self.after_findings)["before"]["tools"],
+                         {"lizard": {"before": "1.23.0", "after": "1.24.0"}})
+        self.after["meta"]["run"]["tools"]["lizard"] = "1.23.0"
+        self.assertEqual(compare.compare(self.before, self.after, self.after_findings)["before"]["tools"], {},
+                         "a tool only one export names is not a change anyone can check")
 
     def test_is_export(self):
         self.assertTrue(compare.is_export(self.before))

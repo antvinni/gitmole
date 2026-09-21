@@ -845,6 +845,14 @@ def compare_section(result: dict) -> dict:
     lines = []
     if before.get("options_differ"):
         lines.append(f"options differ: {', '.join(before['options_differ'])}; the changes partly reflect them")
+    ver = before.get("gitmole")
+    if ver:
+        lines.append(f"the earlier export was written by gitmole {ver['before']}, this one by {ver['after']}: "
+                     "a rule changed between them moves a finding with no change to the code")
+    tools = before.get("tools") or {}
+    if tools:
+        moved = ", ".join(f"{name} {v['before']} → {v['after']}" for name, v in sorted(tools.items()))
+        lines.append(f"a tool moved between the runs ({moved}), so its counts can move with no change to the code")
     db = before.get("database")
     if db:
         lines.append(f"the vulnerability database changed between the runs ({db.get('before') or '?'} to {db.get('after') or '?'}), "
