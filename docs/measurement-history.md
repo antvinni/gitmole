@@ -184,6 +184,26 @@ Each release runs from its own source over the development set (curl, django and
   last one whatever sat beside it, so the README's ranking graph read "0.31.00.32.0", and the caption was
   drawn along the legend's baseline and through its words. Labels are now spaced by the room a label needs,
   with both ends always drawn, and the note has a line of its own. Every graph on this page is redrawn.
+- **0.34.0 fixed eleven things the report said wrongly and moved no number that measures the tool.** The
+  ranking, the recall, the findings per repository (23.5 and 27.5), the report length (224 lines), the
+  scored share, robustness (21 of 21) and the gate (3 of 3) are all identical to 0.33.0, and the findings
+  count is unchanged on every one of the twenty-one repositories, the well-kept four included: nothing
+  appeared and nothing disappeared. Report length moved by a line on four repositories and by three on
+  react, +3 over the set, which the median does not feel.
+- **The one number that appears to improve did not.** The dashboard's actionable share reads 69% where
+  0.33.0 read 68%, and 96% of the spelled-out findings carry a label where 99% did. Both come from the
+  same two findings: curl's and react's `tight_coupling`, which named a pair of documentation examples and
+  were labelled true but not actionable. 0.34.0 leaves a pair of examples out of the coupling rules, so
+  those two findings now say something else, carry no label, and leave the denominator -- 75 of 78 are
+  labelled where 77 were. The share rose because two findings judged inert stopped being judged, not
+  because anything got better. Whether the new claim is worth acting on is a person's to label.
+- **Peak memory reads 3,035 MB against 0.33.0's 2,725 MB, and this release did not do it.** The peak is
+  betterleaks on react, at the version every one of these releases pins (1.8.1) over the same commit:
+  3,036.9 MB at 0.32.0, 2,724.6 at 0.33.0, 3,035.1 here. Nothing in 0.34.0 touches the secrets step.
+  Wall time fell from 700 to 691 seconds over the development set.
+- **The extras agree.** Determinism across time zone and locale is identical on curl and django, and the
+  hook replay is identical to 0.33.0 on every repository. The only sensitivity rows that move are the two
+  coupling rules' threshold sweeps, which is what changing those rules is supposed to move.
 
 ![ranking](evolution/ranking.svg)
 
@@ -240,8 +260,9 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.31.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 18.5/22 | 220.5 | 23% | 21/21 | 3/3 | 689 | 3034 |  |
 | 0.32.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 697 | 3037 |  |
 | 0.33.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 700 | 2725 |  |
+| 0.34.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 691 | 3035 |  |
 
-## The dashboard for 0.33.0
+## The dashboard for 0.34.0
 
 | | set | value |
 |---|---|---|
@@ -251,10 +272,10 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | top-15 stability over 50 commits | development | 1.00 |
 | top-15 carried over from one cut-off to the next, six months | development | 0.90 |
 | findings per repository, median and p90 | development | 23.5 and 27.5 |
-| findings the default report spells out that are labelled actionable | development and well-kept | 68% of 78, 99% labelled |
+| findings the default report spells out that are labelled actionable | development and well-kept | 69% of 78, 96% labelled |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 3, undecided 26, unlabelled 7 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 700 s, 2725 MB |
+| wall time and peak memory | development | 691 s, 3035 MB |
 | scored share of tracked files | development | 23% |
 | unexplained description disagreements | development | 0 |
 
