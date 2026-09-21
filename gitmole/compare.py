@@ -77,7 +77,28 @@ def compare(before: dict, report: dict, found: list, top: int = watch.WATCH_TOP)
             "watch_entered": [f for f in after_watch if f not in before_watch], "watch_left": [f for f in before_watch if f not in after_watch],
             "tally": {"before": _tally(before.get("findings") or []), "after": _tally(found)},
             "before": {"commit": (meta_b.get("run") or {}).get("commit"), "date": meta_b.get("last_date"),
-                       "options_differ": _options_differ(meta_b, meta_a), "database": _database_changed(before, report)}}
+                       "options_differ": _options_differ(meta_b, meta_a), "database": _database_changed(before, report),
+                       "gitmole": _version_changed(meta_b, meta_a), "tools": _tools_changed(meta_b, meta_a)}}
+
+
+def _version_changed(before_meta: dict, after_meta: dict):
+    """{before, after} when the two exports were written by different versions of gitmole, else None.
+    Rules change in most releases - an exclusion added, a threshold swept, a rule retired - so a finding
+    can be new or resolved here with nothing about the repository having changed. The same caveat as
+    _database_changed, about gitmole instead of the advisories. Only said when both exports name a
+    version: an export from before the run manifest cannot be compared this way."""
+    b, a = (before_meta.get("run") or {}).get("gitmole"), (after_meta.get("run") or {}).get("gitmole")
+    return {"before": b, "after": a} if b and a and b != a else None
+
+
+def _tools_changed(before_meta: dict, after_meta: dict) -> dict:
+    """{tool: {before, after}} for the external tools whose version moved between the two exports, else {}.
+    The same argument as _version_changed, for the instruments gitmole reads: scc counts differently, a
+    lizard release parses a language better, jscpd finds another block. Both manifests record every tool's
+    version, so this needs no guessing; a tool only one of them names is not a change anyone can check."""
+    b = (before_meta.get("run") or {}).get("tools") or {}
+    a = (after_meta.get("run") or {}).get("tools") or {}
+    return {k: {"before": b[k], "after": a[k]} for k in sorted(set(b) & set(a)) if b[k] != a[k]}
 
 
 def _database_changed(before: dict, report: dict):
