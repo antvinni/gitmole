@@ -1112,6 +1112,19 @@ class Timeline(unittest.TestCase):
         wide = next(s for s in render.sections(r, full=False, width=120) if s["id"] == "timeline")
         self.assertEqual(len(wide["columns"]) - 1, 12, "room for the whole year at 120")
 
+    def test_an_author_whose_months_the_width_dropped_is_not_a_row_of_dots(self):
+        """curl listed Xiaoke Wang and react Sebastian Markbåge with a dot in every column shown: they
+        ranked on the twelve-month window, and the terminal width then dropped the months they were in."""
+        r = sample_report()
+        r["activity"]["timeline"] = {"Stopped Last Autumn": {"2025-10": 40, "2025-11": 30},
+                                     "Here All Year": {f"2026-{m:02d}": 2 for m in range(1, 10)}}
+        narrow = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
+        self.assertLess(len(narrow["columns"]) - 1, 12, "the width dropped the oldest months")
+        self.assertEqual([row[0] for row in narrow["rows"]], ["Here All Year"])
+        wide = next(s for s in render.sections(r, full=False, width=200) if s["id"] == "timeline")
+        self.assertEqual(len(wide["columns"]) - 1, 12, "with room for the whole year both belong")
+        self.assertIn("Stopped Last Autumn", [row[0] for row in wide["rows"]])
+
     def test_a_very_long_name_still_leaves_at_least_three_months(self):
         r = sample_report()
         name = "a" * 70   # long enough that even the floor does not leave room for the whole name

@@ -499,14 +499,25 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     since = report["meta"].get("since")
     if since:
         span = [m for m in span if m >= since[:7]] or span[-1:]
-    in_window = {a: sum(per.get(m, 0) for m in span) for a, per in tl.items()}
     # the run decided who is a bot from name and email; the timeline only has the name, so it asks the run
     bots = {b["name"] for b in report["meta"].get("bots") or []}
-    ranked = [a for a in sorted(in_window, key=lambda a: -in_window[a]) if in_window[a] > 0 and a not in bots and not identity.is_bot(a)]
+
+    def active(shown):
+        """Who to list and in what order: commits inside the months actually shown, most first."""
+        totals = {a: sum(per.get(m, 0) for m in shown) for a, per in tl.items()}
+        return [a for a in sorted(totals, key=lambda a: -totals[a])
+                if totals[a] > 0 and a not in bots and not identity.is_bot(a)]
+
+    ranked = active(span)
     limit = _limit("Timeline", full)
     if width:
         name = max([len("author")] + [len(a) for a in ranked[:limit]])
         span = span[-max(FLOOR, min(len(span), (width - INDENT - name) // MONTH_WIDTH)):]
+        # The months that fit are the months that decide who is listed. Ranking over the wider span and
+        # printing the narrower one gave curl a row for Xiaoke Wang and react one for Sebastian Markbåge,
+        # a dot in every column shown: their commits were all in the months the width dropped. The name
+        # column is measured before this, so a longer name here is cut by `room` below, as always.
+        ranked = active(span)
     columns = [("author", {"no_wrap": True})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     room = width - INDENT - MONTH_WIDTH * len(span) if width else None
     rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
