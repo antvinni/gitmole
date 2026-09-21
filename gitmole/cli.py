@@ -214,7 +214,7 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
     if not os.path.isfile(os.path.join(out_dir, "meta.json")):
         err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
         for line in _no_run_hint(args, out_dir):
-            err.print(line, highlight=False)
+            err.print(line, highlight=False, soft_wrap=True)   # a command wrapped mid-path cannot be pasted
         return 2
     if args.hook:
         return _hook(out_dir, args, console, err, sys.stdin if stdin is None else stdin)

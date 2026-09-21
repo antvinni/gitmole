@@ -60,6 +60,22 @@ class NoRun(unittest.TestCase):
         self.assertIn(f"Did you mean: gitmole {os.path.join(tmp, 'analysis-curl')} --no-run", text)
         self.assertNotIn("--out is not read", text, "nothing to say about a flag that was not passed")
 
+    def test_the_suggested_command_is_one_line_however_long_the_path(self):
+        """CI caught this: on a runner whose temp directory is long, rich wrapped the line after
+        "gitmole " and the command could not be pasted. The hint prints with soft_wrap."""
+        with tempfile.TemporaryDirectory() as tmp:
+            deep = os.path.join(tmp, "var_folders_3n_qk8xyz1234567890abcdefgh_T_tmpwxyz")
+            clone, out = os.path.join(deep, "curl"), os.path.join(deep, "analysis-curl")
+            os.makedirs(clone)
+            os.makedirs(out)
+            _report_dir(out)
+            c = console()
+            cli.main([clone, "--no-run"], console=c)
+            text = c.export_text()
+        self.assertIn(f"Did you mean: gitmole {out} --no-run", text)
+        [line] = [ln for ln in text.splitlines() if ln.startswith("Did you mean")]
+        self.assertGreater(len(line), 100, "the point of the test: the line is wider than the console")
+
     def test_no_run_with_nothing_to_point_at_says_only_what_it_wanted(self):
         with tempfile.TemporaryDirectory() as tmp:
             c = console()
