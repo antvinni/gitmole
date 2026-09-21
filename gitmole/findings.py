@@ -157,7 +157,7 @@ def placeholder_identity(report: dict, min_share: float = 0.01) -> list:
                       f"knowledge findings then describe one person." if real
                       else "Set user.name and user.email; consider a .mailmap for history.")
             out.append(_f("warning", "Unconfigured git identity",
-                          f"\"{i['name']} <{i['email']}>\" made {i['commits']} commits ({_pct(i['commits'], total)}).", advice,
+                          f"\"{i['name']} <{i['email']}>\" made {_plural(i['commits'], 'commit')} ({_pct(i['commits'], total)}).", advice,
                           rule={"id": "placeholder_identity", "min_share": min_share},
                           evidence={"name": i["name"], "email": i["email"], "commits": i["commits"], "total_commits": total}))
     return out
