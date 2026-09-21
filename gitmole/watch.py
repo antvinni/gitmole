@@ -274,6 +274,22 @@ def change_risk(report: dict, files: list, stats: dict = None, ranked: list = No
 RECENT_MONTHS = 1   # a touched file that changed this month is the AGE factor Kamei found most telling
 
 
+def _canonical_author(report: dict, name: str) -> str:
+    """The name the run kept for this person. `git log --use-mailmap %aN` gives the spelling the commit
+    carries, which is only merged where the repository has a .mailmap; the run merges further (a trailer's
+    own spelling, a noreply address) and keys activity.authors_all by the name it kept. Without this,
+    gitmole's own report called its maintainer a first-time contributor to their own repository: the
+    branch's commits say "vinni", the merged identity is "antvinni" with 140 commits, and meta.aliases
+    has held the mapping all along. `identity.canonical_names` is the fallback for an export written
+    before meta.aliases existed."""
+    meta = report.get("meta") or {}
+    aliases = meta.get("aliases")
+    if aliases is None:
+        from . import identity
+        aliases = identity.canonical_names(meta.get("identities") or [])
+    return aliases.get(name, name)
+
+
 def change_factors(report: dict, stats: dict) -> dict:
     """Kamei et al.'s just-in-time factors for one change, as named reasons beside the mass share, never
     folded into it: the files and directories it touches (NF, ND) and the commits it spans, lines added
@@ -296,7 +312,7 @@ def change_factors(report: dict, stats: dict) -> dict:
     nuc = sum(revs.get(f, 0) for f in files)
     recent = sum(1 for a in report.get("age") or [] if a["entity"] in files and a["age-months"] < RECENT_MONTHS)
     developers = len({r["author"] for r in report.get("ownership") or [] if r["entity"] in files})
-    author = stats.get("author") or ""
+    author = _canonical_author(report, stats.get("author") or "")
     prior = ((report.get("activity") or {}).get("authors_all") or {}).get(author, {}).get("commits", 0)
     commits = stats.get("commits") or 0
     reasons = [f"touches {textfmt.count(len(files), 'file')} across {textfmt.count(dirs, 'directory', 'directories')}, {textfmt.count(commits, 'commit')}"]
