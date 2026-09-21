@@ -204,6 +204,12 @@ Each release runs from its own source over the development set (curl, django and
 - **The extras agree.** Determinism across time zone and locale is identical on curl and django, and the
   hook replay is identical to 0.33.0 on every repository. The only sensitivity rows that move are the two
   coupling rules' threshold sweeps, which is what changing those rules is supposed to move.
+- **0.34.1 has no record of its own, and this is why.** It changes one shell line in
+  `.github/workflows/ci.yml` and nothing gitmole runs: 0.34.0's release job created the release and then
+  failed to bump the formula, because the bump's own branch meant the checkout no longer had a local
+  `main` for the tap to pull. No report can move, so the numbers above are 0.34.1's too. The page holds a
+  record for thirty-four of fifty-six released tags for the same reason -- v0.9.1, v0.10.1 and the v0.6.x
+  series have none either, while 0.30.1 does, because that fix moved eleven report lines.
 
 ![ranking](evolution/ranking.svg)
 
