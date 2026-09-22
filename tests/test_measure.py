@@ -25,6 +25,28 @@ class Arithmetic(unittest.TestCase):
         self.assertEqual(metrics.recall_at_effort(["big", "small", "mid"], lines, {"small"}, 0.2), 0.0, "the big file spends the budget first")
         self.assertEqual(metrics.recall_at_effort(["small", "mid", "big"], lines, {"small", "big"}, 0.2), 0.5)
 
+    def test_popt_is_one_for_the_optimal_order_and_zero_for_the_worst(self):
+        cost = {"a": 1, "b": 1, "c": 2}   # a is the only file that was fixed
+        self.assertEqual(metrics.popt(["a", "b", "c"], cost, {"a"}), 1.0, "the positive first, cheapest negatives after")
+        self.assertEqual(metrics.popt(["c", "b", "a"], cost, {"a"}), 0.0, "the dearest negatives first, the positive last")
+
+    def test_popt_of_a_middling_order_is_the_worked_example(self):
+        cost = {"a": 1, "b": 1, "c": 2}
+        # areas under the effort-versus-found curve: optimal 0.875, worst 0.125, ["b", "a", "c"] 0.625,
+        # so 1 - (0.875 - 0.625) / (0.875 - 0.125) = 1 - 0.25 / 0.75
+        self.assertAlmostEqual(metrics.popt(["b", "a", "c"], cost, {"a"}), 2 / 3, places=6)
+
+    def test_popt_is_none_without_both_classes_or_without_cost(self):
+        self.assertIsNone(metrics.popt(["a", "b"], {"a": 1, "b": 1}, set()), "no positive")
+        self.assertIsNone(metrics.popt(["a", "b"], {"a": 1, "b": 1}, {"a", "b"}), "no negative")
+        self.assertIsNone(metrics.popt(["a", "b"], {"a": 0, "b": 0}, {"a"}), "no effort to spend")
+
+    def test_ifa_counts_the_false_alarms_before_the_first_hit(self):
+        self.assertEqual(metrics.ifa(["a", "b", "c"], {"a"}), 0)
+        self.assertEqual(metrics.ifa(["a", "b", "c"], {"c"}), 2)
+        self.assertEqual(metrics.ifa(["a", "b", "c"], {"c"}, top=2), 2, "capped at the head the reviewer reads")
+        self.assertIsNone(metrics.ifa([], {"a"}))
+
     def test_stability_measures(self):
         self.assertEqual(metrics.spearman(["a", "b", "c", "d"], ["a", "b", "c", "d"]), 1.0)
         self.assertEqual(metrics.spearman(["a", "b", "c"], ["c", "b", "a"]), -1.0)
