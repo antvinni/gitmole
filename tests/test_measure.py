@@ -96,6 +96,19 @@ class HarnessScore(unittest.TestCase):
         for key in ("manualup_hits", "manualup_auc", "manualup_recall20", "manualup_popt"):
             self.assertIn(key, out)
 
+    def test_the_complexity_budget_is_recorded_beside_the_lines_budget(self):
+        rank = dict(self.RANK, complexity={"big": 2, "small": 40, "mid": 8}, total_complexity=50)
+        out = harness.score(rank, {"small"}, top=3)
+        plain = harness.score(dict(self.RANK), {"small"}, top=3)
+        self.assertEqual(out["recall20"], plain["recall20"], "the lines number keeps its meaning exactly")
+        self.assertIsNotNone(out["recall20_complexity"])
+        self.assertIn("churn_recall20_complexity", out)
+        self.assertIn("manualup_recall20_complexity", out)
+
+    def test_a_release_whose_probe_carries_no_complexity_records_none(self):
+        out = harness.score(dict(self.RANK), {"small"}, top=3)
+        self.assertIsNone(out["recall20_complexity"], "an old release's probe has no complexity to spend")
+
 class Scoring(unittest.TestCase):
     def test_one_cut_off_against_random_perfect_and_churn(self):
         rank = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40}

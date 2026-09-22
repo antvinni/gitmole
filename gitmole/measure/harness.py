@@ -188,6 +188,13 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
     # by naming tiny files, which is exactly what its IFA beside it is for.
     manualup = sorted(pool, key=lambda f: (rank["lines"].get(f, 0), f))
     h, ch = metrics.hits(pool, positives, top), metrics.hits(churn, positives, top)
+    # The 2025 effort-aware critique (arXiv 2504.19181): these measures are size-aware, and the verdict
+    # can change when the effort driver is not lines. scc's per-file complexity is the second driver.
+    cplx, cplx_total = rank.get("complexity") or {}, rank.get("total_complexity")
+
+    def by_complexity(ordering):
+        return metrics.recall_at_effort(ordering, cplx, positives, total=cplx_total) if cplx_total else None
+
     exp, most = metrics.expected(len(pool), len(positives), top), metrics.best(len(pool), len(positives), top)
     return {"pool": len(pool), "positives": len(positives), "hits": h, "expected": round(exp, 3), "best": most, "churn_hits": ch,
             "auc": metrics.auc(pool, positives), "churn_auc": metrics.auc(churn, positives),
@@ -202,6 +209,9 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
             "manualup_recall20": metrics.recall_at_effort(manualup, rank["lines"], positives, total=rank.get("total_code")),
             "manualup_popt": metrics.popt(manualup, rank["lines"], positives),
             "manualup_ifa": metrics.ifa(manualup, positives, top),
+            "recall20_complexity": by_complexity(pool),
+            "churn_recall20_complexity": by_complexity(churn),
+            "manualup_recall20_complexity": by_complexity(manualup),
             "top": pool[:top]}   # for the carry-over between consecutive cut-offs
 
 

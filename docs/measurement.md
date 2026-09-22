@@ -174,6 +174,15 @@ a candidate ranking: the expectation, registered before it was run, is that it
 beats the watch list on recall at a lines budget and loses badly on `ifa`. If it
 wins both, the watch list has a problem and that is the finding.
 
+**Do not let lines be the only effort driver.** The same 2504.19181 makes a
+sharper point than the caveat above: effort-aware measures assume review effort
+is proportional to lines, so they are *size*-aware, and substituting a
+complexity measure gives "quite different indications". `recall20_complexity`
+is the same recall with scc's per-file complexity as the driver, recorded
+beside the lines number rather than replacing it — `recall20` stays what every
+past record means. If the two disagree about which list is ahead, that is the
+paper reproducing here, and it is a result rather than a bug.
+
 **Report per repository, not only in total.** A total of 231 hides a change that
 helped curl by four and hurt react by three. Win, loss and tie counts per
 repository per cut-off show whether an improvement generalises or trades. The
