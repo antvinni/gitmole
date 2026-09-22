@@ -74,11 +74,13 @@ class Score(unittest.TestCase):
         r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {"bots": []}, [], [])
         ranked = evaluate.variants(r)["watch list (hotspot)"]
         out = evaluate.effort(r, {ranked[1]}, 15)["watch list (hotspot)"]
-        self.assertEqual(out[0], 1, "one file before the first labelled one")
-        self.assertEqual(out[1], sum(SIZE["files"][f]["code"] for f in ranked[:15]))
-        self.assertEqual(evaluate.effort(r, set(), 15)["watch list (hotspot)"][0], len(ranked[:15]), "no hit: every file was a false alarm")
-        table = evaluate.effort_table([{"a": (1, 100)}, {"a": (3, 300)}])
-        self.assertIn("| a | 2 | 200 |", table)
+        self.assertEqual(set(out), {"ifa", "lines", "popt"}, "effort reports a dict per variant, not a tuple")
+        self.assertEqual(out["ifa"], 1, "one file before the first labelled one")
+        self.assertEqual(out["lines"], sum(SIZE["files"][f]["code"] for f in ranked[:15]))
+        self.assertEqual(evaluate.effort(r, set(), 15)["watch list (hotspot)"]["ifa"], len(ranked[:15]), "no hit: every file was a false alarm")
+        table = evaluate.effort_table([{"a": {"ifa": 1, "lines": 100, "popt": 0.4}},
+                                       {"a": {"ifa": 3, "lines": 300, "popt": 0.6}}])
+        self.assertIn("| a | 2 | 200 | 0.5 |", table)
 
     def test_the_report_at_t_knows_nothing_after_t(self):
         r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {"bots": []}, [], [])

@@ -21,6 +21,7 @@ import subprocess
 import sys
 
 from . import backtest, filetypes, identity, load, maat, szz, trend, watch
+from .measure import metrics
 
 
 def cutoffs(last_date: str, windows: int, horizon: int) -> list:
@@ -162,28 +163,35 @@ def score(report: dict, fixed: set, top: int) -> dict:
 
 
 def effort(report: dict, outcome: set, top: int) -> dict:
-    """variant -> (IFA, lines): how many of its first `top` files come before the first one in the
-    outcome (initial false alarms; `top` when none is), and the lines of code those files hold at the
-    cut-off, the inspection budget. A list that ranks small files first can look good on hits per line
-    and still send a reviewer through many files before one matters, so both are shown."""
+    """variant -> {ifa, lines, popt}: how many of its first `top` files come before the first one in
+    the outcome (initial false alarms; `top` when none is), the lines of code those files hold at the
+    cut-off (the inspection budget), and Popt over the whole ordering. A list that ranks small files
+    first can look good on hits per line and still send a reviewer through many files before one
+    matters, so all three are shown. IFA and Popt come from measure.metrics rather than from here:
+    two definitions of one number is how they drift apart."""
     files = (report.get("size") or {}).get("files") or {}
+    lines = {f: (v or {}).get("code", 0) for f, v in files.items()}
     out = {}
     for name, ranked in variants(report).items():
         head = ranked[:top]
-        ifa = next((i for i, f in enumerate(head) if f in outcome), len(head))
-        out[name] = (ifa, sum((files.get(f) or {}).get("code", 0) for f in head))
+        out[name] = {"ifa": metrics.ifa(head, outcome), "lines": sum(lines.get(f, 0) for f in head),
+                     "popt": metrics.popt(ranked, lines, outcome)}
     return out
 
 
 def effort_table(efforts: list) -> str:
-    """efforts: [{variant: (ifa, lines)}] per cut-off -> Markdown with the median of each over the cut-offs."""
+    """efforts: [{variant: {ifa, lines, popt}}] per cut-off -> Markdown with the median of each over
+    the cut-offs. A variant whose Popt is None at every cut-off (no fixed file, or nothing to read)
+    prints an empty cell rather than a number it does not have."""
     import statistics
     names = list(efforts[0]) if efforts else []
-    rows = ["| variant | IFA, median | lines of code in the list, median |", "|---|---:|---:|"]
+    rows = ["| variant | IFA, median | lines of code in the list, median | Popt, median |", "|---|---:|---:|---:|"]
     for name in names:
-        ifas = [e[name][0] for e in efforts]
-        lines = [e[name][1] for e in efforts]
-        rows.append(f"| {name} | {statistics.median(ifas):g} | {int(statistics.median(lines)):,} |")
+        ifas = [e[name]["ifa"] for e in efforts]
+        lines = [e[name]["lines"] for e in efforts]
+        popts = [e[name]["popt"] for e in efforts if e[name]["popt"] is not None]
+        popt = f"{statistics.median(popts):.2f}".rstrip("0").rstrip(".") if popts else ""
+        rows.append(f"| {name} | {statistics.median(ifas):g} | {int(statistics.median(lines)):,} | {popt} |")
     return "\n".join(rows)
 
 
@@ -271,7 +279,7 @@ def main(argv=None) -> int:
     if labelled_results:
         print(f"\nAgainst the files the bug-inducing commits labelled in {os.path.basename(args.labels)} touched inside each window:\n")
         print(table(labelled_results, noun="labelled"))
-        print(f"\nWhat each list costs a reviewer against the same labels: initial false alarms before the first labelled file, and the lines of code in its top {args.top}:\n")
+        print(f"\nWhat each list costs a reviewer against the same labels: initial false alarms before the first labelled file, the lines of code in its top {args.top}, and Popt over the whole ordering:\n")
         print(effort_table(labelled_effort))
     print(f"\n`--all` exports {spread['all']:,} commits ({spread['fix_all']:,} fixes); HEAD reaches {spread['head']:,} ({spread['fix_head']:,} fixes).")
     return 0
