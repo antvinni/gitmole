@@ -178,7 +178,8 @@ def ranking_at(src: str, clone: str, out: str, until: str, reference: str) -> di
 
 def score(rank: dict, outcome: set, top: int = TOP) -> dict:
     """One cut-off: the list's hits against what random and perfect would do, the churn baseline over
-    the same pool, ROC-AUC over the whole ordering, and recall at 20% of the codebase's lines."""
+    the same pool, ROC-AUC over the whole ordering, recall at 20% of the codebase's lines, Popt over
+    the whole ordering, and the initial false alarms before the first file that was fixed."""
     pool = rank["pool"]
     positives = outcome.intersection(pool)
     churn = sorted(pool, key=lambda f: (-rank["revs"].get(f, 0), f))
@@ -188,6 +189,10 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
             "auc": metrics.auc(pool, positives), "churn_auc": metrics.auc(churn, positives),
             "recall20": metrics.recall_at_effort(pool, rank["lines"], positives, total=rank.get("total_code")),
             "churn_recall20": metrics.recall_at_effort(churn, rank["lines"], positives, total=rank.get("total_code")),
+            "popt": metrics.popt(pool, rank["lines"], positives),
+            "churn_popt": metrics.popt(churn, rank["lines"], positives),
+            "ifa": metrics.ifa(pool, positives, top),
+            "churn_ifa": metrics.ifa(churn, positives, top),
             "top": pool[:top]}   # for the carry-over between consecutive cut-offs
 
 

@@ -73,6 +73,23 @@ class Arithmetic(unittest.TestCase):
         self.assertIsNone(metrics.bootstrap({"a": [None]}, metrics.median))
 
 
+
+class HarnessScore(unittest.TestCase):
+    """score() is what every release record is built from: its existing keys must not move."""
+
+    RANK = {"pool": ["big", "small", "mid"], "revs": {"big": 9, "small": 5, "mid": 1},
+            "lines": {"big": 800, "small": 100, "mid": 100}, "total_code": 1000}
+
+    def test_score_keeps_its_old_keys_and_adds_the_effort_aware_ones(self):
+        out = harness.score(dict(self.RANK), {"small"}, top=3)
+        for key in ("pool", "positives", "hits", "expected", "best", "churn_hits", "auc", "churn_auc",
+                    "recall20", "churn_recall20", "top"):
+            self.assertIn(key, out, f"{key} is part of the record and must not vanish")
+        self.assertEqual(out["ifa"], 1, "the list names big before small")
+        self.assertIsNotNone(out["popt"])
+        self.assertIsNotNone(out["churn_popt"])
+        self.assertIn("churn_ifa", out)
+
 class Scoring(unittest.TestCase):
     def test_one_cut_off_against_random_perfect_and_churn(self):
         rank = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40}

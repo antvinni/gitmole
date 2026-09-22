@@ -149,6 +149,22 @@ size-inverse rankings win this metric easily, which is why it belongs beside the
 hit counts rather than replacing them
 ([arXiv 2504.19181](https://arxiv.org/abs/2504.19181)).
 
+**State it in the measure the literature uses.** Recall at a budget is one point
+on a curve; `Popt` is the whole curve, and it is what Fu and Menzies, Yang et al.
+and Huang et al. state every effort-aware comparison in. It is the normalised
+area between the list's effort-versus-found curve and an optimal ordering's,
+against a worst ordering that spends the most effort before finding anything:
+
+    Popt = 1 − (area(optimal) − area(list)) / (area(optimal) − area(worst))
+
+Above 0.5 beats random. Recording it is what lets a number here be put beside a
+published one instead of only beside gitmole's own previous release.
+
+**Print the false alarms beside it.** A list can take a lines budget by naming
+many tiny files and still send a reviewer past several before one matters.
+`ifa` — how many files come before the first one that was fixed — is the number
+that shows it, and it is why the effort-aware numbers are never read alone.
+
 **Report per repository, not only in total.** A total of 231 hides a change that
 helped curl by four and hurt react by three. Win, loss and tie counts per
 repository per cut-off show whether an improvement generalises or trades. The
