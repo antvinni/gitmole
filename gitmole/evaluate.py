@@ -145,6 +145,10 @@ def variants(report: dict) -> dict:
     out["recent fixes"] = watch.ranked_by(rows, lambda r: (r["recent_fixes"], r["revs"]))
     hcm = {e["entity"]: e["hcm"] for e in report.get("entropy") or []}
     out["change entropy (HCM)"] = watch.ranked_by(rows, lambda r: (hcm.get(r["file"], 0.0), r["revs"]))   # Hassan's decayed HCM, the one metric with published evidence of beating churn
+    # ManualUp, the model Yang et al.'s twelve unsupervised predictors all generalise (they rank by the
+    # reciprocal of a metric, so the smallest come first). A control rather than a candidate: an effort
+    # budget measured in lines flatters it, which is why its IFA is reported beside it.
+    out["manual up (smallest first)"] = watch.ranked_by(rows, lambda r: -r["code"])
     return out
 
 

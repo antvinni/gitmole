@@ -90,6 +90,12 @@ class HarnessScore(unittest.TestCase):
         self.assertIsNotNone(out["churn_popt"])
         self.assertIn("churn_ifa", out)
 
+    def test_manualup_is_recorded_as_a_control_with_its_false_alarms(self):
+        out = harness.score(dict(self.RANK), {"big"}, top=3)
+        self.assertEqual(out["manualup_ifa"], 2, "smallest first names both small files before big")
+        for key in ("manualup_hits", "manualup_auc", "manualup_recall20", "manualup_popt"):
+            self.assertIn(key, out)
+
 class Scoring(unittest.TestCase):
     def test_one_cut_off_against_random_perfect_and_churn(self):
         rank = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40}

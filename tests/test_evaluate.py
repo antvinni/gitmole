@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 import unittest
 
-from gitmole import evaluate, maat
+from gitmole import evaluate, maat, watch
 from tests.test_szz import make_repo
 
 
@@ -89,11 +89,17 @@ class Score(unittest.TestCase):
         r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {}, [], [])
         out = evaluate.score(r, {"core/b.py"}, top=1)
         self.assertEqual(set(out), {"watch list (hotspot)", "factor product (max-scaled)", "factor product (rank-scaled)", "churn", "size", "recent fixes",
-                                    "change entropy (HCM)", "random (expected)"})
+                                    "change entropy (HCM)", "manual up (smallest first)", "random (expected)"})
         self.assertIn("entropy", r, "report_at carries Hassan's entropy per file for the variant to rank by")
         self.assertEqual(out["churn"], 0, "a.py changed more and was not the file fixed")
         self.assertEqual(out["random (expected)"], 0.5)
         self.assertEqual(evaluate.score(r, {"core/b.py"}, top=2)["churn"], 1)
+
+    def test_manual_up_is_the_smallest_first_control(self):
+        r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {}, [], [])
+        ranked = evaluate.variants(r)["manual up (smallest first)"]
+        sizes = [(SIZE["files"].get(f) or {}).get("code", 0) for f in ranked]
+        self.assertEqual(sizes, sorted(sizes), "Fu and Menzies' ManualUp: the cheapest file to read comes first")
 
     def test_a_bot_owns_nothing_at_t_either(self):
         commits = [commit("2025-01-10", "add", ("core/a.py", 100, 0))]

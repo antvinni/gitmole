@@ -165,6 +165,15 @@ many tiny files and still send a reviewer past several before one matters.
 `ifa` — how many files come before the first one that was fixed — is the number
 that shows it, and it is why the effort-aware numbers are never read alone.
 
+**Record the baseline that wins it.** Since size-inverse rankings take an effort
+budget easily, the honest thing is to record the one that does it best rather
+than to note the risk in prose. `manualup` ranks the smallest file first — the
+model Fu and Menzies confirm Yang et al.'s twelve unsupervised predictors all
+generalise, since they rank by the reciprocal of a metric. It is a control, not
+a candidate ranking: the expectation, registered before it was run, is that it
+beats the watch list on recall at a lines budget and loses badly on `ifa`. If it
+wins both, the watch list has a problem and that is the finding.
+
 **Report per repository, not only in total.** A total of 231 hides a change that
 helped curl by four and hurt react by three. Win, loss and tie counts per
 repository per cut-off show whether an improvement generalises or trades. The

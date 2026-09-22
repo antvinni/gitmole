@@ -183,6 +183,10 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
     pool = rank["pool"]
     positives = outcome.intersection(pool)
     churn = sorted(pool, key=lambda f: (-rank["revs"].get(f, 0), f))
+    # ManualUp: the smallest file first. Fu and Menzies (FSE 2017) verify this is the model Yang et al.'s
+    # twelve unsupervised predictors all generalise. A control, not a candidate — it takes a lines budget
+    # by naming tiny files, which is exactly what its IFA beside it is for.
+    manualup = sorted(pool, key=lambda f: (rank["lines"].get(f, 0), f))
     h, ch = metrics.hits(pool, positives, top), metrics.hits(churn, positives, top)
     exp, most = metrics.expected(len(pool), len(positives), top), metrics.best(len(pool), len(positives), top)
     return {"pool": len(pool), "positives": len(positives), "hits": h, "expected": round(exp, 3), "best": most, "churn_hits": ch,
@@ -193,6 +197,11 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
             "churn_popt": metrics.popt(churn, rank["lines"], positives),
             "ifa": metrics.ifa(pool, positives, top),
             "churn_ifa": metrics.ifa(churn, positives, top),
+            "manualup_hits": metrics.hits(manualup, positives, top),
+            "manualup_auc": metrics.auc(manualup, positives),
+            "manualup_recall20": metrics.recall_at_effort(manualup, rank["lines"], positives, total=rank.get("total_code")),
+            "manualup_popt": metrics.popt(manualup, rank["lines"], positives),
+            "manualup_ifa": metrics.ifa(manualup, positives, top),
             "top": pool[:top]}   # for the carry-over between consecutive cut-offs
 
 
