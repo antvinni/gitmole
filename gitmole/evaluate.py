@@ -88,7 +88,11 @@ def report_at(commits: list, t: str, size: dict, meta: dict, generated: list, ve
     return {"meta": {"now": t, "generated": generated, "vendored": vendored}, "size": size, "revisions": maat.revisions(past),
             "plumbing": maat.plumbing(past), "authors": maat.authors(past), "ownership": ownership,
             "fixes": maat.fixes(past, now=t), "coupling": [], "functions": [],
-            "entropy": maat.entropy(past, now=t)}
+            "entropy": maat.entropy(past, now=t),
+            # Hassan's best two models, for variants() to rank by. Not what gitmole ships: entropy above
+            # is the shipped analysis, and these exist only so the comparison has the right thing in it.
+            "entropy_hcm3s": maat.entropy(past, now=t, hcpf=3),
+            "entropy_hcm1d": maat.entropy(past, now=t, hcpf=1, phi=maat.HCM1D_PHI)}
 
 
 SOLO_WEIGHT = 1.5       # how much single ownership lifts a factor product
@@ -150,6 +154,13 @@ def variants(report: dict) -> dict:
     # reciprocal of a metric, so the smallest come first). A control rather than a candidate: an effort
     # budget measured in lines flatters it, which is why its IFA is reported beside it.
     out["manual up (smallest first)"] = watch.ranked_by(rows, lambda r: -r["code"])
+    # Hassan found HCM3s and HCM1d his two best models, and the line above ranks by neither. A report
+    # built before they existed carries no such table and simply contributes no variant.
+    for label, key in (("HCM3s", "entropy_hcm3s"), ("HCM1d", "entropy_hcm1d")):
+        table = report.get(key)
+        if table:
+            scores = {e["entity"]: e["hcm"] for e in table}
+            out[f"change entropy ({label})"] = watch.ranked_by(rows, lambda r, s=scores: (s.get(r["file"], 0.0), r["revs"]))
     return out
 
 

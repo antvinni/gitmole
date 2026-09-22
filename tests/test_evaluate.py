@@ -91,7 +91,8 @@ class Score(unittest.TestCase):
         r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {}, [], [])
         out = evaluate.score(r, {"core/b.py"}, top=1)
         self.assertEqual(set(out), {"watch list (hotspot)", "factor product (max-scaled)", "factor product (rank-scaled)", "churn", "size", "recent fixes",
-                                    "change entropy (HCM)", "manual up (smallest first)", "random (expected)"})
+                                    "change entropy (HCM)", "manual up (smallest first)", "change entropy (HCM3s)",
+                                    "change entropy (HCM1d)", "random (expected)"})
         self.assertIn("entropy", r, "report_at carries Hassan's entropy per file for the variant to rank by")
         self.assertEqual(out["churn"], 0, "a.py changed more and was not the file fixed")
         self.assertEqual(out["random (expected)"], 0.5)
