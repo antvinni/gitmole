@@ -414,9 +414,9 @@ def test_cochange(commits: list) -> list:
 ENTROPY_DECAY = 0.5   # a period's weight halves for every month it lies before the reference date
 BURST_GAP_HOURS = 1   # Hassan's ECC model starts a new period after this much quiet; his figure, not swept
 ADAPTIVE_WINDOW = 6   # ...and sizes the system by the files touched in this many periods; his figure too
-HCM1D_PHI = 10        # Hassan fitted 10 for HCM1d, but the PDF's text layer drops the exponent's sign and
-                      # where phi sits, so two readings are possible and this is the start of a sweep
-                      # rather than a principled constant: see docs/pipeline.md on thresholds by eye.
+HCM1D_PHI = 10        # Hassan fitted 10 for HCM1d, weighing a period by e^(phi (T_i - now)). The form is
+                      # legible in the paper; the unit of time is not, so years here are an assumption and
+                      # this is the start of a sweep rather than a principled constant (docs/pipeline.md).
 
 
 def _instant(c: dict):
@@ -473,19 +473,33 @@ def entropy(commits: list, now: str = None, decay: float = ENTROPY_DECAY, hcpf: 
       3 splits the period evenly between the files it changed (HCM3s), 1 gives each of them the whole
       period's entropy (HCM1s, and the HCPF HCM1d decays).
     - `periods` is "month" or "burst" (the ECC model: a new period after `gap_hours` of quiet).
-    - `sizing` is "period" (normalise by the files changed in the period) or "adaptive" (by the files
-      changed in this period and the `window - 1` before it, Hassan's adaptive system sizing).
-    - `phi` replaces the halving with exp(-months back / phi); see HCM1D_PHI on why it is not cited.
+    - `sizing` is what the entropy is normalised by: "period" (the files the period changed, the
+      default), "system" (every file the history has touched up to and including the period — the
+      normalised static entropy Hassan's results use, with the files touched standing in for the files
+      that exist, since the log has no tree), or "adaptive" (the files changed in this period and the
+      `window - 1` before it: his adaptive sizing, which he describes but shows no results for).
+    - `decay` of 1.0 is Hassan's simple sum, the s in HCM1s to HCM3s: nothing is forgotten.
+    - `phi` replaces the halving with e^(-phi × years back), the form of HCM1d; see HCM1D_PHI on why
+      its value is a sweep and not a citation.
+
+    Hassan's two best models are HCM3s (hcpf 3, burst, system, decay 1.0) and HCM1d (hcpf 1, burst,
+    system, phi). The default is neither.
     """
     now = now or dt.date.today().isoformat()
     buckets = _entropy_periods(commits, periods, gap_hours)
+    if phi is not None and phi <= 0:
+        raise ValueError(f"entropy: phi must be positive, not {phi!r}")
     sizes = None
-    if sizing == "adaptive":
+    if sizing in ("adaptive", "system"):
         ordered = sorted(range(len(buckets)), key=lambda i: buckets[i][0])
-        sizes = {}
+        sizes, touched = {}, set()
         for slot, i in enumerate(ordered):
-            recent = ordered[max(0, slot - window + 1):slot + 1]
-            sizes[i] = len({p for j in recent for p in buckets[j][1]})
+            if sizing == "system":
+                touched.update(buckets[i][1])
+                sizes[i] = len(touched)
+            else:
+                recent = ordered[max(0, slot - window + 1):slot + 1]
+                sizes[i] = len({p for j in recent for p in buckets[j][1]})
     elif sizing != "period":
         raise ValueError(f"entropy: unknown sizing {sizing!r}")
     y0, m0 = int(now[:4]), int(now[5:7])
@@ -495,7 +509,7 @@ def entropy(commits: list, now: str = None, decay: float = ENTROPY_DECAY, hcpf: 
         size = n if sizes is None else max(sizes[i], n)
         h = -sum((v / total) * math.log2(v / total) for v in counts.values()) / math.log2(size) if size > 1 and n > 1 else 0.0
         back = max(0, (y0 - int(stamp[:4])) * 12 + (m0 - int(stamp[5:7])))
-        weight = math.exp(-back / phi) if phi else decay ** back
+        weight = math.exp(-phi * back / 12) if phi is not None else decay ** back
         for p, v in counts.items():
             seen_in[p] += 1
             share = 1.0 if hcpf == 1 else (1.0 / n if hcpf == 3 else v / total)

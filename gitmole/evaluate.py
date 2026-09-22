@@ -89,10 +89,11 @@ def report_at(commits: list, t: str, size: dict, meta: dict, generated: list, ve
             "plumbing": maat.plumbing(past), "authors": maat.authors(past), "ownership": ownership,
             "fixes": maat.fixes(past, now=t), "coupling": [], "functions": [],
             "entropy": maat.entropy(past, now=t),
-            # Hassan's best two models, for variants() to rank by. Not what gitmole ships: entropy above
-            # is the shipped analysis, and these exist only so the comparison has the right thing in it.
-            "entropy_hcm3s": maat.entropy(past, now=t, hcpf=3),
-            "entropy_hcm1d": maat.entropy(past, now=t, hcpf=1, phi=maat.HCM1D_PHI)}
+            # Hassan's best two models as the paper defines them, for variants() to rank by: burst
+            # periods and the system's files as the normaliser, HCM3s undecayed, HCM1d decayed by phi.
+            # Not what gitmole ships: entropy above is the shipped analysis.
+            "entropy_hcm3s": maat.entropy(past, now=t, hcpf=3, periods="burst", sizing="system", decay=1.0),
+            "entropy_hcm1d": maat.entropy(past, now=t, hcpf=1, periods="burst", sizing="system", phi=maat.HCM1D_PHI)}
 
 
 SOLO_WEIGHT = 1.5       # how much single ownership lifts a factor product

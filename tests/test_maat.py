@@ -664,11 +664,26 @@ class ChangeEntropy(unittest.TestCase):
         self.assertGreater(month_hcm["one.py"], 0.0, "one calendar month holding two files is scattered")
         self.assertEqual(burst_hcm["one.py"], 0.0, "eight hours apart is two bursts of one file each: no scatter")
 
-    def test_a_phi_decay_replaces_the_halving(self):
-        halved = {r["entity"]: r["hcm"] for r in maat.entropy(self.COMMITS, now="2026-03-31")}
+    def test_a_phi_decay_takes_the_papers_form(self):
+        # Hassan's HCM1d weighs a period by e^(phi (T_i - now)): phi multiplies the time. January is two
+        # months, a sixth of a year, before now; January's entropy is 1 and a.py's share of it a half.
         phied = {r["entity"]: r["hcm"] for r in maat.entropy(self.COMMITS, now="2026-03-31", phi=maat.HCM1D_PHI)}
-        self.assertNotEqual(halved["a.py"], phied["a.py"], "exp(-back/phi) is not 0.5 ** back")
-        self.assertGreater(phied["a.py"], halved["a.py"], "phi of 10 forgets more slowly than halving every month")
+        self.assertAlmostEqual(phied["a.py"], round(0.5 * math.exp(-maat.HCM1D_PHI * 2 / 12), 6), places=6)
+
+    def test_phi_must_be_positive_and_zero_is_not_quietly_ignored(self):
+        with self.assertRaises(ValueError):
+            maat.entropy(self.COMMITS, now="2026-03-31", phi=0)
+
+    def test_a_decay_of_one_is_hassans_simple_sum(self):
+        simple = {r["entity"]: r["hcm"] for r in maat.entropy(self.COMMITS, now="2026-03-31", decay=1.0)}
+        self.assertEqual(simple["a.py"], 0.5, "January's share of a half times entropy 1, and nothing forgotten")
+
+    def test_system_sizing_normalises_by_every_file_the_history_has_touched_so_far(self):
+        commits = [_commit("j1", [("a.py", 1, 0)], date="2026-01-05"), _commit("j2", [("b.py", 1, 0)], date="2026-01-06"),
+                   _commit("f1", [("c.py", 1, 0)], date="2026-02-03"), _commit("f2", [("d.py", 1, 0)], date="2026-02-04")]
+        system = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-02-28", sizing="system", decay=1.0)}
+        self.assertEqual(system["a.py"], 0.5, "January: two files in the system, two changed, entropy 1")
+        self.assertEqual(system["c.py"], 0.25, "February: four files in the system, two changed evenly, entropy 1/2")
 
     def test_adaptive_sizing_normalises_over_the_recent_working_set(self):
         commits = [_commit("j1", [("a.py", 1, 0)], date="2026-01-05"), _commit("j2", [("b.py", 1, 0)], date="2026-01-06"),

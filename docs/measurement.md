@@ -184,15 +184,23 @@ past record means. If the two disagree about which list is ahead, that is the
 paper reproducing here, and it is a result rather than a bug.
 
 **Compare against the variant the evidence is actually about.** The change
-entropy in the comparison is Hassan's metric with one period model, one HCPF
-and one decay — roughly his HCM2s. The two models he found best were **HCM3s**
-(a period's entropy split evenly between the files it changed) and **HCM1d**
-(the whole period entropy to each of them, decayed), over burst-based periods
-with adaptive system sizing. `maat.entropy` now computes all of them behind
-parameters whose defaults are the shipped analysis, so `entropy.csv` does not
-move, and `evaluate` ranks by HCM3s and HCM1d beside the default. Whether any
-of them should become the shipped ranking is an effectiveness claim, needs the
-holdout, and is not answered here.
+entropy gitmole ships is Hassan's metric over calendar months, normalised by the
+files each month changed, split by each file's share and halved every month —
+close to his HCM2 with a decay of its own. The two models he found best are
+different on every one of those choices. Both run on burst periods (a new
+period after an hour of quiet) and normalise by the files in the system. **HCM3s**
+splits a period's entropy evenly between the files it changed and is a simple,
+undecayed sum — the *s*. **HCM1d** gives each of them the whole period's entropy
+and decays it by e^(φ(Tᵢ − now)). `maat.entropy` computes both behind parameters
+whose defaults are the shipped analysis, so `entropy.csv` does not move, and
+`evaluate` ranks by them beside the default.
+
+Two departures remain and are stated rather than hidden. The log has no tree,
+so "the files in the system" is every file the history has touched so far. And
+Hassan's φ of 10 has a legible form but no legible unit, so years are an
+assumption and φ is a value to sweep, not a citation. Whether either model
+should become the shipped ranking is an effectiveness claim, needs the holdout,
+and is not answered here.
 
 **Report per repository, not only in total.** A total of 231 hides a change that
 helped curl by four and hurt react by three. Win, loss and tie counts per

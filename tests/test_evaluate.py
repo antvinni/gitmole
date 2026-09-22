@@ -104,6 +104,14 @@ class Score(unittest.TestCase):
         sizes = [(SIZE["files"].get(f) or {}).get("code", 0) for f in ranked]
         self.assertEqual(sizes, sorted(sizes), "Fu and Menzies' ManualUp: the cheapest file to read comes first")
 
+    def test_hassans_two_best_models_are_the_ones_in_the_paper(self):
+        # every HCM in the paper runs on burst periods and normalises by the system's files; the s
+        # superscript is the simple, undecayed sum, and the d model decays by phi
+        r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {}, [], [])
+        past = maat.in_window(COMMITS, until="2025-06-01")
+        self.assertEqual(r["entropy_hcm3s"], maat.entropy(past, now="2025-06-01", hcpf=3, periods="burst", sizing="system", decay=1.0))
+        self.assertEqual(r["entropy_hcm1d"], maat.entropy(past, now="2025-06-01", hcpf=1, periods="burst", sizing="system", phi=maat.HCM1D_PHI))
+
     def test_a_bot_owns_nothing_at_t_either(self):
         commits = [commit("2025-01-10", "add", ("core/a.py", 100, 0))]
         commits[0]["author"] = "release[bot]"
