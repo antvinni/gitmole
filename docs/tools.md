@@ -7,7 +7,10 @@ analysis can tell you about a repo.
 
 Five external tools: scc for size, git-sizer for repo health, betterleaks for
 secrets, jscpd for duplicated blocks, osv-scanner for known vulnerabilities in
-the dependencies. Each is pinned to one version, listed in
+the dependencies. git-sizer and betterleaks read HEAD's history only, not every
+reference the clone happens to carry, so two clones of one commit report the
+same health and the same secrets; what no reference reaches is scanned
+separately and recorded as the clone's. Each is pinned to one version, listed in
 [gitmole/tools.py](https://github.com/antvinni/gitmole/blob/main/gitmole/tools.py)
 and installed with gitmole by the Homebrew formula, because their own rules
 decide part of the report: a tool that moved on its own would move the report

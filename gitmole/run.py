@@ -21,6 +21,7 @@ BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.
 FUNCTIONS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "functions.py")
 DUPLICATES_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "duplicates.py")
 LEAKS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "leaks.py")
+HEALTH_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "health.py")
 DEPS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "deps.py")
 LAUNCH_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "launch.py")
 
@@ -275,7 +276,8 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
     steps = [
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
         *([] if is_shallow(repo_dir) else   # git-sizer needs the whole object graph; the run records why it is missing
-          [{"name": "git-sizer", "argv": ["git-sizer", "--verbose"], "stdout": o("repo-health.txt"), "deps": []}]),
+          # over HEAD's history only, through health.py: what other references in this clone reach is the clone's, not the commit's
+          [{"name": "git-sizer", "argv": [sys.executable, HEALTH_SCRIPT], "stdout": o("repo-health.txt"), "deps": []}]),
         {"name": "betterleaks", "argv": [sys.executable, LEAKS_SCRIPT, o("secrets.json")], "stdout": None, "deps": []},   # hashes the values before anything is written
         {"name": "osv-scanner", "argv": [sys.executable, DEPS_SCRIPT, o("dependencies.json")], "stdout": None, "deps": []},   # offline, against the local database
         # -M: a move is not an edit; -w --ignore-blank-lines: a whitespace-only hunk is not a changed line, so a reformat that only
