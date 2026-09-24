@@ -6,8 +6,10 @@
     python -m gitmole.measure report                                                 # docs/measurement-history.md and the graphs
     python -m gitmole.measure labels dump|score                                      # the hand-label sheet and its verdicts
 
-Runs are sequential, one repository at a time, so the times and memory are comparable. Records go to
-docs/measurements/<version>.json, one per release, committed so two releases diff."""
+The timed runs are sequential, one repository at a time and nothing else on the machine, so the times
+and memory are comparable. The rankings at cut-offs are not timed, so they run side by side once every
+timed run is over (--jobs). Records go to docs/measurements/<version>.json, one per release, committed
+so two releases diff."""
 from __future__ import annotations
 
 import argparse
@@ -17,31 +19,53 @@ import json
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 from . import corpus, dashboard, harness
 
 RECORDS = os.path.join(corpus.ROOT, "docs", "measurements")
 DEFAULT_SETS = "development,awkward,gate"
+JOBS = 3   # rankings side by side; each backtest of a large history can take about the release run's peak memory
 
 
 def _labels_dir() -> str:
     return os.environ.get("GITMOLE_LABELS_DIR") or os.path.join(corpus.workspace(), "labels")
 
 
-def measure(ref: str, sets: list, manifest: dict, root: str, only=None) -> dict:
+def _error(e: Exception) -> dict:
+    return {"status": "harness-error", "note": f"{type(e).__name__}: {e}"[:200]}
+
+
+def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: int = JOBS) -> dict:
     src = harness.source(ref, root)
     version = harness.version_of(src)
+    reference = manifest["reference_date"]
     commit = subprocess.run(["git", "rev-parse", ref if ref != "worktree" else "HEAD"], cwd=corpus.ROOT, capture_output=True, text=True).stdout.strip()
     record = {"version": version, "ref": ref, "commit": commit, "measured": dt.date.today().isoformat(),
-              "sets": sets, "reference_date": manifest["reference_date"], "repos": {}}
-    for entry in corpus.entries(manifest, sets):
-        if only and entry["name"] not in only:
-            continue
+              "sets": sets, "reference_date": reference, "repos": {}}
+    entries = [e for e in corpus.entries(manifest, sets) if not only or e["name"] in only]
+    recs = {}
+    for entry in entries:   # the timed half, strictly one at a time: nothing else may run while a release is being timed
         print(f"measure: {version} {entry['name']}", file=sys.stderr, flush=True)
         try:
-            rec = harness.measure_entry(src, entry, root, manifest["reference_date"], _labels_dir())
+            recs[entry["name"]] = harness.run_entry(src, entry, root, reference)
         except Exception as e:   # the harness failing is not the release failing: record it and go on
-            rec = {"status": "harness-error", "note": f"{type(e).__name__}: {e}"[:200]}
+            recs[entry["name"]] = _error(e)
+    # the untimed half, side by side, the entry with the longest run first so the round ends when the biggest ranking does
+    pending = [e for e in entries if recs[e["name"]].get("status") != "harness-error"]
+    pending.sort(key=lambda e: -(recs[e["name"]].get("seconds") or 0))
+    with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
+        futures = {}
+        for entry in pending:
+            print(f"rank: {version} {entry['name']}", file=sys.stderr, flush=True)
+            futures[entry["name"]] = pool.submit(harness.rank_entry, src, entry, root, reference, recs[entry["name"]], _labels_dir())
+        for name, future in futures.items():
+            try:
+                recs[name] = future.result()
+            except Exception as e:
+                recs[name] = _error(e)
+    for entry in entries:
+        rec = recs[entry["name"]]
         rec["set"] = entry["set"]
         record["repos"][entry["name"]] = rec
     record["summary"] = dashboard.summarise(record)
@@ -85,8 +109,10 @@ def main(argv=None) -> int:
     r.add_argument("--sets", default=DEFAULT_SETS)
     r.add_argument("--only", action="append", default=[], help="only these corpus entries")
     r.add_argument("--merge", action="store_true", help="add these runs to the release's existing record instead of replacing it")
+    r.add_argument("--jobs", type=int, default=JOBS, help=f"rankings computed side by side after the timed runs (default {JOBS}; 1 is sequential)")
     h = sub.add_parser("history")
     h.add_argument("--sets", default=DEFAULT_SETS)
+    h.add_argument("--jobs", type=int, default=JOBS, help=f"as for run (default {JOBS})")
     h.add_argument("--force", action="store_true", help="measure a release again even when its record exists")
     h.add_argument("--releases", choices=["all", "minor"], default="all", help="every tag, or only x.y.0 releases")
     sub.add_parser("extras")
@@ -100,7 +126,7 @@ def main(argv=None) -> int:
     root = corpus.workspace()
     if args.command == "run":
         for ref in args.ref or ["worktree"]:
-            record = measure(ref, args.sets.split(","), manifest, root, set(args.only) or None)
+            record = measure(ref, args.sets.split(","), manifest, root, set(args.only) or None, args.jobs)
             existing = os.path.join(RECORDS, f"{record['version']}.json")
             if args.merge and os.path.exists(existing):
                 with open(existing, encoding="utf-8") as fh:
@@ -116,7 +142,7 @@ def main(argv=None) -> int:
         for tag in tags(args.releases):
             if tag.lstrip("v") in have and not args.force:
                 continue
-            print(write(measure(tag, args.sets.split(","), manifest, root)), flush=True)
+            print(write(measure(tag, args.sets.split(","), manifest, root, jobs=args.jobs)), flush=True)
         return 0
     if args.command == "claims":
         from . import claims
