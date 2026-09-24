@@ -112,8 +112,10 @@ constants carry weight.
 ## Ranking quality
 
 `evaluate.py` already computes hits at k against three outcome definitions (fix
-locality, R-SZZ bug insertion, external labels), the random expectation, initial
-false alarms and the lines of code in the list. What follows is what to change
+locality, R-SZZ bug insertion, external labels), the random expectation, and,
+against fix locality and against labels alike, initial false alarms, the lines
+of code in the list and Popt, so every variant it ranks can be read on the
+effort-aware measure without a labelled dataset. What follows is what to change
 and what to add.
 
 **Report headroom, not raw hits and not lift.** The totals table is hard to

@@ -9,7 +9,9 @@ months, the change analysis is rebuilt from the commits before T, scc measures t
 variant names its `top` files, and the source files a fix commit touched in [T, T + horizon) are the
 outcome. A fix is a commit whose subject says so (maat.is_fix): a proxy, not a bug tracker, and the
 table is only as good as the repository's commit subjects. Prints Markdown: one row per variant, one
-column per cut-off, and the total; then how many commits `--all` adds to HEAD's."""
+column per cut-off, and the total; then what each list costs a reviewer against those same fixes —
+initial false alarms, the lines in its top, and Popt over the whole ordering, the measure the
+effort-aware literature states its results in; then how many commits `--all` adds to HEAD's."""
 from __future__ import annotations
 
 import argparse
@@ -221,6 +223,27 @@ def table(results: list, noun: str = "fixed") -> str:
     return "\n".join([head, rule, *rows])
 
 
+def page(name: str, top: int, horizon: int, results: list, efforts: list, induced: list = (), labelled: list = (),
+         labelled_effort: list = (), labels_name: str = "", spread: dict = None) -> str:
+    """The Markdown evaluate prints: the hits table against the fixes that followed, then what each
+    list costs a reviewer against those same fixes (IFA, lines in the list, Popt) — the measure the
+    effort-aware literature states its results in, and so available without labels; then the R-SZZ
+    table and the labelled tables when asked for, and the ref spread when measured."""
+    out = [f"### {name}, top {top}, {horizon}-month horizon", "", table(results)]
+    out += ["", f"What each list costs a reviewer against the fixes that followed: initial false alarms before the first fixed file, "
+                f"the lines of code in its top {top}, and Popt over the whole ordering:", "", effort_table(efforts)]
+    if induced:
+        out += ["", "Against the files a commit before the cut-off made buggy, by R-SZZ over the fixes that followed (the most recent commit "
+                    "each fix's removed lines blame to):", "", table(induced, noun="bug-inducing")]
+    if labelled:
+        out += ["", f"Against the files the bug-inducing commits labelled in {labels_name} touched inside each window:", "", table(labelled, noun="labelled"),
+                "", f"What each list costs a reviewer against the same labels: initial false alarms before the first labelled file, the lines of code "
+                    f"in its top {top}, and Popt over the whole ordering:", "", effort_table(labelled_effort)]
+    if spread:
+        out += ["", f"`--all` exports {spread['all']:,} commits ({spread['fix_all']:,} fixes); HEAD reaches {spread['head']:,} ({spread['fix_head']:,} fixes)."]
+    return "\n".join(out) + "\n"
+
+
 def ref_spread(repo: str) -> dict:
     """Commits and fix commits reachable from every ref (what `git log --all` exports: remote release
     branches with their backports, unmerged work, the stash) against those reachable from HEAD."""
@@ -258,7 +281,7 @@ def main(argv=None) -> int:
     if args.labels and not labels:
         print(f"evaluate: no bug-inducing commits read from {args.labels}", file=sys.stderr)
         return 2
-    results, induced_results, labelled_results, labelled_effort = [], [], [], []
+    results, efforts, induced_results, labelled_results, labelled_effort = [], [], [], [], []
     for t in cutoffs(args.end or meta["last_date"], args.windows, args.horizon):
         rev = trend.rev_before(args.repo, t, end_of_day=False)
         if not rev:
@@ -270,6 +293,7 @@ def main(argv=None) -> int:
         fixed = fixed_between(commits, t, end)
         pool = set(variants(report)["churn"])
         results.append((t, len(fixed & pool), len(pool), score(report, fixed, args.top)))
+        efforts.append(effort(report, fixed, args.top))
         if args.szz:
             vendor = tuple(vendored)
             induced = induced_between(args.repo, commits, t, end, exclude=lambda p: p in generated or filetypes.is_vendored(p, vendor) or filetypes.is_sample_path(p))
@@ -282,18 +306,8 @@ def main(argv=None) -> int:
     if not results:
         print("evaluate: no cut-off falls inside the history", file=sys.stderr)
         return 2
-    spread = ref_spread(args.repo)
-    print(f"### {meta.get('name', args.repo)}, top {args.top}, {args.horizon}-month horizon\n")
-    print(table(results))
-    if induced_results:
-        print(f"\nAgainst the files a commit before the cut-off made buggy, by R-SZZ over the fixes that followed (the most recent commit each fix's removed lines blame to):\n")
-        print(table(induced_results, noun="bug-inducing"))
-    if labelled_results:
-        print(f"\nAgainst the files the bug-inducing commits labelled in {os.path.basename(args.labels)} touched inside each window:\n")
-        print(table(labelled_results, noun="labelled"))
-        print(f"\nWhat each list costs a reviewer against the same labels: initial false alarms before the first labelled file, the lines of code in its top {args.top}, and Popt over the whole ordering:\n")
-        print(effort_table(labelled_effort))
-    print(f"\n`--all` exports {spread['all']:,} commits ({spread['fix_all']:,} fixes); HEAD reaches {spread['head']:,} ({spread['fix_head']:,} fixes).")
+    sys.stdout.write(page(meta.get("name", args.repo), args.top, args.horizon, results, efforts, induced_results, labelled_results, labelled_effort,
+                          os.path.basename(args.labels) if args.labels else "", ref_spread(args.repo)))
     return 0
 
 
