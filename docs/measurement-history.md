@@ -184,6 +184,7 @@ Each release runs from its own source over the development set (curl, django and
   last one whatever sat beside it, so the README's ranking graph read "0.31.00.32.0", and the caption was
   drawn along the legend's baseline and through its words. Labels are now spaced by the room a label needs,
   with both ends always drawn, and the note has a line of its own. Every graph on this page is redrawn.
+
 - **0.34.0 fixed eleven things the report said wrongly and moved no number that measures the tool.** The
   ranking, the recall, the findings per repository (23.5 and 27.5), the report length (224 lines), the
   scored share, robustness (21 of 21) and the gate (3 of 3) are all identical to 0.33.0, and the findings
@@ -213,6 +214,38 @@ Each release runs from its own source over the development set (curl, django and
   releases'. The page holds a record for thirty-four of fifty-six released tags for the same reason --
   v0.9.1, v0.10.1 and the v0.6.x series have none either, while 0.30.1 does, because that fix moved
   eleven report lines.
+- **0.35.0 lands the yardstick the cited papers are stated in, and moves no number that measures the
+  tool.** Headroom (0.62 [0.36, 0.93]), ROC-AUC (0.82), W/L/T (17/4/9), recall at a fifth of the lines
+  (36%), stability, bug magnets, the scored share, robustness (21 of 21), the gate (3 of 3), report length
+  (224) and the findings median (23.5) are all identical to 0.34.0. Every ranking key that existed before
+  is byte-identical at every cut-off. What is new is recorded beside them for the first time: Popt, initial
+  false alarms, ManualUp as a control and recall under a complexity budget. Read together they say the
+  watch list finds the fixed files (AUC 0.82) but spends more lines reaching them than a random order
+  would: its Popt is under 0.5 on every development repository (0.24 curl to 0.42 ghidra), churn's is
+  0.29 to 0.50, and ManualUp's 0.61 to 0.78 with its first hit at rank 11 to 15. Under a complexity budget
+  the three lists keep their order at every repository, so the 2025 critique reproduces as magnitude
+  (django's recall 0.60 to 0.17), not as a flip. Hassan's HCM3s and HCM1d, run through `evaluate` on the
+  same five repositories, sum to 281 and 256 hits at the top fifteen against churn's 283 and the watch
+  list's 318; HCM3s beats churn on django alone. Neither is a candidate for the shipped ranking on this
+  evidence.
+- **The p90 (27.5 to 28.5) and react (30 to 32 findings, 292 to 305 lines) moved with the clone, not the
+  code.** This record was measured on clones made on 22 September in a new workspace; react's carries
+  1,153 refs, the sapling pull-request archives among them, and git-sizer reads the whole clone, so two
+  more `repo_health` rows fire (Blobs: total size; Biggest checkouts: path length at a remote ref). A run
+  of 0.34.2's code over the same clone on 22 September already showed 32, and the diff between that run
+  and this one is one surviving line in `knowledge_loss`. The secrets findings' ids moved with the clone
+  too, since betterleaks reads its object store, so their labels no longer attach: the dashboard's
+  actionable share reads 71% of 78 where 0.34.0 read 69%, and 94% labelled where 96% did, for bookkeeping
+  reasons; no label was added or carried. `minor_contributors` changed its statement on every repository
+  by design (its count is now Bird's count, with the expected traffic named), so those labels detach too.
+- **Wall time (691 to 811 s) and peak memory (3,035 to 1,500 MB) are not comparable this release.** The
+  machine carried a load average of 3 to 11 through the timed runs, from something other than the
+  harness. betterleaks on react took 136 s against 31 and peaked at 1.5 GB against 3.0, at the same
+  pinned version over the same commit; nothing in 0.35.0 touches the secrets step.
+- **The extras agree.** Determinism across time zone and locale is identical on curl and django, the hook
+  replay is identical to 0.34.0 on all five repositories, none of the 48 sensitivity rows changes its
+  verdict, and 244 of 244 findings agree with their own numbers. The signed-commits second check stays
+  unavailable, as in 0.33.0 and 0.34.0: gpg is not installed on this machine.
 
 ![ranking](evolution/ranking.svg)
 
@@ -270,8 +303,9 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.32.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 697 | 3037 |  |
 | 0.33.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 700 | 2725 |  |
 | 0.34.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 691 | 3035 |  |
+| 0.35.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/28.5 | 224 | 23% | 21/21 | 3/3 | 811 | 1500 |  |
 
-## The dashboard for 0.34.0
+## The dashboard for 0.35.0
 
 | | set | value |
 |---|---|---|
@@ -280,12 +314,13 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | recall at 20% of lines | development | 36% |
 | top-15 stability over 50 commits | development | 1.00 |
 | top-15 carried over from one cut-off to the next, six months | development | 0.90 |
-| findings per repository, median and p90 | development | 23.5 and 27.5 |
-| findings the default report spells out that are labelled actionable | development and well-kept | 69% of 78, 96% labelled |
+| findings per repository, median and p90 | development | 23.5 and 28.5 |
+| findings the default report spells out that are labelled actionable | development and well-kept | 71% of 78, 94% labelled |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 3, undecided 26, unlabelled 7 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 691 s, 3035 MB |
+| wall time and peak memory | development | 811 s, 1500 MB |
 | scored share of tracked files | development | 23% |
+| findings whose text agrees with their own numbers | every set | 244 of 244 |
 | unexplained description disagreements | development | 0 |
 
 ### Threshold sensitivity
