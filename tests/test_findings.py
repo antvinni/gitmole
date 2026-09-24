@@ -276,7 +276,7 @@ class SweepingCommits(unittest.TestCase):
         self.assertIn("2 commits each touch 60 files or more and take out as many lines as they put in: fmt1 (1,204 files, 2026-03-01, Reformat with black); "
                       "ren1 (60 files, 2026-03-01, Rename Foo to Bar). They are left out of the churn, coupling and ownership counts.", f["detail"])
         self.assertEqual(f["advice"], "Add fmt1 and ren1 to .git-blame-ignore-revs so git blame and GitHub skip them too; 1 commit is declared there already.")
-        self.assertEqual(f["rule"], {"id": "sweeping_commits", "min_files": 20, "percentile": 0.99, "tolerance": 0.1})
+        self.assertEqual(f["rule"], {"id": "sweeping_commits", "min_files": 20, "percentile": 0.99, "tolerance": 0.1, "ref": "Kolassa, Riehle and Salim, SOFSEM 2013"})
         self.assertEqual([c["hash"] for c in f["evidence"]["commits"]], ["fmt1", "ren1"])
         self.assertEqual(f["evidence"]["declared"], 1)
 
@@ -1350,7 +1350,7 @@ class References(unittest.TestCase):
                     "brain_methods": "Lanza and Marinescu, 2006", "tight_coupling": "Gall, Hajek and Jazayeri, ICSM 1998",
                     "trojan_source": "Boucher and Anderson, USENIX Security 2023",
                     "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
-                    "unreferenced_files": "Romano et al., TSE 2020"}
+                    "unreferenced_files": "Romano et al., TSE 2020", "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013"}
         for rule, ref in expected.items():
             self.assertEqual(findings.REFS[rule], ref, rule)
         import os

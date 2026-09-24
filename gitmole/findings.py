@@ -19,7 +19,8 @@ REFS = {"minor_contributors": "Bird et al., FSE 2011", "tangled_commits": "Herzi
         "trojan_source": "Boucher and Anderson, USENIX Security 2023",
         "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
         "unreferenced_files": "Romano et al., TSE 2020", "signoff_by_co_author": "Linux kernel, Documentation/process/coding-assistants.rst",
-        "deep_nesting": "SonarSource cognitive complexity; CodeScene code health"}
+        "deep_nesting": "SonarSource cognitive complexity; CodeScene code health",
+        "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013"}
 
 
 def _f(severity: str, title: str, statement: str, advice: str, rule: dict, evidence: dict) -> dict:
