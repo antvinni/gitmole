@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 from collections import Counter, defaultdict
 
-from . import classify, filetypes, hotspots, textfmt, trend
+from . import classify, filetypes, hotspots, maat, textfmt, trend
 
 CCN_FLOOR = 10          # lizard's own "complex" threshold: below it a function is not worth naming
 SOLO_SHARE = 0.9        # one author wrote at least this much of the file: single ownership
@@ -292,10 +292,13 @@ def _canonical_author(report: dict, name: str) -> str:
 
 def change_factors(report: dict, stats: dict) -> dict:
     """Kamei et al.'s just-in-time factors for one change, as named reasons beside the mass share, never
-    folded into it: the files and directories it touches (NF, ND) and the commits it spans, lines added
-    and removed against the lines those files had (LA/LT, LD/LT), how evenly it spreads over its files
-    (entropy), how often those files changed before and by how many people (NUC, NDEV), how many
-    changed this month (AGE), and the author's prior commits here (EXP)."""
+    folded into it: the files, directories and subsystems it touches (NF, ND, NS) and the commits it
+    spans, whether it is a fix by its subjects (FIX), lines added and removed against the lines those
+    files had (LA/LT, LD/LT), how evenly it spreads over its files (entropy), how often those files
+    changed before and by how many people (NUC, NDEV), how many changed this month (AGE), and the
+    author's prior commits here (EXP) and in these subsystems (SEXP). REXP is left out, as Kamei left it
+    out, for collinearity with EXP. A subsystem is the root directory, Kamei's definition. The prior
+    counts come from the run over the clone at HEAD, so they include the change's own commits."""
     import math
     files = list(stats.get("files") or [])
     added, deleted = stats.get("added") or {}, stats.get("deleted") or {}
@@ -308,14 +311,23 @@ def change_factors(report: dict, stats: dict) -> dict:
     if total and len(files) > 1:
         entropy = -sum((w / total) * math.log2(w / total) for w in weights if w) / math.log2(len(files))
     dirs = len({os.path.dirname(f) for f in files})
+    subsystems = {maat.component(f, 1) for f in files}
+    fix = any(maat.is_fix(s) for s in stats.get("subjects") or [])
     revs = {r["entity"]: r["n-revs"] for r in report.get("revisions") or []}
     nuc = sum(revs.get(f, 0) for f in files)
     recent = sum(1 for a in report.get("age") or [] if a["entity"] in files and a["age-months"] < RECENT_MONTHS)
-    developers = len({r["author"] for r in report.get("ownership") or [] if r["entity"] in files})
+    ownership = report.get("ownership") or []
+    developers = len({r["author"] for r in ownership if r["entity"] in files})
     author = _canonical_author(report, stats.get("author") or "")
     prior = ((report.get("activity") or {}).get("authors_all") or {}).get(author, {}).get("commits", 0)
+    sexp = None   # an export from before the ownership commits column cannot say, and None is not zero
+    if any("commits" in r for r in ownership):
+        sexp = sum(r.get("commits") or 0 for r in ownership if r.get("author") == author and maat.component(r["entity"], 1) in subsystems)
     commits = stats.get("commits") or 0
-    reasons = [f"touches {textfmt.count(len(files), 'file')} across {textfmt.count(dirs, 'directory', 'directories')}, {textfmt.count(commits, 'commit')}"]
+    where = f" in {len(subsystems)} subsystems" if len(subsystems) > 1 else ""
+    reasons = [f"touches {textfmt.count(len(files), 'file')} across {textfmt.count(dirs, 'directory', 'directories')}{where}, {textfmt.count(commits, 'commit')}"]
+    if fix:
+        reasons.append("a fix, by its subject")
     share = f" ({round(100 * la / lt)}%)" if lt else ""
     reasons.append(f"adds {la:,} lines to {lt:,}{share}, removes {ld:,}" if lt else f"adds {la:,} lines, removes {ld:,}")
     if len(files) > 1 and total:
@@ -328,9 +340,11 @@ def change_factors(report: dict, stats: dict) -> dict:
     if nuc:
         reasons.append(f"the files have {nuc:,} prior changes by {textfmt.count(developers, 'person', 'people')}")
     if author:
-        reasons.append(f"{author}'s first commit here" if not prior else f"{author} has {textfmt.count(prior, 'prior commit')} here")
-    return {"files": len(files), "dirs": dirs, "commits": commits, "added": la, "deleted": ld, "lines_before": lt, "entropy": round(entropy, 3),
-            "prior_revisions": nuc, "recent_files": recent, "developers": developers, "author": author, "author_commits": prior, "reasons": reasons}
+        here = "" if sexp is None else f", {sexp} in these subsystems"
+        reasons.append(f"{author}'s first commit here" if not prior else f"{author} has {textfmt.count(prior, 'prior commit')} here{here}")
+    return {"files": len(files), "dirs": dirs, "subsystems": len(subsystems), "commits": commits, "fix": fix, "added": la, "deleted": ld,
+            "lines_before": lt, "entropy": round(entropy, 3), "prior_revisions": nuc, "recent_files": recent, "developers": developers,
+            "author": author, "author_commits": prior, "author_subsystem_commits": sexp, "reasons": reasons}
 
 
 # What a simpler list would rank by. Churn alone is the one to beat: a file's past changes predict

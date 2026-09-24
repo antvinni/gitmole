@@ -474,9 +474,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    tree`, the last covering a file the change deleted and, under `--no-run`,
    one added after the run; otherwise `changed once`, or `no revisions on
    record`. The caption adds Kamei's factors for the change (files,
-   directories and commits; lines added against the lines the files had;
-   how evenly it spreads; files changed this month; prior changes and
-   people; the author's prior commits) and the companions the change left
+   directories, subsystems and commits; whether it is a fix by its
+   subjects; lines added against the lines the files had; how evenly it
+   spreads; files changed this month; prior changes and people; the
+   author's prior commits, here and in these subsystems) and the companions the change left
    untouched (`not touched: core/ast.py, which moved in 72% of
    core/parser.py's changes`); the JSON carries them under `change_risk.change` and
    `change_risk.coupling_gaps`, and each scored file's rank, fix counts,

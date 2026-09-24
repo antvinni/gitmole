@@ -317,17 +317,37 @@ class ChangeRisk(unittest.TestCase):
         r = report()
         r["age"] = [{"entity": "core/parser.py", "age-months": 0}, {"entity": "core/util.py", "age-months": 8}]
         r["activity"] = {"authors_all": {"Ann": {"commits": 120}, "Bob": {"commits": 3}}}
+        for row in r["ownership"]:
+            row["commits"] = {"Ann": 20, "Bob": 1, "Cat": 4}[row["author"]]
         stats = {"files": ["core/parser.py", "core/util.py", "web/index.html"], "added": {"core/parser.py": 300, "core/util.py": 20, "web/index.html": 4},
-                 "deleted": {"core/parser.py": 40, "core/util.py": 0, "web/index.html": 0}, "author": "Bob", "commits": 3}
+                 "deleted": {"core/parser.py": 40, "core/util.py": 0, "web/index.html": 0}, "author": "Bob", "commits": 3,
+                 "subjects": ["Tidy the parser", "fix: crash on empty input", "Add a test"]}
         out = watch.change_risk(r, stats["files"], stats)
         c = out["change"]
         self.assertEqual((c["files"], c["dirs"], c["added"], c["deleted"], c["lines_before"]), (3, 2, 324, 40, 5000))
         self.assertAlmostEqual(c["entropy"], 0.248, places=3, msg="Shannon entropy of the change's lines over its files, normalised by log2 of the file count")
         self.assertEqual((c["prior_revisions"], c["recent_files"], c["developers"], c["author"], c["author_commits"]), (130, 1, 3, "Bob", 3))
-        self.assertEqual(c["reasons"], ["touches 3 files across 2 directories, 3 commits", "adds 324 lines to 5,000 (6%), removes 40",
+        self.assertEqual((c["subsystems"], c["fix"], c["author_subsystem_commits"]), (2, True, 2),
+                         "NS: core and web; FIX: one subject is a fix; SEXP: Bob's commits to core/util.py and web/index.html")
+        self.assertEqual(c["reasons"], ["touches 3 files across 2 directories in 2 subsystems, 3 commits", "a fix, by its subject",
+                                        "adds 324 lines to 5,000 (6%), removes 40",
                                         "most of the change is in one file", "1 of the 3 files changed this month",
-                                        "the files have 130 prior changes by 3 people", "Bob has 3 prior commits here"])
+                                        "the files have 130 prior changes by 3 people", "Bob has 3 prior commits here, 2 in these subsystems"])
         self.assertNotIn("change", watch.change_risk(r, stats["files"]), "without the diff's numbers there are no factors")
+
+    def test_one_subsystem_no_fix_and_an_export_without_commit_counts(self):
+        r = report()
+        r["activity"] = {"authors_all": {"Ann": {"commits": 120}}}
+        stats = {"files": ["core/parser.py", "core/util.py"], "added": {"core/parser.py": 50, "core/util.py": 50}, "deleted": {}, "author": "Ann", "commits": 1,
+                 "subjects": ["Refactor helpers"]}
+        c = watch.change_risk(r, stats["files"], stats)["change"]
+        self.assertEqual((c["subsystems"], c["fix"], c["author_subsystem_commits"]), (1, False, None),
+                         "one subsystem is not worth a word; no subject is a fix; the fixture's ownership rows predate the commits column")
+        self.assertEqual(c["reasons"][0], "touches 2 files across 1 directory, 1 commit")
+        self.assertNotIn("a fix", " ".join(c["reasons"]))
+        self.assertEqual(c["reasons"][-1], "Ann has 120 prior commits here", "no subsystem count when the export cannot say")
+        stats["subjects"] = []
+        self.assertFalse(watch.change_risk(r, stats["files"], stats)["change"]["fix"], "no subjects, no fix")
 
     def test_a_first_time_author_and_an_even_spread(self):
         r = report()
