@@ -246,6 +246,32 @@ Each release runs from its own source over the development set (curl, django and
   replay is identical to 0.34.0 on all five repositories, none of the 48 sensitivity rows changes its
   verdict, and 244 of 244 findings agree with their own numbers. The signed-commits second check stays
   unavailable, as in 0.33.0 and 0.34.0: gpg is not installed on this machine.
+- **0.35.1 is the release where repo health and the secrets scan describe the commit, not the clone,
+  and it moves the numbers that should move.** git-sizer used to measure every object any reference
+  in the clone reached and betterleaks walked every branch, so the 0.35.0 record's react row carried
+  two `repo_health` findings and a critical `secrets_in_source` that belonged to a pull-request
+  archive branch the commit never reached, and binutils-gdb carried an oversized commit from a cygwin
+  release tag. Both tools now read HEAD's history through a throwaway repository with one reference,
+  and those findings are gone: react 32 to 29, binutils-gdb 24 to 23, findings median 23.5 to 23, p90
+  28.5 to 27, report length 224 to 220.5. Every other repository keeps its count. The ranking keys are
+  byte-identical to 0.35.0 at every cut-off, as a fix that touches no ranking should leave them.
+- **The extras agree with 0.35.0 on every check**: determinism identical on curl and django, the hook
+  replay identical on all five repositories, no sensitivity verdict moved, 240 of 240 findings agree
+  with their own numbers (four fewer findings than 0.35.0, the four removed above). The signed-commits
+  second check stays unavailable for want of gpg.
+- **The cost lanes are readable this time for most of the set, with two caveats.** binutils-gdb's 421 s
+  against 368 was measured under a load average of 10 from something other than the harness; the
+  machine also slept for three and a half hours during that run, which the monotonic clock does not
+  count. django was measured twice: the first pass, under a load of 6.6, projected its blame pass at
+  62 s and skipped code age, so the entry was re-measured alone on a quiet machine (load 2.5) and merged
+  in, which is why its wall time reads 166 s and its report has its ownership column. Peak memory reads
+  1,125 MB against 1,500, betterleaks on react again at the same pinned version.
+- **`evaluate` now prints Popt without labels, and it reverses a verdict.** On hits at fifteen the watch
+  list beats every entropy list; on Popt against the same fixes the shipped entropy and Hassan's HCM1d
+  beat churn and the watch list on all five development repositories, with a first hit at rank 0 to
+  1.5 and a third to a half of the lines. Both are true: the watch list names more of the files that get
+  fixed and pays for it in lines. Whether the list should rank by entropy is the holdout's question and
+  is not decided by this release.
 
 ![ranking](evolution/ranking.svg)
 
@@ -304,8 +330,9 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.33.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 700 | 2725 |  |
 | 0.34.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/27.5 | 224 | 23% | 21/21 | 3/3 | 691 | 3035 |  |
 | 0.35.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/28.5 | 224 | 23% | 21/21 | 3/3 | 811 | 1500 |  |
+| 0.35.1 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23/27 | 220.5 | 23% | 21/21 | 3/3 | 812 | 1125 |  |
 
-## The dashboard for 0.35.0
+## The dashboard for 0.35.1
 
 | | set | value |
 |---|---|---|
@@ -314,13 +341,13 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | recall at 20% of lines | development | 36% |
 | top-15 stability over 50 commits | development | 1.00 |
 | top-15 carried over from one cut-off to the next, six months | development | 0.90 |
-| findings per repository, median and p90 | development | 23.5 and 28.5 |
-| findings the default report spells out that are labelled actionable | development and well-kept | 71% of 78, 94% labelled |
+| findings per repository, median and p90 | development | 23 and 27 |
+| findings the default report spells out that are labelled actionable | development and well-kept | 72% of 77, 94% labelled |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 3, undecided 26, unlabelled 7 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 811 s, 1500 MB |
+| wall time and peak memory | development | 812 s, 1125 MB |
 | scored share of tracked files | development | 23% |
-| findings whose text agrees with their own numbers | every set | 244 of 244 |
+| findings whose text agrees with their own numbers | every set | 240 of 240 |
 | unexplained description disagreements | development | 0 |
 
 ### Threshold sensitivity
