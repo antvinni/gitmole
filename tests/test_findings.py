@@ -1395,6 +1395,21 @@ class TruckFactor(unittest.TestCase):
         doa = [self.row(f"core/a{i}.py", who) for i in range(30) for who in ("Ann", "Bob", "Cat")]
         self.assertNotIn("truck_factor", {f["rule"]["id"] for f in findings.evaluate(self.rep(doa))})
 
+    def test_a_pool_most_of_which_has_no_author_has_no_truck_factor(self):
+        # Issue #129: files an import brought in have no creator, and a lightly changed one has no author by
+        # DOA. When more than half the pool is like that nobody has to leave, so there is no one to name.
+        doa = [self.row(f"core/a{i}.py", "Ann", author=0) for i in range(20)] + [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+        found = {f["rule"]["id"]: f for f in findings.evaluate(self.rep(doa))}
+        self.assertNotIn("truck_factor", found)
+
+    def test_decay_leaving_most_files_authorless_is_said_without_an_empty_name(self):
+        doa = [self.row(f"core/a{i}.py", "Ann", decayed=0) for i in range(20)] + [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa))}["truck_factor"]
+        self.assertIn("Truck factor 1: without Ann", f["detail"])
+        self.assertNotIn("()", f["detail"])
+        self.assertIn("With knowledge halving every five months, more than half the files already have no author", f["detail"])
+        self.assertEqual(f["evidence"]["truck_factor_decayed"], 0)
+
     def test_files_whose_authors_all_left_while_others_still_edit_them(self):
         doa = [self.row(f"core/a{i}.py", "Cat") for i in range(6)] + [self.row(f"core/a{i}.py", "Bob", author=0) for i in range(6)]
         doa += [self.row(f"web/b{i}.py", who) for i in range(20) for who in ("Ann", "Bob")]

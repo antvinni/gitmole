@@ -1333,6 +1333,10 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
     if len(files) < min_files:
         return []
     tf, removed, share = knowledge.truck_factor(authored)
+    if not removed:
+        # More than half the pool has no author before anyone leaves (files an import brought in, or
+        # history the clone does not hold, have no creator), so there is no truck factor and no one to name.
+        return []
     tf_d, removed_d, _ = knowledge.truck_factor(_authors_of(report, files, "is_author_decayed"))
     depth = knowledge.depth_for(files)
     areas = {}
@@ -1349,7 +1353,9 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
     orphans = round(share * len(files))
     statement = (f"Truck factor {tf}: without {textfmt.join_and(removed)}, {orphans} of the {len(files)} source files ({_pct(orphans, len(files))}) "
                  f"have no author left.")
-    if tf_d != tf:
+    if tf_d != tf and not removed_d:
+        statement += " With knowledge halving every five months, more than half the files already have no author."
+    elif tf_d != tf:
         statement += f" With knowledge halving every five months it is {tf_d} ({textfmt.join_and(removed_d)})."
     if lone:
         statement += " Areas with a truck factor of one: " + ", ".join(f"{a} ({w})" for a, w in lone[:5]) + (f" and {len(lone) - 5} more" if len(lone) > 5 else "") + "."
