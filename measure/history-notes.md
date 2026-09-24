@@ -178,3 +178,65 @@
   last one whatever sat beside it, so the README's ranking graph read "0.31.00.32.0", and the caption was
   drawn along the legend's baseline and through its words. Labels are now spaced by the room a label needs,
   with both ends always drawn, and the note has a line of its own. Every graph on this page is redrawn.
+
+- **0.34.0 fixed eleven things the report said wrongly and moved no number that measures the tool.** The
+  ranking, the recall, the findings per repository (23.5 and 27.5), the report length (224 lines), the
+  scored share, robustness (21 of 21) and the gate (3 of 3) are all identical to 0.33.0, and the findings
+  count is unchanged on every one of the twenty-one repositories, the well-kept four included: nothing
+  appeared and nothing disappeared. Report length moved by a line on four repositories and by three on
+  react, +3 over the set, which the median does not feel.
+- **The one number that appears to improve did not.** The dashboard's actionable share reads 69% where
+  0.33.0 read 68%, and 96% of the spelled-out findings carry a label where 99% did. Both come from the
+  same two findings: curl's and react's `tight_coupling`, which named a pair of documentation examples and
+  were labelled true but not actionable. 0.34.0 leaves a pair of examples out of the coupling rules, so
+  those two findings now say something else, carry no label, and leave the denominator -- 75 of 78 are
+  labelled where 77 were. The share rose because two findings judged inert stopped being judged, not
+  because anything got better. Whether the new claim is worth acting on is a person's to label.
+- **Peak memory reads 3,035 MB against 0.33.0's 2,725 MB, and this release did not do it.** The peak is
+  betterleaks on react, at the version every one of these releases pins (1.8.1) over the same commit:
+  3,036.9 MB at 0.32.0, 2,724.6 at 0.33.0, 3,035.1 here. Nothing in 0.34.0 touches the secrets step.
+  Wall time fell from 700 to 691 seconds over the development set.
+- **The extras agree.** Determinism across time zone and locale is identical on curl and django, and the
+  hook replay is identical to 0.33.0 on every repository. The only sensitivity rows that move are the two
+  coupling rules' threshold sweeps, which is what changing those rules is supposed to move.
+- **0.34.1 and 0.34.2 have no record of their own, and this is why.** Between 0.34.0 and 0.34.2 nothing
+  gitmole runs was touched: the changes are `.github/workflows/ci.yml`, the formula's url and checksum,
+  and `docs/development.md`. Both releases exist because the release job failed on its last step after
+  doing all of its work -- 0.34.0 asked the tap to pull a `main` the checkout no longer had once the bump
+  got a branch of its own, and 0.34.1 was refused permission to open the bump's pull request, which took
+  the job down and skipped the publish behind it. No report can move, so the numbers above are all three
+  releases'. The page holds a record for thirty-four of fifty-six released tags for the same reason --
+  v0.9.1, v0.10.1 and the v0.6.x series have none either, while 0.30.1 does, because that fix moved
+  eleven report lines.
+- **0.35.0 lands the yardstick the cited papers are stated in, and moves no number that measures the
+  tool.** Headroom (0.62 [0.36, 0.93]), ROC-AUC (0.82), W/L/T (17/4/9), recall at a fifth of the lines
+  (36%), stability, bug magnets, the scored share, robustness (21 of 21), the gate (3 of 3), report length
+  (224) and the findings median (23.5) are all identical to 0.34.0. Every ranking key that existed before
+  is byte-identical at every cut-off. What is new is recorded beside them for the first time: Popt, initial
+  false alarms, ManualUp as a control and recall under a complexity budget. Read together they say the
+  watch list finds the fixed files (AUC 0.82) but spends more lines reaching them than a random order
+  would: its Popt is under 0.5 on every development repository (0.24 curl to 0.42 ghidra), churn's is
+  0.29 to 0.50, and ManualUp's 0.61 to 0.78 with its first hit at rank 11 to 15. Under a complexity budget
+  the three lists keep their order at every repository, so the 2025 critique reproduces as magnitude
+  (django's recall 0.60 to 0.17), not as a flip. Hassan's HCM3s and HCM1d, run through `evaluate` on the
+  same five repositories, sum to 281 and 256 hits at the top fifteen against churn's 283 and the watch
+  list's 318; HCM3s beats churn on django alone. Neither is a candidate for the shipped ranking on this
+  evidence.
+- **The p90 (27.5 to 28.5) and react (30 to 32 findings, 292 to 305 lines) moved with the clone, not the
+  code.** This record was measured on clones made on 22 September in a new workspace; react's carries
+  1,153 refs, the sapling pull-request archives among them, and git-sizer reads the whole clone, so two
+  more `repo_health` rows fire (Blobs: total size; Biggest checkouts: path length at a remote ref). A run
+  of 0.34.2's code over the same clone on 22 September already showed 32, and the diff between that run
+  and this one is one surviving line in `knowledge_loss`. The secrets findings' ids moved with the clone
+  too, since betterleaks reads its object store, so their labels no longer attach: the dashboard's
+  actionable share reads 71% of 78 where 0.34.0 read 69%, and 94% labelled where 96% did, for bookkeeping
+  reasons; no label was added or carried. `minor_contributors` changed its statement on every repository
+  by design (its count is now Bird's count, with the expected traffic named), so those labels detach too.
+- **Wall time (691 to 811 s) and peak memory (3,035 to 1,500 MB) are not comparable this release.** The
+  machine carried a load average of 3 to 11 through the timed runs, from something other than the
+  harness. betterleaks on react took 136 s against 31 and peaked at 1.5 GB against 3.0, at the same
+  pinned version over the same commit; nothing in 0.35.0 touches the secrets step.
+- **The extras agree.** Determinism across time zone and locale is identical on curl and django, the hook
+  replay is identical to 0.34.0 on all five repositories, none of the 48 sensitivity rows changes its
+  verdict, and 244 of 244 findings agree with their own numbers. The signed-commits second check stays
+  unavailable, as in 0.33.0 and 0.34.0: gpg is not installed on this machine.
