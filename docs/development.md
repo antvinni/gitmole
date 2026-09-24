@@ -190,7 +190,9 @@ outputs are reused on a rerun; delete the directory to start clean.
 `python -m gitmole.evaluate CLONE OUT_DIR` replays the watch list at six
 cut-off dates against the fixes that followed each, next to the two factor
 products the list used to rank by, and lists ranked by churn alone, size
-alone and recent fixes; `--szz` adds a second table against the files a
+alone, recent fixes, the change entropy variants and ManualUp, with a second
+table of what each list costs a reviewer against those fixes (initial false
+alarms, lines in the list, Popt); `--szz` adds a table against the files a
 commit before each cut-off made buggy, by R-SZZ over the fixes that followed
 (`szz.py`: the most recent commit a fix's removed lines blame to, one
 `git blame -w -C -C` per fix and file, so minutes on a large history), and

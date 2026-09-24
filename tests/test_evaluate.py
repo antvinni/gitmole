@@ -165,5 +165,24 @@ class Table(unittest.TestCase):
         self.assertIn("(3 of 40 bug-inducing)", evaluate.table([("2025-02-28", 3, 40, {"churn": 1})], noun="bug-inducing"))
 
 
+class Page(unittest.TestCase):
+    def test_the_effort_table_is_printed_against_fix_locality_without_labels(self):
+        """Popt, IFA and the lines in the list used to appear only under --labels, so a variant could be
+        compared on hits at k and never on the measure the papers state their results in."""
+        results = [("2025-02-28", 3, 40, {"churn": 1, "random (expected)": 0.4})]
+        efforts = [{"churn": {"ifa": 2, "lines": 300, "popt": 0.45}}]
+        text = evaluate.page("r", 15, 6, results, efforts, spread={"all": 10, "head": 9, "fix_all": 3, "fix_head": 2})
+        self.assertIn("### r, top 15, 6-month horizon", text)
+        self.assertIn("against the fixes that followed", text)
+        self.assertIn("| churn | 2 | 300 | 0.45 |", text)
+        self.assertNotIn("labelled", text)
+        self.assertNotIn("bug-inducing", text)
+        self.assertIn("`--all` exports 10 commits (3 fixes); HEAD reaches 9 (2 fixes).", text)
+        with_labels = evaluate.page("r", 15, 6, results, efforts, labelled=results, labelled_effort=efforts, labels_name="x.csv")
+        self.assertIn("labelled in x.csv", with_labels)
+        self.assertEqual(with_labels.count("Popt over the whole ordering"), 2, "once against the fixes, once against the labels")
+        self.assertNotIn("--all", with_labels, "no spread, no line about it")
+
+
 if __name__ == "__main__":
     unittest.main()
