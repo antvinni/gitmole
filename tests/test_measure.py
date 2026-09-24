@@ -204,6 +204,65 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class Round(unittest.TestCase):
+    """The record's wall time and peak memory come from run_entry, so it runs alone; rank_entry is untimed
+    and may share the machine with other entries' rankings, never with a timed run."""
+
+    def _round(self, jobs):
+        import threading
+        import time
+        from unittest import mock
+        from gitmole.measure import __main__ as main
+        spans, lock = [], threading.Lock()
+
+        def span(kind, name, seconds):
+            t0 = time.monotonic()
+            time.sleep(seconds)
+            with lock:
+                spans.append((kind, name, t0, time.monotonic()))
+
+        def run_entry(src, entry, root, reference, env_extra=None):
+            span("run", entry["name"], 0.05)
+            return {"status": "ok", "seconds": 1, "clone": "clone-" + entry["name"]}
+
+        def rank_entry(src, entry, root, reference, rec, labels_dir=None):
+            span("rank", entry["name"], 0.2)
+            rec.pop("clone")
+            rec["ranking"] = {"cutoffs": []}
+            return rec
+
+        manifest = {"reference_date": "2026-09-17", "repos": [{"name": n, "set": "development"} for n in "abc"]}
+        with mock.patch.object(harness, "run_entry", run_entry), mock.patch.object(harness, "rank_entry", rank_entry), \
+                mock.patch.object(harness, "source", lambda ref, root: "/src"), mock.patch.object(harness, "version_of", lambda src: "9.9.9"), \
+                mock.patch.object(dashboard, "summarise", lambda record: {}):
+            record = main.measure("worktree", ["development"], manifest, "/nowhere", jobs=jobs)
+        return record, spans
+
+    @staticmethod
+    def _overlap(a, b):
+        return a[2] < b[3] and b[2] < a[3]
+
+    def test_a_timed_run_shares_the_machine_with_nothing(self):
+        record, spans = self._round(jobs=3)
+        for run in (s for s in spans if s[0] == "run"):
+            for other in spans:
+                if other is not run:
+                    self.assertFalse(self._overlap(run, other), f"{run[1]} was timed while {other[0]} {other[1]} ran")
+        ranks = [s for s in spans if s[0] == "rank"]
+        self.assertTrue(any(self._overlap(a, b) for a in ranks for b in ranks if a is not b), "rankings ran side by side")
+        self.assertEqual(sorted(record["repos"]), ["a", "b", "c"])
+        for rec in record["repos"].values():
+            self.assertEqual((rec["status"], rec["set"], rec["ranking"]), ("ok", "development", {"cutoffs": []}))
+            self.assertNotIn("clone", rec, "the clone path is the harness's business, not the record's")
+
+    def test_one_job_is_the_sequential_round(self):
+        _, spans = self._round(jobs=1)
+        for a in spans:
+            for b in spans:
+                if a is not b:
+                    self.assertFalse(self._overlap(a, b))
+
+
 class Signals(unittest.TestCase):
     def test_recent_revisions_times_lines_reorder_the_same_pool(self):
         from gitmole.measure import signals

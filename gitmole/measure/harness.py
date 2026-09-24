@@ -246,16 +246,33 @@ def labels_for(entry: dict, manifest: dict, labels_dir: str):
     return szz.read_labels(path) if os.path.exists(path) else None
 
 
-def measure_entry(src: str, entry: dict, root: str, reference: str, labels_dir: str = None, env_extra: dict = None) -> dict:
-    """Everything the history records for one release on one corpus entry."""
+def run_entry(src: str, entry: dict, root: str, reference: str, env_extra: dict = None) -> dict:
+    """The timed half of measuring one entry: the release run on the clone, and what its files say.
+    Its wall time and peak memory are the record's, so it runs alone — never beside another run, and
+    never beside anyone's ranking."""
     clone = corpus.clone(entry, root)
-    name = entry["name"]
-    work = os.path.join(root, "runs", version_of(src), name)
+    work = os.path.join(root, "runs", version_of(src), entry["name"])
     started = time.monotonic()
     rec = run_release(src, clone, work, reference, fail_on=entry["set"] == "gate",
                       timeout=FIXTURE_TIMEOUT if entry.get("fixture") else MAIN_TIMEOUT, env_extra=env_extra)
     rec.update(read_outputs(rec))
-    if rec["status"] == "ok" and entry["set"] in ("development", "holdout") and not entry.get("fixture"):
+    rec["measure_seconds"] = round(time.monotonic() - started, 1)
+    rec["clone"] = clone
+    return rec
+
+
+def needs_ranking(entry: dict, rec: dict) -> bool:
+    return rec.get("status") == "ok" and entry["set"] in ("development", "holdout") and not entry.get("fixture")
+
+
+def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labels_dir: str = None) -> dict:
+    """The untimed half: the ranking at cut-offs and the finding ids, read off the files the timed run
+    left. Nothing here is measured, so entries' rankings may run side by side; each works in its own
+    run directory and log cache."""
+    name = entry["name"]
+    started = time.monotonic()
+    clone = rec.pop("clone", None) or corpus.clone(entry, root)
+    if needs_ranking(entry, rec):
         labels = labels_for(entry, None, labels_dir) if entry.get("labels") else None
         if entry.get("labels") and labels is None:
             rec["ranking"] = {"error": "labels not found"}
@@ -263,7 +280,12 @@ def measure_entry(src: str, entry: dict, root: str, reference: str, labels_dir: 
             rec["ranking"] = rank_repo(src, entry, clone, rec["out"], reference, os.path.join(root, "logs", name + ".txt"), labels)
     if entry["set"] in hand_labels.LABELLED_SETS and rec.get("report"):   # for the actionable share, from the labels at report time
         rec["finding_ids"] = [{k: row[k] for k in ("id", "rule", "summary")} for row in hand_labels.id_rows(name, entry.get("commit"), rec["report"])]
-    rec["measure_seconds"] = round(time.monotonic() - started, 1)
+    rec["measure_seconds"] = round((rec.get("measure_seconds") or 0) + time.monotonic() - started, 1)
     for k in ("out", "report"):
         rec.pop(k, None)
     return rec
+
+
+def measure_entry(src: str, entry: dict, root: str, reference: str, labels_dir: str = None, env_extra: dict = None) -> dict:
+    """Everything the history records for one release on one corpus entry: the timed run, then its ranking."""
+    return rank_entry(src, entry, root, reference, run_entry(src, entry, root, reference, env_extra), labels_dir)

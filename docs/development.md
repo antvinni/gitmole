@@ -209,8 +209,11 @@ determinism check, `report` redraws `docs/measurement-history.md` and the
 graphs in `docs/evolution/`, and `labels dump|score` handle the hand labels.
 Clones, fixtures and run outputs go under `$GITMOLE_MEASURE_DIR` (default
 `$TMPDIR/gitmole-measure`); `GITMOLE_LABELS_DIR` points at ApacheJIT's
-`dataset/` for the holdout. Runs are sequential, so the recorded times and
-memory are comparable, and each records the load average it ran under.
+`dataset/` for the holdout. The timed runs are sequential and share the
+machine with nothing, so the recorded times and memory are comparable, and
+each records the load average it ran under. The rankings at cut-offs are not
+timed, so once every timed run is over they are computed side by side
+(`--jobs`, default 3; 1 is the old sequential round).
 
 The change analysis (hotspots, coupling, ownership, age) is gitmole's own
 code, written after the ideas in Adam Tornhill's code-maat but sharing no
