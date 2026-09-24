@@ -695,7 +695,8 @@ class ChangedFiles(unittest.TestCase):
             stats = run.change_stats(d, "main")
             with self.assertRaises(ValueError):
                 run.change_stats(d, "nope")
-        self.assertEqual(stats, {"files": ["a.py", "b.py"], "added": {"a.py": 2, "b.py": 1}, "deleted": {"a.py": 1, "b.py": 0}, "author": "Bob", "commits": 2})
+        self.assertEqual(stats, {"files": ["a.py", "b.py"], "added": {"a.py": 2, "b.py": 1}, "deleted": {"a.py": 1, "b.py": 0}, "author": "Bob", "commits": 2,
+                                 "subjects": ["more", "work"]})
 
     def test_lists_paths_changed_since_the_merge_base(self):
         with tempfile.TemporaryDirectory() as d:
