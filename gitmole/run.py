@@ -601,7 +601,8 @@ def changed_files(repo_dir: str, base: str) -> list:
 def change_stats(repo_dir: str, base: str) -> dict:
     """What a change is, for the Kamei factors: the files that differ between the merge base with
     `base` and HEAD, lines added and deleted per file (whitespace ignored, as the change log is), the
-    author of HEAD and how many commits the change spans. ValueError when git refuses."""
+    author of HEAD, how many commits the change spans and their subjects, newest first. ValueError
+    when git refuses."""
     files = changed_files(repo_dir, base)
     proc = subprocess.run([*filetypes.GIT, "diff", "--numstat", "-w", "--ignore-blank-lines", f"{base}...HEAD"], cwd=repo_dir, capture_output=True)
     if proc.returncode != 0:
@@ -619,8 +620,9 @@ def change_stats(repo_dir: str, base: str) -> dict:
         deleted[path] = int(d) if d.isdigit() else 0
     author = subprocess.run(["git", "log", "-1", "--use-mailmap", "--format=%aN", "HEAD"], cwd=repo_dir, capture_output=True).stdout.decode("utf-8", "replace").strip()
     count = subprocess.run(["git", "rev-list", "--count", f"{base}..HEAD"], cwd=repo_dir, capture_output=True, text=True).stdout.strip()
+    subjects = subprocess.run(["git", "log", "--format=%s", f"{base}..HEAD"], cwd=repo_dir, capture_output=True).stdout.decode("utf-8", "replace")
     return {"files": files, "added": {f: added.get(f, 0) for f in files}, "deleted": {f: deleted.get(f, 0) for f in files},
-            "author": author, "commits": int(count) if count.isdigit() else 0}
+            "author": author, "commits": int(count) if count.isdigit() else 0, "subjects": [s for s in subjects.split("\n") if s.strip()]}
 
 
 def save_meta(meta: dict, out_dir: str) -> None:

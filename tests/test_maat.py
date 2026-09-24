@@ -160,8 +160,10 @@ class Age(unittest.TestCase):
 class Ownership(unittest.TestCase):
     def test_added_and_deleted_per_author_per_entity(self):
         rows = {(r["entity"], r["author"]): r for r in maat.entity_ownership(maat.parse_log(LOG))}
-        self.assertEqual(rows[("src/a.py", "Ann")], {"entity": "src/a.py", "author": "Ann", "added": 10, "deleted": 1})
+        self.assertEqual(rows[("src/a.py", "Ann")], {"entity": "src/a.py", "author": "Ann", "added": 10, "deleted": 1, "commits": 5})
         self.assertEqual(rows[("src/a.py", "Cat")]["deleted"], 2)
+        self.assertEqual((rows[("src/a.py", "Bob")]["commits"], rows[("src/a.py", "Cat")]["commits"], rows[("src/b.py", "Ann")]["commits"]), (1, 1, 4),
+                         "a person is credited once per commit that touched the file")
 
 
 class Types(unittest.TestCase):
@@ -422,11 +424,11 @@ class CoAuthors(unittest.TestCase):
         commits = maat.parse_log(self.LOG)
         rows = {r["entity"]: r for r in maat.authors(commits)}
         self.assertEqual(rows["src/a.py"]["n-authors"], 3, "Ann, Bob and Cat")
-        own = {(r["entity"], r["author"]): (r["added"], r["deleted"]) for r in maat.entity_ownership(commits)}
-        self.assertEqual(own[("src/a.py", "Ann")], (5, 0))
-        self.assertEqual(own[("src/a.py", "Bob")], (5, 0))
-        self.assertEqual(own[("src/b.py", "Ann")], (3, 1), "the odd line and the odd deletion go to the committer")
-        self.assertEqual(own[("src/b.py", "Bob")], (2, 0))
+        own = {(r["entity"], r["author"]): (r["added"], r["deleted"], r["commits"]) for r in maat.entity_ownership(commits)}
+        self.assertEqual(own[("src/a.py", "Ann")], (5, 0, 1))
+        self.assertEqual(own[("src/a.py", "Bob")], (5, 0, 1), "a co-author shares the lines and is credited with the whole commit")
+        self.assertEqual(own[("src/b.py", "Ann")], (3, 1, 1), "the odd line and the odd deletion go to the committer")
+        self.assertEqual(own[("src/b.py", "Bob")], (2, 0, 1))
         totals = maat.author_totals(commits)
         self.assertEqual(totals["Bob"], {"commits": 1, "added": 7, "deleted": 0, "first": "2026-01-10", "last": "2026-01-10"})
         self.assertEqual(maat.activity(commits)["timeline"]["Bob"], {"2026-01": 1})

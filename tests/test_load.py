@@ -65,6 +65,12 @@ class ParseMaatCsv(unittest.TestCase):
     def test_empty_text_gives_empty_list(self):
         self.assertEqual(load.parse_maat_csv(""), [])
 
+    def test_ownership_commits_parse_as_a_number_and_an_older_export_has_no_such_key(self):
+        [row] = load.parse_maat_csv("entity,author,added,deleted,commits\nsrc/a.py,Ann,10,1,5\n")
+        self.assertEqual(row["commits"], 5)
+        [old] = load.parse_maat_csv("entity,author,added,deleted\nsrc/a.py,Ann,10,1\n")
+        self.assertNotIn("commits", old, "an output directory from before the column has no commits key, and nothing may read it as zero")
+
     def test_truncated_or_empty_numeric_cells_become_zero(self):
         rows = load.parse_maat_csv("entity,author,added,deleted\napp/x.py,Ann,10,0\napp/y.py,Bob\napp/z.py,Cat,,x\n")
         self.assertEqual(rows[1]["added"], 0)

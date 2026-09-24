@@ -474,9 +474,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    tree`, the last covering a file the change deleted and, under `--no-run`,
    one added after the run; otherwise `changed once`, or `no revisions on
    record`. The caption adds Kamei's factors for the change (files,
-   directories and commits; lines added against the lines the files had;
-   how evenly it spreads; files changed this month; prior changes and
-   people; the author's prior commits) and the companions the change left
+   directories, subsystems and commits; whether it is a fix by its
+   subjects; lines added against the lines the files had; how evenly it
+   spreads; files changed this month; prior changes and people; the
+   author's prior commits, here and in these subsystems) and the companions the change left
    untouched (`not touched: core/ast.py, which moved in 72% of
    core/parser.py's changes`); the JSON carries them under `change_risk.change` and
    `change_risk.coupling_gaps`, and each scored file's rank, fix counts,
@@ -648,7 +649,7 @@ directory for a remote target:
 | `maat-entropy.csv` | change analysis | Hassan's change entropy per file: the months it changed in, and its decayed history complexity (its share of each month's changes times that month's entropy over files, halved per month back) |
 | `maat-authors.csv` | change analysis | authors per file (co-authors included), and how many of them are minor contributors |
 | `maat-age.csv` | change analysis | months since last change per file |
-| `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file, a commit's lines shared between its author and co-authors |
+| `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file, a commit's lines shared between its author and co-authors, and the commits crediting each of them that touched the file |
 | `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
 | `functions.csv` | lizard | per-function complexity, length, parameters, in lizard's own `--csv` columns, then two of gitmole's: a label for a function lizard could not name (the text of its start line) and, when the span looks mis-parsed, why |
 | `duplicates.json` | jscpd | duplicated blocks over the tracked code files, largest first (the thousand largest), each with every place it appears, and the share of lines inside a block, now and at the last commit a year before; no source text |

@@ -139,13 +139,15 @@ left out, and 3% of complete commits get one, on thirteen repositories
 nobody tuned it on ([validation.md](validation.md#the-hooks-coupling-warning));
 so one is uncommon and right a little more often than not. And `change` holds Kamei et al.'s
 just-in-time factors as named reasons beside the mass share, never folded
-into it: the files, directories and commits, lines added against the lines
-those files had, how evenly the change spreads over its files, how many of
-the files changed this month, their prior changes and people, and the
-author's prior commits here (`touches 9 files across 4 directories, 3
-commits; adds 340 lines to 1,200 (28%), removes 12; most of the change is
-in one file; 3 of the 9 files changed this month; the files have 130 prior
-changes by 3 people; Bob has 3 prior commits here`).
+into it: the files, directories, subsystems and commits, whether it is a
+fix by its subjects, lines added against the lines those files had, how
+evenly the change spreads over its files, how many of the files changed
+this month, their prior changes and people, and the author's prior commits
+here and in these subsystems (`touches 9 files across 4 directories in 2
+subsystems, 3 commits; a fix, by its subject; adds 340 lines to 1,200
+(28%), removes 12; most of the change is in one file; 3 of the 9 files
+changed this month; the files have 130 prior changes by 3 people; Bob has
+3 prior commits here, 2 in these subsystems`).
 
 ## SARIF
 

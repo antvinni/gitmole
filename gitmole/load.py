@@ -83,7 +83,7 @@ def parse_scc(text: str, types=None) -> dict:
 
 NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs",
                    "minor", "soc", "partners", "n-sets", "with-tests", "periods", "fa", "dl", "ac", "is_author", "is_author_decayed", "late",
-                   "depth", "shared", "confidence"}
+                   "depth", "shared", "confidence", "commits"}
 FLOAT_COLUMNS = {"doa", "doa_decayed", "hcm"}
 
 

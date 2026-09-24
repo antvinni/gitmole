@@ -668,16 +668,18 @@ def _shares(n: int, k: int) -> list:
 
 
 def entity_ownership(commits: list) -> list:
-    """Lines added and deleted per author per entity. A commit with co-authors shares its lines
-    between everyone it credits, so the totals stay the lines the log counts."""
-    added, deleted = Counter(), Counter()
+    """Lines added and deleted per author per entity, and the commits crediting them that touched it.
+    A commit with co-authors shares its lines between everyone it credits, so the totals stay the lines
+    the log counts; each of them is credited with the whole commit, as authors() counts them."""
+    added, deleted, n = Counter(), Counter(), Counter()
     for c in commits:
         crew = people(c)
         for p, a, d in c["files"]:
             for who, x, y in zip(crew, _shares(a, len(crew)), _shares(d, len(crew))):
                 added[(p, who)] += x
                 deleted[(p, who)] += y
-    rows = [{"entity": p, "author": who, "added": added[(p, who)], "deleted": deleted[(p, who)]} for (p, who) in added]
+                n[(p, who)] += 1
+    rows = [{"entity": p, "author": who, "added": added[(p, who)], "deleted": deleted[(p, who)], "commits": n[(p, who)]} for (p, who) in added]
     rows.sort(key=lambda r: (r["entity"], r["author"]))
     return rows
 
@@ -809,7 +811,7 @@ ANALYSES = {
     "tests": (test_cochange, ["entity", "n-sets", "with-tests"]),
     "authors": (authors, ["entity", "n-authors", "n-revs", "minor"]),
     "age": (age, ["entity", "age-months"]),
-    "entity-ownership": (entity_ownership, ["entity", "author", "added", "deleted"]),
+    "entity-ownership": (entity_ownership, ["entity", "author", "added", "deleted", "commits"]),
     "fixes": (fixes, ["entity", "n-fixes", "last-fix", "recent-fixes"]),
     "entropy": (entropy, ["entity", "periods", "hcm"]),
     "doa": (doa, ["entity", "author", "fa", "dl", "ac", "doa", "doa_decayed", "is_author", "is_author_decayed"]),

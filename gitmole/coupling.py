@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from collections import defaultdict
 
+from . import maat
+
 ROOT = "(root files)"
 
 SQUASH_SHARE = 0.5     # this share of subjects ending in (#NNNN), with almost no merge commits, is a squash-merged repository
@@ -77,3 +79,44 @@ def clusters(pairs: list, min_files: int = 4, min_density: float = 0.8) -> tuple
             taken.update(id(p) for p in component)
     groups.sort(key=lambda g: (-g["files"], -g["degree"], g["dir"]))
     return groups, [p for p in pairs if id(p) not in taken]
+
+
+def expected_minors(report: dict, entities: list) -> dict:
+    """Bird et al. ("Don't Touch My Code!", FSE 2011, section 7): almost every minor contributor to a
+    component is a major contributor to a component related by dependency — expected traffic, not a
+    stranger. For each entity asked about: its minor contributors (under maat.MINOR_SHARE of its
+    commits) who are major contributors to a file it changes with, by the run's coupling pairs and
+    companions, each with the coupled files they are major on. Empty when the run has no pairs, when
+    the ownership table predates its commits column, or when the entity has no ownership rows — a
+    no-op, never an emptied rule."""
+    wanted = set(entities)
+    neighbours = defaultdict(set)
+    for r in report.get("coupling") or []:
+        neighbours[r["entity"]].add(r["coupled"])
+        neighbours[r["coupled"]].add(r["entity"])
+    for r in report.get("companions") or []:
+        neighbours[r["entity"]].add(r["companion"])
+        neighbours[r["companion"]].add(r["entity"])
+    of_interest = set(wanted)
+    for e in wanted:
+        of_interest |= neighbours.get(e, set())
+    rows = [r for r in report.get("ownership") or [] if r["entity"] in of_interest]
+    if not any("commits" in r for r in rows):
+        return {e: [] for e in entities}
+    revs = {a["entity"]: a["n-revs"] for a in report.get("authors") or [] if a["entity"] in of_interest}
+    share = defaultdict(dict)
+    for r in rows:
+        if revs.get(r["entity"]) and r.get("commits") is not None:
+            share[r["entity"]][r["author"]] = r["commits"] / revs[r["entity"]]
+    out = {}
+    for e in entities:
+        found = []
+        for who, s in share.get(e, {}).items():
+            if s >= maat.MINOR_SHARE:
+                continue
+            via = sorted(g for g in neighbours.get(e, ()) if share.get(g, {}).get(who, 0) >= maat.MINOR_SHARE)
+            if via:
+                found.append({"author": who, "via": via})
+        found.sort(key=lambda x: (-len(x["via"]), x["author"]))
+        out[e] = found
+    return out
