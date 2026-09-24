@@ -33,6 +33,7 @@ def rank(out):
     size = report.get("size") or {}
     files = size.get("files") or {}
     lines = {p: (v.get("code", 0) if isinstance(v, dict) else 0) for p, v in files.items()}
+    cplx = {p: (v.get("complexity", 0) if isinstance(v, dict) else 0) for p, v in files.items()}
     magnets = None
     try:
         from gitmole import findings
@@ -49,7 +50,10 @@ def rank(out):
     if total is None:
         total = sum(lines.values())
     return {"pool": [r["file"] for r in rows], "revs": {r["file"]: revisions.get(r["file"], r.get("revs", 0)) for r in rows},
-            "lines": {r["file"]: lines.get(r["file"], 0) for r in rows}, "total_code": total, "magnets": magnets}
+            "lines": {r["file"]: lines.get(r["file"], 0) for r in rows}, "total_code": total, "magnets": magnets,
+            # the second effort driver: a release whose size table carries no complexity reports None
+            # rather than a budget built out of zeros, so the harness can tell the two apart
+            "complexity": {r["file"]: cplx.get(r["file"], 0) for r in rows}, "total_complexity": sum(cplx.values()) or None}
 
 
 if __name__ == "__main__":

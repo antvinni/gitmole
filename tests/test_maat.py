@@ -626,6 +626,73 @@ class ChangeEntropy(unittest.TestCase):
         self.assertEqual(rows["c.py"]["hcm"], 0.0)
         self.assertEqual([r["entity"] for r in maat.entropy(commits, now="2026-03-31")][:2], ["a.py", "b.py"], "highest first, ties by name")
 
+    COMMITS = [_commit("j1", [("a.py", 1, 0)], date="2026-01-05"), _commit("j2", [("b.py", 1, 0)], date="2026-01-20"),
+               _commit("f1", [("a.py", 1, 0)], date="2026-02-03"), _commit("f2", [("a.py", 1, 0)], date="2026-02-09"),
+               _commit("m1", [("c.py", 1, 0)], date="2026-03-01")]
+
+    def test_the_shipped_analysis_is_the_default_and_the_variants_do_not_move_it(self):
+        plain = maat.entropy(self.COMMITS, now="2026-03-31")
+        spelled = maat.entropy(self.COMMITS, now="2026-03-31", hcpf=2, periods="month", sizing="period", phi=None)
+        self.assertEqual(plain, spelled, "entropy.csv ships this: naming today's defaults must change nothing")
+
+    def test_hcpf3_splits_a_period_evenly_where_hcpf2_splits_it_by_share(self):
+        # one month, a.py changed twice and b.py once: HCM2s gives a.py two thirds, HCM3s gives them the same
+        commits = [_commit("x1", [("a.py", 1, 0)], date="2026-03-02"), _commit("x2", [("a.py", 1, 0)], date="2026-03-03"),
+                   _commit("x3", [("b.py", 1, 0)], date="2026-03-04")]
+        share = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-03-31", hcpf=2)}
+        even = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-03-31", hcpf=3)}
+        self.assertGreater(share["a.py"], share["b.py"], "HCM2s weights by the file's share of the period")
+        self.assertEqual(even["a.py"], even["b.py"], "HCM3s splits the period's entropy evenly")
+
+    def test_hcpf1_gives_every_changed_file_the_whole_period_entropy(self):
+        commits = [_commit("x1", [("a.py", 1, 0)], date="2026-03-02"), _commit("x2", [("a.py", 1, 0)], date="2026-03-03"),
+                   _commit("x3", [("b.py", 1, 0)], date="2026-03-04")]
+        whole = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-03-31", hcpf=1)}
+        even = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-03-31", hcpf=3)}
+        self.assertEqual(whole["a.py"], whole["b.py"])
+        self.assertAlmostEqual(whole["a.py"], 2 * even["a.py"], msg="two files changed: the whole is twice the even split")
+
+    def test_burst_periods_split_on_a_quiet_gap_where_a_month_does_not(self):
+        commits = [dict(_commit("a", [("one.py", 1, 0)], date="2026-03-02"), time="2026-03-02T01:00:00+00:00"),
+                   dict(_commit("b", [("two.py", 1, 0)], date="2026-03-02"), time="2026-03-02T09:00:00+00:00")]
+        month = {r["entity"]: r["periods"] for r in maat.entropy(commits, now="2026-03-31", periods="month")}
+        burst = {r["entity"]: r["periods"] for r in maat.entropy(commits, now="2026-03-31", periods="burst")}
+        self.assertEqual(month["one.py"], 1)
+        self.assertEqual(burst["one.py"], 1)
+        month_hcm = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-03-31", periods="month")}
+        burst_hcm = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-03-31", periods="burst")}
+        self.assertGreater(month_hcm["one.py"], 0.0, "one calendar month holding two files is scattered")
+        self.assertEqual(burst_hcm["one.py"], 0.0, "eight hours apart is two bursts of one file each: no scatter")
+
+    def test_a_phi_decay_takes_the_papers_form(self):
+        # Hassan's HCM1d weighs a period by e^(phi (T_i - now)): phi multiplies the time. January is two
+        # months, a sixth of a year, before now; January's entropy is 1 and a.py's share of it a half.
+        phied = {r["entity"]: r["hcm"] for r in maat.entropy(self.COMMITS, now="2026-03-31", phi=maat.HCM1D_PHI)}
+        self.assertAlmostEqual(phied["a.py"], round(0.5 * math.exp(-maat.HCM1D_PHI * 2 / 12), 6), places=6)
+
+    def test_phi_must_be_positive_and_zero_is_not_quietly_ignored(self):
+        with self.assertRaises(ValueError):
+            maat.entropy(self.COMMITS, now="2026-03-31", phi=0)
+
+    def test_a_decay_of_one_is_hassans_simple_sum(self):
+        simple = {r["entity"]: r["hcm"] for r in maat.entropy(self.COMMITS, now="2026-03-31", decay=1.0)}
+        self.assertEqual(simple["a.py"], 0.5, "January's share of a half times entropy 1, and nothing forgotten")
+
+    def test_system_sizing_normalises_by_every_file_the_history_has_touched_so_far(self):
+        commits = [_commit("j1", [("a.py", 1, 0)], date="2026-01-05"), _commit("j2", [("b.py", 1, 0)], date="2026-01-06"),
+                   _commit("f1", [("c.py", 1, 0)], date="2026-02-03"), _commit("f2", [("d.py", 1, 0)], date="2026-02-04")]
+        system = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-02-28", sizing="system", decay=1.0)}
+        self.assertEqual(system["a.py"], 0.5, "January: two files in the system, two changed, entropy 1")
+        self.assertEqual(system["c.py"], 0.25, "February: four files in the system, two changed evenly, entropy 1/2")
+
+    def test_adaptive_sizing_normalises_over_the_recent_working_set(self):
+        commits = [_commit("j1", [("a.py", 1, 0)], date="2026-01-05"), _commit("j2", [("b.py", 1, 0)], date="2026-01-06"),
+                   _commit("f1", [("c.py", 1, 0)], date="2026-02-03"), _commit("f2", [("d.py", 1, 0)], date="2026-02-04")]
+        period = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-02-28", sizing="period")}
+        adaptive = {r["entity"]: r["hcm"] for r in maat.entropy(commits, now="2026-02-28", sizing="adaptive")}
+        self.assertLess(adaptive["c.py"], period["c.py"],
+                        "normalising over four files rather than two lowers a two-file period's entropy")
+
     def test_written_alongside_the_other_analyses(self):
         with tempfile.TemporaryDirectory() as d:
             log = os.path.join(d, "log.txt")

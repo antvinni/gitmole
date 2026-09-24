@@ -178,16 +178,40 @@ def ranking_at(src: str, clone: str, out: str, until: str, reference: str) -> di
 
 def score(rank: dict, outcome: set, top: int = TOP) -> dict:
     """One cut-off: the list's hits against what random and perfect would do, the churn baseline over
-    the same pool, ROC-AUC over the whole ordering, and recall at 20% of the codebase's lines."""
+    the same pool, ROC-AUC over the whole ordering, recall at 20% of the codebase's lines, Popt over
+    the whole ordering, and the initial false alarms before the first file that was fixed."""
     pool = rank["pool"]
     positives = outcome.intersection(pool)
     churn = sorted(pool, key=lambda f: (-rank["revs"].get(f, 0), f))
+    # ManualUp: the smallest file first. Fu and Menzies (FSE 2017) verify this is the model Yang et al.'s
+    # twelve unsupervised predictors all generalise. A control, not a candidate — it takes a lines budget
+    # by naming tiny files, which is exactly what its IFA beside it is for.
+    manualup = sorted(pool, key=lambda f: (rank["lines"].get(f, 0), f))
     h, ch = metrics.hits(pool, positives, top), metrics.hits(churn, positives, top)
+    # The 2025 effort-aware critique (arXiv 2504.19181): these measures are size-aware, and the verdict
+    # can change when the effort driver is not lines. scc's per-file complexity is the second driver.
+    cplx, cplx_total = rank.get("complexity") or {}, rank.get("total_complexity")
+
+    def by_complexity(ordering):
+        return metrics.recall_at_effort(ordering, cplx, positives, total=cplx_total) if cplx_total else None
+
     exp, most = metrics.expected(len(pool), len(positives), top), metrics.best(len(pool), len(positives), top)
     return {"pool": len(pool), "positives": len(positives), "hits": h, "expected": round(exp, 3), "best": most, "churn_hits": ch,
             "auc": metrics.auc(pool, positives), "churn_auc": metrics.auc(churn, positives),
             "recall20": metrics.recall_at_effort(pool, rank["lines"], positives, total=rank.get("total_code")),
             "churn_recall20": metrics.recall_at_effort(churn, rank["lines"], positives, total=rank.get("total_code")),
+            "popt": metrics.popt(pool, rank["lines"], positives),
+            "churn_popt": metrics.popt(churn, rank["lines"], positives),
+            "ifa": metrics.ifa(pool, positives, top),
+            "churn_ifa": metrics.ifa(churn, positives, top),
+            "manualup_hits": metrics.hits(manualup, positives, top),
+            "manualup_auc": metrics.auc(manualup, positives),
+            "manualup_recall20": metrics.recall_at_effort(manualup, rank["lines"], positives, total=rank.get("total_code")),
+            "manualup_popt": metrics.popt(manualup, rank["lines"], positives),
+            "manualup_ifa": metrics.ifa(manualup, positives, top),
+            "recall20_complexity": by_complexity(pool),
+            "churn_recall20_complexity": by_complexity(churn),
+            "manualup_recall20_complexity": by_complexity(manualup),
             "top": pool[:top]}   # for the carry-over between consecutive cut-offs
 
 

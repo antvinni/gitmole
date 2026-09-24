@@ -21,6 +21,7 @@ import subprocess
 import sys
 
 from . import backtest, filetypes, identity, load, maat, szz, trend, watch
+from .measure import metrics
 
 
 def cutoffs(last_date: str, windows: int, horizon: int) -> list:
@@ -87,7 +88,12 @@ def report_at(commits: list, t: str, size: dict, meta: dict, generated: list, ve
     return {"meta": {"now": t, "generated": generated, "vendored": vendored}, "size": size, "revisions": maat.revisions(past),
             "plumbing": maat.plumbing(past), "authors": maat.authors(past), "ownership": ownership,
             "fixes": maat.fixes(past, now=t), "coupling": [], "functions": [],
-            "entropy": maat.entropy(past, now=t)}
+            "entropy": maat.entropy(past, now=t),
+            # Hassan's best two models as the paper defines them, for variants() to rank by: burst
+            # periods and the system's files as the normaliser, HCM3s undecayed, HCM1d decayed by phi.
+            # Not what gitmole ships: entropy above is the shipped analysis.
+            "entropy_hcm3s": maat.entropy(past, now=t, hcpf=3, periods="burst", sizing="system", decay=1.0),
+            "entropy_hcm1d": maat.entropy(past, now=t, hcpf=1, periods="burst", sizing="system", phi=maat.HCM1D_PHI)}
 
 
 SOLO_WEIGHT = 1.5       # how much single ownership lifts a factor product
@@ -145,6 +151,17 @@ def variants(report: dict) -> dict:
     out["recent fixes"] = watch.ranked_by(rows, lambda r: (r["recent_fixes"], r["revs"]))
     hcm = {e["entity"]: e["hcm"] for e in report.get("entropy") or []}
     out["change entropy (HCM)"] = watch.ranked_by(rows, lambda r: (hcm.get(r["file"], 0.0), r["revs"]))   # Hassan's decayed HCM, the one metric with published evidence of beating churn
+    # ManualUp, the model Yang et al.'s twelve unsupervised predictors all generalise (they rank by the
+    # reciprocal of a metric, so the smallest come first). A control rather than a candidate: an effort
+    # budget measured in lines flatters it, which is why its IFA is reported beside it.
+    out["manual up (smallest first)"] = watch.ranked_by(rows, lambda r: -r["code"])
+    # Hassan found HCM3s and HCM1d his two best models, and the line above ranks by neither. A report
+    # built before they existed carries no such table and simply contributes no variant.
+    for label, key in (("HCM3s", "entropy_hcm3s"), ("HCM1d", "entropy_hcm1d")):
+        table = report.get(key)
+        if table:
+            scores = {e["entity"]: e["hcm"] for e in table}
+            out[f"change entropy ({label})"] = watch.ranked_by(rows, lambda r, s=scores: (s.get(r["file"], 0.0), r["revs"]))
     return out
 
 
@@ -158,28 +175,35 @@ def score(report: dict, fixed: set, top: int) -> dict:
 
 
 def effort(report: dict, outcome: set, top: int) -> dict:
-    """variant -> (IFA, lines): how many of its first `top` files come before the first one in the
-    outcome (initial false alarms; `top` when none is), and the lines of code those files hold at the
-    cut-off, the inspection budget. A list that ranks small files first can look good on hits per line
-    and still send a reviewer through many files before one matters, so both are shown."""
+    """variant -> {ifa, lines, popt}: how many of its first `top` files come before the first one in
+    the outcome (initial false alarms; `top` when none is), the lines of code those files hold at the
+    cut-off (the inspection budget), and Popt over the whole ordering. A list that ranks small files
+    first can look good on hits per line and still send a reviewer through many files before one
+    matters, so all three are shown. IFA and Popt come from measure.metrics rather than from here:
+    two definitions of one number is how they drift apart."""
     files = (report.get("size") or {}).get("files") or {}
+    lines = {f: (v or {}).get("code", 0) for f, v in files.items()}
     out = {}
     for name, ranked in variants(report).items():
         head = ranked[:top]
-        ifa = next((i for i, f in enumerate(head) if f in outcome), len(head))
-        out[name] = (ifa, sum((files.get(f) or {}).get("code", 0) for f in head))
+        out[name] = {"ifa": metrics.ifa(head, outcome), "lines": sum(lines.get(f, 0) for f in head),
+                     "popt": metrics.popt(ranked, lines, outcome)}
     return out
 
 
 def effort_table(efforts: list) -> str:
-    """efforts: [{variant: (ifa, lines)}] per cut-off -> Markdown with the median of each over the cut-offs."""
+    """efforts: [{variant: {ifa, lines, popt}}] per cut-off -> Markdown with the median of each over
+    the cut-offs. A variant whose Popt is None at every cut-off (no fixed file, or nothing to read)
+    prints an empty cell rather than a number it does not have."""
     import statistics
     names = list(efforts[0]) if efforts else []
-    rows = ["| variant | IFA, median | lines of code in the list, median |", "|---|---:|---:|"]
+    rows = ["| variant | IFA, median | lines of code in the list, median | Popt, median |", "|---|---:|---:|---:|"]
     for name in names:
-        ifas = [e[name][0] for e in efforts]
-        lines = [e[name][1] for e in efforts]
-        rows.append(f"| {name} | {statistics.median(ifas):g} | {int(statistics.median(lines)):,} |")
+        ifas = [e[name]["ifa"] for e in efforts]
+        lines = [e[name]["lines"] for e in efforts]
+        popts = [e[name]["popt"] for e in efforts if e[name]["popt"] is not None]
+        popt = f"{statistics.median(popts):.2f}".rstrip("0").rstrip(".") if popts else ""
+        rows.append(f"| {name} | {statistics.median(ifas):g} | {int(statistics.median(lines)):,} | {popt} |")
     return "\n".join(rows)
 
 
@@ -267,7 +291,7 @@ def main(argv=None) -> int:
     if labelled_results:
         print(f"\nAgainst the files the bug-inducing commits labelled in {os.path.basename(args.labels)} touched inside each window:\n")
         print(table(labelled_results, noun="labelled"))
-        print(f"\nWhat each list costs a reviewer against the same labels: initial false alarms before the first labelled file, and the lines of code in its top {args.top}:\n")
+        print(f"\nWhat each list costs a reviewer against the same labels: initial false alarms before the first labelled file, the lines of code in its top {args.top}, and Popt over the whole ordering:\n")
         print(effort_table(labelled_effort))
     print(f"\n`--all` exports {spread['all']:,} commits ({spread['fix_all']:,} fixes); HEAD reaches {spread['head']:,} ({spread['fix_head']:,} fixes).")
     return 0

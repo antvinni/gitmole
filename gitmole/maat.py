@@ -412,31 +412,109 @@ def test_cochange(commits: list) -> list:
 
 
 ENTROPY_DECAY = 0.5   # a period's weight halves for every month it lies before the reference date
+BURST_GAP_HOURS = 1   # Hassan's ECC model starts a new period after this much quiet; his figure, not swept
+ADAPTIVE_WINDOW = 6   # ...and sizes the system by the files touched in this many periods; his figure too
+HCM1D_PHI = 10        # Hassan fitted 10 for HCM1d, weighing a period by e^(phi (T_i - now)). The form is
+                      # legible in the paper; the unit of time is not, so years here are an assumption and
+                      # this is the start of a sweep rather than a principled constant (docs/pipeline.md).
 
 
-def entropy(commits: list, now: str = None, decay: float = ENTROPY_DECAY) -> list:
+def _instant(c: dict):
+    """A commit's datetime, or midnight on its date when the log carried no time."""
+    stamp = c.get("time") or ""
+    try:
+        return dt.datetime.fromisoformat(stamp[:-1] + "+00:00" if stamp.endswith("Z") else stamp)
+    except ValueError:
+        return dt.datetime.fromisoformat(c["date"] + "T00:00:00+00:00")
+
+
+def _entropy_periods(commits: list, kind: str, gap_hours: float) -> list:
+    """[(stamp, Counter of file -> changes)] for the periods the entropy is summed over. "month" keys
+    by calendar month, in the order the months first appear, which is what the shipped analysis has
+    always done. "burst" is Hassan's ECC period: the commits in time order, broken wherever the tree
+    was quiet for longer than `gap_hours`, each period stamped with its last commit's date."""
+    if kind == "month":
+        by_month = defaultdict(Counter)
+        for c in commits:
+            for p, _, _ in c["files"]:
+                by_month[c["date"][:7]][p] += 1
+        return list(by_month.items())
+    if kind != "burst":
+        raise ValueError(f"entropy: unknown period model {kind!r}")
+    out, counts, last, stamp = [], Counter(), None, None
+    for c in sorted(commits, key=lambda c: (_instant(c), c["hash"])):
+        when = _instant(c)
+        if last is not None and (when - last).total_seconds() > gap_hours * 3600:
+            out.append((stamp, counts))
+            counts = Counter()
+        for p, _, _ in c["files"]:
+            counts[p] += 1
+        last, stamp = when, c["date"]
+    if counts:
+        out.append((stamp, counts))
+    return out
+
+
+def entropy(commits: list, now: str = None, decay: float = ENTROPY_DECAY, hcpf: int = 2,
+            periods: str = "month", sizing: str = "period", window: int = ADAPTIVE_WINDOW,
+            phi: float = None, gap_hours: float = BURST_GAP_HOURS) -> list:
     """Hassan's history complexity metric (ICSE 2009), decayed: for each calendar month, the Shannon
     entropy of the files' shares of that month's changes, normalised by log2 of the files changed;
     a file's score is the sum over months of its share times that entropy, each month weighted by
     `decay` to the power of its distance from `now`. Changes scattered over many files in a month are
     hard to keep track of; a month spent on one file is not. `periods` is how many months the file
-    changed in."""
+    changed in.
+
+    Every default is the analysis gitmole ships, so entropy.csv does not move. The rest are Hassan's
+    other models, for `gitmole.evaluate` to rank by and compare — he found HCM3s and HCM1d the best
+    two, and neither is what the default computes:
+
+    - `hcpf` is how a period's entropy reaches a file: 2 is its share of the period (the default),
+      3 splits the period evenly between the files it changed (HCM3s), 1 gives each of them the whole
+      period's entropy (HCM1s, and the HCPF HCM1d decays).
+    - `periods` is "month" or "burst" (the ECC model: a new period after `gap_hours` of quiet).
+    - `sizing` is what the entropy is normalised by: "period" (the files the period changed, the
+      default), "system" (every file the history has touched up to and including the period — the
+      normalised static entropy Hassan's results use, with the files touched standing in for the files
+      that exist, since the log has no tree), or "adaptive" (the files changed in this period and the
+      `window - 1` before it: his adaptive sizing, which he describes but shows no results for).
+    - `decay` of 1.0 is Hassan's simple sum, the s in HCM1s to HCM3s: nothing is forgotten.
+    - `phi` replaces the halving with e^(-phi × years back), the form of HCM1d; see HCM1D_PHI on why
+      its value is a sweep and not a citation.
+
+    Hassan's two best models are HCM3s (hcpf 3, burst, system, decay 1.0) and HCM1d (hcpf 1, burst,
+    system, phi). The default is neither.
+    """
     now = now or dt.date.today().isoformat()
-    by_month = defaultdict(Counter)
-    for c in commits:
-        for p, _, _ in c["files"]:
-            by_month[c["date"][:7]][p] += 1
+    buckets = _entropy_periods(commits, periods, gap_hours)
+    if phi is not None and phi <= 0:
+        raise ValueError(f"entropy: phi must be positive, not {phi!r}")
+    sizes = None
+    if sizing in ("adaptive", "system"):
+        ordered = sorted(range(len(buckets)), key=lambda i: buckets[i][0])
+        sizes, touched = {}, set()
+        for slot, i in enumerate(ordered):
+            if sizing == "system":
+                touched.update(buckets[i][1])
+                sizes[i] = len(touched)
+            else:
+                recent = ordered[max(0, slot - window + 1):slot + 1]
+                sizes[i] = len({p for j in recent for p in buckets[j][1]})
+    elif sizing != "period":
+        raise ValueError(f"entropy: unknown sizing {sizing!r}")
     y0, m0 = int(now[:4]), int(now[5:7])
-    scores, periods = defaultdict(float), Counter()
-    for month, counts in by_month.items():
+    scores, seen_in = defaultdict(float), Counter()
+    for i, (stamp, counts) in enumerate(buckets):
         total, n = sum(counts.values()), len(counts)
-        h = -sum((v / total) * math.log2(v / total) for v in counts.values()) / math.log2(n) if n > 1 else 0.0
-        back = (y0 - int(month[:4])) * 12 + (m0 - int(month[5:7]))
-        weight = decay ** max(0, back)
+        size = n if sizes is None else max(sizes[i], n)
+        h = -sum((v / total) * math.log2(v / total) for v in counts.values()) / math.log2(size) if size > 1 and n > 1 else 0.0
+        back = max(0, (y0 - int(stamp[:4])) * 12 + (m0 - int(stamp[5:7])))
+        weight = math.exp(-phi * back / 12) if phi is not None else decay ** back
         for p, v in counts.items():
-            periods[p] += 1
-            scores[p] += (v / total) * h * weight
-    rows = [{"entity": p, "periods": periods[p], "hcm": round(scores[p], 6)} for p in periods]
+            seen_in[p] += 1
+            share = 1.0 if hcpf == 1 else (1.0 / n if hcpf == 3 else v / total)
+            scores[p] += share * h * weight
+    rows = [{"entity": p, "periods": seen_in[p], "hcm": round(scores[p], 6)} for p in seen_in]
     rows.sort(key=lambda r: (-r["hcm"], -r["periods"], r["entity"]))
     return rows
 

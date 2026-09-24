@@ -25,6 +25,28 @@ class Arithmetic(unittest.TestCase):
         self.assertEqual(metrics.recall_at_effort(["big", "small", "mid"], lines, {"small"}, 0.2), 0.0, "the big file spends the budget first")
         self.assertEqual(metrics.recall_at_effort(["small", "mid", "big"], lines, {"small", "big"}, 0.2), 0.5)
 
+    def test_popt_is_one_for_the_optimal_order_and_zero_for_the_worst(self):
+        cost = {"a": 1, "b": 1, "c": 2}   # a is the only file that was fixed
+        self.assertEqual(metrics.popt(["a", "b", "c"], cost, {"a"}), 1.0, "the positive first, cheapest negatives after")
+        self.assertEqual(metrics.popt(["c", "b", "a"], cost, {"a"}), 0.0, "the dearest negatives first, the positive last")
+
+    def test_popt_of_a_middling_order_is_the_worked_example(self):
+        cost = {"a": 1, "b": 1, "c": 2}
+        # areas under the effort-versus-found curve: optimal 0.875, worst 0.125, ["b", "a", "c"] 0.625,
+        # so 1 - (0.875 - 0.625) / (0.875 - 0.125) = 1 - 0.25 / 0.75
+        self.assertAlmostEqual(metrics.popt(["b", "a", "c"], cost, {"a"}), 2 / 3, places=6)
+
+    def test_popt_is_none_without_both_classes_or_without_cost(self):
+        self.assertIsNone(metrics.popt(["a", "b"], {"a": 1, "b": 1}, set()), "no positive")
+        self.assertIsNone(metrics.popt(["a", "b"], {"a": 1, "b": 1}, {"a", "b"}), "no negative")
+        self.assertIsNone(metrics.popt(["a", "b"], {"a": 0, "b": 0}, {"a"}), "no effort to spend")
+
+    def test_ifa_counts_the_false_alarms_before_the_first_hit(self):
+        self.assertEqual(metrics.ifa(["a", "b", "c"], {"a"}), 0)
+        self.assertEqual(metrics.ifa(["a", "b", "c"], {"c"}), 2)
+        self.assertEqual(metrics.ifa(["a", "b", "c"], {"c"}, top=2), 2, "capped at the head the reviewer reads")
+        self.assertIsNone(metrics.ifa([], {"a"}))
+
     def test_stability_measures(self):
         self.assertEqual(metrics.spearman(["a", "b", "c", "d"], ["a", "b", "c", "d"]), 1.0)
         self.assertEqual(metrics.spearman(["a", "b", "c"], ["c", "b", "a"]), -1.0)
@@ -50,6 +72,42 @@ class Arithmetic(unittest.TestCase):
         self.assertLessEqual(one[0], one[1])
         self.assertIsNone(metrics.bootstrap({"a": [None]}, metrics.median))
 
+
+
+class HarnessScore(unittest.TestCase):
+    """score() is what every release record is built from: its existing keys must not move."""
+
+    RANK = {"pool": ["big", "small", "mid"], "revs": {"big": 9, "small": 5, "mid": 1},
+            "lines": {"big": 800, "small": 100, "mid": 100}, "total_code": 1000}
+
+    def test_score_keeps_its_old_keys_and_adds_the_effort_aware_ones(self):
+        out = harness.score(dict(self.RANK), {"small"}, top=3)
+        for key in ("pool", "positives", "hits", "expected", "best", "churn_hits", "auc", "churn_auc",
+                    "recall20", "churn_recall20", "top"):
+            self.assertIn(key, out, f"{key} is part of the record and must not vanish")
+        self.assertEqual(out["ifa"], 1, "the list names big before small")
+        self.assertIsNotNone(out["popt"])
+        self.assertIsNotNone(out["churn_popt"])
+        self.assertIn("churn_ifa", out)
+
+    def test_manualup_is_recorded_as_a_control_with_its_false_alarms(self):
+        out = harness.score(dict(self.RANK), {"big"}, top=3)
+        self.assertEqual(out["manualup_ifa"], 2, "smallest first names both small files before big")
+        for key in ("manualup_hits", "manualup_auc", "manualup_recall20", "manualup_popt"):
+            self.assertIn(key, out)
+
+    def test_the_complexity_budget_is_recorded_beside_the_lines_budget(self):
+        rank = dict(self.RANK, complexity={"big": 2, "small": 40, "mid": 8}, total_complexity=50)
+        out = harness.score(rank, {"small"}, top=3)
+        plain = harness.score(dict(self.RANK), {"small"}, top=3)
+        self.assertEqual(out["recall20"], plain["recall20"], "the lines number keeps its meaning exactly")
+        self.assertIsNotNone(out["recall20_complexity"])
+        self.assertIn("churn_recall20_complexity", out)
+        self.assertIn("manualup_recall20_complexity", out)
+
+    def test_a_release_whose_probe_carries_no_complexity_records_none(self):
+        out = harness.score(dict(self.RANK), {"small"}, top=3)
+        self.assertIsNone(out["recall20_complexity"], "an old release's probe has no complexity to spend")
 
 class Scoring(unittest.TestCase):
     def test_one_cut_off_against_random_perfect_and_churn(self):

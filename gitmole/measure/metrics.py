@@ -1,5 +1,6 @@
 """The arithmetic of docs/measurement.md, with no I/O: headroom, ROC-AUC, recall at an effort budget,
-rank stability, bootstrap intervals over repositories, Wilson intervals and Cohen's kappa."""
+Popt, initial false alarms, rank stability, bootstrap intervals over repositories, Wilson intervals
+and Cohen's kappa."""
 from __future__ import annotations
 
 import math
@@ -56,6 +57,52 @@ def recall_at_effort(ranked: list, lines: dict, outcome: set, share: float = 0.2
         used += cost
         found += f in outcome
     return found / len(positives)
+
+
+def _lift_area(ranked: list, cost: dict, outcome: set):
+    """The area under an ordering's effort-versus-found curve, both axes normalised to 1: x is the
+    share of the effort spent, y the share of the outcome found. A trapezoid per file, so a file that
+    costs nothing adds nothing. None when there is no effort to spend or nothing to find."""
+    total = sum(cost.get(f, 0) for f in ranked)
+    positives = sum(1 for f in ranked if f in outcome)
+    if not total or not positives:
+        return None
+    area, y = 0.0, 0.0
+    for f in ranked:
+        dx = cost.get(f, 0) / total
+        dy = (1 if f in outcome else 0) / positives
+        area += dx * (y + dy / 2)
+        y += dy
+    return area
+
+
+def popt(ranked: list, cost: dict, outcome: set):
+    """Popt, the effort-aware measure Fu and Menzies, Yang et al. and Huang et al. state their
+    comparisons in: 1 - (area(optimal) - area(ranked)) / (area(optimal) - area(worst)) over the
+    effort-versus-found curve. The optimal ordering spends the least effort per file found (the
+    outcome's files cheapest first, then the rest); the worst spends the most before finding
+    anything. A list beats random above 0.5. None when either class is missing, or when no file
+    costs anything to read."""
+    if not any(f in outcome for f in ranked) or all(f in outcome for f in ranked):
+        return None
+    cheapest = sorted(ranked, key=lambda f: (cost.get(f, 0), f))
+    dearest = list(reversed(cheapest))
+    optimal = [f for f in cheapest if f in outcome] + [f for f in cheapest if f not in outcome]
+    worst = [f for f in dearest if f not in outcome] + [f for f in dearest if f in outcome]
+    here, best_, worst_ = (_lift_area(r, cost, outcome) for r in (ranked, optimal, worst))
+    if here is None or best_ is None or worst_ is None or best_ - worst_ <= 0:
+        return None
+    return 1 - (best_ - here) / (best_ - worst_)
+
+
+def ifa(ranked: list, outcome: set, top: int = None):
+    """Initial false alarms: how many files a reader passes before the first one in the outcome, over
+    the first `top` of the list (all of it when `top` is None). `top` when none of the head is in the
+    outcome, which is the convention evaluate.effort already prints. None for an empty list."""
+    head = ranked[:top] if top is not None else list(ranked)
+    if not head:
+        return None
+    return next((i for i, f in enumerate(head) if f in outcome), len(head))
 
 
 def spearman(a: list, b: list):

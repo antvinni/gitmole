@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 import unittest
 
-from gitmole import evaluate, maat
+from gitmole import evaluate, maat, watch
 from tests.test_szz import make_repo
 
 
@@ -74,11 +74,13 @@ class Score(unittest.TestCase):
         r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {"bots": []}, [], [])
         ranked = evaluate.variants(r)["watch list (hotspot)"]
         out = evaluate.effort(r, {ranked[1]}, 15)["watch list (hotspot)"]
-        self.assertEqual(out[0], 1, "one file before the first labelled one")
-        self.assertEqual(out[1], sum(SIZE["files"][f]["code"] for f in ranked[:15]))
-        self.assertEqual(evaluate.effort(r, set(), 15)["watch list (hotspot)"][0], len(ranked[:15]), "no hit: every file was a false alarm")
-        table = evaluate.effort_table([{"a": (1, 100)}, {"a": (3, 300)}])
-        self.assertIn("| a | 2 | 200 |", table)
+        self.assertEqual(set(out), {"ifa", "lines", "popt"}, "effort reports a dict per variant, not a tuple")
+        self.assertEqual(out["ifa"], 1, "one file before the first labelled one")
+        self.assertEqual(out["lines"], sum(SIZE["files"][f]["code"] for f in ranked[:15]))
+        self.assertEqual(evaluate.effort(r, set(), 15)["watch list (hotspot)"]["ifa"], len(ranked[:15]), "no hit: every file was a false alarm")
+        table = evaluate.effort_table([{"a": {"ifa": 1, "lines": 100, "popt": 0.4}},
+                                       {"a": {"ifa": 3, "lines": 300, "popt": 0.6}}])
+        self.assertIn("| a | 2 | 200 | 0.5 |", table)
 
     def test_the_report_at_t_knows_nothing_after_t(self):
         r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {"bots": []}, [], [])
@@ -89,11 +91,26 @@ class Score(unittest.TestCase):
         r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {}, [], [])
         out = evaluate.score(r, {"core/b.py"}, top=1)
         self.assertEqual(set(out), {"watch list (hotspot)", "factor product (max-scaled)", "factor product (rank-scaled)", "churn", "size", "recent fixes",
-                                    "change entropy (HCM)", "random (expected)"})
+                                    "change entropy (HCM)", "manual up (smallest first)", "change entropy (HCM3s)",
+                                    "change entropy (HCM1d)", "random (expected)"})
         self.assertIn("entropy", r, "report_at carries Hassan's entropy per file for the variant to rank by")
         self.assertEqual(out["churn"], 0, "a.py changed more and was not the file fixed")
         self.assertEqual(out["random (expected)"], 0.5)
         self.assertEqual(evaluate.score(r, {"core/b.py"}, top=2)["churn"], 1)
+
+    def test_manual_up_is_the_smallest_first_control(self):
+        r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {}, [], [])
+        ranked = evaluate.variants(r)["manual up (smallest first)"]
+        sizes = [(SIZE["files"].get(f) or {}).get("code", 0) for f in ranked]
+        self.assertEqual(sizes, sorted(sizes), "Fu and Menzies' ManualUp: the cheapest file to read comes first")
+
+    def test_hassans_two_best_models_are_the_ones_in_the_paper(self):
+        # every HCM in the paper runs on burst periods and normalises by the system's files; the s
+        # superscript is the simple, undecayed sum, and the d model decays by phi
+        r = evaluate.report_at(COMMITS, "2025-06-01", SIZE, {}, [], [])
+        past = maat.in_window(COMMITS, until="2025-06-01")
+        self.assertEqual(r["entropy_hcm3s"], maat.entropy(past, now="2025-06-01", hcpf=3, periods="burst", sizing="system", decay=1.0))
+        self.assertEqual(r["entropy_hcm1d"], maat.entropy(past, now="2025-06-01", hcpf=1, periods="burst", sizing="system", phi=maat.HCM1D_PHI))
 
     def test_a_bot_owns_nothing_at_t_either(self):
         commits = [commit("2025-01-10", "add", ("core/a.py", 100, 0))]
