@@ -28,8 +28,13 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
 
 # --validation=false: betterleaks can check a found credential against the live service, which is network;
-# it is off by default, and gitmole says so rather than rely on the default
-ARGV = ["betterleaks", "git", "--no-banner", "--report-format", "json", "--report-path", "-", "--exit-code", "0", "--validation=false"]
+# it is off by default, and gitmole says so rather than rely on the default.
+# --log-opts "--full-history HEAD": betterleaks' own default is `--full-history --all`, every reference in
+# the clone, so a clone carrying a thousand remote-tracking branches reports secrets another clone of
+# the same commit does not have. HEAD's history is the commit's; the unreachable objects are scanned
+# separately below and recorded as the clone's in the envelope.
+ARGV = ["betterleaks", "git", "--no-banner", "--report-format", "json", "--report-path", "-", "--exit-code", "0", "--validation=false",
+        "--log-opts", "--full-history HEAD"]
 DIR_ARGV = ["betterleaks", "dir", "{dir}", "--no-banner", "--report-format", "json", "--report-path", "-", "--exit-code", "0", "--validation=false"]
 UNREACHABLE_CAP = 5000          # blobs scanned outside reachable history; the count of the rest is recorded
 UNREACHABLE_MAX_BYTES = 1_000_000

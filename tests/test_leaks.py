@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -209,6 +210,8 @@ class Script(unittest.TestCase):
         self.assertEqual(argv[:1], ["git"])
         self.assertEqual(argv[argv.index("--report-path") + 1], "-", "the raw report must never be a file")
         self.assertEqual(argv[argv.index("--report-format") + 1], "json")
+        self.assertEqual(argv[argv.index("--log-opts") + 1:argv.index("--log-opts") + 3], ["--full-history", "HEAD"],
+                         "HEAD's history, not betterleaks' default of every reference in the clone")
         self.assertEqual(os.path.realpath(cwd), os.path.realpath(repo), "betterleaks scans the repository it is started in")
         self.assertNotIn("0123456789abcdef", written)
         self.assertEqual(len(json.loads(written)), 2)
@@ -390,3 +393,43 @@ class DefaultsAndPunctuatedWords(unittest.TestCase):
     def test_an_example_word_with_punctuation_in_it(self):
         self.assertTrue(leaks.is_placeholder("pass?word"))
         self.assertFalse(leaks.is_placeholder("Xk9vTq2LmZ"))
+
+
+@unittest.skipUnless(shutil.which("betterleaks"), "betterleaks is not installed")
+class HeadOnly(unittest.TestCase):
+    """betterleaks' own default walks every reference in the clone (--full-history --all); gitmole walks
+    HEAD's history, so a secret on a branch the commit does not reach is the clone's, not the commit's."""
+
+    KEY = "AK" + "IA" + "Z3Q7XK2MLPLWR4TB"   # the gate fixture's hand-made pair, assembled so this file holds none: an id alone is not reported
+    SECRET = "u8Jq2pR7vN1x" + "Y6tB4mK9sW3cF0hL5dG2aZ8eQ7rT"
+
+    def _git(self, *args, cwd):
+        env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="a@x",
+                   GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="a@x")
+        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, env=env, text=True).stdout.strip()
+
+    def _scan(self, repo):
+        with tempfile.TemporaryDirectory() as out:
+            report = os.path.join(out, "secrets.json")
+            p = subprocess.run([sys.executable, SCRIPT, report], cwd=repo, capture_output=True, text=True)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            with open(report) as fh:
+                return json.load(fh)
+
+    def test_a_secret_on_an_unreached_branch_is_not_the_commits(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._git("init", "-q", "-b", "main", cwd=d)
+            with open(os.path.join(d, "a.py"), "w") as fh:
+                fh.write("x = 1\n")
+            self._git("add", "-A", cwd=d)
+            self._git("commit", "-q", "-m", "one", cwd=d)
+            self._git("switch", "-q", "-c", "leaky", cwd=d)
+            with open(os.path.join(d, "deploy.py"), "w") as fh:
+                fh.write(f'AWS_ACCESS_KEY_ID = "{self.KEY}"\nAWS_SECRET_ACCESS_KEY = "{self.SECRET}"\n')
+            self._git("add", "-A", cwd=d)
+            self._git("commit", "-q", "-m", "settings", cwd=d)
+            self._git("switch", "-q", "main", cwd=d)
+            self.assertEqual(self._scan(d), [], "the key lives on `leaky`, which main does not reach")
+            self._git("merge", "-q", "--no-edit", "leaky", cwd=d)
+            found = self._scan(d)
+            self.assertEqual(sorted({f["File"] for f in found}), ["deploy.py"], "merged into HEAD's history, it is the commit's")

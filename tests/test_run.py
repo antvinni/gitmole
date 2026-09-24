@@ -313,6 +313,13 @@ class Plan(unittest.TestCase):
         self.assertEqual(argv[2:], ["/o/secrets.json"])
         self.assertIsNone(by["betterleaks"]["stdout"])
 
+    def test_git_sizer_runs_through_health_py_so_it_reads_the_commit_not_the_clone(self):
+        by = {s["name"]: s for s in run.plan("/r", "/o")}
+        self.assertEqual(by["git-sizer"]["argv"][0], sys.executable)
+        self.assertTrue(by["git-sizer"]["argv"][1].endswith("gitmole/health.py"), by["git-sizer"]["argv"])
+        self.assertEqual(by["git-sizer"]["argv"][2:], [], "health.py takes no arguments: it runs inside the repository and writes to stdout")
+        self.assertEqual(by["git-sizer"]["stdout"], "/o/repo-health.txt")
+
     def test_lizard_is_detected_as_a_python_module_not_a_command(self):
         self.assertNotIn("lizard", run.REQUIRED_TOOLS)
         self.assertTrue(run.has_lizard())
