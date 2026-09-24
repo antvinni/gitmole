@@ -172,9 +172,11 @@ to you and costs the project runner minutes: one push per loop, not one per fix.
 
 Leave the branch, the pull request and a note saying which of these it was.
 
-**What a loop can afford.** A full measurement round is about 45 minutes and the extras another 25,
-so a loop that changes any number ends at "record produced", not at "released". A loop that changes
-no number — docs, tests, a refactor — should not run the harness at all.
+**What a loop can afford.** A full measurement round is about 20 minutes (the 0.34.0 record's
+per-entry times sum to 19 minutes over all 21 entries, 8 of them binutils-gdb) and the extras are
+budgeted at another 25, a figure no record has measured yet. So a loop that changes any number ends at
+"record produced", not at "released". A loop that changes no number — docs, tests, a refactor — should
+not run the harness at all.
 
 **The three things that look like progress and are not:** regenerating
 `tests/golden/report.txt` to make a test pass, adding labels to `measure/labels.jsonl`, and widening
