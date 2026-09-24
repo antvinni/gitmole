@@ -12,19 +12,19 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">100%</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="153.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
-<text x="226.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.9.0</text>
-<text x="299.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
-<text x="372.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.15.0</text>
-<text x="445.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
-<text x="518.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.21.0</text>
-<text x="591.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
-<text x="664.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.27.0</text>
-<text x="737.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.0</text>
-<text x="810.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.32.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.35.0</text>
-<polyline points="689.2,183.4 713.5,181.2 737.9,103.6 762.2,105.5 786.6,105.5 810.9,105.5 835.3,106.3 859.6,102.6 884.0,98.8" fill="none" stroke="#0969da" stroke-width="2"/>
-<polyline points="689.2,43.5 713.5,42.2 737.9,45.1 762.2,42.7 786.6,42.7 810.9,42.7 835.3,42.7 859.6,47.8 884.0,53.1" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="174.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.7.0</text>
+<text x="245.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
+<text x="316.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.13.1</text>
+<text x="387.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
+<text x="458.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.19.0</text>
+<text x="529.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
+<text x="600.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.25.0</text>
+<text x="671.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
+<text x="742.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.1</text>
+<text x="813.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.33.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.35.1</text>
+<polyline points="671.1,183.4 694.7,181.2 718.4,103.6 742.1,105.5 765.7,105.5 789.4,105.5 813.0,106.3 836.7,102.6 860.3,98.8 884.0,96.7" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="671.1,43.5 694.7,42.2 718.4,45.1 742.1,42.7 765.7,42.7 789.4,42.7 813.0,42.7 836.7,47.8 860.3,53.1 884.0,53.3" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
 <line x1="56" y1="278" x2="78" y2="278" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="282" fill="#1f2328">labelled actionable</text>
 <line x1="225" y1="278" x2="247" y2="278" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
