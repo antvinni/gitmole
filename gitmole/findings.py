@@ -330,13 +330,24 @@ def minor_contributors(report: dict, min_minor: int = 5, warn_at: int = 10, top_
     """Top hotspots with a crowd of minor contributors, people with under 5% of the file's commits
     each. Bird et al. ("Don't Touch My Code!", FSE 2011) found that count the strongest ownership
     predictor of defects, ahead of the sole owner, which is the knowledge risk the watch list names
-    separately. Over the watch list's own pool: test, vendored, example and generated files are out."""
+    separately. Their section 7 finds most minor contributors are major contributors to a component
+    the file depends on — expected traffic — so a minor contributor who is major on a file this one
+    changes with (coupling.expected_minors) is not counted. Over the watch list's own pool: test,
+    vendored, example and generated files are out."""
     minors = {a["entity"]: (a.get("minor", 0), a["n-authors"]) for a in report.get("authors") or []}
     if not any(m for m, _ in minors.values()):
         return []
     cls = classify.Classifier(report)
     top = [h["entity"] for h in hotspots.ranked(report) if h["code"] is not None and cls.reason(h["entity"]) is None][:top_n]
-    crowded = [(f, *minors[f]) for f in top if f in minors and minors[f][0] >= min_minor]
+    expected = coupling.expected_minors(report, [f for f in top if f in minors and minors[f][0] >= min_minor])
+    crowded = []
+    for f in top:
+        if f not in minors or minors[f][0] < min_minor:
+            continue
+        all_minor, n = minors[f]
+        counted = all_minor - len(expected.get(f) or [])
+        if counted >= min_minor:
+            crowded.append((f, counted, n, all_minor))
     if not crowded:
         return []
     crowded.sort(key=lambda t: (-t[1], t[0]))
@@ -345,14 +356,19 @@ def minor_contributors(report: dict, min_minor: int = 5, warn_at: int = 10, top_
         if r.get("added", 0) > (owners.get(r["entity"]) or ("", 0))[1]:
             owners[r["entity"]] = (r["author"], r["added"])
     sev = "warning" if crowded[0][1] >= warn_at else "info"
-    listed = "; ".join(f"{f} ({m} of {n} authors)" for f, m, n in crowded[:5]) + (f" and {len(crowded) - 5} more" if len(crowded) > 5 else "")
+    listed = "; ".join(f"{f} ({m} of {n} authors)" for f, m, n, _ in crowded[:5]) + (f" and {len(crowded) - 5} more" if len(crowded) > 5 else "")
+    excluded = sum(len(expected.get(f) or []) for f, _, _, _ in crowded)
+    aside = (f" {excluded} of the minor contributors are major contributors to a file these change with and are not counted"
+             " (Bird et al., section 7)." if excluded else "")
     first, owner = crowded[0][0], (owners.get(crowded[0][0]) or (None, 0))[0]
     who = f"Have {owner}, who wrote most of {first}, review changes to it from anyone else" if owner else f"Give {first} an owner who reviews every change to it"
     return [_f(sev, "Many minor contributors",
-               f"{len(crowded)} of the top {len(top)} hotspots have {min_minor} or more contributors with under {round(100 * maat.MINOR_SHARE)}% of the file's commits each: {listed}.",
+               f"{len(crowded)} of the top {len(top)} hotspots have {min_minor} or more contributors with under {round(100 * maat.MINOR_SHARE)}% of the file's commits each: {listed}.{aside}",
                f"{who}; Bird et al. found the count of minor contributors the strongest ownership predictor of defects.",
-               rule={"id": "minor_contributors", "min_minor": min_minor, "warn_at": warn_at, "minor_share": maat.MINOR_SHARE, "top_n": top_n},
-               evidence={"files": [{"file": f, "minor": m, "authors": n, "owner": (owners.get(f) or (None, 0))[0]} for f, m, n in crowded[:10]]})]
+               rule={"id": "minor_contributors", "min_minor": min_minor, "warn_at": warn_at, "minor_share": maat.MINOR_SHARE, "top_n": top_n,
+                     "expected_share": maat.MINOR_SHARE},
+               evidence={"files": [{"file": f, "minor": m, "minor_all": a, "authors": n, "owner": (owners.get(f) or (None, 0))[0],
+                                    "expected": (expected.get(f) or [])[:5]} for f, m, n, a in crowded[:10]]})]
 
 
 def _both_specimens(a: str, b: str) -> bool:

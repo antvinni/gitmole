@@ -287,12 +287,38 @@ class SweepingCommits(unittest.TestCase):
 
 
 class MinorContributors(unittest.TestCase):
-    def report(self, minors):
+    def report(self, minors, coupled=None, expected_on=()):
+        """Twelve hotspots; `minors[i]` minor contributors on src/f{i}.py. With `coupled`, src/f0.py is coupled
+        with it and the people named in `expected_on` are major contributors to it."""
         size = {f"src/f{i}.py": {"code": 1000 - i, "complexity": 1} for i in range(12)}
         revisions = [{"entity": f"src/f{i}.py", "n-revs": 100 - i} for i in range(12)]
         authors = [{"entity": f"src/f{i}.py", "n-authors": 3 + m, "n-revs": 100 - i, "minor": m} for i, m in enumerate(minors)]
-        ownership = [{"entity": f"src/f{i}.py", "author": "Ann", "added": 500, "deleted": 0} for i in range(12)]
-        return report(size={"files": size}, revisions=revisions, authors=authors, ownership=ownership)
+        ownership = [{"entity": f"src/f{i}.py", "author": "Ann", "added": 500, "deleted": 0, "commits": 60} for i in range(12)]
+        ownership += [{"entity": "src/f0.py", "author": f"Minor {k}", "added": 1, "deleted": 0, "commits": 1} for k in range(minors[0])]
+        r = report(size={"files": size}, revisions=revisions, authors=authors, ownership=ownership)
+        if coupled:
+            r["coupling"] = [{"entity": "src/f0.py", "coupled": coupled, "degree": 50, "average-revs": 50}]
+            r["ownership"] += [{"entity": coupled, "author": who, "added": 100, "deleted": 0, "commits": 50} for who in expected_on]
+        return r
+
+    def test_minor_contributors_who_are_major_on_a_coupled_file_are_expected_traffic(self):
+        r = self.report([6] + [0] * 11, coupled="src/f1.py", expected_on=["Minor 0", "Minor 1"])
+        self.assertEqual(findings.minor_contributors(r), [], "6 minors, 2 of them major on the coupled f1: 4 strangers is under the threshold")
+        r = self.report([12] + [0] * 11, coupled="src/f1.py", expected_on=["Minor 0", "Minor 1", "Minor 2"])
+        [f] = findings.minor_contributors(r)
+        self.assertEqual(f["severity"], "info", "12 minors less 3 expected is 9, under warn_at")
+        self.assertIn("src/f0.py (9 of 15 authors)", f["detail"])
+        self.assertIn("3 of the minor contributors are major contributors to a file these change with and are not counted", f["detail"])
+        self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 9, "minor_all": 12, "authors": 15, "owner": "Ann",
+                                                     "expected": [{"author": "Minor 0", "via": ["src/f1.py"]}, {"author": "Minor 1", "via": ["src/f1.py"]},
+                                                                  {"author": "Minor 2", "via": ["src/f1.py"]}]})
+        self.assertEqual(f["rule"]["expected_share"], 0.05, "the major/minor line the exclusion uses is the rule's own")
+
+    def test_without_coupling_the_count_is_birds_count(self):
+        [f] = findings.minor_contributors(self.report([12] + [0] * 11))
+        self.assertEqual((f["severity"], f["evidence"]["files"][0]["minor"], f["evidence"]["files"][0]["minor_all"], f["evidence"]["files"][0]["expected"]),
+                         ("warning", 12, 12, []))
+        self.assertNotIn("not counted", f["detail"])
 
     def test_top_hotspots_with_five_or_more_minor_contributors_are_named(self):
         [f] = findings.minor_contributors(self.report([12, 0, 6, 0, 0, 0, 0, 0, 0, 0, 9, 0]))
@@ -302,8 +328,9 @@ class MinorContributors(unittest.TestCase):
         self.assertNotIn("src/f10.py", f["detail"], "outside the top ten")
         self.assertEqual(f["advice"], "Have Ann, who wrote most of src/f0.py, review changes to it from anyone else; "
                                       "Bird et al. found the count of minor contributors the strongest ownership predictor of defects.")
-        self.assertEqual(f["rule"], {"id": "minor_contributors", "min_minor": 5, "warn_at": 10, "minor_share": 0.05, "top_n": 10, "ref": "Bird et al., FSE 2011"})
-        self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 12, "authors": 15, "owner": "Ann"})
+        self.assertEqual(f["rule"], {"id": "minor_contributors", "min_minor": 5, "warn_at": 10, "minor_share": 0.05, "top_n": 10, "expected_share": 0.05,
+                                     "ref": "Bird et al., FSE 2011"})
+        self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 12, "minor_all": 12, "authors": 15, "owner": "Ann", "expected": []})
 
     def test_info_below_ten_and_nothing_below_five(self):
         [f] = findings.minor_contributors(self.report([5] + [0] * 11))
