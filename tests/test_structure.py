@@ -168,6 +168,23 @@ class Resolve(unittest.TestCase):
         self.assertEqual(edges["tests/other/test_y.py"], ["tests/apps/__init__.py"], "tests/ is the root above the outermost package, so `import apps` is tests/apps")
         self.assertEqual(resolved["python"], 1.0)
 
+    def test_an_import_answered_under_two_roots_takes_the_one_nearest_the_importer(self):
+        """ghidra keeps one IDA loader per IDA version, 7xx/python/idaxml.py and 9xx/python/idaxml.py, with a script
+        beside each doing `from idaxml import ...`. Python puts the script's own directory first on its path, so
+        each loads its neighbour; a `from` import made an edge to both, and a plain import took the first path."""
+        py = lambda *imports: {"language": "python", "imports": [list(i) for i in imports]}
+        files = {"ida/7xx/python/idaxml.py": py(), "ida/7xx/python/load.py": py(["from", "idaxml", ["Loader"]]),
+                 "ida/9xx/python/idaxml.py": py(), "ida/9xx/python/load.py": py(["from", "idaxml", ["Loader"]]),
+                 "ida/9xx/python/plugin.py": py(["abs", "idaxml"]), "ida/9xx/loaders/xml.py": py(["abs", "idaxml"]),
+                 "tools/run.py": py(["abs", "idaxml"])}
+        edges, resolved = structure.resolve(files)
+        self.assertEqual(edges["ida/7xx/python/load.py"], ["ida/7xx/python/idaxml.py"])
+        self.assertEqual(edges["ida/9xx/python/load.py"], ["ida/9xx/python/idaxml.py"], "its neighbour, not both copies")
+        self.assertEqual(edges["ida/9xx/python/plugin.py"], ["ida/9xx/python/idaxml.py"], "its neighbour, not the first path")
+        self.assertEqual(edges["ida/9xx/loaders/xml.py"], ["ida/9xx/python/idaxml.py"], "no root above it: the copy sharing most of its path")
+        self.assertEqual(edges["tools/run.py"], ["ida/7xx/python/idaxml.py"], "neither is nearer: the first path, the same every run")
+        self.assertEqual(resolved["python"], 1.0)
+
     def test_a_relative_import_names_one_tree_path_and_no_longer_falls_back_to_a_suffix(self):
         py = lambda *imports: {"language": "python", "imports": [list(i) for i in imports]}
         files = {"pkg/__init__.py": py(), "pkg/a.py": py(["from", "..x", ["y"]]), "lib/x.py": py()}
