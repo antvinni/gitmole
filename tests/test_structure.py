@@ -99,7 +99,7 @@ class Resolve(unittest.TestCase):
         edges, resolved = structure.resolve(files)
         self.assertEqual(edges["pkg/a.py"], ["pkg/b.py", "pkg/c.py"], "relative imports, the stdlib left out")
         self.assertEqual(edges["pkg/b.py"], ["pkg/a.py"])
-        self.assertEqual(edges["src/app/main.py"], ["src/app/util.py"], "a src/ layout resolves by suffix")
+        self.assertEqual(edges["src/app/main.py"], ["src/app/util.py"], "a src/ layout resolves from its root, src/")
         self.assertEqual(edges["web/index.ts"], ["web/comp/index.tsx", "web/lib/x.ts"], "a .js import of a .ts file, an index file, no node_modules")
         self.assertEqual(edges["c/main.c"], ["c/util.h"])
         self.assertEqual(edges["lib/r.rb"], ["lib/s.rb"], "a gem is not this tree")
@@ -126,6 +126,25 @@ class Resolve(unittest.TestCase):
         self.assertEqual(edges["src/app/main.py"], ["src/app/util.py"], "src/ is no package, so a src/ layout still resolves")
         self.assertEqual(edges["tests/test_x.py"], ["tests/helpers.py"], "a test directory without __init__.py is a root, as pytest makes it")
         self.assertEqual(resolved["python"], 1.0, "`import warnings` is the standard library: not an import that failed to resolve")
+
+    def test_a_directory_without_an_init_inside_a_package_is_no_root(self):
+        """pkg/scripts/ has no __init__.py but sits under pkg/, which has one: a namespace subpackage, reached as
+        pkg.scripts.io and never as a bare `import io`. Checking only the immediate parent left this class of
+        edge alive one level down (django's tests/apps/namespace_package_base/, ghidra's ghidradbg/exdi/)."""
+        py = lambda *imports: {"language": "python", "imports": [list(i) for i in imports]}
+        files = {"pkg/__init__.py": py(), "pkg/core.py": py(["abs", "io"], ["abs", "pkg.scripts.io"]), "pkg/scripts/io.py": py(),
+                 "tests/apps/__init__.py": py(), "tests/apps/ns/nsapp/apps.py": py(), "tests/other/test_y.py": py(["abs", "apps"])}
+        edges, resolved = structure.resolve(files)
+        self.assertEqual(edges["pkg/core.py"], ["pkg/scripts/io.py"], "the standard library's io is not this tree; the package's own scripts/io is, through its full name")
+        self.assertEqual(edges["tests/other/test_y.py"], ["tests/apps/__init__.py"], "tests/ is the root above the outermost package, so `import apps` is tests/apps")
+        self.assertEqual(resolved["python"], 1.0)
+
+    def test_a_relative_import_names_one_tree_path_and_no_longer_falls_back_to_a_suffix(self):
+        py = lambda *imports: {"language": "python", "imports": [list(i) for i in imports]}
+        files = {"pkg/__init__.py": py(), "pkg/a.py": py(["from", "..x", ["y"]]), "lib/x.py": py()}
+        edges, resolved = structure.resolve(files)
+        self.assertEqual(edges["pkg/a.py"], [], "..x climbs above the tree's top: nothing there to name, and lib/x.py is not it")
+        self.assertEqual(resolved["python"], 0.0, "counted as an import that did not resolve, not silently matched elsewhere")
 
     def test_the_lowest_path_wins_when_several_files_answer_one_module_name(self):
         """django has two json.py under django/, so an import of it has two candidates and the first wins. The
