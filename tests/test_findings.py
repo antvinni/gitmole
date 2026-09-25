@@ -1,6 +1,6 @@
 import unittest
 
-from gitmole import findings
+from gitmole import findings, structure
 
 
 def report(**overrides):
@@ -1294,7 +1294,7 @@ class Structure(unittest.TestCase):
         files["src/f8.py"]["imports"] = ["tests/test_f.py"]
         f = self.by_id(r)["import_cycles"]
         self.assertEqual(f["severity"], "info")
-        self.assertIn("2 groups of files import each other as they load: src/f0.py → src/f1.py → src/f2.py → src/f0.py; "
+        self.assertIn("In 2 groups, files import each other as they load: src/f0.py → src/f1.py → src/f2.py → src/f0.py; "
                       "src/f4.py → src/f5.py → src/f4.py.", f["detail"])
         self.assertNotIn("src/f6.py", f["detail"], "a deferred import is how a cycle is broken on purpose")
         self.assertNotIn("src/f8.py", f["detail"])
@@ -1306,6 +1306,27 @@ class Structure(unittest.TestCase):
         self.assertIn("Oyetoyan", f["rule"]["ref"])
         r["structure"]["resolved"] = {"python": 0.3}
         self.assertNotIn("import_cycles", self.by_id(r), "a graph that resolves a third of the imports cannot vouch for a loop")
+
+    def test_import_cycles_judge_only_the_languages_the_graph_is_trusted_for(self):
+        """The one gate structure.trusted sets for every rule leaning on the graph: a language resolved by path,
+        mostly resolved, over at least MIN_FILES files. Three TypeScript files in a loop are too few to vouch
+        for; at ten the language is judged."""
+        r = self.base()
+        files = r["structure"]["files"]
+        files["src/f4.py"]["imports"], files["src/f5.py"]["imports"] = ["src/f5.py"], ["src/f4.py"]
+        r["structure"]["resolved"]["typescript"] = 0.9
+        ts = {"language": "typescript", "debt": 0, "definitions": 5, "max_nesting": 1, "max_cognitive": 3}
+        for i in range(3):
+            files[f"web/t{i}.ts"] = dict(ts, imports=[f"web/t{(i + 1) % 3}.ts"])
+        f = self.by_id(r)["import_cycles"]
+        self.assertNotIn("web/", f["detail"], "three TypeScript files are under the gate's ten")
+        self.assertEqual(f["evidence"]["count"], 1)
+        self.assertEqual((f["rule"]["min_resolved"], f["rule"]["min_files"]), (structure.MIN_RESOLVED, structure.MIN_FILES))
+        for i in range(3, structure.MIN_FILES):
+            files[f"web/t{i}.ts"] = dict(ts, imports=[])
+        f = self.by_id(r)["import_cycles"]
+        self.assertIn("web/t0.ts → web/t1.ts → web/t2.ts → web/t0.ts", f["detail"], "ten TypeScript files: the language is judged")
+        self.assertEqual(f["evidence"]["count"], 2)
 
     def test_a_structure_json_from_before_the_deferred_marks_names_no_loop(self):
         """Without the marks the rule would name the loops deferred imports break on purpose — the false
@@ -1337,7 +1358,7 @@ class Structure(unittest.TestCase):
             files[f"src/f{i}.py"]["imports"] = [f"src/f{(i + 1) % 6}.py"]
         files["src/f3.py"]["imports"].append("src/f1.py")
         f = self.by_id(r)["import_cycles"]
-        self.assertIn("1 group of files imports each other as it loads: src/f1.py → src/f2.py → src/f3.py → src/f1.py, one loop in a group of 6 files.",
+        self.assertIn("In 1 group, files import each other as they load: src/f1.py → src/f2.py → src/f3.py → src/f1.py, one loop in a group of 6 files.",
                       f["detail"], "the short cut makes a three-step loop, and that is the group's shortest, not the six-step ring through f0")
         files["src/f5.py"]["imports"] = []
         files["src/f0.py"]["imports"] = ["src/f1.py", "src/f2.py"]

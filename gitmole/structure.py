@@ -631,12 +631,13 @@ MIN_RESOLVED = 0.6   # a language whose imports resolve less often than this has
 MIN_FILES = 10
 
 
-def trusted(files: dict, resolved: dict) -> set:
+def trusted(files: dict, resolved: dict, min_resolved: float = MIN_RESOLVED, min_files: int = MIN_FILES) -> set:
     """The languages whose import graph a rule may lean on: one it resolves by path, whose imports resolved
-    at least MIN_RESOLVED of the time, over at least MIN_FILES files. One gate for unreferenced files and for
-    the dependents count on --risk, so the two cannot drift apart."""
+    at least MIN_RESOLVED of the time, over at least MIN_FILES files. One gate for unreferenced files, import
+    cycles and the dependents count on --risk, so they cannot drift apart; the thresholds are parameters only
+    so a sensitivity sweep can move them."""
     counts = Counter(v.get("language") for v in files.values())
-    return {lang for lang, n in counts.items() if lang in GRAPH_LANGUAGES and (resolved or {}).get(lang, 0) >= MIN_RESOLVED and n >= MIN_FILES}
+    return {lang for lang, n in counts.items() if lang in GRAPH_LANGUAGES and (resolved or {}).get(lang, 0) >= min_resolved and n >= min_files}
 MAX_SHARE = 0.05
 PLUGIN_SHARE = 0.25
 # entry points by ecosystem convention: run, served, collected or routed rather than imported

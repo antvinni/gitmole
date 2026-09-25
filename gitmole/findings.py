@@ -1318,19 +1318,19 @@ def _loop(edges: dict, group: list) -> list:
     return best or [group[0], group[0]]
 
 
-def import_cycles(report: dict, min_resolved: float = structure.MIN_RESOLVED) -> list:
+def import_cycles(report: dict, min_resolved: float = structure.MIN_RESOLVED, min_files: int = structure.MIN_FILES) -> list:
     """Groups of source files that import each other, directly or round a loop, as they load: an import
     inside a function, a type-only import and a dynamic import() are left out, since they are how a
     loop is broken on purpose. Oyetoyan et al. found classes near a cycle change more often (Java, SANER
     2015) and found no rule that tells a harmful cycle from a harmless one, so this names the loops and
-    leaves the verdict to the reader. Only where imports resolve by path and mostly resolve; tests,
-    examples, vendored and generated files are left out."""
+    leaves the verdict to the reader. Only in the languages structure.trusted vouches for (resolved by
+    path, mostly resolved, enough files); tests, examples, vendored and generated files are left out."""
     s = _structure(report)
     if not s or int(s.get("analyser") or 0) < DEFERRED_MARKS_FROM:
         return []   # a structure.json from before the deferred marks would name the loops deferred imports break on purpose
     files, resolved, derived = s.get("files") or {}, s.get("resolved") or {}, _generated(report)
-    keep = {p for p, info in files.items() if info.get("language") in structure.GRAPH_LANGUAGES and resolved.get(info["language"], 0) >= min_resolved
-            and not _aside_path(p) and p not in derived}
+    judged = structure.trusted(files, resolved, min_resolved, min_files)
+    keep = {p for p, info in files.items() if info.get("language") in judged and not _aside_path(p) and p not in derived}
     edges = {p: sorted(set(t for t in files[p].get("imports") or [] if t in keep) - set(files[p].get("deferred") or [])) for p in sorted(keep)}
     groups = _groups(edges)
     if not groups:
@@ -1345,9 +1345,9 @@ def import_cycles(report: dict, min_resolved: float = structure.MIN_RESOLVED) ->
     more = f" ({_plural(len(groups) - 3, 'more group')})" if len(groups) > 3 else ""
     n = len(groups)
     return [_f("info", "Import cycles",
-               f"{_plural(n, 'group')} of files import{'s' if n == 1 else ''} each other as {'it loads' if n == 1 else 'they load'}: {listed}{more}.",
+               f"In {_plural(n, 'group')}, files import each other as they load: {listed}{more}.",
                f"Break {' → '.join(loops[0])} first: move what both ends need into a file neither imports, or import it where it is used.",
-               rule={"id": "import_cycles", "min_resolved": min_resolved, "ref": REFS["import_cycles"]},
+               rule={"id": "import_cycles", "min_resolved": min_resolved, "min_files": min_files, "ref": REFS["import_cycles"]},
                evidence={"count": n, "groups": [{"files": g[:20], "size": len(g), "loop": l} for g, l in zip(groups[:10], loops[:10])]})]
 
 
