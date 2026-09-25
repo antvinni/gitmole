@@ -589,10 +589,21 @@ def _resolve(files: dict) -> tuple:
                 def lookup(candidates):   # a relative import names one tree path exactly; an absolute one a module path under some root
                     if relative:
                         return [c for c in candidates if c in tracked and c != path]
-                    return [p for c in candidates for p in by_module.get(c, []) if p != path]
+                    # one file per module, as Python loads one: the deepest root above the importer first, since a
+                    # script's own directory leads its path; failing that the copy sharing most of the importer's
+                    # path (ghidra's per-version 7xx/ and 9xx/ idaxml.py, each beside its own loaders), then the first
+                    answers = []
+                    for k, c in enumerate(candidates):
+                        for q in by_module.get(c, []):
+                            if q != path:
+                                root = q[:len(q) - len(c)]
+                                shared = len(os.path.commonpath([os.path.dirname(path) or ".", os.path.dirname(q) or "."])) \
+                                    if (os.path.dirname(path) and os.path.dirname(q)) else 0
+                                answers.append((0, -len(root), k, q) if path.startswith(root) else (1, -shared, k, q))
+                    return [min(answers)[3]] if answers else []
                 found = []
                 if kind == "from" and entry[2]:   # `from pkg import mod`: the module, when the name is one, not pkg/__init__.py
-                    found = lookup(_python_candidates(path, (kind, entry[1], entry[2]), names_only=True))
+                    found = [q for n in entry[2] for q in lookup(_python_candidates(path, (kind, entry[1], [n]), names_only=True))]
                 if not found:
                     found = lookup(_python_candidates(path, (kind, entry[1], [])))
             elif kind == "path":
@@ -617,7 +628,7 @@ def _resolve(files: dict) -> tuple:
             tried[lang] += 1
             if found:
                 hit[lang] += 1
-                hits = found[:1] if lang == "python" and kind == "abs" else found
+                hits = found
                 out.update(hits)
                 if i not in lazy:
                     out_eager.update(hits)
