@@ -778,6 +778,29 @@ class Arguments(unittest.TestCase):
         self.assertIn("docs/install.md", text)
         self.assertNotIn("jar", text)
 
+    def test_doctor_needs_no_target(self):
+        from unittest import mock
+        c = console()
+        with mock.patch("gitmole.doctor.main", return_value=0) as doctor_main:
+            rc = cli.main(["--doctor"], console=c)
+        self.assertEqual(rc, 0)
+        doctor_main.assert_called_once()
+        self.assertNotIn("target required", c.export_text())
+
+    def test_doctor_ignores_the_other_options(self):
+        from unittest import mock
+        c = console()
+        with mock.patch("gitmole.doctor.main", return_value=0):
+            rc = cli.main(["--doctor", "--yes", "--hook", "--risk-threshold", "5"], console=c)
+        self.assertEqual(rc, 0)
+        self.assertEqual(c.export_text(), "")
+
+    def test_doctor_refuses_a_target(self):
+        c = console()
+        rc = cli.main(["--doctor", "."], console=c)
+        self.assertEqual(rc, 2)
+        self.assertIn("--doctor takes no target", c.export_text())
+
 
 class GeneratedFiles(unittest.TestCase):
     def test_a_run_records_the_generated_files_in_meta(self):

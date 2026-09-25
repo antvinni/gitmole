@@ -81,11 +81,12 @@ as well; if yours does, prefer that to a downloaded binary.
 ## Check
 
 ```bash
-scc --version && git-sizer --version && betterleaks version && jscpd --version && osv-scanner --version && gitmole --version
+gitmole --doctor                                 # every tool, found against pinned
 gitmole .                                        # a report of the clone you are in
 ```
 
-`gitmole` reports any tool it cannot find on the first run.
+`gitmole --doctor` names any tool that is missing or not at its pinned version,
+and where to get the pinned one; a run reports a missing tool too.
 
 ## The vulnerability database
 

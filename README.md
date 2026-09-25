@@ -46,6 +46,7 @@ gitmole . --compare last.json          # what changed since an earlier --json ex
 gitmole analysis-repo --no-run --hook  # a coding agent's edit hook: history's view of the files it just touched
 gitmole . --since 2y --full            # the current team, every row and column
 gitmole --clean                        # list what gitmole left behind, delete on a yes
+gitmole --doctor                       # every tool gitmole runs, the version found against the one pinned
 ```
 
 A CI job that runs `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"`
