@@ -492,9 +492,19 @@ def resolve(files: dict) -> tuple:
         parts = p.split("/")    # and the first candidate wins, so hash order would make the import graph vary per run
         for i in range(len(parts)):
             by_suffix.setdefault("/".join(parts[i:]), []).append(p)
-    # the top-level names a Python import can reach in this tree: every directory and module stem, so the
-    # standard library and installed packages are not counted as imports that failed to resolve
-    local_tops = {part.split(".", 1)[0] for p in tracked if p.endswith(".py") for part in p.split("/")}
+    # a directory holding __init__.py is a package: what lies under it is reached through its name, so an
+    # absolute import resolves only to a file whose prefix is a root (the tree's top, src/, a test directory
+    # pytest puts on the path). By suffix alone, django's `import django` resolved to
+    # django/template/backends/django.py and the standard library's `import warnings` to django/utils/warnings.py.
+    packages = {os.path.dirname(p) for p in tracked if p.rsplit("/", 1)[-1] == "__init__.py"} - {""}   # the tree's top stays a root
+
+    def rooted(p: str, candidate: str) -> bool:
+        return p[:len(p) - len(candidate)].rstrip("/") not in packages
+
+    # the top-level names a Python import can reach in this tree: every module and package directly under a
+    # root, so the standard library and installed packages are not counted as imports that failed to resolve
+    local_tops = {parts[i].split(".", 1)[0] for p in tracked if p.endswith(".py")
+                  for parts in [p.split("/")] for i in range(len(parts)) if "/".join(parts[:i]) not in packages}
     edges, tried, hit = {}, Counter(), Counter()
     for path, info in files.items():
         lang = info.get("language")
@@ -508,11 +518,17 @@ def resolve(files: dict) -> tuple:
                 top = entry[1].lstrip(".").split(".", 1)[0]
                 if not entry[1].startswith(".") and top not in local_tops:
                     continue   # the standard library or an installed package
+                relative = entry[1].startswith(".")
+
+                def lookup(candidates):   # a relative import names one path; an absolute one any root's
+                    if relative:
+                        return [c for c in candidates if c in tracked and c != path]
+                    return [p for c in candidates for p in by_suffix.get(c, []) if p != path and rooted(p, c)]
                 found = []
                 if kind == "from" and entry[2]:   # `from pkg import mod`: the module, when the name is one, not pkg/__init__.py
-                    found = [p for c in _python_candidates(path, (kind, entry[1], entry[2]), names_only=True) for p in by_suffix.get(c, []) if p != path]
+                    found = lookup(_python_candidates(path, (kind, entry[1], entry[2]), names_only=True))
                 if not found:
-                    found = [p for c in _python_candidates(path, (kind, entry[1], [])) for p in by_suffix.get(c, []) if p != path]
+                    found = lookup(_python_candidates(path, (kind, entry[1], [])))
             elif kind == "path":
                 if not entry[1].startswith("."):
                     continue   # a package from node_modules, not this tree

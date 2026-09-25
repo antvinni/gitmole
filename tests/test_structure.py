@@ -106,6 +106,27 @@ class Resolve(unittest.TestCase):
         self.assertEqual(resolved["typescript"], 1.0)
         self.assertEqual(resolved["c"], 0.5)
 
+    def test_an_absolute_import_resolves_from_a_root_never_from_inside_a_package(self):
+        """django has django/utils/warnings.py and django/template/backends/django.py. Matched by suffix alone,
+        the standard library's `import warnings` resolved to the first and `import django` to the second, and
+        the import graph carried edges no import makes. A module under a package is reached through the
+        package's name, so a candidate counts only where what lies above it is not a package itself."""
+        py = lambda *imports: {"language": "python", "imports": [list(i) for i in imports]}
+        files = {"django/__init__.py": py(), "django/utils/__init__.py": py(), "django/utils/warnings.py": py(["abs", "django"]),
+                 "django/template/__init__.py": py(), "django/template/backends/__init__.py": py(),
+                 "django/template/backends/django.py": py(), "django/apps/__init__.py": py(["from", ".registry", ["apps"]]),
+                 "django/apps/registry.py": py(["abs", "warnings"], ["from", "django.utils", ["warnings"]]),
+                 "src/app/__init__.py": py(), "src/app/util.py": py(), "src/app/main.py": py(["from", "app.util", ["f"]]),
+                 "tests/helpers.py": py(), "tests/test_x.py": py(["abs", "helpers"])}
+        edges, resolved = structure.resolve(files)
+        self.assertEqual(edges["django/utils/warnings.py"], ["django/__init__.py"], "the package, not a module that shares its name")
+        self.assertEqual(edges["django/apps/registry.py"], ["django/utils/warnings.py"],
+                         "`from django.utils import warnings` is the module; the standard library's `import warnings` is not this tree")
+        self.assertEqual(edges["django/apps/__init__.py"], ["django/apps/registry.py"])
+        self.assertEqual(edges["src/app/main.py"], ["src/app/util.py"], "src/ is no package, so a src/ layout still resolves")
+        self.assertEqual(edges["tests/test_x.py"], ["tests/helpers.py"], "a test directory without __init__.py is a root, as pytest makes it")
+        self.assertEqual(resolved["python"], 1.0, "`import warnings` is the standard library: not an import that failed to resolve")
+
     def test_the_lowest_path_wins_when_several_files_answer_one_module_name(self):
         """django has two json.py under django/, so an import of it has two candidates and the first wins. The
         suffix index was built by walking a set, so which one came first followed the hash seed: two runs of the
