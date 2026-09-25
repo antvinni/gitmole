@@ -375,6 +375,7 @@ NOT_OBSERVABLE = {
     "authors_gone": "who holds the knowledge leaves no trace in the tree",
     "component_coupling": "describes a layout, names no act",
     "hidden_coupling": "describes a layout, names no act",
+    "import_cycles": "the act is observable, but only in a later tree's import graph, which no predicate here parses",
     "tight_coupling": "describes a layout, names no act",
     "dormant": "a property of the repository, not a defect",
     "placeholder_identity": "a .mailmap entry is observable, but the finding names no one path to check",
