@@ -1323,16 +1323,20 @@ def import_cycles(report: dict, min_resolved: float = structure.MIN_RESOLVED, mi
     inside a function, a type-only import and a dynamic import() are left out, since they are how a
     loop is broken on purpose. Oyetoyan et al. found classes near a cycle change more often (Java, SANER
     2015) and found no rule that tells a harmful cycle from a harmless one, so this names the loops and
-    leaves the verdict to the reader. Only in the languages structure.trusted vouches for (resolved by
-    path, mostly resolved, enough files); tests, examples, vendored and generated files are left out."""
+    leaves the verdict to the reader. Only groups holding a language structure.trusted vouches for (resolved
+    by path, mostly resolved, enough files); tests, examples, vendored and generated files are left out."""
     s = _structure(report)
     if not s or int(s.get("analyser") or 0) < DEFERRED_MARKS_FROM:
         return []   # a structure.json from before the deferred marks would name the loops deferred imports break on purpose
     files, resolved, derived = s.get("files") or {}, s.get("resolved") or {}, _generated(report)
     judged = structure.trusted(files, resolved, min_resolved, min_files)
-    keep = {p for p, info in files.items() if info.get("language") in judged and not _aside_path(p) and p not in derived}
+    # the graph holds every language that resolves well enough, since .ts, .tsx and .js are one module graph to
+    # the loader; a group is named when a trusted language is in it, so two components in a loop with
+    # TypeScript count and three lone TypeScript files do not
+    keep = {p for p, info in files.items() if info.get("language") in structure.GRAPH_LANGUAGES
+            and resolved.get(info.get("language"), 0) >= min_resolved and not _aside_path(p) and p not in derived}
     edges = {p: sorted(set(t for t in files[p].get("imports") or [] if t in keep) - set(files[p].get("deferred") or [])) for p in sorted(keep)}
-    groups = _groups(edges)
+    groups = [g for g in _groups(edges) if any(files[p].get("language") in judged for p in g)]
     if not groups:
         return []
     groups.sort(key=lambda g: (-len(g), g[0]))

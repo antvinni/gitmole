@@ -170,10 +170,12 @@ How to read each part of the terminal report, and what each run writes to disk; 
    and TypeScript source files that import each other, directly or round a
    loop, as they load, each named by its shortest loop (`a.py → b.py →
    a.py`); the first three groups are named and the rest counted (`(2 more
-   groups)`). A language is judged only when the repository has at least
-   10 files of it and 60% or more of its imports resolved to a file (the
-   same gate as possibly unreferenced files and the dependents count on
-   `--risk`); tests, examples and fixtures, vendored code and generated
+   groups)`). A loop's files must be in a language with 60% or more of
+   its imports resolved to a file, and a group is named only when one of
+   its languages also has at least 10 files in the repository (the same
+   gate as possibly unreferenced files and the dependents count on
+   `--risk`), so two `.tsx` components in a loop with TypeScript count
+   where three lone TypeScript files do not; tests, examples and fixtures, vendored code and generated
    files are left out. An import inside a function, TypeScript's and
    Flow's `import type`, a dynamic `import()` and an import under
    `if TYPE_CHECKING:` do not run at load and are left

@@ -1328,6 +1328,21 @@ class Structure(unittest.TestCase):
         self.assertIn("web/t0.ts → web/t1.ts → web/t2.ts → web/t0.ts", f["detail"], "ten TypeScript files: the language is judged")
         self.assertEqual(f["evidence"]["count"], 2)
 
+    def test_a_loop_through_a_small_language_is_kept_when_a_trusted_one_is_in_it(self):
+        """.ts and .tsx are two languages to the gate and one module graph to the loader: two components in a
+        loop with ten TypeScript files are judged by the TypeScript side, where two alone would not be."""
+        r = self.base()
+        files = r["structure"]["files"]
+        r["structure"]["resolved"].update(typescript=0.9, tsx=0.9)
+        ts = {"debt": 0, "definitions": 5, "max_nesting": 1, "max_cognitive": 3}
+        files["web/C0.tsx"] = dict(ts, language="tsx", imports=["web/a0.ts"])
+        files["web/a0.ts"] = dict(ts, language="typescript", imports=["web/C0.tsx"])
+        self.assertNotIn("web/", (self.by_id(r).get("import_cycles") or {}).get("detail", ""), "one TypeScript file: nothing vouches")
+        for i in range(1, structure.MIN_FILES):
+            files[f"web/a{i}.ts"] = dict(ts, language="typescript", imports=[])
+        f = self.by_id(r)["import_cycles"]
+        self.assertIn("web/C0.tsx → web/a0.ts → web/C0.tsx", f["detail"])
+
     def test_a_structure_json_from_before_the_deferred_marks_names_no_loop(self):
         """Without the marks the rule would name the loops deferred imports break on purpose — the false
         groups the commit body recorded on django and binutils-gdb — so an older analyser's file is not judged."""
