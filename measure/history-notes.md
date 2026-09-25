@@ -291,6 +291,17 @@
   1,130 MB against 1,125; the machine carried a load average of 3 to 12 through the timed runs from
   something other than the harness, as in the two previous records. No step was skipped this time:
   django's blame pass ran (86 s).
+- **Corrected after the release (independent review, 25 September): one dashboard number did move, for
+  bookkeeping reasons, and two sentences above overstate.** The actionable share reads 78% of 77 where
+  0.35.1 read 72%, and 82% labelled where 94% did. #145 added each area's size to the truck factor's
+  evidence, a finding's id follows its evidence, and so nine of the ten truck factor findings shown took
+  new ids that no label carries (gitmole's own is unchanged). Six of the nine detached labels said not
+  actionable and three said actionable, so the share went from 52 of 72 to 49 of 63: a rise that no
+  finding earned, the same kind of move as 0.35.0's secrets ids. It stays in the record until the next
+  labelling; no label was added or carried. The load in the record's entries runs 3.4 to 8.5 on the
+  development set, which sets the wall time, and up to 16.4 on the well-kept set (containerd), not 3 to
+  12. And "no step was skipped" is true of the load-dependent skip only: ghidra and binutils-gdb skip
+  code age and duplicates on their size budgets, as in 0.35.1 and as their headers say.
 - **The extras agree**: determinism identical on curl and django; the hook replay identical to 0.35.1 on
   all five repositories, now with recall and top-3 beside precision (curl 0.06, react 0.14, binutils-gdb
   0.11, django and ghidra under 0.01); the sensitivity table gains one row for the new rule and none of
