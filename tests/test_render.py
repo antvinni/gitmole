@@ -1009,6 +1009,28 @@ class FullOnlySections(unittest.TestCase):
         r["meta"]["age"] = {"status": "run"}
         self.assertNotIn("code age", rendered(r, []), "an empty table after a normal run is not a header phrase")
 
+    def test_header_line_says_when_the_structure_step_did_not_run(self):
+        # seven rules read structure.json and return nothing without it, so its absence has to show somewhere
+        r = sample_report()
+        for status, phrase in (("timeout", "structure checks timed out"), ("failed", "structure checks failed"),
+                               ("planned", "structure checks did not complete")):   # planned: the run was interrupted before the step recorded itself
+            r["meta"]["structure"] = {"status": status}
+            self.assertIn(phrase, rendered(r, []), status)
+            self.assertIn(phrase, render.markdown(r, []), status)
+            self.assertLess(rendered(r, []).index(phrase), rendered(r, []).index("most commits on"), "a missing step is said before the numbers that may miss it")
+        r["meta"]["structure"] = {"status": "skipped", "install": "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+"}
+        self.assertNotIn("structure checks", rendered(r, []), "a skip is the interpreter's, said at install time: the report must not differ by Python version")
+        r["meta"]["structure"] = {"status": "run"}
+        r["structure"] = {"status": "run"}
+        self.assertNotIn("structure checks", rendered(r, []))
+        r["structure"] = {"status": "not-installed"}
+        self.assertNotIn("structure checks", rendered(r, []), "the child found no grammars: the same interpreter case, the same silence")
+        r["structure"] = {}
+        self.assertIn("structure checks failed", rendered(r, []), "meta says run but structure.json is unreadable: the rules found nothing, and the header says so")
+        del r["meta"]["structure"]
+        r.pop("structure", None)
+        self.assertNotIn("structure checks", rendered(r, []), "an output directory written before the step existed says nothing")
+
     def test_header_line_is_in_markdown_too(self):
         self.assertIn("most commits on Thu at 10:00 · 76% of surviving code from 2025", render.markdown(sample_report(), []))
 

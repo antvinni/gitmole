@@ -285,5 +285,8 @@ and removed again when the step ends.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
 and the rest of the report still renders: whatever the tool had written is
-read as no data, the header's second line names the step (`size timed out`),
-and `meta.json` records every step's outcome under `steps`.
+read as no data, the header's second line names the step (`size timed out`;
+`structure checks timed out`, `failed` or `did not complete` for the step whose
+seven rules have no section of their own — a skip on Python before 3.10 is
+said at install time, not in the header, so one commit renders one report on
+every interpreter), and `meta.json` records every step's outcome under `steps`.
