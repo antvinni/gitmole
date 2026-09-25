@@ -407,7 +407,7 @@ the warning is right 62% of the time on the development set and 54% on the
 holdout (0.52 pooled over 1,056 warnings), and 3% of complete commits
 raise an alarm; ROSE reported 66% at function granularity. `python -m
 gitmole.measure extras` replays it on the development set with every
-release, and since 0.35.1 records ROSE's other two rates beside precision
+release, and since 0.36.0 records ROSE's other two rates beside precision
 and feedback: recall (the left-out file was named, over all queries) and
 top-3 likelihood.
 
