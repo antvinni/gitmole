@@ -267,3 +267,28 @@ class NotInstalled(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Unreferenced(unittest.TestCase):
+    """structure.unreferenced had no test of its own: 0.36.0's first round crashed the structure step on four
+    repositories with a NameError on its last line, which no fixture reached because none had an unreferenced
+    file in a trusted language."""
+
+    def files(self, n=12, orphans=1):
+        py = lambda imports: {"language": "python", "imports": imports, "main": False}
+        out = {f"pkg/m{i}.py": py([]) for i in range(n)}
+        for i in range(orphans, n):
+            out[f"pkg/m{i}.py"]["imports"] = [f"pkg/m{i + 1 if i + 1 < n else orphans}.py"]   # a ring over everything but the first `orphans`, which nothing imports
+        return out
+
+    def test_a_file_nothing_imports_in_a_trusted_language_is_named(self):
+        files = self.files(n=40)   # one of forty is under MAX_SHARE, so the language is not "loud"
+        edges = {p: info["imports"] for p, info in files.items()}
+        self.assertEqual(structure.unreferenced(files, edges, {"python": 0.9}, set()), ["pkg/m0.py"])
+        self.assertEqual(structure.unreferenced(files, edges, {"python": 0.3}, set()), [], "a graph that resolves a third of the time is not judged")
+        self.assertEqual(structure.unreferenced(files, edges, {"python": 0.9}, {"pkg/m0.py"}), [], "a declared entry point is no orphan")
+
+    def test_a_language_where_more_than_one_file_in_twenty_looks_unreferenced_is_not_listed(self):
+        files = self.files(n=20, orphans=3)   # 3 of 20 is over MAX_SHARE: the language loads code by name here
+        edges = {p: info["imports"] for p, info in files.items()}
+        self.assertEqual(structure.unreferenced(files, edges, {"python": 0.9}, set()), [])
