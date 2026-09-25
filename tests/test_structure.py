@@ -87,10 +87,42 @@ class Metrics(unittest.TestCase):
         self.assertEqual(r["deferred"], [1], "only the import in the if's own body")
         r = parse(".py", "import typing as t\nif t.TYPE_CHECKING:\n    from .a import A\nfrom typing import TYPE_CHECKING as TC\nif TC:\n    from .c import C\n")
         self.assertEqual(r["deferred"], [1], "an attribute of an aliased module is the constant; an aliased name is not recognised, and says so here")
+        r = parse(".py", "import sys, typing\nif not typing.TYPE_CHECKING:\n    from .n import N\n"
+                         "if sys.version_info >= (3, 11) or typing.TYPE_CHECKING:\n    from .o import O\nif (TYPE_CHECKING):\n    from .p import P\n")
+        self.assertEqual([i[1] for i in r["imports"]], ["sys", "typing", ".n", ".o", ".p"])
+        self.assertEqual(r["deferred"], [4], "a negated or combined condition can be true at run time; only the constant alone, "
+                                             "brackets or not, is the branch that never runs")
         r = parse(".js", "(function () { require('./iife'); })();\n(() => { require('./arrow'); })();\nfunction g() { require('./g'); }\n"
                          "const h = function () { require('./h'); };\n")
         self.assertEqual([i[1] for i in r["imports"]], ["./iife", "./arrow", "./g", "./h"])
         self.assertEqual(r["deferred"], [2, 3], "the two invoked-in-place functions run at load; g and h wait to be called")
+
+    def test_a_branch_only_a_type_checker_takes_an_all_type_import_and_an_instance_field_wait(self):
+        """An import whose every name is marked `type` is erased like `import type`; `elif TYPE_CHECKING:`, the
+        legacy `if False:` and whatever follows `if not TYPE_CHECKING:` are taken only by a type checker; an
+        instance field's initialiser runs when an instance is built. A function called in place through .call
+        or .apply, a static field and a static block run at load."""
+        r = parse(".ts", "import { type X, type Y } from './a';\nimport { type X2, y } from './b';\nexport { type Z } from './c';\n"
+                         "export { type Z2, w } from './d';\nimport type from './e';\nimport d, { type T } from './f';\nimport {} from './g';\n")
+        self.assertEqual([i[1] for i in r["imports"]], ["./a", "./b", "./c", "./d", "./e", "./f", "./g"])
+        self.assertEqual(r["deferred"], [0, 2], "only when every name is a type; a default import named type still runs")
+        r = parse(".py", "import sys\nif sys.platform == 'win32':\n    pass\nelif TYPE_CHECKING:\n    from .a import A\nelse:\n    from .b import B\n"
+                         "if False:\n    import c\nif not TYPE_CHECKING:\n    from .d import D\nelse:\n    from .e import E\n"
+                         "if not typing.TYPE_CHECKING:\n    pass\nelif x:\n    from .f import F\nif not (TYPE_CHECKING or x):\n    pass\nelse:\n    from .g import G\n")
+        self.assertEqual([i[1] for i in r["imports"]], ["sys", ".a", ".b", "c", ".d", ".e", ".f", ".g"])
+        self.assertEqual(r["deferred"], [1, 3, 5, 6], "the elif's own body, if False, and the branches after `not` the constant alone")
+        r = parse(".js", "(function () { require('./call'); }).call(this);\n(function () { require('./apply'); }).apply(this, []);\n"
+                         "(function () { require('./bind'); }).bind(this);\n"
+                         "class A { x = require('./field'); static y = require('./static'); static { require('./block'); } }\n")
+        self.assertEqual([i[1] for i in r["imports"]], ["./call", "./apply", "./bind", "./field", "./static", "./block"])
+        self.assertEqual(r["deferred"], [2, 3], "bind only makes a function; an instance field waits for new")
+        r = parse(".ts", "class B { private x = require('./field'); private static y = require('./static'); }\n")
+        self.assertEqual(r["deferred"], [0])
+        r = parse(".js", "(function () { require('./call'); })['call'](this);\n(function () { require('./apply'); })[\"apply\"](this);\n"
+                         "(function () { require('./other'); })['bind'](this);\n")
+        self.assertEqual(r["deferred"], [2], "the bracketed .call and .apply of a minified wrapper run in place too")
+        r = parse(".py", "if (not TYPE_CHECKING):\n    from .a import A\nelse:\n    from .b import B\n")
+        self.assertEqual(r["deferred"], [1], "brackets round `not` the constant are the same condition")
 
     def test_a_function_without_a_name_takes_the_one_it_is_bound_to(self):
         r = parse(".js", "const handle = async (e) => { if (e) {} };\nclass S { onChange = () => { if (a) {} } }\nconst o = { go: function () {} };\n")
@@ -166,6 +198,23 @@ class Resolve(unittest.TestCase):
         edges, resolved = structure.resolve(files)
         self.assertEqual(edges["pkg/core.py"], ["pkg/scripts/io.py"], "the standard library's io is not this tree; the package's own scripts/io is, through its full name")
         self.assertEqual(edges["tests/other/test_y.py"], ["tests/apps/__init__.py"], "tests/ is the root above the outermost package, so `import apps` is tests/apps")
+        self.assertEqual(resolved["python"], 1.0)
+
+    def test_an_import_answered_under_two_roots_takes_the_one_nearest_the_importer(self):
+        """ghidra keeps one IDA loader per IDA version, 7xx/python/idaxml.py and 9xx/python/idaxml.py, with a script
+        beside each doing `from idaxml import ...`. Python puts the script's own directory first on its path, so
+        each loads its neighbour; a `from` import made an edge to both, and a plain import took the first path."""
+        py = lambda *imports: {"language": "python", "imports": [list(i) for i in imports]}
+        files = {"ida/7xx/python/idaxml.py": py(), "ida/7xx/python/load.py": py(["from", "idaxml", ["Loader"]]),
+                 "ida/9xx/python/idaxml.py": py(), "ida/9xx/python/load.py": py(["from", "idaxml", ["Loader"]]),
+                 "ida/9xx/python/plugin.py": py(["abs", "idaxml"]), "ida/9xx/loaders/xml.py": py(["abs", "idaxml"]),
+                 "tools/run.py": py(["abs", "idaxml"])}
+        edges, resolved = structure.resolve(files)
+        self.assertEqual(edges["ida/7xx/python/load.py"], ["ida/7xx/python/idaxml.py"])
+        self.assertEqual(edges["ida/9xx/python/load.py"], ["ida/9xx/python/idaxml.py"], "its neighbour, not both copies")
+        self.assertEqual(edges["ida/9xx/python/plugin.py"], ["ida/9xx/python/idaxml.py"], "its neighbour, not the first path")
+        self.assertEqual(edges["ida/9xx/loaders/xml.py"], ["ida/9xx/python/idaxml.py"], "no root above it: the copy sharing most of its path")
+        self.assertEqual(edges["tools/run.py"], ["ida/7xx/python/idaxml.py"], "neither is nearer: the first path, the same every run")
         self.assertEqual(resolved["python"], 1.0)
 
     def test_a_relative_import_names_one_tree_path_and_no_longer_falls_back_to_a_suffix(self):
