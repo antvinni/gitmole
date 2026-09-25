@@ -278,36 +278,46 @@ DEPENDENTS_NAMED = 10   # the direct importers the JSON names; the counts are wh
 
 
 def _importers(report: dict):
-    """(files, {path: the files that import it}) from the structure step's resolved import edges, or
-    None without the step."""
+    """(files, {path: the files that import it}) from the structure step's resolved import edges, or None
+    without the step. Only importers whose language the graph is trusted for (structure.trusted: resolves by
+    path, mostly resolves, enough files) and that are not test files count: a test importing a module is
+    what exercises it, not what a change to it can break, and an edge from a language whose imports mostly
+    failed to resolve says nothing about the ones that did. A file importing itself (an include that
+    resolved to its own path) is nobody's dependent."""
+    from . import structure
     s = report.get("structure") or {}
     if s.get("status") != "run":
         return None
     files = s.get("files") or {}
+    judged = structure.trusted(files, s.get("resolved") or {})
     back = defaultdict(set)
     for path, info in files.items():
+        if info.get("language") not in judged or filetypes.is_test_path(path):
+            continue
         for target in info.get("imports") or []:
-            back[target].add(path)
-    return files, back
+            if target != path:
+                back[target].add(path)
+    return files, back, judged
 
 
 def dependents(report: dict, path: str, graph=None):
     """{direct, all, files} for the files that import `path` and, following the imports back, everything
     that reaches it: what a change there can break at load or call time. None where the count would
-    mislead: no structure step, a file it never parsed, or a language whose imports resolve too seldom
-    for an absent edge to mean anything (the gate hidden_coupling uses). A textual import graph: a
+    mislead: no structure step, or a file it never parsed. The importers are gated on their own language
+    (see _importers), since it is their imports that make the edges, so a .js file imported by forty .ts
+    files is counted when TypeScript resolves well and JavaScript does not. A textual import graph: a
     dynamic import or a plugin loaded by name is not in it, so the count is a floor. After the dependency
     graph measures of Zimmermann and Nagappan (ICSE 2008)."""
-    from . import findings, structure
     graph = _importers(report) if graph is None else graph
     if graph is None:
         return None
-    files, back = graph
+    files, back, judged = graph
     info = files.get(path)
-    resolved = (report.get("structure") or {}).get("resolved") or {}
-    if info is None or info.get("language") not in findings.STRUCTURE_LANGUAGES or resolved.get(info["language"], 0) < structure.MIN_RESOLVED:
+    if info is None:
         return None
     direct = sorted(back.get(path, ()))
+    if not direct and info.get("language") not in judged:
+        return None   # its own language's importers are not trusted and no trusted one names it: "nobody" would mislead
     seen, todo = set(direct), list(direct)
     while todo:
         for p in back.get(todo.pop(), ()):
@@ -322,7 +332,7 @@ def dependents_phrase(d):
     """'imported by 4 files, 31 counting what imports them', or None when there is nothing to say."""
     if not d or not d["direct"]:
         return None
-    who = d["files"][0] if d["direct"] == 1 else f"{d['direct']} files"
+    who = d["files"][0] if d["direct"] == 1 else f"{d['direct']:,} files"
     return f"imported by {who}" + (f", {d['all']:,} counting what imports them" if d["all"] > d["direct"] else "")
 
 

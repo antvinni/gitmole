@@ -339,21 +339,44 @@ class ChangeRisk(unittest.TestCase):
         # util <- parser <- cli <- main, util <- lexer, and a cycle (parser <-> ast) the walk must not loop on
         r = report()
         py = lambda imports: {"language": "python", "imports": imports}
+        filler = {f"core/f{i}.py": py([]) for i in range(6)}   # the trust gate wants ten files of a language, as unreferenced_files does
         r["structure"] = {"status": "run", "resolved": {"python": 0.9, "ruby": 0.2},
                           "files": {"core/util.py": py([]), "core/parser.py": py(["core/util.py", "core/ast.py"]), "core/ast.py": py(["core/parser.py"]),
                                     "core/lexer.py": py(["core/util.py"]), "cli.py": py(["core/parser.py"]), "main.py": py(["cli.py"]),
-                                    "lib/tool.rb": {"language": "ruby", "imports": []}, "lib/user.rb": {"language": "ruby", "imports": ["lib/tool.rb"]}}}
-        out = watch.change_risk(r, ["core/util.py", "core/parser.py", "main.py", "lib/tool.rb", "core/new.py"])
+                                    "tests/test_util.py": py(["core/util.py"]), "core/self.h": {"language": "c", "imports": ["core/self.h"]},
+                                    "lib/tool.rb": {"language": "ruby", "imports": []}, "lib/user.rb": {"language": "ruby", "imports": ["lib/tool.rb"]},
+                                    **filler}}
+        out = watch.change_risk(r, ["core/util.py", "core/parser.py", "main.py", "lib/tool.rb", "core/new.py", "core/self.h"])
         by = {f["file"]: f for f in out["files"]}
         self.assertEqual(by["core/util.py"]["dependents"], {"direct": 2, "all": 5, "files": ["core/lexer.py", "core/parser.py"]},
-                         "lexer and parser import it; ast, cli and main reach it through parser")
+                         "lexer and parser import it; ast, cli and main reach it through parser; the test that imports it is what exercises it, not a dependent")
         self.assertEqual(by["core/parser.py"]["dependents"], {"direct": 2, "all": 3, "files": ["cli.py", "core/ast.py"]},
                          "the cycle through ast.py does not count parser as its own dependent")
         self.assertEqual(by["main.py"]["dependents"], {"direct": 0, "all": 0, "files": []})
-        self.assertIsNone(by["lib/tool.rb"]["dependents"], "Ruby's imports resolve a fifth of the time here: too blind a graph to count")
+        self.assertIsNone(by["lib/tool.rb"]["dependents"], "Ruby's imports resolve a fifth of the time here and nothing trusted imports it: too blind a graph to count")
         self.assertIsNone(by["core/new.py"]["dependents"], "a file the structure step never parsed")
+        self.assertIsNone(by["core/self.h"]["dependents"], "an include that resolved to its own file is nobody's dependent, and C is not a language the graph is trusted for")
         r["structure"] = {"status": "skipped"}
         self.assertIsNone(watch.change_risk(r, ["core/util.py"])["files"][0]["dependents"], "no structure step, no count")
+
+    def test_the_gate_is_on_the_importers_language_not_the_imported_files(self):
+        """A .js file imported by many .ts files through reliable edges is counted even when JavaScript's own
+        imports mostly failed to resolve; a .ts file imported only by .js files whose imports mostly failed is
+        not. A language with no `resolved` entry (Go: raw imports) and a structure.json without the key count
+        nothing rather than raising."""
+        r = report()
+        js = lambda imports: {"language": "javascript", "imports": imports}
+        ts = lambda imports: {"language": "typescript", "imports": imports}
+        files = {"legacy.js": js([]), "utils.ts": ts([]), **{f"a{i}.ts": ts(["legacy.js"]) for i in range(10)}, **{f"b{i}.js": js(["utils.ts"]) for i in range(10)},
+                 "main.go": {"language": "go", "imports": []}, "lib.go": {"language": "go", "imports": ["main.go"]}}
+        r["structure"] = {"status": "run", "resolved": {"typescript": 0.9, "javascript": 0.35}, "files": files}
+        by = {f["file"]: f for f in watch.change_risk(r, ["legacy.js", "utils.ts", "main.go"])["files"]}
+        self.assertEqual(by["legacy.js"]["dependents"]["direct"], 10, "ten TypeScript importers, whose edges are trusted")
+        self.assertEqual(by["utils.ts"]["dependents"], {"direct": 0, "all": 0, "files": []},
+                         "only JavaScript imports it and JavaScript's graph is not trusted here: within the trusted graph nothing does, and the phrase stays silent")
+        self.assertIsNone(by["main.go"]["dependents"], "Go's imports stay raw: no resolved entry, no count")
+        r["structure"] = {"status": "run", "files": files}
+        self.assertIsNone(watch.change_risk(r, ["legacy.js"])["files"][0]["dependents"], "a structure.json without `resolved` trusts nothing")
 
     def test_dependents_phrase(self):
         self.assertIsNone(watch.dependents_phrase(None))
