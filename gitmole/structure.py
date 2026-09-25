@@ -36,7 +36,7 @@ try:
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
 
-ANALYSER = "4"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
+ANALYSER = "5"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
 MAX_BYTES = 1_000_000
 FUNCTIONS_KEPT = 3000
 
