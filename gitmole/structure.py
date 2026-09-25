@@ -238,13 +238,26 @@ def _logical(node) -> bool:
     return False
 
 
-_TYPE_CHECKING = {"TYPE_CHECKING", "typing.TYPE_CHECKING"}   # PEP 484's constant, False at run time
+def _type_checking(condition: str) -> bool:
+    """PEP 484's constant, False at run time, however it is reached: TYPE_CHECKING, typing.TYPE_CHECKING,
+    t.TYPE_CHECKING or an alias's attribute; `not TYPE_CHECKING` is the branch that runs."""
+    return condition.strip().rsplit(".", 1)[-1] == "TYPE_CHECKING"
+
+
+def _iife(node) -> bool:
+    """A function called where it is written, `(function () {...})()` or `(() => {...})()`: its body runs when
+    the file loads, so an import inside it is not deferred."""
+    p = node.parent
+    while p is not None and p.type == "parenthesized_expression":
+        node, p = p, p.parent
+    return p is not None and p.type == "call_expression" and p.child_by_field_name("function") == node
 
 
 def _deferred(node, src: bytes, lang: str, in_function: bool) -> bool:
-    """Whether an import waits past the moment its file loads: inside a function body, a dynamic import(),
-    TypeScript's and Flow's `import type` and `export type` (erased when compiled), a Python import under
-    `if TYPE_CHECKING:`. These are how a cycle is broken on purpose, so the cycle rule leaves them out."""
+    """Whether an import waits past the moment its file loads: inside a function body (not one called where
+    it is written), a dynamic import(), TypeScript's and Flow's `import type` and `export type` (erased when
+    compiled), a Python import in the body of `if TYPE_CHECKING:` (not its else). These are how a cycle is
+    broken on purpose, so the cycle rule leaves them out."""
     if in_function:
         return True
     if lang in ("javascript", "typescript", "tsx"):
@@ -256,13 +269,13 @@ def _deferred(node, src: bytes, lang: str, in_function: bool) -> bool:
         return any((c.type == "type" and not c.is_named) or (c.type == "ERROR" and _text(src, c) in ("type", "typeof"))
                    for c in node.children)
     if lang == "python":
-        p = node.parent
+        child, p = node, node.parent
         while p is not None:
-            if p.type == "if_statement":
+            if p.type == "if_statement" and child == p.child_by_field_name("consequence"):   # the if's own body, not an elif or else
                 cond = p.child_by_field_name("condition")
-                if cond is not None and _text(src, cond) in _TYPE_CHECKING:
+                if cond is not None and _type_checking(_text(src, cond)):
                     return True
-            p = p.parent
+            child, p = p, p.parent
     return False
 
 
@@ -312,12 +325,13 @@ def _import(node, src: bytes, lang: str):
 
 
 class _Func:
-    __slots__ = ("name", "start", "end", "nesting", "max_nesting", "cognitive", "complex", "bumps", "chunk")
+    __slots__ = ("name", "start", "end", "nesting", "max_nesting", "cognitive", "complex", "bumps", "chunk", "iife")
 
-    def __init__(self, name, start, end):
+    def __init__(self, name, start, end, iife=False):
         self.name, self.start, self.end = name, start, end
         self.nesting = self.max_nesting = self.cognitive = self.complex = self.bumps = 0
         self.chunk = 0
+        self.iife = iife   # called where it is written: its body runs at load
 
 
 def analyse(src: bytes, lang_name: str, language) -> dict:
@@ -349,7 +363,7 @@ def analyse(src: bytes, lang_name: str, language) -> dict:
         current = funcs[-1] if funcs else None
         if t in FUNCTION:
             f = _Func(_name(node, src, [s[0] for s in stack]) or f"(anonymous at line {node.start_point[0] + 1})",
-                      node.start_point[0] + 1, node.end_point[0] + 1)
+                      node.start_point[0] + 1, node.end_point[0] + 1, iife=_iife(node))
             if current is None:
                 definitions += 1
             funcs.append(f)
@@ -403,7 +417,7 @@ def analyse(src: bytes, lang_name: str, language) -> dict:
                 shapes["addresses"].append({"line": node.start_point[0] + 1, "value": value})
         found = _import(node, src, lang_name)
         if found:
-            if _deferred(node, src, lang_name, current is not None):
+            if _deferred(node, src, lang_name, any(not f.iife for f in funcs)):
                 deferred.extend(range(len(imports), len(imports) + len(found)))
             imports.extend(found)
         if lang_name == "python" and t == "if_statement" and not funcs:
@@ -512,7 +526,14 @@ def _python_candidates(path: str, entry, names_only: bool = False) -> list:
 
 def resolve(files: dict, eager: bool = False) -> tuple:
     """(edges {path: sorted imported paths}, resolved share per language); with `eager`, the edges leave
-    out the imports marked deferred (see _deferred), while the share stays over every import. Crude on purpose: a
+    out the imports marked deferred (see _deferred), while the share stays over every import. One pass
+    computes both graphs (_resolve); this returns the one asked for."""
+    edges, lazy_free, resolved = _resolve(files)
+    return (lazy_free if eager else edges), resolved
+
+
+def _resolve(files: dict) -> tuple:
+    """(edges, eager edges, resolved share per language), one walk over the imports. Crude on purpose: a
     relative ES import against the directory with the usual extensions and index files, a Python
     module by its path from a root (the tree's top, or any directory no package sits above, so src/
     layouts and test directories resolve and a module inside a package is reached only through the
@@ -549,11 +570,11 @@ def resolve(files: dict, eager: bool = False) -> tuple:
     # the top-level names a Python import can reach in this tree, so the standard library and installed
     # packages are not counted as imports that failed to resolve
     local_tops = {m.split("/", 1)[0].split(".", 1)[0] for m in by_module}
-    edges, tried, hit = {}, Counter(), Counter()
+    edges, eager, tried, hit = {}, {}, Counter(), Counter()
     for path, info in files.items():
         lang = info.get("language")
-        out = set()
-        lazy = set(info.get("deferred") or ()) if eager else ()
+        out, out_eager = set(), set()
+        lazy = set(info.get("deferred") or ())
         for i, entry in enumerate(info.get("imports") or []):
             kind = entry[0]
             if kind == "raw":
@@ -596,10 +617,13 @@ def resolve(files: dict, eager: bool = False) -> tuple:
             tried[lang] += 1
             if found:
                 hit[lang] += 1
+                hits = found[:1] if lang == "python" and kind == "abs" else found
+                out.update(hits)
                 if i not in lazy:
-                    out.update(found[:1] if lang == "python" and kind == "abs" else found)
+                    out_eager.update(hits)
         edges[path] = sorted(out)
-    return edges, {lang: round(hit[lang] / tried[lang], 3) for lang in tried}
+        eager[path] = sorted(out_eager)
+    return edges, eager, {lang: round(hit[lang] / tried[lang], 3) for lang in tried}
 
 
 GRAPH_LANGUAGES = {"python", "javascript", "typescript", "tsx"}   # where an unreferenced file can be named with some confidence
@@ -774,8 +798,7 @@ def collect(repo: str, procs: int = None, vendored=()) -> dict:
                 files[path] = result
                 languages[result["language"]] += 1
                 cached += hit
-    edges, resolved = resolve(files)
-    eager, _ = resolve(files, eager=True)
+    edges, eager, resolved = _resolve(files)   # one pass: the second walk cost the step twice its resolution on a large clone
     orphans = unreferenced(files, edges, resolved, entry_points(repo, set(filetypes.git_paths(repo, "ls-files"))))
     functions = []
     for path in sorted(files):

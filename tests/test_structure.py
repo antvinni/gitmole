@@ -77,6 +77,21 @@ class Metrics(unittest.TestCase):
         r = parse(".js", "import type {Fiber} from './f';\nimport typeof X from './x';\nimport {y} from './y';\nexport type {Q} from './q';\n")
         self.assertEqual(r["deferred"], [0, 1, 3], "Flow's import type and import typeof, which the JavaScript grammar reads as an error node")
 
+    def test_the_else_of_type_checking_and_a_function_called_where_it_is_written_run_at_load(self):
+        """The common shim `if TYPE_CHECKING: from .a import A / else: from .b import B` loads .b; an elif's body
+        runs; `if not TYPE_CHECKING:` is the branch that runs; an aliased constant is still the constant; and a
+        require inside `(function () {...})()` runs when the file loads, so none of these is deferred."""
+        r = parse(".py", "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from .a import A\nelse:\n    from .b import B\n"
+                         "if TYPE_CHECKING:\n    pass\nelif True:\n    from .e import E\nif not TYPE_CHECKING:\n    from .r import R\n")
+        self.assertEqual([i[1] for i in r["imports"]], ["typing", ".a", ".b", ".e", ".r"])
+        self.assertEqual(r["deferred"], [1], "only the import in the if's own body")
+        r = parse(".py", "import typing as t\nif t.TYPE_CHECKING:\n    from .a import A\nfrom typing import TYPE_CHECKING as TC\nif TC:\n    from .c import C\n")
+        self.assertEqual(r["deferred"], [1], "an attribute of an aliased module is the constant; an aliased name is not recognised, and says so here")
+        r = parse(".js", "(function () { require('./iife'); })();\n(() => { require('./arrow'); })();\nfunction g() { require('./g'); }\n"
+                         "const h = function () { require('./h'); };\n")
+        self.assertEqual([i[1] for i in r["imports"]], ["./iife", "./arrow", "./g", "./h"])
+        self.assertEqual(r["deferred"], [2, 3], "the two invoked-in-place functions run at load; g and h wait to be called")
+
     def test_a_function_without_a_name_takes_the_one_it_is_bound_to(self):
         r = parse(".js", "const handle = async (e) => { if (e) {} };\nclass S { onChange = () => { if (a) {} } }\nconst o = { go: function () {} };\n")
         self.assertEqual(sorted(f["name"] for f in r["functions"]), ["go", "handle", "onChange"])
