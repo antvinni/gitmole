@@ -773,8 +773,20 @@ class Arguments(unittest.TestCase):
         text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("scc", text)
-        self.assertIn("brew install scc git-sizer betterleaks jscpd osv-scanner", text)
+        self.assertIn("brew install gitmole", text)          # the formula installs the pinned set
+        self.assertNotIn("brew install scc", text)           # separate formulae are unpinned
+        self.assertIn("docs/install.md", text)
         self.assertNotIn("jar", text)
+
+    def test_a_missing_plot_tool_names_the_plots_extra_not_homebrew(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = console()
+            rc = cli.main([d, "--plots"], console=c, tool_check=lambda **kw: ["git-of-theseus-analyze"])
+        text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("pipx install 'gitmole[plots]'", text)   # the formula does not bring git-of-theseus
+        self.assertNotIn("brew install", text)
 
 
 class GeneratedFiles(unittest.TestCase):

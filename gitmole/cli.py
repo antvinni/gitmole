@@ -18,6 +18,8 @@ from rich.text import Text
 
 from . import __version__, banner, blame, filetypes, findings, load, loss, run, tools
 
+INSTALL_URL = "https://github.com/antvinni/gitmole/blob/main/docs/install.md"
+
 
 def parse_args(argv):
     p = argparse.ArgumentParser(prog="gitmole", description="Analyse a git repository offline and print a report.")
@@ -118,7 +120,13 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     missing = tool_check(plots=args.plots)
     if missing:
         err.print("[red]missing tools:[/red] " + ", ".join(missing))
-        err.print(f"brew install {' '.join(run.REQUIRED_TOOLS)}; see README.md for other ways")
+        if set(missing) & set(run.REQUIRED_TOOLS):
+            # the formula installs the pinned versions into gitmole's own libexec/tools; separate formulae are
+            # whatever version Homebrew has that day, and their report lands in run.tools_moved
+            err.print("brew install gitmole brings the pinned tools with it; without Homebrew, see")
+            err.print(INSTALL_URL)
+        if set(missing) & set(run.PLOT_TOOLS):   # not in the formula: git-of-theseus is the opt-in extra
+            err.print("--plots needs git-of-theseus: pipx install 'gitmole[plots]'", markup=False)
         return 2
     moved = version_note({name: run.tool_version(name) for name in run.REQUIRED_TOOLS} | {"lizard": run.lizard_version()})
     if moved:   # a tool's own rules decide part of the report, so a toolchain that is not the pinned one is said once
