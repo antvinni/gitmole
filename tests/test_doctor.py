@@ -39,6 +39,9 @@ class Main(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("2026-09-20", text)
         self.assertIn("available", text)
+        oks = [l for l in text.splitlines() if l.endswith("  ok")]
+        self.assertEqual(len(oks), 6)
+        self.assertEqual(len({len(l) for l in oks}), 1)   # the versions line up, 1.24.0 beside 4.1.0
 
     def test_a_moved_tool_exits_1_and_says_where_to_get_the_pin(self):
         versions = {**tools.PINNED, "git-sizer": "1.4.0"}
