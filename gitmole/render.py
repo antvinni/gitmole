@@ -284,7 +284,7 @@ def _step_phrase(label: str, status: str) -> str:
 
 def _structure_status(report: dict) -> str:
     """What the structure step's rules would find: the run's own status for the step, and "run" only if the
-    step also left a readable structure.json that says so — the field the seven rules key on (findings._structure),
+    step also left a readable structure.json that says so — the field the eight rules key on (findings._structure),
     so the header never vouches for checks the rules did not make."""
     planned = report["meta"].get("structure")
     if not planned:
@@ -296,10 +296,10 @@ def _structure_status(report: dict) -> str:
 
 
 def _unfinished(report: dict) -> list:
-    """The steps a missing table came from, first on the header's second line so a reader knows the numbers
-    after them may be missing. The structure step has no section of its own, so its seven rules going missing
+    """The steps a missing table came from, first on the header's pulse line so a reader knows the numbers
+    after them may be missing. The structure step has no section of its own, so its eight rules going missing
     shows here too — but not a skip, which is the interpreter's (Python before 3.10 has no grammars): that is
-    said at install time and on --full, and a header phrase that differs by Python version would make one
+    recorded only in meta.json (structure.install), and a header phrase that differs by Python version would make one
     commit render two reports."""
     steps = report["meta"].get("steps") or {}
     out = [_step_phrase(label, steps[name]) for name, label in CORE_STEPS.items() if steps.get(name) not in (None, "run")]

@@ -652,9 +652,12 @@ class Duplicates(unittest.TestCase):
 
 class ReferenceDate(unittest.TestCase):
     def _main(self, env, extra=()):
+        """`env` is laid over the environment; a key given as None is removed from it for the call."""
         from unittest.mock import patch
         calls = []
-        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, env):
+        with tempfile.TemporaryDirectory() as d, patch.dict(os.environ, {k: v for k, v in env.items() if v is not None}):
+            for k in [k for k, v in env.items() if v is None]:
+                os.environ.pop(k, None)
             _tiny_repo(d)
             def planner(repo, out, branch="HEAD", **kw):
                 calls.append(kw)
@@ -674,7 +677,7 @@ class ReferenceDate(unittest.TestCase):
         self.assertIn("2025-06-15", text)
 
     def test_absent_override_means_today_and_nothing_recorded(self):
-        rc, text, calls, meta = self._main({})
+        rc, text, calls, meta = self._main({"GITMOLE_NOW": None})   # absent even when the suite runs with it set
         self.assertIsNone(calls[0]["now"])
         self.assertNotIn("now", meta)
 
