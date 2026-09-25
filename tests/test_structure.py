@@ -118,6 +118,11 @@ class Metrics(unittest.TestCase):
         self.assertEqual(r["deferred"], [2, 3], "bind only makes a function; an instance field waits for new")
         r = parse(".ts", "class B { private x = require('./field'); private static y = require('./static'); }\n")
         self.assertEqual(r["deferred"], [0])
+        r = parse(".js", "(function () { require('./call'); })['call'](this);\n(function () { require('./apply'); })[\"apply\"](this);\n"
+                         "(function () { require('./other'); })['bind'](this);\n")
+        self.assertEqual(r["deferred"], [2], "the bracketed .call and .apply of a minified wrapper run in place too")
+        r = parse(".py", "if (not TYPE_CHECKING):\n    from .a import A\nelse:\n    from .b import B\n")
+        self.assertEqual(r["deferred"], [1], "brackets round `not` the constant are the same condition")
 
     def test_a_function_without_a_name_takes_the_one_it_is_bound_to(self):
         r = parse(".js", "const handle = async (e) => { if (e) {} };\nclass S { onChange = () => { if (a) {} } }\nconst o = { go: function () {} };\n")

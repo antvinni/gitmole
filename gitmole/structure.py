@@ -250,7 +250,9 @@ def _type_checking(condition: str) -> bool:
 
 
 def _not_type_checking(cond, src: bytes) -> bool:
-    """`not` and the constant alone: true at run time, so every branch after it is taken only by a type checker."""
+    """`not` and the constant alone, in brackets or not: true at run time, so every branch after it is taken only by a type checker."""
+    while cond is not None and cond.type == "parenthesized_expression" and cond.named_child_count == 1:
+        cond = cond.named_children[0]
     if cond is None or cond.type != "not_operator":
         return False
     arg = cond.child_by_field_name("argument")
@@ -259,14 +261,14 @@ def _not_type_checking(cond, src: bytes) -> bool:
 
 def _iife(node, src: bytes) -> bool:
     """A function called where it is written, `(function () {...})()`, `(() => {...})()` or through
-    `.call(this)` and `.apply(this, args)` as CoffeeScript and UMD wrappers do: its body runs when the file
+    `.call(this)` and `.apply(this, args)`, dotted or bracketed, as CoffeeScript and UMD wrappers do: its body runs when the file
     loads, so an import inside it is not deferred."""
     p = node.parent
     while p is not None and p.type == "parenthesized_expression":
         node, p = p, p.parent
-    if p is not None and p.type == "member_expression" and p.child_by_field_name("object") == node:
-        prop = p.child_by_field_name("property")
-        if prop is None or _text(src, prop) not in ("call", "apply"):
+    if p is not None and p.type in ("member_expression", "subscript_expression") and p.child_by_field_name("object") == node:
+        prop = p.child_by_field_name("property" if p.type == "member_expression" else "index")
+        if prop is None or _text(src, prop).strip("'\"") not in ("call", "apply"):
             return False
         node, p = p, p.parent
     return p is not None and p.type == "call_expression" and p.child_by_field_name("function") == node
@@ -276,7 +278,7 @@ def _deferred(node, src: bytes, lang: str, in_function: bool) -> bool:
     """Whether an import waits past the moment its file loads: inside a function body (not one called where
     it is written), in an instance field's initialiser (run by new, where a static one runs at load), a
     dynamic import(), TypeScript's and Flow's `import type` and `export type` and an import or export whose
-    every name is marked `type` (erased when compiled), a Python import in the body of `if TYPE_CHECKING:` or
+    every name is marked `type` (erased when compiled, by TypeScript's default; `verbatimModuleSyntax` keeps it), a Python import in the body of `if TYPE_CHECKING:` or
     `elif TYPE_CHECKING:` (not its else) or of `if False:`, or in any branch after `if not TYPE_CHECKING:`.
     These are how a cycle is broken on purpose, so the cycle rule leaves them out."""
     if in_function:
