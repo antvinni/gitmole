@@ -141,8 +141,8 @@ so one is uncommon and right a little more often than not. Every touched file,
 scored or not, also says what imports it (`imported by 4 files, 31 counting
 what imports them`), from the structure step's import graph. Only importers
 in a language the graph is trusted for count: Python, JavaScript or
-TypeScript, with ten or more files of that language and 60% or more of its
-imports resolved (`structure.trusted`, the same gate as possibly unreferenced
+TypeScript (`.ts` and `.tsx` gated apart), with ten or more files of that
+language and 60% or more of its imports resolved (`structure.trusted`, the same gate as possibly unreferenced
 files), and never a test file, which exercises a module rather than breaks
 with it; a file whose own language fails that gate and that no trusted
 importer names gets no count. `dependents` in the
@@ -296,8 +296,10 @@ and removed again when the step ends.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
 and the rest of the report still renders: whatever the tool had written is
-read as no data, the header's third line (the fourth with `--full`) opens
-by naming the step (`size timed out`; `structure checks timed out`, `failed`
+read as no data, the terminal header's third line (the fourth with `--full`
+when there is coverage data; the Markdown header shows the coverage line
+whenever there is coverage data, so there it is the fourth without `--full`
+too) opens by naming the step (`size timed out`; `structure checks timed out`, `failed`
 or `did not complete` for the step whose eight rules have no section of their
 own), and `meta.json` records every step's outcome under `steps`. A structure
 step skipped because gitmole runs on Python before 3.10 is said nowhere in
