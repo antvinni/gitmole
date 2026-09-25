@@ -169,8 +169,14 @@ How to read each part of the terminal report, and what each run writes to disk; 
    TypeScript, C, C++, Ruby). Import cycles: groups of Python, JavaScript
    and TypeScript source files that import each other, directly or round a
    loop, as they load, each named by its shortest loop (`a.py → b.py →
-   a.py`); an import inside a function, TypeScript's and Flow's `import type`,
-   a dynamic `import()` and an import under `if TYPE_CHECKING:` do not run
+   a.py`); an import inside a function (not one called where it is
+   written) or an instance field's initialiser, TypeScript's and Flow's
+   `import type` and an import whose every name is marked `type` (erased by
+   TypeScript's default; a project built with `verbatimModuleSyntax` keeps
+   it as `import {}`, which loads the module, so a loop through one can be
+   missed there), a dynamic
+   `import()`, and an import under `if TYPE_CHECKING:`, `elif
+   TYPE_CHECKING:`, `if False:` or after `if not TYPE_CHECKING:` do not run
    at load and are left
    out, since they are how a loop is broken on purpose. Oyetoyan et al.
    found classes near a cycle change more often and found no rule that

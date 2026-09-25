@@ -36,7 +36,7 @@ try:
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
 
-ANALYSER = "4"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
+ANALYSER = "5"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
 MAX_BYTES = 1_000_000
 FUNCTIONS_KEPT = 3000
 
@@ -238,42 +238,84 @@ def _logical(node) -> bool:
     return False
 
 
+_TYPE_CHECKING = re.compile(r"^\(*\s*(?:(?:[A-Za-z_]\w*\s*\.\s*)*TYPE_CHECKING|False)\s*\)*$")
+
+
 def _type_checking(condition: str) -> bool:
-    """PEP 484's constant, False at run time, however it is reached: TYPE_CHECKING, typing.TYPE_CHECKING,
-    t.TYPE_CHECKING or an alias's attribute; `not TYPE_CHECKING` is the branch that runs."""
-    return condition.strip().rsplit(".", 1)[-1] == "TYPE_CHECKING"
+    """PEP 484's constant alone, False at run time, however it is reached: TYPE_CHECKING, typing.TYPE_CHECKING,
+    t.TYPE_CHECKING or an alias's attribute, in brackets or not, or the plain `False` that stood for it before
+    typing. Anything more around it (`not typing.TYPE_CHECKING`, `X or TYPE_CHECKING`) can be true at run time,
+    so its branch may run."""
+    return bool(_TYPE_CHECKING.match(condition.strip()))
 
 
-def _iife(node) -> bool:
-    """A function called where it is written, `(function () {...})()` or `(() => {...})()`: its body runs when
-    the file loads, so an import inside it is not deferred."""
+def _not_type_checking(cond, src: bytes) -> bool:
+    """`not` and the constant alone, in brackets or not: true at run time, so every branch after it is taken only by a type checker."""
+    while cond is not None and cond.type == "parenthesized_expression" and cond.named_child_count == 1:
+        cond = cond.named_children[0]
+    if cond is None or cond.type != "not_operator":
+        return False
+    arg = cond.child_by_field_name("argument")
+    return arg is not None and _type_checking(_text(src, arg))
+
+
+def _iife(node, src: bytes) -> bool:
+    """A function called where it is written, `(function () {...})()`, `(() => {...})()` or through
+    `.call(this)` and `.apply(this, args)`, dotted or bracketed, as CoffeeScript and UMD wrappers do: its body runs when the file
+    loads, so an import inside it is not deferred."""
     p = node.parent
     while p is not None and p.type == "parenthesized_expression":
+        node, p = p, p.parent
+    if p is not None and p.type in ("member_expression", "subscript_expression") and p.child_by_field_name("object") == node:
+        prop = p.child_by_field_name("property" if p.type == "member_expression" else "index")
+        if prop is None or _text(src, prop).strip("'\"") not in ("call", "apply"):
+            return False
         node, p = p, p.parent
     return p is not None and p.type == "call_expression" and p.child_by_field_name("function") == node
 
 
 def _deferred(node, src: bytes, lang: str, in_function: bool) -> bool:
     """Whether an import waits past the moment its file loads: inside a function body (not one called where
-    it is written), a dynamic import(), TypeScript's and Flow's `import type` and `export type` (erased when
-    compiled), a Python import in the body of `if TYPE_CHECKING:` (not its else). These are how a cycle is
-    broken on purpose, so the cycle rule leaves them out."""
+    it is written), in an instance field's initialiser (run by new, where a static one runs at load), a
+    dynamic import(), TypeScript's and Flow's `import type` and `export type` and an import or export whose
+    every name is marked `type` (erased when compiled, by TypeScript's default; `verbatimModuleSyntax` keeps it), a Python import in the body of `if TYPE_CHECKING:` or
+    `elif TYPE_CHECKING:` (not its else) or of `if False:`, or in any branch after `if not TYPE_CHECKING:`.
+    These are how a cycle is broken on purpose, so the cycle rule leaves them out."""
     if in_function:
         return True
     if lang in ("javascript", "typescript", "tsx"):
         if node.type == "call_expression":
             fn = node.child_by_field_name("function")
-            return fn is not None and fn.type == "import"
+            if fn is not None and fn.type == "import":
+                return True
+            child, p = node, node.parent
+            while p is not None:
+                if p.type in ("field_definition", "public_field_definition") and child == p.child_by_field_name("value") \
+                        and not any(c.type == "static" for c in p.children):
+                    return True
+                child, p = p, p.parent
+            return False
         # TypeScript's grammar has a `type` keyword; Flow's `import type` and `import typeof`, which erase the same
         # way, reach the JavaScript grammar as an error node holding the one word
-        return any((c.type == "type" and not c.is_named) or (c.type == "ERROR" and _text(src, c) in ("type", "typeof"))
-                   for c in node.children)
+        if any((c.type == "type" and not c.is_named) or (c.type == "ERROR" and _text(src, c) in ("type", "typeof"))
+               for c in node.children):
+            return True
+        # `import { type A, type B }`: a default or namespace import beside the braces runs, and so does `import {}`
+        clause = next((c for c in node.children if c.type in ("import_clause", "export_clause")), None)
+        if clause is not None and clause.type == "import_clause":
+            clause = clause.named_children[0] if clause.named_child_count == 1 and clause.named_children[0].type == "named_imports" else None
+        names = [n for n in clause.named_children if n.type in ("import_specifier", "export_specifier")] if clause is not None else []
+        return bool(names) and all(any(c.type == "type" and not c.is_named for c in n.children) for n in names)
     if lang == "python":
         child, p = node, node.parent
         while p is not None:
-            if p.type == "if_statement" and child == p.child_by_field_name("consequence"):   # the if's own body, not an elif or else
+            if p.type in ("if_statement", "elif_clause") and child == p.child_by_field_name("consequence"):   # its own body
                 cond = p.child_by_field_name("condition")
                 if cond is not None and _type_checking(_text(src, cond)):
+                    return True
+            elif p.type == "if_statement" and child.type in ("elif_clause", "else_clause"):
+                if any(_not_type_checking(c.child_by_field_name("condition"), src) for c in
+                       [p] + [a for a in p.children_by_field_name("alternative") if a.start_byte < child.start_byte]):
                     return True
             child, p = p, p.parent
     return False
@@ -363,7 +405,7 @@ def analyse(src: bytes, lang_name: str, language) -> dict:
         current = funcs[-1] if funcs else None
         if t in FUNCTION:
             f = _Func(_name(node, src, [s[0] for s in stack]) or f"(anonymous at line {node.start_point[0] + 1})",
-                      node.start_point[0] + 1, node.end_point[0] + 1, iife=_iife(node))
+                      node.start_point[0] + 1, node.end_point[0] + 1, iife=_iife(node, src))
             if current is None:
                 definitions += 1
             funcs.append(f)
