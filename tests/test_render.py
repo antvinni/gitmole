@@ -1462,6 +1462,18 @@ class ChangeRisk(unittest.TestCase):
         self.assertEqual(sec["rows"][2][1], "")
         self.assertEqual(sec["caption"], "total 3.6% of the repository's revisions × lines of code; 2 of these files are on the watch list")
 
+    def test_the_why_column_says_what_imports_the_file(self):
+        risk = {"files": [{"file": "core/util.py", "score": 0.6, "reasons": ["changed 30 times"], "watched": True,
+                           "dependents": {"direct": 2, "all": 5, "files": ["core/lexer.py", "core/parser.py"]}},
+                          {"file": "core/new.py", "score": 0, "reasons": ["changed once"], "watched": False,
+                           "dependents": {"direct": 1, "all": 1, "files": ["core/util.py"]}},
+                          {"file": "main.py", "score": 0, "reasons": ["changed once"], "watched": False, "dependents": None}],
+                "total": 0.6, "watched": 1, "max_score": 3.0}
+        rows = render.risk_section(risk, "main", full=False)["rows"]
+        self.assertEqual(rows[0][2], "changed 30 times · imported by 2 files, 5 counting what imports them")
+        self.assertEqual(rows[1][2], "changed once · imported by core/util.py", "a file the list does not score can still be imported")
+        self.assertEqual(rows[2][2], "changed once")
+
     def test_one_watched_file_reads_as_one_file(self):
         risk = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times"], "watched": True}],
                 "total": 3.0, "watched": 1, "max_score": 3.0}

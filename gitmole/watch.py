@@ -240,7 +240,8 @@ def change_risk(report: dict, files: list, stats: dict = None, ranked: list = No
     change did not touch, by ROSE's directed confidence (Zimmermann et al.): measured by leaving one file
     out of real commits on thirteen held-out repositories, 54% of the warnings name the file left out,
     and 3% of complete commits get one (docs/validation.md). With
-    the diff's numbers (`stats`, see run.change_stats), `change` holds Kamei's factors as reasons."""
+    the diff's numbers (`stats`, see run.change_stats), `change` holds Kamei's factors as reasons. Each
+    file's `dependents` counts what imports it (see dependents)."""
     ranked = risks(report) if ranked is None else ranked   # a caller asking about many changes to one report builds the list once
     by_file = {r["file"]: r for r in ranked}
     rank = {r["file"]: i + 1 for i, r in enumerate(ranked)}
@@ -248,20 +249,22 @@ def change_risk(report: dict, files: list, stats: dict = None, ranked: list = No
     cls = classify.Classifier(report)
     revs = {r["entity"]: r["n-revs"] for r in report.get("revisions") or []}
     touched = set(files)
+    graph = _importers(report)
     rows, gaps = [], []
     for f in files:
         r = by_file.get(f)
         if r:
             rows.append({"file": f, "score": r["score"], "reasons": r["reasons"], "reason": None, "watched": f in watched,
                          "rank": rank[f], "recent_fixes": r["recent_fixes"], "fixes": r["fixes"], "owner": r["owner"], "owner_share": r["owner_share"],
-                         "minor": r.get("minor", 0)})
+                         "minor": r.get("minor", 0), "dependents": dependents(report, f, graph)})
             gaps += [{"file": f, "companion": other, "degree": degree} for other, degree in r["companions"] if other not in touched]
             continue
         why = cls.reason(f)
         if why is None:
             why = "changed once" if revs.get(f) == 1 else "no revisions on record"
         rows.append({"file": f, "score": 0, "reasons": [why], "reason": why, "watched": False,
-                     "rank": None, "recent_fixes": 0, "fixes": 0, "owner": None, "owner_share": 0.0, "minor": 0})
+                     "rank": None, "recent_fixes": 0, "fixes": 0, "owner": None, "owner_share": 0.0, "minor": 0,
+                     "dependents": dependents(report, f, graph)})   # a file the list does not score can still be imported everywhere
     rows.sort(key=lambda r: (-r["score"], r["file"]))
     gaps.sort(key=lambda g: (-g["degree"], g["file"], g["companion"]))
     out = {"files": rows, "total": float(sum(r["score"] for r in rows)), "watched": sum(r["watched"] for r in rows),
@@ -269,6 +272,58 @@ def change_risk(report: dict, files: list, stats: dict = None, ranked: list = No
     if stats is not None:
         out["change"] = change_factors(report, stats)
     return out
+
+
+DEPENDENTS_NAMED = 10   # the direct importers the JSON names; the counts are whole
+
+
+def _importers(report: dict):
+    """(files, {path: the files that import it}) from the structure step's resolved import edges, or
+    None without the step."""
+    s = report.get("structure") or {}
+    if s.get("status") != "run":
+        return None
+    files = s.get("files") or {}
+    back = defaultdict(set)
+    for path, info in files.items():
+        for target in info.get("imports") or []:
+            back[target].add(path)
+    return files, back
+
+
+def dependents(report: dict, path: str, graph=None):
+    """{direct, all, files} for the files that import `path` and, following the imports back, everything
+    that reaches it: what a change there can break at load or call time. None where the count would
+    mislead: no structure step, a file it never parsed, or a language whose imports resolve too seldom
+    for an absent edge to mean anything (the gate hidden_coupling uses). A textual import graph: a
+    dynamic import or a plugin loaded by name is not in it, so the count is a floor. After the dependency
+    graph measures of Zimmermann and Nagappan (ICSE 2008)."""
+    from . import findings, structure
+    graph = _importers(report) if graph is None else graph
+    if graph is None:
+        return None
+    files, back = graph
+    info = files.get(path)
+    resolved = (report.get("structure") or {}).get("resolved") or {}
+    if info is None or info.get("language") not in findings.STRUCTURE_LANGUAGES or resolved.get(info["language"], 0) < structure.MIN_RESOLVED:
+        return None
+    direct = sorted(back.get(path, ()))
+    seen, todo = set(direct), list(direct)
+    while todo:
+        for p in back.get(todo.pop(), ()):
+            if p not in seen:
+                seen.add(p)
+                todo.append(p)
+    seen.discard(path)   # a cycle leads back to the file itself, which is no dependent of its own
+    return {"direct": len(direct), "all": len(seen), "files": direct[:DEPENDENTS_NAMED]}
+
+
+def dependents_phrase(d):
+    """'imported by 4 files, 31 counting what imports them', or None when there is nothing to say."""
+    if not d or not d["direct"]:
+        return None
+    who = d["files"][0] if d["direct"] == 1 else f"{d['direct']} files"
+    return f"imported by {who}" + (f", {d['all']:,} counting what imports them" if d["all"] > d["direct"] else "")
 
 
 RECENT_MONTHS = 1   # a touched file that changed this month is the AGE factor Kamei found most telling

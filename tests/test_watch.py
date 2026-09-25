@@ -335,6 +335,33 @@ class ChangeRisk(unittest.TestCase):
                                         "the files have 130 prior changes by 3 people", "Bob has 3 prior commits here, 2 in these subsystems"])
         self.assertNotIn("change", watch.change_risk(r, stats["files"]), "without the diff's numbers there are no factors")
 
+    def test_each_touched_file_says_what_imports_it_directly_and_in_all(self):
+        # util <- parser <- cli <- main, util <- lexer, and a cycle (parser <-> ast) the walk must not loop on
+        r = report()
+        py = lambda imports: {"language": "python", "imports": imports}
+        r["structure"] = {"status": "run", "resolved": {"python": 0.9, "ruby": 0.2},
+                          "files": {"core/util.py": py([]), "core/parser.py": py(["core/util.py", "core/ast.py"]), "core/ast.py": py(["core/parser.py"]),
+                                    "core/lexer.py": py(["core/util.py"]), "cli.py": py(["core/parser.py"]), "main.py": py(["cli.py"]),
+                                    "lib/tool.rb": {"language": "ruby", "imports": []}, "lib/user.rb": {"language": "ruby", "imports": ["lib/tool.rb"]}}}
+        out = watch.change_risk(r, ["core/util.py", "core/parser.py", "main.py", "lib/tool.rb", "core/new.py"])
+        by = {f["file"]: f for f in out["files"]}
+        self.assertEqual(by["core/util.py"]["dependents"], {"direct": 2, "all": 5, "files": ["core/lexer.py", "core/parser.py"]},
+                         "lexer and parser import it; ast, cli and main reach it through parser")
+        self.assertEqual(by["core/parser.py"]["dependents"], {"direct": 2, "all": 3, "files": ["cli.py", "core/ast.py"]},
+                         "the cycle through ast.py does not count parser as its own dependent")
+        self.assertEqual(by["main.py"]["dependents"], {"direct": 0, "all": 0, "files": []})
+        self.assertIsNone(by["lib/tool.rb"]["dependents"], "Ruby's imports resolve a fifth of the time here: too blind a graph to count")
+        self.assertIsNone(by["core/new.py"]["dependents"], "a file the structure step never parsed")
+        r["structure"] = {"status": "skipped"}
+        self.assertIsNone(watch.change_risk(r, ["core/util.py"])["files"][0]["dependents"], "no structure step, no count")
+
+    def test_dependents_phrase(self):
+        self.assertIsNone(watch.dependents_phrase(None))
+        self.assertIsNone(watch.dependents_phrase({"direct": 0, "all": 0, "files": []}), "nothing imports it: nothing to say")
+        self.assertEqual(watch.dependents_phrase({"direct": 1, "all": 1, "files": ["a.py"]}), "imported by a.py")
+        self.assertEqual(watch.dependents_phrase({"direct": 2, "all": 2, "files": ["a.py", "b.py"]}), "imported by 2 files")
+        self.assertEqual(watch.dependents_phrase({"direct": 2, "all": 5, "files": ["a.py", "b.py"]}), "imported by 2 files, 5 counting what imports them")
+
     def test_one_subsystem_no_fix_and_an_export_without_commit_counts(self):
         r = report()
         r["activity"] = {"authors_all": {"Ann": {"commits": 120}}}

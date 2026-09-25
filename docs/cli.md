@@ -137,7 +137,13 @@ usually changes with that the change did not touch: a file that moved in
 commits with one file left out, 54% of the warnings name the file that was
 left out, and 3% of complete commits get one, on thirteen repositories
 nobody tuned it on ([validation.md](validation.md#the-hooks-coupling-warning));
-so one is uncommon and right a little more often than not. And `change` holds Kamei et al.'s
+so one is uncommon and right a little more often than not. Every touched file,
+scored or not, also says what imports it (`imported by 4 files, 31 counting
+what imports them`), from the structure step's import graph, and only in a
+language whose imports resolve 60% of the time or more; `dependents` in the
+JSON holds both counts and names up to ten direct importers. A dynamic import
+or a plugin loaded by name is not in that graph, so the count is a floor.
+And `change` holds Kamei et al.'s
 just-in-time factors as named reasons beside the mass share, never folded
 into it: the files, directories, subsystems and commits, whether it is a
 fix by its subjects, lines added against the lines those files had, how
@@ -201,8 +207,8 @@ inference, so the model reasons over a short list rather than rediscovering
 what history already says. `gitmole OUT_DIR --no-run --hook` reads the
 hook's JSON on stdin, takes the file paths the agents put there
 (`tool_input.file_path`, `file_path`, `file_paths`, `tool_response.filePath`),
-scores them like `--risk`, prints one line per file with the companions the
-edit left untouched, and exits 2 when the total is over `--risk-threshold`,
+scores them like `--risk`, prints one line per file with what imports it and
+the companions the edit left untouched, and exits 2 when the total is over `--risk-threshold`,
 which every one of these hooks reads as "block"; without a threshold it is
 a soft warning. The output directory comes from an earlier run
 (`gitmole . --out analysis-repo`), so the hook itself costs a few hundred

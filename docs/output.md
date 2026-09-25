@@ -481,7 +481,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    untouched (`not touched: core/ast.py, which moved in 72% of
    core/parser.py's changes`); the JSON carries them under `change_risk.change` and
    `change_risk.coupling_gaps`, and each scored file's rank, fix counts,
-   owner, share and minor contributors. `--hook` is the same scoring for a
+   owner, share and minor contributors. Each file's why also says what
+   imports it (`imported by 4 files, 31 counting what imports them`) where the
+   import graph resolves well enough to count; `dependents` in the JSON. `--hook` is the same scoring for a
    coding agent's hook, see
    [cli.md](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#agent-hooks).
 
