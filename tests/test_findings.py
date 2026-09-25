@@ -1245,7 +1245,7 @@ class Structure(unittest.TestCase):
     def base(self, **structure):
         size = {f"src/f{i}.py": {"code": 1000 - i, "complexity": 1} for i in range(12)}
         size.update({"tests/test_f.py": {"code": 50, "complexity": 1}})
-        s = {"status": "run", "resolved": {"python": 0.95}, "files": {p: {"language": "python", "debt": 0, "imports": [], "definitions": 5,
+        s = {"status": "run", "analyser": "4", "resolved": {"python": 0.95}, "files": {p: {"language": "python", "debt": 0, "imports": [], "definitions": 5,
                                                                          "max_nesting": 1, "max_cognitive": 3} for p in size},
              "functions": [], "unreferenced": [], "unreferenced_count": 0}
         s.update(structure)
@@ -1279,6 +1279,100 @@ class Structure(unittest.TestCase):
         self.assertNotIn("test_x", f["detail"])
         self.assertTrue(f["advice"].startswith("Flatten parse in src/f0.py first"), f["advice"])
         self.assertEqual(f["rule"]["min_nesting"], 5)
+
+    def test_import_cycles_name_each_group_and_a_shortest_loop_through_it(self):
+        r = self.base()
+        files = r["structure"]["files"]
+        files["src/f0.py"]["imports"] = ["src/f1.py"]                  # f0 -> f1 -> f2 -> f0: one loop of three
+        files["src/f1.py"]["imports"] = ["src/f2.py"]
+        files["src/f2.py"]["imports"] = ["src/f0.py", "src/f3.py"]
+        files["src/f4.py"]["imports"] = ["src/f5.py"]                  # f4 <-> f5, a pair
+        files["src/f5.py"]["imports"] = ["src/f4.py"]
+        files["src/f6.py"]["imports"] = ["src/f7.py"]                  # f6 <-> f7 only through a deferred import: no cycle at load
+        files["src/f7.py"].update(imports=["src/f6.py"], deferred=["src/f6.py"])
+        files["tests/test_f.py"]["imports"] = ["src/f8.py"]            # a test in a loop is not the source's layout
+        files["src/f8.py"]["imports"] = ["tests/test_f.py"]
+        f = self.by_id(r)["import_cycles"]
+        self.assertEqual(f["severity"], "info")
+        self.assertIn("2 groups of files import each other as they load: src/f0.py → src/f1.py → src/f2.py → src/f0.py; "
+                      "src/f4.py → src/f5.py → src/f4.py.", f["detail"])
+        self.assertNotIn("src/f6.py", f["detail"], "a deferred import is how a cycle is broken on purpose")
+        self.assertNotIn("src/f8.py", f["detail"])
+        self.assertEqual(f["evidence"]["groups"][0], {"files": ["src/f0.py", "src/f1.py", "src/f2.py"], "size": 3,
+                                                      "loop": ["src/f0.py", "src/f1.py", "src/f2.py", "src/f0.py"]})
+        self.assertEqual(f["evidence"]["count"], 2)
+        self.assertTrue(f["advice"].startswith("Break src/f0.py → src/f1.py → src/f2.py → src/f0.py first"), f["advice"])
+        self.assertEqual(f["rule"]["id"], "import_cycles")
+        self.assertIn("Oyetoyan", f["rule"]["ref"])
+        r["structure"]["resolved"] = {"python": 0.3}
+        self.assertNotIn("import_cycles", self.by_id(r), "a graph that resolves a third of the imports cannot vouch for a loop")
+
+    def test_a_structure_json_from_before_the_deferred_marks_names_no_loop(self):
+        """Without the marks the rule would name the loops deferred imports break on purpose — the false
+        groups the commit body recorded on django and binutils-gdb — so an older analyser's file is not judged."""
+        r = self.base()
+        files = r["structure"]["files"]
+        files["src/f4.py"]["imports"], files["src/f5.py"]["imports"] = ["src/f5.py"], ["src/f4.py"]
+        self.assertIn("import_cycles", self.by_id(r))
+        for older in ("3", None):
+            r["structure"]["analyser"] = older
+            self.assertNotIn("import_cycles", self.by_id(r), f"analyser {older}")
+
+    def test_the_group_is_named_by_its_own_shortest_loop_not_the_first_files(self):
+        """a -> b -> c -> d -> a with d -> c: the shortest loop through a has four steps, the group's shortest is
+        c -> d -> c, and that is what the finding names and the advice says to break first."""
+        r = self.base()
+        files = r["structure"]["files"]
+        files["src/f0.py"]["imports"], files["src/f1.py"]["imports"] = ["src/f1.py"], ["src/f2.py"]
+        files["src/f2.py"]["imports"], files["src/f3.py"]["imports"] = ["src/f3.py"], ["src/f0.py", "src/f2.py"]
+        f = self.by_id(r)["import_cycles"]
+        self.assertEqual(f["evidence"]["groups"][0]["loop"], ["src/f2.py", "src/f3.py", "src/f2.py"])
+        self.assertIn("src/f2.py → src/f3.py → src/f2.py, one loop in a group of 4 files", f["detail"])
+        self.assertTrue(f["advice"].startswith("Break src/f2.py → src/f3.py → src/f2.py first"), f["advice"])
+
+    def test_a_large_group_is_named_by_its_shortest_loop_and_its_size(self):
+        r = self.base()
+        files = r["structure"]["files"]
+        for i in range(6):                                              # f0 -> f1 -> ... -> f5 -> f0, and f3 -> f1 short-cuts it
+            files[f"src/f{i}.py"]["imports"] = [f"src/f{(i + 1) % 6}.py"]
+        files["src/f3.py"]["imports"].append("src/f1.py")
+        f = self.by_id(r)["import_cycles"]
+        self.assertIn("1 group of files imports each other as it loads: src/f1.py → src/f2.py → src/f3.py → src/f1.py, one loop in a group of 6 files.",
+                      f["detail"], "the short cut makes a three-step loop, and that is the group's shortest, not the six-step ring through f0")
+        files["src/f5.py"]["imports"] = []
+        files["src/f0.py"]["imports"] = ["src/f1.py", "src/f2.py"]
+        files["src/f2.py"]["imports"] = ["src/f3.py", "src/f0.py"]
+        f = self.by_id(r)["import_cycles"]
+        self.assertIn("src/f0.py → src/f2.py → src/f0.py, one loop in a group of 4 files", f["detail"], "the shortest loop through the first file")
+        self.assertEqual(f["evidence"]["groups"][0]["files"], ["src/f0.py", "src/f1.py", "src/f2.py", "src/f3.py"])
+
+    def test_the_groups_match_mutual_reachability_on_random_graphs(self):
+        import random
+        rng = random.Random(7)
+        for _ in range(200):
+            nodes = [f"n{i:02d}" for i in range(rng.randint(1, 25))]
+            edges = {a: sorted({rng.choice(nodes) for _ in range(rng.randint(0, 3))} - {a}) for a in nodes}
+
+            def reach(a):
+                seen, todo = set(), [a]
+                while todo:
+                    for b in edges[todo.pop()]:
+                        if b not in seen:
+                            seen.add(b)
+                            todo.append(b)
+                return seen
+            r = {a: reach(a) for a in nodes}
+            want = sorted({tuple(sorted([a] + [b for b in nodes if b in r[a] and a in r[b] and b != a])) for a in nodes} - {(a,) for a in nodes})
+            self.assertEqual(sorted(map(tuple, findings._groups(edges))), want)
+            for g in findings._groups(edges):
+                loop = findings._loop(edges, g)
+                self.assertEqual(loop[0], loop[-1])
+                self.assertIn(loop[0], g)
+                self.assertTrue(all(b in edges[a] for a, b in zip(loop, loop[1:])), "every step of the loop is an import")
+                self.assertTrue(all(len(findings._loop_from(edges, set(g), m) or loop) >= len(loop) for m in g), "no member has a shorter loop: the group's shortest")
+
+    def test_import_cycles_is_unjudged_until_labelled(self):
+        self.assertIn("import_cycles", findings.UNJUDGED)
 
     def test_hidden_coupling_is_a_pair_that_changes_together_with_no_import_between(self):
         r = self.base()
@@ -1377,7 +1471,8 @@ class References(unittest.TestCase):
                     "brain_methods": "Lanza and Marinescu, 2006", "tight_coupling": "Gall, Hajek and Jazayeri, ICSM 1998",
                     "trojan_source": "Boucher and Anderson, USENIX Security 2023",
                     "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
-                    "unreferenced_files": "Romano et al., TSE 2020", "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013"}
+                    "unreferenced_files": "Romano et al., TSE 2020", "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013",
+                    "import_cycles": "Oyetoyan et al., SANER 2015"}
         for rule, ref in expected.items():
             self.assertEqual(findings.REFS[rule], ref, rule)
         import os
