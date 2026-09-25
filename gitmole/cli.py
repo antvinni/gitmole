@@ -1,4 +1,4 @@
-"""Command line entry point: gitmole <path | owner/repo | url> [--out DIR] [--no-run], or gitmole --clean [DIR]."""
+"""Command line entry point: gitmole <path | owner/repo | url> [--out DIR] [--no-run], gitmole --clean [DIR], or gitmole --doctor."""
 from __future__ import annotations
 
 import argparse
@@ -39,6 +39,7 @@ def parse_args(argv):
     p.add_argument("--gone", type=int, default=loss.DEFAULT_MONTHS, metavar="MONTHS", help="a person with no commits this many months before the last commit counts as gone (default 12)")
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
+    p.add_argument("--doctor", action="store_true", help="list every tool gitmole runs, the version found against the version pinned, and where to get the pinned one, then exit")
     p.add_argument("--clean", action="store_true", help="list the directories gitmole created (temp clones, analysis-* under the target) and delete them after a y/N question, then exit")
     p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
     p.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
@@ -88,6 +89,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     rc = _check_args(args, err)
     if rc is not None:
         return rc
+    if args.doctor:
+        from . import doctor
+        return doctor.main(console)
     if args.clean:
         return _clean(args, console, ask or (lambda q: console.input(q, markup=False)))
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
@@ -154,6 +158,11 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
 def _check_args(args, err, kind=None) -> int | None:
     """The argument combinations that cannot work, in one place: 2 and a message, or None. Called
     once on the arguments alone, then again with the target's `kind` for the checks that need it."""
+    if args.doctor:   # it exits before any analysis: a target is refused and every other option ignored, --yes and --hook included
+        if args.target is not None:
+            err.print("[red]--doctor takes no target[/red]")
+            return 2
+        return None
     if kind is None:
         bad = ("--yes needs --clean" if args.yes and not args.clean else
                "target required" if args.target is None and not args.clean else
