@@ -1417,6 +1417,8 @@ class TruckFactor(unittest.TestCase):
         self.assertIn("core/ (Ann)", f["detail"], "an area whose own truck factor is one")
         self.assertEqual(f["rule"]["ref"], "Avelino et al., ICPC 2016")
         self.assertEqual(f["evidence"]["truck_factor"], 1)
+        self.assertEqual(f["evidence"]["areas"], [{"area": "core/", "author": "Ann", "files": 20, "orphaned": 20}],
+                         "an area row says how big the area is and what one departure orphans; web/ has under ten files and is not judged")
 
     def test_a_shared_codebase_has_none(self):
         doa = [self.row(f"core/a{i}.py", who) for i in range(30) for who in ("Ann", "Bob", "Cat")]

@@ -1362,9 +1362,9 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
     lone = []
     for area, fs in sorted(areas.items()):
         if len(fs) >= area_files and area != knowledge.ROOT:
-            n, who, _ = knowledge.truck_factor({f: authored[f] for f in fs})
-            if n == 1:
-                lone.append((area, who[0]))
+            n, who, orphaned_share = knowledge.truck_factor({f: authored[f] for f in fs})
+            if n == 1:   # the area's size and what one departure orphans, so a reader can tell ten files from ten thousand
+                lone.append((area, who[0], len(fs), round(orphaned_share * len(fs))))
     if tf > 2 and not lone:
         return []
     orphans = round(share * len(files))
@@ -1375,19 +1375,20 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
     elif tf_d != tf:
         statement += f" With knowledge halving every five months it is {tf_d} ({textfmt.join_and(removed_d)})."
     if lone:
-        statement += " Areas with a truck factor of one: " + ", ".join(f"{a} ({w})" for a, w in lone[:5]) + (f" and {len(lone) - 5} more" if len(lone) > 5 else "") + "."
+        statement += " Areas with a truck factor of one: " + ", ".join(f"{a} ({w})" for a, w, _, _ in lone[:5]) + (f" and {len(lone) - 5} more" if len(lone) > 5 else "") + "."
     shares = report.get("theseus_authors") or {}
     if shares and removed:
         top, lines = max(shares.items(), key=lambda kv: kv[1])
         if top != removed[0]:
             statement += f" The surviving code's largest share is {top}'s ({_pct(lines, sum(shares.values()))}), which the bus-factor finding reads."
-    first_area = next((a for a, w in lone if w == removed[0]), lone[0][0] if lone else None)
+    first_area = next((a for a, w, _, _ in lone if w == removed[0]), lone[0][0] if lone else None)
     advice = f"Pair someone with {removed[0]}" + (f" on {first_area}" if first_area else "") + " first; they author most of what would be left without an author."
     return [_f("warning" if tf == 1 else "info", "Truck factor", statement, advice,
                rule={"id": "truck_factor", "doa_author_share": 0.75, "doa_floor": 3.293, "orphan_share": 0.5, "decay_months": 5,
                      "ref": "Avelino et al., ICPC 2016"},
                evidence={"truck_factor": tf, "removed": removed, "truck_factor_decayed": tf_d, "removed_decayed": removed_d,
-                         "files": len(files), "orphaned": orphans, "areas": [{"area": a, "author": w} for a, w in lone[:10]]})]
+                         "files": len(files), "orphaned": orphans,
+                         "areas": [{"area": a, "author": w, "files": n, "orphaned": o} for a, w, n, o in lone[:10]]})]
 
 
 def authors_gone(report: dict, min_files: int = 5) -> list:
