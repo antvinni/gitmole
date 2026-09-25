@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import classify, coupling, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, textfmt, trend
+from . import classify, coupling, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, structure, textfmt, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -1240,7 +1240,7 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
                evidence={"pairs": [{"a": p["entity"], "b": p["coupled"], "degree": p["degree"], "revs": p["average-revs"]} for p in hidden[:10]]})]
 
 
-CYCLE_LANGUAGES = {"python", "javascript", "typescript", "tsx"}   # resolved by path; C's includes and Ruby's requires go by suffix and can invent a loop
+DEFERRED_MARKS_FROM = 4   # the structure analyser that first marked deferred imports; an older structure.json would show loops broken on purpose
 
 
 def _groups(edges: dict) -> list:
@@ -1285,10 +1285,9 @@ def _groups(edges: dict) -> list:
     return out
 
 
-def _loop(edges: dict, group: list) -> list:
-    """The shortest loop from the group's first file back to itself, by breadth-first search inside
-    the group, neighbours in sorted order: [a, b, ..., a]."""
-    start, members = group[0], set(group)
+def _loop_from(edges: dict, members: set, start: str) -> list:
+    """The shortest loop from `start` back to itself inside the group, by breadth-first search with
+    neighbours in sorted order: [start, ..., start]; None when there is none."""
     parent, todo = {}, [start]
     while todo:
         nxt_level = []
@@ -1303,10 +1302,23 @@ def _loop(edges: dict, group: list) -> list:
                     parent[nxt] = node
                     nxt_level.append(nxt)
         todo = nxt_level
-    return [start, start]
+    return None
 
 
-def import_cycles(report: dict, min_resolved: float = 0.6) -> list:
+def _loop(edges: dict, group: list) -> list:
+    """The group's shortest loop: the shortest of the shortest loops through each member, ties to the
+    member that sorts first, so what the finding names is what docs/output.md says it names."""
+    members, best = set(group), None
+    for start in group:
+        loop = _loop_from(edges, members, start)
+        if loop is not None and (best is None or len(loop) < len(best)):
+            best = loop
+            if len(best) == 3:
+                break   # a mutual pair: nothing shorter exists
+    return best or [group[0], group[0]]
+
+
+def import_cycles(report: dict, min_resolved: float = structure.MIN_RESOLVED) -> list:
     """Groups of source files that import each other, directly or round a loop, as they load: an import
     inside a function, a type-only import and a dynamic import() are left out, since they are how a
     loop is broken on purpose. Oyetoyan et al. found classes near a cycle change more often (Java, SANER
@@ -1314,10 +1326,10 @@ def import_cycles(report: dict, min_resolved: float = 0.6) -> list:
     leaves the verdict to the reader. Only where imports resolve by path and mostly resolve; tests,
     examples, vendored and generated files are left out."""
     s = _structure(report)
-    if not s:
-        return []
+    if not s or int(s.get("analyser") or 0) < DEFERRED_MARKS_FROM:
+        return []   # a structure.json from before the deferred marks would name the loops deferred imports break on purpose
     files, resolved, derived = s.get("files") or {}, s.get("resolved") or {}, _generated(report)
-    keep = {p for p, info in files.items() if info.get("language") in CYCLE_LANGUAGES and resolved.get(info["language"], 0) >= min_resolved
+    keep = {p for p, info in files.items() if info.get("language") in structure.GRAPH_LANGUAGES and resolved.get(info["language"], 0) >= min_resolved
             and not _aside_path(p) and p not in derived}
     edges = {p: sorted(set(t for t in files[p].get("imports") or [] if t in keep) - set(files[p].get("deferred") or [])) for p in sorted(keep)}
     groups = _groups(edges)

@@ -1245,7 +1245,7 @@ class Structure(unittest.TestCase):
     def base(self, **structure):
         size = {f"src/f{i}.py": {"code": 1000 - i, "complexity": 1} for i in range(12)}
         size.update({"tests/test_f.py": {"code": 50, "complexity": 1}})
-        s = {"status": "run", "resolved": {"python": 0.95}, "files": {p: {"language": "python", "debt": 0, "imports": [], "definitions": 5,
+        s = {"status": "run", "analyser": "4", "resolved": {"python": 0.95}, "files": {p: {"language": "python", "debt": 0, "imports": [], "definitions": 5,
                                                                          "max_nesting": 1, "max_cognitive": 3} for p in size},
              "functions": [], "unreferenced": [], "unreferenced_count": 0}
         s.update(structure)
@@ -1307,6 +1307,29 @@ class Structure(unittest.TestCase):
         r["structure"]["resolved"] = {"python": 0.3}
         self.assertNotIn("import_cycles", self.by_id(r), "a graph that resolves a third of the imports cannot vouch for a loop")
 
+    def test_a_structure_json_from_before_the_deferred_marks_names_no_loop(self):
+        """Without the marks the rule would name the loops deferred imports break on purpose — the false
+        groups the commit body recorded on django and binutils-gdb — so an older analyser's file is not judged."""
+        r = self.base()
+        files = r["structure"]["files"]
+        files["src/f4.py"]["imports"], files["src/f5.py"]["imports"] = ["src/f5.py"], ["src/f4.py"]
+        self.assertIn("import_cycles", self.by_id(r))
+        for older in ("3", None):
+            r["structure"]["analyser"] = older
+            self.assertNotIn("import_cycles", self.by_id(r), f"analyser {older}")
+
+    def test_the_group_is_named_by_its_own_shortest_loop_not_the_first_files(self):
+        """a -> b -> c -> d -> a with d -> c: the shortest loop through a has four steps, the group's shortest is
+        c -> d -> c, and that is what the finding names and the advice says to break first."""
+        r = self.base()
+        files = r["structure"]["files"]
+        files["src/f0.py"]["imports"], files["src/f1.py"]["imports"] = ["src/f1.py"], ["src/f2.py"]
+        files["src/f2.py"]["imports"], files["src/f3.py"]["imports"] = ["src/f3.py"], ["src/f0.py", "src/f2.py"]
+        f = self.by_id(r)["import_cycles"]
+        self.assertEqual(f["evidence"]["groups"][0]["loop"], ["src/f2.py", "src/f3.py", "src/f2.py"])
+        self.assertIn("src/f2.py → src/f3.py → src/f2.py, one loop in a group of 4 files", f["detail"])
+        self.assertTrue(f["advice"].startswith("Break src/f2.py → src/f3.py → src/f2.py first"), f["advice"])
+
     def test_a_large_group_is_named_by_its_shortest_loop_and_its_size(self):
         r = self.base()
         files = r["structure"]["files"]
@@ -1314,8 +1337,8 @@ class Structure(unittest.TestCase):
             files[f"src/f{i}.py"]["imports"] = [f"src/f{(i + 1) % 6}.py"]
         files["src/f3.py"]["imports"].append("src/f1.py")
         f = self.by_id(r)["import_cycles"]
-        self.assertIn("1 group of files imports each other as it loads: src/f0.py → src/f1.py → src/f2.py → src/f3.py → src/f4.py → src/f5.py → src/f0.py.",
-                      f["detail"])
+        self.assertIn("1 group of files imports each other as it loads: src/f1.py → src/f2.py → src/f3.py → src/f1.py, one loop in a group of 6 files.",
+                      f["detail"], "the short cut makes a three-step loop, and that is the group's shortest, not the six-step ring through f0")
         files["src/f5.py"]["imports"] = []
         files["src/f0.py"]["imports"] = ["src/f1.py", "src/f2.py"]
         files["src/f2.py"]["imports"] = ["src/f3.py", "src/f0.py"]
@@ -1343,8 +1366,10 @@ class Structure(unittest.TestCase):
             self.assertEqual(sorted(map(tuple, findings._groups(edges))), want)
             for g in findings._groups(edges):
                 loop = findings._loop(edges, g)
-                self.assertEqual((loop[0], loop[-1]), (g[0], g[0]))
+                self.assertEqual(loop[0], loop[-1])
+                self.assertIn(loop[0], g)
                 self.assertTrue(all(b in edges[a] for a, b in zip(loop, loop[1:])), "every step of the loop is an import")
+                self.assertTrue(all(len(findings._loop_from(edges, set(g), m) or loop) >= len(loop) for m in g), "no member has a shorter loop: the group's shortest")
 
     def test_import_cycles_is_unjudged_until_labelled(self):
         self.assertIn("import_cycles", findings.UNJUDGED)
