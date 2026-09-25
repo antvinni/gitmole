@@ -109,6 +109,25 @@ class HarnessScore(unittest.TestCase):
         out = harness.score(dict(self.RANK), {"small"}, top=3)
         self.assertIsNone(out["recall20_complexity"], "an old release's probe has no complexity to spend")
 
+    def test_popt_under_three_cost_drivers_and_the_uncapped_false_alarms(self):
+        """Popt on a lines budget pays for cheap files as much as for order (its optimal ordering is the
+        outcome's files cheapest first), so a size-blind list gains on it the way ManualUp does. Uniform
+        cost makes Popt a pure rank measure — the size control — and complexity is the third driver. IFA
+        capped at the top is what the record prints; the uncapped one says where the first hit really is."""
+        rank = dict(self.RANK, complexity={"big": 2, "small": 40, "mid": 8}, total_complexity=50)
+        out = harness.score(rank, {"mid"}, top=2)
+        self.assertEqual(out["popt_uniform"], metrics.popt(rank["pool"], {f: 1 for f in rank["pool"]}, {"mid"}))
+        self.assertEqual(out["popt_complexity"], metrics.popt(rank["pool"], rank["complexity"], {"mid"}))
+        self.assertEqual((out["ifa"], out["ifa_all"]), (2, 2), "mid is third: capped at the top of 2 the count is 2, uncapped it is also 2")
+        self.assertEqual((out["manualup_ifa"], out["manualup_ifa_all"]), (0, 0), "smallest first, ties by name: mid comes first")
+        out = harness.score(rank, {"big"}, top=1)
+        self.assertEqual((out["manualup_ifa"], out["manualup_ifa_all"]), (1, 2), "smallest first: big is last of three, the cap hides that")
+        for key in ("churn_popt_uniform", "churn_popt_complexity", "churn_ifa_all", "manualup_popt_uniform", "manualup_popt_complexity"):
+            self.assertIn(key, out)
+        plain = harness.score(dict(self.RANK), {"big"}, top=1)
+        self.assertIsNone(plain["popt_complexity"], "no complexity table, no complexity Popt: None, not a number built from zeros")
+        self.assertEqual(plain["popt"], out["popt"], "the lines Popt keeps its value with or without a complexity table")
+
 class Scoring(unittest.TestCase):
     def test_one_cut_off_against_random_perfect_and_churn(self):
         rank = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40}
@@ -333,6 +352,37 @@ class Signals(unittest.TestCase):
         self.assertEqual(ranked["revs 12m x lines"][0], "core/util.py", "30 changes this year × 200 lines, against one each in 2020")
         self.assertEqual(ranked["churn"][0], "web/index.html")
         self.assertEqual(lines["core/parser.py"], 800)
+        self.assertIn("entropy x lines", ranked, "the size term restored, since a size-blind key is what an effort budget flatters")
+        self.assertNotIn("hcm3s", ranked, "a report without Hassan's tables contributes no such variant")
+        r = report()
+        r["entropy_hcm3s"] = [{"entity": "core/util.py", "hcm": 2.0}, {"entity": "core/parser.py", "hcm": 1.0}]
+        r["entropy_hcm1d"] = [{"entity": "web/index.html", "hcm": 0.5}]
+        ranked, _ = signals.variants(r, commits, "2026-09-01")
+        self.assertEqual(ranked["hcm3s"][:2], ["core/util.py", "core/parser.py"])
+        self.assertEqual(ranked["hcm3s x lines"][0], "core/parser.py", "1.0 x 800 beats 2.0 x 200")
+        self.assertEqual(ranked["hcm1d"][0], "web/index.html")
+
+    def test_a_candidate_is_scored_on_the_records_measures_and_cannot_win_popt_by_naming_small_files(self):
+        from gitmole.measure import signals
+        from tests.test_watch import report
+        r = report()
+        r["size"]["total_code"] = 5000
+        cost = signals.costs(r, ["web/index.html", "core/parser.py", "core/util.py"])
+        self.assertEqual((cost["lines"]["core/util.py"], cost["total_code"], cost["complexity"]["core/parser.py"]), (200, 5000, 40))
+        self.assertEqual(cost["total_complexity"], 47, "over the whole size table, as probe.rank reports it")
+        big_first, small_first = ["web/index.html", "core/parser.py", "core/util.py"], ["core/util.py", "core/parser.py", "web/index.html"]
+        outcome = {"web/index.html", "core/util.py"}
+        a, b = signals.score(big_first, outcome, cost, top=1), signals.score(small_first, outcome, cost, top=1)
+        self.assertEqual(set(a), {"hits", "auc", "recall20", "recall20_complexity", "popt", "popt_complexity", "popt_uniform", "ifa", "ifa_all", "lines_top"})
+        self.assertGreater(b["popt"], a["popt"], "on a lines budget the small-file list wins Popt")
+        self.assertEqual(b["popt_uniform"], a["popt_uniform"], "under uniform cost the two orders are mirror images with the same hit ranks: no size to win by")
+        self.assertEqual((a["ifa"], a["ifa_all"], b["ifa"], b["ifa_all"]), (0, 0, 0, 0))
+        c = signals.score(["core/parser.py", "web/index.html", "core/util.py"], outcome, cost, top=1)
+        self.assertEqual((c["ifa"], c["ifa_all"]), (1, 1), "capped at a top of 1 the count is 1 either way here")
+        self.assertEqual(a["lines_top"], 4000)
+        self.assertEqual(a["recall20"], metrics.recall_at_effort(big_first, cost["lines"], outcome, total=5000), "the record's denominator, the codebase's lines, not the pool's")
+        self.assertEqual(signals.summarise([{"hits": 1, "popt": 0.4, "recall20_complexity": None}, {"hits": 2, "popt": 0.6, "recall20_complexity": None}]),
+                         {"hits": 3, "popt": 0.5, "recall20_complexity": None}, "hits summed, the rest medians, None when no cut-off had a value")
 
 
 class SummarisedRules(unittest.TestCase):

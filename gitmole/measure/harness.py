@@ -195,6 +195,16 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
     def by_complexity(ordering):
         return metrics.recall_at_effort(ordering, cplx, positives, total=cplx_total) if cplx_total else None
 
+    # Popt on a lines budget pays for cheap files as much as for order: its optimal ordering is the outcome's
+    # files cheapest first, so a size-blind list gains on it the way ManualUp does. Three drivers, then: lines
+    # (what the papers report), scc's complexity (the 2025 critique's alternative), and uniform cost, under
+    # which Popt is a pure rank measure and so the size control. The false alarms are recorded uncapped too:
+    # capped at the top, a list whose first hit is at rank 40 reads the same as one whose first hit is at 15.
+    uniform = {f: 1 for f in pool}
+
+    def popt_complexity(ordering):
+        return metrics.popt(ordering, cplx, positives) if cplx_total else None
+
     exp, most = metrics.expected(len(pool), len(positives), top), metrics.best(len(pool), len(positives), top)
     return {"pool": len(pool), "positives": len(positives), "hits": h, "expected": round(exp, 3), "best": most, "churn_hits": ch,
             "auc": metrics.auc(pool, positives), "churn_auc": metrics.auc(churn, positives),
@@ -212,6 +222,10 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
             "recall20_complexity": by_complexity(pool),
             "churn_recall20_complexity": by_complexity(churn),
             "manualup_recall20_complexity": by_complexity(manualup),
+            "popt_complexity": popt_complexity(pool), "churn_popt_complexity": popt_complexity(churn), "manualup_popt_complexity": popt_complexity(manualup),
+            "popt_uniform": metrics.popt(pool, uniform, positives), "churn_popt_uniform": metrics.popt(churn, uniform, positives),
+            "manualup_popt_uniform": metrics.popt(manualup, uniform, positives),
+            "ifa_all": metrics.ifa(pool, positives), "churn_ifa_all": metrics.ifa(churn, positives), "manualup_ifa_all": metrics.ifa(manualup, positives),
             "top": pool[:top]}   # for the carry-over between consecutive cut-offs
 
 
