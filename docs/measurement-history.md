@@ -310,8 +310,10 @@ Each release runs from its own source over the development set (curl, django and
   code age and duplicates on their size budgets, as in 0.35.1 and as their headers say. Peak memory on
   two well-kept repositories rose unremarked, etcd 2,265 to 2,574 MB and prometheus 3,573 to 3,822 MB;
   both peaks are the osv-scanner step at the same pinned version (up 310 and 249 MB), and on those two
-  repositories no step of gitmole's own moved by more than 10 MB. That step found no offline vulnerability database on this machine in this round or
-  0.35.1's, so the vulnerable-package check could not fire in either.
+  repositories no step of gitmole's own moved by more than 10 MB (the other outside tools moved on
+  prometheus too, betterleaks up 35 MB and jscpd down 26). osv-scanner found no
+  offline vulnerability database on this machine in this round or 0.35.1's, so the vulnerable-package
+  check could not fire in either.
 - **The extras agree**: determinism identical on curl and django; the hook replay identical to 0.35.1 on
   all five repositories, now with recall and top-3 beside precision (curl 0.06, react 0.14, binutils-gdb
   0.11, django and ghidra under 0.01); the sensitivity table gains one row for the new rule and none of
