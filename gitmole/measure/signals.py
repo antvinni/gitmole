@@ -7,8 +7,12 @@ once, for the one variant chosen there, and never to pick between variants.
 
 Reads the run outputs a release left in the workspace (`run` or `history` first). Each variant ranks
 the watch list's pool; the outcome is fix locality on development and the ApacheJIT labels on the
-holdout, as in the harness. Prints each repository's top-15 hits, and the medians of ROC-AUC and of
-recall at 20% of the pool's lines."""
+holdout, as in the harness. Prints, per variant, the top-15 hits summed over the cut-offs and the
+medians of ROC-AUC, recall at 20% of the codebase's lines and of its complexity, Popt under three
+cost drivers (lines, complexity, uniform — the last a pure rank measure, the size control), the
+initial false alarms capped at the top and uncapped, and the lines its top 15 holds: the numbers the
+record keeps for the watch list, churn and ManualUp (harness.score), so a candidate is judged on all
+of them and cannot win by naming small files."""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +31,9 @@ def _days(a: str, b: str) -> int:
 
 
 def variants(report: dict, commits: list, t: str) -> tuple:
-    """Every candidate's order of the pool at `t`, and the pool's lines."""
+    """Every candidate's order of the pool at `t`, and the pool's lines. Hassan's HCM3s and HCM1d
+    appear when the report carries them (evaluate.report_at computes them); each entropy also comes
+    with the size term restored (`x lines`), since a size-blind key is what an effort budget flatters."""
     rows = watch.risks(report)
     pool = [r["file"] for r in rows]
     lines = {f: ((report["size"]["files"].get(f) or {}).get("code") or 0) for f in pool}
@@ -46,12 +52,56 @@ def variants(report: dict, commits: list, t: str) -> tuple:
     def order(key):
         return sorted(pool, key=lambda f: (-key(f), f))
     out = {"watch list": pool, "churn": order(lambda f: revs[f]), "size": order(lambda f: lines[f]),
-           "entropy": order(lambda f: hcm.get(f, 0.0))}
+           "entropy": order(lambda f: hcm.get(f, 0.0)), "entropy x lines": order(lambda f: hcm.get(f, 0.0) * lines[f])}
+    for label, key in (("hcm3s", "entropy_hcm3s"), ("hcm1d", "entropy_hcm1d")):
+        table = report.get(key)
+        if table:
+            scores = {e["entity"]: e["hcm"] for e in table}
+            out[label] = order(lambda f, s=scores: s.get(f, 0.0))
+            out[f"{label} x lines"] = order(lambda f, s=scores: s.get(f, 0.0) * lines[f])
     for m, d in window.items():
         out[f"revs {m}m x lines"] = order(lambda f, d=d: d.get(f, 0) * lines[f])
     for h, d in decay.items():
         out[f"decay {h}m x lines"] = order(lambda f, d=d: d.get(f, 0.0) * lines[f])
     return out, lines
+
+
+def costs(report: dict, pool: list) -> dict:
+    """The effort drivers over the pool and their codebase totals, the way probe.rank reports them for
+    the harness: lines and scc's complexity per file, total_code and total_complexity (None when the
+    size table carries no complexity, so nothing is built out of zeros)."""
+    files = (report.get("size") or {}).get("files") or {}
+    lines = {f: ((files.get(f) or {}).get("code") or 0) for f in pool}
+    cplx = {f: ((files.get(f) or {}).get("complexity") or 0) for f in pool}
+    total_code = (report.get("size") or {}).get("total_code") or sum(lines.values())
+    total_complexity = sum(((v or {}).get("complexity") or 0) for v in files.values()) or None
+    return {"lines": lines, "complexity": cplx, "total_code": total_code, "total_complexity": total_complexity}
+
+
+def score(order: list, outcome: set, cost: dict, top: int = harness.TOP) -> dict:
+    """One variant at one cut-off, on the record's own measures."""
+    lines, cplx, cplx_total = cost["lines"], cost["complexity"], cost["total_complexity"]
+    head = order[:top]
+    return {"hits": metrics.hits(head, outcome), "auc": metrics.auc(order, outcome),
+            "recall20": metrics.recall_at_effort(order, lines, outcome, total=cost["total_code"]),
+            "recall20_complexity": metrics.recall_at_effort(order, cplx, outcome, total=cplx_total) if cplx_total else None,
+            "popt": metrics.popt(order, lines, outcome),
+            "popt_complexity": metrics.popt(order, cplx, outcome) if cplx_total else None,
+            "popt_uniform": metrics.popt(order, {f: 1 for f in order}, outcome),
+            "ifa": metrics.ifa(head, outcome), "ifa_all": metrics.ifa(order, outcome),
+            "lines_top": sum(lines.get(f, 0) for f in head)}
+
+
+SUMMED = ("hits",)   # the rest are medians over the cut-offs
+
+
+def summarise(per_cutoff: list) -> dict:
+    """[{key: value}] per cut-off -> hits summed, everything else the median over the cut-offs that had a value."""
+    out = {}
+    for key in per_cutoff[0] if per_cutoff else ():
+        values = [d[key] for d in per_cutoff]
+        out[key] = sum(values) if key in SUMMED else _median(values)
+    return out
 
 
 def measure(entry: dict, release: str, root: str, labels, keep: set) -> dict:
@@ -68,17 +118,15 @@ def measure(entry: dict, release: str, root: str, labels, keep: set) -> dict:
             continue
         size_json, generated, vendored = backtest.snapshot_at(clone, rev, out)
         report = evaluate.report_at(commits, t, load.parse_scc(size_json, None), meta, generated, vendored)
-        ranked, lines = variants(report, commits, t)
+        ranked, _ = variants(report, commits, t)
+        cost = costs(report, ranked["watch list"])
         end = evaluate.months_after(t, harness.HORIZON)
         outcome = (evaluate.labelled_between(commits, labels, t, end) if labels is not None else evaluate.fixed_between(commits, t, end)) & set(ranked["watch list"])
         for v, order in ranked.items():
             if keep and v not in keep:
                 continue
-            d = per.setdefault(v, {"hits": 0, "auc": [], "recall20": []})
-            d["hits"] += metrics.hits(order[:harness.TOP], outcome)
-            d["auc"].append(metrics.auc(order, outcome))
-            d["recall20"].append(metrics.recall_at_effort(order, lines, outcome, total=sum(lines.values())))
-    return {v: {"hits": d["hits"], "auc": _median(d["auc"]), "recall20": _median(d["recall20"])} for v, d in per.items()}
+            per.setdefault(v, []).append(score(order, outcome, cost))
+    return {v: summarise(rows) for v, rows in per.items()}
 
 
 def _median(values):

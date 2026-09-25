@@ -185,6 +185,18 @@ beside the lines number rather than replacing it — `recall20` stays what every
 past record means. If the two disagree about which list is ahead, that is the
 paper reproducing here, and it is a result rather than a bug.
 
+**Do not let Popt be won by naming small files.** Popt's optimal ordering is
+the outcome's files cheapest first, so on a lines budget it pays for cheapness
+as much as for order, and a size-blind list gains on it the way ManualUp does.
+So Popt is recorded under three drivers: lines (`popt`, what the papers
+report), scc's complexity (`popt_complexity`) and uniform cost
+(`popt_uniform`), under which it is a pure rank measure and so the size
+control. A candidate that gains only on lines gained nothing. The false alarms
+are recorded uncapped too (`ifa_all`): capped at the top, a list whose first hit
+is at rank 40 reads the same as one whose first hit is at 15. `signals` scores
+every candidate ranking on all of these, with the same recall denominator as
+the record.
+
 **Compare against the variant the evidence is actually about.** The change
 entropy gitmole ships is Hassan's metric over calendar months, normalised by the
 files each month changed, split by each file's share and halved every month —
@@ -606,10 +618,14 @@ for every minor release measured with it, 0.2.0 to 0.26.0, and what the history 
   ways). That is how the usefulness graph is meant to move: the report says
   less, and what it still says is more often worth doing.
 - **Candidate rankings**: `python -m gitmole.measure.signals` ranks the
-  watch list's pool by other signals (churn, size, change entropy, windows
-  and decays of recent revisions × lines) at the same cut-offs. It is for
-  exploring on the development set. The holdout is read once, with
-  `--variant`, for the one candidate chosen there
+  watch list's pool by other signals (churn, size, change entropy and
+  Hassan's HCM3s and HCM1d, each alone and with the size term restored,
+  windows and decays of recent revisions × lines) at the same cut-offs, and
+  scores every one on the record's own measures: hits at 15, ROC-AUC, recall
+  at 20% of the codebase's lines and of its complexity, Popt under lines,
+  complexity and uniform cost, the false alarms capped and uncapped, and the
+  lines its top 15 holds. It is for exploring on the development set. The
+  holdout is read once, with `--variant`, for the one candidate chosen there
   ([validation.md](validation.md#what-the-ranking-is-for) has the result).
 - **Determinism** (step 9): the CI job compares a second time zone and the C
   locale on macOS, and a Linux run against the macOS one; `extras` repeats the
