@@ -693,6 +693,7 @@ def unreferenced(files: dict, edges: dict, resolved: dict, entries: set) -> list
     only languages whose imports mostly resolve are judged."""
     imported = {t for targets in edges.values() for t in targets}
     judged = trusted(files, resolved)
+    counts = Counter(v.get("language") for v in files.values())   # the loud-language share below is over every file of the language
     names = Counter(p.rsplit("/", 1)[-1] for p in files)
     package_dirs = {os.path.dirname(p) for p in entries_dirs(entries)}
     by_dir = {}
