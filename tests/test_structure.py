@@ -191,10 +191,52 @@ class Resolve(unittest.TestCase):
         same commit gave different import graphs, and the determinism check caught it at 0.32.0. Under a hundred
         candidates, set order cannot coincide with sorted order by luck."""
         files = {"app/main.py": {"language": "python", "imports": [["abs", "pkg.json"]]}}
-        for i in range(100):
-            files[f"d{i:03d}/pkg/json.py"] = {"language": "python", "imports": []}
+        for i in range(100):   # each d000/ holds a package, so each is a root a run can put on the path
+            files[f"d{i:03d}/pkg/__init__.py"] = files[f"d{i:03d}/pkg/json.py"] = {"language": "python", "imports": []}
         edges, _ = structure.resolve(files)
         self.assertEqual(edges["app/main.py"], ["d000/pkg/json.py"], "the lowest path, not whichever the set yielded first")
+
+    def test_a_bare_name_resolves_only_from_a_directory_a_run_could_put_on_the_path(self):
+        """Every suffix of a file with no package above it counted as a module path, so scripts/json.py was
+        module `json` for the whole tree and the standard library's `import json` in app/main.py became an edge
+        to it. A module is found from a root: the directory the importing file runs from or any non-package
+        directory above it (a script, `python -m`, pytest's basedir), or a directory that holds a package
+        (src/, a test directory). scripts/ is none of those for app/main.py."""
+        py = lambda *imports: {"language": "python", "imports": [list(i) for i in imports]}
+        files = {"app/__init__.py": py(), "app/main.py": py(["abs", "json"], ["abs", "logging"]),
+                 "scripts/json.py": py(), "scripts/run.py": py(["abs", "json"]), "tools/misc/logging.py": py(),
+                 "tools/misc/x.py": py(["abs", "logging"]), "tools/y.py": py(["abs", "misc.logging"]),
+                 "pkg/__init__.py": py(), "pkg/tests/helpers.py": py(), "pkg/tests/test_a.py": py(["abs", "helpers"])}
+        edges, resolved = structure.resolve(files)
+        self.assertEqual(edges["app/main.py"], [], "the standard library's json and logging, not two files in other directories")
+        self.assertEqual(edges["scripts/run.py"], ["scripts/json.py"], "a script's own directory comes first on its path")
+        self.assertEqual(edges["tools/misc/x.py"], ["tools/misc/logging.py"])
+        self.assertEqual(edges["tools/y.py"], ["tools/misc/logging.py"], "a namespace directory under the script's own")
+        self.assertEqual(edges["pkg/tests/test_a.py"], ["pkg/tests/helpers.py"], "pytest runs a test from its first directory without __init__.py")
+        self.assertEqual(resolved["python"], 1.0, "app/main.py's imports are the standard library: not imports that failed to resolve")
+
+    def test_a_from_import_takes_the_first_root_for_each_name(self):
+        """`import x` took the first file that answered it and `from x import a` took every one, so a
+        from-import of a module two roots hold made two edges where Python loads one."""
+        py = lambda *imports: {"language": "python", "imports": [list(i) for i in imports]}
+        files = {"utils/__init__.py": py(), "utils/x.py": py(), "scripts/utils/x.py": py(), "scripts/run.py": py(["from", "utils", ["x"]]),
+                 "a/pkg/__init__.py": py(), "a/pkg/m.py": py(), "a/pkg/n.py": py(), "b/pkg/__init__.py": py(), "b/pkg/m.py": py(),
+                 "main.py": py(["from", "pkg", ["m", "n"]], ["from", "pkg.m", ["f"]])}
+        edges, resolved = structure.resolve(files)
+        self.assertEqual(edges["scripts/run.py"], ["scripts/utils/x.py"], "the script's own directory first, as on sys.path")
+        self.assertEqual(edges["main.py"], ["a/pkg/m.py", "a/pkg/n.py"], "one file per name, each from the first root that holds it")
+        self.assertEqual(resolved["python"], 1.0)
+
+    def test_a_stub_answers_an_import_where_no_source_file_does(self):
+        """.pyi files are parsed as Python and their imports counted, but only .py files were candidates, so a
+        package of stubs read 0.0 resolved. A stub answers where no .py does; beside one, the .py is what loads."""
+        py = lambda *imports: {"language": "python", "imports": [list(i) for i in imports]}
+        files = {"stubs/__init__.pyi": py(["from", ".a", ["X"]], ["from", ".", ["b"]]), "stubs/a.pyi": py(), "stubs/b.pyi": py(),
+                 "lib/__init__.py": py(), "lib/c.py": py(), "lib/c.pyi": py(), "main.py": py(["from", "lib", ["c"]], ["abs", "stubs.a"])}
+        edges, resolved = structure.resolve(files)
+        self.assertEqual(edges["stubs/__init__.pyi"], ["stubs/a.pyi", "stubs/b.pyi"])
+        self.assertEqual(edges["main.py"], ["lib/c.py", "stubs/a.pyi"], "the .py where there is one, the stub where there is not")
+        self.assertEqual(resolved["python"], 1.0)
 
 
 @unittest.skipUnless(HAVE, "the tree-sitter grammars need Python 3.10 or newer")

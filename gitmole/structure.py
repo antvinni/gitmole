@@ -504,9 +504,10 @@ _JS_EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts")
 
 
 def _python_candidates(path: str, entry, names_only: bool = False) -> list:
-    """Paths a Python import could name: `a.b` as a/b.py or a/b/__init__.py; a from-import's module the
-    same way, relative dots climbing from the importing file's package, and with `names_only` the
-    imported names taken as modules of that package instead."""
+    """The modules a Python import could name, one list of paths per module in the order Python tries
+    them: `a.b` as a/b.py or a/b/__init__.py, then the stubs a/b.pyi and a/b/__init__.pyi; a
+    from-import's module the same way, relative dots climbing from the importing file's package, and
+    with `names_only` each imported name taken as a module of that package instead."""
     kind = entry[0]
     if kind == "abs":
         mods = [entry[1].replace(".", "/")]
@@ -521,7 +522,7 @@ def _python_candidates(path: str, entry, names_only: bool = False) -> list:
             rest = os.path.normpath(os.path.join(root, rest)) if rest else root
             rest = "" if rest == "." else rest
         mods = [f"{rest}/{n}" if rest else n for n in names] if names_only else [rest]
-    return [c for m in mods if m for c in (f"{m}.py", f"{m}/__init__.py")]
+    return [[f"{m}.py", f"{m}/__init__.py", f"{m}.pyi", f"{m}/__init__.pyi"] for m in mods if m]
 
 
 def resolve(files: dict, eager: bool = False) -> tuple:
@@ -546,50 +547,60 @@ def _resolve(files: dict) -> tuple:
         parts = p.split("/")    # and the first candidate wins, so hash order would make the import graph vary per run
         for i in range(len(parts)):
             by_suffix.setdefault("/".join(parts[i:]), []).append(p)
-    # An absolute Python import resolves against a sys.path root: the tree's top, src/, a test directory pytest
-    # puts on the path. Which directories can be roots is what a package marker decides: a directory holding
-    # __init__.py is a package, everything under it is reached through the package's name, so a file's
-    # possible roots are its ancestors down to the directory above the outermost package it sits in — and
-    # every ancestor when no package sits above it (a namespace layout). By suffix alone, django's
-    # `import django` resolved to django/template/backends/django.py and the standard library's `import
-    # warnings` to django/utils/warnings.py; checking only the parent directory left the same edges alive one
-    # level down, in a package's namespace subdirectories.
-    packages = {os.path.dirname(p) for p in tracked if os.path.basename(p) == "__init__.py"} - {""}
-    by_module = {}   # module path from some root -> the files that answer it, sorted so the first wins the same way every run
+    # An absolute Python import resolves against a sys.path root, and which directories can be one is what
+    # a package marker and the importing file's place decide. Every Python file is indexed under its path
+    # from each of its ancestors (a/b/c.py as a/b/c.py, b/c.py and c.py), and an import takes only the
+    # entries whose root the importing file could have on its path: the directory it runs from or any
+    # directory above that is not a package (a script, `python -m` from higher up, pytest's basedir), or a
+    # directory that holds an outermost package (src/, a test directory, gdb/python/lib/). A directory
+    # holding __init__.py is never a root: what sits in it is reached through the package's name. By
+    # suffix alone, django's `import django` resolved to django/template/backends/django.py and the
+    # standard library's `import warnings` to django/utils/warnings.py; indexing every suffix of a file no
+    # package sits above, scripts/json.py answered `import json` anywhere in the tree.
+    packages = {os.path.dirname(p) for p in tracked if os.path.basename(p) in ("__init__.py", "__init__.pyi")} - {""}
+    package_roots = sorted({os.path.dirname(d) for d in packages} - packages)
+    by_module, tops = {}, {}   # module path from a root -> [(root, file)], sorted so the first wins the same way every run
     for p in sorted(tracked):
-        if p.endswith(".py"):
-            dirs = p.split("/")[:-1]
-            cuts = len(dirs)   # no package above: any ancestor may be the root
-            for i in range(1, len(dirs) + 1):
-                if "/".join(dirs[:i]) in packages:
-                    cuts = i - 1   # the outermost package's parent is the deepest root
-                    break
+        if p.endswith((".py", ".pyi")):
             parts = p.split("/")
-            for i in range(cuts + 1):
-                by_module.setdefault("/".join(parts[i:]), []).append(p)
-    # the top-level names a Python import can reach in this tree, so the standard library and installed
-    # packages are not counted as imports that failed to resolve
-    local_tops = {m.split("/", 1)[0].split(".", 1)[0] for m in by_module}
+            for i in range(len(parts)):
+                root = "/".join(parts[:i])
+                by_module.setdefault("/".join(parts[i:]), []).append((root, p))
+                tops.setdefault(root, set()).add(parts[i].split(".", 1)[0])
+
+    def roots_of(path):   # {root: rank}: the file's own directory first, as sys.path[0], then up, then the package roots
+        d, up = os.path.dirname(path), []
+        while True:
+            if d not in packages:
+                up.append(d)
+            if not d:
+                break
+            d = os.path.dirname(d)
+        return {r: i for i, r in enumerate(dict.fromkeys(up + package_roots))}
     edges, eager, tried, hit = {}, {}, Counter(), Counter()
     for path, info in files.items():
         lang = info.get("language")
         out, out_eager = set(), set()
-        lazy = set(info.get("deferred") or ())
+        lazy, roots = set(info.get("deferred") or ()), None
         for i, entry in enumerate(info.get("imports") or []):
             kind = entry[0]
             if kind == "raw":
                 continue
             candidates = []
             if lang == "python":
-                top = entry[1].lstrip(".").split(".", 1)[0]
-                if not entry[1].startswith(".") and top not in local_tops:
-                    continue   # the standard library or an installed package
                 relative = entry[1].startswith(".")
+                roots = roots or roots_of(path)
+                if not relative and not any(entry[1].split(".", 1)[0] in tops.get(r, ()) for r in roots):
+                    continue   # the standard library or an installed package: nothing on this file's path holds the name
 
-                def lookup(candidates):   # a relative import names one tree path exactly; an absolute one a module path under some root
-                    if relative:
-                        return [c for c in candidates if c in tracked and c != path]
-                    return [p for c in candidates for p in by_module.get(c, []) if p != path]
+                def lookup(groups):   # the first file for each module: a relative import names tree paths exactly, an absolute one takes the first root
+                    out = []
+                    for group in groups:
+                        if relative:
+                            out += [c for c in group if c in tracked and c != path][:1]
+                        else:
+                            out += [h[-1] for h in sorted((roots[r], i, p) for i, c in enumerate(group) for r, p in by_module.get(c, ()) if r in roots and p != path)[:1]]
+                    return out
                 found = []
                 if kind == "from" and entry[2]:   # `from pkg import mod`: the module, when the name is one, not pkg/__init__.py
                     found = lookup(_python_candidates(path, (kind, entry[1], entry[2]), names_only=True))
@@ -617,10 +628,9 @@ def _resolve(files: dict) -> tuple:
             tried[lang] += 1
             if found:
                 hit[lang] += 1
-                hits = found[:1] if lang == "python" and kind == "abs" else found
-                out.update(hits)
+                out.update(found)
                 if i not in lazy:
-                    out_eager.update(hits)
+                    out_eager.update(found)
         edges[path] = sorted(out)
         eager[path] = sorted(out_eager)
     return edges, eager, {lang: round(hit[lang] / tried[lang], 3) for lang in tried}
