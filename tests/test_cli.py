@@ -778,6 +778,16 @@ class Arguments(unittest.TestCase):
         self.assertIn("docs/install.md", text)
         self.assertNotIn("jar", text)
 
+    def test_a_missing_plot_tool_names_the_plots_extra_not_homebrew(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = console()
+            rc = cli.main([d, "--plots"], console=c, tool_check=lambda **kw: ["git-of-theseus-analyze"])
+        text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("pipx install 'gitmole[plots]'", text)   # the formula does not bring git-of-theseus
+        self.assertNotIn("brew install", text)
+
     def test_doctor_needs_no_target(self):
         from unittest import mock
         c = console()
