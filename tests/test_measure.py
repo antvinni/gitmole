@@ -385,6 +385,48 @@ class Signals(unittest.TestCase):
                          {"hits": 3, "popt": 0.5, "recall20_complexity": None}, "hits summed, the rest medians, None when no cut-off had a value")
 
 
+class HookReplay(unittest.TestCase):
+    def _report(self):
+        from tests.test_watch import report, scored_companions
+        r = scored_companions(report())
+        r["companions"] = [{"entity": "core/parser.py", "companion": "core/ast.py", "confidence": 80, "shared": 30},
+                           {"entity": "core/parser.py", "companion": "core/lexer.py", "confidence": 72, "shared": 25}]
+        return r
+
+    def test_the_four_rates_zimmermann_reports_and_the_closure_alarm(self):
+        """parser usually moves with ast and lexer. A commit touching parser and ast: leave ast out and the
+        warning names it (first, by degree); leave parser out and ast has no companions, so silence. A
+        commit touching parser, ast and lexer is complete: no warning, no false alarm."""
+        from gitmole import watch
+        r = self._report()
+        ranked = watch.risks(r)
+        window = [{"hash": "a", "date": "2026-08-10", "author": "Ann", "subject": "w", "files": [("core/parser.py", 1, 1), ("core/ast.py", 1, 1)]},
+                  {"hash": "b", "date": "2026-08-11", "author": "Ann", "subject": "w", "files": [("core/parser.py", 1, 1), ("core/ast.py", 1, 1), ("core/lexer.py", 1, 1)]},
+                  {"hash": "c", "date": "2026-08-12", "author": "Ann", "subject": "w", "files": [("core/util.py", 1, 1)]}]   # one file: not a query
+        for files in (["core/parser.py"], ["core/ast.py"], ["core/parser.py", "core/lexer.py"], ["core/parser.py", "core/ast.py", "core/lexer.py"]):
+            self.assertEqual(extras.gaps_of(ranked, files), [g["companion"] for g in watch.change_risk(r, files, ranked=ranked)["coupling_gaps"]],
+                             f"the replay reads the same gaps the hook would name for {files}")
+        out = extras.rates(extras.replay(r, ranked, window))
+        self.assertEqual((out["complete_commits"], out["queries"]), (2, 5))
+        self.assertEqual((out["closure_alarms"], out["closure_false_alarm_rate"]), (1, 0.5), "parser+ast leaves lexer out: a warning on a complete commit")
+        self.assertEqual((out["warned"], out["correct"], out["top"]), (3, 3, 3), "ast or lexer left out is named; parser left out, nothing has companions")
+        self.assertEqual((out["precision"], out["recall"], out["feedback"], out["top3"]), (1.0, 0.6, 0.6, 0.6))
+        again = extras.replay(r, ranked, window, extras.replay(r, ranked, window))
+        self.assertEqual(again["queries"], 10, "counts accumulate across anchors")
+
+    def test_a_cell_of_the_sweep_is_the_shipped_table_cut_to_its_thresholds(self):
+        from gitmole.measure import companions
+        every = [{"entity": "a", "companion": "b", "confidence": 90, "shared": 30}, {"entity": "a", "companion": "c", "confidence": 60, "shared": 30},
+                 {"entity": "b", "companion": "a", "confidence": 75, "shared": 8}]
+        self.assertEqual([p["companion"] for p in companions.filtered(every, 70, 20)], ["b"])
+        self.assertEqual([p["companion"] for p in companions.filtered(every, 50, 5)], ["b", "c", "a"])
+        self.assertEqual(companions.cells((70,), (5, 20)), [(70, 5), (70, 20)])
+        table = companions.medians({"x": {"70/20": {"precision": 0.6, "recall": 0.1, "feedback": 0.1, "top3": 0.09, "closure_false_alarm_rate": 0.03, "warned": 40}},
+                                    "y": {"70/20": {"precision": 0.4, "recall": 0.2, "feedback": 0.2, "top3": 0.19, "closure_false_alarm_rate": 0.05, "warned": 60}}},
+                                   [(70, 20)])
+        self.assertIn("| 70% / 20 (shipped) | 0.50 | 0.15 | 0.15 | 0.14 | 0.04 | 100 |", table)
+
+
 class SummarisedRules(unittest.TestCase):
     def test_the_summarised_set_is_what_the_labels_say(self):
         """A rule with five or more labelled findings, none of them actionable, is summarised; every summarised

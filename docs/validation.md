@@ -407,7 +407,38 @@ the warning is right 62% of the time on the development set and 54% on the
 holdout (0.52 pooled over 1,056 warnings), and 3% of complete commits
 raise an alarm; ROSE reported 66% at function granularity. `python -m
 gitmole.measure extras` replays it on the development set with every
-release.
+release, and since 0.35.1 records ROSE's other two rates beside precision
+and feedback: recall (the left-out file was named, over all queries) and
+top-3 likelihood.
+
+`python -m gitmole.measure.companions` sweeps the two thresholds over the
+same anchors and queries. On 25 September 2026, over the five development
+repositories (median per cell, warnings pooled):
+
+| confidence / support | precision | recall | feedback | top-3 | complete commits alarmed | warnings |
+|---|---:|---:|---:|---:|---:|---:|
+| 30% / 5 | 0.45 | 0.39 | 0.81 | 0.32 | 0.74 | 4,338 |
+| 30% / 10 | 0.41 | 0.30 | 0.67 | 0.27 | 0.58 | 3,562 |
+| 30% / 20 | 0.34 | 0.21 | 0.47 | 0.20 | 0.34 | 2,849 |
+| 50% / 5 | 0.42 | 0.25 | 0.47 | 0.24 | 0.33 | 2,973 |
+| 50% / 10 | 0.41 | 0.22 | 0.39 | 0.21 | 0.28 | 2,216 |
+| 50% / 20 | 0.40 | 0.16 | 0.30 | 0.15 | 0.16 | 1,566 |
+| 70% / 5 | 0.48 | 0.12 | 0.25 | 0.12 | 0.15 | 1,472 |
+| 70% / 10 | 0.54 | 0.09 | 0.20 | 0.09 | 0.12 | 979 |
+| 70% / 20 (shipped) | 0.61 | 0.06 | 0.10 | 0.06 | 0.04 | 619 |
+| 90% / 5 | 0.74 | 0.03 | 0.06 | 0.03 | 0.02 | 471 |
+| 90% / 10 | 0.88 | 0.02 | 0.03 | 0.02 | 0.01 | 294 |
+| 90% / 20 | 0.84 | 0.01 | 0.01 | 0.01 | 0.00 | 237 |
+
+Precision rises with confidence and recall falls faster: the loosest cell
+names the left-out file four times in ten but alarms on three complete
+commits in four, and the strictest is right five times in six and almost
+never speaks. Two cells meet the rule set before 0.29 (precision 0.5, at
+most 10% of complete commits alarmed, a warning on at least 5% of queries):
+the shipped 70% over 20, and 90% over 5, which buys 0.13 of precision with
+half the recall. The shipped pair stays. Django is the outlier under every
+cell: one warning in 535 queries at the shipped thresholds, since almost no
+pair of its files co-changes 70% of the time over twenty changesets.
 
 ## Every ref, or the checked-out branch
 
