@@ -45,8 +45,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    ([measurement.md](measurement.md), "Hand labels"). A second line does the
    same for the structure step's rules, which no label has reached yet ("4
    more from the structure step, not labelled yet"): deep nesting, debt in
-   hotspots, hidden coupling, files nothing references, swallowed errors,
-   hardcoded addresses and commented-out code. `--full`, Markdown,
+   hotspots, hidden coupling, import cycles, files nothing references,
+   swallowed errors, hardcoded addresses and commented-out code. `--full`, Markdown,
    JSON (where they carry `"summary": true`, and the unlabelled ones
    `"unjudged": true`), SARIF and `--fail-on` treat them
    like any other finding. Currently: a dormant repository (no
@@ -151,7 +151,7 @@ How to read each part of the terminal report, and what each run writes to disk; 
    The structure step runs by default (Python 3.10 or newer; see
    [install.md](https://github.com/antvinni/gitmole/blob/main/docs/install.md#structure-nesting-debt-markers-the-import-graph)):
    tree-sitter parses every tracked file in eleven languages, once per
-   file content, and seven more findings can appear. No label has reached
+   file content, and eight more findings can appear. No label has reached
    any of them yet, so the default report names them in a line of their own
    ("4 more from the structure step, not labelled yet") and `--full`,
    Markdown, JSON, SARIF and `--fail-on` see each in full, exactly as they

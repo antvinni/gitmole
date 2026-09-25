@@ -6,6 +6,8 @@ import os
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from unittest.mock import patch
 
 from rich.console import Console
 
@@ -25,6 +27,14 @@ class Paths(unittest.TestCase):
 
 
 class Gate(unittest.TestCase):
+    def setUp(self):
+        # These tests hand main() one console, so what goes to stderr lands on the same stream as the JSON.
+        # A GITMOLE_NOW in the caller's environment would put its notice there too; keep it out.
+        env = patch.dict(os.environ)
+        env.start()
+        self.addCleanup(env.stop)
+        os.environ.pop("GITMOLE_NOW", None)
+
     def _repo(self, d):
         def git(*args, **env):
             e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="a@x",
@@ -100,6 +110,19 @@ class Gate(unittest.TestCase):
             self.assertEqual(stdout.getvalue(), "", "no file named: no output, so the agent's hook stays quiet")
             rc = cli.main([out, "--no-run", "--hook"], console=Console(file=stdout, width=200), stdin=io.StringIO("not json"))
             self.assertEqual(rc, 0, "garbage on stdin is not a reason to block an edit")
+
+    def test_stdout_is_only_the_json_when_the_reference_date_is_fixed(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = self._out(d)
+            event = {"tool_name": "Edit", "tool_input": {"file_path": os.path.join(d, "core/hot.py")}}
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with patch.dict(os.environ, {"GITMOLE_NOW": "2026-09-25"}), redirect_stdout(stdout), redirect_stderr(stderr):
+                rc = cli.main([out, "--no-run", "--hook"], stdin=io.StringIO(json.dumps(event)))
+            self.assertEqual(rc, 0)
+            self.assertIn("core/hot.py: 99.4%", json.loads(stdout.getvalue())["hookSpecificOutput"]["additionalContext"],
+                          "the agent parses the hook's stdout as JSON, so the notice cannot go there")
+            self.assertIn("reference date fixed by GITMOLE_NOW: 2026-09-25", stderr.getvalue())
 
     def test_files_can_come_as_arguments_for_pre_commit(self):
         with tempfile.TemporaryDirectory() as d:

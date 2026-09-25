@@ -1010,7 +1010,7 @@ class FullOnlySections(unittest.TestCase):
         self.assertNotIn("code age", rendered(r, []), "an empty table after a normal run is not a header phrase")
 
     def test_header_line_says_when_the_structure_step_did_not_run(self):
-        # seven rules read structure.json and return nothing without it, so its absence has to show somewhere
+        # eight rules read structure.json and return nothing without it, so its absence has to show somewhere
         r = sample_report()
         for status, phrase in (("timeout", "structure checks timed out"), ("failed", "structure checks failed"),
                                ("planned", "structure checks did not complete")):   # planned: the run was interrupted before the step recorded itself
