@@ -423,7 +423,10 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
     rows_all = risk["files"]
     limit = _limit("Change risk", full, cap=RISK_CAP)
     top = risk["max_score"] or 1.0
-    rows = [(r["file"], "▰" * round(10 * r["score"] / top) if r["score"] else "", " · ".join(r["reasons"])) for r in rows_all[:limit]]
+    rows = []
+    for r in rows_all[:limit]:
+        imported = watch.dependents_phrase(r.get("dependents"))
+        rows.append((r["file"], "▰" * round(10 * r["score"] / top) if r["score"] else "", " · ".join(r["reasons"] + ([imported] if imported else []))))
     columns = [("file", PATH), ("risk", {}), ("why", {"overflow": "fold", "ratio": 3})]
     watched = risk["watched"]
     notes = [f"total {risk['total']:.1f}% of the repository's revisions × lines of code; "

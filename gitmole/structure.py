@@ -543,6 +543,14 @@ def resolve(files: dict) -> tuple:
 GRAPH_LANGUAGES = {"python", "javascript", "typescript", "tsx"}   # where an unreferenced file can be named with some confidence
 MIN_RESOLVED = 0.6   # a language whose imports resolve less often than this has too blind a graph to say "unreferenced"
 MIN_FILES = 10
+
+
+def trusted(files: dict, resolved: dict) -> set:
+    """The languages whose import graph a rule may lean on: one it resolves by path, whose imports resolved
+    at least MIN_RESOLVED of the time, over at least MIN_FILES files. One gate for unreferenced files and for
+    the dependents count on --risk, so the two cannot drift apart."""
+    counts = Counter(v.get("language") for v in files.values())
+    return {lang for lang, n in counts.items() if lang in GRAPH_LANGUAGES and (resolved or {}).get(lang, 0) >= MIN_RESOLVED and n >= MIN_FILES}
 MAX_SHARE = 0.05
 PLUGIN_SHARE = 0.25
 # entry points by ecosystem convention: run, served, collected or routed rather than imported
@@ -598,7 +606,7 @@ def unreferenced(files: dict, edges: dict, resolved: dict, entries: set) -> list
     import, a plugin loaded by name or a framework's file routing does not show in an import graph, so
     only languages whose imports mostly resolve are judged."""
     imported = {t for targets in edges.values() for t in targets}
-    counts = Counter(v["language"] for v in files.values())
+    judged = trusted(files, resolved)
     names = Counter(p.rsplit("/", 1)[-1] for p in files)
     package_dirs = {os.path.dirname(p) for p in entries_dirs(entries)}
     by_dir = {}
@@ -611,7 +619,7 @@ def unreferenced(files: dict, edges: dict, resolved: dict, entries: set) -> list
     out, per_language = [], Counter()
     for path, info in sorted(files.items()):
         lang = info["language"]
-        if lang not in GRAPH_LANGUAGES or resolved.get(lang, 0) < MIN_RESOLVED or counts[lang] < MIN_FILES:
+        if lang not in judged:
             continue
         base = path.rsplit("/", 1)[-1]
         stem = base.split(".", 1)[0]

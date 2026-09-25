@@ -72,6 +72,19 @@ class Gate(unittest.TestCase):
             self.assertEqual(rc, 0, "no threshold: a soft warning only")
             self.assertIn("core/hot.py: 99.4%", json.loads(stdout.getvalue().splitlines()[0])["hookSpecificOutput"]["additionalContext"])
 
+    def test_the_summary_says_what_imports_each_file(self):
+        risk = {"files": [{"file": "core/util.py", "score": 0.6, "reasons": ["changed 30 times"], "rank": 2, "watched": True,
+                           "dependents": {"direct": 2, "all": 5, "files": ["core/lexer.py", "core/parser.py"]}},
+                          {"file": "core/new.py", "score": 0, "reasons": ["changed once"], "reason": "changed once", "rank": None,
+                           "dependents": {"direct": 1, "all": 1, "files": ["core/util.py"]}},
+                          {"file": "main.py", "score": 0, "reasons": ["changed once"], "reason": "changed once", "rank": None}],
+                "total": 0.6, "pool": 9}
+        lines = hook.summary(risk)
+        self.assertEqual(lines[0], "core/util.py: 0.6% of the repository's revisions × lines of code (rank 2 of 9, on the watch list); "
+                                   "changed 30 times; imported by 2 files, 5 counting what imports them")
+        self.assertEqual(lines[1], "core/new.py: not scored (changed once); imported by core/util.py")
+        self.assertEqual(lines[2], "main.py: not scored (changed once)")
+
     def test_nothing_to_say_for_a_file_the_list_does_not_score_and_for_no_file(self):
         with tempfile.TemporaryDirectory() as d:
             self._repo(d)

@@ -73,15 +73,18 @@ def read_event(stdin) -> dict:
 
 
 def summary(risk: dict, threshold=None) -> list:
-    """One line per file, worst first, then the companions the change left untouched, then the total
-    against the threshold when there is one."""
+    """One line per file, worst first, ending with what imports it where the import graph can say, then the
+    companions the change left untouched, then the total against the threshold when there is one."""
+    from . import watch
     lines = []
     for r in risk["files"]:
         if r.get("rank"):
             where = f"rank {r['rank']} of {risk.get('pool', '?')}" + (", on the watch list" if r.get("watched") else "")
-            lines.append(f"{r['file']}: {r['score']:.1f}% of the repository's revisions × lines of code ({where}); " + "; ".join(r["reasons"]))
+            line = f"{r['file']}: {r['score']:.1f}% of the repository's revisions × lines of code ({where}); " + "; ".join(r["reasons"])
         else:
-            lines.append(f"{r['file']}: not scored ({r['reason']})")
+            line = f"{r['file']}: not scored ({r['reason']})"
+        imported = watch.dependents_phrase(r.get("dependents"))
+        lines.append(f"{line}; {imported}" if imported else line)
     gaps = risk.get("coupling_gaps") or []
     if gaps:
         from . import render
