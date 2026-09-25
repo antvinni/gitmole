@@ -20,7 +20,7 @@ REFS = {"minor_contributors": "Bird et al., FSE 2011", "tangled_commits": "Herzi
         "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
         "unreferenced_files": "Romano et al., TSE 2020", "signoff_by_co_author": "Linux kernel, Documentation/process/coding-assistants.rst",
         "deep_nesting": "SonarSource cognitive complexity; CodeScene code health",
-        "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013"}
+        "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013", "import_cycles": "Oyetoyan et al., SANER 2015"}
 
 
 def _f(severity: str, title: str, statement: str, advice: str, rule: dict, evidence: dict) -> dict:
@@ -1240,6 +1240,105 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
                evidence={"pairs": [{"a": p["entity"], "b": p["coupled"], "degree": p["degree"], "revs": p["average-revs"]} for p in hidden[:10]]})]
 
 
+CYCLE_LANGUAGES = {"python", "javascript", "typescript", "tsx"}   # resolved by path; C's includes and Ruby's requires go by suffix and can invent a loop
+
+
+def _groups(edges: dict) -> list:
+    """The strongly connected components of two files or more, by Tarjan's algorithm, iterative so a
+    deep graph does not reach the recursion limit; each sorted, and visited in sorted order so the
+    same graph gives the same groups."""
+    index, low, on, stack, out, n = {}, {}, set(), [], [], 0
+    for root in sorted(edges):
+        if root in index:
+            continue
+        work = [(root, iter(edges[root]))]
+        index[root] = low[root] = n
+        n += 1
+        stack.append(root)
+        on.add(root)
+        while work:
+            node, it = work[-1]
+            for nxt in it:
+                if nxt not in index:
+                    index[nxt] = low[nxt] = n
+                    n += 1
+                    stack.append(nxt)
+                    on.add(nxt)
+                    work.append((nxt, iter(edges[nxt])))
+                    break
+                if nxt in on:
+                    low[node] = min(low[node], index[nxt])
+            else:
+                work.pop()
+                if work:
+                    low[work[-1][0]] = min(low[work[-1][0]], low[node])
+                if low[node] == index[node]:
+                    group = []
+                    while True:
+                        p = stack.pop()
+                        on.discard(p)
+                        group.append(p)
+                        if p == node:
+                            break
+                    if len(group) > 1:
+                        out.append(sorted(group))
+    return out
+
+
+def _loop(edges: dict, group: list) -> list:
+    """The shortest loop from the group's first file back to itself, by breadth-first search inside
+    the group, neighbours in sorted order: [a, b, ..., a]."""
+    start, members = group[0], set(group)
+    parent, todo = {}, [start]
+    while todo:
+        nxt_level = []
+        for node in todo:
+            for nxt in edges[node]:
+                if nxt == start:
+                    back = [node]   # node, its parent, ..., start
+                    while back[-1] != start:
+                        back.append(parent[back[-1]])
+                    return [*reversed(back), start]
+                if nxt in members and nxt not in parent:
+                    parent[nxt] = node
+                    nxt_level.append(nxt)
+        todo = nxt_level
+    return [start, start]
+
+
+def import_cycles(report: dict, min_resolved: float = 0.6) -> list:
+    """Groups of source files that import each other, directly or round a loop, as they load: an import
+    inside a function, a type-only import and a dynamic import() are left out, since they are how a
+    loop is broken on purpose. Oyetoyan et al. found classes near a cycle change more often (Java, SANER
+    2015) and found no rule that tells a harmful cycle from a harmless one, so this names the loops and
+    leaves the verdict to the reader. Only where imports resolve by path and mostly resolve; tests,
+    examples, vendored and generated files are left out."""
+    s = _structure(report)
+    if not s:
+        return []
+    files, resolved, derived = s.get("files") or {}, s.get("resolved") or {}, _generated(report)
+    keep = {p for p, info in files.items() if info.get("language") in CYCLE_LANGUAGES and resolved.get(info["language"], 0) >= min_resolved
+            and not _aside_path(p) and p not in derived}
+    edges = {p: sorted(set(t for t in files[p].get("imports") or [] if t in keep) - set(files[p].get("deferred") or [])) for p in sorted(keep)}
+    groups = _groups(edges)
+    if not groups:
+        return []
+    groups.sort(key=lambda g: (-len(g), g[0]))
+    loops = [_loop(edges, g) for g in groups]
+
+    def said(group, loop):
+        arrow = " → ".join(loop)
+        return arrow if len(loop) - 1 == len(group) else f"{arrow}, one loop in a group of {len(group)} files"
+    listed = "; ".join(said(g, l) for g, l in zip(groups[:3], loops[:3]))
+    more = f" ({_plural(len(groups) - 3, 'more group')})" if len(groups) > 3 else ""
+    n = len(groups)
+    return [_f("info", "Import cycles",
+               f"{_plural(n, 'group')} of files import{'s' if n == 1 else ''} each other as {'it loads' if n == 1 else 'they load'}: {listed}{more}.",
+               f"Break {' → '.join(loops[0])} first: move what both ends need into a file neither imports, or import it where it is used.",
+               rule={"id": "import_cycles", "min_resolved": min_resolved, "ref": REFS["import_cycles"]},
+               evidence={"count": n, "groups": [{"files": g[:20], "size": len(g), "loop": l} for g, l in zip(groups[:10], loops[:10])]})]
+
+
 def unreferenced_files(report: dict) -> list:
     """Files nothing in the tree imports that are no entry point by convention or declaration, from the
     structure step, which already leaves out languages whose graph is too blind to judge. Never
@@ -1437,7 +1536,7 @@ def component_coupling(report: dict, min_degree: int = 30) -> list:
 
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, bug_magnets,
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
-         sweeping_commits, import_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, unreferenced_files,
+         sweeping_commits, import_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, import_cycles, unreferenced_files,
          agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author,
          truck_factor, authors_gone, component_coupling, swallowed_errors, hardcoded_addresses, commented_out_code]
 
@@ -1454,7 +1553,7 @@ SUMMARISED = frozenset({"authors_gone", "component_coupling", "duplication", "kn
 # the default report does not grow by rules whose worth is unmeasured; the labels decide where they belong, and
 # a rule moves out of here when its findings are labelled, into SUMMARISED or into the report proper.
 UNJUDGED = frozenset({"commented_out_code", "debt_in_hotspots", "deep_nesting", "hardcoded_addresses",
-                      "hidden_coupling", "swallowed_errors", "unreferenced_files"})
+                      "hidden_coupling", "import_cycles", "swallowed_errors", "unreferenced_files"})
 
 
 def evaluate(report: dict) -> list:

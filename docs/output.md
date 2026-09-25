@@ -166,7 +166,16 @@ How to read each part of the terminal report, and what each run writes to disk; 
    file imports the other, which Ajienka and Capiluppi found is common and
    usually a shared format, a duplicated rule or copied code; only for
    languages whose imports the graph mostly resolves (Python, JavaScript,
-   TypeScript, C, C++, Ruby). Possibly unreferenced files: Python,
+   TypeScript, C, C++, Ruby). Import cycles: groups of Python, JavaScript
+   and TypeScript source files that import each other, directly or round a
+   loop, as they load, each named by its shortest loop (`a.py → b.py →
+   a.py`); an import inside a function, TypeScript's and Flow's `import type`,
+   a dynamic `import()` and an import under `if TYPE_CHECKING:` do not run
+   at load and are left
+   out, since they are how a loop is broken on purpose. Oyetoyan et al.
+   found classes near a cycle change more often and found no rule that
+   tells a harmful cycle from a harmless one, so the finding names the
+   loops and says nothing about which to keep. Possibly unreferenced files: Python,
    JavaScript and TypeScript files nothing imports that are no entry point
    by convention (`__main__.py`, `index.*`, `main.*`, `*.config.*`, a
    dotfile, a file beside `package.json`, `bin/`, `scripts/`,
