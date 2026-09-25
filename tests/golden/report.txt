@@ -15,7 +15,7 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 │   No licence file at the root; no security policy (SECURITY.md)                                  │
 │   ↳ Add a LICENSE; without one nobody may reuse the code.                                        │
 │ ✔ No secrets in history                                                                          │
-│   betterleaks scanned every commit on every branch                                               │
+│   betterleaks scanned every commit HEAD reaches                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ◎ Watch list

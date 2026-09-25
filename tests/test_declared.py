@@ -203,7 +203,7 @@ class OspsCoverage(unittest.TestCase):
                                   {"rule": "private-key", "file": "tests/server.key", "commit": "abc1234", "line": 1, "value": "h2", "confidence": "high"}])
         rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
         self.assertEqual(rows["OSPS-BR-07.01"][0], "met")
-        self.assertTrue(rows["OSPS-BR-07.01"][1].startswith("no secret in source over every branch; "), rows["OSPS-BR-07.01"][1])
+        self.assertTrue(rows["OSPS-BR-07.01"][1].startswith("no secret in source in HEAD's history; "), rows["OSPS-BR-07.01"][1])
         self.assertIn("1 possible secret(s) in source", rows["OSPS-BR-07.01"][1])
         self.assertIn("1 secret(s) only in test", rows["OSPS-BR-07.01"][1], "not 'found none' while the findings list them")
 

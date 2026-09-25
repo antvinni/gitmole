@@ -91,7 +91,7 @@ class After:
     subjects costs two processes rather than two hundred.
 
     `at_cutoff` holds the paths the tree had when the finding was made, because several rules name
-    subjects the cut-off tree does not contain: the secrets rules read every commit on every branch,
+    subjects the cut-off tree does not contain: the secrets rules read every commit HEAD reaches,
     so they name paths deleted years earlier. Counting those as "the file left the tree" turned
     curl's specimen values into a 90% remediation rate for acts nobody performed in the window."""
 
@@ -362,7 +362,7 @@ MECHANICAL = {"unpinned_actions", "lockfile_drift", "lockfile_missing", "committ
 # verdict on the finding: it says the claim cannot be tested here, not that it is not worth taking.
 # A demotion decision may cite it, but must cite it as that and keep it apart from the label evidence.
 NOT_OBSERVABLE = {
-    "secrets_in_source": "betterleaks reads every commit on every branch, so the value stays in history "
+    "secrets_in_source": "betterleaks reads every commit HEAD reaches, so the value stays in history "
                          "whatever the tree does, and the advice is to rotate it, which no tree shows",
     "secrets_aside": "as secrets_in_source: the value stays in history, and the paths named may have left "
                      "the tree years before the cut-off",
