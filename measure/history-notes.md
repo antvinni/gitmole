@@ -266,3 +266,39 @@
   1.5 and a third to a half of the lines. Both are true: the watch list names more of the files that get
   fixed and pays for it in lines. Whether the list should rank by entropy is the holdout's question and
   is not decided by this release.
+- **0.36.0 raises the findings ceiling for one rule, and says who decided.** The import cycles rule
+  (#152) names groups of files that import each other as they load; it is `info`, in the unjudged set,
+  and it fires once on django, ghidra and react in the development set (and on prometheus in the
+  well-kept set), so findings per repository go from 23 and 27 at the median and 90th percentile to 23.5
+  and 28, with report length unchanged at 220.5 lines because the rule's name joins the unjudged line
+  and rewraps it without adding one. Raised from 23 and 27 to 23.5 and 28 for import_cycles, decided by
+  the maintainer on 25 September, because a load-time cycle is the kind of finding the structure step
+  exists to name and the rule cannot be judged until it fires; time-boxed by its labels — it leaves the
+  unjudged set and the report if its actionable share at the next labelling is zero. Everything else
+  that measures the tool is identical to 0.35.1: headroom 0.62, ROC-AUC 0.82, W/L/T 17/4/9, recall at
+  a fifth of the lines 36%, stability, magnets, the scored share, robustness 21 of 21, the gate 3 of
+  3, and every pre-existing ranking key at every cut-off. The record carries nine new ranking keys
+  (#141: Popt under complexity and uniform cost and the uncapped false alarms, for the list, churn and
+  ManualUp) and two new hook rates (#142: recall and top-3), all first recorded here.
+- **The first 0.36.0 round was discarded, and the reason is a release-worthy fix (#153).** A refactor in
+  0.36.0's own branch (#147) had left the structure step crashing on any repository with an
+  unreferenced file in a trusted language; no test called that function directly and gitmole's own
+  repository has no such file, so the suite and the golden report stayed green. The round showed it as
+  `steps_failed: structure` on django, ghidra, prometheus and react, which dropped every structure rule
+  there and read as a findings median of 18.5. The fix landed with two direct tests and the round was
+  rerun; this record is the rerun.
+- **The cost lanes are readable but were measured under load.** Wall time 766 s against 812, peak
+  1,130 MB against 1,125; the machine carried a load average of 3 to 12 through the timed runs from
+  something other than the harness, as in the two previous records. No step was skipped this time:
+  django's blame pass ran (86 s).
+- **The extras agree**: determinism identical on curl and django; the hook replay identical to 0.35.1 on
+  all five repositories, now with recall and top-3 beside precision (curl 0.06, react 0.14, binutils-gdb
+  0.11, django and ghidra under 0.01); the sensitivity table gains one row for the new rule and none of
+  the 48 verdicts moves; 244 of 244 findings agree with their own numbers. The signed-commits second
+  check stays unavailable for want of gpg.
+- **Since 0.35.1, besides the rule:** findings describe the commit rather than the clone in words as
+  well as numbers (#144), the truck factor's lone-owner areas carry their sizes (#145), the header says
+  when the structure step did not run (#146), `--risk` and `--hook` say what imports each touched file
+  (#147), a Python import resolves from a root (#148), structure.json marks deferred imports (#151),
+  the candidate-ranking and companions-sweep tools score on the record's measures (#141, #142), and
+  the example pages are current (#143).
