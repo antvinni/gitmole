@@ -1,0 +1,4669 @@
+{
+ "commit": "57b4cf0090a57afa67a427f0af09075a738c0b1a",
+ "measured": "2026-09-25",
+ "ref": "worktree",
+ "reference_date": "2026-09-17",
+ "repos": {
+  "awkward-binary-only": {
+   "claims": {
+    "advisory": 0,
+    "checked": 2,
+    "clean": 2,
+    "complaints": []
+   },
+   "findings": 2,
+   "load": 8.4,
+   "measure_seconds": 0.7,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 55,
+   "rules": [
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "seconds": 0.7,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 1
+   },
+   "shown": 2,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 27.9,
+    "change analysis": 21.0,
+    "code age": 24.3,
+    "duplicates": 26.1,
+    "functions": 29.0,
+    "git-log": 8.1,
+    "git-sizer": 17.9,
+    "hygiene": 20.5,
+    "osv-scanner": 47.8,
+    "provenance": 24.1,
+    "scc": 19.2,
+    "signing": 16.6,
+    "structure": 27.5,
+    "trend": 24.0
+   },
+   "step_seconds": {
+    "betterleaks": 0.08,
+    "change analysis": 0.05,
+    "code age": 0.1,
+    "duplicates": 0.09,
+    "functions": 0.11,
+    "git-log": 0.01,
+    "git-sizer": 0.11,
+    "hygiene": 0.14,
+    "osv-scanner": 0.09,
+    "provenance": 0.07,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.09,
+    "trend": 0.05
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-detached": {
+   "claims": {
+    "advisory": 0,
+    "checked": 3,
+    "clean": 3,
+    "complaints": []
+   },
+   "findings": 3,
+   "load": 10.54,
+   "measure_seconds": 0.9,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 67,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.1,
+    "change analysis": 21.3,
+    "code age": 24.5,
+    "duplicates": 25.9,
+    "functions": 29.2,
+    "git-log": 8.2,
+    "git-sizer": 17.9,
+    "hygiene": 20.6,
+    "osv-scanner": 47.3,
+    "provenance": 24.8,
+    "scc": 20.0,
+    "signing": 16.8,
+    "structure": 29.4,
+    "trend": 24.3
+   },
+   "step_seconds": {
+    "betterleaks": 0.12,
+    "change analysis": 0.11,
+    "code age": 0.28,
+    "duplicates": 0.25,
+    "functions": 0.25,
+    "git-log": 0.01,
+    "git-sizer": 0.13,
+    "hygiene": 0.16,
+    "osv-scanner": 0.11,
+    "provenance": 0.11,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.39,
+    "trend": 0.12
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-empty": {
+   "load": 10.54,
+   "measure_seconds": 0.2,
+   "note": "no commits yet: there is nothing to analyse",
+   "peak_mb": 47,
+   "rc": 2,
+   "report_lines": 1,
+   "seconds": 0.2,
+   "set": "awkward",
+   "status": "refused"
+  },
+  "awkward-huge-file": {
+   "claims": {
+    "advisory": 1,
+    "checked": 5,
+    "clean": 5,
+    "complaints": []
+   },
+   "findings": 5,
+   "load": 10.34,
+   "measure_seconds": 20.4,
+   "peak_mb": 1059,
+   "rc": 0,
+   "report_lines": 71,
+   "rules": [
+    "bus_factor",
+    "knowledge_islands",
+    "placeholder_identity",
+    "repo_health",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 20.4,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 2,
+    "warning": 3
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 118.5,
+    "change analysis": 21.0,
+    "code age": 1044.7,
+    "duplicates": 38.5,
+    "functions": 53.4,
+    "git-log": 80.2,
+    "git-sizer": 17.9,
+    "hygiene": 33.8,
+    "osv-scanner": 47.7,
+    "provenance": 318.2,
+    "scc": 32.5,
+    "signing": 16.5,
+    "structure": 59.4,
+    "trend": 54.1
+   },
+   "step_seconds": {
+    "betterleaks": 0.44,
+    "change analysis": 0.05,
+    "code age": 9.93,
+    "duplicates": 0.25,
+    "functions": 2.51,
+    "git-log": 0.08,
+    "git-sizer": 0.12,
+    "hygiene": 0.35,
+    "osv-scanner": 0.1,
+    "provenance": 1.67,
+    "scc": 0.03,
+    "signing": 0.05,
+    "structure": 0.3,
+    "trend": 0.15
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-non-utf8-path": {
+   "claims": {
+    "advisory": 0,
+    "checked": 3,
+    "clean": 3,
+    "complaints": []
+   },
+   "findings": 3,
+   "load": 10.54,
+   "measure_seconds": 0.9,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 61,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 0.5,
+   "seconds": 0.9,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.6,
+    "change analysis": 21.1,
+    "code age": 24.4,
+    "duplicates": 26.0,
+    "functions": 29.1,
+    "git-log": 8.1,
+    "git-sizer": 17.9,
+    "hygiene": 20.5,
+    "osv-scanner": 47.8,
+    "provenance": 24.5,
+    "scc": 19.7,
+    "signing": 16.7,
+    "structure": 29.6,
+    "trend": 24.4
+   },
+   "step_seconds": {
+    "betterleaks": 0.11,
+    "change analysis": 0.06,
+    "code age": 0.28,
+    "duplicates": 0.14,
+    "functions": 0.19,
+    "git-log": 0.01,
+    "git-sizer": 0.11,
+    "hygiene": 0.2,
+    "osv-scanner": 0.09,
+    "provenance": 0.11,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.35,
+    "trend": 0.1
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-one-commit": {
+   "claims": {
+    "advisory": 0,
+    "checked": 3,
+    "clean": 3,
+    "complaints": []
+   },
+   "findings": 3,
+   "load": 10.54,
+   "measure_seconds": 0.8,
+   "peak_mb": 48,
+   "rc": 0,
+   "report_lines": 61,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.5,
+    "change analysis": 21.1,
+    "code age": 24.6,
+    "duplicates": 25.9,
+    "functions": 29.1,
+    "git-log": 8.1,
+    "git-sizer": 17.9,
+    "hygiene": 20.4,
+    "osv-scanner": 48.4,
+    "provenance": 24.3,
+    "scc": 19.9,
+    "signing": 16.6,
+    "structure": 29.4,
+    "trend": 24.3
+   },
+   "step_seconds": {
+    "betterleaks": 0.09,
+    "change analysis": 0.05,
+    "code age": 0.25,
+    "duplicates": 0.13,
+    "functions": 0.18,
+    "git-log": 0.01,
+    "git-sizer": 0.1,
+    "hygiene": 0.19,
+    "osv-scanner": 0.08,
+    "provenance": 0.19,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.32,
+    "trend": 0.14
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-shallow": {
+   "claims": {
+    "advisory": 0,
+    "checked": 3,
+    "clean": 3,
+    "complaints": []
+   },
+   "findings": 3,
+   "load": 10.54,
+   "measure_seconds": 0.9,
+   "peak_mb": 47,
+   "rc": 0,
+   "report_lines": 62,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.4,
+    "change analysis": 21.1,
+    "code age": 24.6,
+    "duplicates": 25.8,
+    "functions": 29.2,
+    "git-log": 8.1,
+    "hygiene": 20.6,
+    "osv-scanner": 46.9,
+    "provenance": 24.3,
+    "scc": 20.0,
+    "signing": 16.6,
+    "structure": 29.2,
+    "trend": 24.4
+   },
+   "step_seconds": {
+    "betterleaks": 0.11,
+    "change analysis": 0.05,
+    "code age": 0.25,
+    "duplicates": 0.08,
+    "functions": 0.21,
+    "git-log": 0.01,
+    "hygiene": 0.12,
+    "osv-scanner": 0.09,
+    "provenance": 0.15,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.38,
+    "trend": 0.16
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "awkward-submodule": {
+   "claims": {
+    "advisory": 0,
+    "checked": 3,
+    "clean": 3,
+    "complaints": []
+   },
+   "findings": 3,
+   "load": 10.54,
+   "measure_seconds": 0.9,
+   "peak_mb": 47,
+   "rc": 0,
+   "report_lines": 61,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy"
+   ],
+   "scored_share": 0.5,
+   "seconds": 0.8,
+   "set": "awkward",
+   "severity": {
+    "critical": 0,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 3,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 34.7,
+    "change analysis": 20.8,
+    "code age": 24.6,
+    "duplicates": 26.0,
+    "functions": 29.1,
+    "git-log": 8.3,
+    "git-sizer": 18.0,
+    "hygiene": 20.4,
+    "osv-scanner": 47.4,
+    "provenance": 24.4,
+    "scc": 20.2,
+    "signing": 16.5,
+    "structure": 29.2,
+    "trend": 24.5
+   },
+   "step_seconds": {
+    "betterleaks": 0.11,
+    "change analysis": 0.09,
+    "code age": 0.26,
+    "duplicates": 0.17,
+    "functions": 0.22,
+    "git-log": 0.01,
+    "git-sizer": 0.11,
+    "hygiene": 0.26,
+    "osv-scanner": 0.09,
+    "provenance": 0.14,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.38,
+    "trend": 0.11
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "binutils-gdb": {
+   "claims": {
+    "advisory": 27,
+    "checked": 23,
+    "clean": 23,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "2258aa1ac702daf8",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "3a77afd3d6243f65",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "de7ea34ab3e6f225",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "b3c9e1521170520b",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "035c18e628b4e5ae",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "ff64e4fbed2959aa",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "b4923eea94dd39dc",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "9a82cae6e5dbaa4e",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "e0c03a4168aeae4c",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "867d883b1faa0f77",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "9a45f1d38ae496e2",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "f4467ff4130fea2e",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "b7563232642b39f5",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "3904268f88f6d75d",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "0ceaa55c4a9c230a",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "cbeca20a22bd3cce",
+     "rule": "knowledge_islands",
+     "summary": false
+    },
+    {
+     "id": "ae7e951508e4a429",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "0a03bd75cd31e181",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "1c5b3aee1b185936",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "6b2b2d5d8bf448b1",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "be8a8be7abdcca89",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "b1b550fe86e3b8b8",
+     "rule": "component_coupling",
+     "summary": true
+    },
+    {
+     "id": "e79a39ea42c2572c",
+     "rule": "commented_out_code",
+     "summary": true
+    }
+   ],
+   "findings": 23,
+   "load": 8.47,
+   "measure_seconds": 514.7,
+   "peak_mb": 999,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8061369869519275,
+      "best": 15,
+      "churn_auc": 0.7101147296393476,
+      "churn_hits": 7,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.42512283393605677,
+      "churn_popt_complexity": 0.3123718678290561,
+      "churn_popt_uniform": 0.7101147296393564,
+      "churn_recall20": 0.3333333333333333,
+      "churn_recall20_complexity": 0.11827956989247312,
+      "cutoff": "2023-09-18",
+      "expected": 0.961,
+      "hits": 7,
+      "ifa": 2,
+      "ifa_all": 2,
+      "manualup_auc": 0.1793427285787218,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 542,
+      "manualup_popt": 0.7484735432304351,
+      "manualup_popt_complexity": 0.7703977138210094,
+      "manualup_popt_uniform": 0.1793427285787249,
+      "manualup_recall20": 0.8172043010752689,
+      "manualup_recall20_complexity": 0.7096774193548387,
+      "pool": 2903,
+      "popt": 0.3016371508133948,
+      "popt_complexity": 0.25739515227087684,
+      "popt_uniform": 0.8061369869519202,
+      "positives": 186,
+      "recall20": 0.20430107526881722,
+      "recall20_complexity": 0.10215053763440861,
+      "top": [
+       "gas/config/tc-arm.c",
+       "binutils/readelf.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "opcodes/arm-dis.c",
+       "gas/config/tc-aarch64.c"
+      ]
+     },
+     {
+      "auc": 0.8394385174212459,
+      "best": 15,
+      "churn_auc": 0.7195187292182108,
+      "churn_hits": 9,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.4900225345276139,
+      "churn_popt_complexity": 0.40381037191668245,
+      "churn_popt_uniform": 0.7195187292182452,
+      "churn_recall20": 0.48314606741573035,
+      "churn_recall20_complexity": 0.24719101123595505,
+      "cutoff": "2024-03-18",
+      "expected": 0.454,
+      "hits": 9,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.13529240272940732,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 255,
+      "manualup_popt": 0.6331499196652495,
+      "manualup_popt_complexity": 0.6470953237359098,
+      "manualup_popt_uniform": 0.13529240272941367,
+      "manualup_recall20": 0.6404494382022472,
+      "manualup_recall20_complexity": 0.5168539325842697,
+      "pool": 2941,
+      "popt": 0.41366286293258814,
+      "popt_complexity": 0.3694209946987246,
+      "popt_uniform": 0.839438517421277,
+      "positives": 89,
+      "recall20": 0.33707865168539325,
+      "recall20_complexity": 0.23595505617977527,
+      "top": [
+       "gas/config/tc-arm.c",
+       "binutils/readelf.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "opcodes/arm-dis.c",
+       "gas/config/tc-aarch64.c"
+      ]
+     },
+     {
+      "auc": 0.8073760484766782,
+      "best": 15,
+      "churn_auc": 0.725475361013003,
+      "churn_hits": 10,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.49247535539840437,
+      "churn_popt_complexity": 0.40229410590965675,
+      "churn_popt_uniform": 0.7254753610129552,
+      "churn_recall20": 0.4752475247524752,
+      "churn_recall20_complexity": 0.24752475247524752,
+      "cutoff": "2024-09-18",
+      "expected": 0.508,
+      "hits": 11,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.17205850491266564,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 665,
+      "manualup_popt": 0.6662726258508453,
+      "manualup_popt_complexity": 0.6804294900346382,
+      "manualup_popt_uniform": 0.1720585049126535,
+      "manualup_recall20": 0.693069306930693,
+      "manualup_recall20_complexity": 0.5643564356435643,
+      "pool": 2980,
+      "popt": 0.39475585100325583,
+      "popt_complexity": 0.3539128788323379,
+      "popt_uniform": 0.8073760484766282,
+      "positives": 101,
+      "recall20": 0.3465346534653465,
+      "recall20_complexity": 0.19801980198019803,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     },
+     {
+      "auc": 0.8253309643625943,
+      "best": 15,
+      "churn_auc": 0.751382195128006,
+      "churn_hits": 12,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.515536778500386,
+      "churn_popt_complexity": 0.42932541034065264,
+      "churn_popt_uniform": 0.7513821951279801,
+      "churn_recall20": 0.4948453608247423,
+      "churn_recall20_complexity": 0.2268041237113402,
+      "cutoff": "2025-03-18",
+      "expected": 0.484,
+      "hits": 11,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.16498391724206413,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 272,
+      "manualup_popt": 0.6371785927613822,
+      "manualup_popt_complexity": 0.6482895952644265,
+      "manualup_popt_uniform": 0.1649839172420562,
+      "manualup_recall20": 0.6597938144329897,
+      "manualup_recall20_complexity": 0.4845360824742268,
+      "pool": 3004,
+      "popt": 0.4264282676822825,
+      "popt_complexity": 0.3872214317850441,
+      "popt_uniform": 0.8253309643625522,
+      "positives": 97,
+      "recall20": 0.3711340206185567,
+      "recall20_complexity": 0.20618556701030927,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     },
+     {
+      "auc": 0.914796652079001,
+      "best": 15,
+      "churn_auc": 0.8964999948270689,
+      "churn_hits": 7,
+      "churn_ifa": 1,
+      "churn_ifa_all": 1,
+      "churn_popt": 0.647599066929154,
+      "churn_popt_complexity": 0.546788857030502,
+      "churn_popt_uniform": 0.8964999948270639,
+      "churn_recall20": 0.6818181818181818,
+      "churn_recall20_complexity": 0.3484848484848485,
+      "cutoff": "2025-09-18",
+      "expected": 0.331,
+      "hits": 9,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.1138769049318725,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 1292,
+      "manualup_popt": 0.5899213607710402,
+      "manualup_popt_complexity": 0.5963063279032462,
+      "manualup_popt_uniform": 0.1138769049318672,
+      "manualup_recall20": 0.5909090909090909,
+      "manualup_recall20_complexity": 0.45454545454545453,
+      "pool": 2995,
+      "popt": 0.529374949808628,
+      "popt_complexity": 0.48256892168571097,
+      "popt_uniform": 0.9147966520789924,
+      "positives": 66,
+      "recall20": 0.5151515151515151,
+      "recall20_complexity": 0.22727272727272727,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elflink.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     },
+     {
+      "auc": 0.8467151749663526,
+      "best": 15,
+      "churn_auc": 0.863875336473755,
+      "churn_hits": 3,
+      "churn_ifa": 6,
+      "churn_ifa_all": 6,
+      "churn_popt": 0.5840028981934641,
+      "churn_popt_complexity": 0.4820689021464716,
+      "churn_popt_uniform": 0.8638753364737464,
+      "churn_recall20": 0.5833333333333334,
+      "churn_recall20_complexity": 0.1875,
+      "cutoff": "2026-03-18",
+      "expected": 0.238,
+      "hits": 4,
+      "ifa": 7,
+      "ifa_all": 7,
+      "manualup_auc": 0.18742289143113502,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 270,
+      "manualup_popt": 0.6416691822844051,
+      "manualup_popt_complexity": 0.6504696135663119,
+      "manualup_popt_uniform": 0.18742289143112956,
+      "manualup_recall20": 0.5833333333333334,
+      "manualup_recall20_complexity": 0.4583333333333333,
+      "pool": 3020,
+      "popt": 0.4594125623948494,
+      "popt_complexity": 0.4138996981892581,
+      "popt_uniform": 0.8467151749663607,
+      "positives": 48,
+      "recall20": 0.4375,
+      "recall20_complexity": 0.16666666666666666,
+      "top": [
+       "binutils/readelf.c",
+       "gas/config/tc-arm.c",
+       "gas/config/tc-i386.c",
+       "gas/config/tc-mips.c",
+       "bfd/elf.c",
+       "bfd/elflink.c",
+       "bfd/elf64-ppc.c",
+       "bfd/elf32-arm.c",
+       "opcodes/i386-dis.c",
+       "bfd/elfxx-mips.c",
+       "ld/ldlang.c",
+       "binutils/dwarf.c",
+       "bfd/elf32-ppc.c",
+       "gas/config/tc-aarch64.c",
+       "opcodes/arm-dis.c"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 577,
+      "matched_fixed": 109,
+      "named": 10,
+      "named_fixed": 5
+     },
+     {
+      "matched": 289,
+      "matched_fixed": 40,
+      "named": 10,
+      "named_fixed": 5
+     },
+     {
+      "matched": 590,
+      "matched_fixed": 61,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 295,
+      "matched_fixed": 43,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 297,
+      "matched_fixed": 42,
+      "named": 6,
+      "named_fixed": 3
+     },
+     {
+      "matched": 296,
+      "matched_fixed": 29,
+      "named": 10,
+      "named_fixed": 4
+     }
+    ],
+    "stability": {
+     "from": "2026-03-18",
+     "spearman": 0.9999979906769633,
+     "to": "2026-03-24",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 216,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "commented_out_code",
+    "component_coupling",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "hidden_coupling",
+    "knowledge_islands",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor"
+   ],
+   "scored_share": 0.0797,
+   "seconds": 375.8,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 16,
+    "warning": 7
+   },
+   "shown": 7,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 420.2,
+    "betterleaks": 998.8,
+    "change analysis": 415.7,
+    "functions": 414.2,
+    "git-log": 966.6,
+    "git-sizer": 747.3,
+    "hygiene": 394.0,
+    "osv-scanner": 55.7,
+    "provenance": 773.3,
+    "scc": 234.1,
+    "signing": 282.9,
+    "structure": 352.4,
+    "trend": 114.0
+   },
+   "step_seconds": {
+    "backtest": 17.14,
+    "betterleaks": 144.89,
+    "change analysis": 7.6,
+    "functions": 12.15,
+    "git-log": 289.22,
+    "git-sizer": 20.63,
+    "hygiene": 4.55,
+    "osv-scanner": 1.2,
+    "provenance": 31.59,
+    "scc": 0.58,
+    "signing": 3.6,
+    "structure": 3.47,
+    "trend": 5.16
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "containerd": {
+   "claims": {
+    "advisory": 26,
+    "checked": 22,
+    "clean": 22,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "a3992933be266dfb",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "95a1810b04451862",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "506d6b7aa86a0a5d",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "9ba64c884bdb16a1",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "16a6291b532ad5e9",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "cf98988a390283e5",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "1142127c7c38ce0e",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "d1387bbf5aa08437",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "2f584dcd6fc3b2a3",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "4f399b6d2b2323ce",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "0d91d9bc10c70ee6",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "64e988396839c447",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "bf28fc73ba8edd75",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "635fc7232b4f120d",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "c3f41fb18a5b58d2",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "c160ca416be1a9da",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "46f0bf96fe912cf6",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "db6de12fee75dda4",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "5bc31a5d0e9fa798",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "9b7d4b191bf2d79c",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "d9f50ebe11244f85",
+     "rule": "component_coupling",
+     "summary": true
+    },
+    {
+     "id": "4f1e637f5d222b9b",
+     "rule": "commented_out_code",
+     "summary": true
+    }
+   ],
+   "findings": 22,
+   "load": 16.44,
+   "measure_seconds": 72.1,
+   "peak_mb": 2101,
+   "rc": 0,
+   "report_lines": 239,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "commented_out_code",
+    "component_coupling",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "duplication",
+    "import_commits",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.1407,
+   "seconds": 71.5,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 17,
+    "warning": 5
+   },
+   "shown": 8,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 113.7,
+    "betterleaks": 367.5,
+    "change analysis": 114.5,
+    "code age": 214.0,
+    "duplicates": 2101.1,
+    "functions": 87.3,
+    "git-log": 369.8,
+    "git-sizer": 131.2,
+    "hygiene": 87.5,
+    "osv-scanner": 1380.9,
+    "provenance": 382.5,
+    "scc": 74.4,
+    "signing": 61.4,
+    "structure": 75.4,
+    "trend": 51.9
+   },
+   "step_seconds": {
+    "backtest": 6.72,
+    "betterleaks": 13.18,
+    "change analysis": 3.49,
+    "code age": 46.48,
+    "duplicates": 7.87,
+    "functions": 6.74,
+    "git-log": 13.59,
+    "git-sizer": 2.72,
+    "hygiene": 3.87,
+    "osv-scanner": 7.28,
+    "provenance": 7.58,
+    "scc": 0.11,
+    "signing": 0.54,
+    "structure": 1.11,
+    "trend": 4.01
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "coredns": {
+   "claims": {
+    "advisory": 25,
+    "checked": 23,
+    "clean": 23,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "031e88abccdde13c",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "778a8f2d15f65d38",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "590ad82fd9fa497d",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "9951652363251961",
+     "rule": "complexity_growth",
+     "summary": false
+    },
+    {
+     "id": "73b58ff977e47e2b",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "c0167ce89ad31806",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "ba45100e0cd1f416",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "dae445f509ce0261",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "ebd6a6f88c40965f",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "cca8896a41357bf4",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "6f83e35370bcd03a",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "3d8d92c9a80c7d6c",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "17e832a9cd6d6f53",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "9bebedbfd03e30f5",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "ea728d096c0826ba",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "032d71ccc97c706a",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "137e10f0bab6f0e8",
+     "rule": "knowledge_islands",
+     "summary": false
+    },
+    {
+     "id": "80a703d768a09d50",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "29e4a5ec25136d5a",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "727c12a5d49ddd73",
+     "rule": "signoff_by_co_author",
+     "summary": false
+    },
+    {
+     "id": "be7b2d36d4d7f075",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "339cb2d6a2babc0c",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "d0e4fd0281cbd246",
+     "rule": "component_coupling",
+     "summary": true
+    }
+   ],
+   "findings": 23,
+   "load": 9.67,
+   "measure_seconds": 19.2,
+   "peak_mb": 2184,
+   "rc": 0,
+   "report_lines": 236,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "complexity_growth",
+    "component_coupling",
+    "deep_nesting",
+    "duplication",
+    "import_commits",
+    "knowledge_islands",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "signoff_by_co_author",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.3393,
+   "seconds": 19.0,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 16,
+    "warning": 7
+   },
+   "shown": 10,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 94.9,
+    "betterleaks": 382.2,
+    "change analysis": 91.4,
+    "code age": 75.4,
+    "duplicates": 172.7,
+    "functions": 30.0,
+    "git-log": 383.5,
+    "git-sizer": 66.6,
+    "hygiene": 21.5,
+    "osv-scanner": 2184.5,
+    "provenance": 248.5,
+    "scc": 28.8,
+    "signing": 31.2,
+    "structure": 44.9,
+    "trend": 39.4
+   },
+   "step_seconds": {
+    "backtest": 2.67,
+    "betterleaks": 14.46,
+    "change analysis": 1.7,
+    "code age": 5.75,
+    "duplicates": 0.69,
+    "functions": 0.95,
+    "git-log": 8.25,
+    "git-sizer": 1.07,
+    "hygiene": 0.44,
+    "osv-scanner": 4.33,
+    "provenance": 3.82,
+    "scc": 0.02,
+    "signing": 0.16,
+    "structure": 0.69,
+    "trend": 2.21
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "curl": {
+   "claims": {
+    "advisory": 22,
+    "checked": 14,
+    "clean": 14,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "946f232b9629b46c",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "efbc481fe1ca8055",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "d2e185fb0a13a372",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "796d6ca536712e2a",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "036b509a79ee7161",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "c9bd94f51d0bf061",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "345b0889110e9d15",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "bc50a328633746fc",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "c391eccfe83e14ef",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "f262d952c847f65b",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "75a491342d07e6c6",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "ebd073011326dfcc",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "de962c76dad0f3b6",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "b91906daba8392ad",
+     "rule": "authors_gone",
+     "summary": true
+    }
+   ],
+   "findings": 14,
+   "load": 3.37,
+   "measure_seconds": 98.5,
+   "peak_mb": 821,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8441176470588235,
+      "best": 15,
+      "churn_auc": 0.7776890756302521,
+      "churn_hits": 15,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.32568134015121497,
+      "churn_popt_complexity": 0.2986221212531732,
+      "churn_popt_uniform": 0.777689075630246,
+      "churn_recall20": 0.16176470588235295,
+      "churn_recall20_complexity": 0.13970588235294118,
+      "cutoff": "2023-09-17",
+      "expected": 4.198,
+      "hits": 15,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.1432563025210084,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 39,
+      "manualup_popt": 0.7516978474676099,
+      "manualup_popt_complexity": 0.7840584117832382,
+      "manualup_popt_uniform": 0.1432563025210073,
+      "manualup_recall20": 0.5220588235294118,
+      "manualup_recall20_complexity": 0.5441176470588235,
+      "pool": 486,
+      "popt": 0.27300531877263556,
+      "popt_complexity": 0.24071943440328136,
+      "popt_uniform": 0.8441176470588185,
+      "positives": 136,
+      "recall20": 0.14705882352941177,
+      "recall20_complexity": 0.125,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "include/curl/curl.h",
+       "lib/transfer.c",
+       "lib/http2.c",
+       "src/tool_operate.c",
+       "src/tool_getparam.c",
+       "lib/connect.c",
+       "lib/imap.c",
+       "CMakeLists.txt",
+       "lib/vtls/schannel.c"
+      ]
+     },
+     {
+      "auc": 0.7545725054552668,
+      "best": 15,
+      "churn_auc": 0.6860741916286451,
+      "churn_hits": 14,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.28046777745747364,
+      "churn_popt_complexity": 0.2667306963559466,
+      "churn_popt_uniform": 0.6860741916286417,
+      "churn_recall20": 0.13380281690140844,
+      "churn_recall20_complexity": 0.11971830985915492,
+      "cutoff": "2024-03-17",
+      "expected": 4.286,
+      "hits": 14,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.2211465978972426,
+      "manualup_hits": 1,
+      "manualup_ifa": 7,
+      "manualup_ifa_all": 7,
+      "manualup_popt": 0.788210700474268,
+      "manualup_popt_complexity": 0.8078558065677592,
+      "manualup_popt_uniform": 0.2211465978972409,
+      "manualup_recall20": 0.6126760563380281,
+      "manualup_recall20_complexity": 0.6126760563380281,
+      "pool": 497,
+      "popt": 0.23190116217553203,
+      "popt_complexity": 0.21329730114544743,
+      "popt_uniform": 0.754572505455259,
+      "positives": 142,
+      "recall20": 0.1267605633802817,
+      "recall20_complexity": 0.11267605633802817,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "include/curl/curl.h",
+       "src/tool_operate.c",
+       "lib/http2.c",
+       "src/tool_getparam.c",
+       "lib/transfer.c",
+       "lib/connect.c",
+       "CMakeLists.txt",
+       "lib/vtls/schannel.c",
+       "lib/imap.c"
+      ]
+     },
+     {
+      "auc": 0.8586027298850575,
+      "best": 15,
+      "churn_auc": 0.7938577586206896,
+      "churn_hits": 13,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.3021999516047076,
+      "churn_popt_complexity": 0.2823778919361146,
+      "churn_popt_uniform": 0.7938577586206902,
+      "churn_recall20": 0.125,
+      "churn_recall20_complexity": 0.1125,
+      "cutoff": "2024-09-17",
+      "expected": 4.724,
+      "hits": 14,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.12530531609195403,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 33,
+      "manualup_popt": 0.7800457804783599,
+      "manualup_popt_complexity": 0.807805862857678,
+      "manualup_popt_uniform": 0.1253053160919544,
+      "manualup_recall20": 0.56875,
+      "manualup_recall20_complexity": 0.575,
+      "pool": 508,
+      "popt": 0.24753148928689117,
+      "popt_complexity": 0.22187509980665143,
+      "popt_uniform": 0.8586027298850598,
+      "positives": 160,
+      "recall20": 0.11875,
+      "recall20_complexity": 0.10625,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "src/tool_operate.c",
+       "include/curl/curl.h",
+       "lib/http2.c",
+       "CMakeLists.txt",
+       "src/tool_getparam.c",
+       "lib/transfer.c",
+       "lib/connect.c",
+       "lib/vtls/schannel.c",
+       "lib/setopt.c"
+      ]
+     },
+     {
+      "auc": 0.7662711466165414,
+      "best": 15,
+      "churn_auc": 0.7075697055137845,
+      "churn_hits": 13,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.29612351279391336,
+      "churn_popt_complexity": 0.2786389876332318,
+      "churn_popt_uniform": 0.7075697055137777,
+      "churn_recall20": 0.15037593984962405,
+      "churn_recall20_complexity": 0.12781954887218044,
+      "cutoff": "2025-03-17",
+      "expected": 3.859,
+      "hits": 13,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.21046757518796994,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 43,
+      "manualup_popt": 0.7621231815285678,
+      "manualup_popt_complexity": 0.7864908703652848,
+      "manualup_popt_uniform": 0.21046757518796821,
+      "manualup_recall20": 0.5789473684210527,
+      "manualup_recall20_complexity": 0.6090225563909775,
+      "pool": 517,
+      "popt": 0.2530238898783319,
+      "popt_complexity": 0.23125245830124097,
+      "popt_uniform": 0.7662711466165368,
+      "positives": 133,
+      "recall20": 0.14285714285714285,
+      "recall20_complexity": 0.12781954887218044,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "lib/urldata.h",
+       "CMakeLists.txt",
+       "src/tool_operate.c",
+       "include/curl/curl.h",
+       "lib/http2.c",
+       "src/tool_getparam.c",
+       "lib/connect.c",
+       "lib/transfer.c",
+       "lib/vtls/schannel.c",
+       "lib/imap.c"
+      ]
+     },
+     {
+      "auc": 0.8192583934421187,
+      "best": 15,
+      "churn_auc": 0.7502499192568555,
+      "churn_hits": 15,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.20484509818666263,
+      "churn_popt_complexity": 0.20073705652966878,
+      "churn_popt_uniform": 0.7502499192568555,
+      "churn_recall20": 0.08949416342412451,
+      "churn_recall20_complexity": 0.08171206225680934,
+      "cutoff": "2025-09-17",
+      "expected": 7.559,
+      "hits": 15,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.17034496547269343,
+      "manualup_hits": 2,
+      "manualup_ifa": 0,
+      "manualup_ifa_all": 0,
+      "manualup_popt": 0.8944573824047124,
+      "manualup_popt_complexity": 0.9045171836701134,
+      "manualup_popt_uniform": 0.1703449654726934,
+      "manualup_recall20": 0.7042801556420234,
+      "manualup_recall20_complexity": 0.7315175097276264,
+      "pool": 510,
+      "popt": 0.13920232767948781,
+      "popt_complexity": 0.13156639882967902,
+      "popt_uniform": 0.8192583934421187,
+      "positives": 257,
+      "recall20": 0.07782101167315175,
+      "recall20_complexity": 0.07003891050583658,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "CMakeLists.txt",
+       "lib/urldata.h",
+       "include/curl/curl.h",
+       "lib/http2.c",
+       "src/tool_getparam.c",
+       "src/tool_operate.c",
+       "lib/vtls/schannel.c",
+       "lib/transfer.c",
+       "lib/imap.c",
+       "lib/setopt.c"
+      ]
+     },
+     {
+      "auc": 0.8144599303135889,
+      "best": 15,
+      "churn_auc": 0.7812318524970964,
+      "churn_hits": 15,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.2811376487508296,
+      "churn_popt_complexity": 0.2630853264811661,
+      "churn_popt_uniform": 0.7812318524970936,
+      "churn_recall20": 0.14634146341463414,
+      "churn_recall20_complexity": 0.12804878048780488,
+      "cutoff": "2026-03-17",
+      "expected": 4.92,
+      "hits": 15,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.19067581300813008,
+      "manualup_hits": 2,
+      "manualup_ifa": 5,
+      "manualup_ifa_all": 5,
+      "manualup_popt": 0.7934290116669949,
+      "manualup_popt_complexity": 0.8220752449933114,
+      "manualup_popt_uniform": 0.1906758130081294,
+      "manualup_recall20": 0.5914634146341463,
+      "manualup_recall20_complexity": 0.6219512195121951,
+      "pool": 500,
+      "popt": 0.23209176919413177,
+      "popt_complexity": 0.20797565726434097,
+      "popt_uniform": 0.8144599303135855,
+      "positives": 164,
+      "recall20": 0.11585365853658537,
+      "recall20_complexity": 0.10365853658536585,
+      "top": [
+       "lib/url.c",
+       "lib/http.c",
+       "lib/ftp.c",
+       "lib/vtls/openssl.c",
+       "lib/multi.c",
+       "CMakeLists.txt",
+       "lib/urldata.h",
+       "lib/http2.c",
+       "include/curl/curl.h",
+       "src/tool_getparam.c",
+       "src/tool_operate.c",
+       "lib/vtls/schannel.c",
+       "lib/setopt.c",
+       "lib/imap.c",
+       "lib/vssh/libssh2.c"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 88,
+      "matched_fixed": 63,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 89,
+      "matched_fixed": 38,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 92,
+      "matched_fixed": 73,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 146,
+      "matched_fixed": 68,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 92,
+      "matched_fixed": 80,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 40,
+      "matched_fixed": 37,
+      "named": 10,
+      "named_fixed": 10
+     }
+    ],
+    "stability": {
+     "from": "2026-03-17",
+     "spearman": 0.9999031298154234,
+     "to": "2026-03-20",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 180,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "deep_nesting",
+    "duplication",
+    "hidden_coupling",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor"
+   ],
+   "scored_share": 0.1288,
+   "seconds": 76.9,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 8,
+    "warning": 6
+   },
+   "shown": 5,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 114.3,
+    "betterleaks": 356.8,
+    "change analysis": 112.2,
+    "code age": 258.5,
+    "duplicates": 820.7,
+    "functions": 58.4,
+    "git-log": 349.1,
+    "git-sizer": 320.1,
+    "hygiene": 57.5,
+    "osv-scanner": 52.6,
+    "provenance": 319.2,
+    "scc": 45.0,
+    "signing": 98.7,
+    "structure": 70.0,
+    "trend": 39.3
+   },
+   "step_seconds": {
+    "backtest": 4.51,
+    "betterleaks": 11.77,
+    "change analysis": 2.21,
+    "code age": 39.08,
+    "duplicates": 2.0,
+    "functions": 1.46,
+    "git-log": 18.76,
+    "git-sizer": 3.94,
+    "hygiene": 0.42,
+    "osv-scanner": 0.35,
+    "provenance": 11.51,
+    "scc": 0.06,
+    "signing": 1.28,
+    "structure": 0.75,
+    "trend": 3.92
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "django": {
+   "claims": {
+    "advisory": 27,
+    "checked": 24,
+    "clean": 24,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "3b00d2bdc3cf48fa",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "377086855763b1af",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "d1e6404415d02a5d",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "cba1d42e83979f7a",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "6e81ab598b8a703c",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "0783bdff56c23693",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "d5f774c08d7c9c20",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "2b211b2113088491",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "041ebe62188caa20",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "1ec88e8851fd67ac",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "d82bbdca28df54d1",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "0fde842bf1427b6e",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "9de469af839419e2",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "59f6bf088c67d4c5",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "995d9fd878f558fa",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "85518b7bda9aac76",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "9d2003b09352ad83",
+     "rule": "lockfile_missing",
+     "summary": false
+    },
+    {
+     "id": "17827731ac5e68ee",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "1b15559b0637d031",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "051c5a808a63263b",
+     "rule": "import_cycles",
+     "summary": true
+    },
+    {
+     "id": "a0b7e24b1c5141c2",
+     "rule": "unreferenced_files",
+     "summary": true
+    },
+    {
+     "id": "3f5acf45af3c5ad3",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "f4e51f301f62ca5a",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "79d76d4b9b5d28be",
+     "rule": "swallowed_errors",
+     "summary": true
+    }
+   ],
+   "findings": 24,
+   "load": 6.08,
+   "measure_seconds": 198.6,
+   "peak_mb": 1044,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.8252255585013462,
+      "best": 15,
+      "churn_auc": 0.7882319090778305,
+      "churn_hits": 12,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.3980656650231277,
+      "churn_popt_complexity": 0.33052771336141973,
+      "churn_popt_uniform": 0.7882319090778201,
+      "churn_recall20": 0.6394557823129252,
+      "churn_recall20_complexity": 0.19047619047619047,
+      "cutoff": "2023-09-08",
+      "expected": 2.726,
+      "hits": 14,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.16791006432784594,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 83,
+      "manualup_popt": 0.6291033204999039,
+      "manualup_popt_complexity": 0.675981400903596,
+      "manualup_popt_uniform": 0.16791006432784317,
+      "manualup_recall20": 0.8367346938775511,
+      "manualup_recall20_complexity": 0.5510204081632653,
+      "pool": 809,
+      "popt": 0.37921468864965946,
+      "popt_complexity": 0.32048662564538966,
+      "popt_uniform": 0.8252255585013379,
+      "positives": 147,
+      "recall20": 0.6394557823129252,
+      "recall20_complexity": 0.19727891156462585,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/forms/models.py",
+       "django/db/models/expressions.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/models/options.py"
+      ]
+     },
+     {
+      "auc": 0.8124042409756695,
+      "best": 15,
+      "churn_auc": 0.787317930175073,
+      "churn_hits": 11,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.3930705454788357,
+      "churn_popt_complexity": 0.326988181760678,
+      "churn_popt_uniform": 0.7873179301750804,
+      "churn_recall20": 0.6054421768707483,
+      "churn_recall20_complexity": 0.19047619047619047,
+      "cutoff": "2024-03-08",
+      "expected": 2.712,
+      "hits": 14,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.19049661906804763,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 41,
+      "manualup_popt": 0.6689146968603484,
+      "manualup_popt_complexity": 0.7184838111611864,
+      "manualup_popt_uniform": 0.19049661906804938,
+      "manualup_recall20": 0.8503401360544217,
+      "manualup_recall20_complexity": 0.6190476190476191,
+      "pool": 813,
+      "popt": 0.3559196393367513,
+      "popt_complexity": 0.29792484431126676,
+      "popt_uniform": 0.8124042409756738,
+      "positives": 147,
+      "recall20": 0.564625850340136,
+      "recall20_complexity": 0.19047619047619047,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/forms/models.py",
+       "django/db/models/expressions.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/models/options.py"
+      ]
+     },
+     {
+      "auc": 0.853637717482111,
+      "best": 15,
+      "churn_auc": 0.8240619665104791,
+      "churn_hits": 12,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.40910498479777346,
+      "churn_popt_complexity": 0.33958337497339475,
+      "churn_popt_uniform": 0.8240619665104822,
+      "churn_recall20": 0.6432748538011696,
+      "churn_recall20_complexity": 0.2046783625730994,
+      "cutoff": "2024-09-08",
+      "expected": 3.147,
+      "hits": 14,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.1493770658530384,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 126,
+      "manualup_popt": 0.657871031087006,
+      "manualup_popt_complexity": 0.7088590062279507,
+      "manualup_popt_uniform": 0.14937706585303923,
+      "manualup_recall20": 0.8771929824561403,
+      "manualup_recall20_complexity": 0.5847953216374269,
+      "pool": 815,
+      "popt": 0.3702228321768948,
+      "popt_complexity": 0.30859229944656474,
+      "popt_uniform": 0.8536377174821121,
+      "positives": 171,
+      "recall20": 0.6198830409356725,
+      "recall20_complexity": 0.18128654970760233,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/migrations/operations/models.py"
+      ]
+     },
+     {
+      "auc": 0.791445412064571,
+      "best": 15,
+      "churn_auc": 0.7862857547436987,
+      "churn_hits": 10,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.3668257011153979,
+      "churn_popt_complexity": 0.30839067682389554,
+      "churn_popt_uniform": 0.7862857547437028,
+      "churn_recall20": 0.6193181818181818,
+      "churn_recall20_complexity": 0.16477272727272727,
+      "cutoff": "2025-03-08",
+      "expected": 3.227,
+      "hits": 13,
+      "ifa": 1,
+      "ifa_all": 1,
+      "manualup_auc": 0.22736122911356557,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 107,
+      "manualup_popt": 0.7010473224570144,
+      "manualup_popt_complexity": 0.7398755811480462,
+      "manualup_popt_uniform": 0.22736122911356393,
+      "manualup_recall20": 0.8863636363636364,
+      "manualup_recall20_complexity": 0.6363636363636364,
+      "pool": 818,
+      "popt": 0.3223131900944929,
+      "popt_complexity": 0.27355891102025476,
+      "popt_uniform": 0.7914454120645747,
+      "positives": 176,
+      "recall20": 0.5738636363636364,
+      "recall20_complexity": 0.1534090909090909,
+      "top": [
+       "django/db/models/fields/__init__.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/backends/oracle/base.py"
+      ]
+     },
+     {
+      "auc": 0.8754379724321921,
+      "best": 15,
+      "churn_auc": 0.8448999555357937,
+      "churn_hits": 12,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.4090312760472258,
+      "churn_popt_complexity": 0.3408017944729417,
+      "churn_popt_uniform": 0.8448999555358003,
+      "churn_recall20": 0.7052023121387283,
+      "churn_recall20_complexity": 0.18497109826589594,
+      "cutoff": "2025-09-08",
+      "expected": 3.153,
+      "hits": 15,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.12722098710538016,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 135,
+      "manualup_popt": 0.6429216377460893,
+      "manualup_popt_complexity": 0.6959304403470501,
+      "manualup_popt_uniform": 0.12722098710538166,
+      "manualup_recall20": 0.8786127167630058,
+      "manualup_recall20_complexity": 0.5722543352601156,
+      "pool": 823,
+      "popt": 0.3793080232909769,
+      "popt_complexity": 0.3171887498255558,
+      "popt_uniform": 0.8754379724321992,
+      "positives": 173,
+      "recall20": 0.6647398843930635,
+      "recall20_complexity": 0.1676300578034682,
+      "top": [
+       "django/db/models/query.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/fields/__init__.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/backends/oracle/base.py"
+      ]
+     },
+     {
+      "auc": 0.7883504071447334,
+      "best": 15,
+      "churn_auc": 0.7650545048594694,
+      "churn_hits": 12,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.35762355502985466,
+      "churn_popt_complexity": 0.2925895602225661,
+      "churn_popt_uniform": 0.7650545048594641,
+      "churn_recall20": 0.5904255319148937,
+      "churn_recall20_complexity": 0.16489361702127658,
+      "cutoff": "2026-03-08",
+      "expected": 3.373,
+      "hits": 15,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.21781422379826634,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 63,
+      "manualup_popt": 0.7120573565119858,
+      "manualup_popt_complexity": 0.7536402182886978,
+      "manualup_popt_uniform": 0.2178142237982641,
+      "manualup_recall20": 0.8882978723404256,
+      "manualup_recall20_complexity": 0.6436170212765957,
+      "pool": 836,
+      "popt": 0.3139689227616993,
+      "popt_complexity": 0.25709348190950776,
+      "popt_uniform": 0.7883504071447301,
+      "positives": 188,
+      "recall20": 0.5053191489361702,
+      "recall20_complexity": 0.1595744680851064,
+      "top": [
+       "django/db/models/query.py",
+       "django/db/models/fields/__init__.py",
+       "django/db/models/sql/query.py",
+       "django/db/models/base.py",
+       "django/contrib/admin/options.py",
+       "django/db/models/fields/related.py",
+       "django/db/models/sql/compiler.py",
+       "django/db/models/expressions.py",
+       "django/forms/models.py",
+       "django/db/migrations/autodetector.py",
+       "django/db/backends/base/schema.py",
+       "django/forms/fields.py",
+       "django/forms/widgets.py",
+       "django/template/defaulttags.py",
+       "django/db/backends/oracle/base.py"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 152,
+      "matched_fixed": 77,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 234,
+      "matched_fixed": 77,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 153,
+      "matched_fixed": 86,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 236,
+      "matched_fixed": 109,
+      "named": 10,
+      "named_fixed": 10
+     },
+     {
+      "matched": 237,
+      "matched_fixed": 124,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 158,
+      "matched_fixed": 79,
+      "named": 10,
+      "named_fixed": 9
+     }
+    ],
+    "stability": {
+     "from": "2026-03-08",
+     "spearman": 0.9999887251760635,
+     "to": "2026-03-25",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 225,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "duplication",
+    "hidden_coupling",
+    "import_cycles",
+    "knowledge_loss",
+    "lockfile_missing",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "swallowed_errors",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions",
+    "unreferenced_files"
+   ],
+   "scored_share": 0.1827,
+   "seconds": 165.1,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 17,
+    "warning": 7
+   },
+   "shown": 8,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 165.9,
+    "betterleaks": 485.1,
+    "change analysis": 161.4,
+    "code age": 221.4,
+    "duplicates": 1044.2,
+    "functions": 74.8,
+    "git-log": 464.7,
+    "git-sizer": 389.9,
+    "hygiene": 73.9,
+    "osv-scanner": 54.7,
+    "provenance": 384.2,
+    "scc": 61.6,
+    "signing": 82.5,
+    "structure": 118.5,
+    "trend": 41.3
+   },
+   "step_seconds": {
+    "backtest": 6.42,
+    "betterleaks": 15.86,
+    "change analysis": 2.74,
+    "code age": 86.23,
+    "duplicates": 3.13,
+    "functions": 1.87,
+    "git-log": 17.07,
+    "git-sizer": 4.75,
+    "hygiene": 1.11,
+    "osv-scanner": 0.47,
+    "provenance": 5.89,
+    "scc": 0.11,
+    "signing": 0.83,
+    "structure": 1.35,
+    "trend": 3.22
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "etcd": {
+   "claims": {
+    "advisory": 15,
+    "checked": 16,
+    "clean": 16,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "b26d102a76c1c92f",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "7500630c35ab4e8b",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "69d7fbe279b08566",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "fb16392c624d2710",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "1a9e0a2eb8f3fb4c",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "3585810645d1a44d",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "5fa1742f4f17da06",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "75816ab4cc50e42c",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "ea89bb564e8f23e8",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "a8abab1a2015f035",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "31cff78dcf361188",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "7ed50d36d926700c",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "f5b0a9efd7dbdd03",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "d506d34d169d49ab",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "a60d56115599d2aa",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "a152567b3fb43dd4",
+     "rule": "component_coupling",
+     "summary": true
+    }
+   ],
+   "findings": 16,
+   "load": 10.12,
+   "measure_seconds": 45.8,
+   "peak_mb": 2574,
+   "rc": 0,
+   "report_lines": 184,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "component_coupling",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "duplication",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "sweeping_commits",
+    "truck_factor"
+   ],
+   "scored_share": 0.4278,
+   "seconds": 45.6,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 11,
+    "warning": 5
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 90.7,
+    "betterleaks": 293.5,
+    "change analysis": 88.0,
+    "code age": 83.7,
+    "duplicates": 379.2,
+    "functions": 34.9,
+    "git-log": 297.2,
+    "git-sizer": 121.5,
+    "hygiene": 32.3,
+    "osv-scanner": 2574.2,
+    "provenance": 147.1,
+    "scc": 34.3,
+    "signing": 66.0,
+    "structure": 69.4,
+    "trend": 34.5
+   },
+   "step_seconds": {
+    "backtest": 7.6,
+    "betterleaks": 14.29,
+    "change analysis": 4.82,
+    "code age": 21.24,
+    "duplicates": 1.78,
+    "functions": 1.66,
+    "git-log": 11.32,
+    "git-sizer": 3.07,
+    "hygiene": 0.8,
+    "osv-scanner": 34.86,
+    "provenance": 7.7,
+    "scc": 0.03,
+    "signing": 0.63,
+    "structure": 1.06,
+    "trend": 3.58
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gate-secret": {
+   "claims": {
+    "advisory": 0,
+    "checked": 4,
+    "clean": 4,
+    "complaints": []
+   },
+   "findings": 4,
+   "gate_fired": true,
+   "load": 8.4,
+   "measure_seconds": 0.8,
+   "peak_mb": 48,
+   "rc": 3,
+   "report_lines": 64,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy",
+    "secrets_in_source"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 35.2,
+    "change analysis": 21.2,
+    "code age": 24.4,
+    "duplicates": 25.9,
+    "functions": 29.2,
+    "git-log": 8.1,
+    "git-sizer": 17.9,
+    "hygiene": 20.5,
+    "osv-scanner": 47.7,
+    "provenance": 24.4,
+    "scc": 19.8,
+    "signing": 16.7,
+    "structure": 29.5,
+    "trend": 24.4
+   },
+   "step_seconds": {
+    "betterleaks": 0.1,
+    "change analysis": 0.06,
+    "code age": 0.2,
+    "duplicates": 0.22,
+    "functions": 0.21,
+    "git-log": 0.01,
+    "git-sizer": 0.1,
+    "hygiene": 0.33,
+    "osv-scanner": 0.08,
+    "provenance": 0.14,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.31,
+    "trend": 0.09
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gate-submodule-credentials": {
+   "claims": {
+    "advisory": 0,
+    "checked": 4,
+    "clean": 4,
+    "complaints": []
+   },
+   "findings": 4,
+   "gate_fired": true,
+   "load": 8.4,
+   "measure_seconds": 0.8,
+   "peak_mb": 48,
+   "rc": 3,
+   "report_lines": 64,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy",
+    "submodule_urls"
+   ],
+   "scored_share": 0.5,
+   "seconds": 0.8,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 36.9,
+    "change analysis": 21.1,
+    "code age": 24.5,
+    "duplicates": 25.9,
+    "functions": 29.1,
+    "git-log": 8.1,
+    "git-sizer": 17.8,
+    "hygiene": 20.4,
+    "osv-scanner": 47.6,
+    "provenance": 24.4,
+    "scc": 20.0,
+    "signing": 16.6,
+    "structure": 29.2,
+    "trend": 24.2
+   },
+   "step_seconds": {
+    "betterleaks": 0.11,
+    "change analysis": 0.1,
+    "code age": 0.21,
+    "duplicates": 0.2,
+    "functions": 0.19,
+    "git-log": 0.01,
+    "git-sizer": 0.11,
+    "hygiene": 0.26,
+    "osv-scanner": 0.08,
+    "provenance": 0.08,
+    "scc": 0.02,
+    "signing": 0.04,
+    "structure": 0.27,
+    "trend": 0.08
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gate-trojan-source": {
+   "claims": {
+    "advisory": 0,
+    "checked": 4,
+    "clean": 4,
+    "complaints": []
+   },
+   "findings": 4,
+   "gate_fired": true,
+   "load": 8.4,
+   "measure_seconds": 0.8,
+   "peak_mb": 48,
+   "rc": 3,
+   "report_lines": 66,
+   "rules": [
+    "bus_factor",
+    "placeholder_identity",
+    "repo_policy",
+    "trojan_source"
+   ],
+   "scored_share": 1.0,
+   "seconds": 0.8,
+   "set": "gate",
+   "severity": {
+    "critical": 1,
+    "info": 1,
+    "warning": 2
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 35.0,
+    "change analysis": 21.0,
+    "code age": 24.5,
+    "duplicates": 25.9,
+    "functions": 29.0,
+    "git-log": 8.1,
+    "git-sizer": 17.8,
+    "hygiene": 20.5,
+    "osv-scanner": 47.4,
+    "provenance": 24.4,
+    "scc": 19.8,
+    "signing": 16.6,
+    "structure": 29.3,
+    "trend": 24.4
+   },
+   "step_seconds": {
+    "betterleaks": 0.11,
+    "change analysis": 0.05,
+    "code age": 0.23,
+    "duplicates": 0.19,
+    "functions": 0.23,
+    "git-log": 0.01,
+    "git-sizer": 0.11,
+    "hygiene": 0.23,
+    "osv-scanner": 0.1,
+    "provenance": 0.14,
+    "scc": 0.01,
+    "signing": 0.04,
+    "structure": 0.31,
+    "trend": 0.1
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "ghidra": {
+   "claims": {
+    "advisory": 31,
+    "checked": 26,
+    "clean": 26,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "13a271bb98e386ac",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "5632bfdfa60b9395",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "f0479152ba16f137",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "503d8f66fc91a9dd",
+     "rule": "committed_binaries",
+     "summary": false
+    },
+    {
+     "id": "57fdad8fd2740439",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "131a2a005007f6c6",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "baf3f201575e1617",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "12fd39f7cfb87c2a",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "6fbc79c1b9ae3125",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "1a979e62be728342",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "2c211a537d6c398a",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "ec24a0d5c056e193",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "5456c8e23388ee4f",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "e845501be36d2ebb",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "d06e5198f9e69832",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "a8f6b685b35c5ddc",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "2155d0330c11a699",
+     "rule": "tangled_commits",
+     "summary": false
+    },
+    {
+     "id": "3710bf17616ef841",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "71cafaa58a2508cc",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "56037a91f5d3368b",
+     "rule": "import_cycles",
+     "summary": true
+    },
+    {
+     "id": "3280e4ed56746d5f",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "1ccf9dd6c37bb6cd",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "b233c3b3fb310448",
+     "rule": "component_coupling",
+     "summary": true
+    },
+    {
+     "id": "e71dca01438fd633",
+     "rule": "swallowed_errors",
+     "summary": true
+    },
+    {
+     "id": "3311d19e3bcc3a5c",
+     "rule": "hardcoded_addresses",
+     "summary": true
+    },
+    {
+     "id": "88d9e12404b490ee",
+     "rule": "commented_out_code",
+     "summary": true
+    }
+   ],
+   "findings": 26,
+   "load": 8.4,
+   "measure_seconds": 111.4,
+   "peak_mb": 1130,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.7476182404976904,
+      "best": 15,
+      "churn_auc": 0.6865531427992005,
+      "churn_hits": 7,
+      "churn_ifa": 1,
+      "churn_ifa_all": 1,
+      "churn_popt": 0.49371358599570725,
+      "churn_popt_complexity": 0.43922744352465715,
+      "churn_popt_uniform": 0.6865531427992715,
+      "churn_recall20": 0.33240997229916897,
+      "churn_recall20_complexity": 0.20221606648199447,
+      "cutoff": "2023-09-18",
+      "expected": 0.913,
+      "hits": 6,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.26182231007931495,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 29,
+      "manualup_popt": 0.6139470704624954,
+      "manualup_popt_complexity": 0.693987356224917,
+      "manualup_popt_uniform": 0.26182231007934165,
+      "manualup_recall20": 0.5263157894736842,
+      "manualup_recall20_complexity": 0.5457063711911357,
+      "pool": 5934,
+      "popt": 0.4223469063198817,
+      "popt_complexity": 0.3459406559596223,
+      "popt_uniform": 0.7476182404977667,
+      "positives": 361,
+      "recall20": 0.26869806094182824,
+      "recall20_complexity": 0.14681440443213298,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Configurations/Public_Release/src/global/docs/ChangeHistory.html",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/objects/DebuggerObjectsProvider.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java"
+      ]
+     },
+     {
+      "auc": 0.7494103545459029,
+      "best": 15,
+      "churn_auc": 0.678675658965304,
+      "churn_hits": 5,
+      "churn_ifa": 2,
+      "churn_ifa_all": 2,
+      "churn_popt": 0.48172190166884976,
+      "churn_popt_complexity": 0.42853851676812293,
+      "churn_popt_uniform": 0.6786756589652296,
+      "churn_recall20": 0.3558139534883721,
+      "churn_recall20_complexity": 0.17906976744186046,
+      "cutoff": "2024-03-18",
+      "expected": 0.983,
+      "hits": 6,
+      "ifa": 2,
+      "ifa_all": 2,
+      "manualup_auc": 0.25009577708405245,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 47,
+      "manualup_popt": 0.6033005976436074,
+      "manualup_popt_complexity": 0.6849177005321396,
+      "manualup_popt_uniform": 0.25009577708402475,
+      "manualup_recall20": 0.48372093023255813,
+      "manualup_recall20_complexity": 0.5232558139534884,
+      "pool": 6561,
+      "popt": 0.4225942206530934,
+      "popt_complexity": 0.3471428760255004,
+      "popt_uniform": 0.7494103545458004,
+      "positives": 430,
+      "recall20": 0.27674418604651163,
+      "recall20_complexity": 0.14418604651162792,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Configurations/Public_Release/src/global/docs/ChangeHistory.html",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/objects/DebuggerObjectsProvider.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java"
+      ]
+     },
+     {
+      "auc": 0.7343481142829879,
+      "best": 15,
+      "churn_auc": 0.6849113671256639,
+      "churn_hits": 8,
+      "churn_ifa": 2,
+      "churn_ifa_all": 2,
+      "churn_popt": 0.48999577272135575,
+      "churn_popt_complexity": 0.43423366362163673,
+      "churn_popt_uniform": 0.6849113671256974,
+      "churn_recall20": 0.3648351648351648,
+      "churn_recall20_complexity": 0.1912087912087912,
+      "cutoff": "2024-09-18",
+      "expected": 0.989,
+      "hits": 5,
+      "ifa": 2,
+      "ifa_all": 2,
+      "manualup_auc": 0.27868193211657316,
+      "manualup_hits": 3,
+      "manualup_ifa": 7,
+      "manualup_ifa_all": 7,
+      "manualup_popt": 0.6357466823630233,
+      "manualup_popt_complexity": 0.7122601208101741,
+      "manualup_popt_uniform": 0.2786819321165913,
+      "manualup_recall20": 0.5406593406593406,
+      "manualup_recall20_complexity": 0.567032967032967,
+      "pool": 6904,
+      "popt": 0.40520904008896774,
+      "popt_complexity": 0.33157769046786767,
+      "popt_uniform": 0.7343481142830435,
+      "positives": 455,
+      "recall20": 0.23296703296703297,
+      "recall20_complexity": 0.12747252747252746,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Configurations/Public_Release/src/global/docs/ChangeHistory.html",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/objects/DebuggerObjectsProvider.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java"
+      ]
+     },
+     {
+      "auc": 0.6934370541778175,
+      "best": 15,
+      "churn_auc": 0.6579618968794305,
+      "churn_hits": 10,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.4527457912760212,
+      "churn_popt_complexity": 0.4013512854753417,
+      "churn_popt_uniform": 0.6579618968795011,
+      "churn_recall20": 0.2876712328767123,
+      "churn_recall20_complexity": 0.1567732115677321,
+      "cutoff": "2025-03-18",
+      "expected": 1.518,
+      "hits": 10,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.3142272737110581,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 139,
+      "manualup_popt": 0.6669577089928587,
+      "manualup_popt_complexity": 0.7367570732412376,
+      "manualup_popt_uniform": 0.3142272737110873,
+      "manualup_recall20": 0.5707762557077626,
+      "manualup_recall20_complexity": 0.589041095890411,
+      "pool": 6494,
+      "popt": 0.36595599448484417,
+      "popt_complexity": 0.2996567924473543,
+      "popt_uniform": 0.6934370541778976,
+      "positives": 657,
+      "recall20": 0.2176560121765601,
+      "recall20_complexity": 0.1232876712328767,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/heritage.cc"
+      ]
+     },
+     {
+      "auc": 0.7428415141221655,
+      "best": 15,
+      "churn_auc": 0.6952502959722403,
+      "churn_hits": 5,
+      "churn_ifa": 1,
+      "churn_ifa_all": 1,
+      "churn_popt": 0.4984015949575745,
+      "churn_popt_complexity": 0.44477078100040335,
+      "churn_popt_uniform": 0.6952502959721091,
+      "churn_recall20": 0.3553008595988539,
+      "churn_recall20_complexity": 0.17478510028653296,
+      "cutoff": "2025-09-18",
+      "expected": 0.747,
+      "hits": 4,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.26495374748375217,
+      "manualup_hits": 1,
+      "manualup_ifa": 10,
+      "manualup_ifa_all": 10,
+      "manualup_popt": 0.6068447085504595,
+      "manualup_popt_complexity": 0.683032062594265,
+      "manualup_popt_uniform": 0.2649537474837068,
+      "manualup_recall20": 0.4813753581661891,
+      "manualup_recall20_complexity": 0.501432664756447,
+      "pool": 7012,
+      "popt": 0.4280947895357552,
+      "popt_complexity": 0.3561602207089122,
+      "popt_uniform": 0.7428415141220452,
+      "positives": 349,
+      "recall20": 0.2607449856733524,
+      "recall20_complexity": 0.14326647564469913,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/heritage.cc"
+      ]
+     },
+     {
+      "auc": 0.7577143507225557,
+      "best": 15,
+      "churn_auc": 0.7324798173959192,
+      "churn_hits": 3,
+      "churn_ifa": 6,
+      "churn_ifa_all": 6,
+      "churn_popt": 0.5144162836955735,
+      "churn_popt_complexity": 0.4518188819070359,
+      "churn_popt_uniform": 0.7324798173960007,
+      "churn_recall20": 0.3257261410788382,
+      "churn_recall20_complexity": 0.15352697095435686,
+      "cutoff": "2026-03-18",
+      "expected": 0.985,
+      "hits": 5,
+      "ifa": 4,
+      "ifa_all": 4,
+      "manualup_auc": 0.2647138914287547,
+      "manualup_hits": 1,
+      "manualup_ifa": 13,
+      "manualup_ifa_all": 13,
+      "manualup_popt": 0.6125021288167425,
+      "manualup_popt_complexity": 0.6904686557913328,
+      "manualup_popt_uniform": 0.2647138914287793,
+      "manualup_recall20": 0.46680497925311204,
+      "manualup_recall20_complexity": 0.491701244813278,
+      "pool": 7339,
+      "popt": 0.42928671694596876,
+      "popt_complexity": 0.3521962476645476,
+      "popt_uniform": 0.7577143507226398,
+      "positives": 482,
+      "recall20": 0.25311203319502074,
+      "recall20_complexity": 0.1037344398340249,
+      "top": [
+       "Ghidra/Features/Decompiler/src/decompile/cpp/ruleaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/coreaction.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/fspec.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/type.cc",
+       "Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/database/data/DataTypeManagerDB.java",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RecoveredClassHelper.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/ElfProgramBuilder.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/subflow.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/printc.cc",
+       "Ghidra/Features/Decompiler/ghidra_scripts/classrecovery/RTTIGccClassRecoverer.java",
+       "Ghidra/Features/Base/src/main/java/ghidra/app/util/opinion/MachoProgramBuilder.java",
+       "Ghidra/Framework/Docking/src/main/java/docking/DockingWindowManager.java",
+       "Ghidra/Debug/Debugger/src/main/java/ghidra/app/plugin/core/debug/gui/DebuggerResources.java",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/slgh_compile.cc",
+       "Ghidra/Features/Decompiler/src/decompile/cpp/database.cc"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 1177,
+      "matched_fixed": 183,
+      "named": 10,
+      "named_fixed": 7
+     },
+     {
+      "matched": 647,
+      "matched_fixed": 135,
+      "named": 10,
+      "named_fixed": 8
+     },
+     {
+      "matched": 2063,
+      "matched_fixed": 218,
+      "named": 10,
+      "named_fixed": 6
+     },
+     {
+      "matched": 1289,
+      "matched_fixed": 279,
+      "named": 10,
+      "named_fixed": 4
+     },
+     {
+      "matched": 1393,
+      "matched_fixed": 176,
+      "named": 10,
+      "named_fixed": 6
+     },
+     {
+      "matched": 2192,
+      "matched_fixed": 319,
+      "named": 10,
+      "named_fixed": 2
+     }
+    ],
+    "stability": {
+     "from": "2026-03-18",
+     "spearman": 0.9999116074675235,
+     "to": "2026-03-24",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 294,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "commented_out_code",
+    "committed_binaries",
+    "component_coupling",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "hardcoded_addresses",
+    "hidden_coupling",
+    "import_commits",
+    "import_cycles",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_possible",
+    "stale_files",
+    "swallowed_errors",
+    "sweeping_commits",
+    "tangled_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions"
+   ],
+   "scored_share": 0.7687,
+   "seconds": 43.7,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 21,
+    "warning": 5
+   },
+   "shown": 10,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 401.0,
+    "betterleaks": 643.5,
+    "change analysis": 140.8,
+    "functions": 351.4,
+    "git-log": 519.2,
+    "git-sizer": 219.2,
+    "hygiene": 342.9,
+    "osv-scanner": 55.7,
+    "provenance": 1034.9,
+    "scc": 233.4,
+    "signing": 46.3,
+    "structure": 611.7,
+    "trend": 72.2
+   },
+   "step_seconds": {
+    "backtest": 7.29,
+    "betterleaks": 16.63,
+    "change analysis": 2.21,
+    "functions": 10.97,
+    "git-log": 16.55,
+    "git-sizer": 7.9,
+    "hygiene": 6.41,
+    "osv-scanner": 1.56,
+    "provenance": 7.43,
+    "scc": 0.36,
+    "signing": 0.63,
+    "structure": 4.56,
+    "trend": 1.46
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "gitmole": {
+   "claims": {
+    "advisory": 14,
+    "checked": 7,
+    "clean": 7,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "5190f0555cc60baf",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "f56cc5096cef6c0e",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "85deaa10c66523c7",
+     "rule": "complexity_growth",
+     "summary": false
+    },
+    {
+     "id": "866b31a1826f0b32",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "8a81123dbecb3890",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "2393d7b85b907a80",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "00b6d945720e50e1",
+     "rule": "truck_factor",
+     "summary": false
+    }
+   ],
+   "findings": 7,
+   "load": 8.16,
+   "measure_seconds": 1.6,
+   "peak_mb": 84,
+   "ranking": {
+    "cutoffs": [],
+    "magnets": [],
+    "stability": null
+   },
+   "rc": 0,
+   "report_lines": 129,
+   "rules": [
+    "bug_magnets",
+    "complexity_growth",
+    "deep_nesting",
+    "hidden_coupling",
+    "secrets_aside",
+    "tight_coupling",
+    "truck_factor"
+   ],
+   "scored_share": 0.3689,
+   "seconds": 1.6,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 3,
+    "warning": 4
+   },
+   "shown": 4,
+   "status": "ok",
+   "step_peak_mb": {
+    "betterleaks": 83.8,
+    "change analysis": 21.6,
+    "code age": 30.5,
+    "duplicates": 82.0,
+    "functions": 30.4,
+    "git-log": 24.8,
+    "git-sizer": 17.9,
+    "hygiene": 21.0,
+    "osv-scanner": 48.2,
+    "provenance": 35.7,
+    "scc": 24.1,
+    "signing": 17.1,
+    "structure": 34.2,
+    "trend": 25.0
+   },
+   "step_seconds": {
+    "betterleaks": 0.73,
+    "change analysis": 0.06,
+    "code age": 0.44,
+    "duplicates": 0.25,
+    "functions": 0.5,
+    "git-log": 0.1,
+    "git-sizer": 0.14,
+    "hygiene": 0.26,
+    "osv-scanner": 0.09,
+    "provenance": 0.35,
+    "scc": 0.02,
+    "signing": 0.05,
+    "structure": 0.42,
+    "trend": 0.32
+   },
+   "steps": {
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "prometheus": {
+   "claims": {
+    "advisory": 27,
+    "checked": 25,
+    "clean": 25,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "30e9bf09ba3048ab",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "0983d9984a2e17d3",
+     "rule": "credential_files",
+     "summary": false
+    },
+    {
+     "id": "3132ebbcb62c7f27",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "d6b6708b22967779",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "3ce6502e76dfc4f2",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "eb42cfaf23f90a02",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "b74291a7ec49c054",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "570f760c56b31e61",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "06c81d636ff276df",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "abe9cfdd5ac16c5a",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "35aa5268784aa5ac",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "da92b85a8d74eb3f",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "ba4c2f83507e429a",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "274a3742f8dc2ee3",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "85a398f5c3a9a2ce",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "f8630cab842c2f16",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "3e22f572bbf00e75",
+     "rule": "import_commits",
+     "summary": false
+    },
+    {
+     "id": "4c7e1985fafa5645",
+     "rule": "unused_dependencies",
+     "summary": false
+    },
+    {
+     "id": "6487d9f137963a1d",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "e8b3b2bf067ed555",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "3085674e1dba617e",
+     "rule": "import_cycles",
+     "summary": true
+    },
+    {
+     "id": "199251ac51966892",
+     "rule": "unreferenced_files",
+     "summary": true
+    },
+    {
+     "id": "85c9c564d1dc015f",
+     "rule": "agent_instructions_drift",
+     "summary": false
+    },
+    {
+     "id": "b2b8663fcfab780b",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "6af17e32f74f584a",
+     "rule": "authors_gone",
+     "summary": true
+    }
+   ],
+   "findings": 25,
+   "load": 12.31,
+   "measure_seconds": 48.5,
+   "peak_mb": 3822,
+   "rc": 0,
+   "report_lines": 234,
+   "rules": [
+    "agent_instructions_drift",
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "credential_files",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "duplication",
+    "hidden_coupling",
+    "import_commits",
+    "import_cycles",
+    "knowledge_loss",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "stale_files",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unreferenced_files",
+    "unused_dependencies"
+   ],
+   "scored_share": 0.3896,
+   "seconds": 48.0,
+   "set": "well-kept",
+   "severity": {
+    "critical": 0,
+    "info": 19,
+    "warning": 6
+   },
+   "shown": 9,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 103.1,
+    "betterleaks": 434.5,
+    "change analysis": 100.3,
+    "code age": 95.2,
+    "duplicates": 606.0,
+    "functions": 53.2,
+    "git-log": 430.8,
+    "git-sizer": 137.5,
+    "hygiene": 61.7,
+    "osv-scanner": 3822.0,
+    "provenance": 233.0,
+    "scc": 49.9,
+    "signing": 65.8,
+    "structure": 80.8,
+    "trend": 35.0
+   },
+   "step_seconds": {
+    "backtest": 3.94,
+    "betterleaks": 30.49,
+    "change analysis": 2.21,
+    "code age": 10.91,
+    "duplicates": 2.31,
+    "functions": 2.07,
+    "git-log": 21.24,
+    "git-sizer": 2.64,
+    "hygiene": 1.26,
+    "osv-scanner": 17.12,
+    "provenance": 5.69,
+    "scc": 0.04,
+    "signing": 0.48,
+    "structure": 0.85,
+    "trend": 3.35
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  },
+  "react": {
+   "claims": {
+    "advisory": 28,
+    "checked": 30,
+    "clean": 30,
+    "complaints": []
+   },
+   "finding_ids": [
+    {
+     "id": "dda2c4bb8f1fe03f",
+     "rule": "secrets_aside",
+     "summary": true
+    },
+    {
+     "id": "7aa9ddd2ef378fa3",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "5edf093243bfab9e",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "28ba8760cab5ed9a",
+     "rule": "bug_magnets",
+     "summary": false
+    },
+    {
+     "id": "eddbc017c6c0717c",
+     "rule": "minor_contributors",
+     "summary": true
+    },
+    {
+     "id": "2f880726534109d6",
+     "rule": "brain_methods",
+     "summary": false
+    },
+    {
+     "id": "8450bd3765ba586a",
+     "rule": "unpinned_actions",
+     "summary": false
+    },
+    {
+     "id": "4011cfc1e32ec78d",
+     "rule": "lockfile_drift",
+     "summary": false
+    },
+    {
+     "id": "7f3bd01e9af5cfb1",
+     "rule": "deep_nesting",
+     "summary": true
+    },
+    {
+     "id": "3b5850e421737344",
+     "rule": "swallowed_errors",
+     "summary": true
+    },
+    {
+     "id": "ddfe41cf804d1e3c",
+     "rule": "secrets_possible",
+     "summary": false
+    },
+    {
+     "id": "40868a0b92e4b0e1",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "dcbdfc8d99f7e4ea",
+     "rule": "repo_health",
+     "summary": true
+    },
+    {
+     "id": "7b6897d717ebd505",
+     "rule": "reverts",
+     "summary": true
+    },
+    {
+     "id": "c00477382acd052b",
+     "rule": "tight_coupling",
+     "summary": false
+    },
+    {
+     "id": "e29b13e2b469fbd3",
+     "rule": "duplication",
+     "summary": true
+    },
+    {
+     "id": "49bc8fc5ab249646",
+     "rule": "stale_files",
+     "summary": true
+    },
+    {
+     "id": "2782416bfaca00f3",
+     "rule": "knowledge_islands",
+     "summary": false
+    },
+    {
+     "id": "89114bb5bd8e4119",
+     "rule": "knowledge_loss",
+     "summary": true
+    },
+    {
+     "id": "b0d7188c8a1cffce",
+     "rule": "sweeping_commits",
+     "summary": false
+    },
+    {
+     "id": "1647ff8f0a56e3a1",
+     "rule": "dependency_updates",
+     "summary": false
+    },
+    {
+     "id": "3e112221dd5701a7",
+     "rule": "install_scripts",
+     "summary": false
+    },
+    {
+     "id": "6e4b3e2479287c89",
+     "rule": "unused_dependencies",
+     "summary": false
+    },
+    {
+     "id": "97ceab01dae88783",
+     "rule": "debt_in_hotspots",
+     "summary": true
+    },
+    {
+     "id": "cfd312121ed8f63d",
+     "rule": "hidden_coupling",
+     "summary": true
+    },
+    {
+     "id": "136718df0ff5a6b8",
+     "rule": "import_cycles",
+     "summary": true
+    },
+    {
+     "id": "683d6204478e26b8",
+     "rule": "unreferenced_files",
+     "summary": true
+    },
+    {
+     "id": "42c6a0d91875348e",
+     "rule": "truck_factor",
+     "summary": false
+    },
+    {
+     "id": "b25b833418421095",
+     "rule": "authors_gone",
+     "summary": true
+    },
+    {
+     "id": "5d332dec7e358d2c",
+     "rule": "commented_out_code",
+     "summary": true
+    }
+   ],
+   "findings": 30,
+   "load": 8.42,
+   "measure_seconds": 135.0,
+   "peak_mb": 1090,
+   "ranking": {
+    "cutoffs": [
+     {
+      "auc": 0.6797385620915033,
+      "best": 15,
+      "churn_auc": 0.6143790849673203,
+      "churn_hits": 11,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.2768254762971356,
+      "churn_popt_complexity": 0.3312044384233276,
+      "churn_popt_uniform": 0.6143790849673207,
+      "churn_recall20": 0.8823529411764706,
+      "churn_recall20_complexity": 0.4117647058823529,
+      "cutoff": "2023-09-16",
+      "expected": 9.808,
+      "hits": 11,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.3464052287581699,
+      "manualup_hits": 9,
+      "manualup_ifa": 2,
+      "manualup_ifa_all": 2,
+      "manualup_popt": 0.8668014967456321,
+      "manualup_popt_complexity": 0.8632023740403847,
+      "manualup_popt_uniform": 0.3464052287581699,
+      "manualup_recall20": 0.9411764705882353,
+      "manualup_recall20_complexity": 0.8235294117647058,
+      "pool": 26,
+      "popt": 0.16449050040844293,
+      "popt_complexity": 0.2039223275917682,
+      "popt_uniform": 0.6797385620915033,
+      "positives": 17,
+      "recall20": 0.8235294117647058,
+      "recall20_complexity": 0.35294117647058826,
+      "top": [
+       "compiler/packages/babel-plugin-react-forget/src/HIR/BuildHIR.ts",
+       "compiler/packages/babel-plugin-react-forget/src/ReactiveScopes/CodegenReactiveFunction.ts",
+       "compiler/packages/babel-plugin-react-forget/src/HIR/HIR.ts",
+       "compiler/packages/babel-plugin-react-forget/src/HIR/visitors.ts",
+       "compiler/packages/sprout/src/SproutTodoFilter.ts",
+       "compiler/packages/babel-plugin-react-forget/src/ReactiveScopes/BuildReactiveFunction.ts",
+       "compiler/packages/babel-plugin-react-forget/src/HIR/PrintHIR.ts",
+       "compiler/packages/babel-plugin-react-forget/src/Entrypoint/Program.ts",
+       "compiler/packages/babel-plugin-react-forget/src/HIR/HIRBuilder.ts",
+       "compiler/packages/babel-plugin-react-forget/src/Entrypoint/Pipeline.ts",
+       "compiler/packages/babel-plugin-react-forget/src/Inference/InferReferenceEffects.ts",
+       "compiler/packages/babel-plugin-react-forget/src/ReactiveScopes/PruneNonEscapingScopes.ts",
+       "compiler/packages/babel-plugin-react-forget/src/ReactiveScopes/PropagateScopeDependencies.ts",
+       "compiler/packages/babel-plugin-react-forget/src/TypeInference/InferTypes.ts",
+       "compiler/packages/babel-plugin-react-forget/src/Optimization/ConstantPropagation.ts"
+      ]
+     },
+     {
+      "auc": 0.7508461235733963,
+      "best": 15,
+      "churn_auc": 0.6633412042502952,
+      "churn_hits": 5,
+      "churn_ifa": 6,
+      "churn_ifa_all": 6,
+      "churn_popt": 0.44465436022043336,
+      "churn_popt_complexity": 0.41072124867703697,
+      "churn_popt_uniform": 0.6633412042502894,
+      "churn_recall20": 0.45454545454545453,
+      "churn_recall20_complexity": 0.14545454545454545,
+      "cutoff": "2024-03-16",
+      "expected": 0.843,
+      "hits": 7,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.21192443919716647,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 197,
+      "manualup_popt": 0.6765127264879052,
+      "manualup_popt_complexity": 0.7508737625565436,
+      "manualup_popt_uniform": 0.21192443919716475,
+      "manualup_recall20": 0.7454545454545455,
+      "manualup_recall20_complexity": 0.5818181818181818,
+      "pool": 979,
+      "popt": 0.3560368937177265,
+      "popt_complexity": 0.2983183195192911,
+      "popt_uniform": 0.7508461235733914,
+      "positives": 55,
+      "recall20": 0.3090909090909091,
+      "recall20_complexity": 0.09090909090909091,
+      "top": [
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-devtools-shared/src/backend/renderer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactFiberClassComponent.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.8514467739786588,
+      "best": 15,
+      "churn_auc": 0.8173758220994877,
+      "churn_hits": 6,
+      "churn_ifa": 7,
+      "churn_ifa_all": 7,
+      "churn_popt": 0.5720816797554646,
+      "churn_popt_complexity": 0.5423999901599383,
+      "churn_popt_uniform": 0.8173758220994859,
+      "churn_recall20": 0.6301369863013698,
+      "churn_recall20_complexity": 0.2465753424657534,
+      "cutoff": "2024-09-16",
+      "expected": 0.909,
+      "hits": 12,
+      "ifa": 2,
+      "ifa_all": 2,
+      "manualup_auc": 0.16106488378571515,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 67,
+      "manualup_popt": 0.611261357787598,
+      "manualup_popt_complexity": 0.6738221655507745,
+      "manualup_popt_uniform": 0.16106488378571315,
+      "manualup_recall20": 0.6164383561643836,
+      "manualup_recall20_complexity": 0.4246575342465753,
+      "pool": 1204,
+      "popt": 0.47644759841321793,
+      "popt_complexity": 0.4275160823448829,
+      "popt_uniform": 0.8514467739786638,
+      "positives": 73,
+      "recall20": 0.4657534246575342,
+      "recall20_complexity": 0.1780821917808219,
+      "top": [
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.802101276019573,
+      "best": 15,
+      "churn_auc": 0.7293278830415371,
+      "churn_hits": 9,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.46831767907921595,
+      "churn_popt_complexity": 0.4440100743781823,
+      "churn_popt_uniform": 0.729327883041546,
+      "churn_recall20": 0.4020618556701031,
+      "churn_recall20_complexity": 0.15463917525773196,
+      "cutoff": "2025-03-16",
+      "expected": 1.119,
+      "hits": 10,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.1920370894070665,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 292,
+      "manualup_popt": 0.667699599435722,
+      "manualup_popt_complexity": 0.7297370206451719,
+      "manualup_popt_uniform": 0.19203708940707087,
+      "manualup_recall20": 0.6701030927835051,
+      "manualup_recall20_complexity": 0.5463917525773195,
+      "pool": 1300,
+      "popt": 0.38474414318093786,
+      "popt_complexity": 0.33802131643571687,
+      "popt_uniform": 0.8021012760195878,
+      "positives": 97,
+      "recall20": 0.35051546391752575,
+      "recall20_complexity": 0.10309278350515463,
+      "top": [
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js",
+       "packages/react-reconciler/src/ReactChildFiber.js"
+      ]
+     },
+     {
+      "auc": 0.7739183776566955,
+      "best": 15,
+      "churn_auc": 0.7165301483058493,
+      "churn_hits": 5,
+      "churn_ifa": 6,
+      "churn_ifa_all": 6,
+      "churn_popt": 0.4213348851124705,
+      "churn_popt_complexity": 0.38161430312465605,
+      "churn_popt_uniform": 0.7165301483058574,
+      "churn_recall20": 0.35514018691588783,
+      "churn_recall20_complexity": 0.09345794392523364,
+      "cutoff": "2025-09-16",
+      "expected": 1.145,
+      "hits": 10,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.21392848121820085,
+      "manualup_hits": 2,
+      "manualup_ifa": 0,
+      "manualup_ifa_all": 0,
+      "manualup_popt": 0.7034145049708644,
+      "manualup_popt_complexity": 0.7585683825713512,
+      "manualup_popt_uniform": 0.21392848121820618,
+      "manualup_recall20": 0.7289719626168224,
+      "manualup_recall20_complexity": 0.5981308411214953,
+      "pool": 1402,
+      "popt": 0.3346184221061448,
+      "popt_complexity": 0.28645557901345564,
+      "popt_uniform": 0.7739183776567071,
+      "positives": 107,
+      "recall20": 0.27102803738317754,
+      "recall20_complexity": 0.08411214953271028,
+      "top": [
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "compiler/packages/babel-plugin-react-compiler/src/HIR/BuildHIR.ts",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js"
+      ]
+     },
+     {
+      "auc": 0.8621733205066539,
+      "best": 15,
+      "churn_auc": 0.8223304473304474,
+      "churn_hits": 7,
+      "churn_ifa": 0,
+      "churn_ifa_all": 0,
+      "churn_popt": 0.617027796180915,
+      "churn_popt_complexity": 0.5750427922154686,
+      "churn_popt_uniform": 0.822330447330454,
+      "churn_recall20": 0.6388888888888888,
+      "churn_recall20_complexity": 0.3333333333333333,
+      "cutoff": "2026-03-16",
+      "expected": 0.38,
+      "hits": 11,
+      "ifa": 0,
+      "ifa_all": 0,
+      "manualup_auc": 0.14293730960397627,
+      "manualup_hits": 0,
+      "manualup_ifa": 15,
+      "manualup_ifa_all": 191,
+      "manualup_popt": 0.5480491853475369,
+      "manualup_popt_complexity": 0.6016879277203806,
+      "manualup_popt_uniform": 0.14293730960397422,
+      "manualup_recall20": 0.5555555555555556,
+      "manualup_recall20_complexity": 0.4166666666666667,
+      "pool": 1422,
+      "popt": 0.550980269654458,
+      "popt_complexity": 0.4993417327247621,
+      "popt_uniform": 0.8621733205066509,
+      "positives": 36,
+      "recall20": 0.6111111111111112,
+      "recall20_complexity": 0.2777777777777778,
+      "top": [
+       "packages/react-server/src/ReactFlightServer.js",
+       "packages/react-server/src/ReactFizzServer.js",
+       "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+       "packages/react-reconciler/src/ReactFiberCommitWork.js",
+       "packages/react-reconciler/src/ReactFiberBeginWork.js",
+       "packages/react-devtools-shared/src/backend/fiber/renderer.js",
+       "packages/react-reconciler/src/ReactFiberHooks.js",
+       "packages/react-client/src/ReactFlightClient.js",
+       "packages/react-dom-bindings/src/client/ReactFiberConfigDOM.js",
+       "packages/react-dom-bindings/src/server/ReactFizzConfigDOM.js",
+       "scripts/rollup/bundles.js",
+       "packages/react-reconciler/src/ReactFiberCompleteWork.js",
+       "compiler/packages/babel-plugin-react-compiler/src/HIR/BuildHIR.ts",
+       "packages/react-noop-renderer/src/createReactNoop.js",
+       "packages/react-dom-bindings/src/client/ReactDOMComponent.js"
+      ]
+     }
+    ],
+    "magnets": [
+     {
+      "matched": 0,
+      "matched_fixed": 0,
+      "named": 10,
+      "named_fixed": 5
+     },
+     {
+      "matched": 95,
+      "matched_fixed": 18,
+      "named": 8,
+      "named_fixed": 5
+     },
+     {
+      "matched": 115,
+      "matched_fixed": 34,
+      "named": 8,
+      "named_fixed": 6
+     },
+     {
+      "matched": 253,
+      "matched_fixed": 50,
+      "named": 7,
+      "named_fixed": 4
+     },
+     {
+      "matched": 132,
+      "matched_fixed": 27,
+      "named": 10,
+      "named_fixed": 9
+     },
+     {
+      "matched": 418,
+      "matched_fixed": 26,
+      "named": 9,
+      "named_fixed": 4
+     }
+    ],
+    "stability": {
+     "from": "2026-03-16",
+     "spearman": 0.9999335150379741,
+     "to": "2026-05-02",
+     "top_jaccard": 1.0
+    }
+   },
+   "rc": 0,
+   "report_lines": 286,
+   "rules": [
+    "authors_gone",
+    "brain_methods",
+    "bug_magnets",
+    "commented_out_code",
+    "debt_in_hotspots",
+    "deep_nesting",
+    "dependency_updates",
+    "duplication",
+    "hidden_coupling",
+    "import_cycles",
+    "install_scripts",
+    "knowledge_islands",
+    "knowledge_loss",
+    "lockfile_drift",
+    "minor_contributors",
+    "repo_health",
+    "reverts",
+    "secrets_aside",
+    "secrets_possible",
+    "stale_files",
+    "swallowed_errors",
+    "sweeping_commits",
+    "tight_coupling",
+    "truck_factor",
+    "unpinned_actions",
+    "unreferenced_files",
+    "unused_dependencies"
+   ],
+   "scored_share": 0.2695,
+   "seconds": 103.1,
+   "set": "development",
+   "severity": {
+    "critical": 0,
+    "info": 20,
+    "warning": 10
+   },
+   "shown": 12,
+   "status": "ok",
+   "step_peak_mb": {
+    "backtest": 170.6,
+    "betterleaks": 452.6,
+    "change analysis": 164.4,
+    "code age": 145.9,
+    "duplicates": 1089.8,
+    "functions": 146.4,
+    "git-log": 465.4,
+    "git-sizer": 224.9,
+    "hygiene": 147.4,
+    "osv-scanner": 102.3,
+    "provenance": 384.4,
+    "scc": 77.3,
+    "signing": 70.8,
+    "structure": 146.2,
+    "trend": 48.8
+   },
+   "step_seconds": {
+    "backtest": 6.6,
+    "betterleaks": 14.0,
+    "change analysis": 3.18,
+    "code age": 62.72,
+    "duplicates": 2.98,
+    "functions": 2.85,
+    "git-log": 14.27,
+    "git-sizer": 3.48,
+    "hygiene": 4.43,
+    "osv-scanner": 2.41,
+    "provenance": 11.23,
+    "scc": 0.11,
+    "signing": 0.55,
+    "structure": 0.95,
+    "trend": 3.57
+   },
+   "steps": {
+    "backtest": "run",
+    "betterleaks": "run",
+    "change analysis": "run",
+    "code age": "run",
+    "duplicates": "run",
+    "functions": "run",
+    "git-log": "run",
+    "git-sizer": "run",
+    "hygiene": "run",
+    "osv-scanner": "run",
+    "provenance": "run",
+    "scc": "run",
+    "signing": "run",
+    "structure": "run",
+    "trend": "run"
+   },
+   "steps_failed": []
+  }
+ },
+ "sets": [
+  "development",
+  "awkward",
+  "gate",
+  "well-kept"
+ ],
+ "summary": {
+  "auc": 0.817,
+  "bug_magnets_ratio": 3.861,
+  "carryover_top15": 0.903,
+  "churn_auc": 0.738,
+  "churn_headroom": 0.517,
+  "churn_recall20": 0.489,
+  "claims_clean": [
+   244,
+   244
+  ],
+  "crashed": null,
+  "findings_median": 23.5,
+  "findings_p90": 28.0,
+  "gate_caught": [
+   3,
+   3
+  ],
+  "headroom": 0.617,
+  "headroom_ci": [
+   0.356,
+   0.934
+  ],
+  "peak_mb": 1130,
+  "recall20": 0.359,
+  "report_lines": 220.5,
+  "robust": [
+   21,
+   21
+  ],
+  "scored_share": 0.226,
+  "seconds": 766.2,
+  "shown_median": 7.5,
+  "stability_spearman": 1.0,
+  "stability_top15": 1.0,
+  "step_seconds": {
+   "backtest": 6.6,
+   "betterleaks": 14.9,
+   "change analysis": 2.5,
+   "code age": 50.9,
+   "duplicates": 2.5,
+   "functions": 2.4,
+   "git-log": 16.8,
+   "git-sizer": 4.3,
+   "hygiene": 2.8,
+   "osv-scanner": 0.8,
+   "provenance": 9.3,
+   "scc": 0.1,
+   "signing": 0.7,
+   "structure": 1.1,
+   "trend": 3.4
+  },
+  "well_kept_with_critical": [
+   0,
+   4
+  ],
+  "wins_losses_ties": [
+   17,
+   4,
+   9
+  ]
+ },
+ "version": "0.36.0"
+}
