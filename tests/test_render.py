@@ -1009,6 +1009,19 @@ class FullOnlySections(unittest.TestCase):
         r["meta"]["age"] = {"status": "run"}
         self.assertNotIn("code age", rendered(r, []), "an empty table after a normal run is not a header phrase")
 
+    def test_header_line_says_when_the_structure_step_did_not_run(self):
+        # seven rules read structure.json and return nothing without it, so its absence has to show somewhere
+        r = sample_report()
+        for status, phrase in (("timeout", "structure checks timed out"), ("skipped", "structure checks skipped"),
+                               ("failed", "structure checks failed")):
+            r["meta"]["structure"] = {"status": status}
+            self.assertIn(phrase, rendered(r, []), status)
+            self.assertIn(phrase, render.markdown(r, []), status)
+        r["meta"]["structure"] = {"status": "run"}
+        self.assertNotIn("structure", rendered(r, []))
+        del r["meta"]["structure"]
+        self.assertNotIn("structure", rendered(r, []), "an output directory written before the step existed says nothing")
+
     def test_header_line_is_in_markdown_too(self):
         self.assertIn("most commits on Thu at 10:00 · 76% of surviving code from 2025", render.markdown(sample_report(), []))
 

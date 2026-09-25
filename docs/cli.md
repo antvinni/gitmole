@@ -285,5 +285,6 @@ and removed again when the step ends.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
 and the rest of the report still renders: whatever the tool had written is
-read as no data, the header's second line names the step (`size timed out`),
-and `meta.json` records every step's outcome under `steps`.
+read as no data, the header's second line names the step (`size timed out`,
+or `structure checks timed out` for the step whose seven rules have no section
+of their own), and `meta.json` records every step's outcome under `steps`.

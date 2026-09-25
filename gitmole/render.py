@@ -268,16 +268,18 @@ def summary(report: dict) -> dict:
 
 
 # The steps every table leans on, by what the reader loses without them. The optional steps (code age,
-# functions, duplicates, trend, backtest) say so in their own sections.
+# functions, duplicates, trend, backtest) say so in their own sections; the structure step has none, so pulse names it.
 CORE_STEPS = {"scc": "size", "git-sizer": "repo health", "git-log": "change log", "change analysis": "change analysis",
               "betterleaks": "secrets scan", "osv-scanner": "dependency scan"}
 
 
+# "cancelled" is kept for completeness, though an interrupted run never records its steps.
+STEP_WORDS = {"timeout": "timed out", "failed": "failed", "skipped": "skipped", "cancelled": "cancelled"}
+
+
 def _unfinished(report: dict) -> list:
     steps = report["meta"].get("steps") or {}
-    # "cancelled" is kept here for completeness, though an interrupted run never records its steps.
-    words = {"timeout": "timed out", "failed": "failed", "skipped": "skipped", "cancelled": "cancelled"}
-    return [f"{label} {words.get(steps[name], steps[name])}" for name, label in CORE_STEPS.items() if steps.get(name) not in (None, "run")]
+    return [f"{label} {STEP_WORDS.get(steps[name], steps[name])}" for name, label in CORE_STEPS.items() if steps.get(name) not in (None, "run")]
 
 
 def pulse(report: dict) -> list:
@@ -305,6 +307,9 @@ def pulse(report: dict) -> list:
         out.append(f"{_pct(lines, sum(cohorts.values()))} of surviving code from {label.replace('Code added in ', '')}")
     elif _age_status(report) != "run":
         out.append(_age_reason(report))   # the age table is --full only, so this is where a timeout shows
+    structure = (report["meta"].get("structure") or {}).get("status", "run")
+    if structure not in ("run", "planned"):   # its rules read structure.json and say nothing without it: no section to show the gap
+        out.append(f"structure checks {STEP_WORDS.get(structure, structure)}")
     signed = signing_phrase(report)
     if signed:
         out.append(signed)
