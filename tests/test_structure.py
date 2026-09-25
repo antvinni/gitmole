@@ -63,6 +63,20 @@ class Metrics(unittest.TestCase):
         self.assertTrue(r["main"])
         self.assertEqual([list(i) for i in r["imports"]], [["abs", "os"], ["from", ".util", ["helper"]], ["from", ".", ["sibling"]]])
 
+    def test_imports_that_do_not_run_when_the_file_loads_are_marked_deferred(self):
+        # the ways a cycle is broken on purpose: an import inside a function, a type-only import, a dynamic import()
+        r = parse(".py", "import a\nfrom typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from .b import B\n"
+                         "def f():\n    from . import c\ntry:\n    import d\nexcept ImportError:\n    pass\n")
+        self.assertEqual([i[1] for i in r["imports"]], ["a", "typing", ".b", ".", "d"])
+        self.assertEqual(r["deferred"], [2, 3], "TYPE_CHECKING and the function body; a try/except import still runs at load")
+        r = parse(".ts", "import type { T } from './t';\nimport { x } from './x';\nexport type { U } from './u';\nimport('./dyn');\n"
+                         "function g() { return require('./g'); }\nconst r = require('./r');\n")
+        self.assertEqual([i[1] for i in r["imports"]], ["./t", "./x", "./u", "./dyn", "./g", "./r"])
+        self.assertEqual(r["deferred"], [0, 2, 3, 4], "import type and export type are erased; import() and a require in a function wait")
+        self.assertEqual(parse(".js", "const r = require('./r');\n")["deferred"], [])
+        r = parse(".js", "import type {Fiber} from './f';\nimport typeof X from './x';\nimport {y} from './y';\nexport type {Q} from './q';\n")
+        self.assertEqual(r["deferred"], [0, 1, 3], "Flow's import type and import typeof, which the JavaScript grammar reads as an error node")
+
     def test_a_function_without_a_name_takes_the_one_it_is_bound_to(self):
         r = parse(".js", "const handle = async (e) => { if (e) {} };\nclass S { onChange = () => { if (a) {} } }\nconst o = { go: function () {} };\n")
         self.assertEqual(sorted(f["name"] for f in r["functions"]), ["go", "handle", "onChange"])
@@ -146,6 +160,16 @@ class Resolve(unittest.TestCase):
         self.assertEqual(edges["pkg/a.py"], [], "..x climbs above the tree's top: nothing there to name, and lib/x.py is not it")
         self.assertEqual(resolved["python"], 0.0, "counted as an import that did not resolve, not silently matched elsewhere")
 
+    def test_eager_leaves_out_the_deferred_imports(self):
+        files = {"pkg/a.py": {"language": "python", "imports": [["from", ".", ["b"]]]},
+                 "pkg/b.py": {"language": "python", "imports": [["from", ".", ["a"]], ["from", ".", ["c"]]], "deferred": [0]},
+                 "pkg/c.py": {"language": "python", "imports": [["from", ".", ["b"]]], "deferred": [0]}}
+        edges, resolved = structure.resolve(files)
+        self.assertEqual(edges["pkg/b.py"], ["pkg/a.py", "pkg/c.py"])
+        eager, same = structure.resolve(files, eager=True)
+        self.assertEqual((eager["pkg/a.py"], eager["pkg/b.py"], eager["pkg/c.py"]), (["pkg/b.py"], ["pkg/c.py"], []))
+        self.assertEqual(same, resolved, "the resolved share is over every import either way")
+
     def test_the_lowest_path_wins_when_several_files_answer_one_module_name(self):
         """django has two json.py under django/, so an import of it has two candidates and the first wins. The
         suffix index was built by walking a set, so which one came first followed the hash seed: two runs of the
@@ -172,7 +196,7 @@ class Step(unittest.TestCase):
             with open(os.path.join(repo, "pkg", "a.py"), "w") as fh:
                 fh.write("from . import b\n# TODO: x\ndef f(x):\n    if x:\n        if y:\n            if z:\n                pass\n")
             with open(os.path.join(repo, "pkg", "b.py"), "w") as fh:
-                fh.write("def g():\n    pass\n")
+                fh.write("def g():\n    from . import a\n")
             with open(os.path.join(repo, "notes.txt"), "w") as fh:
                 fh.write("not code\n")
             subprocess.run(["git", "add", "-A"], cwd=repo, check=True, env=env)
@@ -186,6 +210,8 @@ class Step(unittest.TestCase):
         self.assertEqual(data["languages"], {"python": 2})
         self.assertEqual(data["cached"], 2, "the second run parsed nothing")
         self.assertEqual(data["files"]["pkg/a.py"]["imports"], ["pkg/b.py"])
+        self.assertNotIn("deferred", data["files"]["pkg/a.py"], "a file whose imports all run at load carries no list")
+        self.assertEqual((data["files"]["pkg/b.py"]["imports"], data["files"]["pkg/b.py"]["deferred"]), (["pkg/a.py"], ["pkg/a.py"]))
         self.assertEqual(data["files"]["pkg/a.py"]["debt"], 1)
         self.assertEqual(data["files"]["pkg/a.py"]["max_nesting"], 3)
         self.assertEqual([f["name"] for f in data["functions"]], ["f"])
