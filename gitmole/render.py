@@ -273,13 +273,40 @@ CORE_STEPS = {"scc": "size", "git-sizer": "repo health", "git-log": "change log"
               "betterleaks": "secrets scan", "osv-scanner": "dependency scan"}
 
 
-# "cancelled" is kept for completeness, though an interrupted run never records its steps.
-STEP_WORDS = {"timeout": "timed out", "failed": "failed", "skipped": "skipped", "cancelled": "cancelled"}
+# "cancelled" is kept for completeness, though an interrupted run never records its steps; "planned" is what
+# an interrupted run leaves on an optional step's own status, which is a step that did not complete.
+STEP_WORDS = {"timeout": "timed out", "failed": "failed", "skipped": "skipped", "cancelled": "cancelled", "planned": "did not complete"}
+
+
+def _step_phrase(label: str, status: str) -> str:
+    return f"{label} {STEP_WORDS.get(status, status)}"
+
+
+def _structure_status(report: dict) -> str:
+    """What the structure step's rules would find: the run's own status for the step, and "run" only if the
+    step also left a readable structure.json that says so — the field the seven rules key on (findings._structure),
+    so the header never vouches for checks the rules did not make."""
+    planned = report["meta"].get("structure")
+    if not planned:
+        return "run"   # an output directory from before the step existed: nothing was promised, nothing to say
+    status = planned.get("status", "run")
+    if status == "run" and "structure" in report and (report["structure"] or {}).get("status") != "run":
+        status = (report["structure"] or {}).get("status") or "failed"   # the step said run, its file does not: the rules found nothing
+    return status
 
 
 def _unfinished(report: dict) -> list:
+    """The steps a missing table came from, first on the header's second line so a reader knows the numbers
+    after them may be missing. The structure step has no section of its own, so its seven rules going missing
+    shows here too — but not a skip, which is the interpreter's (Python before 3.10 has no grammars): that is
+    said at install time and on --full, and a header phrase that differs by Python version would make one
+    commit render two reports."""
     steps = report["meta"].get("steps") or {}
-    return [f"{label} {STEP_WORDS.get(steps[name], steps[name])}" for name, label in CORE_STEPS.items() if steps.get(name) not in (None, "run")]
+    out = [_step_phrase(label, steps[name]) for name, label in CORE_STEPS.items() if steps.get(name) not in (None, "run")]
+    structure = _structure_status(report)
+    if structure not in ("run", "skipped", "not-installed"):
+        out.append(_step_phrase("structure checks", structure))
+    return out
 
 
 def pulse(report: dict) -> list:
@@ -307,9 +334,6 @@ def pulse(report: dict) -> list:
         out.append(f"{_pct(lines, sum(cohorts.values()))} of surviving code from {label.replace('Code added in ', '')}")
     elif _age_status(report) != "run":
         out.append(_age_reason(report))   # the age table is --full only, so this is where a timeout shows
-    structure = (report["meta"].get("structure") or {}).get("status", "run")
-    if structure not in ("run", "planned"):   # its rules read structure.json and say nothing without it: no section to show the gap
-        out.append(f"structure checks {STEP_WORDS.get(structure, structure)}")
     signed = signing_phrase(report)
     if signed:
         out.append(signed)
@@ -341,8 +365,7 @@ def _age_status(report: dict) -> str:
 
 
 def _age_reason(report: dict) -> str:
-    status = _age_status(report)
-    return {"timeout": "code age timed out", "skipped": "code age skipped"}.get(status, f"code age {status}")
+    return _step_phrase("code age", _age_status(report))
 
 
 def watch_section(report: dict, full: bool = True, width=None) -> dict:
