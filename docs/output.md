@@ -169,15 +169,22 @@ How to read each part of the terminal report, and what each run writes to disk; 
    TypeScript, C, C++, Ruby). Import cycles: groups of Python, JavaScript
    and TypeScript source files that import each other, directly or round a
    loop, as they load, each named by its shortest loop (`a.py → b.py →
-   a.py`); an import inside a function (not one called where it is
-   written) or an instance field's initialiser, TypeScript's and Flow's
-   `import type` and an import whose every name is marked `type` (erased by
-   TypeScript's default; a project built with `verbatimModuleSyntax` keeps
-   it as `import {}`, which loads the module, so a loop through one can be
-   missed there), a dynamic
-   `import()`, and an import under `if TYPE_CHECKING:`, `elif
-   TYPE_CHECKING:`, `if False:` or after `if not TYPE_CHECKING:` do not run
-   at load and are left
+   a.py`); the first three groups are named and the rest counted (`(2 more
+   groups)`). A loop's files must be in a language with 60% or more of
+   its imports resolved to a file, and a group is named only when one of
+   its languages also has at least 10 files in the repository (the same
+   gate as possibly unreferenced files and the dependents count on
+   `--risk`), so two `.tsx` components in a loop with TypeScript count
+   where three lone TypeScript files do not; tests, examples and
+   fixtures, vendored code and generated files are left out. An import
+   inside a function (not one called where it is written) or an instance
+   field's initialiser, TypeScript's and Flow's `import type` and an
+   import whose every name is marked `type` (erased by TypeScript's
+   default; a project built with `verbatimModuleSyntax` keeps it as
+   `import {}`, which loads the module, so a loop through one can be
+   missed there), a dynamic `import()`, and an import under
+   `if TYPE_CHECKING:`, `elif TYPE_CHECKING:`, `if False:` or after
+   `if not TYPE_CHECKING:` do not run at load and are left
    out, since they are how a loop is broken on purpose. Oyetoyan et al.
    found classes near a cycle change more often and found no rule that
    tells a harmful cycle from a harmless one, so the finding names the
