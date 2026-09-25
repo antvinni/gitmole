@@ -445,7 +445,12 @@ commit:
 The two numbers come from different experiments and are not one result. ROSE's
 file-granularity figures (its Table 6) are the fairer bar, since the hook warns
 about files. Report the hook's precision, feedback and closure false alarm rate
-together; the interruption rate is the cost side.
+together; the interruption rate is the cost side. `extras` records the other
+two rates ROSE reports as well: recall (the left-out file was named, over all
+queries) and top-3 likelihood (it was among the first three companions named).
+`python -m gitmole.measure.companions` sweeps the shipped thresholds over
+support and confidence on the same anchors and commits, so a proposal to move
+them is measured before it is made.
 
 ## The properties, not the outputs
 
@@ -597,8 +602,9 @@ for every minor release measured with it, 0.2.0 to 0.26.0, and what the history 
   labeller, `claude`), so kappa waits for a second labeller who did not
   write the rules.
 - **The hook replay and the gate** (step 8): the two ROSE experiments at file
-  granularity over the development set; the well-kept set's criticals are
-  counted, and since 0.28.0 there are none.
+  granularity over the development set, with precision, recall, feedback and
+  top-3 likelihood; `companions` sweeps the thresholds on the same queries.
+  The well-kept set's criticals are counted, and since 0.28.0 there are none.
 - **The headline** (0.30.0): three questions decide whether gitmole is getting
   better, and the README draws one graph for each. *Is it right?* Headroom
   against churn, with the holdout's readings as dots. *Is it useful?* Of the

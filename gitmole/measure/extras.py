@@ -170,16 +170,14 @@ def determinism(src: str, entries: list, root: str, reference: str) -> list:
 
 # --- the hook replay --------------------------------------------------------------------------
 
-def hook_replay(clone: str, cache: str, out: str, anchors: int = 3, window_months: int = 2, max_files: int = 20) -> dict:
-    """Zimmermann et al.'s two experiments for the hook's coupling warning, with coupling taken from the
-    history before an anchor date and the queries from the commits in the two months after it (the
-    history strictly before each commit, approximated at anchor granularity). Error prevention: leave
-    one file out of a commit and see whether the warning names it. Closure: a complete commit, where
-    any warning is a false alarm."""
+def hook_anchors(clone: str, cache: str, out: str, anchors: int = 3, window_months: int = 2):
+    """For each anchor date, six months apart, oldest first: the report at the anchor (its coupling table
+    from the history before it), the history the companion table is computed from, and the commits of
+    the `window_months` after it that are the queries. Shared by the replay at the shipped thresholds
+    and by the sweep, so both judge the same commits."""
     commits = harness.canonical_log(clone, cache)
     os.makedirs(out, exist_ok=True)
     last = max(c["date"] for c in commits)[:10]
-    queries = warned = correct = full = alarmed = 0
     for k in range(anchors, 0, -1):
         t = maat.months_before(last, 6 * k)
         rev = subprocess.run(["git", "rev-list", "-1", f"--before={t}T00:00:00+00:00", "HEAD"], cwd=clone, capture_output=True, text=True).stdout.strip()
@@ -189,26 +187,64 @@ def hook_replay(clone: str, cache: str, out: str, anchors: int = 3, window_month
         size_json, generated, vendored = backtest.snapshot_at(clone, rev, out)
         report = evaluate.report_at(commits, t, load.parse_scc(size_json, None), {"bots": []}, generated, vendored)
         history = maat.analysed(maat.in_window(commits, until=t))
-        report["coupling"], report["companions"] = maat.coupling(history), maat.companions(history)
-        ranked = watch.risks(report)
-        pool = {r["file"] for r in ranked}
-        end = evaluate.months_after(t, window_months)
-        for c in maat.in_window(commits, t, end):
-            files = sorted({p for p, _, _ in c["files"] if p in pool})
-            if not 2 <= len(files) <= max_files:
-                continue
-            full += 1
-            if watch.change_risk(report, files, ranked=ranked)["coupling_gaps"]:
-                alarmed += 1
-            for f in files:
-                queries += 1
-                gaps = watch.change_risk(report, [x for x in files if x != f], ranked=ranked)["coupling_gaps"]
-                if gaps:
-                    warned += 1
-                    correct += any(g["companion"] == f for g in gaps)
-    return {"queries": queries, "warned": warned, "correct": correct, "complete_commits": full, "closure_alarms": alarmed,
-            "precision": round(correct / warned, 3) if warned else None, "feedback": round(warned / queries, 3) if queries else None,
-            "closure_false_alarm_rate": round(alarmed / full, 3) if full else None}
+        report["coupling"] = maat.coupling(history)
+        yield report, history, list(maat.in_window(commits, t, evaluate.months_after(t, window_months)))
+
+
+def replay(report: dict, ranked: list, window: list, counts: dict = None, max_files: int = 20, top: int = 3) -> dict:
+    """Zimmermann et al.'s two experiments over one window of commits, added into `counts`. Error
+    prevention: leave one file out of each commit touching two to `max_files` scored files and see
+    whether the warning names it — precision is correct over warned, recall correct over queries (each
+    query expects exactly one file), feedback warned over queries, and top-`top` likelihood how often the
+    file is among the first `top` companions named. Closure: a complete commit, where any warning is a
+    false alarm."""
+    c = counts if counts is not None else {"queries": 0, "warned": 0, "correct": 0, "top": 0, "complete_commits": 0, "closure_alarms": 0}
+    pool = {r["file"] for r in ranked}
+    for commit in window:
+        files = sorted({p for p, _, _ in commit["files"] if p in pool})
+        if not 2 <= len(files) <= max_files:
+            continue
+        c["complete_commits"] += 1
+        if gaps_of(ranked, files):
+            c["closure_alarms"] += 1
+        for f in files:
+            c["queries"] += 1
+            named = gaps_of(ranked, [x for x in files if x != f])
+            if named:
+                c["warned"] += 1
+                c["correct"] += f in named
+                c["top"] += f in named[:top]
+    return c
+
+
+def gaps_of(ranked: list, files: list) -> list:
+    """The companions the hook would name for a change touching `files`, surest first: exactly
+    watch.change_risk's coupling_gaps read off the scored rows, without rebuilding the change view
+    per query (a test holds the two equal)."""
+    touched = set(files)
+    by_file = {r["file"]: r for r in ranked}
+    gaps = [(other, degree, f) for f in files if f in by_file for other, degree in by_file[f]["companions"] if other not in touched]
+    gaps.sort(key=lambda g: (-g[1], g[2], g[0]))
+    return [other for other, _, _ in gaps]
+
+
+def rates(c: dict) -> dict:
+    """The counts and the four rates Zimmermann reports, plus the closure false alarm rate."""
+    q, w, full = c["queries"], c["warned"], c["complete_commits"]
+    return {**c, "precision": round(c["correct"] / w, 3) if w else None, "recall": round(c["correct"] / q, 3) if q else None,
+            "top3": round(c["top"] / q, 3) if q else None, "feedback": round(w / q, 3) if q else None,
+            "closure_false_alarm_rate": round(c["closure_alarms"] / full, 3) if full else None}
+
+
+def hook_replay(clone: str, cache: str, out: str, anchors: int = 3, window_months: int = 2, max_files: int = 20) -> dict:
+    """The two experiments at the shipped thresholds (maat.companions' defaults), over three anchors six
+    months apart with the two months after each as queries, the history strictly before each commit
+    approximated at anchor granularity."""
+    counts = None
+    for report, history, window in hook_anchors(clone, cache, out, anchors, window_months):
+        report["companions"] = maat.companions(history)
+        counts = replay(report, watch.risks(report), window, counts, max_files)
+    return rates(counts or {"queries": 0, "warned": 0, "correct": 0, "top": 0, "complete_commits": 0, "closure_alarms": 0})
 
 
 def run_all(manifest: dict, root: str) -> dict:
