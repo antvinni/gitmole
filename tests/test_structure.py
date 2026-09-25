@@ -87,6 +87,11 @@ class Metrics(unittest.TestCase):
         self.assertEqual(r["deferred"], [1], "only the import in the if's own body")
         r = parse(".py", "import typing as t\nif t.TYPE_CHECKING:\n    from .a import A\nfrom typing import TYPE_CHECKING as TC\nif TC:\n    from .c import C\n")
         self.assertEqual(r["deferred"], [1], "an attribute of an aliased module is the constant; an aliased name is not recognised, and says so here")
+        r = parse(".py", "import sys, typing\nif not typing.TYPE_CHECKING:\n    from .n import N\n"
+                         "if sys.version_info >= (3, 11) or typing.TYPE_CHECKING:\n    from .o import O\nif (TYPE_CHECKING):\n    from .p import P\n")
+        self.assertEqual([i[1] for i in r["imports"]], ["sys", "typing", ".n", ".o", ".p"])
+        self.assertEqual(r["deferred"], [4], "a negated or combined condition can be true at run time; only the constant alone, "
+                                             "brackets or not, is the branch that never runs")
         r = parse(".js", "(function () { require('./iife'); })();\n(() => { require('./arrow'); })();\nfunction g() { require('./g'); }\n"
                          "const h = function () { require('./h'); };\n")
         self.assertEqual([i[1] for i in r["imports"]], ["./iife", "./arrow", "./g", "./h"])

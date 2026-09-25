@@ -238,10 +238,14 @@ def _logical(node) -> bool:
     return False
 
 
+_TYPE_CHECKING = re.compile(r"^\(*\s*(?:[A-Za-z_]\w*\s*\.\s*)*TYPE_CHECKING\s*\)*$")
+
+
 def _type_checking(condition: str) -> bool:
-    """PEP 484's constant, False at run time, however it is reached: TYPE_CHECKING, typing.TYPE_CHECKING,
-    t.TYPE_CHECKING or an alias's attribute; `not TYPE_CHECKING` is the branch that runs."""
-    return condition.strip().rsplit(".", 1)[-1] == "TYPE_CHECKING"
+    """PEP 484's constant alone, False at run time, however it is reached: TYPE_CHECKING, typing.TYPE_CHECKING,
+    t.TYPE_CHECKING or an alias's attribute, in brackets or not. Anything more around it (`not typing.TYPE_CHECKING`,
+    `X or TYPE_CHECKING`) can be true at run time, so its branch may run."""
+    return bool(_TYPE_CHECKING.match(condition.strip()))
 
 
 def _iife(node) -> bool:
