@@ -773,7 +773,9 @@ class Arguments(unittest.TestCase):
         text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("scc", text)
-        self.assertIn("brew install scc git-sizer betterleaks jscpd osv-scanner", text)
+        self.assertIn("brew install gitmole", text)          # the formula installs the pinned set
+        self.assertNotIn("brew install scc", text)           # separate formulae are unpinned
+        self.assertIn("docs/install.md", text)
         self.assertNotIn("jar", text)
 
 
