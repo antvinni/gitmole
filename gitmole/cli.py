@@ -175,7 +175,9 @@ def _resolve_time(args, err, ui):
         except ValueError as e:
             err.print(f"[red]GITMOLE_NOW:[/red] {e}")
             return 2, None
-        ui.print(f"[yellow]reference date fixed by GITMOLE_NOW:[/yellow] {now}")
+        # A notice about the run, not part of the report: never on a stdout that carries something a program
+        # parses (--hook's JSON, an export to -). ui is already stderr for an export; otherwise err is.
+        (ui if ui.stderr else err).print(f"[yellow]reference date fixed by GITMOLE_NOW:[/yellow] {now}")
     args.since_date = None
     if args.since:
         import datetime as _dt
