@@ -30,7 +30,7 @@ MARKDOWN = """# curl
 | --- | --- |
 | lib/url.c | changed 800 times |
 
-betterleaks scanned every commit on every branch
+betterleaks scanned every commit HEAD reaches
 
 gitmole 0.10.0 · git 2.55.0 · scc 4.1.0
 Full results and plots in /private/tmp/x/gitmole-examples/analysis-curl
@@ -60,7 +60,7 @@ class Document(unittest.TestCase):
         self.assertNotIn("Full results and plots", self.doc)
         self.assertNotIn("/private/tmp", self.doc)
         self.assertNotIn("gitmole 0.10.0 ·", self.doc)
-        self.assertTrue(self.doc.endswith("every commit on every branch\n"))
+        self.assertTrue(self.doc.endswith("every commit HEAD reaches\n"))
 
     def test_body_is_otherwise_unchanged(self):
         self.assertIn("| lib/url.c | changed 800 times |", self.doc)

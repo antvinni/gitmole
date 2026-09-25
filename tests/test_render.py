@@ -82,7 +82,7 @@ class Report(unittest.TestCase):
     def test_a_clean_secrets_scan_is_said_out_loud_in_the_findings(self):
         text = rendered(sample_report(), [])
         self.assertIn("✔ No secrets in history", text)
-        self.assertIn("betterleaks scanned every commit on every branch", text)
+        self.assertIn("betterleaks scanned every commit HEAD reaches", text)
         f = [{"severity": "warning", "title": "Bus factor of one", "detail": "Ann wrote 79% of the code."}]
         text = rendered(sample_report(), f)
         self.assertIn("Findings (1)", text, "the pass line is not a finding and is not counted")

@@ -910,7 +910,7 @@ def secrets_pass(report: dict):
     rows = report.get("secrets") or []
     if not report.get("secrets_scanned") or leaks.group(rows):
         return None
-    detail = "betterleaks scanned every commit on every branch"
+    detail = "betterleaks scanned every commit HEAD reaches"
     skipped = leaks.placeholders(rows)
     if skipped:
         detail += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"

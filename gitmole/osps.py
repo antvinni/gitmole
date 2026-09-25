@@ -52,7 +52,7 @@ def coverage(report: dict, found: list) -> list:
     lesser = [f["title"] for f in found if (f.get("rule") or {}).get("id") in ("secrets_possible", "secrets_aside")]
     rows.append(_row("OSPS-BR-07.01", "gap" if fired else "met" if report.get("secrets_scanned") else "not checked",
                      "; ".join(f["title"] for f in fired) if fired
-                     else ("no secret in source over every branch; " + "; ".join(lesser) if lesser else "the secrets scan over every branch found none")
+                     else ("no secret in source in HEAD's history; " + "; ".join(lesser) if lesser else "the secrets scan of HEAD's history found none")
                      if report.get("secrets_scanned") else "the secrets step did not run"))
 
     for control, key, what in (("OSPS-GV-03.01", "contributing", "a contribution guide"), ("OSPS-VM-02.01", "security_policy", "a security policy"),
