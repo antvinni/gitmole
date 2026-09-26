@@ -377,6 +377,10 @@ def _tools(args, ui: Console, err: Console, ask, installer, tool_check, isatty=N
         return None
     err.print("[red]missing tools:[/red] " + ", ".join(missing))
     wanted = install.downloadable([t for t in run.REQUIRED_TOOLS if t in missing])
+    nowhere = install.writable(None) if wanted and install.tools_dir() is None else None
+    if nowhere:   # a relative GITMOLE_TOOLS or no home: an offer could only fail after the yes
+        err.print(nowhere, markup=False, highlight=False)
+        wanted = []
     isatty = isatty or (lambda: feedback.on_terminal(ui.file))
     if wanted and not feedback.unattended(args) and isatty():
         ask = ask or (lambda q: ui.input(Text(q)))   # Text: no markup, and no highlighting of the versions

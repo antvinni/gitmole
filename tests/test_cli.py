@@ -1414,6 +1414,16 @@ class FirstRunOffer(unittest.TestCase):
                           installer=lambda *a, **kw: self.fail("interrupted at the question, nothing downloads"), isatty=lambda: True)
         self.assertEqual(rc, 130)
 
+    def test_no_directory_to_install_into_means_no_question_and_says_why(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"GITMOLE_TOOLS": "relative/tools"}):
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: self.fail("nowhere to put it, no question"),
+                          installer=lambda *a, **kw: self.fail("nowhere to put it"), isatty=lambda: True)
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("GITMOLE_TOOLS must be an absolute path", text)
+
     def test_a_ci_variable_means_no_question_even_on_a_pseudo_terminal(self):
         """Buildkite runs its jobs on a PTY and sets CI and BUILDKITE: a question there waits until the job times out."""
         for name in ("CI", "BUILDKITE"):

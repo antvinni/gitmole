@@ -343,11 +343,12 @@ class Fetch(unittest.TestCase):
 
     def test_a_body_cut_short_is_an_install_error_not_a_traceback(self):
         """IncompleteRead and BadStatusLine are http.client.HTTPException, not OSError."""
-        for error in (http.client.IncompleteRead(b"x" * 10, 990), http.client.BadStatusLine("garbage")):
+        for error in (http.client.IncompleteRead(b"x" * 10, 990), http.client.BadStatusLine("garbage"), http.client.HTTPException()):
             with self.subTest(error=type(error).__name__):
                 make, _ = self._opener(error=error)
-                with mock.patch.object(install, "_opener", make), self.assertRaises(install.InstallError):
+                with mock.patch.object(install, "_opener", make), self.assertRaises(install.InstallError) as caught:
                     install.fetch("https://example.test/scc.tar.gz")
+                self.assertFalse(str(caught.exception).endswith(": "), "an empty message is replaced by the error's name")
 
     def test_a_failure_after_a_redirect_names_the_host_it_was_sent_to(self):
         import urllib.error

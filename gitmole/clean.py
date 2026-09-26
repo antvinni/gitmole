@@ -54,16 +54,17 @@ def _clones(tmp: str) -> list:
 
 def _stale_tools(root: str | None) -> list:
     """<tool>-<version> directories under the tool root other than the current pins' (run.env_path never puts
-    them on PATH, so they only take space), and a tool file straight in the root, where the installer put
-    them before it kept one directory per pin. The current pins' copies are in use and are not listed."""
+    them on PATH, so they only take space). Only a directory that holds nothing but that tool is listed:
+    GITMOLE_TOOLS may name a directory the user keeps other things in, and nothing of theirs is gitmole's to
+    delete. The current pins' copies are in use and are not listed."""
     if not root or not os.path.isdir(root):
         return []
     current = {f"{name}-{tools.PINNED[name]}" for name in run.REQUIRED_TOOLS}
     found = []
     for entry in sorted(os.listdir(root)):
         path = os.path.join(root, entry)
-        versioned = any(entry.startswith(t + "-") and entry[len(t) + 1:][:1].isdigit() for t in run.REQUIRED_TOOLS)
-        if (os.path.isdir(path) and versioned and entry not in current) or (entry in run.REQUIRED_TOOLS and os.path.isfile(path)):
+        tool = next((t for t in run.REQUIRED_TOOLS if entry.startswith(t + "-") and entry[len(t) + 1:][:1].isdigit()), None)
+        if tool and entry not in current and os.path.isdir(path) and not os.path.islink(path) and os.listdir(path) == [tool]:
             found.append(path)
     return found
 

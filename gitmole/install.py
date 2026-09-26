@@ -121,7 +121,7 @@ def fetch(url: str) -> bytes:
             return response.read()
     except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
         via = f" (sent on to {urllib.parse.urlparse(redirects.last).netloc})" if redirects.last else ""
-        raise InstallError(f"{url}{via}: {e or type(e).__name__}") from e
+        raise InstallError(f"{url}{via}: {str(e) or type(e).__name__}") from e
 
 
 def digest(data: bytes) -> str:
