@@ -169,6 +169,35 @@ class Dashboard(unittest.TestCase):
         self.assertEqual(s["crashed"], {"b": "Traceback: boom"})
         self.assertEqual(s["robust"], [1, 2])
 
+    def _with_large(self):
+        rec = _record({"a": "ok"})
+        big = json.loads(json.dumps(rec["repos"]["a"]))
+        big.update({"set": "large", "findings": 40, "report_lines": 300, "seconds": 500, "peak_mb": 3000})
+        big["ranking"]["cutoffs"][0].update({"hits": 2, "churn_hits": 5})   # the hard case: it loses to churn
+        rec["repos"]["L"] = big
+        return rec
+
+    def test_a_large_entry_counts_for_effectiveness_and_not_for_the_cost_ceilings(self):
+        s = dashboard.summarise(self._with_large())
+        self.assertEqual((s["findings_median"], s["report_lines"], s["seconds"], s["peak_mb"]), (4, 100, 10, 100), "cost: development only")
+        self.assertEqual(s["wins_losses_ties"], [1, 1, 0], "effectiveness: development and large")
+        self.assertEqual((s["large_seconds"], s["large_peak_mb"], s["large_findings_median"]), (500, 3000, 40))
+
+    def test_a_crash_on_a_large_repository_marks_the_release(self):
+        rec = self._with_large()
+        rec["repos"]["L"].update({"status": "timeout", "note": "timed out"})
+        self.assertEqual(dashboard.summarise(rec)["crashed"], {"L": "timed out"})
+
+    def test_a_series_repository_in_the_large_set_stays_in_every_series_key(self):
+        s = dashboard.summarise(self._with_large(), only={"a", "L"})
+        self.assertEqual((s["findings_median"], s["seconds"], s["peak_mb"]), (22, 510, 3000), "the series is like-for-like, cost included")
+        self.assertEqual(s["wins_losses_ties"], [1, 1, 0])
+        self.assertNotIn("large_seconds", s, "the large row is the whole record's, not the series'")
+
+    def test_a_record_without_large_entries_has_no_large_keys(self):
+        s = dashboard.summarise(_record({"a": "ok", "b": "ok"}))
+        self.assertFalse([k for k in s if k.startswith("large_")])
+
     def test_the_top_fifteen_carried_over_between_consecutive_cut_offs(self):
         rec = _record({"a": "ok", "b": "ok"})
         cut = rec["repos"]["a"]["ranking"]["cutoffs"][0]
