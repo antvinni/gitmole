@@ -52,17 +52,37 @@ gitmole --install-tools                          # the five tools, pinned, into 
 ```
 
 `--install-tools` downloads the same release archives the formula does, from
-github.com and registry.npmjs.org (about 80 MB on macOS arm64 at 0.36.0),
-checks each against the same sha256, and keeps the one executable from each in
-`~/Library/Application Support/gitmole/tools` on macOS or
-`$XDG_DATA_HOME/gitmole/tools`, default `~/.local/share/gitmole/tools`, on
-Linux; `GITMOLE_TOOLS` names another directory. A run looks there before PATH,
-so a distribution's copy of a tool cannot shadow the pinned one. Skip the
-command and the first `gitmole .` on a terminal asks whether to download the
-tools it is missing; without a terminal it names the command and exits 2.
-Apart from cloning a remote target you name, gitmole reaches the network only
-for `--install-tools` or a yes to the missing-tools question; a scan of a
-local clone never does. Nothing is downloaded without a yes.
+github.com (which sends each download on to
+release-assets.githubusercontent.com; an allowlist must admit both) and
+registry.npmjs.org, about 80 MB on macOS arm64 at 0.36.0. It checks each
+against the same sha256, keeps the one executable from each, runs it once to
+see that it prints its pinned version, and puts it in a directory per tool and
+pin, such as `scc-4.1.0/`, under `~/Library/Application Support/gitmole/tools`
+on macOS or `$XDG_DATA_HOME/gitmole/tools`, default
+`~/.local/share/gitmole/tools`, on Linux. `GITMOLE_TOOLS` names another
+directory; it must be an absolute path (`~` is expanded), and a relative one
+is refused rather than resolved inside whatever repository you run in. A run
+looks in the current pins' directories before PATH, so a distribution's copy
+of a tool cannot shadow the pinned one, and a copy left by an older gitmole is
+never used: `gitmole --clean` lists it. `pipx uninstall gitmole` does not
+remove the directory; delete it by hand.
+
+Skip the command and the first `gitmole .` asks whether to download the tools
+it is missing, when a person is there to answer: stdin and the output are
+terminals, no CI variable is set (`CI`, `GITHUB_ACTIONS`, `GITLAB_CI`,
+`BUILDKITE`, `TEAMCITY_VERSION`), and no export or gate flag says a script is
+reading. Otherwise it names the command and exits 2. Nothing is downloaded
+without a yes.
+
+gitmole downloads nothing of its own apart from that. It reaches the network
+to clone a remote target you name and to list `owner/*` with `gh`; and git
+itself fetches from the remote when a step reads an object a partial clone
+(`git clone --filter=...`) left out. A scan of a full local clone reaches
+nothing.
+
+On a python.org Python for macOS that has not run its `Install
+Certificates.command`, gitmole verifies the downloads against macOS's own
+`/etc/ssl/cert.pem`; `SSL_CERT_FILE`, when set, decides alone.
 
 ## Linux
 
@@ -72,13 +92,19 @@ publishes no build, the formula builds the pinned version from source, which
 needs Go at install time. Without Homebrew, `pipx install gitmole` and
 `gitmole --install-tools` work as on macOS, on x86_64 and arm64, with the
 same one gap: on Linux arm64 `--install-tools` installs the other four and says
-why git-sizer did not land. `go install github.com/github/git-sizer@v1.5.0`
-builds the pinned one into `~/go/bin`, which must then be on PATH, or take your
-distribution's package and accept the version note. The manual route below
-remains for a machine that cannot reach github.com: take the tools from your
-package manager where it has them and from the projects' release pages
-otherwise; each ships a static binary, so dropping it into `~/.local/bin` is
-enough.
+why git-sizer did not land.
+`go install -ldflags "-X main.ReleaseVersion=1.5.0" github.com/github/git-sizer@v1.5.0`
+builds the pinned one into `~/go/bin`, which must then be on PATH (without the
+`-X` flag the build prints no version, and `--doctor` cannot tell it is the
+pinned one), or take your distribution's package and accept the version note.
+On a musl distribution such as Alpine, `--install-tools` takes jscpd's musl
+build; the other four are static and are the same files.
+
+The manual route below is for a machine that cannot reach github.com: take the
+tools from your package manager where it has them, or copy the archives
+[gitmole/tools.py](https://github.com/antvinni/gitmole/blob/main/gitmole/tools.py)
+names from a machine that can, and check them against its sha256. Each ships a
+static binary, so dropping it into `~/.local/bin` is enough.
 
 ```bash
 # Debian and Ubuntu: git-sizer and pipx are packaged
@@ -125,7 +151,9 @@ osv-scanner scan source -r --offline-vulnerabilities --download-offline-database
 ```
 
 Until then the report footer says the dependencies were not scanned and
-prints that command. The copy lives in osv-scanner's cache directory
+prints that command. If `--install-tools` installed osv-scanner, your shell
+does not find it by that bare name: `gitmole --doctor` prints the same command
+with the full path of the osv-scanner gitmole runs. The copy lives in osv-scanner's cache directory
 (`~/Library/Caches/osv-scalibr` on macOS, `~/.cache/osv-scalibr` on Linux, or
 `OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY`), and the report says how old it is.
 

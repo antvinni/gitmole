@@ -139,16 +139,17 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 
 ## Safety
 
-- Everything is offline except the optional clone step and the tool download
-  you ask for with `--install-tools` or a yes to the missing-tools question,
-  which uses your existing gh auth. None of the tools send data anywhere; osv-scanner runs
+- Everything is offline except the optional clone step, which uses your
+  existing gh auth, and the tool download you ask for with `--install-tools`
+  or a yes to the missing-tools question. None of the tools send data anywhere; osv-scanner runs
   against a local copy of its database that you download once, and gitmole
   never downloads it for you.
 - Remote targets are cloned into a fresh temp directory that is removed when
   the run ends. Local clones are only read. The secrets scan reads every
   branch; everything else describes the branch that is checked out.
   `gitmole --clean` lists every directory gitmole created and deletes them
-  after a y/N question.
+  after a y/N question, except the tools `--install-tools` placed for the
+  version you run, which are in use.
 - Secret values never reach the output directory. betterleaks reports to
   gitmole in memory, and gitmole stores a short keyed hash in place of the
   value, the matched text and the commit message. The key is random, made
