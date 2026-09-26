@@ -1,8 +1,9 @@
 {
- "about": "The measurement corpus (docs/measurement.md). development: tuning and eyeballing allowed. holdout: never read while tuning; run it when a release note is about to claim the tool got more effective. well-kept: chosen before running anything, by an outside criterion. awkward and gate: fixtures the harness builds.",
+ "about": "The measurement corpus (docs/measurement.md). development: tuning and eyeballing allowed. holdout: never read while tuning; run it when a release note is about to claim the tool got more effective. well-kept: chosen before running anything, by an outside criterion. large: repositories too slow or too big for the development loop, run in release rounds only (`run --release`). awkward and gate: fixtures the harness builds.",
  "reference_date": "2026-09-17",
  "series": {"repos": ["curl", "django", "react", "gitmole"], "note": "the development set every release since 0.2.0 was measured on; the history's long graphs are drawn over these four, so a change to the development set does not read as a move. The dashboard and the per-release table use the whole set."},
  "well_kept_criterion": "CNCF graduated projects (cncf.io/projects, graduated maturity), four Go projects of moderate size; chosen on 18 September 2026 before any gitmole run on them",
+ "development_criterion": "Chosen by the maintainer, 26 September 2026. Medium: on the pinned commit, the record's `seconds` at most 120 and `peak_mb` at most 1,500, each the median of three runs (a member: its last three release records; a newcomer: three scratch runs), with tracked text under the duplicates step's 80 MB budget. Sticky exit: a member is considered for leaving only after two consecutive release records exceed the bound, and the maintainer decides. Diverse: at least one medium repository each for C, Python, JavaScript/TypeScript, Java, Ruby and Rust where one passes; Go is covered by the well-kept set. Replacements were picked in the order of a saved GitHub search (>= 5,000 stars, created before 2022-09-26, pushed after 2026-06-01, 10-150 MB), skipping owner apache, reserve entries and corpus members, at most five clones per language, requiring >= 50% of scc code lines in the language and a clean ranking (six cut-offs, best 15 each), headroom unseen.",
  "holdout_labels": {
   "apachejit": "github.com/hosseinkshvrz/apachejit dataset/apachejit_total.csv (Keshavarz and Nagappan, MSR 2022)"
  },
@@ -24,6 +25,10 @@
   {
    "date": "2026-09-19",
    "note": "ghidra (the maintainer's review commit) and binutils-gdb join the development set: three repositories gave intervals too wide to show a move, and the Ghidra-derived rules needed a second repository. Records before 0.27.0 hold three development repositories plus gitmole, so their medians are not comparable with later ones without a rerun."
+  },
+  {
+   "date": "2026-09-26",
+   "note": "the development set becomes medium and diverse, by the maintainer's decision (development_criterion). django (165 s, the median of its last three release records), ghidra and binutils-gdb (376 s) move to the new large set, run in release rounds only; redis, tokio, jadx (Java), brew (Ruby) and yt-dlp (Python) join; curl, react and gitmole are grandfathered. The Ghidra-derived rules (imports, vendoring, notices, generated parsers) are now exercised in release rounds only. Measured on this corpus with 0.36.0 in a scratch release round (loads 3.8 to 10.7): the development cost ceilings re-base to a findings median of 19.5 and p90 of 25.8 (from 23.5 and 28.0: smaller repositories, not a better tool), report lines 216 (220.5), timed seconds 415 (766) and peak memory 1,251 MB (from 1,130: a raise, from redis, decided with the set); the large set's ceilings are 531 s and 1,121 MB. Effectiveness now spans development and large: headroom 0.657 [0.458, 0.831] on this corpus against 0.617 on the old set is a different population, not a move. A loop (development, awkward, gate) times 445 s; a release round is about 22 minutes. series is unchanged and keeps django. The loop's labelled share reads lower until the new repositories are labelled. django ran in 92 s in this round: it can rejoin if its release-record median falls under the bound."
   }
  ],
  "repos": [
@@ -39,7 +44,7 @@
    "name": "django",
    "url": "https://github.com/django/django",
    "commit": "8cbdd4a814397f81adf0129288f32b615bd1f94f",
-   "set": "development",
+   "set": "large",
    "size": "medium",
    "ecosystem": "python"
   },
@@ -295,7 +300,7 @@
    "name": "ghidra",
    "url": "https://github.com/NationalSecurityAgency/ghidra",
    "commit": "dc9614e8681c93b4952600306f58008eebedb76e",
-   "set": "development",
+   "set": "large",
    "size": "large",
    "ecosystem": "java",
    "note": "the maintainer's review commit; the import, vendoring, notice and secrets rules were written against it"
@@ -304,10 +309,51 @@
    "name": "binutils-gdb",
    "url": "https://sourceware.org/git/binutils-gdb.git",
    "commit": "98211c87c9483a0c4b3dca29444d55bbe4ccc702",
-   "set": "development",
+   "set": "large",
    "size": "large",
    "ecosystem": "c",
    "note": "a second repository for the Ghidra-derived rules: GNU notices, bundled libraries (zlib, readline, libiberty), generated parsers"
+  },
+  {
+   "name": "redis",
+   "url": "https://github.com/redis/redis",
+   "commit": "16e021b465fbbc73d5f070b4da5ce9f5ee4baea1",
+   "set": "development",
+   "size": "medium",
+   "ecosystem": "c",
+   "note": "merges modules as subtrees with their own histories (vector-sets, March 2025): a cut-off picked by date alone can land in one"
+  },
+  {
+   "name": "tokio",
+   "url": "https://github.com/tokio-rs/tokio",
+   "commit": "cf782c5b917b7ea21b6f97f07104ebf16d35f5f8",
+   "set": "development",
+   "size": "small",
+   "ecosystem": "rust"
+  },
+  {
+   "name": "jadx",
+   "url": "https://github.com/skylot/jadx",
+   "commit": "9726a4bde85d0ccdd1e399f2d8301084a3e9d323",
+   "set": "development",
+   "size": "medium",
+   "ecosystem": "java"
+  },
+  {
+   "name": "brew",
+   "url": "https://github.com/Homebrew/brew",
+   "commit": "6bfe3ed3fc2fa87059d8c6040b00a69727bbf362",
+   "set": "development",
+   "size": "medium",
+   "ecosystem": "ruby"
+  },
+  {
+   "name": "yt-dlp",
+   "url": "https://github.com/yt-dlp/yt-dlp",
+   "commit": "c7fb478d21e9e59524befbe23f7801bb267fb880",
+   "set": "development",
+   "size": "medium",
+   "ecosystem": "python"
   }
  ]
 }

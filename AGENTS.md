@@ -173,9 +173,10 @@ to you and costs the project runner minutes: one push per loop, not one per fix.
 
 Leave the branch, the pull request and a note saying which of these it was.
 
-**What a loop can afford.** A full measurement round is about 20 minutes (the 0.34.0 record's
-per-entry times sum to 19 minutes over all 21 entries, 8 of them binutils-gdb) and the extras are
-budgeted at another 25, a figure no record has measured yet. So a loop that changes any number ends at
+**What a loop can afford.** A loop round (`run`: development, awkward, gate) is about 8 minutes of
+timed runs (445 s measured on 26 September 2026, 415 of them the eight development repositories); a
+release round (`run --release`, adding the large and well-kept sets) is about 22 minutes with its
+rankings; the extras are budgeted at another 25, a figure no record has measured yet. So a loop that changes any number ends at
 "record produced", not at "released". A loop that changes no number — docs, tests, a refactor — should
 not run the harness at all.
 

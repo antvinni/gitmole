@@ -102,7 +102,7 @@ sensitivities.
 A **cost regression shows on any repository**. Findings per repository, report
 length, wall time and peak memory move the same direction on two repositories
 as on nine, so the per-pull-request gate runs a small fixed pair — gitmole
-itself and one large repository — and fails when a ceiling is crossed without a
+itself and one repository of the large set — and fails when a ceiling is crossed without a
 recorded note, or when determinism breaks. That is cheap enough to run on every
 change that touches the rules, and it is the gate that 0.32.0's move from 18.5
 to 23.5 would have tripped.

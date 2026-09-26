@@ -39,7 +39,11 @@ Every number on this page is measured over a fixed corpus of pinned clones, and
 the corpus is split in two.
 
 The **development set** is where thresholds get chosen and output gets eyeballed:
-curl, django and react, which are also the example repositories. The
+medium repositories, diverse by ecosystem — curl and redis (C), react
+(JavaScript), yt-dlp and gitmole itself (Python), jadx (Java), Homebrew's brew
+(Ruby) and tokio (Rust) — each under two minutes and 1.5 GB a run, by the
+criterion written beside the corpus (`development_criterion`). curl, django and
+react are also the example repositories; django is in the large set. The
 **holdout** is a second set, pinned the same way, never looked at while tuning.
 When development and holdout disagree, the holdout is the answer.
 
