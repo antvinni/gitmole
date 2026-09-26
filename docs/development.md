@@ -114,7 +114,8 @@ has bumped the formula.
 `Formula/gitmole.rb` holds the archive and checksum for each platform;
 `tests/test_tools.py` fails when the two disagree. To move one: bump the table,
 bump the formula's resource (url and sha256 for both CPUs on both systems),
-then measure the release, since a tool's own rules decide part of the report and
+copy the same urls and hashes into `tools.ARCHIVES` for `--install-tools` (plus
+the musl jscpd builds, which only the installer uses), then measure the release, since a tool's own rules decide part of the report and
 the measurement is where that shows. The python dependencies are pinned in
 `pyproject.toml` for the same reason; `brew update-python-resources` refreshes
 their resources and is run by hand when a pin moves, never by the release job,

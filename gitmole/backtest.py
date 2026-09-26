@@ -19,7 +19,7 @@ import subprocess
 import sys
 import tempfile
 
-from . import filetypes, load, maat, trend
+from . import filetypes, load, maat, run, trend
 
 
 def snapshot_at(repo: str, rev: str, out_dir: str) -> tuple:
@@ -36,7 +36,8 @@ def snapshot_at(repo: str, rev: str, out_dir: str) -> tuple:
         env = dict(os.environ, GIT_INDEX_FILE=os.path.join(tmp, "index"))
         subprocess.run(["git", "read-tree", rev], cwd=repo, env=env, check=True, capture_output=True, text=True)
         subprocess.run(["git", "checkout-index", "-a", f"--prefix={tree}/"], cwd=repo, env=env, check=True, capture_output=True, text=True)
-        size = subprocess.run(["scc", "--by-file", "--format", "json"], cwd=tree, capture_output=True, text=True, check=True).stdout
+        size = subprocess.run(["scc", "--by-file", "--format", "json"], cwd=tree, capture_output=True, text=True, check=True,
+                              env=dict(os.environ, PATH=run.env_path())).stdout   # the scc a run uses, in-process too
         # the text files of that tree, as blame.text_files lists HEAD's: git grep prints "rev:path"
         proc = subprocess.run([*filetypes.GIT, "grep", "-I", "--name-only", "-z", "-e", "", rev], cwd=repo, capture_output=True)
         if proc.returncode not in (0, 1):   # 1 is grep's "no match" (an empty tree), not a failure

@@ -21,8 +21,9 @@ brew tap antvinni/gitmole https://github.com/antvinni/gitmole
 brew trust antvinni/gitmole
 brew install gitmole
 
-# anywhere else: scc, git-sizer, betterleaks, jscpd and osv-scanner on your PATH, then
+# anywhere else: gitmole from PyPI, then the same five pinned tools into gitmole's own directory
 pipx install gitmole
+gitmole --install-tools
 ```
 
 Linux package names, the release binaries, `--plots` and the pip caveats:
@@ -47,6 +48,7 @@ gitmole analysis-repo --no-run --hook  # a coding agent's edit hook: history's v
 gitmole . --since 2y --full            # the current team, every row and column
 gitmole --clean                        # list what gitmole left behind, delete on a yes
 gitmole --doctor                       # every tool gitmole runs, the version found against the one pinned
+gitmole --install-tools                # the five pinned tools, downloaded into gitmole's own directory
 ```
 
 A CI job that runs `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"`
@@ -138,14 +140,16 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 ## Safety
 
 - Everything is offline except the optional clone step, which uses your
-  existing gh auth. None of the tools send data anywhere; osv-scanner runs
+  existing gh auth, and the tool download you ask for with `--install-tools`
+  or a yes to the missing-tools question. None of the tools send data anywhere; osv-scanner runs
   against a local copy of its database that you download once, and gitmole
   never downloads it for you.
 - Remote targets are cloned into a fresh temp directory that is removed when
   the run ends. Local clones are only read. The secrets scan reads every
   branch; everything else describes the branch that is checked out.
   `gitmole --clean` lists every directory gitmole created and deletes them
-  after a y/N question.
+  after a y/N question, except the tools `--install-tools` placed for the
+  version you run, which are in use.
 - Secret values never reach the output directory. betterleaks reports to
   gitmole in memory, and gitmole stores a short keyed hash in place of the
   value, the matched text and the commit message. The key is random, made

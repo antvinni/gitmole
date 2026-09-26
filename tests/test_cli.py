@@ -4,10 +4,11 @@ import os
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 from rich.console import Console
 
-from gitmole import cli, run
+from gitmole import cli, install, run, tools
 
 
 def console():
@@ -900,6 +901,10 @@ class Clean(unittest.TestCase):
     """--clean lists what gitmole left behind and deletes on a yes. TMPDIR is pointed at a scratch dir so the
     real temp folder is never listed or touched."""
 
+    def setUp(self):
+        from tests.test_clean import _no_tools
+        _no_tools(self)
+
     def _with_tmp(self, fn):
         with tempfile.TemporaryDirectory() as work, tempfile.TemporaryDirectory() as tmp:
             old = os.environ.get("TMPDIR")
@@ -916,6 +921,30 @@ class Clean(unittest.TestCase):
         os.makedirs(path)
         with open(os.path.join(path, "meta.json"), "w") as fh:
             fh.write("{}")
+
+    def test_ctrl_c_at_the_question_exits_130_and_deletes_nothing(self):
+        def ask(q):
+            raise KeyboardInterrupt
+        def go(work, tmp):
+            self._output(os.path.join(work, "analysis-a"))
+            c = Console(file=io.StringIO(), width=120, record=True, force_terminal=True, color_system=None)
+            rc = cli.main(["--clean", work], console=c, ask=ask)
+            return rc, c.export_text(), os.path.isdir(os.path.join(work, "analysis-a"))
+        rc, text, kept = self._with_tmp(go)
+        self.assertEqual(rc, 130)
+        self.assertIn("interrupted", text)
+        self.assertTrue(kept)
+
+    def test_forced_colour_into_a_file_is_not_a_terminal_to_confirm_on(self):
+        """FORCE_COLOR makes rich call a file a terminal; the question would land in the file and wait."""
+        def go(work, tmp):
+            self._output(os.path.join(work, "analysis-a"))
+            c = Console(file=io.StringIO(), width=120, record=True, force_terminal=True, color_system=None)
+            rc = cli.main(["--clean", work], console=c)
+            return rc, c.export_text()
+        rc, text = self._with_tmp(go)
+        self.assertEqual(rc, 2)
+        self.assertIn("pass --yes", text)
 
     def test_nothing_to_clean(self):
         def go(work, tmp):
@@ -1204,6 +1233,227 @@ class BacktestWindow(unittest.TestCase):
         kw, meta = self._run(["2025-06-01", "2026-03-01"])
         self.assertIsNone(kw["backtest"])
         self.assertEqual(meta["backtest"], {"status": "skipped", "reason": "too little history to backtest"})
+
+
+class InstallTools(unittest.TestCase):
+    def test_install_tools_needs_no_target_and_exits_0_when_every_tool_lands(self):
+        calls = []
+
+        def installer(names, say=print, **kw):
+            calls.append(list(names))
+            for name in names:
+                say(f"{name}: installed /x/tools/{name} (pinned)")
+            return list(names)
+
+        c = console()
+        rc = cli.main(["--install-tools"], console=c, installer=installer)
+        text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls, [run.REQUIRED_TOOLS])
+        self.assertIn("scc: installed /x/tools/scc", text)
+        self.assertIn("5 tools installed", text)
+        self.assertNotIn("target required", text)
+
+    def test_install_tools_exits_1_naming_what_did_not_land(self):
+        c = console()
+        rc = cli.main(["--install-tools"], console=c, installer=lambda names, say=print, **kw: [n for n in names if n != "git-sizer"])
+        text = c.export_text()
+        self.assertEqual(rc, 1)
+        self.assertIn("not installed: git-sizer", text)
+        self.assertIn("docs/install.md", text)
+
+    def test_install_tools_refuses_a_target_and_downloads_nothing(self):
+        c = console()
+        rc = cli.main([".", "--install-tools"], console=c, installer=lambda *a, **kw: self.fail("must not download"))
+        self.assertEqual(rc, 2)
+        self.assertIn("--install-tools takes no target", c.export_text())
+
+    def test_a_long_path_stays_on_one_line(self):
+        long = "/very/" + "long/" * 30 + "tools"
+        c = console()   # width 100
+        cli.main(["--install-tools"], console=c, installer=lambda names, say=print, **kw: [say(f"{n}: installed {long}/{n}") for n in names] and list(names))
+        lines = [l for l in c.export_text().splitlines() if "scc: installed" in l]
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].endswith("/tools/scc"), "soft_wrap: pasteable")
+
+    def test_install_tools_ctrl_c_exits_130(self):
+        def installer(names, say=print, **kw):
+            raise KeyboardInterrupt
+        c = console()
+        rc = cli.main(["--install-tools"], console=c, installer=installer)
+        self.assertEqual(rc, 130)
+        self.assertIn("interrupted", c.export_text())
+
+    def test_install_tools_with_doctor_is_refused(self):
+        c = console()
+        rc = cli.main(["--install-tools", "--doctor"], console=c, installer=lambda *a, **kw: self.fail("must not download"))
+        self.assertEqual(rc, 2)
+        self.assertIn("two commands", c.export_text())
+
+    def test_the_download_runs_under_the_default_sigint_handler_and_restores_the_runs(self):
+        import signal
+        seen = []
+        def installer(names, say=print, **kw):
+            seen.append(signal.getsignal(signal.SIGINT))
+            return list(names)
+        before = signal.getsignal(signal.SIGINT)
+        cli.main(["--install-tools"], console=console(), installer=installer)
+        self.assertEqual(seen, [signal.default_int_handler])
+        self.assertIs(signal.getsignal(signal.SIGINT), cli.interrupt, "main() sets its own handler and does not restore what it found; _interruptible restores main()'s")
+
+
+@unittest.skipUnless(install.platform_key() in tools.ARCHIVES, "the question is only asked where a pinned build exists")
+class FirstRunOffer(unittest.TestCase):
+    """A run that finds required tools missing asks, on a terminal, before downloading; the download is the
+    one thing gitmole ever fetches and it happens here, before any analysis. Without a terminal, in CI or an
+    agent hook, nothing is asked or fetched and the command is named, exit 2 as before."""
+
+    def setUp(self):
+        from gitmole import feedback
+        # the suite runs in CI too, where CI=true would keep every question below from being asked
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for name in feedback.CI_VARS:
+            os.environ.pop(name, None)
+
+    @staticmethod
+    def _terminal():
+        return Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system=None)
+
+    def test_a_yes_downloads_the_missing_tools_then_the_run_goes_on(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            checks = iter([["scc"], []])       # missing before the download, complete after it
+            installed, asked = [], []
+            fake_plan = lambda repo, out, branch="HEAD", **kw: [{"name": "quick", "argv": ["true"], "stdout": None, "deps": []}]
+            c = self._terminal()
+            rc = cli.main([d, "--out", os.path.join(d, "out")], console=c, tool_check=lambda **kw: next(checks), planner=fake_plan,
+                          ask=lambda q: asked.append(q) or "y",
+                          installer=lambda names, say=print, **kw: installed.append(list(names)) or list(names), isatty=lambda: True)
+            text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertEqual(installed, [["scc"]])
+        self.assertEqual(len(asked), 1)
+        self.assertIn("scc 4.1.0", asked[0])
+        self.assertIn("github.com", asked[0])
+        self.assertIn("1 steps in", text)
+
+    def test_a_no_leaves_the_message_and_exits_2(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: "n",
+                          installer=lambda *a, **kw: self.fail("a no must not download"), isatty=lambda: True)
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("missing tools: scc", text)
+        self.assertIn("gitmole --install-tools", text)
+        self.assertIn("brew install gitmole", text)
+        self.assertIn("docs/install.md", text)
+
+    def test_end_of_input_counts_as_a_no(self):
+        def eof(q):
+            raise EOFError
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            rc = cli.main([d], console=self._terminal(), tool_check=lambda **kw: ["scc"], ask=eof,
+                          installer=lambda *a, **kw: self.fail("EOF must not download"), isatty=lambda: True)
+        self.assertEqual(rc, 2)
+
+    def test_without_a_terminal_nothing_is_asked_or_fetched(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = console()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: self.fail("no terminal, no question"),
+                          installer=lambda *a, **kw: self.fail("no terminal, no download"))
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("gitmole --install-tools", text)
+
+    def test_a_download_that_leaves_a_tool_missing_still_exits_2_and_says_which(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            checks = iter([["scc", "jscpd"], ["jscpd"]])
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: next(checks), ask=lambda q: "yes",
+                          installer=lambda names, say=print, **kw: ["scc"], isatty=lambda: True)
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("still missing: jscpd", text)
+        self.assertIn("gitmole --install-tools", text)
+
+    def test_a_missing_plot_tool_alone_is_not_offered(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d, "--plots"], console=c, tool_check=lambda **kw: ["git-of-theseus-analyze"],
+                          ask=lambda q: self.fail("git-of-theseus is the pipx extra, not a download"),
+                          installer=lambda *a, **kw: self.fail("nothing to download"))
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("pipx install 'gitmole[plots]'", text)
+        self.assertNotIn("--install-tools", text)
+
+    def test_ctrl_c_during_the_download_exits_130(self):
+        def installer(names, say=print, **kw):
+            raise KeyboardInterrupt
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: "y", installer=installer, isatty=lambda: True)
+        self.assertEqual(rc, 130)
+        self.assertIn("interrupted", c.export_text())
+
+    def test_ctrl_c_at_the_question_exits_130(self):
+        def ask(q):
+            raise KeyboardInterrupt
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            rc = cli.main([d], console=self._terminal(), tool_check=lambda **kw: ["scc"], ask=ask,
+                          installer=lambda *a, **kw: self.fail("interrupted at the question, nothing downloads"), isatty=lambda: True)
+        self.assertEqual(rc, 130)
+
+    def test_no_directory_to_install_into_means_no_question_and_says_why(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"GITMOLE_TOOLS": "relative/tools"}):
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: self.fail("nowhere to put it, no question"),
+                          installer=lambda *a, **kw: self.fail("nowhere to put it"), isatty=lambda: True)
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("GITMOLE_TOOLS must be an absolute path", text)
+
+    def test_a_ci_variable_means_no_question_even_on_a_pseudo_terminal(self):
+        """Buildkite runs its jobs on a PTY and sets CI and BUILDKITE: a question there waits until the job times out."""
+        for name in ("CI", "BUILDKITE"):
+            with self.subTest(var=name), tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {name: "true"}):
+                _tiny_repo(d)
+                c = self._terminal()
+                rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: self.fail("CI, no question"),
+                              installer=lambda *a, **kw: self.fail("CI, no download"), isatty=lambda: True)
+                self.assertEqual(rc, 2)
+                self.assertIn("gitmole --install-tools", c.export_text())
+
+    def test_a_gate_or_an_export_means_no_question(self):
+        for extra in (["--fail-on", "critical"], ["--markdown", "-"], ["--json", "r.json"]):
+            with self.subTest(flags=extra), tempfile.TemporaryDirectory() as d:
+                _tiny_repo(d)
+                rc = cli.main([d, *extra], console=self._terminal(), tool_check=lambda **kw: ["scc"],
+                              ask=lambda q: self.fail("a script is reading, no question"),
+                              installer=lambda *a, **kw: self.fail("a script is reading, no download"), isatty=lambda: True)
+                self.assertEqual(rc, 2)
+
+    def test_a_forced_colour_console_without_a_terminal_on_stdin_is_not_asked(self):
+        """FORCE_COLOR makes rich's is_terminal True in CI; stdin decides whether anyone is there to answer."""
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: self.fail("no stdin terminal, no question"),
+                          installer=lambda *a, **kw: self.fail("no stdin terminal, no download"), isatty=lambda: False)
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("gitmole --install-tools", text)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
-"""Command line entry point: gitmole <path | owner/repo | url> [--out DIR] [--no-run], gitmole --clean [DIR], or gitmole --doctor."""
+"""Command line entry point: gitmole <path | owner/repo | url> [--out DIR] [--no-run], gitmole --clean [DIR], gitmole --doctor, or gitmole --install-tools."""
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import os
 import shutil
@@ -19,6 +20,8 @@ from rich.text import Text
 from . import __version__, banner, blame, filetypes, findings, load, loss, run, tools
 
 INSTALL_URL = "https://github.com/antvinni/gitmole/blob/main/docs/install.md"
+# what to do about a missing or moved required tool, said by a run and by --doctor alike
+INSTALL_HINT = "gitmole --install-tools downloads the pinned set; brew install gitmole brings it with it; without either, see"
 
 
 def parse_args(argv):
@@ -40,7 +43,13 @@ def parse_args(argv):
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
     p.add_argument("--doctor", action="store_true", help="list every tool gitmole runs, the version found against the version pinned, and where to get the pinned one, then exit")
-    p.add_argument("--clean", action="store_true", help="list the directories gitmole created (temp clones, analysis-* under the target) and delete them after a y/N question, then exit")
+    p.add_argument("--install-tools", action="store_true", help="download the five tools at the versions gitmole pins, from the release archives "
+                   "the Homebrew formula installs and checked against the same hashes, into gitmole's own directory (GITMOLE_TOOLS, else the "
+                   "per-user data directory), then exit. This and a yes to the question a run asks when a tool is missing are the only downloads "
+                   "gitmole makes of its own; the network is otherwise reached only to clone a remote target, to list owner/* with gh, and by git "
+                   "itself for the objects a partial clone left behind")
+    p.add_argument("--clean", action="store_true", help="list what gitmole left behind (temp clones, analysis-* under the target, tools installed for pins it no longer uses) "
+                   "and delete them after a y/N question, then exit")
     p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
     p.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
     p.add_argument("--feedback", action="store_true", help="ask five questions about the findings and write the answers to a file you can send; "
@@ -76,9 +85,24 @@ def interrupt(*_):
     _control.cancel()
 
 
+@contextlib.contextmanager
+def _interruptible():
+    """Ctrl-C ends a question or a download the way it ends any Python program: the run's own SIGINT handler
+    only cancels step processes, and there are none while the tools are being fetched. Off the main thread
+    (tests) signals cannot be set, and KeyboardInterrupt reaches the caller anyway."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+
 def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
          lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard, ask=None, stdin=None,
-         structure_check=run.has_structure, version_note=tools.note) -> int:
+         structure_check=run.has_structure, version_note=tools.note, installer=None, isatty=None) -> int:
     global _control
     _control = run.Control()
     if threading.current_thread() is threading.main_thread():
@@ -92,8 +116,10 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if args.doctor:
         from . import doctor
         return doctor.main(console)
+    if args.install_tools:
+        return _install_tools(console, installer)
     if args.clean:
-        return _clean(args, console, ask or (lambda q: console.input(q, markup=False)))
+        return _clean(args, console, ask)
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
     quiet = "-" in (args.json, args.markdown, args.sarif, args.sbom)
     ui = Console(stderr=True) if quiet else console
@@ -121,17 +147,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if args.list_file_types:
         return _list_file_types(target, args, console)
 
-    missing = tool_check(plots=args.plots)
-    if missing:
-        err.print("[red]missing tools:[/red] " + ", ".join(missing))
-        if set(missing) & set(run.REQUIRED_TOOLS):
-            # the formula installs the pinned versions into gitmole's own libexec/tools; separate formulae are
-            # whatever version Homebrew has that day, and their report lands in run.tools_moved
-            err.print("brew install gitmole brings the pinned tools with it; without Homebrew, see")
-            err.print(INSTALL_URL)
-        if set(missing) & set(run.PLOT_TOOLS):   # not in the formula: git-of-theseus is the opt-in extra
-            err.print("--plots needs git-of-theseus: pipx install 'gitmole[plots]'", markup=False)
-        return 2
+    rc = _tools(args, ui, err, ask, installer, tool_check, isatty)
+    if rc is not None:
+        return rc
     moved = version_note({name: run.tool_version(name) for name in run.REQUIRED_TOOLS} | {"lizard": run.lizard_version()})
     if moved:   # a tool's own rules decide part of the report, so a toolchain that is not the pinned one is said once
         err.print(f"[yellow]{moved}[/yellow]")
@@ -158,9 +176,12 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
 def _check_args(args, err, kind=None) -> int | None:
     """The argument combinations that cannot work, in one place: 2 and a message, or None. Called
     once on the arguments alone, then again with the target's `kind` for the checks that need it."""
-    if args.doctor:   # it exits before any analysis: a target is refused and every other option ignored, --yes and --hook included
+    if args.doctor or args.install_tools:   # each exits before any analysis: a target is refused and every other option ignored
+        if args.doctor and args.install_tools:
+            err.print("[red]--doctor and --install-tools are two commands;[/red] run --install-tools, then --doctor")
+            return 2
         if args.target is not None:
-            err.print("[red]--doctor takes no target[/red]")
+            err.print(f"[red]{'--doctor' if args.doctor else '--install-tools'} takes no target[/red]")
             return 2
         return None
     if kind is None:
@@ -270,7 +291,7 @@ def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
 
 def _clean(args, console: Console, ask) -> int:
     """Handle --clean: list what gitmole left behind, ask once, remove. ask(prompt) returns the answer."""
-    from . import clean, render
+    from . import clean, feedback, render
 
     tmp = clean.temp_dir()
     found = clean.find(args.target or ".", tmp)
@@ -292,14 +313,17 @@ def _clean(args, console: Console, ask) -> int:
     render.print_section(console, sec)
     console.print(Text(""))
     if not args.yes:
-        if not console.is_terminal:
+        # an injected ask (tests) stands in for the person; the real one needs real terminals, not FORCE_COLOR's
+        if not console.is_terminal or (ask is None and not feedback.on_terminal(console.file)):
             console.print("[red]--clean needs a terminal to confirm;[/red] pass --yes to skip the question")
             return 2
         try:
-            answer = ask(f"Delete {_dirs(len(found))} ({clean.human(total)})? [y/N] ")
-        except EOFError:
-            answer = ""
-        if answer.strip().lower() not in ("y", "yes"):
+            with _interruptible():
+                agreed = _yes(ask or (lambda q: console.input(q, markup=False)), f"Delete {_dirs(len(found))} ({clean.human(total)})? [y/N] ")
+        except KeyboardInterrupt:
+            console.print("interrupted")
+            return 130
+        if not agreed:
             console.print("kept")
             return 0
     failed = clean.remove([p for p, _, _ in found])
@@ -308,6 +332,78 @@ def _clean(args, console: Console, ask) -> int:
     for p in failed:
         console.print(f"[red]could not remove[/red] {p}", soft_wrap=True)
     return 1 if failed else 0
+
+
+def _yes(ask, question: str) -> bool:
+    """Ask a y/N question; only y or yes agrees, and end of input is a no."""
+    try:
+        answer = ask(question)
+    except EOFError:
+        answer = ""
+    return (answer or "").strip().lower() in ("y", "yes")
+
+
+def _install_tools(console: Console, installer) -> int:
+    """Handle --install-tools: every required tool, one line per step; 0 when all of them landed, 1 otherwise,
+    130 on Ctrl-C during the download (a tool already placed stays, one being written is left under no name).
+    Downloads whether or not a copy is already on PATH: the point is a set gitmole owns, at the pins."""
+    from . import install
+    installer = installer or install.install
+    say = lambda line: console.print(line, markup=False, highlight=False, soft_wrap=True)   # urls and paths stay one pasteable line
+    try:
+        with _interruptible():
+            done = installer(run.REQUIRED_TOOLS, say=say)
+    except KeyboardInterrupt:
+        say("interrupted")
+        return 130
+    left = [t for t in run.REQUIRED_TOOLS if t not in done]
+    if left:
+        say(f"not installed: {', '.join(left)}; see {INSTALL_URL}")
+        return 1
+    say(f"{len(done)} tools installed into {install.tools_dir()}")
+    return 0
+
+
+def _tools(args, ui: Console, err: Console, ask, installer, tool_check, isatty=None) -> int | None:
+    """The tool check before a run: None when every tool is there, else 2 and what to do. When a person is
+    there to answer, a missing required tool is offered as a download first: here, before any analysis, only
+    after a yes. A person means real terminals on stdin and on the stream the question is written to, and no
+    sign of a pipeline (feedback.unattended: a CI variable, an export, a gate, the hook), since CI can run on a
+    pseudo-terminal. Ctrl-C at the question or during the download exits 130; a tool already placed stays.
+    Otherwise nothing is asked or fetched and the command is named, so an unattended run behaves as it always did."""
+    from . import feedback, install
+    missing = tool_check(plots=args.plots)
+    if not missing:
+        return None
+    err.print("[red]missing tools:[/red] " + ", ".join(missing))
+    wanted = install.downloadable([t for t in run.REQUIRED_TOOLS if t in missing])
+    nowhere = install.writable(None) if wanted and install.tools_dir() is None else None
+    if nowhere:   # a relative GITMOLE_TOOLS or no home: an offer could only fail after the yes
+        err.print(nowhere, markup=False, highlight=False)
+        wanted = []
+    isatty = isatty or (lambda: feedback.on_terminal(ui.file))
+    if wanted and not feedback.unattended(args) and isatty():
+        ask = ask or (lambda q: ui.input(Text(q)))   # Text: no markup, and no highlighting of the versions
+        installer = installer or install.install
+        try:
+            with _interruptible():
+                if _yes(ask, install.offer(wanted)):
+                    installer(wanted, say=lambda line: err.print(line, markup=False, highlight=False, soft_wrap=True))
+                    missing = tool_check(plots=args.plots)
+                    if not missing:
+                        return None
+                    err.print("[red]still missing:[/red] " + ", ".join(missing))
+        except KeyboardInterrupt:
+            err.print("interrupted")
+            return 130
+    if set(missing) & set(run.REQUIRED_TOOLS):
+        # gitmole's own directory and the formula's libexec/tools both hold the pinned versions; separate formulae
+        # are whatever version Homebrew has that day, and their report lands in run.tools_moved
+        err.print(INSTALL_HINT)
+        err.print(INSTALL_URL)
+    if set(missing) & set(run.PLOT_TOOLS):   # not in the formula and not in the table: git-of-theseus is the opt-in extra
+        err.print("--plots needs git-of-theseus: pipx install 'gitmole[plots]'", markup=False)
+    return 2
 
 
 def _dirs(n: int) -> str:
@@ -683,7 +779,8 @@ def _feedback(report: dict, found: list, args, console: Console, err: Console, a
         today = dt.date.today().isoformat()
         if not feedback.should_ask(args, state, today):
             return
-        answers = (ask or feedback.ask)(found, err.print, lambda text: input(text))
+        with _interruptible():   # Ctrl-C at a question ends the questions, not only the (finished) steps
+            answers = (ask or feedback.ask)(found, err.print, lambda text: input(text))
         if path:
             feedback.write_state(path, {**state, "asked": today, **({"answered": today} if answers else {"declined": True})})
         if not answers:

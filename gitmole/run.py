@@ -14,7 +14,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
-from . import blame, filetypes, identity
+from . import blame, filetypes, identity, userdirs
 
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
@@ -138,8 +138,11 @@ def clone(target: str, dest_parent: str, runner=_gh, git_runner=_gh) -> str:
 
 
 def env_path() -> str:
-    """PATH with pip's user bin dirs added."""
-    parts = []
+    """PATH with the directories --install-tools made for this gitmole's pins first, then pip's user bin dirs.
+    First, so the pinned copy wins over a distribution's, as the formula's wrapper puts libexec/tools first;
+    only the current pins' directories, so a copy an older gitmole installed is never picked up. Every tool
+    gitmole runs, in a step or in-process (backtest, duplicates), is looked up on this PATH."""
+    parts = userdirs.tool_dirs(REQUIRED_TOOLS)
     lib = os.path.expanduser("~/Library/Python")
     if os.path.isdir(lib):
         parts += [os.path.join(lib, v, "bin") for v in sorted(os.listdir(lib), reverse=True)]
@@ -181,8 +184,14 @@ def tool_version(name: str, path: str = None) -> str | None:
     ("scc version 4.1.0", "git-sizer release 1.5.0", "osv-scanner version: 2.6.0"). None when the tool is
     missing, hangs or prints none. Cached: a tool's version cannot change within a process, so a run with
     several steps (or a test calling manifest() often) pays for one --version per tool, not one per call."""
+    return printed_version(name, dict(os.environ, PATH=path or env_path()))
+
+
+def printed_version(executable: str, env=None) -> str | None:
+    """The version `executable --version` prints (tool_version's reading, uncached), or None when it cannot
+    run, hangs or prints none. install.py reads a tool it has just placed this way."""
     try:
-        proc = subprocess.run([name, "--version"], capture_output=True, text=True, timeout=10, env=dict(os.environ, PATH=path or env_path()))
+        proc = subprocess.run([executable, "--version"], capture_output=True, text=True, timeout=10, env=env)
     except (OSError, subprocess.TimeoutExpired):
         return None
     first = next((l for l in (proc.stdout + "\n" + proc.stderr).splitlines() if l.strip()), "")

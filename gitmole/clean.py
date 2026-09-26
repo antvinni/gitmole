@@ -1,5 +1,6 @@
-"""What gitmole leaves behind, found by looking: temp clones in the temp folder and analysis-* output
-directories under a base. Pure functions; the CLI prints, asks and reports."""
+"""What gitmole leaves behind, found by looking: temp clones in the temp folder, analysis-* output
+directories under a base, and tools --install-tools placed for pins this gitmole no longer has. Pure
+functions; the CLI prints, asks and reports."""
 from __future__ import annotations
 
 import glob
@@ -7,7 +8,7 @@ import os
 import shutil
 import tempfile
 
-from . import run
+from . import run, tools, userdirs
 
 TEMP_PREFIX = "gitmole-"      # tempfile.mkdtemp(prefix=...) in cli._resolve_target and cli._portfolio
 OUT_PREFIX = "analysis-"      # run.output_dir and cli._portfolio
@@ -51,7 +52,26 @@ def _clones(tmp: str) -> list:
     return sorted(paths, key=lambda p: (os.path.getmtime(p), p))
 
 
+def _stale_tools(root: str | None) -> list:
+    """<tool>-<version> directories under the tool root other than the current pins' (run.env_path never puts
+    them on PATH, so they only take space). Only a directory that holds nothing but that tool is listed:
+    GITMOLE_TOOLS may name a directory the user keeps other things in, and nothing of theirs is gitmole's to
+    delete. The current pins' copies are in use and are not listed."""
+    if not root or not os.path.isdir(root):
+        return []
+    current = {f"{name}-{tools.PINNED[name]}" for name in run.REQUIRED_TOOLS}
+    found = []
+    for entry in sorted(os.listdir(root)):
+        path = os.path.join(root, entry)
+        tool = next((t for t in run.REQUIRED_TOOLS if entry.startswith(t + "-") and entry[len(t) + 1:][:1].isdigit()), None)
+        if tool and entry not in current and os.path.isdir(path) and not os.path.islink(path) and os.listdir(path) == [tool]:
+            found.append(path)
+    return found
+
+
 def tree_size(path: str) -> int:
+    if os.path.isfile(path):
+        return os.lstat(path).st_size
     total = 0
     for root, _dirs, files in os.walk(path):
         for name in files:
@@ -63,9 +83,9 @@ def tree_size(path: str) -> int:
 
 
 def find(base: str, tmp: str) -> list:
-    """(path, bytes, mtime) for every directory gitmole left behind: temp clones oldest first, then
-    output directories under base sorted by path."""
-    paths = _clones(tmp) + _outputs(os.path.abspath(base))
+    """(path, bytes, mtime) for everything gitmole left behind: temp clones oldest first, then output
+    directories under base sorted by path, then tools installed for pins no longer in use."""
+    paths = _clones(tmp) + _outputs(os.path.abspath(base)) + _stale_tools(userdirs.tools_root())
     return [(p, tree_size(p), os.path.getmtime(p)) for p in paths]
 
 
@@ -84,7 +104,13 @@ def remove(paths: list) -> list:
     """rmtree each path, best effort; returns the ones still present afterwards."""
     failed = []
     for p in paths:
-        shutil.rmtree(p, ignore_errors=True)
+        if os.path.isdir(p) and not os.path.islink(p):
+            shutil.rmtree(p, ignore_errors=True)
+        else:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
         if os.path.exists(p):
             failed.append(p)
     return failed
