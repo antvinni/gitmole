@@ -179,3 +179,12 @@ class RealJscpd(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RevBefore(unittest.TestCase):
+    def test_the_year_back_tree_is_on_heads_first_parent_chain(self):
+        from tests.test_trend import side_branch_repo
+        with tempfile.TemporaryDirectory() as d:
+            main, side = side_branch_repo(d)
+            self.assertEqual(duplicates.rev_before(d, "2026-01-15"), main, "not the side branch merged later")
+            self.assertIsNone(duplicates.rev_before(d, "2025-12-31"))

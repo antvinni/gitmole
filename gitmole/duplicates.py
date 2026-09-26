@@ -125,7 +125,8 @@ def run_jscpd(repo: str, out: str, procs: int, ignore=()) -> tuple:
 
 
 def rev_before(repo: str, date: str):
-    out = subprocess.run(["git", "rev-list", "-1", f"--before={date}T00:00:00+00:00", "HEAD"], cwd=repo, capture_output=True, text=True)
+    # HEAD's first-parent chain, as trend.rev_before: a side branch merged later is not the tree of a year ago
+    out = subprocess.run(["git", "rev-list", "-1", "--first-parent", f"--before={date}T00:00:00+00:00", "HEAD"], cwd=repo, capture_output=True, text=True)
     return out.stdout.strip() or None
 
 

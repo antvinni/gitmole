@@ -64,7 +64,10 @@ def sparkline(series: list) -> str:
 
 
 def rev_before(repo: str, date: str, end_of_day: bool = True):
-    """The last commit at or before `date` by committer date, or None when there is none.
+    """The last commit on HEAD's first-parent chain at or before `date` by committer date, or None when
+    there is none. First parents only: by date alone a side branch merged later, or a history merged in
+    whole (the React Compiler's inside react), can carry the latest commit before the date, and its
+    tree is not the code as it stood on the main line then.
 
     The two callers want different edges of the day. A trend sample is "the code as it stood on
     that date", so it takes everything committed during the day (T23:59:59). The backtest asks
@@ -75,7 +78,7 @@ def rev_before(repo: str, date: str, end_of_day: bool = True):
     the same answer as a history that does not reach back that far."""
     # in UTC: git reads a bound without a zone in the machine's own, and a report must not depend on where it ran
     bound = f"{date}T23:59:59+00:00" if end_of_day else f"{date}T00:00:00+00:00"
-    proc = subprocess.run(["git", "rev-list", "-1", f"--before={bound}", "HEAD"], cwd=repo, capture_output=True, text=True)
+    proc = subprocess.run(["git", "rev-list", "-1", "--first-parent", f"--before={bound}", "HEAD"], cwd=repo, capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError((proc.stderr or "").strip().splitlines()[0] if (proc.stderr or "").strip()
                            else f"git rev-list --before={bound} exited {proc.returncode}")

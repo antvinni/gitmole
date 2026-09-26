@@ -77,11 +77,40 @@ class RevBefore(unittest.TestCase):
                 else:
                     os.environ["TZ"] = old
 
+    def test_the_tree_at_a_date_is_on_heads_first_parent_chain(self):
+        with tempfile.TemporaryDirectory() as d:
+            main, side = side_branch_repo(d)
+            plain = subprocess.run(["git", "rev-list", "-1", "--before=2026-01-15T00:00:00+00:00", "HEAD"], cwd=d, capture_output=True, text=True).stdout.strip()
+            self.assertEqual(plain, side, "by date alone the side branch merged later wins")
+            self.assertEqual(trend.rev_before(d, "2026-01-15", end_of_day=False), main)
+            self.assertEqual(trend.rev_before(d, "2026-01-14", end_of_day=True), main)
+
     def test_a_git_failure_raises_with_gits_own_message(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(RuntimeError) as ctx:
                 trend.rev_before(d, "2025-06-01")
         self.assertIn("not a git repository", str(ctx.exception).lower())
+
+
+def side_branch_repo(d):
+    """main: A (Jan 1), B (Jan 5), then a merge (Jan 20) of a side branch whose one commit S is dated Jan 10.
+    Returns (B, S): by date alone S is the latest commit before Jan 15, though main at Jan 15 was B."""
+    env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+               GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+
+    def git(*a, date=None):
+        e = dict(env, **({"GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date} if date else {}))
+        return subprocess.run(["git", *a], cwd=d, env=e, check=True, capture_output=True, text=True).stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    git("commit", "-q", "--allow-empty", "-m", "A", date="2026-01-01T12:00:00+00:00")
+    git("checkout", "-q", "-b", "side")
+    git("commit", "-q", "--allow-empty", "-m", "S", date="2026-01-10T12:00:00+00:00")
+    git("checkout", "-q", "main")
+    git("commit", "-q", "--allow-empty", "-m", "B", date="2026-01-05T12:00:00+00:00")
+    b = git("rev-parse", "HEAD")
+    git("merge", "-q", "--no-ff", "-m", "M", "side", date="2026-01-20T12:00:00+00:00")
+    return b, git("rev-parse", "side")
 
 
 def grow_repo(d):

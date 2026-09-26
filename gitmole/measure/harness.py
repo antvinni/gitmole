@@ -37,8 +37,8 @@ def rev_at(repo: str, date: str):
     whole (the React Compiler's inside react), can carry the latest commit before the date. The pinned
     corpus clones check their commit out on a `measure` branch, so HEAD's chain is the pin's.
 
-    Until the product's own lookup (trend.rev_before, which the release's backtest and so ranking_at
-    use) follows first parents too, the harness has two definitions of the tree at a cut-off.
+    The same choice as the product's trend.rev_before (end_of_day=False), which the release's backtest
+    and so ranking_at use, so the harness has one definition of the tree at a cut-off.
 
     Raises RuntimeError with git's own message when git fails: an unreadable repository is not the same
     answer as a history that does not reach back that far."""
