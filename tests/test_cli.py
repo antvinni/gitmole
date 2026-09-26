@@ -1247,6 +1247,25 @@ class InstallTools(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         self.assertTrue(lines[0].endswith("/tools/scc"), "soft_wrap: pasteable")
 
+    def test_install_tools_ctrl_c_exits_130(self):
+        def installer(names, say=print, **kw):
+            raise KeyboardInterrupt
+        c = console()
+        rc = cli.main(["--install-tools"], console=c, installer=installer)
+        self.assertEqual(rc, 130)
+        self.assertIn("interrupted", c.export_text())
+
+    def test_the_download_runs_under_the_default_sigint_handler_and_restores_the_runs(self):
+        import signal
+        seen = []
+        def installer(names, say=print, **kw):
+            seen.append(signal.getsignal(signal.SIGINT))
+            return list(names)
+        before = signal.getsignal(signal.SIGINT)
+        cli.main(["--install-tools"], console=console(), installer=installer)
+        self.assertEqual(seen, [signal.default_int_handler])
+        self.assertIs(signal.getsignal(signal.SIGINT), cli.interrupt, "main() sets its own handler and does not restore what it found; _interruptible restores main()'s")
+
 
 @unittest.skipUnless(install.platform_key() in tools.ARCHIVES, "the question is only asked where a pinned build exists")
 class FirstRunOffer(unittest.TestCase):
@@ -1267,7 +1286,7 @@ class FirstRunOffer(unittest.TestCase):
             c = self._terminal()
             rc = cli.main([d, "--out", os.path.join(d, "out")], console=c, tool_check=lambda **kw: next(checks), planner=fake_plan,
                           ask=lambda q: asked.append(q) or "y",
-                          installer=lambda names, say=print, **kw: installed.append(list(names)) or list(names))
+                          installer=lambda names, say=print, **kw: installed.append(list(names)) or list(names), isatty=lambda: True)
             text = c.export_text()
         self.assertEqual(rc, 0)
         self.assertEqual(installed, [["scc"]])
@@ -1281,7 +1300,7 @@ class FirstRunOffer(unittest.TestCase):
             _tiny_repo(d)
             c = self._terminal()
             rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: "n",
-                          installer=lambda *a, **kw: self.fail("a no must not download"))
+                          installer=lambda *a, **kw: self.fail("a no must not download"), isatty=lambda: True)
             text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("missing tools: scc", text)
@@ -1295,7 +1314,7 @@ class FirstRunOffer(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             _tiny_repo(d)
             rc = cli.main([d], console=self._terminal(), tool_check=lambda **kw: ["scc"], ask=eof,
-                          installer=lambda *a, **kw: self.fail("EOF must not download"))
+                          installer=lambda *a, **kw: self.fail("EOF must not download"), isatty=lambda: True)
         self.assertEqual(rc, 2)
 
     def test_without_a_terminal_nothing_is_asked_or_fetched(self):
@@ -1314,7 +1333,7 @@ class FirstRunOffer(unittest.TestCase):
             checks = iter([["scc", "jscpd"], ["jscpd"]])
             c = self._terminal()
             rc = cli.main([d], console=c, tool_check=lambda **kw: next(checks), ask=lambda q: "yes",
-                          installer=lambda names, say=print, **kw: ["scc"])
+                          installer=lambda names, say=print, **kw: ["scc"], isatty=lambda: True)
             text = c.export_text()
         self.assertEqual(rc, 2)
         self.assertIn("still missing: jscpd", text)
@@ -1331,6 +1350,36 @@ class FirstRunOffer(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("pipx install 'gitmole[plots]'", text)
         self.assertNotIn("--install-tools", text)
+
+    def test_ctrl_c_during_the_download_exits_130(self):
+        def installer(names, say=print, **kw):
+            raise KeyboardInterrupt
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: "y", installer=installer, isatty=lambda: True)
+        self.assertEqual(rc, 130)
+        self.assertIn("interrupted", c.export_text())
+
+    def test_ctrl_c_at_the_question_exits_130(self):
+        def ask(q):
+            raise KeyboardInterrupt
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            rc = cli.main([d], console=self._terminal(), tool_check=lambda **kw: ["scc"], ask=ask,
+                          installer=lambda *a, **kw: self.fail("interrupted at the question, nothing downloads"), isatty=lambda: True)
+        self.assertEqual(rc, 130)
+
+    def test_a_forced_colour_console_without_a_terminal_on_stdin_is_not_asked(self):
+        """FORCE_COLOR makes rich's is_terminal True in CI; stdin decides whether anyone is there to answer."""
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: self.fail("no stdin terminal, no question"),
+                          installer=lambda *a, **kw: self.fail("no stdin terminal, no download"), isatty=lambda: False)
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("gitmole --install-tools", text)
 
 
 if __name__ == "__main__":

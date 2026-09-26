@@ -1,7 +1,8 @@
 """gitmole --install-tools: the pinned tools, downloaded from the archives Formula/gitmole.rb names, checked
 against the same sha256, and placed one executable each in a directory of gitmole's own, which run.env_path
-puts first on PATH. This is the one place gitmole fetches anything, and it runs only on that flag or on a yes
-to the question a first run asks on a terminal: a scan itself never reaches the network."""
+puts first on PATH. Apart from cloning a remote target (run.clone), this is the one place gitmole fetches
+anything, and it runs only on that flag or on a yes to the question a first run asks on a terminal: a scan
+of a local clone never reaches the network."""
 from __future__ import annotations
 
 import hashlib
@@ -38,15 +39,18 @@ def platform_key(system: str = None, machine: str = None) -> tuple:
 def tools_dir(env=None) -> str:
     """Where the installer puts the tools: GITMOLE_TOOLS, else the per-user data directory of the platform,
     as structure.cache_root does for the cache. A directory of gitmole's own, not ~/.local/bin: nothing here
-    shadows a tool the user installed themselves anywhere but inside a gitmole run."""
+    shadows a tool the user installed themselves anywhere but inside a gitmole run. GITMOLE_TOOLS is made
+    absolute, since steps run with cwd set to the scanned repository and a relative PATH entry would resolve
+    there; a relative XDG_DATA_HOME is ignored, as the XDG spec says."""
     env = os.environ if env is None else env
     explicit = env.get("GITMOLE_TOOLS")
     if explicit:
-        return explicit
+        return os.path.abspath(explicit)
     if sys.platform == "darwin":
         base = os.path.expanduser("~/Library/Application Support")
     else:
-        base = env.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+        xdg = env.get("XDG_DATA_HOME")
+        base = xdg if xdg and os.path.isabs(xdg) else os.path.expanduser("~/.local/share")
     return os.path.join(base, "gitmole", "tools")
 
 

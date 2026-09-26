@@ -59,9 +59,10 @@ checks each against the same sha256, and keeps the one executable from each in
 Linux; `GITMOLE_TOOLS` names another directory. A run looks there before PATH,
 so a distribution's copy of a tool cannot shadow the pinned one. Skip the
 command and the first `gitmole .` on a terminal asks whether to download the
-tools it is missing; without a terminal it names the command and exits 2. That
-question and that command are the only two things in gitmole that reach the
-network. A scan does not, and nothing is downloaded without a yes.
+tools it is missing; without a terminal it names the command and exits 2.
+Apart from cloning a remote target you name, gitmole reaches the network only
+for `--install-tools` or a yes to the missing-tools question; a scan of a
+local clone never does. Nothing is downloaded without a yes.
 
 ## Linux
 
@@ -114,7 +115,7 @@ terminal offers to download it.
 
 osv-scanner matches the lock files against a copy of the
 [OSV](https://osv.dev) database kept on this machine, and gitmole runs it
-offline: nothing leaves the machine, and gitmole never downloads anything.
+offline: nothing leaves the machine, and gitmole downloads nothing during a scan.
 Fetch the copy once, inside a clone, and the download covers the ecosystems
 that clone uses (npm, PyPI, Go, crates.io and so on); run it again to refresh
 it, or in a clone of another ecosystem:

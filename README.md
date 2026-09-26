@@ -139,8 +139,9 @@ Why these and not others: [docs/tools.md](https://github.com/antvinni/gitmole/bl
 
 ## Safety
 
-- Everything is offline except the optional clone step, which uses your
-  existing gh auth. None of the tools send data anywhere; osv-scanner runs
+- Everything is offline except the optional clone step and the tool download
+  you ask for with `--install-tools` or a yes to the missing-tools question,
+  which uses your existing gh auth. None of the tools send data anywhere; osv-scanner runs
   against a local copy of its database that you download once, and gitmole
   never downloads it for you.
 - Remote targets are cloned into a fresh temp directory that is removed when

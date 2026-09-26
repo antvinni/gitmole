@@ -82,6 +82,8 @@ class Platform(unittest.TestCase):
         self.assertTrue(default.endswith(os.path.join("gitmole", "tools")), default)
         self.assertTrue(os.path.isabs(default))
         self.assertEqual(install.tools_dir({"GITMOLE_TOOLS": ""}), default, "an empty override is no override")
+        self.assertEqual(install.tools_dir({"GITMOLE_TOOLS": "relative/tools"}), os.path.abspath("relative/tools"), "never a relative PATH entry")
+        self.assertTrue(os.path.isabs(install.tools_dir({"XDG_DATA_HOME": "relative"})), "a relative XDG_DATA_HOME is ignored, as the spec says")
 
     def test_downloadable_is_the_subset_the_table_has_a_url_for(self):
         with mock.patch.dict(tools.ARCHIVES, {KEY: {**table(archives()), "git-sizer": {"note": "none"}}}):

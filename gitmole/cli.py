@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import os
 import shutil
@@ -42,7 +43,7 @@ def parse_args(argv):
     p.add_argument("--doctor", action="store_true", help="list every tool gitmole runs, the version found against the version pinned, and where to get the pinned one, then exit")
     p.add_argument("--install-tools", action="store_true", help="download the five tools at the versions gitmole pins, from the release archives "
                    "the Homebrew formula installs and checked against the same hashes, into gitmole's own directory (GITMOLE_TOOLS, else the "
-                   "per-user data directory), then exit; the one command in gitmole that reaches the network")
+                   "per-user data directory), then exit; apart from cloning a remote target, the one command in gitmole that reaches the network")
     p.add_argument("--clean", action="store_true", help="list the directories gitmole created (temp clones, analysis-* under the target) and delete them after a y/N question, then exit")
     p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
     p.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
@@ -79,9 +80,24 @@ def interrupt(*_):
     _control.cancel()
 
 
+@contextlib.contextmanager
+def _interruptible():
+    """Ctrl-C ends a question or a download the way it ends any Python program: the run's own SIGINT handler
+    only cancels step processes, and there are none while the tools are being fetched. Off the main thread
+    (tests) signals cannot be set, and KeyboardInterrupt reaches the caller anyway."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+
 def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
          lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard, ask=None, stdin=None,
-         structure_check=run.has_structure, version_note=tools.note, installer=install.install) -> int:
+         structure_check=run.has_structure, version_note=tools.note, installer=install.install, isatty=None) -> int:
     global _control
     _control = run.Control()
     if threading.current_thread() is threading.main_thread():
@@ -126,7 +142,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if args.list_file_types:
         return _list_file_types(target, args, console)
 
-    rc = _tools(args, ui, err, ask, installer, tool_check)
+    rc = _tools(args, ui, err, ask, installer, tool_check, isatty)
     if rc is not None:
         return rc
     moved = version_note({name: run.tool_version(name) for name in run.REQUIRED_TOOLS} | {"lizard": run.lizard_version()})
@@ -308,10 +324,16 @@ def _clean(args, console: Console, ask) -> int:
 
 
 def _install_tools(console: Console, installer) -> int:
-    """Handle --install-tools: every required tool, one line per step; 0 when all of them landed, 1 otherwise.
-    Downloads whether or not a copy is already on PATH: the point is a set gitmole owns, at the pins."""
+    """Handle --install-tools: every required tool, one line per step; 0 when all of them landed, 1 otherwise,
+    130 on Ctrl-C during the download (nothing partial is left under a tool's name). Downloads whether or not
+    a copy is already on PATH: the point is a set gitmole owns, at the pins."""
     say = lambda line: console.print(line, markup=False, highlight=False, soft_wrap=True)   # urls and paths stay one pasteable line
-    done = installer(run.REQUIRED_TOOLS, say=say)
+    try:
+        with _interruptible():
+            done = installer(run.REQUIRED_TOOLS, say=say)
+    except KeyboardInterrupt:
+        say("interrupted")
+        return 130
     left = [t for t in run.REQUIRED_TOOLS if t not in done]
     if left:
         say(f"not installed: {', '.join(left)}; see {INSTALL_URL}")
@@ -320,28 +342,35 @@ def _install_tools(console: Console, installer) -> int:
     return 0
 
 
-def _tools(args, ui: Console, err: Console, ask, installer, tool_check) -> int | None:
-    """The tool check before a run: None when every tool is there, else 2 and what to do. On a terminal a
-    missing required tool is offered as a download first: the one thing gitmole ever fetches, here, before
-    any analysis, only after a yes. Without a terminal (CI, an agent hook) nothing is asked or fetched and
-    the command is named, so an unattended run behaves as it always did."""
+def _tools(args, ui: Console, err: Console, ask, installer, tool_check, isatty=None) -> int | None:
+    """The tool check before a run: None when every tool is there, else 2 and what to do. On a terminal (no
+    terminal on stdin or on the output, as in CI or an agent hook) a missing required tool is offered as a
+    download first: the one thing gitmole ever fetches, here, before any analysis, only after a yes; Ctrl-C
+    at the question or during the download exits 130 with nothing installed. Without a terminal nothing is
+    asked or fetched and the command is named, so an unattended run behaves as it always did."""
     missing = tool_check(plots=args.plots)
     if not missing:
         return None
     err.print("[red]missing tools:[/red] " + ", ".join(missing))
     wanted = install.downloadable([t for t in run.REQUIRED_TOOLS if t in missing])
-    if wanted and ui.is_terminal:
+    isatty = isatty or (lambda: sys.stdin.isatty())
+    if wanted and ui.is_terminal and isatty():
         ask = ask or (lambda q: ui.input(q, markup=False))
         try:
-            answer = ask(install.offer(wanted))
-        except EOFError:
-            answer = ""
-        if answer.strip().lower() in ("y", "yes"):
-            installer(wanted, say=lambda line: err.print(line, markup=False, highlight=False, soft_wrap=True))
-            missing = tool_check(plots=args.plots)
-            if not missing:
-                return None
-            err.print("[red]still missing:[/red] " + ", ".join(missing))
+            with _interruptible():
+                try:
+                    answer = ask(install.offer(wanted))
+                except EOFError:
+                    answer = ""
+                if answer.strip().lower() in ("y", "yes"):
+                    installer(wanted, say=lambda line: err.print(line, markup=False, highlight=False, soft_wrap=True))
+                    missing = tool_check(plots=args.plots)
+                    if not missing:
+                        return None
+                    err.print("[red]still missing:[/red] " + ", ".join(missing))
+        except KeyboardInterrupt:
+            err.print("interrupted")
+            return 130
     if set(missing) & set(run.REQUIRED_TOOLS):
         # gitmole's own directory and the formula's libexec/tools both hold the pinned versions; separate formulae
         # are whatever version Homebrew has that day, and their report lands in run.tools_moved
