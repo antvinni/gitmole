@@ -21,8 +21,9 @@ brew tap antvinni/gitmole https://github.com/antvinni/gitmole
 brew trust antvinni/gitmole
 brew install gitmole
 
-# anywhere else: scc, git-sizer, betterleaks, jscpd and osv-scanner on your PATH, then
+# anywhere else: gitmole from PyPI, then the same five pinned tools into gitmole's own directory
 pipx install gitmole
+gitmole --install-tools
 ```
 
 Linux package names, the release binaries, `--plots` and the pip caveats:
@@ -47,6 +48,7 @@ gitmole analysis-repo --no-run --hook  # a coding agent's edit hook: history's v
 gitmole . --since 2y --full            # the current team, every row and column
 gitmole --clean                        # list what gitmole left behind, delete on a yes
 gitmole --doctor                       # every tool gitmole runs, the version found against the one pinned
+gitmole --install-tools                # the five pinned tools, downloaded into gitmole's own directory
 ```
 
 A CI job that runs `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"`

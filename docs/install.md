@@ -2,7 +2,8 @@
 
 Every way to install gitmole and the five tools it runs; back to [the README](https://github.com/antvinni/gitmole#readme).
 
-gitmole needs git, Python 3.9 or newer, and five tools on your PATH:
+gitmole needs git, Python 3.9 or newer, and five tools, on your PATH or in a
+directory of gitmole's own:
 [scc](https://github.com/boyter/scc) for size,
 [git-sizer](https://github.com/github/git-sizer) for repository health,
 [betterleaks](https://github.com/betterleaks/betterleaks) for secrets,
@@ -42,21 +43,41 @@ Every report records both what gitmole pinned and what it actually ran, under
 not the pinned ones says so once on stderr. That is a note, not a refusal:
 gitmole runs with whatever versions are there.
 
-Without Homebrew, install the five tools yourself and use pipx:
+Without Homebrew, pipx installs gitmole and gitmole installs the tools:
 
 ```bash
 pipx ensurepath                                  # once; then open a new shell
 pipx install gitmole
+gitmole --install-tools                          # the five tools, pinned, into gitmole's own directory
 ```
+
+`--install-tools` downloads the same release archives the formula does, from
+github.com and registry.npmjs.org (about 80 MB on macOS arm64 at 0.36.0),
+checks each against the same sha256, and keeps the one executable from each in
+`~/Library/Application Support/gitmole/tools` on macOS or
+`$XDG_DATA_HOME/gitmole/tools`, default `~/.local/share/gitmole/tools`, on
+Linux; `GITMOLE_TOOLS` names another directory. A run looks there before PATH,
+so a distribution's copy of a tool cannot shadow the pinned one. Skip the
+command and the first `gitmole .` on a terminal asks whether to download the
+tools it is missing; without a terminal it names the command and exits 2. That
+question and that command are the only two things in gitmole that reach the
+network. A scan does not, and nothing is downloaded without a yes.
 
 ## Linux
 
 With Homebrew on Linux the same three commands work unchanged, and the pinned
 tools come with gitmole exactly as on macOS; on Linux arm64, where git-sizer
 publishes no build, the formula builds the pinned version from source, which
-needs Go at install time. Without Homebrew, take the tools from your package manager
-where it has them and from the projects' release pages otherwise; each ships
-a static binary, so dropping it into `~/.local/bin` is enough.
+needs Go at install time. Without Homebrew, `pipx install gitmole` and
+`gitmole --install-tools` work as on macOS, on x86_64 and arm64, with the
+same one gap: on Linux arm64 `--install-tools` installs the other four and says
+why git-sizer did not land. `go install github.com/github/git-sizer@v1.5.0`
+builds the pinned one into `~/go/bin`, which must then be on PATH, or take your
+distribution's package and accept the version note. The manual route below
+remains for a machine that cannot reach github.com: take the tools from your
+package manager where it has them and from the projects' release pages
+otherwise; each ships a static binary, so dropping it into `~/.local/bin` is
+enough.
 
 ```bash
 # Debian and Ubuntu: git-sizer and pipx are packaged
@@ -86,7 +107,8 @@ gitmole .                                        # a report of the clone you are
 ```
 
 `gitmole --doctor` names any tool that is missing or not at its pinned version,
-and where to get the pinned one; a run reports a missing tool too.
+and where to get the pinned one; a run reports a missing tool too, and on a
+terminal offers to download it.
 
 ## The vulnerability database
 
