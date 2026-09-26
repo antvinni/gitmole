@@ -7,7 +7,7 @@ import unittest
 
 from rich.console import Console
 
-from gitmole import cli, run
+from gitmole import cli, install, run, tools
 
 
 def console():
@@ -1246,6 +1246,91 @@ class InstallTools(unittest.TestCase):
         lines = [l for l in c.export_text().splitlines() if "scc: installed" in l]
         self.assertEqual(len(lines), 1)
         self.assertTrue(lines[0].endswith("/tools/scc"), "soft_wrap: pasteable")
+
+
+@unittest.skipUnless(install.platform_key() in tools.ARCHIVES, "the question is only asked where a pinned build exists")
+class FirstRunOffer(unittest.TestCase):
+    """A run that finds required tools missing asks, on a terminal, before downloading; the download is the
+    one thing gitmole ever fetches and it happens here, before any analysis. Without a terminal, in CI or an
+    agent hook, nothing is asked or fetched and the command is named, exit 2 as before."""
+
+    @staticmethod
+    def _terminal():
+        return Console(file=io.StringIO(), width=100, record=True, force_terminal=True, color_system=None)
+
+    def test_a_yes_downloads_the_missing_tools_then_the_run_goes_on(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            checks = iter([["scc"], []])       # missing before the download, complete after it
+            installed, asked = [], []
+            fake_plan = lambda repo, out, branch="HEAD", **kw: [{"name": "quick", "argv": ["true"], "stdout": None, "deps": []}]
+            c = self._terminal()
+            rc = cli.main([d, "--out", os.path.join(d, "out")], console=c, tool_check=lambda **kw: next(checks), planner=fake_plan,
+                          ask=lambda q: asked.append(q) or "y",
+                          installer=lambda names, say=print, **kw: installed.append(list(names)) or list(names))
+            text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertEqual(installed, [["scc"]])
+        self.assertEqual(len(asked), 1)
+        self.assertIn("scc 4.1.0", asked[0])
+        self.assertIn("github.com", asked[0])
+        self.assertIn("1 steps in", text)
+
+    def test_a_no_leaves_the_message_and_exits_2(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: "n",
+                          installer=lambda *a, **kw: self.fail("a no must not download"))
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("missing tools: scc", text)
+        self.assertIn("gitmole --install-tools", text)
+        self.assertIn("brew install gitmole", text)
+        self.assertIn("docs/install.md", text)
+
+    def test_end_of_input_counts_as_a_no(self):
+        def eof(q):
+            raise EOFError
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            rc = cli.main([d], console=self._terminal(), tool_check=lambda **kw: ["scc"], ask=eof,
+                          installer=lambda *a, **kw: self.fail("EOF must not download"))
+        self.assertEqual(rc, 2)
+
+    def test_without_a_terminal_nothing_is_asked_or_fetched(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = console()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: self.fail("no terminal, no question"),
+                          installer=lambda *a, **kw: self.fail("no terminal, no download"))
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("gitmole --install-tools", text)
+
+    def test_a_download_that_leaves_a_tool_missing_still_exits_2_and_says_which(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            checks = iter([["scc", "jscpd"], ["jscpd"]])
+            c = self._terminal()
+            rc = cli.main([d], console=c, tool_check=lambda **kw: next(checks), ask=lambda q: "yes",
+                          installer=lambda names, say=print, **kw: ["scc"])
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("still missing: jscpd", text)
+        self.assertIn("gitmole --install-tools", text)
+
+    def test_a_missing_plot_tool_alone_is_not_offered(self):
+        with tempfile.TemporaryDirectory() as d:
+            _tiny_repo(d)
+            c = self._terminal()
+            rc = cli.main([d, "--plots"], console=c, tool_check=lambda **kw: ["git-of-theseus-analyze"],
+                          ask=lambda q: self.fail("git-of-theseus is the pipx extra, not a download"),
+                          installer=lambda *a, **kw: self.fail("nothing to download"))
+            text = c.export_text()
+        self.assertEqual(rc, 2)
+        self.assertIn("pipx install 'gitmole[plots]'", text)
+        self.assertNotIn("--install-tools", text)
 
 
 if __name__ == "__main__":

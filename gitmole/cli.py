@@ -126,17 +126,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if args.list_file_types:
         return _list_file_types(target, args, console)
 
-    missing = tool_check(plots=args.plots)
-    if missing:
-        err.print("[red]missing tools:[/red] " + ", ".join(missing))
-        if set(missing) & set(run.REQUIRED_TOOLS):
-            # the formula installs the pinned versions into gitmole's own libexec/tools; separate formulae are
-            # whatever version Homebrew has that day, and their report lands in run.tools_moved
-            err.print("brew install gitmole brings the pinned tools with it; without Homebrew, see")
-            err.print(INSTALL_URL)
-        if set(missing) & set(run.PLOT_TOOLS):   # not in the formula: git-of-theseus is the opt-in extra
-            err.print("--plots needs git-of-theseus: pipx install 'gitmole[plots]'", markup=False)
-        return 2
+    rc = _tools(args, ui, err, ask, installer, tool_check)
+    if rc is not None:
+        return rc
     moved = version_note({name: run.tool_version(name) for name in run.REQUIRED_TOOLS} | {"lizard": run.lizard_version()})
     if moved:   # a tool's own rules decide part of the report, so a toolchain that is not the pinned one is said once
         err.print(f"[yellow]{moved}[/yellow]")
@@ -326,6 +318,38 @@ def _install_tools(console: Console, installer) -> int:
         return 1
     say(f"{len(done)} tools installed into {install.tools_dir()}")
     return 0
+
+
+def _tools(args, ui: Console, err: Console, ask, installer, tool_check) -> int | None:
+    """The tool check before a run: None when every tool is there, else 2 and what to do. On a terminal a
+    missing required tool is offered as a download first: the one thing gitmole ever fetches, here, before
+    any analysis, only after a yes. Without a terminal (CI, an agent hook) nothing is asked or fetched and
+    the command is named, so an unattended run behaves as it always did."""
+    missing = tool_check(plots=args.plots)
+    if not missing:
+        return None
+    err.print("[red]missing tools:[/red] " + ", ".join(missing))
+    wanted = install.downloadable([t for t in run.REQUIRED_TOOLS if t in missing])
+    if wanted and ui.is_terminal:
+        ask = ask or (lambda q: ui.input(q, markup=False))
+        try:
+            answer = ask(install.offer(wanted))
+        except EOFError:
+            answer = ""
+        if answer.strip().lower() in ("y", "yes"):
+            installer(wanted, say=lambda line: err.print(line, markup=False, highlight=False, soft_wrap=True))
+            missing = tool_check(plots=args.plots)
+            if not missing:
+                return None
+            err.print("[red]still missing:[/red] " + ", ".join(missing))
+    if set(missing) & set(run.REQUIRED_TOOLS):
+        # gitmole's own directory and the formula's libexec/tools both hold the pinned versions; separate formulae
+        # are whatever version Homebrew has that day, and their report lands in run.tools_moved
+        err.print("gitmole --install-tools downloads the pinned set; brew install gitmole brings it with it; without either, see")
+        err.print(INSTALL_URL)
+    if set(missing) & set(run.PLOT_TOOLS):   # not in the formula and not in the table: git-of-theseus is the opt-in extra
+        err.print("--plots needs git-of-theseus: pipx install 'gitmole[plots]'", markup=False)
+    return 2
 
 
 def _dirs(n: int) -> str:
