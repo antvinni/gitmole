@@ -519,3 +519,31 @@ class Series(unittest.TestCase):
             joined["repos"][name] = {**joined["repos"]["a"], "ranking": {"cutoffs": [dict(joined["repos"]["a"]["ranking"]["cutoffs"][0], hits=4)]}}
         self.assertEqual(dashboard.summarise(joined, only={"a", "b"})["headroom"], dashboard.summarise(rec)["headroom"])
         self.assertNotEqual(dashboard.summarise(joined)["headroom"], dashboard.summarise(rec)["headroom"], "the whole set does move")
+
+
+class LargeInTheReport(unittest.TestCase):
+    def _rec(self, large):
+        rec = _record({"a": "ok"})
+        if large:
+            rec["repos"]["L"] = dict(rec["repos"]["a"], set="large", seconds=500, peak_mb=3000)
+        rec["summary"] = dashboard.summarise(rec)
+        return rec
+
+    def test_the_effectiveness_rows_name_the_large_set_only_when_it_ran(self):
+        from gitmole.measure import report
+        self.assertEqual(report._ranked_set(self._rec(False)), "development")
+        self.assertEqual(report._ranked_set(self._rec(True)), "development and large")
+
+    def test_a_release_that_ran_the_large_set_after_one_that_did_not_says_so(self):
+        from gitmole.measure import report
+        without, with_ = self._rec(False), self._rec(True)
+        self.assertEqual(report._sets_note(None, with_), "")
+        self.assertEqual(report._sets_note(without, without), "")
+        self.assertEqual(report._sets_note(without, with_), "large set run, not in the previous release")
+        self.assertEqual(report._sets_note(with_, without), "large set not run, unlike the previous release")
+
+    def test_the_dashboard_gains_a_large_row_only_when_the_large_set_ran(self):
+        from gitmole.measure import report
+        rows = lambda rec: [l for l in report.current(rec, None) if l.startswith("| wall time")]   # noqa: E731
+        self.assertEqual(len(rows(self._rec(False))), 1)
+        self.assertEqual(rows(self._rec(True))[1], "| wall time and peak memory | large | 500 s, 3000 MB |")
