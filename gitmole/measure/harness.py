@@ -30,13 +30,24 @@ FIXTURE_TIMEOUT = 600
 
 
 def rev_at(repo: str, date: str):
-    """The harness's "tree as of `date`": main's first-parent commit before the day begins (the day's own
-    commits belong to the future being scored), or None when the history starts later. First parents
-    only, since by date alone a side branch merged afterwards, or a history merged in whole (the React
-    Compiler's inside react), can carry the latest commit before the date."""
-    out = subprocess.run(["git", "rev-list", "-1", "--first-parent", f"--before={date}T00:00:00+00:00", "HEAD"],
-                         cwd=repo, capture_output=True, text=True).stdout.strip()
-    return out or None
+    """The harness's "tree as of `date`": the last commit on HEAD's first-parent chain dated up to the
+    start of the day (git's --before is inclusive, so a commit stamped exactly T00:00:00 counts; the
+    day's other commits belong to the future being scored), or None when the history starts later.
+    First parents only, since by date alone a side branch merged afterwards, or a history merged in
+    whole (the React Compiler's inside react), can carry the latest commit before the date. The pinned
+    corpus clones check their commit out on a `measure` branch, so HEAD's chain is the pin's.
+
+    Until the product's own lookup (trend.rev_before, which the release's backtest and so ranking_at
+    use) follows first parents too, the harness has two definitions of the tree at a cut-off.
+
+    Raises RuntimeError with git's own message when git fails: an unreadable repository is not the same
+    answer as a history that does not reach back that far."""
+    proc = subprocess.run(["git", "rev-list", "-1", "--first-parent", f"--before={date}T00:00:00+00:00", "HEAD"],
+                          cwd=repo, capture_output=True, text=True)
+    if proc.returncode != 0:
+        err = (proc.stderr or "").strip().splitlines()
+        raise RuntimeError(err[0] if err else f"git rev-list --first-parent --before={date} exited {proc.returncode}")
+    return proc.stdout.strip() or None
 
 
 def source(ref: str, root: str) -> str:

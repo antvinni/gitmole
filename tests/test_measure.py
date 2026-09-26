@@ -630,5 +630,10 @@ class FirstParentCutOff(unittest.TestCase):
             self.assertEqual(plain, s, "the date alone picks the side branch")
             self.assertEqual(harness.rev_at(tmp, "2026-01-15"), b)
             self.assertIsNone(harness.rev_at(tmp, "2025-12-31"), "nothing before the first commit")
-            self.assertEqual(harness.rev_at(tmp, "2026-01-05"), subprocess.run(["git", "rev-list", "-1", "HEAD~1~1"], cwd=tmp, capture_output=True, text=True).stdout.strip(),
-                             "the day's own commits belong to the future being scored")
+            a = subprocess.run(["git", "rev-parse", "HEAD~2"], cwd=tmp, capture_output=True, text=True).stdout.strip()
+            self.assertEqual(harness.rev_at(tmp, "2026-01-05"), a, "the day's own commits belong to the future being scored")
+
+    def test_an_unreadable_repository_is_an_error_not_an_empty_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(RuntimeError):
+                harness.rev_at(tmp, "2026-01-15")

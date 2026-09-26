@@ -27,6 +27,13 @@ which classified the pool differently, so its totals differ from these:
 | watch list | 310 | 724 | 5 of 5, 13 of 13 | 0 of 5, 1 of 13 |
 | churn | 289 | 704 | | |
 
+Rerun on 26 September 2026 once the harness took main's first-parent commit
+as the tree at a cut-off: the development totals are 306 for the watch list
+and 285 for churn, the same 21-hit lead, and recency's 336 below becomes 333.
+The whole change is react's 2023-09 cut-off, which by date alone had landed in
+the React Compiler's merged-in history instead of react's main. The holdout
+was not rerun.
+
 - **At the head of the list it is churn.** It names a few more fixed files
   than churn alone: 21 more over five development repositories (three
   ahead, one behind, one level) and 20 more over thirteen held-out ones
