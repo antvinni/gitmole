@@ -205,9 +205,11 @@ change entropy (`maat.entropy`, decayed over calendar months); the results are i
 `run --ref TAG` runs a release from its own source over the corpus in
 `measure/corpus.json` and writes `docs/measurements/<version>.json`,
 `history` does that for every release tag not yet recorded (`--releases minor`
-for the first shipped release of each x.y series only), `extras` runs the
+for the first shipped release of each x.y series only); both default to the
+fast loop's sets (development, awkward, gate), and `--release` runs a release
+round's instead (development, large, awkward, gate, well-kept); `extras` runs the
 current tree's sensitivity sweep, description checks, hook replay and
-determinism check, `report` redraws `docs/measurement-history.md` and the
+determinism check, (the large set too under `--release`), `report` redraws `docs/measurement-history.md` and the
 graphs in `docs/evolution/`, and `labels dump|score` handle the hand labels.
 Clones, fixtures and run outputs go under `$GITMOLE_MEASURE_DIR` (default
 `$TMPDIR/gitmole-measure`); `GITMOLE_LABELS_DIR` points at ApacheJIT's
