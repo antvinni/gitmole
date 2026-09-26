@@ -48,7 +48,8 @@ def parse_args(argv):
                    "per-user data directory), then exit. This and a yes to the question a run asks when a tool is missing are the only downloads "
                    "gitmole makes of its own; the network is otherwise reached only to clone a remote target, to list owner/* with gh, and by git "
                    "itself for the objects a partial clone left behind")
-    p.add_argument("--clean", action="store_true", help="list the directories gitmole created (temp clones, analysis-* under the target) and delete them after a y/N question, then exit")
+    p.add_argument("--clean", action="store_true", help="list what gitmole left behind (temp clones, analysis-* under the target, tools installed for pins it no longer uses) "
+                   "and delete them after a y/N question, then exit")
     p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
     p.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
     p.add_argument("--feedback", action="store_true", help="ask five questions about the findings and write the answers to a file you can send; "

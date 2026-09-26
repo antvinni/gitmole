@@ -3,7 +3,8 @@
 gitmole's own output is deterministic, but the tools it runs are not gitmole: a newer betterleaks can
 change what counts as a secret, a newer scc can count a language differently, and the report would move
 with no change here. The Homebrew formula installs exactly these versions into `libexec/tools`, which the
-`gitmole` wrapper puts first on PATH, and `docs/development.md` says how to move one. A run that finds
+`gitmole` wrapper puts on PATH (behind only the directories `gitmole --install-tools` made for these same
+pins), and `docs/development.md` says how to move one. A run that finds
 another version still runs: it says so once on stderr and records both versions in `meta.json`, so two
 reports that differ can be told apart by cause.
 
@@ -54,8 +55,10 @@ ARCHIVES = {
     ("linux", "arm64"): {
         "scc": {"url": "https://github.com/boyter/scc/releases/download/v4.1.0/scc_Linux_arm64.tar.gz",
                 "sha256": "6e0d2a1f8d3540ba7df185477dec40bb7340f1b214bfd303147de5cad2bd7b8b"},
-        "git-sizer": {"note": "upstream publishes no Linux arm64 build; the formula compiles v1.5.0 with Go, and "
-                              "`go install github.com/github/git-sizer@v1.5.0` does the same into ~/go/bin"},
+        "git-sizer": {"note": "upstream publishes no Linux arm64 build; the formula compiles it with Go, and "
+                              f"`go install -ldflags \"-X main.ReleaseVersion={PINNED['git-sizer']}\" "
+                              f"github.com/github/git-sizer@v{PINNED['git-sizer']}` does the same into ~/go/bin "
+                              "(without the -X flag the build prints no version)"},
         "betterleaks": {"url": "https://github.com/betterleaks/betterleaks/releases/download/v1.8.1/betterleaks_1.8.1_linux_arm64.tar.gz",
                         "sha256": "bbb578b12a2f65d7082ab436abf37724232bc71d8a078e3c41336574420f1b48"},
         "osv-scanner": {"url": "https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_arm64",
@@ -76,6 +79,18 @@ ARCHIVES = {
                   "sha256": "86eb64a88bacd1c31497d9d7420eaf6f60c1302aa94a5a9c7b948daf74b94da3"},
     },
 }
+
+# On a musl Linux (Alpine) the -gnu jscpd builds above cannot run: npm publishes -musl ones beside them. The
+# formula needs none (Homebrew on Linux is glibc), so these are the one part of the table it does not name.
+# install.platform_key says ("linux-musl", cpu) there; the Go tools are static builds and run on either.
+_MUSL_JSCPD = {
+    "x86_64": {"url": "https://registry.npmjs.org/jscpd-linux-x64-musl/-/jscpd-linux-x64-musl-5.3.0.tgz",
+               "sha256": "043a709e8bc2305f8131e9b25319ec3c275dae2e05275612ea751ce04dcebfaf"},
+    "arm64": {"url": "https://registry.npmjs.org/jscpd-linux-arm64-musl/-/jscpd-linux-arm64-musl-5.3.0.tgz",
+              "sha256": "65a450c682265f952c5dadd811e7a3fb2462671fd4e74f7bf6ebb885d942f08c"},
+}
+for _cpu, _jscpd in _MUSL_JSCPD.items():
+    ARCHIVES[("linux-musl", _cpu)] = {**ARCHIVES[("linux", _cpu)], "jscpd": _jscpd}
 
 # Where a human gets a tool the installer cannot: named by --doctor and by a failed --install-tools.
 RELEASES = {

@@ -901,6 +901,10 @@ class Clean(unittest.TestCase):
     """--clean lists what gitmole left behind and deletes on a yes. TMPDIR is pointed at a scratch dir so the
     real temp folder is never listed or touched."""
 
+    def setUp(self):
+        from tests.test_clean import _no_tools
+        _no_tools(self)
+
     def _with_tmp(self, fn):
         with tempfile.TemporaryDirectory() as work, tempfile.TemporaryDirectory() as tmp:
             old = os.environ.get("TMPDIR")

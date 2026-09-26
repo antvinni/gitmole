@@ -23,10 +23,11 @@ import sys
 import tempfile
 
 try:
-    from . import blame, filetypes
+    from . import blame, filetypes, userdirs
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import blame
     import filetypes
+    import userdirs
 
 REPORT = "jscpd-report.json"
 GIT_DIR = ".git/**"   # walked otherwise: the hook samples in .git/hooks are bash to jscpd
@@ -105,7 +106,10 @@ def run_jscpd(repo: str, out: str, procs: int, ignore=()) -> tuple:
         # --silent keeps the progress off stderr; the ignore globs only save work, the tracked-file filter decides
         argv = ["jscpd", "--reporters", "json", "--output", tmp, "--silent", "--no-tips", "--ignore", ",".join(globs),
                 "--workers", str(max(1, procs)), "."]
-        proc = subprocess.run(argv, cwd=repo, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # the jscpd --install-tools placed comes first, as on a run's PATH: called in-process (tests, measure) too
+        path = os.pathsep.join([*userdirs.tool_dirs(["jscpd"]), os.environ.get("PATH", "")])
+        proc = subprocess.run(argv, cwd=repo, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              env=dict(os.environ, PATH=path))
         sys.stderr.write(proc.stderr.decode("utf-8", "replace"))
         if proc.returncode != 0:
             sys.stderr.write(proc.stdout.decode("utf-8", "replace"))

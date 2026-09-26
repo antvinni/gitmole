@@ -59,6 +59,26 @@ class Main(unittest.TestCase):
         command = next(l for l in text.splitlines() if "osv-scanner scan source" in l)
         self.assertIn("--download-offline-databases .", command)   # soft_wrap: the command is one pasteable line
 
+    def test_a_lizard_mismatch_alone_names_pip_not_the_tool_download(self):
+        """--install-tools never installs lizard; sending a lizard mismatch there re-downloads 80 MB for nothing."""
+        versions = {**tools.PINNED, "lizard": "1.17.0"}
+        c = console()
+        rc = doctor.main(c, rows_of=lambda: doctor.rows(present=lambda n: True, version_of=versions.get),
+                         structure_of=lambda: True, db_of=lambda: "2026-09-20")
+        text = c.export_text()
+        self.assertEqual(rc, 1)
+        self.assertIn(f"-m pip install lizard=={tools.PINNED['lizard']}", text)
+        self.assertNotIn("--install-tools", text)
+
+    def test_the_database_command_names_the_osv_scanner_a_run_uses(self):
+        """Installed by --install-tools, osv-scanner is on gitmole's PATH only: a bare name is not found."""
+        own = "/Users/x/Library/Application Support/gitmole/tools/osv-scanner-2.6.0/osv-scanner"
+        command = doctor.download_command(which=lambda name, path=None: own if path else None)
+        self.assertTrue(command.startswith(f"'{own}' scan source"), command)
+        self.assertEqual(doctor.download_command(which=lambda name, path=None: "/opt/homebrew/bin/osv-scanner"),
+                         "osv-scanner scan source -r --offline-vulnerabilities --download-offline-databases .",
+                         "the one the user's shell finds anyway stays bare")
+
 
 if __name__ == "__main__":
     unittest.main()

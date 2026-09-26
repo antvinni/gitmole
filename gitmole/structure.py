@@ -32,9 +32,10 @@ from collections import Counter
 from multiprocessing import Pool
 
 try:
-    from . import filetypes
+    from . import filetypes, userdirs
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
+    import userdirs
 
 ANALYSER = "5"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
 MAX_BYTES = 1_000_000
@@ -163,11 +164,8 @@ def cache_root() -> str | None:
         return None
     if explicit:
         return explicit
-    if sys.platform == "darwin":
-        base = os.path.expanduser("~/Library/Caches")
-    else:
-        base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
-    return os.path.join(base, "gitmole", "structure")
+    base = userdirs.base("cache")
+    return os.path.join(base, "gitmole", "structure") if base else None   # no home: no cache, as with off
 
 
 _LANGS = {}

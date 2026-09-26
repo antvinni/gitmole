@@ -2,8 +2,9 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
-from gitmole import clean
+from gitmole import clean, tools
 
 
 def _output(path):
@@ -14,7 +15,36 @@ def _output(path):
         fh.write("x" * 100)
 
 
+def _no_tools(case):
+    """Point the tool root at an empty directory, so this machine's own installed tools are never listed."""
+    d = tempfile.TemporaryDirectory()
+    case.addCleanup(d.cleanup)
+    patcher = mock.patch.dict(os.environ, {"GITMOLE_TOOLS": d.name})
+    patcher.start()
+    case.addCleanup(patcher.stop)
+    return d.name
+
+
 class Find(unittest.TestCase):
+    def setUp(self):
+        self.tools = _no_tools(self)
+
+    def test_tools_for_pins_no_longer_used_are_listed_and_the_current_ones_are_not(self):
+        current = os.path.join(self.tools, f"scc-{tools.PINNED['scc']}")
+        old = os.path.join(self.tools, "scc-4.0.9")
+        for d in (current, old, os.path.join(self.tools, "notes")):
+            os.makedirs(d)
+        with open(os.path.join(old, "scc"), "wb") as fh:
+            fh.write(b"x" * 7)
+        flat = os.path.join(self.tools, "jscpd")   # the layout before one directory per pin
+        with open(flat, "wb") as fh:
+            fh.write(b"y" * 3)
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as tmp:
+            found = clean.find(d, tmp)
+        self.assertEqual([(p, size) for p, size, _ in found], [(flat, 3), (old, 7)])
+        self.assertEqual(clean.remove([flat, old]), [], "a file and a directory are both removed")
+        self.assertEqual(sorted(os.listdir(self.tools)), sorted([os.path.basename(current), "notes"]))
+
     def test_output_directory_with_meta_is_found_and_one_without_is_not(self):
         with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as tmp:
             _output(os.path.join(d, "analysis-a"))

@@ -3,6 +3,10 @@ get the pinned one. The same lookups a run makes (run.tool_version, run.lizard_v
 says is what the next report's run.tools_moved will say. Exit 0 when every tool is at its pin, 1 otherwise."""
 from __future__ import annotations
 
+import shlex
+import shutil
+import sys
+
 from . import run, tools
 
 NAMES = [*run.REQUIRED_TOOLS, "lizard"]
@@ -29,7 +33,18 @@ def rows(present=_present, version_of=_version) -> list:
     return out
 
 
-def main(console, rows_of=rows, structure_of=run.has_structure, db_of=None) -> int:
+def download_command(which=shutil.which) -> str:
+    """deps.DOWNLOAD with the osv-scanner a run uses, by full path when the user's own PATH would find
+    another or none: installed by --install-tools, it is on gitmole's PATH only (run.env_path), and a
+    bare `osv-scanner` pasted into a shell is then not found. The path is quoted: macOS's has a space."""
+    from . import deps
+    ours, theirs = which("osv-scanner", path=run.env_path()), which("osv-scanner")
+    if not ours or ours == theirs:
+        return deps.DOWNLOAD
+    return deps.DOWNLOAD.replace("osv-scanner", shlex.quote(ours), 1)
+
+
+def main(console, rows_of=rows, structure_of=run.has_structure, db_of=None, command_of=download_command) -> int:
     from . import cli, deps   # cli imports this module inside main(), so neither import runs at load
     db_of = deps.database_date if db_of is None else db_of
     say = lambda line: console.print(line, markup=False, highlight=False, soft_wrap=True)   # a command wrapped mid-line cannot be pasted
@@ -44,9 +59,11 @@ def main(console, rows_of=rows, structure_of=run.has_structure, db_of=None) -> i
             say(f"{r['tool']:<{width}}  {found:<{column}}  pinned {r['pinned']}: {tools.RELEASES[r['tool']]}")
     say("structure step: " + ("available" if structure_of() else "skipped, the tree-sitter grammars do not import (they need Python 3.10 or newer)"))
     db_date = db_of()
-    say("vulnerability database: " + (db_date or f"none; inside a clone, run: {deps.DOWNLOAD}"))
-    if any(r["state"] != "ok" for r in listed):
-        say("gitmole --install-tools downloads the pinned set; brew install gitmole brings it with it; without either, see")
+    say("vulnerability database: " + (db_date or f"none; inside a clone, run: {command_of()}"))
+    off = [r["tool"] for r in listed if r["state"] != "ok"]
+    if "lizard" in off:   # a Python package of this interpreter: neither --install-tools nor a separate formula moves it
+        say(f"lizard: {shlex.quote(sys.executable)} -m pip install lizard=={tools.PINNED['lizard']}")
+    if set(off) & set(run.REQUIRED_TOOLS):
+        say(cli.INSTALL_HINT)
         say(cli.INSTALL_URL)
-        return 1
-    return 0
+    return 1 if off else 0
