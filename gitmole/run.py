@@ -14,7 +14,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
-from . import blame, filetypes, identity
+from . import blame, filetypes, identity, install
 
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
@@ -138,8 +138,13 @@ def clone(target: str, dest_parent: str, runner=_gh, git_runner=_gh) -> str:
 
 
 def env_path() -> str:
-    """PATH with pip's user bin dirs added."""
+    """PATH with gitmole's own tool directory first, once --install-tools has made one, then pip's user bin
+    dirs. First, so the pinned copy wins over a distribution's: the same order the formula's wrapper gives
+    libexec/tools. Every tool lookup and every step's environment goes through here."""
     parts = []
+    own = install.tools_dir()
+    if os.path.isdir(own):
+        parts.append(own)
     lib = os.path.expanduser("~/Library/Python")
     if os.path.isdir(lib):
         parts += [os.path.join(lib, v, "bin") for v in sorted(os.listdir(lib), reverse=True)]

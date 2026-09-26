@@ -239,5 +239,28 @@ class Fetch(unittest.TestCase):
         self.assertEqual(urlopen.call_args.kwargs["timeout"], install.TIMEOUT)
 
 
+class OnThePath(unittest.TestCase):
+    def test_the_tool_directory_comes_first_once_it_exists_and_not_before(self):
+        with tempfile.TemporaryDirectory() as d:
+            own = os.path.join(d, "tools")
+            with mock.patch.dict(os.environ, {"GITMOLE_TOOLS": own}):
+                self.assertNotIn(own, run.env_path().split(os.pathsep), "a directory that is not there is not on the PATH")
+                os.mkdir(own)
+                parts = run.env_path().split(os.pathsep)
+                self.assertEqual(parts[0], own)
+                self.assertIn(os.environ.get("PATH", ""), run.env_path(), "the caller's PATH still follows")
+
+    def test_an_installed_tool_is_then_found_and_versioned_like_any_other(self):
+        served = archives()
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(tools.ARCHIVES, {KEY: table(served)}), \
+                mock.patch.dict(os.environ, {"GITMOLE_TOOLS": os.path.join(d, "tools")}):
+            self.assertIn("scc", run.missing_tools(path=os.path.join(d, "empty-path")))
+            install.install(["scc"], key=KEY, fetcher=Fetcher(served), say=lambda line: None)
+            self.assertNotIn("scc", run.missing_tools(path=run.env_path()))
+            run.tool_version.cache_clear()
+            self.assertEqual(run.tool_version("scc", path=run.env_path()), tools.PINNED["scc"], "the fake prints `scc version 4.1.0`")
+            run.tool_version.cache_clear()
+
+
 if __name__ == "__main__":
     unittest.main()
