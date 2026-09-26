@@ -1,10 +1,10 @@
 """python -m gitmole.measure: the measurement harness of docs/measurement.md.
 
-    python -m gitmole.measure run [--ref REF]... [--sets development,awkward,gate]   # one or more releases
-    python -m gitmole.measure history [--releases all|minor] [--sets ...] [--force]  # every release tag, or every x.y.0, oldest first
-    python -m gitmole.measure extras                                                 # the current tree's one-off checks
-    python -m gitmole.measure report                                                 # docs/measurement-history.md and the graphs
-    python -m gitmole.measure labels dump|score                                      # the hand-label sheet and its verdicts
+    python -m gitmole.measure run [--ref REF]... [--sets development,awkward,gate | --release]   # one or more releases
+    python -m gitmole.measure history [--releases all|minor] [--sets ... | --release] [--force]  # every release tag, or every x.y.0, oldest first
+    python -m gitmole.measure extras [--release]                                                 # the current tree's one-off checks
+    python -m gitmole.measure report                                                             # docs/measurement-history.md and the graphs
+    python -m gitmole.measure labels dump|score                                                  # the hand-label sheet and its verdicts
 
 The timed runs are sequential, one repository at a time and nothing else on the machine, so the times
 and memory are comparable. The rankings at cut-offs are not timed, so they run side by side once every
@@ -25,7 +25,15 @@ from . import corpus, dashboard, harness
 
 RECORDS = os.path.join(corpus.ROOT, "docs", "measurements")
 DEFAULT_SETS = "development,awkward,gate"
+RELEASE_SETS = "development,large,awkward,gate,well-kept"   # a release round: the fast loop's sets, the large repositories and the well-kept gate
 JOBS = 3   # rankings side by side; each backtest of a large history can take about the release run's peak memory
+
+
+def resolve_sets(sets, release: bool) -> list:
+    """--sets or --release, never both: a release round's sets are fixed so that its records compare."""
+    if release and sets is not None:
+        raise ValueError(f"--sets and --release are exclusive (--release runs {RELEASE_SETS})")
+    return (RELEASE_SETS if release else sets or DEFAULT_SETS).split(",")
 
 
 def _labels_dir() -> str:
@@ -106,27 +114,34 @@ def main(argv=None) -> int:
     sub = p.add_subparsers(dest="command", required=True)
     r = sub.add_parser("run")
     r.add_argument("--ref", action="append", default=[], help="a release tag, or worktree (default)")
-    r.add_argument("--sets", default=DEFAULT_SETS)
+    r.add_argument("--sets", default=None, help=f"comma-separated (default: {DEFAULT_SETS}, the fast loop)")
+    r.add_argument("--release", action="store_true", help=f"a release round's sets: {RELEASE_SETS}")
     r.add_argument("--only", action="append", default=[], help="only these corpus entries")
     r.add_argument("--merge", action="store_true", help="add these runs to the release's existing record instead of replacing it")
     r.add_argument("--jobs", type=int, default=JOBS, help=f"rankings computed side by side after the timed runs (default {JOBS}; 1 is sequential)")
     h = sub.add_parser("history")
-    h.add_argument("--sets", default=DEFAULT_SETS)
+    h.add_argument("--sets", default=None, help=f"comma-separated (default: {DEFAULT_SETS}, the fast loop)")
+    h.add_argument("--release", action="store_true", help=f"a release round's sets: {RELEASE_SETS}")
     h.add_argument("--jobs", type=int, default=JOBS, help=f"as for run (default {JOBS})")
     h.add_argument("--force", action="store_true", help="measure a release again even when its record exists")
     h.add_argument("--releases", choices=["all", "minor"], default="all", help="every tag, or only x.y.0 releases")
-    sub.add_parser("extras")
+    x = sub.add_parser("extras")
+    x.add_argument("--release", action="store_true", help="include the large set, as a release round does")
     sub.add_parser("report")
     cl = sub.add_parser("claims", help="check a round's findings against their own numbers, without measuring again")
     cl.add_argument("--version", action="append", default=[], help="a release already run (default: the latest recorded)")
     lab = sub.add_parser("labels")
     lab.add_argument("action", choices=["dump", "score"])
     args = p.parse_args(argv)
+    try:
+        sets = resolve_sets(args.sets, args.release) if args.command in ("run", "history") else None
+    except ValueError as e:
+        p.error(str(e))
     manifest = corpus.load()
     root = corpus.workspace()
     if args.command == "run":
         for ref in args.ref or ["worktree"]:
-            record = measure(ref, args.sets.split(","), manifest, root, set(args.only) or None, args.jobs)
+            record = measure(ref, sets, manifest, root, set(args.only) or None, args.jobs)
             existing = os.path.join(RECORDS, f"{record['version']}.json")
             if args.merge and os.path.exists(existing):
                 with open(existing, encoding="utf-8") as fh:
@@ -142,7 +157,7 @@ def main(argv=None) -> int:
         for tag in tags(args.releases):
             if tag.lstrip("v") in have and not args.force:
                 continue
-            print(write(measure(tag, args.sets.split(","), manifest, root, jobs=args.jobs)), flush=True)
+            print(write(measure(tag, sets, manifest, root, jobs=args.jobs)), flush=True)
         return 0
     if args.command == "claims":
         from . import claims
@@ -168,7 +183,7 @@ def main(argv=None) -> int:
         return 0
     if args.command == "extras":
         from . import extras
-        print(write(extras.run_all(manifest, root), os.path.join(RECORDS, "extras")))
+        print(write(extras.run_all(manifest, root, release=args.release), os.path.join(RECORDS, "extras")))
         return 0
     if args.command == "report":
         from . import report

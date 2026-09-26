@@ -547,3 +547,36 @@ class LargeInTheReport(unittest.TestCase):
         rows = lambda rec: [l for l in report.current(rec, None) if l.startswith("| wall time")]   # noqa: E731
         self.assertEqual(len(rows(self._rec(False))), 1)
         self.assertEqual(rows(self._rec(True))[1], "| wall time and peak memory | large | 500 s, 3000 MB |")
+
+
+class ReleaseSets(unittest.TestCase):
+    def test_a_release_round_has_fixed_sets_and_excludes_sets(self):
+        from gitmole.measure import __main__ as main
+        self.assertEqual(main.resolve_sets(None, False), ["development", "awkward", "gate"], "the fast loop")
+        self.assertEqual(main.resolve_sets(None, True), ["development", "large", "awkward", "gate", "well-kept"])
+        self.assertEqual(main.resolve_sets("development", False), ["development"])
+        with self.assertRaises(ValueError):
+            main.resolve_sets("development", True)
+
+    def test_both_on_the_command_line_is_refused(self):
+        from gitmole.measure import __main__ as main
+        with self.assertRaises(SystemExit):
+            main.main(["run", "--release", "--sets", "development"])
+
+
+class ExtrasSets(unittest.TestCase):
+    TODAY = {"repos": [{"name": n, "set": "development"} for n in ("curl", "django", "react", "gitmole", "ghidra")]}
+    AFTER = {"repos": [{"name": "curl", "set": "development"}, {"name": "react", "set": "development"}, {"name": "gitmole", "set": "development"},
+                       {"name": "django", "set": "large"}, {"name": "ghidra", "set": "large"}]}
+
+    def _names(self, entries):
+        return [e["name"] for e in entries]
+
+    def test_the_fast_loop_never_pays_for_the_large_set(self):
+        self.assertEqual(self._names(extras._dev(self.AFTER)), ["curl", "react"])
+        self.assertEqual(self._names(extras._dev(self.AFTER, release=True)), ["curl", "react", "django", "ghidra"])
+
+    def test_determinism_keeps_curl_and_django_whenever_django_ran(self):
+        self.assertEqual(self._names(extras.determinism_pair(extras._dev(self.TODAY))), ["curl", "django"], "today's corpus: unchanged")
+        self.assertEqual(self._names(extras.determinism_pair(extras._dev(self.AFTER, release=True))), ["curl", "django"])
+        self.assertEqual(self._names(extras.determinism_pair(extras._dev(self.AFTER))), ["curl", "react"], "a loop without django")
