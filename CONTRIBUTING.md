@@ -76,7 +76,14 @@ until the release after the change; the development doc explains the order.
 To report a vulnerability, use
 [private vulnerability reporting](https://github.com/antvinni/gitmole/security/advisories/new)
 rather than a public issue. Anything that would let a secret value reach
-the output directory, the terminal or an export counts.
+the output directory, the terminal or an export counts; the
+[security policy](https://github.com/antvinni/gitmole/blob/main/.github/SECURITY.md)
+says what else does.
+
+## Conduct
+
+Everyone taking part is expected to follow the
+[code of conduct](https://github.com/antvinni/gitmole/blob/main/.github/CODE_OF_CONDUCT.md).
 
 ## Licence
 
