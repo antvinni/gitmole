@@ -29,6 +29,16 @@ MAIN_TIMEOUT = 3600
 FIXTURE_TIMEOUT = 600
 
 
+def rev_at(repo: str, date: str):
+    """The harness's "tree as of `date`": main's first-parent commit before the day begins (the day's own
+    commits belong to the future being scored), or None when the history starts later. First parents
+    only, since by date alone a side branch merged afterwards, or a history merged in whole (the React
+    Compiler's inside react), can carry the latest commit before the date."""
+    out = subprocess.run(["git", "rev-list", "-1", "--first-parent", f"--before={date}T00:00:00+00:00", "HEAD"],
+                         cwd=repo, capture_output=True, text=True).stdout.strip()
+    return out or None
+
+
 def source(ref: str, root: str) -> str:
     """The release's source tree: `worktree` is this checkout, anything else a git ref extracted once."""
     if ref == "worktree":

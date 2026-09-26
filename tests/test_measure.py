@@ -598,3 +598,37 @@ class ExtrasSets(unittest.TestCase):
         self.assertEqual(self._names(extras.determinism_pair(extras._dev(self.TODAY))), ["curl", "django"], "today's corpus: unchanged")
         self.assertEqual(self._names(extras.determinism_pair(extras._dev(self.AFTER, release=True))), ["curl", "django"])
         self.assertEqual(self._names(extras.determinism_pair(extras._dev(self.AFTER))), ["curl", "react"], "a loop without django")
+
+
+class FirstParentCutOff(unittest.TestCase):
+    """The harness's "tree as of T" is main's first-parent commit at the start of T, never a side-branch
+    commit merged later that happens to carry a later date (the React Compiler's merged-in history made
+    react's 2023-09 cut-off a 26-file tree)."""
+
+    def _repo(self, tmp):
+        env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+                   GIT_AUTHOR_NAME="a", GIT_AUTHOR_EMAIL="a@example.org", GIT_COMMITTER_NAME="a", GIT_COMMITTER_EMAIL="a@example.org")
+
+        def git(*a, date=None):
+            e = dict(env, **({"GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date} if date else {}))
+            return subprocess.run(["git", *a], cwd=tmp, env=e, check=True, capture_output=True, text=True).stdout.strip()
+
+        git("init", "-q", "-b", "main")
+        git("commit", "-q", "--allow-empty", "-m", "A", date="2026-01-01T12:00:00+00:00")
+        git("checkout", "-q", "-b", "side")
+        git("commit", "-q", "--allow-empty", "-m", "S", date="2026-01-10T12:00:00+00:00")
+        git("checkout", "-q", "main")
+        git("commit", "-q", "--allow-empty", "-m", "B", date="2026-01-05T12:00:00+00:00")
+        b = git("rev-parse", "HEAD")
+        git("merge", "-q", "--no-ff", "-m", "M", "side", date="2026-01-20T12:00:00+00:00")
+        return b, git("rev-parse", "side")
+
+    def test_the_cut_off_is_mains_first_parent_commit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            b, s = self._repo(tmp)
+            plain = subprocess.run(["git", "rev-list", "-1", "--before=2026-01-15T00:00:00+00:00", "HEAD"], cwd=tmp, capture_output=True, text=True).stdout.strip()
+            self.assertEqual(plain, s, "the date alone picks the side branch")
+            self.assertEqual(harness.rev_at(tmp, "2026-01-15"), b)
+            self.assertIsNone(harness.rev_at(tmp, "2025-12-31"), "nothing before the first commit")
+            self.assertEqual(harness.rev_at(tmp, "2026-01-05"), subprocess.run(["git", "rev-list", "-1", "HEAD~1~1"], cwd=tmp, capture_output=True, text=True).stdout.strip(),
+                             "the day's own commits belong to the future being scored")

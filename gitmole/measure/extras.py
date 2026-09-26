@@ -190,7 +190,7 @@ def hook_anchors(clone: str, cache: str, out: str, anchors: int = 3, window_mont
     last = max(c["date"] for c in commits)[:10]
     for k in range(anchors, 0, -1):
         t = maat.months_before(last, 6 * k)
-        rev = subprocess.run(["git", "rev-list", "-1", f"--before={t}T00:00:00+00:00", "HEAD"], cwd=clone, capture_output=True, text=True).stdout.strip()
+        rev = harness.rev_at(clone, t)
         if not rev:
             continue
         from .. import backtest

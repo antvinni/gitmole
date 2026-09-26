@@ -29,7 +29,7 @@ methods agreed; that is worth recording and is not the same as either being righ
     python -m gitmole.measure.remediation REPORT.json --repo DIR [--horizon 6]
 
 REPORT.json is a `--json` export made at the cut-off; the horizon picks the commit at the far end
-through trend.rev_before, the way the rest of the harness picks one.
+through harness.rev_at, main's first-parent commit, the way the rest of the harness picks one.
 
 A subject the tree did not hold at the cut-off is counted ABSENT and left out of every share. Without
 that gate curl's specimen values read as 90% remediated, because the secrets rules name paths from the
@@ -75,13 +75,13 @@ def window(repo: str, cutoff: str, horizon: int) -> tuple:
     """(end date, the commit at it) for a window that fits inside the history, and (end, None) when
     it runs past the last commit. A finding the history has not had `horizon` months to answer is
     not evidence that nobody acted, so that run is refused rather than counted."""
-    from .. import trend
+    from .harness import rev_at
     end = months_after(cutoff, horizon)
     last = subprocess.run([*GIT, "log", "-1", "--format=%cs"], cwd=repo,
                           capture_output=True, text=True).stdout.strip()
     if not last or end > last:
         return end, None
-    return end, trend.rev_before(repo, end, end_of_day=False)
+    return end, rev_at(repo, end)
 
 
 class After:
@@ -503,8 +503,8 @@ def main(argv=None) -> int:
                   f"at least {args.horizon} months, or the rates are depressed by findings nobody has had time to act on.",
                   file=sys.stderr)
             return 2
-    from .. import trend
-    before_rev = trend.rev_before(args.repo, cutoff, end_of_day=False) if cutoff else ""
+    from .harness import rev_at
+    before_rev = (rev_at(args.repo, cutoff) or "") if cutoff else ""
     after = After(args.repo, rev, cutoff, before_rev=before_rev)
     scored = score(findings, after)
     print(f"### Acted on by {end or rev}, against findings made at {cutoff or 'the export'}\n")

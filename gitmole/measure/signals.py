@@ -22,7 +22,7 @@ import statistics
 import sys
 from datetime import date
 
-from .. import backtest, evaluate, load, maat, trend, watch
+from .. import backtest, evaluate, load, maat, watch
 from . import corpus, harness, metrics
 
 
@@ -113,7 +113,7 @@ def measure(entry: dict, release: str, root: str, labels, keep: set) -> dict:
     earliest = min((c["date"] for c in commits), default="")[:10]
     per = {}
     for t in evaluate.cutoffs(entry.get("end") or meta["last_date"], harness.WINDOWS, harness.HORIZON):
-        rev = trend.rev_before(clone, t, end_of_day=False) if t > earliest else None
+        rev = harness.rev_at(clone, t) if t > earliest else None
         if not rev:
             continue
         size_json, generated, vendored = backtest.snapshot_at(clone, rev, out)
