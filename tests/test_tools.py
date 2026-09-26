@@ -59,6 +59,38 @@ class Pinned(unittest.TestCase):
         note = tools.note({**tools.PINNED, "scc": "4.2.0"})
         self.assertEqual(note, "tool versions differ from the pinned set: scc 4.2.0, pinned 4.1.0")
 
+    def test_the_installer_downloads_the_archives_the_formula_installs(self):
+        """One table of urls and hashes in two places is the bug this catches: every archive the
+        installer names must be one the formula names, with the same hash, and the formula's only
+        extra is the git-sizer source it compiles on Linux arm64, which the installer cannot use."""
+        text = formula()
+        in_formula = set(re.findall(
+            r'resource "(?:scc|git-sizer|betterleaks|osv-scanner|jscpd)" do\s*url "([^"]+)"\s*sha256 "([0-9a-f]{64})"', text))
+        in_table = {(e["url"], e["sha256"]) for per_tool in tools.ARCHIVES.values() for e in per_tool.values() if "url" in e}
+        self.assertEqual(len(in_formula), 20, "five tools, four platforms")
+        self.assertEqual(sorted(url for url, _ in in_formula - in_table),
+                         ["https://github.com/github/git-sizer/archive/refs/tags/v1.5.0.tar.gz"])
+        self.assertEqual(in_table - in_formula, set())
+
+    def test_every_platform_names_every_tool_and_every_url_carries_its_pin(self):
+        self.assertEqual(sorted(tools.ARCHIVES), [("darwin", "arm64"), ("darwin", "x86_64"), ("linux", "arm64"), ("linux", "x86_64")])
+        for key, per_tool in tools.ARCHIVES.items():
+            with self.subTest(platform=key):
+                self.assertEqual(sorted(per_tool), sorted(run.REQUIRED_TOOLS))
+                for name, entry in per_tool.items():
+                    if "url" in entry:
+                        self.assertIn(tools.PINNED[name], entry["url"], f"{name} on {key}")
+                        self.assertRegex(entry["sha256"], r"^[0-9a-f]{64}$")
+                    else:
+                        self.assertIn("note", entry, f"{name} on {key}: a tool without a url says why")
+        without = [(key, name) for key, per_tool in tools.ARCHIVES.items() for name, e in per_tool.items() if "url" not in e]
+        self.assertEqual(without, [(("linux", "arm64"), "git-sizer")], "the one build upstream does not publish")
+
+    def test_every_pinned_tool_has_a_release_page(self):
+        self.assertEqual(sorted(tools.RELEASES), sorted(tools.PINNED))
+        for name, url in tools.RELEASES.items():
+            self.assertTrue(url.startswith("https://"), name)
+
 
 class Manifest(unittest.TestCase):
     def test_the_manifest_records_the_pinned_versions_beside_what_it_found(self):

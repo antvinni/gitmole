@@ -5,14 +5,6 @@ from __future__ import annotations
 
 from . import run, tools
 
-RELEASES = {
-    "scc": "https://github.com/boyter/scc/releases",
-    "git-sizer": "https://github.com/github/git-sizer/releases",
-    "betterleaks": "https://github.com/betterleaks/betterleaks/releases",
-    "jscpd": "https://github.com/kucherenko/jscpd/releases",
-    "osv-scanner": "https://github.com/google/osv-scanner/releases",
-    "lizard": "https://pypi.org/project/lizard/",
-}
 NAMES = [*run.REQUIRED_TOOLS, "lizard"]
 
 
@@ -49,7 +41,7 @@ def main(console, rows_of=rows, structure_of=run.has_structure, db_of=None) -> i
         if r["state"] == "ok":
             say(f"{r['tool']:<{width}}  {found:<{column}}  ok")
         else:
-            say(f"{r['tool']:<{width}}  {found:<{column}}  pinned {r['pinned']}: {RELEASES[r['tool']]}")
+            say(f"{r['tool']:<{width}}  {found:<{column}}  pinned {r['pinned']}: {tools.RELEASES[r['tool']]}")
     say("structure step: " + ("available" if structure_of() else "skipped, the tree-sitter grammars do not import (they need Python 3.10 or newer)"))
     db_date = db_of()
     say("vulnerability database: " + (db_date or f"none; inside a clone, run: {deps.DOWNLOAD}"))
