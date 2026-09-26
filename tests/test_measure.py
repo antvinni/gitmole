@@ -554,6 +554,12 @@ class LargeInTheReport(unittest.TestCase):
         self.assertEqual(len(rows(self._rec(False))), 1)
         self.assertEqual(rows(self._rec(True))[1], "| wall time and peak memory | large | 500 s, 3000 MB |")
 
+    def test_the_usefulness_row_names_the_large_set_only_when_it_ran(self):
+        from gitmole.measure import report
+        rows = lambda rec: [l for l in report.current(rec, None) if l.startswith("| findings the default report spells out")]   # noqa: E731
+        self.assertEqual(rows(self._rec(False)), ["| findings the default report spells out that are labelled actionable | development and well-kept | no finding ids in this record |"])
+        self.assertEqual(rows(self._rec(True)), ["| findings the default report spells out that are labelled actionable | development, large and well-kept | no finding ids in this record |"])
+
 
 class ReleaseSets(unittest.TestCase):
     def test_a_release_round_has_fixed_sets_and_excludes_sets(self):
@@ -565,9 +571,15 @@ class ReleaseSets(unittest.TestCase):
             main.resolve_sets("development", True)
 
     def test_both_on_the_command_line_is_refused(self):
+        import contextlib
+        import io
         from gitmole.measure import __main__ as main
-        with self.assertRaises(SystemExit):
-            main.main(["run", "--release", "--sets", "development"])
+        captured = io.StringIO()
+        with contextlib.redirect_stderr(captured):
+            with self.assertRaises(SystemExit) as cm:
+                main.main(["run", "--release", "--sets", "development"])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("--sets and --release are exclusive", captured.getvalue())
 
 
 class ExtrasSets(unittest.TestCase):

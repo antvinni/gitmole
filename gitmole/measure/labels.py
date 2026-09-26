@@ -1,9 +1,9 @@
 """Hand labels for findings (docs/measurement.md, "Hand labels").
 
-`dump` writes every finding of the latest recorded release's development and well-kept runs to two
-files under measure/: labels-sheet.jsonl, one finding per line with an id, the repository, the commit
-and the statement, the rule id and severity left out so the labeller cannot see them; and labels-key.jsonl,
-which maps the id back to rule and severity. Labellers add lines to measure/labels.jsonl:
+`dump` writes every finding of the latest recorded release's development, large and well-kept runs to
+two files under measure/: labels-sheet.jsonl, one finding per line with an id, the repository, the
+commit and the statement, the rule id and severity left out so the labeller cannot see them; and
+labels-key.jsonl, which maps the id back to rule and severity. Labellers add lines to measure/labels.jsonl:
 
     {"id": "...", "labeller": "a", "true": true, "actionable": false}
 

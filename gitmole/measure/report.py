@@ -172,7 +172,8 @@ def current(record: dict, extras: dict) -> list:
             ("top-15 carried over from one cut-off to the next, six months", ranked, _num(s.get("carryover_top15"))),
             ("findings per repository, median and p90", "development", f"{_num(s.get('findings_median'), '{:g}')} and {_num(s.get('findings_p90'), '{:g}')}")]
     u = record.get("useful") or {}
-    rows.append(("findings the default report spells out that are labelled actionable", "development and well-kept",
+    usefulness_set = "development, large and well-kept" if _ran_large(record) else "development and well-kept"
+    rows.append(("findings the default report spells out that are labelled actionable", usefulness_set,
                  f"{_pct(u.get('actionable_share'))} of {u.get('shown', 0)}, {_pct(u.get('labelled_share'))} labelled" if u.get("shown") else "no finding ids in this record"))
     score = labels.score()
     rows.append(("rules sound, broken and undecided", "labelled sample", ", ".join(f"{k} {v}" for k, v in sorted(score["verdicts"].items())) or "no labels"))
