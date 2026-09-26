@@ -359,7 +359,9 @@ class Gitmole < Formula
     TOOLS.each do |name|
       resource(name).stage do
         if File.exist?("go.mod")
-          system "go", "build", "-trimpath", "-ldflags", "-s -w", "-o", tools/name, "."
+          # git-sizer prints its version only when it is linked in; without it `--version` names none
+          ldflags = "-s -w -X main.ReleaseVersion=#{resource(name).version}"
+          system "go", "build", "-trimpath", "-ldflags", ldflags, "-o", tools/name, "."
         else
           found = Dir[name, "bin/#{name}", "#{name}_*"].find { |f| File.file?(f) }
           odie "#{name}: no executable in the resource" if found.nil?
