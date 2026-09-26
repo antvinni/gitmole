@@ -208,8 +208,10 @@ change entropy (`maat.entropy`, decayed over calendar months); the results are i
 for the first shipped release of each x.y series only); both default to the
 fast loop's sets (development, awkward, gate), and `--release` runs a release
 round's instead (development, large, awkward, gate, well-kept); `extras` runs the
-current tree's sensitivity sweep, description checks, hook replay and
-determinism check, (the large set too under `--release`), `report` redraws `docs/measurement-history.md` and the
+current tree's sensitivity sweep, description checks and hook replay over
+the development set (and the large set under `--release`) and its
+determinism check on curl and django (curl and react when django did not
+run), `report` redraws `docs/measurement-history.md` and the
 graphs in `docs/evolution/`, and `labels dump|score` handle the hand labels.
 Clones, fixtures and run outputs go under `$GITMOLE_MEASURE_DIR` (default
 `$TMPDIR/gitmole-measure`); `GITMOLE_LABELS_DIR` points at ApacheJIT's
