@@ -289,10 +289,16 @@ class Fixtures(unittest.TestCase):
 
     def test_the_manifest_names_every_set_and_pins_every_clone(self):
         m = corpus.load()
-        self.assertEqual({e["set"] for e in m["repos"]}, {"development", "holdout", "well-kept", "awkward", "gate"})
+        self.assertLessEqual({e["set"] for e in m["repos"]}, {"development", "large", "holdout", "well-kept", "awkward", "gate"})
         for e in m["repos"]:
             self.assertTrue(e.get("fixture") or (e.get("url") and len(e.get("commit", "")) == 40), e["name"])
         self.assertTrue(m["well_kept_criterion"])
+
+    def test_the_large_set_is_ranked_and_labelled_like_development(self):
+        from gitmole.measure import labels
+        self.assertTrue(harness.needs_ranking({"set": "large"}, {"status": "ok"}))
+        self.assertFalse(harness.needs_ranking({"set": "awkward"}, {"status": "ok"}))
+        self.assertIn("large", labels.LABELLED_SETS)
 
 
 class Sensitivity(unittest.TestCase):

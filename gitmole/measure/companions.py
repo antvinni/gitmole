@@ -65,7 +65,7 @@ def medians(results: dict, grid: list) -> str:
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="python -m gitmole.measure.companions", description=__doc__.split("\n\n")[0])
-    p.add_argument("--set", default="development", choices=("development", "holdout"))
+    p.add_argument("--set", default="development", choices=("development", "large", "holdout"))
     p.add_argument("--confidence", default=",".join(map(str, CONFIDENCE)), help="percent, comma-separated")
     p.add_argument("--support", default=",".join(map(str, SUPPORT)), help="shared changesets, comma-separated")
     p.add_argument("--only", action="append", default=[], help="only these corpus entries")

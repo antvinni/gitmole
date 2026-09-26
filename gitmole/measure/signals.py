@@ -137,7 +137,7 @@ def _median(values):
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="python -m gitmole.measure.signals", description=__doc__.split("\n\n")[0])
     p.add_argument("--release", required=True, help="whose run outputs to read, e.g. 0.27.0")
-    p.add_argument("--set", default="development", choices=("development", "holdout"))
+    p.add_argument("--set", default="development", choices=("development", "large", "holdout"))
     p.add_argument("--variant", action="append", default=[], help="only this variant, beside the watch list and churn (the holdout's one reading)")
     args = p.parse_args(argv)
     root, manifest = corpus.workspace(), corpus.load()

@@ -40,7 +40,7 @@ def _read(path: str) -> list:
         return [json.loads(l) for l in fh if l.strip()]
 
 
-LABELLED_SETS = ("development", "well-kept")
+LABELLED_SETS = ("development", "large", "well-kept")
 
 
 def id_rows(name: str, commit, report_path: str) -> list:
