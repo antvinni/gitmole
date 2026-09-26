@@ -1,7 +1,7 @@
 """One release's records reduced to the dashboard of docs/measurement.md, and the history of releases.
 
-A release that crashed (or timed out) on any development repository is marked `crashed` with a note:
-its summary values are left empty and the history draws it at the bottom of every graph, since a
+A release that crashed (or timed out) on any development or large repository is marked `crashed` with a
+note: its summary values are left empty and the history draws it at the bottom of every graph, since a
 number averaged over the repositories it survived would flatter it."""
 from __future__ import annotations
 
@@ -38,14 +38,25 @@ def _round(x, n=3):
     return None if x is None else round(x, n)
 
 
+MEASURED = ("development", "large")   # the sets a release round ranks; the development set alone carries the cost ceilings
+
+
 def summarise(record: dict, only=None) -> dict:
-    """The dashboard numbers for one release, from its per-repository records; with `only`, the
-    development set cut to those repositories (the like-for-like series the long graphs draw)."""
+    """The dashboard numbers for one release, from its per-repository records. The cost keys (findings,
+    report lines, wall time, memory, scored share) are the development set's, which the fast loop
+    measures whole, so a loop can be held to them. The effectiveness keys (headroom, AUC, recall,
+    stability, carry-over, magnets) span development and large, since the large repositories are the
+    ranking's hard cases. With `only`, the like-for-like series the long graphs draw: every key over
+    those repositories, whichever of the two sets holds them."""
     repos = record["repos"]
-    dev = {n: r for n, r in repos.items() if r.get("set") == "development" and (only is None or n in only)}
-    crashed = {n: r.get("note") or r["status"] for n, r in dev.items() if r["status"] in ("crashed", "timeout")}
+    if only is None:
+        pop = {n: r for n, r in repos.items() if r.get("set") in MEASURED}
+        cost = {n: r for n, r in pop.items() if r.get("set") == "development"}
+    else:
+        pop = cost = {n: r for n, r in repos.items() if r.get("set") in MEASURED and n in only}
+    crashed = {n: r.get("note") or r["status"] for n, r in pop.items() if r["status"] in ("crashed", "timeout")}
     out = {"crashed": crashed or None}
-    ranked = {n: _repo_ranking(r) for n, r in dev.items()}
+    ranked = {n: _repo_ranking(r) for n, r in pop.items()}
     ranked = {n: v for n, v in ranked.items() if v}
     per = {n: [v["headroom"]] for n, v in ranked.items()}
     out["headroom"] = _round(metrics.median([v["headroom"] for v in ranked.values()]))
@@ -54,15 +65,15 @@ def summarise(record: dict, only=None) -> dict:
     out["wins_losses_ties"] = [sum(v[k] for v in ranked.values()) for k in ("wins", "losses", "ties")] if ranked else None
     for k in ("auc", "churn_auc", "recall20", "churn_recall20"):
         out[k] = _round(metrics.median([v[k] for v in ranked.values()]))
-    stab = [((r.get("ranking") or {}).get("stability") or {}) for r in dev.values()]
+    stab = [((r.get("ranking") or {}).get("stability") or {}) for r in pop.values()]
     out["stability_top15"] = _round(metrics.median([s.get("top_jaccard") for s in stab]))
     out["stability_spearman"] = _round(metrics.median([s.get("spearman") for s in stab]))
-    out["carryover_top15"] = _round(metrics.median([_carryover(r) for r in dev.values()]))
-    mags = [m for r in dev.values() for m in ((r.get("ranking") or {}).get("magnets") or [])]
+    out["carryover_top15"] = _round(metrics.median([_carryover(r) for r in pop.values()]))
+    mags = [m for r in pop.values() for m in ((r.get("ranking") or {}).get("magnets") or [])]
     named, nf = sum(m["named"] for m in mags), sum(m["named_fixed"] for m in mags)
     matched, mf = sum(m["matched"] for m in mags), sum(m["matched_fixed"] for m in mags)
     out["bug_magnets_ratio"] = _round((nf / named) / (mf / matched)) if named and matched and mf else None
-    ok = [r for r in dev.values() if r["status"] == "ok"]
+    ok = [r for r in cost.values() if r["status"] == "ok"]
     out["findings_median"] = metrics.median([r.get("findings") for r in ok])
     out["findings_p90"] = _round(metrics.percentile([r.get("findings") for r in ok], 0.9), 1)
     out["shown_median"] = metrics.median([r.get("shown") for r in ok])   # spelled out in the default report; None before 0.28.0's backfill
@@ -94,6 +105,11 @@ def summarise(record: dict, only=None) -> dict:
         out["holdout_headroom_ci"] = [_round(x) for x in (metrics.bootstrap({n: [v["headroom"]] for n, v in hold.items()}, metrics.median) or [])] or None
         out["holdout_wins_losses_ties"] = [sum(v[k] for v in hold.values()) for k in ("wins", "losses", "ties")]
         out["holdout_recall20"] = _round(metrics.median([v["recall20"] for v in hold.values()]))
+    large = [r for r in repos.values() if r.get("set") == "large" and r["status"] == "ok"]
+    if only is None and large:
+        out["large_seconds"] = _round(sum(r.get("seconds") or 0 for r in large), 1)
+        out["large_peak_mb"] = max((r.get("peak_mb") or 0 for r in large), default=None)
+        out["large_findings_median"] = metrics.median([r.get("findings") for r in large])
     return out
 
 

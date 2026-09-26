@@ -17,8 +17,18 @@ from . import corpus, harness, metrics
 FACTORS = (0.5, 0.75, 0.9, 1.1, 1.25, 1.5)
 
 
-def _dev(manifest: dict) -> list:
-    return [e for e in corpus.entries(manifest, ["development"]) if e["name"] != "gitmole"]
+def _dev(manifest: dict, release: bool = False) -> list:
+    """The repositories the extras read: the development set, and in a release round the large set too,
+    so a fast loop never pays for the large ones. gitmole's own history is too short for them."""
+    sets = ["development", "large"] if release else ["development"]
+    return [e for e in corpus.entries(manifest, sets) if e["name"] != "gitmole"]
+
+
+def determinism_pair(dev: list) -> list:
+    """curl and django, the pair the determinism check has always run; curl and react where django did not run."""
+    names = {e["name"] for e in dev}
+    pair = ("curl", "django") if "django" in names else ("curl", "react")
+    return [e for e in dev if e["name"] in pair]
 
 
 def _out(root: str, version: str, name: str) -> str:
@@ -247,20 +257,20 @@ def hook_replay(clone: str, cache: str, out: str, anchors: int = 3, window_month
     return rates(counts or {"queries": 0, "warned": 0, "correct": 0, "top": 0, "complete_commits": 0, "closure_alarms": 0})
 
 
-def run_all(manifest: dict, root: str) -> dict:
+def run_all(manifest: dict, root: str, release: bool = False) -> dict:
     src = harness.source("worktree", root)
     version = harness.version_of(src)
     reference = manifest["reference_date"]
-    dev = _dev(manifest)
+    dev = _dev(manifest, release)
     reports = {}
     for e in dev:
         out = _out(root, version, e["name"])
         if os.path.isfile(os.path.join(out, "meta.json")):
             reports[e["name"]] = load.load_report(out)
-    record = {"version": version, "measured": dt.date.today().isoformat()}
+    record = {"version": version, "measured": dt.date.today().isoformat(), "sets": ["development", "large"] if release else ["development"]}
     record["sensitivity"] = sensitivity(reports) if reports else None
     record["description"] = {e["name"]: describe(corpus.clone(e, root), _out(root, version, e["name"])) for e in dev if e["name"] in reports}
     record["hook"] = {e["name"]: hook_replay(corpus.clone(e, root), os.path.join(root, "logs", e["name"] + ".txt"), os.path.join(root, "hook", e["name"]))
                       for e in dev}
-    record["determinism"] = determinism(src, [e for e in dev if e["name"] in ("curl", "django")], root, reference)
+    record["determinism"] = determinism(src, determinism_pair(dev), root, reference)
     return record

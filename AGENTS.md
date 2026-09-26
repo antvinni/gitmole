@@ -49,7 +49,8 @@ in effectiveness language, which is why the history reads as a plateau.
 
 The ceilings are whatever the last release records in `docs/measurement-history.md`
 and `docs/measurements/`: findings per repository at the median and p90, report
-lines, wall time, peak memory. Read them, do not hardcode them here.
+lines, wall time, peak memory — the development set's — and the large set's wall
+time and peak memory, checked at release rounds. Read them, do not hardcode them here.
 
 Lowering is free. Raising requires a line saying who decided and why. Demotion
 to `info` or to the JSON is the currency for paying — but demotion is not

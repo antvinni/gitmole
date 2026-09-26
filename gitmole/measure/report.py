@@ -29,6 +29,23 @@ def _share(pair):
     return None if not pair or not pair[1] else pair[0] / pair[1]
 
 
+def _ran_large(record: dict) -> bool:
+    return any(x.get("set") == "large" for x in record["repos"].values())
+
+
+def _ranked_set(record: dict) -> str:
+    """The set the effectiveness rows span: development alone, or development and large in a release round."""
+    return "development and large" if _ran_large(record) else "development"
+
+
+def _sets_note(prev, cur: dict) -> str:
+    """A release whose round ran the large set beside one that did not: its effectiveness numbers span
+    other repositories, so a move between the two is partly the population's."""
+    if prev is None or _ran_large(prev) == _ran_large(cur):
+        return ""
+    return "large set run, not in the previous release" if _ran_large(cur) else "large set not run, unlike the previous release"
+
+
 def graphs(history: list) -> dict:
     """The long graphs draw each release over the fixed series (corpus.json `series`), so a change to the
     development set is not a move; robustness and the gate are fixtures, the holdout its own set."""
@@ -116,10 +133,14 @@ def page(history: list, extras: dict) -> str:
               "files in the same deciles of the list's own score.", "",
               "| release | headroom | churn | W/L/T | AUC | recall 20% | stable | magnets | findings | lines | scored | robust | gate | seconds | MB | note |",
               "|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
+    prev = None
     for r in history:
         s = r["summary"]
+        sets_note = _sets_note(prev, r)
+        prev = r
         if s.get("crashed"):
             note = "crashed: " + "; ".join(f"{k}: {_short(v)}" for k, v in sorted(s["crashed"].items()))
+            note += f"; {sets_note}" if sets_note else ""
             lines.append(f"| {r['version']} | crashed | | | | | | | | | | {_num(_share(s.get('robust')), '{:.0%}')} | | | | {note.replace('|', '/')} |")
             continue
         ci = s.get("headroom_ci")
@@ -130,6 +151,7 @@ def page(history: list, extras: dict) -> str:
         robust = f"{s['robust'][0]}/{s['robust'][1]}" if s.get("robust") else "-"
         failed = [f"{n}: {_short(x.get('note') or x['status'])}" for n, x in sorted(r["repos"].items()) if x.get("status") not in ("ok", "refused")]
         failed += [f"{n}: {len(x['steps_failed'])} step(s) failed" for n, x in sorted(r["repos"].items()) if x.get("status") == "ok" and x.get("steps_failed")]
+        failed += [sets_note] if sets_note else []
         lines.append(f"| {r['version']} | {head} | {_num(s.get('churn_headroom'))} | {wlt} | {_num(s.get('auc'))} | {_pct(s.get('recall20'))} | "
                      f"{_num(s.get('stability_top15'))} | {_num(s.get('bug_magnets_ratio'))} | {_num(s.get('findings_median'), '{:g}')}/{_num(s.get('findings_p90'), '{:g}')} | "
                      f"{_num(s.get('report_lines'), '{:g}')} | {_pct(s.get('scored_share'))} | {robust} | {gate} | {_num(s.get('seconds'), '{:.0f}')} | "
@@ -142,20 +164,24 @@ def page(history: list, extras: dict) -> str:
 def current(record: dict, extras: dict) -> list:
     s = record["summary"]
     out = [f"## The dashboard for {record['version']}", ""]
+    ranked = _ranked_set(record)
     rows = [("median headroom at 15", "holdout", f"{_num(s.get('holdout_headroom'))} {s.get('holdout_headroom_ci') or ''}".strip() if s.get("holdout_headroom") is not None else "not run for this record"),
-            ("median headroom at 15", "development", _num(s.get("headroom"))),
-            ("recall at 20% of lines", "holdout" if s.get("holdout_recall20") is not None else "development", _pct(s.get("holdout_recall20") if s.get("holdout_recall20") is not None else s.get("recall20"))),
-            ("top-15 stability over 50 commits", "development", _num(s.get("stability_top15"))),
-            ("top-15 carried over from one cut-off to the next, six months", "development", _num(s.get("carryover_top15"))),
+            ("median headroom at 15", ranked, _num(s.get("headroom"))),
+            ("recall at 20% of lines", "holdout" if s.get("holdout_recall20") is not None else ranked, _pct(s.get("holdout_recall20") if s.get("holdout_recall20") is not None else s.get("recall20"))),
+            ("top-15 stability over 50 commits", ranked, _num(s.get("stability_top15"))),
+            ("top-15 carried over from one cut-off to the next, six months", ranked, _num(s.get("carryover_top15"))),
             ("findings per repository, median and p90", "development", f"{_num(s.get('findings_median'), '{:g}')} and {_num(s.get('findings_p90'), '{:g}')}")]
     u = record.get("useful") or {}
-    rows.append(("findings the default report spells out that are labelled actionable", "development and well-kept",
+    usefulness_set = "development, large and well-kept" if _ran_large(record) else "development and well-kept"
+    rows.append(("findings the default report spells out that are labelled actionable", usefulness_set,
                  f"{_pct(u.get('actionable_share'))} of {u.get('shown', 0)}, {_pct(u.get('labelled_share'))} labelled" if u.get("shown") else "no finding ids in this record"))
     score = labels.score()
     rows.append(("rules sound, broken and undecided", "labelled sample", ", ".join(f"{k} {v}" for k, v in sorted(score["verdicts"].items())) or "no labels"))
     kept = s.get("well_kept_with_critical")
     rows.append(("repositories with a critical labelled false", "well-kept", f"{kept[0]} of {kept[1]} fired a critical" if kept else "not run for this record"))
     rows.append(("wall time and peak memory", "development", f"{_num(s.get('seconds'), '{:.0f}')} s, {_num(s.get('peak_mb'), '{:.0f}')} MB"))
+    if s.get("large_seconds") is not None:
+        rows.append(("wall time and peak memory", "large", f"{_num(s.get('large_seconds'), '{:.0f}')} s, {_num(s.get('large_peak_mb'), '{:.0f}')} MB"))
     rows.append(("scored share of tracked files", "development", _pct(s.get("scored_share"))))
     clean = s.get("claims_clean")
     rows.append(("findings whose text agrees with their own numbers", "every set",

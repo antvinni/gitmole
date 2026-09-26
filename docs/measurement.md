@@ -43,6 +43,20 @@ curl, django and react, which are also the example repositories. The
 **holdout** is a second set, pinned the same way, never looked at while tuning.
 When development and holdout disagree, the holdout is the answer.
 
+The **large set** holds the repositories too slow or too big for the development
+loop. It runs in release rounds only (`run --release`), never in the default loop.
+The dashboard is split between the two: the cost ceilings — findings per
+repository, report lines, wall time, peak memory, scored share — are the
+development set's, which the loop measures whole; the effectiveness numbers —
+headroom and its interval, wins against churn, AUC, recall, stability, carry-over,
+bug magnets — span development and large in a release round, because the large
+repositories are where the ranking loses, and a set without them would read better
+than the tool is. A loop's effectiveness numbers are therefore compared only with
+the last release cut to the repositories the loop ran, never with the release
+headline. The large set's own wall time and peak memory are ceilings too, checked
+at release rounds. The long graphs draw over the fixed series whichever of the two
+sets holds each of its repositories.
+
 The thirteen Apache repositories in validation.md, scored against ApacheJIT's
 labels, are the nearest thing to a holdout today. They were looked at once, for
 one decision (the watch list kept its ranking while tying churn alone, 674 to

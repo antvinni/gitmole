@@ -169,6 +169,35 @@ class Dashboard(unittest.TestCase):
         self.assertEqual(s["crashed"], {"b": "Traceback: boom"})
         self.assertEqual(s["robust"], [1, 2])
 
+    def _with_large(self):
+        rec = _record({"a": "ok"})
+        big = json.loads(json.dumps(rec["repos"]["a"]))
+        big.update({"set": "large", "findings": 40, "report_lines": 300, "seconds": 500, "peak_mb": 3000})
+        big["ranking"]["cutoffs"][0].update({"hits": 2, "churn_hits": 5})   # the hard case: it loses to churn
+        rec["repos"]["L"] = big
+        return rec
+
+    def test_a_large_entry_counts_for_effectiveness_and_not_for_the_cost_ceilings(self):
+        s = dashboard.summarise(self._with_large())
+        self.assertEqual((s["findings_median"], s["report_lines"], s["seconds"], s["peak_mb"]), (4, 100, 10, 100), "cost: development only")
+        self.assertEqual(s["wins_losses_ties"], [1, 1, 0], "effectiveness: development and large")
+        self.assertEqual((s["large_seconds"], s["large_peak_mb"], s["large_findings_median"]), (500, 3000, 40))
+
+    def test_a_crash_on_a_large_repository_marks_the_release(self):
+        rec = self._with_large()
+        rec["repos"]["L"].update({"status": "timeout", "note": "timed out"})
+        self.assertEqual(dashboard.summarise(rec)["crashed"], {"L": "timed out"})
+
+    def test_a_series_repository_in_the_large_set_stays_in_every_series_key(self):
+        s = dashboard.summarise(self._with_large(), only={"a", "L"})
+        self.assertEqual((s["findings_median"], s["seconds"], s["peak_mb"]), (22, 510, 3000), "the series is like-for-like, cost included")
+        self.assertEqual(s["wins_losses_ties"], [1, 1, 0])
+        self.assertNotIn("large_seconds", s, "the large row is the whole record's, not the series'")
+
+    def test_a_record_without_large_entries_has_no_large_keys(self):
+        s = dashboard.summarise(_record({"a": "ok", "b": "ok"}))
+        self.assertFalse([k for k in s if k.startswith("large_")])
+
     def test_the_top_fifteen_carried_over_between_consecutive_cut_offs(self):
         rec = _record({"a": "ok", "b": "ok"})
         cut = rec["repos"]["a"]["ranking"]["cutoffs"][0]
@@ -260,10 +289,16 @@ class Fixtures(unittest.TestCase):
 
     def test_the_manifest_names_every_set_and_pins_every_clone(self):
         m = corpus.load()
-        self.assertEqual({e["set"] for e in m["repos"]}, {"development", "holdout", "well-kept", "awkward", "gate"})
+        self.assertLessEqual({e["set"] for e in m["repos"]}, {"development", "large", "holdout", "well-kept", "awkward", "gate"})
         for e in m["repos"]:
             self.assertTrue(e.get("fixture") or (e.get("url") and len(e.get("commit", "")) == 40), e["name"])
         self.assertTrue(m["well_kept_criterion"])
+
+    def test_the_large_set_is_ranked_and_labelled_like_development(self):
+        from gitmole.measure import labels
+        self.assertTrue(harness.needs_ranking({"set": "large"}, {"status": "ok"}))
+        self.assertFalse(harness.needs_ranking({"set": "awkward"}, {"status": "ok"}))
+        self.assertIn("large", labels.LABELLED_SETS)
 
 
 class Sensitivity(unittest.TestCase):
@@ -490,3 +525,76 @@ class Series(unittest.TestCase):
             joined["repos"][name] = {**joined["repos"]["a"], "ranking": {"cutoffs": [dict(joined["repos"]["a"]["ranking"]["cutoffs"][0], hits=4)]}}
         self.assertEqual(dashboard.summarise(joined, only={"a", "b"})["headroom"], dashboard.summarise(rec)["headroom"])
         self.assertNotEqual(dashboard.summarise(joined)["headroom"], dashboard.summarise(rec)["headroom"], "the whole set does move")
+
+
+class LargeInTheReport(unittest.TestCase):
+    def _rec(self, large):
+        rec = _record({"a": "ok"})
+        if large:
+            rec["repos"]["L"] = dict(rec["repos"]["a"], set="large", seconds=500, peak_mb=3000)
+        rec["summary"] = dashboard.summarise(rec)
+        return rec
+
+    def test_the_effectiveness_rows_name_the_large_set_only_when_it_ran(self):
+        from gitmole.measure import report
+        self.assertEqual(report._ranked_set(self._rec(False)), "development")
+        self.assertEqual(report._ranked_set(self._rec(True)), "development and large")
+
+    def test_a_release_that_ran_the_large_set_after_one_that_did_not_says_so(self):
+        from gitmole.measure import report
+        without, with_ = self._rec(False), self._rec(True)
+        self.assertEqual(report._sets_note(None, with_), "")
+        self.assertEqual(report._sets_note(without, without), "")
+        self.assertEqual(report._sets_note(without, with_), "large set run, not in the previous release")
+        self.assertEqual(report._sets_note(with_, without), "large set not run, unlike the previous release")
+
+    def test_the_dashboard_gains_a_large_row_only_when_the_large_set_ran(self):
+        from gitmole.measure import report
+        rows = lambda rec: [l for l in report.current(rec, None) if l.startswith("| wall time")]   # noqa: E731
+        self.assertEqual(len(rows(self._rec(False))), 1)
+        self.assertEqual(rows(self._rec(True))[1], "| wall time and peak memory | large | 500 s, 3000 MB |")
+
+    def test_the_usefulness_row_names_the_large_set_only_when_it_ran(self):
+        from gitmole.measure import report
+        rows = lambda rec: [l for l in report.current(rec, None) if l.startswith("| findings the default report spells out")]   # noqa: E731
+        self.assertEqual(rows(self._rec(False)), ["| findings the default report spells out that are labelled actionable | development and well-kept | no finding ids in this record |"])
+        self.assertEqual(rows(self._rec(True)), ["| findings the default report spells out that are labelled actionable | development, large and well-kept | no finding ids in this record |"])
+
+
+class ReleaseSets(unittest.TestCase):
+    def test_a_release_round_has_fixed_sets_and_excludes_sets(self):
+        from gitmole.measure import __main__ as main
+        self.assertEqual(main.resolve_sets(None, False), ["development", "awkward", "gate"], "the fast loop")
+        self.assertEqual(main.resolve_sets(None, True), ["development", "large", "awkward", "gate", "well-kept"])
+        self.assertEqual(main.resolve_sets("development", False), ["development"])
+        with self.assertRaises(ValueError):
+            main.resolve_sets("development", True)
+
+    def test_both_on_the_command_line_is_refused(self):
+        import contextlib
+        import io
+        from gitmole.measure import __main__ as main
+        captured = io.StringIO()
+        with contextlib.redirect_stderr(captured):
+            with self.assertRaises(SystemExit) as cm:
+                main.main(["run", "--release", "--sets", "development"])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("--sets and --release are exclusive", captured.getvalue())
+
+
+class ExtrasSets(unittest.TestCase):
+    TODAY = {"repos": [{"name": n, "set": "development"} for n in ("curl", "django", "react", "gitmole", "ghidra")]}
+    AFTER = {"repos": [{"name": "curl", "set": "development"}, {"name": "react", "set": "development"}, {"name": "gitmole", "set": "development"},
+                       {"name": "django", "set": "large"}, {"name": "ghidra", "set": "large"}]}
+
+    def _names(self, entries):
+        return [e["name"] for e in entries]
+
+    def test_the_fast_loop_never_pays_for_the_large_set(self):
+        self.assertEqual(self._names(extras._dev(self.AFTER)), ["curl", "react"])
+        self.assertEqual(self._names(extras._dev(self.AFTER, release=True)), ["curl", "react", "django", "ghidra"])
+
+    def test_determinism_keeps_curl_and_django_whenever_django_ran(self):
+        self.assertEqual(self._names(extras.determinism_pair(extras._dev(self.TODAY))), ["curl", "django"], "today's corpus: unchanged")
+        self.assertEqual(self._names(extras.determinism_pair(extras._dev(self.AFTER, release=True))), ["curl", "django"])
+        self.assertEqual(self._names(extras.determinism_pair(extras._dev(self.AFTER))), ["curl", "react"], "a loop without django")
