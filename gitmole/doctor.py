@@ -46,7 +46,7 @@ def main(console, rows_of=rows, structure_of=run.has_structure, db_of=None) -> i
     db_date = db_of()
     say("vulnerability database: " + (db_date or f"none; inside a clone, run: {deps.DOWNLOAD}"))
     if any(r["state"] != "ok" for r in listed):
-        say("brew install gitmole brings the pinned tools with it; without Homebrew, see")
+        say("gitmole --install-tools downloads the pinned set; brew install gitmole brings it with it; without either, see")
         say(cli.INSTALL_URL)
         return 1
     return 0

@@ -53,6 +53,7 @@ class Main(unittest.TestCase):
         self.assertIn("1.4.0", text)
         self.assertIn("pinned 1.5.0", text)
         self.assertIn("brew install gitmole", text)
+        self.assertIn("gitmole --install-tools", text)   # the pip user's route to the same pinned set
         self.assertIn("Python 3.10", text)                 # why the structure step is skipped
         self.assertIn("--download-offline-databases", text)  # how to get the database
         command = next(l for l in text.splitlines() if "osv-scanner scan source" in l)

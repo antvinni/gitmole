@@ -1206,5 +1206,47 @@ class BacktestWindow(unittest.TestCase):
         self.assertEqual(meta["backtest"], {"status": "skipped", "reason": "too little history to backtest"})
 
 
+class InstallTools(unittest.TestCase):
+    def test_install_tools_needs_no_target_and_exits_0_when_every_tool_lands(self):
+        calls = []
+
+        def installer(names, say=print, **kw):
+            calls.append(list(names))
+            for name in names:
+                say(f"{name}: installed /x/tools/{name} (pinned)")
+            return list(names)
+
+        c = console()
+        rc = cli.main(["--install-tools"], console=c, installer=installer)
+        text = c.export_text()
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls, [run.REQUIRED_TOOLS])
+        self.assertIn("scc: installed /x/tools/scc", text)
+        self.assertIn("5 tools installed", text)
+        self.assertNotIn("target required", text)
+
+    def test_install_tools_exits_1_naming_what_did_not_land(self):
+        c = console()
+        rc = cli.main(["--install-tools"], console=c, installer=lambda names, say=print, **kw: [n for n in names if n != "git-sizer"])
+        text = c.export_text()
+        self.assertEqual(rc, 1)
+        self.assertIn("not installed: git-sizer", text)
+        self.assertIn("docs/install.md", text)
+
+    def test_install_tools_refuses_a_target_and_downloads_nothing(self):
+        c = console()
+        rc = cli.main([".", "--install-tools"], console=c, installer=lambda *a, **kw: self.fail("must not download"))
+        self.assertEqual(rc, 2)
+        self.assertIn("--install-tools takes no target", c.export_text())
+
+    def test_a_long_path_stays_on_one_line(self):
+        long = "/very/" + "long/" * 30 + "tools"
+        c = console()   # width 100
+        cli.main(["--install-tools"], console=c, installer=lambda names, say=print, **kw: [say(f"{n}: installed {long}/{n}") for n in names] and list(names))
+        lines = [l for l in c.export_text().splitlines() if "scc: installed" in l]
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].endswith("/tools/scc"), "soft_wrap: pasteable")
+
+
 if __name__ == "__main__":
     unittest.main()

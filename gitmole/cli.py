@@ -1,4 +1,4 @@
-"""Command line entry point: gitmole <path | owner/repo | url> [--out DIR] [--no-run], gitmole --clean [DIR], or gitmole --doctor."""
+"""Command line entry point: gitmole <path | owner/repo | url> [--out DIR] [--no-run], gitmole --clean [DIR], gitmole --doctor, or gitmole --install-tools."""
 from __future__ import annotations
 
 import argparse
@@ -16,7 +16,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 
-from . import __version__, banner, blame, filetypes, findings, load, loss, run, tools
+from . import __version__, banner, blame, filetypes, findings, install, load, loss, run, tools
 
 INSTALL_URL = "https://github.com/antvinni/gitmole/blob/main/docs/install.md"
 
@@ -40,6 +40,9 @@ def parse_args(argv):
     p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
     p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
     p.add_argument("--doctor", action="store_true", help="list every tool gitmole runs, the version found against the version pinned, and where to get the pinned one, then exit")
+    p.add_argument("--install-tools", action="store_true", help="download the five tools at the versions gitmole pins, from the release archives "
+                   "the Homebrew formula installs and checked against the same hashes, into gitmole's own directory (GITMOLE_TOOLS, else the "
+                   "per-user data directory), then exit; the one command in gitmole that reaches the network")
     p.add_argument("--clean", action="store_true", help="list the directories gitmole created (temp clones, analysis-* under the target) and delete them after a y/N question, then exit")
     p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
     p.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
@@ -78,7 +81,7 @@ def interrupt(*_):
 
 def main(argv=None, console: Console = None, tool_check=run.missing_tools, planner=run.plan, estimator=run.estimate_blames,
          lister=run.list_repos, cloner=run.clone, lizard_check=run.has_lizard, ask=None, stdin=None,
-         structure_check=run.has_structure, version_note=tools.note) -> int:
+         structure_check=run.has_structure, version_note=tools.note, installer=install.install) -> int:
     global _control
     _control = run.Control()
     if threading.current_thread() is threading.main_thread():
@@ -92,6 +95,8 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if args.doctor:
         from . import doctor
         return doctor.main(console)
+    if args.install_tools:
+        return _install_tools(console, installer)
     if args.clean:
         return _clean(args, console, ask or (lambda q: console.input(q, markup=False)))
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
@@ -158,9 +163,9 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
 def _check_args(args, err, kind=None) -> int | None:
     """The argument combinations that cannot work, in one place: 2 and a message, or None. Called
     once on the arguments alone, then again with the target's `kind` for the checks that need it."""
-    if args.doctor:   # it exits before any analysis: a target is refused and every other option ignored, --yes and --hook included
+    if args.doctor or args.install_tools:   # each exits before any analysis: a target is refused and every other option ignored
         if args.target is not None:
-            err.print("[red]--doctor takes no target[/red]")
+            err.print(f"[red]{'--doctor' if args.doctor else '--install-tools'} takes no target[/red]")
             return 2
         return None
     if kind is None:
@@ -308,6 +313,19 @@ def _clean(args, console: Console, ask) -> int:
     for p in failed:
         console.print(f"[red]could not remove[/red] {p}", soft_wrap=True)
     return 1 if failed else 0
+
+
+def _install_tools(console: Console, installer) -> int:
+    """Handle --install-tools: every required tool, one line per step; 0 when all of them landed, 1 otherwise.
+    Downloads whether or not a copy is already on PATH: the point is a set gitmole owns, at the pins."""
+    say = lambda line: console.print(line, markup=False, highlight=False, soft_wrap=True)   # urls and paths stay one pasteable line
+    done = installer(run.REQUIRED_TOOLS, say=say)
+    left = [t for t in run.REQUIRED_TOOLS if t not in done]
+    if left:
+        say(f"not installed: {', '.join(left)}; see {INSTALL_URL}")
+        return 1
+    say(f"{len(done)} tools installed into {install.tools_dir()}")
+    return 0
 
 
 def _dirs(n: int) -> str:
