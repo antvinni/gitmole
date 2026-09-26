@@ -54,6 +54,37 @@ class WhenItAsks(unittest.TestCase):
                                             env={"CI": "true"}, isatty=False))
 
 
+class OnTerminal(unittest.TestCase):
+    """The streams' own isatty decides, not rich's is_terminal: FORCE_COLOR turns that on for a redirected file."""
+
+    class Stream:
+        def __init__(self, tty):
+            self.tty = tty
+
+        def isatty(self):
+            return self.tty
+
+    def test_both_stdin_and_the_output_must_be_terminals(self):
+        from unittest import mock
+        with mock.patch("sys.stdin", self.Stream(True)):
+            self.assertTrue(feedback.on_terminal(self.Stream(True)))
+            self.assertFalse(feedback.on_terminal(self.Stream(False)), "gitmole . > report.txt")
+        with mock.patch("sys.stdin", self.Stream(False)):
+            self.assertFalse(feedback.on_terminal(self.Stream(True)), "input from a pipe")
+
+    def test_a_closed_stdin_or_a_stream_without_isatty_is_no_terminal(self):
+        from unittest import mock
+        with mock.patch("sys.stdin", None):
+            self.assertFalse(feedback.on_terminal(self.Stream(True)), "started with fd 0 closed: sys.stdin is None")
+        with mock.patch("sys.stdin", self.Stream(True)):
+            self.assertFalse(feedback.on_terminal(object()))
+
+    def test_unattended_is_a_ci_variable_or_a_script_flag(self):
+        self.assertFalse(feedback.unattended(Args(), env={}))
+        self.assertTrue(feedback.unattended(Args(), env={"BUILDKITE": "true"}))
+        self.assertTrue(feedback.unattended(Args(fail_on="critical"), env={}))
+
+
 class Cadence(unittest.TestCase):
     def test_once_on_a_machine(self):
         self.assertTrue(feedback.due({}, TODAY))

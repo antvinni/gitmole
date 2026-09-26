@@ -4,6 +4,7 @@ import os
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 from rich.console import Console
 
@@ -917,6 +918,30 @@ class Clean(unittest.TestCase):
         with open(os.path.join(path, "meta.json"), "w") as fh:
             fh.write("{}")
 
+    def test_ctrl_c_at_the_question_exits_130_and_deletes_nothing(self):
+        def ask(q):
+            raise KeyboardInterrupt
+        def go(work, tmp):
+            self._output(os.path.join(work, "analysis-a"))
+            c = Console(file=io.StringIO(), width=120, record=True, force_terminal=True, color_system=None)
+            rc = cli.main(["--clean", work], console=c, ask=ask)
+            return rc, c.export_text(), os.path.isdir(os.path.join(work, "analysis-a"))
+        rc, text, kept = self._with_tmp(go)
+        self.assertEqual(rc, 130)
+        self.assertIn("interrupted", text)
+        self.assertTrue(kept)
+
+    def test_forced_colour_into_a_file_is_not_a_terminal_to_confirm_on(self):
+        """FORCE_COLOR makes rich call a file a terminal; the question would land in the file and wait."""
+        def go(work, tmp):
+            self._output(os.path.join(work, "analysis-a"))
+            c = Console(file=io.StringIO(), width=120, record=True, force_terminal=True, color_system=None)
+            rc = cli.main(["--clean", work], console=c)
+            return rc, c.export_text()
+        rc, text = self._with_tmp(go)
+        self.assertEqual(rc, 2)
+        self.assertIn("pass --yes", text)
+
     def test_nothing_to_clean(self):
         def go(work, tmp):
             c = console()
@@ -1255,6 +1280,12 @@ class InstallTools(unittest.TestCase):
         self.assertEqual(rc, 130)
         self.assertIn("interrupted", c.export_text())
 
+    def test_install_tools_with_doctor_is_refused(self):
+        c = console()
+        rc = cli.main(["--install-tools", "--doctor"], console=c, installer=lambda *a, **kw: self.fail("must not download"))
+        self.assertEqual(rc, 2)
+        self.assertIn("two commands", c.export_text())
+
     def test_the_download_runs_under_the_default_sigint_handler_and_restores_the_runs(self):
         import signal
         seen = []
@@ -1272,6 +1303,15 @@ class FirstRunOffer(unittest.TestCase):
     """A run that finds required tools missing asks, on a terminal, before downloading; the download is the
     one thing gitmole ever fetches and it happens here, before any analysis. Without a terminal, in CI or an
     agent hook, nothing is asked or fetched and the command is named, exit 2 as before."""
+
+    def setUp(self):
+        from gitmole import feedback
+        # the suite runs in CI too, where CI=true would keep every question below from being asked
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for name in feedback.CI_VARS:
+            os.environ.pop(name, None)
 
     @staticmethod
     def _terminal():
@@ -1369,6 +1409,26 @@ class FirstRunOffer(unittest.TestCase):
             rc = cli.main([d], console=self._terminal(), tool_check=lambda **kw: ["scc"], ask=ask,
                           installer=lambda *a, **kw: self.fail("interrupted at the question, nothing downloads"), isatty=lambda: True)
         self.assertEqual(rc, 130)
+
+    def test_a_ci_variable_means_no_question_even_on_a_pseudo_terminal(self):
+        """Buildkite runs its jobs on a PTY and sets CI and BUILDKITE: a question there waits until the job times out."""
+        for name in ("CI", "BUILDKITE"):
+            with self.subTest(var=name), tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {name: "true"}):
+                _tiny_repo(d)
+                c = self._terminal()
+                rc = cli.main([d], console=c, tool_check=lambda **kw: ["scc"], ask=lambda q: self.fail("CI, no question"),
+                              installer=lambda *a, **kw: self.fail("CI, no download"), isatty=lambda: True)
+                self.assertEqual(rc, 2)
+                self.assertIn("gitmole --install-tools", c.export_text())
+
+    def test_a_gate_or_an_export_means_no_question(self):
+        for extra in (["--fail-on", "critical"], ["--markdown", "-"], ["--json", "r.json"]):
+            with self.subTest(flags=extra), tempfile.TemporaryDirectory() as d:
+                _tiny_repo(d)
+                rc = cli.main([d, *extra], console=self._terminal(), tool_check=lambda **kw: ["scc"],
+                              ask=lambda q: self.fail("a script is reading, no question"),
+                              installer=lambda *a, **kw: self.fail("a script is reading, no download"), isatty=lambda: True)
+                self.assertEqual(rc, 2)
 
     def test_a_forced_colour_console_without_a_terminal_on_stdin_is_not_asked(self):
         """FORCE_COLOR makes rich's is_terminal True in CI; stdin decides whether anyone is there to answer."""

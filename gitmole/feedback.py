@@ -89,6 +89,26 @@ def due(state: dict, today: str) -> bool:
     return today >= (dt.date.fromisoformat(answered) + dt.timedelta(days=ANSWERED_AGAIN_DAYS)).isoformat()
 
 
+def unattended(args, env=None) -> bool:
+    """A pipeline or a script is running gitmole, whatever the terminals say: a CI variable is set (Buildkite
+    runs its jobs on a pseudo-terminal), or a flag means a machine reads the output. Every question gitmole
+    asks checks this first, since a prompt in a pipeline hangs a build."""
+    env = os.environ if env is None else env
+    return any(env.get(name) for name in CI_VARS) or any(getattr(args, flag, None) for flag in SCRIPT_FLAGS)
+
+
+def on_terminal(out=None) -> bool:
+    """Someone is there to answer: stdin and the stream the question is written to are both terminals. The
+    streams' own isatty, not rich's is_terminal, which FORCE_COLOR turns on for a file; and a process started
+    with fd 0 closed has sys.stdin None."""
+    import sys
+    out = sys.stdout if out is None else out
+    try:
+        return bool(sys.stdin is not None and sys.stdin.isatty() and out.isatty())
+    except (AttributeError, ValueError, OSError):   # a stream without isatty, or a closed one
+        return False
+
+
 def should_ask(args, state: dict, today: str, env=None, isatty=None) -> bool:
     """Whether to ask at the end of this run. Any doubt is a no: a prompt in a pipeline hangs a build."""
     env = os.environ if env is None else env
@@ -96,15 +116,12 @@ def should_ask(args, state: dict, today: str, env=None, isatty=None) -> bool:
         return False
     if getattr(args, "feedback", False):
         return True      # asked for explicitly, so none of the rest applies but the kill switch
-    if any(env.get(name) for name in CI_VARS):
-        return False
-    if any(getattr(args, flag, None) for flag in SCRIPT_FLAGS):
+    if unattended(args, env):
         return False
     if getattr(args, "kind", "") == "owner" or getattr(args, "no_run", False):
         return False
     if isatty is None:
-        import sys
-        isatty = sys.stdin.isatty() and sys.stdout.isatty()
+        isatty = on_terminal()
     return bool(isatty) and due(state, today)
 
 
