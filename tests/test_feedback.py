@@ -189,7 +189,10 @@ class Wiring(unittest.TestCase):
             with patch.dict(os.environ, {"GITMOLE_CACHE": os.path.join(d, "cache"), **(env or {})}):
                 cli._feedback(Payload().report(), [], args, err, err, ask=lambda *a: answers)
             written = os.path.join(d, feedback.FILE_NAME)
-            body = open(written, encoding="utf-8").read() if os.path.exists(written) else None
+            body = None
+            if os.path.exists(written):
+                with open(written, encoding="utf-8") as fh:
+                    body = fh.read()
         return body, err.file.getvalue()
 
     def answers(self):

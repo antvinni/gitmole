@@ -113,10 +113,6 @@ def summarise(record: dict, only=None) -> dict:
     return out
 
 
-def per_repo(record: dict) -> dict:
-    return {n: _repo_ranking(r) for n, r in record["repos"].items()}
-
-
 def _key(version: str):
     return tuple(int(x) for x in re.findall(r"\d+", version))
 

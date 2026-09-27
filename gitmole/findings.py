@@ -1197,7 +1197,7 @@ def deep_nesting(report: dict, min_nesting: int = 5, min_bumps: int = 3, top_n: 
                evidence={"count": len(deep), "functions": [{k: f[k] for k in ("file", "name", "start", "nesting", "cognitive", "bumps")} for f in deep[:10]]})]
 
 
-def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_resolved: float = 0.6) -> list:
+def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_resolved: float = structure.MIN_RESOLVED) -> list:
     """Pairs that change together without an import between them, in either direction. Ajienka and
     Capiluppi found across 79 projects that many co-changed pairs have no structural dependency at
     all: such a pair is a shared format, a duplicated rule or copy-paste, and neither a pure-git nor a

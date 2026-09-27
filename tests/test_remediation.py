@@ -143,12 +143,12 @@ class Scoring(unittest.TestCase):
         self.assertNotIn("repo_health", scored)
         self.assertIn("repo_health", r.NOT_OBSERVABLE)
 
-    def test_the_rate_counts_a_vanished_file_only_where_that_is_the_fix(self):
+    def test_the_denominator_counts_a_vanished_file_only_where_that_is_the_fix(self):
         from collections import Counter
-        counts = Counter({r.RESOLVED: 3, r.OPEN: 1, r.GONE: 2})
-        self.assertAlmostEqual(r.acted_on(counts, True), 5 / 6)
-        self.assertAlmostEqual(r.acted_on(counts, False), 3 / 4)
-        self.assertIsNone(r.acted_on(Counter({r.UNKNOWN: 4}), True))
+        counts = Counter({r.RESOLVED: 3, r.OPEN: 1, r.GONE: 2, r.UNKNOWN: 4})
+        self.assertEqual(r.judged(counts, True), 6)
+        self.assertEqual(r.judged(counts, False), 4)
+        self.assertEqual(r.judged(Counter({r.UNKNOWN: 4}), True), 0)
 
     def test_every_table_entry_has_a_verdict_on_vanishing(self):
         for name, (_, _, gone_is_fix) in r.RULES.items():

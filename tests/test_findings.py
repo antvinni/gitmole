@@ -1631,3 +1631,12 @@ class SecretsByConfidence(unittest.TestCase):
         f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
         self.assertIn("1 secret(s) only in", f["secrets_aside"]["title"], "its other copy is a test file")
         self.assertIn("1 secret(s) in history", f["secrets_in_source"]["title"], "only ever unreachable: nowhere to say it is test data")
+
+
+class OneThreshold(unittest.TestCase):
+    def test_the_structure_rules_read_min_resolved_from_one_place(self):
+        """The sweep reads a threshold from the signature; a copy of the number drifts from the constant."""
+        import inspect
+        from gitmole import findings, structure
+        for rule in (findings.hidden_coupling, findings.import_cycles):
+            self.assertIs(inspect.signature(rule).parameters["min_resolved"].default, structure.MIN_RESOLVED, rule.__name__)

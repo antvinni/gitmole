@@ -639,9 +639,3 @@ def change_stats(repo_dir: str, base: str) -> dict:
 def save_meta(meta: dict, out_dir: str) -> None:
     with open(os.path.join(out_dir, "meta.json"), "w") as fh:
         json.dump(meta, fh, indent=2)
-
-
-def write_meta(repo_dir: str, out_dir: str) -> dict:
-    meta = collect_meta(repo_dir)
-    save_meta(meta, out_dir)
-    return meta

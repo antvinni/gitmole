@@ -426,14 +426,6 @@ def score(findings: list, after: After) -> dict:
     return out
 
 
-def acted_on(counts: Counter, gone_is_fix: bool):
-    """Share of the subjects the repository acted on, or None when nothing could be judged. This is
-    not precision and not worth: see the module docstring."""
-    fixed = counts[RESOLVED] + (counts[GONE] if gone_is_fix else 0)
-    judged = fixed + counts[OPEN]
-    return (fixed / judged) if judged else None
-
-
 MIN_JUDGED = 5   # below this a share is printed as the fraction it is: 1 of 1 is not 100%
 
 

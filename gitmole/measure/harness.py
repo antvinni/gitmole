@@ -343,8 +343,3 @@ def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labe
     for k in ("out", "report"):
         rec.pop(k, None)
     return rec
-
-
-def measure_entry(src: str, entry: dict, root: str, reference: str, labels_dir: str = None, env_extra: dict = None) -> dict:
-    """Everything the history records for one release on one corpus entry: the timed run, then its ranking."""
-    return rank_entry(src, entry, root, reference, run_entry(src, entry, root, reference, env_extra), labels_dir)
