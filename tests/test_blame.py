@@ -83,6 +83,23 @@ class Estimate(unittest.TestCase):
         self.assertEqual(blame.default_procs(cpu=10), 8)
         self.assertEqual(blame.default_procs(cpu=2), 1)
 
+    def test_stops_sampling_once_the_time_spent_proves_the_budget_exceeded(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            est = blame.estimate(d, sample=2, procs=1, budget=1.0, timer=iter([0.0, 5.0]).__next__)
+        # 2 code files, both picked; after the first, 5s spent is already 5/2 per file x 2 files = 5s > 1s
+        self.assertEqual(est["sampled"], 1)
+        self.assertTrue(est["partial"])
+        self.assertAlmostEqual(est["seconds"], 5.0)
+
+    def test_a_budget_it_stays_under_gives_the_same_projection_as_no_budget(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            plain = blame.estimate(d, sample=2, procs=1, timer=iter([0.0, 1.0]).__next__)
+            capped = blame.estimate(d, sample=2, procs=1, budget=100.0, timer=iter([0.0, 0.5, 1.0]).__next__)
+        self.assertEqual(plain, capped)
+        self.assertNotIn("partial", capped)
+
 
 class WriteAll(unittest.TestCase):
     def test_writes_cohort_and_author_json_in_theseus_layout(self):

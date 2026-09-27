@@ -478,6 +478,22 @@ class EstimateBlames(unittest.TestCase):
         self.assertIn("seconds", est)
         self.assertEqual(est["text_bytes"], 6, "one byte per tracked text file: what jscpd would hold")
 
+    def test_a_list_already_made_is_used_rather_than_the_index_read_again(self):
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+                         GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            for name in ("f0.py", "g0.py", "h0.py"):
+                with open(os.path.join(d, name), "w") as fh:
+                    fh.write("x")
+            git("add", "-A")
+            git("commit", "-q", "-m", "0")
+            est = run.estimate_blames(d, interval=run.MONTH, sample=0, tracked=["f0.py", "g0.py"])
+        self.assertEqual(est["code_files"], 2, "the list it was given, not a fresh read of the index (3 files)")
+        self.assertEqual(est["text_bytes"], 2)
+
 
 class Execute(unittest.TestCase):
     def test_respects_dependencies_and_reports_failures(self):

@@ -290,6 +290,34 @@ class Budget(unittest.TestCase):
         self._main([], self.SMALL, calls)
         self.assertEqual(list(calls[0]["ignore"]), [])
 
+    def test_a_projection_cut_short_is_reported_as_a_lower_bound(self):
+        calls = []
+        _, text, meta = self._main([], dict(self.SLOW, partial=True), calls)
+        self.assertIn("at least 390s", text)
+        self.assertEqual(meta["age"]["status"], "skipped")
+
+    def test_the_estimator_is_given_the_time_budget_unless_deep(self):
+        seen = []
+        def estimator(repo, interval, **kw):
+            seen.append(kw.get("budget"))
+            return self.SMALL
+        for extra in ([], ["--time-budget", "30"], ["--deep"]):
+            with tempfile.TemporaryDirectory() as d:
+                _tiny_repo(d)
+                cli.main([d, "--out", os.path.join(d, "out"), *extra], console=console(), tool_check=lambda **kw: [],
+                         planner=lambda repo, out, branch="HEAD", **kw: [{"name": "quick", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}],
+                         estimator=estimator)
+        self.assertEqual(seen, [60, 30, None])
+
+    def test_the_index_is_listed_once_per_run(self):
+        from gitmole import blame
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(blame, "text_files", wraps=blame.text_files) as listed:
+            _tiny_repo(d)
+            cli.main([d, "--out", os.path.join(d, "out")], console=console(), tool_check=lambda **kw: [],
+                     planner=lambda repo, out, branch="HEAD", **kw: [{"name": "quick", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}],
+                     estimator=run.estimate_blames)
+        self.assertEqual(listed.call_count, 1)
+
 
 class Interrupt(unittest.TestCase):
     def test_keyboard_interrupt_kills_steps_and_exits_130(self):

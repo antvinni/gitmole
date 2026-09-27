@@ -481,22 +481,29 @@ def _git(repo_dir: str, *args) -> str:
     return subprocess.run(["git", *args], cwd=repo_dir, check=True, capture_output=True).stdout.decode("utf-8", "replace")
 
 
-def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int = 25, types=filetypes.DEFAULT) -> dict:
-    """Cost of the blame passes: a timed projection for the HEAD pass (seconds) and tracked files times
-    sampled commits for git-of-theseus (blames); and the bytes of tracked text jscpd would hold (text_bytes)."""
+def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int = 25, types=filetypes.DEFAULT,
+                    budget: float = None, tracked: list = None) -> dict:
+    """Cost of the blame passes: a timed projection for the HEAD pass (seconds, a lower bound when `partial`)
+    and tracked files times sampled commits for git-of-theseus (blames); and the bytes of tracked text jscpd
+    would hold (text_bytes). `budget` lets the projection stop once it is over; `tracked` is blame.text_files()
+    already listed, so the index is not read again."""
     files = len(_git(repo_dir, "ls-files").splitlines())
     times = [int(t) for t in _git(repo_dir, "log", "--format=%ct").split()]
     span = (max(times) - min(times)) if times else 0
     samples = min(len(times), span // interval + 1) if times else 0
-    projection = blame.estimate(repo_dir, ignore=ignore, sample=sample, types=types)
+    text = blame.drop_ignored(tracked, ignore) if tracked is not None else blame.text_files(repo_dir, ignore)
+    code = [f for f in text if filetypes.matches(f, types)]
+    projection = blame.estimate(repo_dir, files=code, sample=sample, types=types, budget=budget)
     return {"files": files, "samples": samples, "blames": files * samples,
-            "seconds": projection["seconds"], "code_files": projection["files"], "text_bytes": text_bytes(repo_dir, ignore)}
+            "seconds": projection["seconds"], "code_files": projection["files"], "text_bytes": text_bytes(repo_dir, files=text),
+            **({"partial": True} if projection.get("partial") else {})}
 
 
-def text_bytes(repo_dir: str, ignore=()) -> int:
-    """Size on disk of the tracked text files, after the ignore globs: what the duplicates step scans."""
+def text_bytes(repo_dir: str, ignore=(), files: list = None) -> int:
+    """Size on disk of the tracked text files, after the ignore globs: what the duplicates step scans.
+    `files` is that list already made."""
     total = 0
-    for f in blame.text_files(repo_dir, ignore):
+    for f in (blame.text_files(repo_dir, ignore) if files is None else files):
         try:
             total += os.path.getsize(os.path.join(repo_dir, f))
         except OSError:

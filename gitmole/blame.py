@@ -85,10 +85,14 @@ def _shared_with(full_hash: str) -> list:
     return []
 
 
+def drop_ignored(files: list, ignore=()) -> list:
+    """The files no ignore glob matches."""
+    return [f for f in files if not any(fnmatch.fnmatch(f, g) for g in ignore)]
+
+
 def text_files(repo: str, ignore=()) -> list:
     """Tracked, non-binary files, minus ignore globs."""
-    files = filetypes.git_paths(repo, "grep", "-I", "--name-only", "--cached", "-e", "")
-    return [f for f in files if not any(fnmatch.fnmatch(f, g) for g in ignore)]
+    return drop_ignored(filetypes.git_paths(repo, "grep", "-I", "--name-only", "--cached", "-e", ""), ignore)
 
 
 def code_files(repo: str, ignore=(), types=filetypes.DEFAULT) -> list:
@@ -134,8 +138,12 @@ def _job(args):
     return blame_file(*args)
 
 
-def estimate(repo: str, files: list = None, ignore=(), sample: int = 25, procs: int = None, timer=time.monotonic, types=filetypes.DEFAULT) -> dict:
-    """Project the wall time of the pass by timing a spread of `sample` blames single-threaded."""
+def estimate(repo: str, files: list = None, ignore=(), sample: int = 25, procs: int = None, timer=time.monotonic,
+             types=filetypes.DEFAULT, budget: float = None) -> dict:
+    """Project the wall time of the pass by timing a spread of `sample` blames single-threaded. With a
+    budget, sampling stops as soon as the time already spent proves the projection over it: the blames
+    left can only add to the total, so the skip is the one the whole sample would have decided, and
+    `seconds` is then a lower bound (`partial`)."""
     files = code_files(repo, ignore, types) if files is None else files
     procs = procs or default_procs()
     n = len(files)
@@ -144,8 +152,12 @@ def estimate(repo: str, files: list = None, ignore=(), sample: int = 25, procs: 
     step = max(1, n // sample)
     picked = files[::step][:sample]
     t0 = timer()
-    for f in picked:
+    for i, f in enumerate(picked, 1):
         blame_file(repo, f)
+        if budget is not None and i < len(picked):
+            floor = (timer() - t0) / len(picked) * n / procs
+            if floor > budget:
+                return {"files": n, "seconds": floor, "sampled": i, "partial": True}
     per_file = (timer() - t0) / len(picked)
     return {"files": n, "seconds": per_file * n / procs, "sampled": len(picked)}
 

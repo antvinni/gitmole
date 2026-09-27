@@ -471,7 +471,7 @@ def _budgets(args, estimate, ui) -> tuple[bool, bool, float, bool]:
                  f"jscpd would need about {text_mb / 25:,.0f} GB of memory. Rerun with --deep to force it, or --ignore-data to shrink it.")
     if not age_ok:
         ui.print(f"[yellow]code age skipped:[/yellow] a blame pass over {estimate.get('code_files', estimate['files']):,} files is projected "
-                 f"to take about {projected:,.0f}s, over the {args.time_budget:,.0f}s time budget. "
+                 f"to take {'at least' if estimate.get('partial') else 'about'} {projected:,.0f}s, over the {args.time_budget:,.0f}s time budget. "
                  f"Rerun with --deep to force it, raise --time-budget, or --ignore-data to shrink it.")
     if args.plots and not plots_ok:
         ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
@@ -480,7 +480,8 @@ def _budgets(args, estimate, ui) -> tuple[bool, bool, float, bool]:
     return age_ok, plots_ok, projected, duplicates_ok
 
 
-def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, projected: float, duplicates_ok: bool = True) -> tuple[dict, str | None]:
+def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, projected: float, duplicates_ok: bool = True,
+                  tracked: list = None) -> tuple[dict, str | None]:
     """Collect this run's meta.json: repo facts plus a planned status record for every optional step.
     Raises NoCommits when --since leaves no commits to analyse."""
     types_spec = _types_spec(args.file_types)
@@ -489,7 +490,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     meta["run"] = run.manifest(repo_dir, args)   # what produced this report: commit, gitmole and tool versions, the options
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     meta["gone_months"] = args.gone
-    tracked = blame.text_files(repo_dir)   # every tracked text file: --ignore shapes blame, functions and duplicates, never what a file is
+    tracked = blame.text_files(repo_dir) if tracked is None else tracked   # every tracked text file: --ignore shapes blame, functions and duplicates, never what a file is
     attrs = filetypes.attributes(repo_dir, tracked)   # one git check-attr pass, shared by the two lists below
     meta["generated"] = filetypes.generated_files(repo_dir, tracked, attrs=attrs)   # hidden from the tables, out of the findings
     meta["vendored"] = filetypes.vendored_paths(repo_dir, tracked, attrs=attrs)    # somebody else's code, by the licence it carries or the attribute it declares
@@ -546,7 +547,7 @@ def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: boo
     meta["steps"] = {name: "run" if rc == 0 else (rc if isinstance(rc, str) else "failed") for name, rc in results.items()}
 
 
-def _coverage(repo_dir: str, out_dir: str) -> dict:
+def _coverage(repo_dir: str, out_dir: str, tracked: list = None) -> dict:
     """How many tracked text files each reason claims, from the report as the steps left it. An
     unreadable output directory (a killed run) records nothing rather than failing the run."""
     from . import classify
@@ -554,7 +555,7 @@ def _coverage(repo_dir: str, out_dir: str) -> dict:
         report = load.load_report(out_dir, nested=False)
     except load.Unreadable:
         return {}
-    return classify.coverage(classify.Classifier(report), blame.text_files(repo_dir))
+    return classify.coverage(classify.Classifier(report), blame.text_files(repo_dir) if tracked is None else tracked)
 
 
 def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator) -> None:
@@ -567,10 +568,12 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     open(log_path, "w").close()
 
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
-    estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types))
+    tracked = blame.text_files(repo_dir)   # read the index once: the steps below do not change it
+    estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types),
+                         budget=None if args.deep else args.time_budget, tracked=tracked)
     age_ok, plots_ok, projected, duplicates_ok = _budgets(args, estimate, ui)
 
-    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected, duplicates_ok)
+    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected, duplicates_ok, tracked=tracked)
     types_spec = meta["file_types"]
     if run.is_shallow(repo_dir):
         meta["shallow"] = True   # the history stops at the graft, and git-sizer does not run
@@ -591,7 +594,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     # what each step cost, for the measurement harness's runtime guard; they vary, so --json keeps them in its envelope
     meta["step_seconds"] = {n: s["seconds"] for n, s in sorted(stats.items())}
     meta["step_peak_mb"] = {n: s["peak_mb"] for n, s in sorted(stats.items())}
-    meta["coverage"] = _coverage(repo_dir, out_dir)
+    meta["coverage"] = _coverage(repo_dir, out_dir, tracked)
     run.save_meta(meta, out_dir)
 
     failed = [n for n, rc in results.items() if rc != 0]
