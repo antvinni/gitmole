@@ -21,6 +21,10 @@ A rule can only be scored when its evidence names its subjects. Several name onl
 (`stale_files` gives a count, not the files), and those are listed in NO_SUBJECTS rather than
 silently scoring zero: extending their evidence is what makes them measurable.
 
+A rule whose evidence does name its subjects but has no predicate yet is in NO_PREDICATE, and every id
+findings.py emits is in RULES or one of the three lists (a test holds this), so no rule that fired can
+leave the report without a line.
+
 NOT_OBSERVABLE is a statement about the advice's wording, not about the finding's value. Pairing
 someone on a knowledge island leaves no trace in a tree, which makes the advice unmeasurable here and
 says nothing about whether taking it was worth it. Where this list and the hand labels agree, two
@@ -383,6 +387,8 @@ NOT_OBSERVABLE = {
     "sweeping_commits": "history cannot be un-committed",
     "import_commits": "history cannot be un-committed",
     "tangled_commits": "history cannot be un-committed",
+    "secrets_possible": "as secrets_in_source: the value stays in history whatever the tree does",
+    "reverts": "history cannot be un-committed",
 }
 
 # Rules that name their subjects only as totals. Extending the evidence to list them is what makes
@@ -393,6 +399,37 @@ NO_SUBJECTS = {
     "complexity_growth": "needs the second run's per-file complexity, not the tree",
     "bug_magnets": "the outcome is more fixes, which the watch-list backtest already measures",
 }
+
+# Rules whose evidence names subjects a later tree could show acted on, but for which no predicate has
+# been written. They are measurable in principle; until a predicate exists they are listed, not scored,
+# so a reader sees they fired rather than finding them silently missing from the table.
+NO_PREDICATE = {
+    "commented_out_code": "names each file and the block's first line; a predicate would look for the block in the later tree",
+    "agent_approval_disabled": "names each settings file and setting; a predicate would read that file in the later tree",
+    "dependency_confusion": "names each package, lock file and registry; a predicate would re-read the lock file",
+    "install_scripts": "names the packages and manifests; a predicate would re-read the lock file and manifests",
+    "copyleft_dependencies": "names the dependencies; a predicate would re-read the lock file's licence fields",
+    "repo_policy": "names what is missing at the root; a predicate would look for the file in the later tree",
+    "dependency_updates": "names the ecosystems left uncovered; a predicate would re-read dependabot.yml or renovate.json",
+    "project_licence": "names the licence file and the manifests; a predicate would compare them in the later tree",
+}
+
+# The lists printed under the table, in this order, each under its heading.
+UNSCORED = (
+    ("Fired, and names no act a later tree can show. Not a verdict on their worth:", NOT_OBSERVABLE),
+    ("Fired, but its evidence does not name its subjects:", NO_SUBJECTS),
+    ("Fired, and names its subjects, but no predicate reads them yet:", NO_PREDICATE),
+)
+
+
+def unscored(fired: set) -> str:
+    """The rules that fired but are not in the table, each under the reason it is not."""
+    out = []
+    for heading, reasons in UNSCORED:
+        names = sorted(fired & set(reasons))
+        if names:
+            out.append(f"\n{heading}\n\n" + "".join(f"- **{n}** — {reasons[n]}\n" for n in names))
+    return "".join(out)
 
 
 def _present_at_cutoff(subject, after: After) -> bool:
@@ -510,16 +547,9 @@ def main(argv=None) -> int:
     print(f"### Acted on by {end or rev}, against findings made at {cutoff or 'the export'}\n")
     print(table(scored) if scored else "No scored rule fired in this export.")
     fired = {(f.get("rule") or {}).get("id") for f in findings}
-    silent = sorted(fired & set(NOT_OBSERVABLE))
-    if silent:
-        print("\nFired, and names no act a later tree can show. Not a verdict on their worth:\n")
-        for name in silent:
-            print(f"- **{name}** — {NOT_OBSERVABLE[name]}")
-    pending = sorted(fired & set(NO_SUBJECTS))
-    if pending:
-        print("\nFired, but its evidence does not name its subjects:\n")
-        for name in pending:
-            print(f"- **{name}** — {NO_SUBJECTS[name]}")
+    text = unscored(fired)
+    if text:
+        print(text, end="")
     return 0
 
 

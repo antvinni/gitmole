@@ -155,8 +155,27 @@ class Scoring(unittest.TestCase):
             self.assertIsInstance(gone_is_fix, bool, name)
 
     def test_no_rule_is_in_two_lists(self):
-        names = set(r.RULES) | set(r.NOT_OBSERVABLE) | set(r.NO_SUBJECTS)
-        self.assertEqual(len(names), len(r.RULES) + len(r.NOT_OBSERVABLE) + len(r.NO_SUBJECTS))
+        lists = (r.RULES, r.NOT_OBSERVABLE, r.NO_SUBJECTS, r.NO_PREDICATE)
+        names = set().union(*lists)
+        self.assertEqual(len(names), sum(len(x) for x in lists))
+
+    def test_every_rule_the_findings_emit_is_scored_or_listed(self):
+        """A rule in none of the tables fires and vanishes from the report without a line."""
+        import inspect
+        import re
+        from gitmole import findings
+        emitted = set(re.findall(r'"id": "([a-z_]+)"', inspect.getsource(findings)))
+        self.assertIn("unpinned_actions", emitted, "the pattern still finds the ids")
+        known = set(r.RULES) | set(r.NOT_OBSERVABLE) | set(r.NO_SUBJECTS) | set(r.NO_PREDICATE)
+        self.assertEqual(emitted - known, set())
+
+    def test_a_fired_rule_outside_the_table_is_printed_with_its_reason(self):
+        text = r.unscored({"reverts", "commented_out_code", "stale_files", "unpinned_actions"})
+        self.assertIn("- **reverts** — history cannot be un-committed\n", text)
+        self.assertIn("- **commented_out_code** — ", text)
+        self.assertIn("- **stale_files** — ", text)
+        self.assertNotIn("unpinned_actions", text, "a scored rule is in the table, not in these lists")
+        self.assertEqual(r.unscored({"unpinned_actions"}), "")
 
     def test_every_mechanical_rule_is_one_that_can_be_scored(self):
         self.assertFalse(r.MECHANICAL - set(r.RULES))
