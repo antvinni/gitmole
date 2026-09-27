@@ -12,23 +12,23 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">100%</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="125.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
-<text x="194.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
-<text x="263.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
-<text x="332.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
-<text x="401.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
-<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
-<text x="539.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
-<text x="608.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
-<text x="677.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
-<text x="746.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
-<text x="815.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.34.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.36.0</text>
-<polyline points="654.0,183.4 677.0,181.2 700.0,103.6 723.0,105.5 746.0,105.5 769.0,105.5 792.0,106.3 815.0,102.6 838.0,98.8 861.0,96.7 884.0,85.3" fill="none" stroke="#0969da" stroke-width="2"/>
-<polyline points="654.0,43.5 677.0,42.2 700.0,45.1 723.0,42.7 746.0,42.7 769.0,42.7 792.0,42.7 815.0,47.8 838.0,53.1 861.0,53.3 884.0,77.1" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
+<text x="145.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.6.0</text>
+<text x="212.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.9.0</text>
+<text x="279.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.12.0</text>
+<text x="346.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.15.0</text>
+<text x="414.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.18.0</text>
+<text x="481.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.21.0</text>
+<text x="548.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.24.0</text>
+<text x="615.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.27.0</text>
+<text x="682.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.0</text>
+<text x="749.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.32.0</text>
+<text x="816.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.35.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.37.0</text>
+<polyline points="637.8,183.4 660.2,181.2 682.6,103.6 705.0,105.5 727.4,105.5 749.7,105.5 772.1,106.3 794.5,102.6 816.9,98.8 839.2,96.7 861.6,85.3 884.0,85.3" fill="none" stroke="#0969da" stroke-width="2"/>
+<polyline points="637.8,43.5 660.2,42.2 682.6,45.1 705.0,42.7 727.4,42.7 749.7,42.7 772.1,42.7 794.5,47.8 816.9,53.1 839.2,53.3 861.6,77.1 884.0,137.7" fill="none" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
 <line x1="56" y1="278" x2="78" y2="278" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="282" fill="#1f2328">labelled actionable</text>
 <line x1="225" y1="278" x2="247" y2="278" stroke="#57606a" stroke-width="2" stroke-dasharray="5 4"/>
 <text x="253" y="282" fill="#1f2328">carrying a label at all</text>
-<text x="56" y="302" fill="#57606a" font-size="11">development and well-kept sets, hand labels (measure/labels.jsonl); none before 0.28.0</text>
+<text x="56" y="302" fill="#57606a" font-size="11">development, large and well-kept sets, hand labels (measure/labels.jsonl); none before 0.28.0</text>
 </svg>

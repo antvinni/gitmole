@@ -215,7 +215,11 @@ determinism check on curl and django (curl and react when django did not
 run), `report` redraws `docs/measurement-history.md` and the
 graphs in `docs/evolution/`, and `labels dump|score` handle the hand labels.
 Clones, fixtures and run outputs go under `$GITMOLE_MEASURE_DIR` (default
-`$TMPDIR/gitmole-measure`); `GITMOLE_LABELS_DIR` points at ApacheJIT's
+`$TMPDIR/gitmole-measure`). Point it outside any temporary directory the
+system cleans by age: on 26 September 2026 a cleaner of `/tmp` deleted the
+unread files of four clones made four days earlier (their `.git/config`, loose
+objects and branch refs) in the middle of the 0.37.0 extras, and a clone
+broken that way reads as "no commits yet". `GITMOLE_LABELS_DIR` points at ApacheJIT's
 `dataset/` for the holdout. The timed runs are sequential and share the
 machine with nothing, so the recorded times and memory are comparable, and
 each records the load average it ran under. The rankings at cut-offs are not

@@ -319,3 +319,45 @@
   (#147), a Python import resolves from a root (#148), structure.json marks deferred imports (#151),
   the candidate-ranking and companions-sweep tools score on the record's measures (#141, #142), and
   the example pages are current (#143).
+- **0.37.0 changes the corpus, not the ranking, and corrects one cut-off that had flattered it.** From
+  this release the development set is medium and diverse (curl, redis, react, tokio, jadx, brew,
+  yt-dlp and gitmole; `development_criterion` in measure/corpus.json, the maintainer's decision), and
+  django, ghidra and binutils-gdb form a `large` set that runs in release rounds only (#168, #169).
+  The dashboard is split: its cost ceilings are the development set's, its effectiveness numbers span
+  development and large. So the whole-record numbers below the graphs are not comparable with 0.36.0's:
+  the findings median 23.5 becomes 19.5 and the p90 28.0 becomes 25.8 because the repositories are
+  smaller, not because the tool improved, and the peak-memory ceiling rises from 1,130 to about 1,240 MB
+  (redis, decided with the set). The large set carries its own ceilings, about 520 s and 1,130 MB. The
+  graphs are drawn over the fixed series, curl, django, react and gitmole, whichever set holds each,
+  and there every number is 0.36.0's except react's ranking. The useful graph reads 78% of 121
+  findings labelled actionable with only 52% carrying a label at all: the five repositories that joined
+  carry no labels yet, and none was added or carried by an agent.
+- **react's 2023-09 cut-off had been a different repository.** By date alone, `git rev-list -1
+  --before` took the latest commit reachable from HEAD, which at react's 2023-09 cut-off sat inside the
+  React Compiler's own history, merged into react whole: 26 files, 5,429 paths away from main. Since
+  #170 (the harness) and #171 (the product's trend samples, backtest and `--then`), the tree at a date
+  is HEAD's first-parent commit. On react that cut-off now holds main's tree, and its top 15 names 57
+  soon-to-be-fixed files where it named 61, one tie with churn becomes a win (series W/L/T 12/0/6 to
+  13/0/5), and its recall at 20% of lines falls from 0.82 to 0.29, taking the series median from 0.41
+  to 0.33. That fall is a correction: the degenerate tree made the budget easy to spend. brew's and
+  ghidra's cut-offs moved by a few paths and their rankings did not; the trend samples of the
+  merge-heavy repositories (react, ghidra, brew and the well-kept Go ones) now come from main's trees.
+- **Report lines fall by one on every repository** for bookkeeping: #160 sends the `GITMOLE_NOW` notice
+  to stderr, which the harness does not count. django's report reads one line longer instead, because
+  under load 7.7 its code-age step was projected past the time budget and skipped, as in 0.35.1's first
+  pass; its findings are unchanged. Loads ran 2.0 to 10.6 through the round. #169's moves note says
+  django "ran in 92 s"; that run had skipped code age the same way, and with it django takes about
+  166 s, so the hint that it might rejoin development does not stand.
+- **The extras were run twice.** Around midnight a cleaner of `/tmp` deleted the unread files of the
+  four clones made on 22 September (curl, django, react and gitmole: their `.git/config`, loose objects
+  and branch refs), so django's second determinism run found "no commits yet" and read as a difference.
+  The round itself had measured those four before they broke; its numbers match #171's scratch round.
+  Re-cloned at their pins, the extras gave determinism identical on curl and django, the hook replay
+  identical to 0.36.0 on its five repositories with first readings for the five new ones, and no
+  unexplained description disagreement; the sensitivity verdicts that moved did so with the set of
+  repositories the sweep runs over. `docs/development.md` now says to keep the workspace out of `/tmp`.
+- **Since 0.36.0, besides the corpus and the cut-offs:** `gitmole --doctor` lists every tool against its
+  pin (#164), `gitmole --install-tools` downloads the pinned tools a pip user lacks (#166), a missing
+  tool points at the pinned install (#163), Python imports resolve to the root nearest the importer
+  (#162), deferred imports read as the interpreter runs them (#156), import cycles judge only trusted
+  languages (#161), and the repository has a code of conduct and a security policy (#167).
