@@ -98,7 +98,10 @@ How to read each part of the terminal report, and what each run writes to disk; 
    - one author owning most surviving code;
    - git-sizer concerns; a large blob that is no longer in the tree says so,
      since deleting it did not shrink the clone;
-   - bug magnets: source files fixed again and again in recent months;
+   - bug magnets: source files fixed again and again in recent months; a file
+     whose recent fixes were all commits that also fixed a file listed above
+     it is counted with that file ("fixed in the same commits"), and a file
+     that first appeared inside the six months says it is new in the window;
    - reverts, naming the file most often backed out when any file was backed
      out twice, otherwise saying the reverts are spread;
    - brain methods: functions both complex and long, a warning when one

@@ -598,6 +598,48 @@ class BugMagnets(unittest.TestCase):
         self.assertEqual(f[0]["severity"], "info")
         self.assertTrue(f[0]["detail"].endswith("Review core/util.py before the next release; fixes keep landing there."), f[0]["detail"])
 
+    def test_a_file_whose_recent_fixes_all_fixed_a_file_above_it_is_listed_with_that_file(self):
+        fixes = [{"entity": f"plug/tasks/{n}.go", "n-fixes": k, "last-fix": "2026-09-01", "recent-fixes": k}
+                 for n, k in (("user", 5), ("org", 4), ("ent", 4), ("helper", 4))] + [self.FIXES[0]]
+        history = {"plug/tasks/user.go": {"first": "2026-02-26", "recent": ["h5", "h4", "h3", "h2", "h1"]},
+                   "plug/tasks/org.go": {"first": "2026-02-26", "recent": ["h4", "h3", "h2", "h1"]},
+                   "plug/tasks/ent.go": {"first": "2026-02-26", "recent": ["h4", "h3", "h2", "h1"]},
+                   "plug/tasks/helper.go": {"first": "2026-02-26", "recent": ["h9", "h3", "h2", "h1"]},   # h9 is its own: it stands alone
+                   "core/parser.py": {"first": "2020-01-01", "recent": ["p1", "h1", "h2", "p4", "p5"]}}
+        r = report(fixes=fixes, fix_history=history)
+        r["meta"]["now"] = "2026-09-17"
+        f = findings.bug_magnets(r)[0]
+        self.assertIn("5 file(s) were fixed 3+ times in the last six months: core/parser.py (5 recent, 9 total); "
+                      "plug/tasks/user.go (5 recent, 5 total) and 2 files beside it fixed in the same commits; "
+                      "plug/tasks/helper.go (4 recent, 4 total).", f["detail"], "created seven months before now: not new in the window")
+        self.assertIn("Review core/parser.py and plug/tasks/user.go before the next release", f["advice"])
+        self.assertEqual(f["evidence"]["shared_fixes"], [{"file": "plug/tasks/user.go", "with": ["plug/tasks/ent.go", "plug/tasks/org.go"],
+                                                         "fixes": ["h5", "h4", "h3", "h2", "h1"]}])
+        self.assertEqual([x["file"] for x in f["evidence"]["files"]], ["core/parser.py", "plug/tasks/user.go", "plug/tasks/ent.go",
+                                                                      "plug/tasks/helper.go", "plug/tasks/org.go"], "the files it names are unchanged")
+
+    def test_a_file_elsewhere_is_not_beside_it(self):
+        fixes = [{"entity": "a/x.py", "n-fixes": 4, "last-fix": "2026-09-01", "recent-fixes": 4},
+                 {"entity": "b/y.py", "n-fixes": 3, "last-fix": "2026-09-01", "recent-fixes": 3}]
+        r = report(fixes=fixes, fix_history={"a/x.py": {"first": "2020-01-01", "recent": ["1", "2", "3", "4"]},
+                                             "b/y.py": {"first": "2020-01-01", "recent": ["1", "2", "3"]}})
+        self.assertIn("a/x.py (4 recent, 4 total) and 1 file fixed in the same commits.", findings.bug_magnets(r)[0]["detail"])
+
+    def test_a_file_younger_than_the_window_says_so(self):
+        r = report(fixes=[{**self.FIXES[0], "n-fixes": 5}, self.FIXES[1]], fix_history={"core/parser.py": {"first": "2026-05-01", "recent": ["a", "b", "c", "d", "e"]},
+                                                       "core/util.py": {"first": "2026-01-01", "recent": ["f", "g", "h"]}})
+        r["meta"]["now"] = "2026-09-17"
+        f = findings.bug_magnets(r)[0]
+        self.assertIn("core/parser.py (5 recent, new in the window); core/util.py (3 recent, 4 total).", f["detail"])
+        self.assertEqual(f["evidence"]["new_in_window"], ["core/parser.py"])
+        r["fixes"][0]["n-fixes"] = 6   # a count the window does not hold all of: both numbers stay
+        self.assertIn("core/parser.py (5 recent, 6 total, new in the window)", findings.bug_magnets(r)[0]["detail"])
+
+    def test_without_the_commits_every_file_stands_alone(self):
+        f = findings.bug_magnets(report(fixes=self.FIXES))[0]
+        self.assertNotIn("shared_fixes", f["evidence"])
+        self.assertNotIn("new in the window", f["detail"])
+
     def test_nothing_without_recent_fixes(self):
         self.assertEqual(findings.bug_magnets(report(fixes=self.FIXES[3:])), [])
         self.assertEqual(findings.bug_magnets(report()), [])

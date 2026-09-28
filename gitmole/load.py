@@ -9,7 +9,7 @@ import os
 import re
 from collections import Counter, OrderedDict
 
-from . import filetypes, identity, leaks, textfmt
+from . import filetypes, identity, leaks, maat, textfmt
 
 
 def _rel(path: str) -> str:
@@ -270,6 +270,82 @@ def parse_dependencies(data) -> dict:
     return out
 
 
+_RENAME_LINE = re.compile(r"^[-\d]+\t[-\d]+\t(.* => .*)$", re.M)
+
+
+def _renamed_from(path: str) -> str:
+    """The old path of a rename as `git log -M --numstat` spells it (maat._renamed_to gives the new one)."""
+    if "{" in path:
+        return maat._BRACED_RENAME.sub(lambda m: m.group(1), path).replace("//", "/").lstrip("/")
+    return path.split(" => ", 1)[0]
+
+
+def parse_fix_history(text: str, fixes: list, meta: dict, activity: dict, now: str) -> dict:
+    """{entity: {"first": DATE, "recent": [HASH, ...] or None}} for the maat-fixes rows with a recent fix,
+    read back from log.txt, so an analysis directory from before this was needed still reads.
+
+    `recent` is the fix commits behind the row's recent-fixes count, newest first, from maat's own fix
+    pool rebuilt the way the change analysis built it (the window, less the sweeps and imports
+    activity.json lists, less the oversized fixes). A pool that does not give back the recorded counts
+    (a revision the repository declared uninteresting, a log that changed) is None: a guess would name
+    the wrong commits. `first` is the day the file first appears, its renames followed back."""
+    rows = {r["entity"]: r for r in fixes if (r.get("recent-fixes") or 0) > 0}
+    if not rows:
+        return {}
+    activity = activity or {}
+    commits = maat.parse_log(text, None, filetypes.parse(meta.get("file_types")))
+    left_out = {c.get("hash") for key in ("sweeping", "imports") for c in activity.get(key) or []}
+    kept = [c for c in maat.in_window(commits, activity.get("window"), activity.get("until")) if c["hash"] not in left_out]
+    total, recent = {e: 0 for e in rows}, {e: [] for e in rows}
+    for c in maat.fix_commits(kept):
+        fresh = maat._months_between(c["date"], now) < maat.RECENT_MONTHS
+        for path, _, _ in c["files"]:
+            if path in total:
+                total[path] += 1
+                if fresh:
+                    recent[path].append((c["date"], c["hash"]))
+    older = {}   # a rename's new path -> its old paths, to follow a file back past a move
+    for m in _RENAME_LINE.finditer(text):
+        raw = filetypes.unquote(m.group(1))
+        new, old = maat._renamed_to(raw), _renamed_from(raw)
+        if old != new:
+            older.setdefault(new, set()).add(old)
+    lineage = {}
+    for e in rows:
+        seen, todo = set(), [e]
+        while todo:
+            path = todo.pop()
+            if path not in seen:
+                seen.add(path)
+                todo.extend(older.get(path, ()))
+        for path in seen:
+            lineage.setdefault(path, set()).add(e)
+    first = {}
+    for c in commits:
+        for path, _, _ in c["files"]:
+            for e in lineage.get(path, ()):
+                if c["date"] < first.get(e, "9999"):
+                    first[e] = c["date"]
+    out = {}
+    for e, r in rows.items():
+        exact = total[e] == r.get("n-fixes") and len(recent[e]) == r["recent-fixes"]
+        out[e] = {"first": first.get(e), "recent": [h for _, h in sorted(recent[e], key=lambda x: x[0], reverse=True)] if exact else None}
+    return out
+
+
+def _fix_history(out_dir: str, fixes: list, meta: dict, activity: dict) -> dict:
+    """parse_fix_history over the directory's log.txt; {} when there is none (the backtest's sub-report).
+    The reference date is the one the change analysis ran with: the run's recorded one, else today."""
+    if not any((r.get("recent-fixes") or 0) > 0 for r in fixes):
+        return {}
+    path = os.path.join(out_dir, "log.txt")
+    if not os.path.isfile(path):
+        return {}
+    import datetime as dt
+    with open(path, encoding="utf-8", errors="replace", newline="") as fh:
+        return parse_fix_history(fh.read(), fixes, meta, activity, meta.get("now") or dt.date.today().isoformat())
+
+
 def _read(out_dir: str, name: str) -> str:
     path = os.path.join(out_dir, name)
     if not os.path.exists(path):
@@ -315,6 +391,8 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
             continue
         surviving[key] = surviving.get(key, 0) + lines
     ownership = [r for r in parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")) if not is_bot(r.get("author") or "")]
+    fixes = parse_maat_csv(_read(out_dir, "maat-fixes.csv"))
+    activity = _read_json(out_dir, "activity.json", {})
     return {
         "out_dir": out_dir,
         "meta": meta,
@@ -334,7 +412,8 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),
         "ownership": ownership,
-        "fixes": parse_maat_csv(_read(out_dir, "maat-fixes.csv")),
+        "fixes": fixes,
+        "fix_history": _fix_history(out_dir, fixes, meta, activity),   # which commits the recent fixes were, and when each file began
         "sizer": parse_git_sizer(_read(out_dir, "repo-health.txt")),
         "cohorts": parse_theseus(cohorts) if cohorts else {},
         "theseus_authors": surviving,
@@ -342,7 +421,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         # the wrapper writes the file only when the scan finished, so a killed step or an old output
         # directory leaves it missing, and the report must not claim a clean scan
         "secrets_scanned": isinstance(_read_json(out_dir, "secrets.json", None), list),
-        "activity": _read_json(out_dir, "activity.json", {}),
+        "activity": activity,
         "functions": parse_functions(_read(out_dir, "functions.csv")),
         "duplicates": parse_duplicates_json(_read_json(out_dir, "duplicates.json", None)) or parse_duplicates(_read(out_dir, "duplicates.txt")),
         # the osv-scanner step writes the file whatever it found (no lock files, no local database, a
