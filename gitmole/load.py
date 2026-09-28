@@ -182,11 +182,13 @@ def parse_functions(text: str) -> list:
     """lizard --csv rows: nloc, ccn, tokens, params, length, location, file, function, long name, start, end;
     then, from gitmole's own step, a label for a nameless function (its start line) and why the span
     looks mis-parsed. A nameless function goes by its label, or "(anonymous)" in an older file, and
-    stays marked anonymous so the report can say where it is."""
-    rows = []
+    stays marked anonymous so the report can say where it is. A row lizard wrote twice (its Perl reader
+    emits a file's `*global*` more than once) is one function."""
+    rows, seen = [], set()
     for r in csv.reader(io.StringIO(text)):
-        if len(r) < 11:
+        if len(r) < 11 or tuple(r[:11]) in seen:
             continue
+        seen.add(tuple(r[:11]))
         name, label, suspect = r[7], r[11] if len(r) > 11 else "", r[12] if len(r) > 12 else ""
         anonymous = name in ("", "(anonymous)")
         rows.append({"file": _rel(r[6]), "function": textfmt.cut(label if anonymous and label else name, NAME_CAP) or "(anonymous)", "anonymous": anonymous,
