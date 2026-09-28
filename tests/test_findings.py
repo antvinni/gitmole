@@ -104,6 +104,15 @@ class SecretsFound(unittest.TestCase):
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
 
+    def test_the_token_the_scanner_graded_high_is_named_first(self):
+        """apache/devlake's critical named three generic-password form labels and never the GitHub token
+        in a clone URL, which betterleaks graded high: the headline names the strongest values."""
+        rows = [dict(self.row(f"h{n}", f"ui/src/registry/plugins/p{n}.json", rule="generic-password"), confidence="medium") for n in range(5)]
+        rows.append(dict(self.row("hp", "ui/src/data/TestBlueprintDetail.js", rule="github-pat"), confidence="high"))
+        [crit] = findings.secrets_found(report(secrets=rows))
+        self.assertEqual(crit["severity"], "critical")
+        self.assertIn("6 distinct values in 6 places: github-pat in ui/src/data/TestBlueprintDetail.js (c1);", crit["detail"])
+
     def test_placeholder_shapes_are_not_a_finding(self):
         r = report(secrets=[self.row("h4", "web/package.json", placeholder=True)])
         self.assertEqual(findings.secrets_found(r), [])

@@ -433,3 +433,18 @@ class HeadOnly(unittest.TestCase):
             self._git("merge", "-q", "--no-edit", "leaky", cwd=d)
             found = self._scan(d)
             self.assertEqual(sorted({f["File"] for f in found}), ["deploy.py"], "merged into HEAD's history, it is the commit's")
+
+
+class HeadlineOrder(unittest.TestCase):
+    @staticmethod
+    def row(value, file, rule, confidence, line=1, commit="c1"):
+        return {"rule": rule, "file": file, "commit": commit, "line": line, "fingerprint": f"{commit}:{file}:{rule}:{line}",
+                "value": value, "placeholder": False, "confidence": confidence}
+
+    def test_the_strongest_value_comes_first(self):
+        rows = [self.row("h1", "ui/src/data/Providers.js", "generic-password", "medium", n) for n in range(1, 8)]
+        rows += [self.row("h2", "ui/src/data/Blueprint.js", "github-pat", "high"),
+                 self.row("h3", "ui/src/data/Other.js", "generic-api-key", "high"),
+                 self.row("h4", "ui/src/data/Low.js", "slack-webhook-url", "low")]
+        self.assertEqual([g["value"] for g in leaks.group(rows)], ["h2", "h3", "h1", "h4"],
+                         "the scanner's grade first, then a provider's rule before a generic one, then places")

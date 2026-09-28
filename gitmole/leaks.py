@@ -221,8 +221,10 @@ _ONE_WORD = re.compile(r"[a-z]{3,20}|[A-Z]{3,20}")
 def group(rows: list) -> list:
     """One entry per distinct secret value (placeholders left out): its rule, the files and commits it
     appears in, the number of distinct places (commit, file, line), whether every place is a test
-    file, and whether every place is a documentation file. Values that appear in source come first,
-    then the most widespread."""
+    file, and whether every place is a documentation file. The strongest come first, since a finding
+    names the first three: the scanner's highest grade, then a provider's rule before a generic one,
+    then values that appear in source, then the most widespread (devlake's critical led with a form
+    label's `password: 'Enter Password'` and never named the GitHub token graded high)."""
     groups, order = {}, []
     for i, r in enumerate(rows):
         if r.get("placeholder"):
@@ -247,7 +249,7 @@ def group(rows: list) -> list:
         g = groups[key]
         places = g.pop("_places")
         out.append({**g, "places": len(places)})
-    out.sort(key=lambda g: (g["test"], -g["places"]))   # stable: first-seen order breaks ties
+    out.sort(key=lambda g: (-CONFIDENCE.get(g["confidence"], -1), str(g["rule"]).startswith("generic-"), g["test"], -g["places"]))   # stable: first-seen order breaks ties
     return out
 
 
