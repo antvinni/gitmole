@@ -47,7 +47,7 @@ inputs:
 
 outputs:
   exit-code:
-    description: gitmole's exit code (0, or 3 when fail-on or risk-threshold tripped).
+    description: gitmole's exit code (0; 3 when fail-on or risk-threshold tripped; 4 when a gate could not check because a step did not finish).
     value: ${{ steps.run.outputs.exit-code }}
   markdown:
     description: The path of the Markdown report.
@@ -176,14 +176,15 @@ runs:
             cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
           fi
         fi
-        # 3 is a tripped gate: fail, but only after the report and the SARIF are written and the upload below
-        # has run; anything else non-zero is gitmole failing, and fails here
-        if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
+        # 3 is a tripped gate and 4 a gate that could not check (a step it reads did not finish): fail, but only
+        # after the report and the SARIF are written and the upload below has run; anything else non-zero is
+        # gitmole failing, and fails here
+        if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ] && [ "$rc" -ne 4 ]; then
           exit "$rc"
         fi
 
     - name: Upload SARIF to code scanning
-      if: inputs.sarif != '' && inputs.upload-sarif == 'true'   # after a clean run or a tripped gate: both wrote the file
+      if: inputs.sarif != '' && inputs.upload-sarif == 'true'   # after a clean run or a gate's 3 or 4: each wrote the file
       uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
       with:
         sarif_file: ${{ inputs.sarif }}
@@ -195,3 +196,10 @@ runs:
       run: |
         echo "::error::gitmole's gate tripped (fail-on or risk-threshold); the report is in the job summary"
         exit 3
+
+    - name: Fail on a gate that could not check
+      if: steps.run.outputs.exit-code == '4'
+      shell: bash
+      run: |
+        echo "::error::gitmole's gate could not check: a step it reads did not finish (the report's header names it)"
+        exit 4
