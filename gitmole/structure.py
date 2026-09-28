@@ -757,12 +757,49 @@ def entry_points(repo: str, tracked: set) -> set:
     return out
 
 
-def unreferenced(files: dict, edges: dict, resolved: dict, entries: set) -> list:
+# a fenced code block in Markdown and the info strings that say it is Python
+_FENCE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n(.*?)^[ \t]{0,3}\1[ \t]*$", re.M | re.S)
+_DOC_PYTHON = {"python", "py", "python3"}
+
+
+def documented(repo: str, tracked, files: dict, vendored=()) -> set:
+    """The Python files the repository's own Markdown shows being imported: an absolute import inside a
+    ```python block of a tracked .md file, resolved the way the file's own imports are. A module the
+    README tells its users to import is the package's public surface, whatever inside the tree imports
+    it; these are references for the unreferenced list only, never edges of the import graph."""
+    g = grammar(".py")
+    if g is None:
+        return set()
+    docs = {}
+    for path in sorted(tracked):
+        if not path.lower().endswith(".md") or "node_modules/" in path or filetypes.is_vendored(path, vendored):
+            continue
+        try:
+            with open(os.path.join(repo, path), encoding="utf-8", errors="replace") as fh:
+                text = fh.read(500_000)
+        except OSError:
+            continue
+        found = []
+        for m in _FENCE.finditer(text):
+            if m.group(2).lower() in _DOC_PYTHON:
+                try:
+                    found += [e for e in analyse(m.group(3).encode(), "python", g[1])["imports"] if not e[1].startswith(".")]
+                except (ValueError, RecursionError):
+                    continue
+        if found:
+            docs[path] = {"language": "python", "imports": found}
+    if not docs:
+        return set()
+    edges, _, _ = _resolve({**{p: {"language": v.get("language")} for p, v in files.items()}, **docs})
+    return {t for d in docs for t in edges.get(d, [])}
+
+
+def unreferenced(files: dict, edges: dict, resolved: dict, entries: set, referenced=frozenset()) -> list:
     """Files in Python, JavaScript or TypeScript that nothing in the tree imports and that are not an
     entry point by convention or by declaration: `possibly unreferenced`, never `dead`. A dynamic
     import, a plugin loaded by name or a framework's file routing does not show in an import graph, so
     only languages whose imports mostly resolve are judged."""
-    imported = {t for targets in edges.values() for t in targets}
+    imported = {t for targets in edges.values() for t in targets} | set(referenced)
     judged = trusted(files, resolved)
     counts = Counter(v.get("language") for v in files.values())   # the loud-language share below is over every file of the language
     names = Counter(p.rsplit("/", 1)[-1] for p in files)
@@ -879,7 +916,8 @@ def collect(repo: str, procs: int = None, vendored=()) -> dict:
                 languages[result["language"]] += 1
                 cached += hit
     edges, eager, resolved = _resolve(files)   # one pass: the second walk cost the step twice its resolution on a large clone
-    orphans = unreferenced(files, edges, resolved, entry_points(repo, set(filetypes.git_paths(repo, "ls-files"))))
+    tracked = set(filetypes.git_paths(repo, "ls-files"))
+    orphans = unreferenced(files, edges, resolved, entry_points(repo, tracked), documented(repo, tracked, files, vendored))
     functions = []
     for path in sorted(files):
         for f in files[path].get("functions") or []:

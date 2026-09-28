@@ -359,6 +359,25 @@ class Unreferenced(unittest.TestCase):
         self.assertEqual(structure.unreferenced(files, edges, {"python": 0.3}, set()), [], "a graph that resolves a third of the time is not judged")
         self.assertEqual(structure.unreferenced(files, edges, {"python": 0.9}, {"pkg/m0.py"}), [], "a declared entry point is no orphan")
 
+    def test_a_module_the_readme_shows_being_imported_is_referenced(self):
+        # devlake's backend/python/README.md shows `import pydevlake.domain_layer.crossdomain as cross`
+        import tempfile
+        with tempfile.TemporaryDirectory() as repo:
+            files = {"py/lib/lib/__init__.py": {"language": "python"}, "py/lib/lib/cross.py": {"language": "python"},
+                     "py/lib/lib/other.py": {"language": "python"}, "py/lib/lib/third.py": {"language": "python"}}
+            os.makedirs(os.path.join(repo, "py"))
+            with open(os.path.join(repo, "py", "README.md"), "w") as fh:
+                fh.write("Use it:\n\n```python\nimport lib.cross as cross\nfrom lib import third\nfrom . import other\n```\n\n"
+                         "```\nimport lib.other\n```\n\n~~~js\nimport x from './lib/other'\n~~~\n")
+            with open(os.path.join(repo, "notes.txt"), "w") as fh:
+                fh.write("```python\nimport lib.other\n```\n")
+            found = structure.documented(repo, {"py/README.md", "notes.txt", *files}, files)
+        self.assertEqual(found, {"py/lib/lib/cross.py", "py/lib/lib/third.py"},
+                         "a ```python block of a Markdown file only; a relative import in a README names nothing")
+        files = self.files(n=40)
+        edges = {p: info["imports"] for p, info in files.items()}
+        self.assertEqual(structure.unreferenced(files, edges, {"python": 0.9}, set(), {"pkg/m0.py"}), [])
+
     def test_a_language_where_more_than_one_file_in_twenty_looks_unreferenced_is_not_listed(self):
         files = self.files(n=20, orphans=3)   # 3 of 20 is over MAX_SHARE: the language loads code by name here
         edges = {p: info["imports"] for p, info in files.items()}
