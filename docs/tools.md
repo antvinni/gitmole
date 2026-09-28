@@ -55,7 +55,7 @@ first choice and was left out because it downloads its grammars when first
 used, which breaks the offline rule.
 
 What gitmole does not do: dead-code detection (the import graph can say
-"possibly unreferenced" for Python, JavaScript and TypeScript, never
+"possibly unreferenced" for Python, JavaScript, TypeScript and Go, never
 "dead"; the real thing needs a symbol graph per language) and test coverage
 (that needs the project's own test run). It will not guess at either.
 

@@ -37,7 +37,7 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
     import userdirs
 
-ANALYSER = "5"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
+ANALYSER = "6"  # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
 MAX_BYTES = 1_000_000
 FUNCTIONS_KEPT = 3000
 
@@ -321,8 +321,8 @@ def _deferred(node, src: bytes, lang: str, in_function: bool) -> bool:
 
 def _import(node, src: bytes, lang: str):
     """The raw module a node imports, or None: Python's import and from-import, ES imports and
-    require(), C and C++ quoted includes, Ruby require and require_relative, and the declarations the
-    other languages use, kept raw."""
+    require(), C and C++ quoted includes, Ruby require and require_relative, Go's import paths, and the
+    declarations the other languages use, kept raw."""
     t = node.type
     if lang == "python":
         if t == "import_statement":
@@ -358,7 +358,12 @@ def _import(node, src: bytes, lang: str):
             if first.type == "string":
                 return [("rel" if _text(src, method) == "require_relative" else "req", _text(src, first).strip("'\""))]
         return None
-    if t in ("import_spec", "use_declaration", "import_declaration", "using_directive", "namespace_use_declaration",
+    if lang == "go":
+        if t == "import_spec":   # blank (_) and dot imports load the package all the same
+            path = node.child_by_field_name("path")
+            return [("go", _text(src, path).strip('"`'))] if path is not None else None
+        return None
+    if t in ("use_declaration", "import_declaration", "using_directive", "namespace_use_declaration",
              "require_once_expression", "require_expression", "include_expression", "include_once_expression"):
         return [("raw", _text(src, node)[:200])]
     return None
@@ -464,6 +469,8 @@ def analyse(src: bytes, lang_name: str, language) -> dict:
             cond = node.child_by_field_name("condition")
             if cond is not None and "__name__" in _text(src, cond) and "__main__" in _text(src, cond):
                 main_guard = True
+        if lang_name == "go" and t == "package_clause":   # `package main` is a program: run, never imported
+            main_guard = main_guard or any(c.type == "package_identifier" and _text(src, c) == "main" for c in node.named_children)
         stack.append(frame)
         if cursor.goto_first_child():
             continue
@@ -564,23 +571,93 @@ def _python_candidates(path: str, entry, names_only: bool = False) -> list:
     return [c for m in mods if m for c in (f"{m}.py", f"{m}/__init__.py")]
 
 
-def resolve(files: dict, eager: bool = False) -> tuple:
+_GO_DIRECTIVE = re.compile(r"^(module|replace)\b\s*(.*)$")
+
+
+def go_modules(gomods: dict) -> dict:
+    """{module path: its directory in the tree} from the go.mod files, given as {path: text}. A module's
+    own `module` line maps its path to the directory its go.mod sits in; a `replace` whose target is a
+    relative directory (`=> ./api`, `=> ../sdk`) maps the replaced path there too, as the go command reads
+    it, when that directory stays inside the tree. A replace to another module version is the network's
+    business and is left out. Where two go.mod files declare one path the shallowest wins, then the first
+    by path, so the map is the same every run; a module's own declaration beats another's replace."""
+    declared, replaced = {}, {}
+    for path in sorted(gomods, key=lambda p: (p.count("/"), p)):
+        base = os.path.dirname(path)
+        in_replace_block = False
+        for raw in gomods[path].splitlines():
+            line = raw.split("//", 1)[0].strip()
+            if not line:
+                continue
+            if in_replace_block:
+                if line.startswith(")"):
+                    in_replace_block = False
+                    continue
+                directive, rest = "replace", line
+            else:
+                m = _GO_DIRECTIVE.match(line)
+                if not m:
+                    continue
+                directive, rest = m.group(1), m.group(2).strip()
+                if directive == "replace" and rest.startswith("("):
+                    in_replace_block = True
+                    rest = rest[1:].strip()
+                    if not rest:
+                        continue
+            if directive == "module":
+                name = rest.split()[0].strip('"`') if rest.split() else ""
+                if name:
+                    declared.setdefault(name, base)
+            elif "=>" in rest:
+                left, right = (s.split() for s in rest.split("=>", 1))
+                if left and right and right[0].startswith(("./", "../")) and right[0] not in ("./", "../"):
+                    target = os.path.normpath(os.path.join(base, right[0]))
+                    if target != ".." and not target.startswith("../"):
+                        replaced.setdefault(left[0].strip('"`'), "" if target == "." else target)
+    return {**replaced, **declared}
+
+
+def resolve(files: dict, eager: bool = False, modules: dict = None) -> tuple:
     """(edges {path: sorted imported paths}, resolved share per language); with `eager`, the edges leave
     out the imports marked deferred (see _deferred), while the share stays over every import. One pass
-    computes both graphs (_resolve); this returns the one asked for."""
-    edges, lazy_free, resolved = _resolve(files)
+    computes both graphs (_resolve); this returns the one asked for. `modules` is go_modules' map."""
+    edges, lazy_free, resolved = _resolve(files, modules)
     return (lazy_free if eager else edges), resolved
 
 
-def _resolve(files: dict) -> tuple:
+def _resolve(files: dict, modules: dict = None) -> tuple:
     """(edges, eager edges, resolved share per language), one walk over the imports. Crude on purpose: a
     relative ES import against the directory with the usual extensions and index files, a Python
     module by its path from a root (the tree's top, or any directory no package sits above, so src/
     layouts and test directories resolve and a module inside a package is reached only through the
     package's name), a quoted include against the directory and then by suffix, Ruby's
-    require_relative against the directory. Go, Rust, Java, C# and PHP module systems need the build,
-    and their imports stay raw."""
+    require_relative against the directory, a Go import path against the longest module path a go.mod
+    in the tree declares (go_modules). A Go import names a package, which is a directory, so the edge
+    runs to every file of it the build compiles into the package: its .go files other than _test.go
+    and `package main`. An import no module in the tree declares is the standard library or another
+    module, and is not counted. Rust, Java, C# and PHP module systems need the build, and their imports
+    stay raw."""
     tracked = set(files)
+    modules = modules or {}
+    by_length = sorted(modules, key=lambda m: (-len(m), m))
+    go_packages = {}   # directory -> the files an import of it reaches
+    for p in sorted(tracked):
+        info = files[p]
+        if info.get("language") == "go" and not p.endswith("_test.go") and not info.get("main"):
+            go_packages.setdefault(os.path.dirname(p), []).append(p)
+    go_seen = {}
+
+    def go_package(importpath):
+        """(declared by a module in the tree, the package's files)"""
+        if importpath not in go_seen:
+            answer = (False, [])
+            for m in by_length:
+                if importpath == m or importpath.startswith(m + "/"):
+                    d = os.path.normpath(os.path.join(modules[m], importpath[len(m) + 1:])) if importpath != m else modules[m]
+                    answer = (True, go_packages.get("" if d == "." else d, []))
+                    break
+            go_seen[importpath] = answer
+        return go_seen[importpath]
     by_suffix = {}
     for p in sorted(tracked):   # sorted, not set order: two files can answer one suffix (django has two json.py),
         parts = p.split("/")    # and the first candidate wins, so hash order would make the import graph vary per run
@@ -663,6 +740,11 @@ def _resolve(files: dict) -> tuple:
                 found = by_suffix.get(entry[1] + ".rb", [])[:1]
                 if not found:
                     continue   # a gem
+            elif kind == "go":
+                ours, found = go_package(entry[1])
+                if not ours:
+                    continue   # the standard library or another module
+                found = [c for c in found if c != path]
             else:
                 continue
             tried[lang] += 1
@@ -677,7 +759,7 @@ def _resolve(files: dict) -> tuple:
     return edges, eager, {lang: round(hit[lang] / tried[lang], 3) for lang in tried}
 
 
-GRAPH_LANGUAGES = {"python", "javascript", "typescript", "tsx"}   # where an unreferenced file can be named with some confidence
+GRAPH_LANGUAGES = {"python", "javascript", "typescript", "tsx", "go"}   # where an unreferenced file can be named with some confidence
 MIN_RESOLVED = 0.6   # a language whose imports resolve less often than this has too blind a graph to say "unreferenced"
 MIN_FILES = 10
 
@@ -714,6 +796,8 @@ def entry_points(repo: str, tracked: set) -> set:
             for mod in _SCRIPT_VALUE.findall(text):
                 stem = mod.replace(".", "/")
                 out.update({f"{stem}.py", f"{stem}/__init__.py", f"src/{stem}.py", f"src/{stem}/__init__.py"})
+        elif name == "go.mod":
+            out.add(path)   # the module's root package is its surface, as the files beside package.json are
         elif name == "package.json" and "node_modules/" not in path:
             out.add(path)
             try:
@@ -739,7 +823,7 @@ def entry_points(repo: str, tracked: set) -> set:
 
 
 def unreferenced(files: dict, edges: dict, resolved: dict, entries: set) -> list:
-    """Files in Python, JavaScript or TypeScript that nothing in the tree imports and that are not an
+    """Files in Python, JavaScript, TypeScript or Go that nothing in the tree imports and that are not an
     entry point by convention or by declaration: `possibly unreferenced`, never `dead`. A dynamic
     import, a plugin loaded by name or a framework's file routing does not show in an import graph, so
     only languages whose imports mostly resolve are judged."""
@@ -794,7 +878,7 @@ def _slim_shapes(s: dict) -> dict:
 
 
 def entries_dirs(entries: set) -> set:
-    return {e for e in entries if e.endswith("package.json")}
+    return {e for e in entries if e.endswith("package.json") or e.rsplit("/", 1)[-1] == "go.mod"}
 
 
 def _blobs(repo: str, paths: list) -> dict:
@@ -844,7 +928,8 @@ def printable(value):
 
 
 def collect(repo: str, procs: int = None, vendored=()) -> dict:
-    paths = [p for p in filetypes.git_paths(repo, "ls-files") if os.path.splitext(p)[1].lower() in GRAMMARS
+    tracked = filetypes.git_paths(repo, "ls-files")
+    paths = [p for p in tracked if os.path.splitext(p)[1].lower() in GRAMMARS
              and not filetypes.is_vendored(p, vendored) and "node_modules/" not in p]
     blobs = _blobs(repo, paths)
     cache = cache_root()
@@ -859,8 +944,10 @@ def collect(repo: str, procs: int = None, vendored=()) -> dict:
                 files[path] = result
                 languages[result["language"]] += 1
                 cached += hit
-    edges, eager, resolved = _resolve(files)   # one pass: the second walk cost the step twice its resolution on a large clone
-    orphans = unreferenced(files, edges, resolved, entry_points(repo, set(filetypes.git_paths(repo, "ls-files"))))
+    gomods = _blobs(repo, [p for p in tracked if p.rsplit("/", 1)[-1] == "go.mod" and not filetypes.is_vendored(p, vendored)])
+    modules = go_modules({p: data.decode("utf-8", "replace") for p, (_, data) in gomods.items()})
+    edges, eager, resolved = _resolve(files, modules)   # one pass: the second walk cost the step twice its resolution on a large clone
+    orphans = unreferenced(files, edges, resolved, entry_points(repo, set(tracked)))
     functions = []
     for path in sorted(files):
         for f in files[path].get("functions") or []:

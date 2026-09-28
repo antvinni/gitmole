@@ -2,6 +2,11 @@
 
 Every way to install gitmole and the five tools it runs; back to [the README](https://github.com/antvinni/gitmole#readme).
 
+In short: `brew install gitmole` brings everything ([macOS](#macos)); without Homebrew,
+`pipx install gitmole` then `gitmole --install-tools` downloads the five pinned tools into
+gitmole's own directory ([below](#the-pinned-versions)). Either way, `gitmole --doctor` checks
+the result ([Check](#check)).
+
 gitmole needs git, Python 3.9 or newer, and five tools, on your PATH or in a
 directory of gitmole's own:
 [scc](https://github.com/boyter/scc) for size,
