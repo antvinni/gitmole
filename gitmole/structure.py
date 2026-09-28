@@ -37,7 +37,7 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
     import userdirs
 
-ANALYSER = "5"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
+ANALYSER = "7"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
 MAX_BYTES = 1_000_000
 FUNCTIONS_KEPT = 3000
 
@@ -70,6 +70,8 @@ NESTING = {"if_statement", "if_expression", "if", "unless", "for_statement", "fo
            "conditional_expression", "conditional", "try_statement"}
 # counted without nesting: the branch that continues one already counted
 FLAT = {"else_clause", "elif_clause", "elsif", "else"}
+IF = {"if_statement", "if_expression"}
+BLOCK = {"block", "statement_block", "compound_statement", "statement_list", "expression_statement"}   # a braced body (Rust wraps its if in a statement); Ruby's `then` is not an else
 NO_INCREMENT = {"try_statement"}   # the try nests its body; the catch is what Sonar counts
 LOGICAL = {"&&", "||", "and", "or"}
 DEBT = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b")
@@ -412,7 +414,7 @@ def analyse(src: bytes, lang_name: str, language) -> dict:
                                                      "declaration_list", "namespace_declaration") for s in stack):
             definitions += 1   # a class at the top of the file; the root itself (Python's is called module) is not one
         if current is not None and t not in FUNCTION:
-            flat_if = t in ("if_statement", "if_expression") and parent_type in FLAT
+            flat_if = t in IF and _continues_else(node, parent_type)
             if t in FLAT or flat_if:
                 current.cognitive += 1
                 frame[4] = True
@@ -474,6 +476,23 @@ def analyse(src: bytes, lang_name: str, language) -> dict:
             if not cursor.goto_parent():
                 flush()
                 return _result(done, comments, comment_lines, definitions, debt, imports, deferred, main_guard, src, tree, shapes)
+
+
+def _continues_else(node, parent_type) -> bool:
+    """Whether an `if` is the next link of an else-if chain rather than an `if` nested in a branch: it
+    sits in an else node (JavaScript, C, Rust, PHP, Python's else), it is itself its parent `if`'s
+    alternative (Go, Java and C# write `else if` with no else node), or it is the whole of an else
+    block (`else { if ... }`, the same chain in braces)."""
+    if parent_type in FLAT:
+        return True
+    child, p = node, node.parent
+    while p is not None and p.type in BLOCK:   # else { if ... }: nothing but comments beside it in the block
+        if any(c != child and "comment" not in c.type for c in p.named_children):
+            return False
+        child, p = p, p.parent
+    if p is None:
+        return False
+    return p.type in FLAT or (p.type in IF and p.child_by_field_name("alternative") == child)
 
 
 def _in_chain(node) -> bool:
