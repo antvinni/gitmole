@@ -20,7 +20,6 @@ MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
 FUNCTIONS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "functions.py")
 LEAKS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "leaks.py")
-HEALTH_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "health.py")
 DEPS_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "deps.py")
 LAUNCH_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "launch.py")
 
@@ -48,7 +47,7 @@ def has_commits(repo: str) -> bool:
 
 
 def is_shallow(repo: str) -> bool:
-    """A shallow clone (git clone --depth): git-sizer refuses one, and its history stops at the graft."""
+    """A shallow clone (git clone --depth): its history stops at the graft."""
     out = subprocess.run(["git", "-C", repo, "rev-parse", "--is-shallow-repository"], capture_output=True, text=True).stdout.strip()
     return out == "true"
 
@@ -147,7 +146,7 @@ def env_path() -> str:
     return os.pathsep.join(parts + [os.environ.get("PATH", "")])
 
 
-REQUIRED_TOOLS = ["scc", "git-sizer", "betterleaks", "osv-scanner"]
+REQUIRED_TOOLS = ["scc", "betterleaks", "osv-scanner"]
 PLOT_TOOLS = ["git-of-theseus-analyze"]
 
 
@@ -179,7 +178,7 @@ _VERSION_TOKEN = re.compile(r"\d+\.\d+[\w.-]*")
 @functools.lru_cache(maxsize=None)
 def tool_version(name: str, path: str = None) -> str | None:
     """The version a tool prints for --version: the last version-shaped token on its first line
-    ("scc version 4.1.0", "git-sizer release 1.5.0", "osv-scanner version: 2.6.0"). None when the tool is
+    ("scc version 4.1.0", "betterleaks version 1.8.1", "osv-scanner version: 2.6.0"). None when the tool is
     missing, hangs or prints none. Cached: a tool's version cannot change within a process, so a run with
     several steps (or a test calling manifest() often) pays for one --version per tool, not one per call."""
     return printed_version(name, dict(os.environ, PATH=path or env_path()))
@@ -224,8 +223,8 @@ def manifest(repo_dir: str, args, version_of=tool_version, lizard_of=lizard_vers
 # Everything a run writes besides meta.json and run.log. Removed before each run so a reused
 # --out directory never shows a previous run's data as this run's (a step skipped or killed
 # this time would otherwise leave last time's file in place).
-OUTPUTS = ["size.json", "tree.txt", "repo-health.txt", "secrets.json", "dependencies.json", "packages.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json", "provenance.json",
-           "duplicates.json", "duplicates.txt",   # what the duplicates step wrote before 0.39.0: a reused directory holds only this run's
+OUTPUTS = ["size.json", "tree.txt", "secrets.json", "dependencies.json", "packages.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json", "provenance.json",
+           "duplicates.json", "duplicates.txt", "repo-health.txt",   # what the retired duplicates and git-sizer steps wrote before 0.39.0: a reused directory holds only this run's
            "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]
 # directories a run writes: the backtest sub-report, and the temporary checkouts the trend and
@@ -289,9 +288,6 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
         # every path at HEAD, NUL-separated: scc lists only the files it has a language for, and a binary is not one
         {"name": "tree", "argv": [*filetypes.GIT, "ls-tree", "-r", "-z", "--name-only", "HEAD"], "stdout": o("tree.txt"), "deps": []},
-        *([] if is_shallow(repo_dir) else   # git-sizer needs the whole object graph; the run records why it is missing
-          # over HEAD's history only, through health.py: what other references in this clone reach is the clone's, not the commit's
-          [{"name": "git-sizer", "argv": [sys.executable, HEALTH_SCRIPT], "stdout": o("repo-health.txt"), "deps": []}]),
         {"name": "betterleaks", "argv": [sys.executable, LEAKS_SCRIPT, o("secrets.json")], "stdout": None, "deps": []},   # hashes the values before anything is written
         {"name": "osv-scanner", "argv": [sys.executable, DEPS_SCRIPT, o("dependencies.json")], "stdout": None, "deps": []},   # offline, against the local database
         # -M: a move is not an edit; -w --ignore-blank-lines: a whitespace-only hunk is not a changed line, so a reformat that only

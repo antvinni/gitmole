@@ -270,7 +270,7 @@ def summary(report: dict) -> dict:
 
 # The steps every table leans on, by what the reader loses without them. The optional steps (code age,
 # functions, trend, backtest) say so in their own sections; the structure step has none, so pulse names it.
-CORE_STEPS = {"scc": "size", "git-sizer": "repo health", "git-log": "change log", "change analysis": "change analysis",
+CORE_STEPS = {"scc": "size", "git-log": "change log", "change analysis": "change analysis",
               "betterleaks": "secrets scan", "osv-scanner": "dependency scan"}
 
 
@@ -881,13 +881,6 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
 
 
-def health_section(report: dict, full: bool = True, width=None) -> dict:
-    rows = [(r["name"], r["value"], "*" * r["concern"], r["ref"]) for r in report.get("sizer") or []]
-    note = None if rows else ("not measured: git-sizer needs a full clone, and this one is shallow" if (report.get("meta") or {}).get("shallow")
-                              else "nothing flagged")
-    return _section("Repo health (git-sizer concerns)", [("metric", {}), ("value", RIGHT), ("concern", {}), ("object", FOLD)], rows, note=note)
-
-
 def osps_section(report: dict, full: bool = True, width=None) -> dict:
     """The OSPS Baseline controls a clone can show, each with its result here: --full and Markdown only."""
     from . import findings, osps
@@ -943,7 +936,7 @@ def compare_section(result: dict) -> dict:
 
 
 BUILDERS = [watch_section, watch_by_component_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
-            hotspots_section, coupling_section, signing_section, trailers_section, lines_section, age_section, functions_section, health_section, osps_section]
+            hotspots_section, coupling_section, signing_section, trailers_section, lines_section, age_section, functions_section, osps_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
 # do next; Hotspots ranks the files the watch list already leads with, by the same product.
 FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "lines", "watch_by_component", "osps"}

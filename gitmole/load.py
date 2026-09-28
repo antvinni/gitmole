@@ -116,48 +116,6 @@ def _num(v):
         return 0
 
 
-_SIZER_ROW = re.compile(r"^\|(?P<pad> *)(?P<name>.*?)\s*(?:\[(?P<ref>\d+)\])?\s*\|\s*(?P<value>.*?)\s*\|\s*(?P<concern>\**)\s*\|$")
-_SIZER_NOTE = re.compile(r"^\[(?P<ref>\d+)\]\s+\S+\s+\((?:[^:]+:)?(?P<path>[^)]*)\)")
-
-
-def parse_git_sizer(text: str) -> list:
-    notes = {}
-    for line in text.splitlines():
-        m = _SIZER_NOTE.match(line)
-        if m:
-            notes[m.group("ref")] = m.group("path")
-
-    # Two shapes of section: "Overall repository size" and "Biggest objects" have sub-headers
-    # ("* Blobs") with their metrics indented under them; "History structure" and "Biggest
-    # checkouts" list their metrics directly ("* Number of files"). A starred line with a value
-    # is a metric, a starred line without one is a sub-header, an unstarred line is a section.
-    rows, section, sub = [], "", ""
-    for line in text.splitlines():
-        m = _SIZER_ROW.match(line)
-        if not m:
-            continue
-        indent = len(m.group("pad")) - 1
-        raw = m.group("name").strip()
-        name = raw.lstrip("* ").strip()
-        if not name or name == "Name" or name.startswith("---"):
-            continue
-        if indent == 0 and not raw.startswith("*"):
-            section = sub = name
-            continue
-        if indent == 0 and not m.group("value"):
-            sub = name
-            continue
-        if not m.group("concern"):
-            continue
-        rows.append({
-            "name": f"{sub if indent else section}: {name}",
-            "value": m.group("value"),
-            "concern": len(m.group("concern")),
-            "ref": notes.get(m.group("ref") or "", ""),
-        })
-    return rows
-
-
 def parse_theseus(text: str) -> dict:
     d = _json_or(text, {})
     if not isinstance(d, dict) or not d.get("labels"):
@@ -425,7 +383,6 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "ownership": ownership,
         "fixes": fixes,
         "fix_history": _fix_history(out_dir, fixes, meta, activity),   # which commits the recent fixes were, and when each file began
-        "sizer": parse_git_sizer(_read(out_dir, "repo-health.txt")),
         "cohorts": parse_theseus(cohorts) if cohorts else {},
         "theseus_authors": surviving,
         "secrets": parse_secrets(_read(out_dir, "secrets.json")),

@@ -39,7 +39,6 @@ def archives() -> dict:
     """url -> bytes, in the shapes the real releases have (see the plan's Background)."""
     return {
         "https://example.test/scc_Test_cpu.tar.gz": tar_gz({"LICENSE": b"mit", "README.md": b"#", "scc": FAKE_BIN["scc"]}),
-        "https://example.test/git-sizer-1.5.0-test-cpu.zip": zipped({"LICENSE.md": b"mit", "git-sizer": FAKE_BIN["git-sizer"]}),
         "https://downloads.example.test/betterleaks_1.8.1_test_cpu.tar.gz": tar_gz({"LICENSE": b"mit", "betterleaks": FAKE_BIN["betterleaks"]}),
         "https://example.test/osv-scanner_test_cpu": FAKE_BIN["osv-scanner"],
     }
@@ -47,7 +46,7 @@ def archives() -> dict:
 
 def table(served: dict) -> dict:
     """tools.ARCHIVES[KEY] for the served archives, hashes computed from the bytes."""
-    by_tool = {"scc": "scc_Test_cpu.tar.gz", "git-sizer": "git-sizer-1.5.0-test-cpu.zip", "betterleaks": "betterleaks_1.8.1_test_cpu.tar.gz",
+    by_tool = {"scc": "scc_Test_cpu.tar.gz", "betterleaks": "betterleaks_1.8.1_test_cpu.tar.gz",
                "osv-scanner": "osv-scanner_test_cpu"}
     out = {}
     for name, tail in by_tool.items():
@@ -106,11 +105,11 @@ class Platform(unittest.TestCase):
         self.assertEqual(userdirs.tool_dir("scc", {"GITMOLE_TOOLS": "/t"}), f"/t/scc-{tools.PINNED['scc']}")
 
     def test_downloadable_is_the_subset_the_table_has_a_url_for(self):
-        with mock.patch.dict(tools.ARCHIVES, {KEY: {**table(archives()), "git-sizer": {"note": "none"}}}):
-            self.assertEqual(install.downloadable(["scc", "git-sizer", "betterleaks"], key=KEY), ["scc", "betterleaks"])
+        with mock.patch.dict(tools.ARCHIVES, {KEY: {**table(archives()), "betterleaks": {"note": "none"}}}):
+            self.assertEqual(install.downloadable(["scc", "betterleaks", "osv-scanner"], key=KEY), ["scc", "osv-scanner"])
         self.assertEqual(install.downloadable(["scc"], key=("nowhere", "cpu")), [])
-        self.assertEqual(install.downloadable(["git-sizer"], key=("linux", "arm64")), [])
-        self.assertEqual(install.downloadable(["git-sizer"], key=("linux", "x86_64")), ["git-sizer"])
+        for key in tools.ARCHIVES:
+            self.assertEqual(install.downloadable(run.REQUIRED_TOOLS, key=key), run.REQUIRED_TOOLS, f"every tool has a build on {key}")
 
 
 class Pick(unittest.TestCase):
@@ -122,6 +121,11 @@ class Pick(unittest.TestCase):
         self.assertIsNone(install.pick(["LICENSE", "README.md"], "scc"))
         self.assertIsNone(install.pick(["scc/", "LICENSE"], "scc"), "a directory is not the tool")
         self.assertEqual(install.pick(["scc_b", "scc_a"], "scc"), "scc_a", "the first prefixed name, sorted, as the formula's Dir[] takes it")
+
+    def test_a_zip_is_read_like_a_tarball(self):
+        """No pinned tool ships a zip since git-sizer left at 0.39.0; the formula's rule still applies to one."""
+        data = zipped({"tool-1.0/LICENSE": b"mit", "tool-1.0/tool": b"#!/bin/sh\n"})
+        self.assertEqual(install.unpack(data, "https://example.test/tool-1.0.zip", "tool"), b"#!/bin/sh\n")
 
     def test_it_looks_where_the_formula_looks_and_nowhere_deeper(self):
         """Homebrew steps into an archive's one top-level directory, then tries tool, bin/tool, tool_*."""
@@ -177,17 +181,17 @@ class Install(unittest.TestCase):
         self.assertTrue(any(l.startswith("betterleaks: ") and url in l and "nodename" in l for l in said), said)
 
     def test_a_tool_upstream_does_not_build_is_said_not_fetched(self):
+        """An entry with a note and no url: the table's way of saying upstream publishes no build for a platform
+        (git-sizer on Linux arm64 until it was retired at 0.39.0)."""
         fetcher = Fetcher({})
         said = []
-        with tempfile.TemporaryDirectory() as d:
-            done = install.install(["git-sizer"], dest=d, key=("linux", "arm64"), fetcher=fetcher, say=said.append)
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(tools.ARCHIVES, {KEY: {"scc": {"note": "upstream publishes no build here; build it from source"}}}):
+            done = install.install(["scc"], dest=d, key=KEY, fetcher=fetcher, say=said.append)
             self.assertEqual(done, [])
             self.assertEqual(os.listdir(d), [], "the directory is made but holds nothing")
         self.assertEqual(fetcher.calls, [])
-        self.assertIn("no Linux arm64 build", said[0])
-        self.assertIn(f'go install -ldflags "-X main.ReleaseVersion={tools.PINNED["git-sizer"]}" '
-                      f'github.com/github/git-sizer@v{tools.PINNED["git-sizer"]}', said[0], "the version is set, or the build prints none")
-        self.assertIn(tools.RELEASES["git-sizer"], said[0])
+        self.assertIn("upstream publishes no build here; build it from source", said[0])
+        self.assertIn(tools.RELEASES["scc"], said[0])
 
     def test_an_unknown_platform_installs_nothing_and_says_which_platform(self):
         fetcher = Fetcher({})
@@ -202,18 +206,18 @@ class Install(unittest.TestCase):
 
     def test_an_archive_without_the_tool_or_not_an_archive_at_all_is_refused(self):
         served = {"https://example.test/scc_Test_cpu.tar.gz": tar_gz({"LICENSE": b"mit"}),
-                  "https://example.test/git-sizer-1.5.0-test-cpu.zip": b"not a zip",
+                  "https://example.test/osv-scanner-test-cpu.zip": b"not a zip",
                   "https://example.test/betterleaks_1.8.1_test_cpu.tar.gz": b"not gzip either"}
         entries = {name: {"url": url, "sha256": install.digest(data)}
-                   for name, (url, data) in zip(["scc", "git-sizer", "betterleaks"], served.items())}
+                   for name, (url, data) in zip(["scc", "osv-scanner", "betterleaks"], served.items())}
         said = []
         with tempfile.TemporaryDirectory() as d, mock.patch.dict(tools.ARCHIVES, {KEY: entries}):
-            done = install.install(["scc", "git-sizer", "betterleaks"], dest=d, key=KEY, fetcher=Fetcher(served), say=said.append)
+            done = install.install(["scc", "osv-scanner", "betterleaks"], dest=d, key=KEY, fetcher=Fetcher(served), say=said.append)
             self.assertEqual(done, [])
             self.assertEqual(os.listdir(d), [])
         self.assertIn("no scc executable in the archive", " ".join(said))
         self.assertIn("LICENSE", " ".join(said), "what the archive did hold is named")
-        self.assertIn("git-sizer: https://example.test/git-sizer-1.5.0-test-cpu.zip: cannot unpack", " ".join(said))
+        self.assertIn("osv-scanner: https://example.test/osv-scanner-test-cpu.zip: cannot unpack", " ".join(said))
         self.assertIn("betterleaks: https://example.test/betterleaks_1.8.1_test_cpu.tar.gz: cannot unpack", " ".join(said))
 
     def test_a_tool_already_there_is_replaced_not_appended_to(self):

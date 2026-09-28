@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from . import findings, watch
 
-# A rule emits one finding per report, except these two, which emit one per row; the evidence field
-# that tells the rows apart joins the rule id in the key.
+# A rule emits one finding per report, except these, which emit one per row; the evidence field that
+# tells the rows apart joins the rule id in the key. repo_health (git-sizer's, retired at 0.39.0) is kept
+# so an export from before still keys its rows apart.
 KEY_FIELDS = {"repo_health": "metric", "placeholder_identity": "email"}
 
 

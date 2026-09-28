@@ -17,7 +17,7 @@ def pinned_everywhere(name):
 class Rows(unittest.TestCase):
     def test_every_tool_at_its_pin_is_ok(self):
         rows = doctor.rows(present=lambda n: True, version_of=pinned_everywhere)
-        self.assertEqual([r["tool"] for r in rows], ["scc", "git-sizer", "betterleaks", "osv-scanner", "lizard"])
+        self.assertEqual([r["tool"] for r in rows], ["scc", "betterleaks", "osv-scanner", "lizard"])
         self.assertEqual({r["state"] for r in rows}, {"ok"})
 
     def test_a_missing_tool_a_moved_one_and_a_silent_one(self):

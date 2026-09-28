@@ -21,7 +21,6 @@ def sample_report():
         "authors": [{"entity": "static/apps-metadata.json", "n-authors": 4, "n-revs": 128}],
         "coupling": [{"entity": "static/tax.html", "coupled": "static/treasury.html", "degree": 85, "average-revs": 11}],
         "age": [{"entity": "static/index.html", "age-months": 0}],
-        "sizer": [{"name": "Blobs: Maximum size", "value": "21.3 MiB", "concern": 2, "ref": "static/video/clip.mp4"}],
         "cohorts": {"Code added in 2025": 8733, "Code added in 2026": 2728},
         "theseus_authors": {"Ann": 9076, "Bob": 2342},
         "secrets": [],
@@ -133,13 +132,13 @@ class Report(unittest.TestCase):
         self.assertNotIn("Dependencies:", text, "an output directory from before the step says nothing")
         self.assertIn("Secrets: none found", text)
 
-    def test_tables_show_people_hotspots_coupling_age_and_health(self):
+    def test_tables_show_people_hotspots_coupling_and_age(self):
         text = rendered(sample_report(), [], full=True)
         self.assertIn("Ann", text)
         self.assertIn("static/apps-metadata.json", text)
         self.assertIn("static/treasury.html", text)
         self.assertIn("2025", text)
-        self.assertIn("21.3 MiB", text)
+        self.assertNotIn("Repo health", text, "git-sizer's table left at 0.39.0")
 
     def test_header_mentions_the_window_when_bounded(self):
         r = sample_report()
@@ -1073,11 +1072,13 @@ class FullOnlySections(unittest.TestCase):
 
     def test_header_line_names_the_core_steps_that_did_not_finish(self):
         r = sample_report()
-        r["meta"]["steps"] = {"scc": "timeout", "git-sizer": "failed", "change analysis": "skipped", "betterleaks": "run", "trend": "failed"}
+        r["meta"]["steps"] = {"scc": "timeout", "osv-scanner": "failed", "change analysis": "skipped", "betterleaks": "run", "trend": "failed",
+                              "git-sizer": "failed"}   # a retired step an old meta.json still names is not a core one
         text = rendered(r, [], width=160)
-        self.assertIn("size timed out  ·  repo health failed  ·  change analysis skipped", text)
+        self.assertIn("size timed out  ·  change analysis skipped  ·  dependency scan failed", text)
         self.assertNotIn("trend failed", text, "the optional steps say so in their own sections")
-        self.assertIn("size timed out · repo health failed", render.markdown(r, []))
+        self.assertNotIn("repo health", text)
+        self.assertIn("size timed out · change analysis skipped", render.markdown(r, []))
         r["meta"]["steps"] = {"scc": "run"}
         self.assertNotIn("size", render.pulse(r)[0])
 
@@ -1446,8 +1447,7 @@ class Sections(unittest.TestCase):
         self.assertEqual(titles[:6], ["Watch list", "Watch list by component", "Size by language", "People", "Knowledge map", "Activity"])
         self.assertTrue(titles[6].startswith("Timeline"))
         self.assertTrue(titles[7].startswith("Hotspots"))
-        self.assertEqual(titles[-3], "Complex functions")
-        self.assertEqual(titles[-2], "Repo health (git-sizer concerns)")
+        self.assertEqual(titles[-2], "Complex functions")
         self.assertEqual(titles[-1], "OSPS Baseline")
         self.assertEqual([x["id"] for x in secs][:5], ["watch", "watch_by_component", "size", "people", "knowledge"])
         size = secs[2]

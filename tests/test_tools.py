@@ -48,9 +48,8 @@ class Pinned(unittest.TestCase):
                       "the venv is created without pip's script, so pip runs as a module")
 
     def test_differences_names_only_the_tools_that_moved(self):
-        found = {"scc": "4.1.0", "git-sizer": "1.6.0", "betterleaks": None,
-                 "osv-scanner": "2.6.0", "lizard": "1.24.0"}
-        self.assertEqual(tools.differences(found), [("git-sizer", "1.5.0", "1.6.0")], "a missing tool is not a difference")
+        found = {"scc": "4.2.0", "betterleaks": None, "osv-scanner": "2.6.0", "lizard": "1.24.0"}
+        self.assertEqual(tools.differences(found), [("scc", "4.1.0", "4.2.0")], "a missing tool is not a difference")
         self.assertEqual(tools.differences({}), [])
         self.assertEqual(tools.differences({k: v for k, v in tools.PINNED.items()}), [])
 
@@ -77,7 +76,7 @@ class Pinned(unittest.TestCase):
     def test_the_installer_downloads_the_archives_the_formula_installs(self):
         """One table of urls and hashes in two places is the bug this catches: on every platform, every archive
         the installer names must be the one the formula names for that tool there, with the same hash. A tool the
-        installer has no url for is one the formula compiles (git-sizer's source on Linux arm64). The formula may
+        installer has no url for would be one the formula compiles (as it did git-sizer's source on Linux arm64). The formula may
         also name a tool gitmole no longer runs: it installs the last released tarball, so a dropped tool stays
         in it through the version bump and the release (docs/development.md) and leaves it in a commit of its
         own; the check is then that every pinned tool is in the formula, not that the two lists are equal. The
@@ -106,15 +105,9 @@ class Pinned(unittest.TestCase):
             with self.subTest(platform=key):
                 self.assertEqual(sorted(per_tool), sorted(run.REQUIRED_TOOLS))
                 for name, entry in per_tool.items():
-                    if "url" in entry:
-                        self.assertIn(tools.PINNED[name], entry["url"], f"{name} on {key}")
-                        self.assertRegex(entry["sha256"], r"^[0-9a-f]{64}$")
-                    else:
-                        self.assertIn("note", entry, f"{name} on {key}: a tool without a url says why")
-                        self.assertIn(f"ReleaseVersion={tools.PINNED[name]}", entry["note"], "the build command carries the pin")
-        without = [(key, name) for key, per_tool in tools.ARCHIVES.items() for name, e in per_tool.items() if "url" not in e]
-        self.assertEqual(without, [(("linux", "arm64"), "git-sizer"), (("linux-musl", "arm64"), "git-sizer")],
-                         "the one build upstream does not publish")
+                    self.assertIn("url", entry, f"{name} on {key}: upstream publishes a build for every platform since git-sizer left")
+                    self.assertIn(tools.PINNED[name], entry["url"], f"{name} on {key}")
+                    self.assertRegex(entry["sha256"], r"^[0-9a-f]{64}$")
 
     def test_every_pinned_tool_has_a_release_page(self):
         self.assertEqual(sorted(tools.RELEASES), sorted(tools.PINNED))

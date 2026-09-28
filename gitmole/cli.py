@@ -637,7 +637,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected, tracked=tracked)
     types_spec = meta["file_types"]
     if run.is_shallow(repo_dir):
-        meta["shallow"] = True   # the history stops at the graft, and git-sizer does not run
+        meta["shallow"] = True   # the history stops at the graft
     lizard_ok = args.lizard
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,

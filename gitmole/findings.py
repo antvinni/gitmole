@@ -240,25 +240,6 @@ def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> li
                          "areas": [{"area": a, "share_pct": s} for a, s in theirs[:10]]})]
 
 
-def _sizer_advice(row: dict) -> str:
-    """The remedy for one git-sizer row, keyed on the loader's "section: metric" name. Big blobs
-    want LFS, many refs want pruning, a wide tree wants splitting, a big checkout wants a sparse
-    checkout; everything else that grows is history, and a shallow clone is the answer to that."""
-    section, _, metric = row["name"].partition(": ")
-    if section == "Blobs" and metric in ("Maximum size", "Total size"):
-        return "Move large files to Git LFS or rewrite them out of history."
-    if section in ("References", "Annotated tags"):
-        return "Consider pruning old branches and tags."
-    if section == "Biggest checkouts":
-        return "Consider a sparse checkout for CI; the tree is the cost."
-    if section == "Trees" and metric == "Maximum entries":
-        where = row.get("ref") or "the widest directory"
-        return f"Split {where} into subdirectories; a directory that wide slows every checkout and diff."
-    if section == "Commits" and metric in ("Maximum size", "Maximum parents"):
-        return "Look at that commit; oversized commits are usually imports or octopus merges."
-    return "Consider a shallow clone for CI; the history is the cost."
-
-
 def _tree(report: dict) -> dict:
     """The files at HEAD, from scc, or {} when the run has no size listing to judge by."""
     return (report.get("size") or {}).get("files") or {}
@@ -273,21 +254,6 @@ def at_head(report: dict, path: str):
         return None
     prefix = path.rstrip("/") + "/"
     return path in tree or any(p.startswith(prefix) for p in tree)
-
-
-def sizer_concerns(report: dict) -> list:
-    out = []
-    for row in report.get("sizer") or []:
-        sev = "warning" if row["concern"] >= 2 else "info"
-        where = f" at {row['ref']}" if row.get("ref") else ""
-        advice = _sizer_advice(row)
-        if row.get("ref") and row["name"].startswith("Blobs: ") and at_head(report, row["ref"]) is False:
-            where += ", no longer in the tree"   # deleting it did not shrink the clone
-            advice = "It is already gone from the tree; a history rewrite is only worth it for clone size."
-        out.append(_f(sev, "Repo health", f"{row['name']} is {row['value']}{where}. git-sizer level of concern {row['concern']}.", advice,
-                      rule={"id": "repo_health", "source": "git-sizer", "warning_at_concern": 2},
-                      evidence={"metric": row["name"], "value": row["value"], "concern": row["concern"], "ref": row.get("ref") or None}))
-    return out
 
 
 def sweeping_commits(report: dict) -> list:
@@ -1704,7 +1670,7 @@ def component_coupling(report: dict, min_degree: int = 30) -> list:
                evidence={"pairs": [{"a": p["entity"], "b": p["coupled"], "degree": p["degree"], "shared": p["shared"]} for p in pairs[:10]]})]
 
 
-RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, bug_magnets,
+RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, bug_magnets,
          minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, stale_files, knowledge_islands, knowledge_loss,
          sweeping_commits, import_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, import_cycles, unreferenced_files,
          agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author,
@@ -1715,7 +1681,7 @@ RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, plac
 # measure/labels.jsonl and none of them actionable (docs/measurement.md, "Hand labels"). The default terminal
 # report names them in one line instead of spelling each out; --full, Markdown, JSON, SARIF and --fail-on
 # see every finding as before. A test holds this set to the labels, both ways.
-SUMMARISED = frozenset({"authors_gone", "component_coupling", "knowledge_loss", "minor_contributors", "repo_health",
+SUMMARISED = frozenset({"authors_gone", "component_coupling", "knowledge_loss", "minor_contributors",
                         "reverts", "secrets_aside", "stale_files"})
 
 # Rules nobody has labelled yet: the structure step's, which ran only where tree-sitter was installed by hand

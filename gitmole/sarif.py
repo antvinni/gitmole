@@ -10,7 +10,7 @@ what GitHub ranks on rather than `level`.
 Two gitmole-specific points. Dedup: without a fingerprint the REST upload duplicates alerts, so every
 result carries `partialFingerprints["gitmole/v1"]`, a hash of rule, path, commit and line, derived
 from non-secret data, so two runs agree although the keyed value hashes in secrets.json never do.
-Scope: a secret in an old commit, a sweeping commit, a git-sizer blob no longer in the tree have no
+Scope: a secret in an old commit, a sweeping commit, a file no longer in the tree have no
 HEAD location; `--sarif-scope head` (the default) keeps only results whose file is in the tree, and
 `history` keeps everything, with the commit under `properties.commit`. A finding the head scope would
 leave with no result at all keeps one without a location (`properties.inTree` false), so every finding

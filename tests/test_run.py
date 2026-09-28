@@ -226,11 +226,11 @@ class Plan(unittest.TestCase):
     def test_lists_every_tool_and_theseus_plots_depend_on_analyze(self):
         steps = run.plan("/r", "/o")
         names = [s["name"] for s in steps]
-        for expected in ["scc", "tree", "git-sizer", "betterleaks", "git-log", "change analysis", "code age", "signing", "hygiene", "provenance"]:
+        for expected in ["scc", "tree", "betterleaks", "git-log", "change analysis", "code age", "signing", "hygiene", "provenance"]:
             self.assertIn(expected, names)
         self.assertEqual(by_name(steps)["signing"]["argv"][1:], [run.LAUNCH_SCRIPT, "gitmole.signing", "/o"], "commit signing coverage, read from the objects, no keyring")
         self.assertEqual(by_name(steps)["signing"]["deps"], [], "it reads meta.json for the bot names, written before the steps start")
-        for gone in ["onefetch", "git-quick-stats"]:
+        for gone in ["onefetch", "git-quick-stats", "git-sizer", "duplicates"]:
             self.assertNotIn(gone, names)
         for absent in ["git-of-theseus", "theseus stack plot", "theseus survival plot"]:
             self.assertNotIn(absent, names, "plots are opt-in")
@@ -301,13 +301,6 @@ class Plan(unittest.TestCase):
         self.assertTrue(argv[1].endswith("gitmole/leaks.py"), argv)
         self.assertEqual(argv[2:], ["/o/secrets.json"])
         self.assertIsNone(by["betterleaks"]["stdout"])
-
-    def test_git_sizer_runs_through_health_py_so_it_reads_the_commit_not_the_clone(self):
-        by = {s["name"]: s for s in run.plan("/r", "/o")}
-        self.assertEqual(by["git-sizer"]["argv"][0], sys.executable)
-        self.assertTrue(by["git-sizer"]["argv"][1].endswith("gitmole/health.py"), by["git-sizer"]["argv"])
-        self.assertEqual(by["git-sizer"]["argv"][2:], [], "health.py takes no arguments: it runs inside the repository and writes to stdout")
-        self.assertEqual(by["git-sizer"]["stdout"], "/o/repo-health.txt")
 
     def test_lizard_is_detected_as_a_python_module_not_a_command(self):
         self.assertNotIn("lizard", run.REQUIRED_TOOLS)
@@ -386,7 +379,7 @@ class Plan(unittest.TestCase):
 
     def test_the_pinned_tools_are_required_by_default_and_theseus_with_plots(self):
         """Checked against a directory of stub executables, not this machine's PATH."""
-        self.assertEqual(run.REQUIRED_TOOLS, ["scc", "git-sizer", "betterleaks", "osv-scanner"])
+        self.assertEqual(run.REQUIRED_TOOLS, ["scc", "betterleaks", "osv-scanner"])
         with tempfile.TemporaryDirectory() as d:
             for name in run.REQUIRED_TOOLS:
                 stub = os.path.join(d, name)
@@ -398,7 +391,7 @@ class Plan(unittest.TestCase):
             open(stub, "w").close()
             os.chmod(stub, 0o755)
             self.assertEqual(run.missing_tools(plots=True, path=d), [])
-        self.assertEqual(run.missing_tools(plots=True, path="/nonexistent"), ["scc", "git-sizer", "betterleaks", "osv-scanner", "git-of-theseus-analyze"])
+        self.assertEqual(run.missing_tools(plots=True, path="/nonexistent"), ["scc", "betterleaks", "osv-scanner", "git-of-theseus-analyze"])
 
     def test_theseus_tracks_the_given_branch(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", branch="trunk", plots=True)}
@@ -793,7 +786,7 @@ class ClearOutputs(unittest.TestCase):
 
 class Manifest(unittest.TestCase):
     def test_versions_are_the_last_version_token_of_the_first_line(self):
-        fake = {"scc": "scc version 4.1.0\n", "git-sizer": "git-sizer release 1.5.0\n", "betterleaks": "betterleaks version 1.8.1\n",
+        fake = {"scc": "scc version 4.1.0\n", "betterleaks": "betterleaks version 1.8.1\n",
                 "osv-scanner": "osv-scanner version: 2.6.0\ncommit: abc\n", "git": "git version 2.55.0\n"}
         with tempfile.TemporaryDirectory() as d:
             subprocess.run(["git", "init", "-q"], cwd=d, check=True)
@@ -803,7 +796,7 @@ class Manifest(unittest.TestCase):
             m = run.manifest(d, args, version_of=lambda name, path=None: re.findall(r"\d+\.\d+[\w.-]*", fake[name].split("\n")[0])[-1] if name in fake else None)
         self.assertEqual(m["commit"], sha)
         self.assertEqual(m["gitmole"], __version__)
-        self.assertEqual(m["tools"], {"git": "2.55.0", "scc": "4.1.0", "git-sizer": "1.5.0", "betterleaks": "1.8.1",
+        self.assertEqual(m["tools"], {"git": "2.55.0", "scc": "4.1.0", "betterleaks": "1.8.1",
                                       "osv-scanner": "2.6.0", "lizard": run.lizard_version()})
         self.assertEqual(m["options"], {"ignore": ["*.min.js"], "ignore_data": True, "deep": False})
 
@@ -845,7 +838,7 @@ class EmptyAndShallow(unittest.TestCase):
                    GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
         subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=env)
 
-    def test_an_empty_repository_has_no_commits_and_a_shallow_clone_skips_git_sizer(self):
+    def test_an_empty_repository_has_no_commits_and_a_shallow_clone_is_told_apart(self):
         with tempfile.TemporaryDirectory() as d:
             src, shallow = os.path.join(d, "src"), os.path.join(d, "shallow")
             os.makedirs(src)
@@ -860,6 +853,4 @@ class EmptyAndShallow(unittest.TestCase):
             self.assertFalse(run.is_shallow(src))
             self._git(d, "clone", "-q", "--depth", "1", "file://" + src, shallow)
             self.assertTrue(run.is_shallow(shallow))
-            names = {s["name"] for s in run.plan(shallow, os.path.join(d, "out"))}
-            self.assertNotIn("git-sizer", names)
-            self.assertIn("git-sizer", {s["name"] for s in run.plan(src, os.path.join(d, "out"))})
+

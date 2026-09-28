@@ -87,34 +87,6 @@ class ParseMaatCsv(unittest.TestCase):
         self.assertEqual(rows[0]["n-fixes"], 2)
 
 
-class ParseGitSizer(unittest.TestCase):
-    TEXT = """| Name                         | Value     | Level of concern               |
-| ---------------------------- | --------- | ------------------------------ |
-| * Blobs                      |           |                                |
-|   * Count                    |   951     |                                |
-|   * Maximum size         [4] |  21.3 MiB | **                             |
-| * Trees                      |           |                                |
-|   * Maximum entries      [3] |    24     |                                |
-| History structure            |           |                                |
-| * Maximum history depth      |   136 k   | *                              |
-| * Maximum tag depth          |     1     |                                |
-| Biggest checkouts            |           |                                |
-| * Number of files        [8] |  62.3 k   | *                              |
-| * Total size of files        |   747 MiB |                                |
-
-[3]  d2afdbc (e5d1b8f:static)
-[4]  b2ad626 (986027f:static/video/clip.mp4)
-"""
-
-    def test_returns_only_rows_with_concern_and_resolves_footnote(self):
-        rows = load.parse_git_sizer(self.TEXT)
-        self.assertEqual(rows, [
-            {"name": "Blobs: Maximum size", "value": "21.3 MiB", "concern": 2, "ref": "static/video/clip.mp4"},
-            {"name": "History structure: Maximum history depth", "value": "136 k", "concern": 1, "ref": ""},
-            {"name": "Biggest checkouts: Number of files", "value": "62.3 k", "concern": 1, "ref": ""},
-        ], "single-level sections (history structure, biggest checkouts) are rows too, not headers")
-
-
 class ParseTheseus(unittest.TestCase):
     def test_returns_latest_value_per_label(self):
         text = json.dumps({
@@ -315,7 +287,6 @@ class LoadReport(unittest.TestCase):
                 "maat-soc.csv": "entity,soc,partners\na.py,41,7\n",
                 "maat-tests.csv": "entity,n-sets,with-tests\na.py,3,1\n",
                 "maat-fixes.csv": "entity,n-fixes,last-fix,recent-fixes\na.py,2,2026-01-05,1\n",
-                "repo-health.txt": "",
                 "secrets.json": "[]",
                 "activity.json": json.dumps({"by_weekday": [1, 0, 0, 0, 0, 0, 0], "by_hour": [0] * 24, "by_month": {"2026-01": 1}, "authors": {}}),
                 "functions.csv": '3,2,20,1,3,"f@1-3@a.py","a.py","f","f( x )",1,3\n',
@@ -341,7 +312,7 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["tests"], [{"entity": "a.py", "n-sets": 3, "with-tests": 1}], "test co-change, as numbers")
         self.assertEqual(r["cohorts"], {"Code added in 2026": 10})
         self.assertEqual(r["theseus_authors"], {"Ann": 10})
-        self.assertEqual(r["sizer"], [])
+        self.assertNotIn("sizer", r, "git-sizer's step left at 0.39.0")
         self.assertEqual(r["secrets"], [])
         self.assertTrue(r["secrets_scanned"], "secrets.json was written, empty")
         self.assertEqual(r["activity"]["by_month"], {"2026-01": 1})

@@ -208,8 +208,8 @@ class FunctionMetrics(unittest.TestCase):
     def test_every_steps_outcome_is_recorded_not_only_the_optional_ones(self):
         _, meta, _ = self._main(True, [], step=("sh", "-c", "exit 3"), name="scc")
         self.assertEqual(meta["steps"], {"scc": "failed"})
-        _, meta, _ = self._main(True, [], name="git-sizer")
-        self.assertEqual(meta["steps"], {"git-sizer": "run"})
+        _, meta, _ = self._main(True, [], name="betterleaks")
+        self.assertEqual(meta["steps"], {"betterleaks": "run"})
 
 
 class Budget(unittest.TestCase):
@@ -1394,10 +1394,10 @@ class InstallTools(unittest.TestCase):
 
     def test_install_tools_exits_1_naming_what_did_not_land(self):
         c = console()
-        rc = cli.main(["--install-tools"], console=c, installer=lambda names, say=print, **kw: [n for n in names if n != "git-sizer"])
+        rc = cli.main(["--install-tools"], console=c, installer=lambda names, say=print, **kw: [n for n in names if n != "betterleaks"])
         text = c.export_text()
         self.assertEqual(rc, 1)
-        self.assertIn("not installed: git-sizer", text)
+        self.assertIn("not installed: betterleaks", text)
         self.assertIn("docs/install.md", text)
 
     def test_install_tools_refuses_a_target_and_downloads_nothing(self):

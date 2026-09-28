@@ -12,7 +12,6 @@ def report(**overrides):
         "revisions": [{"entity": "a", "n-revs": 10}, {"entity": "b", "n-revs": 9}],
         "coupling": [],
         "age": [{"entity": "a", "age-months": 0}],
-        "sizer": [],
         "theseus_authors": {"Ann": 60, "Bob": 40},
         "secrets": [],
     }
@@ -242,66 +241,6 @@ class BusFactor(unittest.TestCase):
         [f] = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}, **self.GONE))
         self.assertNotIn("Ann", f["advice"])
         self.assertIn("Have Bob, who holds the most surviving code among the people still here", f["advice"])
-
-
-class SizerConcerns(unittest.TestCase):
-    def test_one_finding_per_flagged_row_severity_by_stars(self):
-        r = report(sizer=[{"name": "Blobs: Maximum size", "value": "21.3 MiB", "concern": 2, "ref": "static/v.mp4"},
-                          {"name": "Trees: Maximum entries", "value": "2.1 k", "concern": 1, "ref": ""}])
-        f = findings.sizer_concerns(r)
-        self.assertEqual([x["severity"] for x in f], ["warning", "info"])
-        self.assertIn("static/v.mp4", f[0]["detail"])
-        self.assertEqual({x["title"] for x in f}, {"Repo health"}, "one title so the report can group them")
-        self.assertIn("Blobs: Maximum size", f[0]["detail"])
-        self.assertEqual(f[0]["advice"], "Move large files to Git LFS or rewrite them out of history.")
-        self.assertEqual(f[1]["advice"], "Split the widest directory into subdirectories; a directory that wide slows every checkout and diff.")
-
-    def test_a_big_blob_that_left_the_tree_says_so(self):
-        r = report(sizer=[{"name": "Blobs: Maximum size", "value": "21.3 MiB", "concern": 2, "ref": "static/old.mp4"}],
-                   size={"files": {"static/coming-soon.mp4": {"code": 0, "complexity": 0}}})
-        f = findings.sizer_concerns(r)[0]
-        self.assertIn("static/old.mp4, no longer in the tree", f["detail"])
-        self.assertIn("a history rewrite is only worth it for clone size", f["advice"])
-        r["size"]["files"]["static/old.mp4"] = {"code": 0, "complexity": 0}
-        f = findings.sizer_concerns(r)[0]
-        self.assertNotIn("no longer", f["detail"])
-        self.assertEqual(f["advice"], "Move large files to Git LFS or rewrite them out of history.")
-        r["size"] = {}
-        self.assertNotIn("no longer", findings.sizer_concerns(r)[0]["detail"], "without a tree listing nothing is claimed")
-
-    def test_a_binary_scc_does_not_list_is_still_in_the_tree(self):
-        # devlake's 37 MiB Mach-O backend/plugins/circleci/circleci is at HEAD; scc has no language for it
-        r = report(sizer=[{"name": "Blobs: Maximum size", "value": "37.4 MiB", "concern": 4, "ref": "backend/plugins/circleci/circleci"}],
-                   size={"files": {"backend/main.go": {"code": 10, "complexity": 1}}},
-                   tree=frozenset({"backend/main.go", "backend/plugins/circleci/circleci"}))
-        f = findings.sizer_concerns(r)[0]
-        self.assertNotIn("no longer", f["detail"])
-        self.assertEqual(f["advice"], "Move large files to Git LFS or rewrite them out of history.")
-        r["tree"] = frozenset({"backend/main.go"})
-        self.assertIn("no longer in the tree", findings.sizer_concerns(r)[0]["detail"], "the listing of HEAD decides, not scc")
-
-    def test_advice_per_kind_of_concern(self):
-        # keyed on the loader's "section: metric" names, which are the only ones that occur
-        def advice(name, ref=""):
-            return findings.sizer_concerns(report(sizer=[{"name": name, "value": "1", "concern": 1, "ref": ref}]))[0]["advice"]
-        lfs = "Move large files to Git LFS or rewrite them out of history."
-        prune = "Consider pruning old branches and tags."
-        shallow = "Consider a shallow clone for CI; the history is the cost."
-        self.assertEqual(advice("Blobs: Maximum size", "static/v.mp4"), lfs)
-        self.assertEqual(advice("Blobs: Total size"), lfs)
-        self.assertEqual(advice("Blobs: Count"), shallow, "many small blobs: history, not file size")
-        self.assertEqual(advice("References: Count"), prune)
-        self.assertEqual(advice("Annotated tags: Count"), prune)
-        self.assertEqual(advice("Commits: Count"), shallow)
-        self.assertEqual(advice("Commits: Total size"), shallow)
-        self.assertEqual(advice("Trees: Count"), shallow)
-        self.assertEqual(advice("Trees: Total tree entries"), shallow)
-        self.assertEqual(advice("History structure: Maximum history depth"), shallow)
-        self.assertEqual(advice("Trees: Maximum entries", "static"), "Split static into subdirectories; a directory that wide slows every checkout and diff.")
-        self.assertEqual(advice("Commits: Maximum size"), "Look at that commit; oversized commits are usually imports or octopus merges.")
-        self.assertEqual(advice("Commits: Maximum parents"), "Look at that commit; oversized commits are usually imports or octopus merges.")
-        self.assertEqual(advice("Biggest checkouts: Number of files"), "Consider a sparse checkout for CI; the tree is the cost.")
-        self.assertEqual(advice("Biggest checkouts: Total size of files"), "Consider a sparse checkout for CI; the tree is the cost.")
 
 
 class SweepingCommits(unittest.TestCase):
@@ -1163,7 +1102,6 @@ class Advice(unittest.TestCase):
     def test_every_finding_carries_its_next_step_as_a_field_that_ends_the_detail(self):
         r = report(secrets=[{"rule": "aws", "file": "a.env", "commit": "abc1234"}],
                    theseus_authors={"Ann": 79, "Bob": 21},
-                   sizer=[{"name": "Blobs: Maximum size", "value": "21.3 MiB", "concern": 2, "ref": "static/v.mp4"}],
                    revisions=[{"entity": "a.py", "n-revs": 128}, {"entity": "b.py", "n-revs": 51}],
                    fixes=[{"entity": "a.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5}],
                    functions=[{"file": "a.py", "function": "go", "ccn": 20, "nloc": 150, "params": 2, "start": 1, "end": 150}],
@@ -1175,7 +1113,7 @@ class Advice(unittest.TestCase):
                    ownership=[{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0}])
         r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 5, "aliases": [{"name": "root", "email": "root@localhost", "commits": 1}]}]
         found = findings.evaluate(r)
-        self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Repo health", "Bug magnets", "Brain methods",
+        self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Bug magnets", "Brain methods",
                                                       "A large share of files is untouched", "Unconfigured git identity", "Knowledge islands",
                                                       "Vulnerable dependencies"}, True)
         for f in found:

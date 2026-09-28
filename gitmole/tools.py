@@ -16,7 +16,6 @@ from __future__ import annotations
 # Formula/gitmole.rb, then measure, since a tool's own rules decide part of the report.
 PINNED = {
     "scc": "4.1.0",
-    "git-sizer": "1.5.0",
     "betterleaks": "1.8.1",
     "osv-scanner": "2.6.0",
     "lizard": "1.24.0",
@@ -30,8 +29,6 @@ ARCHIVES = {
     ("darwin", "arm64"): {
         "scc": {"url": "https://github.com/boyter/scc/releases/download/v4.1.0/scc_Darwin_arm64.tar.gz",
                 "sha256": "7201c7aa4aace058d43308462cba72adb18f6094c08c0741727455976d0a0747"},
-        "git-sizer": {"url": "https://github.com/github/git-sizer/releases/download/v1.5.0/git-sizer-1.5.0-darwin-arm64.zip",
-                      "sha256": "7d1e8a6e1218d4640eebcca54c78b855055eb387eac34647b4928f072ffb8805"},
         "betterleaks": {"url": "https://github.com/betterleaks/betterleaks/releases/download/v1.8.1/betterleaks_1.8.1_darwin_arm64.tar.gz",
                         "sha256": "8e80f33b5f2a7426b390347b9fd466033723cb94b6bdffa7572632e2eaec964e"},
         "osv-scanner": {"url": "https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_darwin_arm64",
@@ -40,8 +37,6 @@ ARCHIVES = {
     ("darwin", "x86_64"): {
         "scc": {"url": "https://github.com/boyter/scc/releases/download/v4.1.0/scc_Darwin_x86_64.tar.gz",
                 "sha256": "7f705031228add7e55edded409179a60de6b538d41f153ba2922dee95adda50d"},
-        "git-sizer": {"url": "https://github.com/github/git-sizer/releases/download/v1.5.0/git-sizer-1.5.0-darwin-amd64.zip",
-                      "sha256": "f491edfb6e6552ecec401cd6a2b57b6790c9110b34286a01a0d315f65530de50"},
         "betterleaks": {"url": "https://github.com/betterleaks/betterleaks/releases/download/v1.8.1/betterleaks_1.8.1_darwin_x64.tar.gz",
                         "sha256": "6abc37df76f881cffae406aa2cec72bea6e6ae64b4e771b3ed21b4aac472ed10"},
         "osv-scanner": {"url": "https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_darwin_amd64",
@@ -50,10 +45,6 @@ ARCHIVES = {
     ("linux", "arm64"): {
         "scc": {"url": "https://github.com/boyter/scc/releases/download/v4.1.0/scc_Linux_arm64.tar.gz",
                 "sha256": "6e0d2a1f8d3540ba7df185477dec40bb7340f1b214bfd303147de5cad2bd7b8b"},
-        "git-sizer": {"note": "upstream publishes no Linux arm64 build; the formula compiles it with Go, and "
-                              f"`go install -ldflags \"-X main.ReleaseVersion={PINNED['git-sizer']}\" "
-                              f"github.com/github/git-sizer@v{PINNED['git-sizer']}` does the same into ~/go/bin "
-                              "(without the -X flag the build prints no version)"},
         "betterleaks": {"url": "https://github.com/betterleaks/betterleaks/releases/download/v1.8.1/betterleaks_1.8.1_linux_arm64.tar.gz",
                         "sha256": "bbb578b12a2f65d7082ab436abf37724232bc71d8a078e3c41336574420f1b48"},
         "osv-scanner": {"url": "https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_arm64",
@@ -62,8 +53,6 @@ ARCHIVES = {
     ("linux", "x86_64"): {
         "scc": {"url": "https://github.com/boyter/scc/releases/download/v4.1.0/scc_Linux_x86_64.tar.gz",
                 "sha256": "c7328436d3027f4357d3d7853f7dc3ac2bbcb4ca08f1adad91a27c593884079b"},
-        "git-sizer": {"url": "https://github.com/github/git-sizer/releases/download/v1.5.0/git-sizer-1.5.0-linux-amd64.zip",
-                      "sha256": "a166f7692a02ba68239cb014386f0263ec15525a36928784482644423aae2395"},
         "betterleaks": {"url": "https://github.com/betterleaks/betterleaks/releases/download/v1.8.1/betterleaks_1.8.1_linux_x64.tar.gz",
                         "sha256": "efa407244e1ea8e35f582b8a42becdeac08bdead04f68eb752adda722d583c2a"},
         "osv-scanner": {"url": "https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_amd64",
@@ -80,7 +69,6 @@ for _cpu in ("x86_64", "arm64"):
 # Where a human gets a tool the installer cannot: named by --doctor and by a failed --install-tools.
 RELEASES = {
     "scc": "https://github.com/boyter/scc/releases",
-    "git-sizer": "https://github.com/github/git-sizer/releases",
     "betterleaks": "https://github.com/betterleaks/betterleaks/releases",
     "osv-scanner": "https://github.com/google/osv-scanner/releases",
     "lizard": "https://pypi.org/project/lizard/",
