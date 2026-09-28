@@ -214,6 +214,22 @@ class BusFactor(unittest.TestCase):
     def test_nothing_when_spread(self):
         self.assertEqual(findings.bus_factor(report()), [])
 
+    GONE = {"meta": {"name": "r", "commits": 100, "identities": [], "last_date": "2026-09-01", "gone_months": 12},
+            "activity": {"authors_all": {"Ann": {"last": "2024-01-01"}, "Bob": {"last": "2026-08-01"}}}}
+
+    def test_someone_who_has_left_is_marked_and_the_advice_names_who_is_still_here(self):
+        own = [{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0},
+               {"entity": "core/b.py", "author": "Bob", "added": 50, "deleted": 0}]
+        [f] = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}, ownership=own, **self.GONE))
+        self.assertTrue(f["detail"].startswith("Ann (gone) wrote 79% of the code that survives today."), f["detail"])
+        self.assertEqual(f["advice"], "Have Bob, its largest author still here, own core/ first.")
+        self.assertEqual((f["evidence"]["gone"], f["evidence"]["ask"]), (True, "Bob"))
+        [f] = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}, ownership=own[:1], **self.GONE))
+        self.assertEqual(f["advice"], "Nobody still here has written any of core/; give it an owner.")
+        [f] = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}, **self.GONE))
+        self.assertNotIn("Ann", f["advice"])
+        self.assertIn("Have Bob, who holds the most surviving code among the people still here", f["advice"])
+
 
 class SizerConcerns(unittest.TestCase):
     def test_one_finding_per_flagged_row_severity_by_stars(self):
@@ -321,7 +337,7 @@ class MinorContributors(unittest.TestCase):
         self.assertIn("src/f0.py (9 of 15 authors)", f["detail"])
         self.assertIn("3 of the minor contributors are major contributors to a file these change with and are not counted", f["detail"])
         self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 9, "minor_all": 12, "authors": 15, "owner": "Ann",
-                                                     "expected": [{"author": "Minor 0", "via": ["src/f1.py"]}, {"author": "Minor 1", "via": ["src/f1.py"]},
+                                                     "owner_gone": False, "ask": "Ann", "expected": [{"author": "Minor 0", "via": ["src/f1.py"]}, {"author": "Minor 1", "via": ["src/f1.py"]},
                                                                   {"author": "Minor 2", "via": ["src/f1.py"]}]})
         self.assertEqual(f["rule"]["expected_share"], 0.05, "the major/minor line the exclusion uses is the rule's own")
 
@@ -341,7 +357,17 @@ class MinorContributors(unittest.TestCase):
                                       "Bird et al. found the count of minor contributors the strongest ownership predictor of defects.")
         self.assertEqual(f["rule"], {"id": "minor_contributors", "min_minor": 5, "warn_at": 10, "minor_share": 0.05, "top_n": 10, "expected_share": 0.05,
                                      "ref": "Bird et al., FSE 2011"})
-        self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 12, "minor_all": 12, "authors": 15, "owner": "Ann", "expected": []})
+        self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 12, "minor_all": 12, "authors": 15, "owner": "Ann", "owner_gone": False, "ask": "Ann", "expected": []})
+
+    def test_a_main_author_who_has_left_is_not_the_one_asked_to_review(self):
+        r = self.report([12] + [0] * 11)
+        r["meta"].update(last_date="2026-09-01", gone_months=12)
+        r["activity"] = {"authors_all": {"Ann": {"last": "2024-01-01"}, "Minor 0": {"last": "2026-08-01"}}}
+        [f] = findings.minor_contributors(r)
+        self.assertNotIn("Ann", f["advice"])
+        self.assertTrue(f["advice"].startswith("Have Minor 0, its largest author still here (its main one is gone), review changes to src/f0.py from anyone else;"),
+                        f["advice"])
+        self.assertEqual((f["evidence"]["files"][0]["owner"], f["evidence"]["files"][0]["owner_gone"]), ("Ann", True))
 
     def test_info_below_ten_and_nothing_below_five(self):
         [f] = findings.minor_contributors(self.report([5] + [0] * 11))
@@ -857,6 +883,13 @@ class KnowledgeIslands(unittest.TestCase):
         self.assertNotIn("web/", f[0]["detail"])
         self.assertTrue(f[0]["detail"].endswith("Pair someone with Ann on core/ first; it is the largest at 1,000 lines."), f[0]["detail"])
 
+    def test_an_island_whose_author_has_left_is_marked_and_handed_to_someone_still_here(self):
+        r = report(ownership=self.OWN, meta={"name": "r", "commits": 100, "identities": [], "last_date": "2026-09-01", "gone_months": 12},
+                   activity={"authors_all": {"Ann": {"last": "2024-01-01"}, "Bob": {"last": "2026-08-01"}}})
+        [f] = findings.knowledge_islands(r)
+        self.assertIn("core/ (Ann (gone) 95%)", f["detail"])
+        self.assertEqual(f["advice"], "Have Bob, its largest author still here, own core/ first; it is the largest at 1,000 lines.")
+
     def test_info_when_islands_are_a_minority(self):
         own = self.OWN + [{"entity": "web/k.html", "author": "Dan", "added": 3000, "deleted": 0}]
         f = findings.knowledge_islands(report(ownership=own))
@@ -1146,7 +1179,7 @@ class Advice(unittest.TestCase):
     def test_a_bus_factor_can_be_rechecked_from_its_own_rule_and_evidence(self):
         f = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}))[0]
         self.assertEqual(f["rule"], {"id": "bus_factor", "threshold": 0.7, "min_lines": 200})
-        self.assertEqual(f["evidence"], {"author": "Ann", "lines": 79, "total_lines": 100, "areas": []})
+        self.assertEqual(f["evidence"], {"author": "Ann", "gone": False, "ask": None, "lines": 79, "total_lines": 100, "areas": []})
         self.assertGreater(f["evidence"]["lines"] / f["evidence"]["total_lines"], f["rule"]["threshold"])
 
 
@@ -1609,6 +1642,28 @@ class TruckFactor(unittest.TestCase):
         self.assertEqual(f["evidence"]["areas"], [{"area": "core/", "author": "Ann", "files": 20, "orphaned": 20}],
                          "an area row says how big the area is and what one departure orphans; web/ has under ten files and is not judged")
 
+    def test_people_who_have_left_are_marked_and_not_the_ones_to_pair_with(self):
+        doa = [self.row(f"core/a{i}.py", "Cat") for i in range(20)] + [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa))}["truck_factor"]
+        self.assertIn("Truck factor 1: without Cat (gone), 20 of the 28 source files", f["detail"])
+        self.assertIn("have no author left. For those marked gone it already has.", f["detail"])
+        self.assertIn("core/ (Cat (gone))", f["detail"])
+        self.assertEqual(f["advice"], "Pair someone with Bob first; they author the most files among the people still here.")
+
+    def test_the_area_named_in_the_advice_is_the_named_persons_own(self):
+        doa = [self.row(f"a{i}.py", "Ann") for i in range(20)] + [self.row(f"core/b{i}.py", "Bob") for i in range(10)]
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa))}["truck_factor"]
+        self.assertEqual(f["evidence"]["areas"], [{"area": "core/", "author": "Bob", "files": 10, "orphaned": 10}])
+        self.assertEqual(f["advice"], "Pair someone with Ann first; they author most of what would be left without an author.",
+                         "core/ is Bob's: it is not where to pair someone with Ann")
+
+    def test_an_even_split_of_the_surviving_code_is_explained(self):
+        doa = [self.row(f"core/a{i}.py", "Ann") for i in range(20)] + [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa, theseus_authors={"Ann": 50, "Bob": 50}))}["truck_factor"]
+        self.assertIn("Truck factor 1: without Ann (50% of the surviving code), 20 of the 28 source files", f["detail"])
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa))}["truck_factor"]
+        self.assertNotIn("surviving code", f["detail"], "Ann's 60% agrees with the truck factor")
+
     def test_a_shared_codebase_has_none(self):
         doa = [self.row(f"core/a{i}.py", who) for i in range(30) for who in ("Ann", "Bob", "Cat")]
         self.assertNotIn("truck_factor", {f["rule"]["id"] for f in findings.evaluate(self.rep(doa))})
@@ -1660,6 +1715,9 @@ class ImportCommits(unittest.TestCase):
         self.assertEqual(f[0]["rule"]["id"], "import_commits")
         self.assertIn("79d8f164f8 by Dan (12,449 files, 2,800,751 lines, 42% of every line the history adds", f[0]["detail"])
         self.assertEqual(findings.import_commits(report(activity={})), [])
+        act["authors_all"] = {"Dan": {"last": "2019-03-26"}}
+        f = findings.import_commits(report(activity=act, meta={"name": "r", "commits": 100, "identities": [], "last_date": "2026-09-01"}))
+        self.assertIn("79d8f164f8 by Dan (gone, 12,449 files", f[0]["detail"])
 
 
 class SecretsByConfidence(unittest.TestCase):

@@ -22,11 +22,11 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
 
 
-def select_files(repo: str, ignore=(), types_spec: str = None) -> list:
+def select_files(repo: str, ignore=(), types_spec: str = None, paths=()) -> list:
     """Tracked text files lizard can parse. Without --file-types that is every language lizard
     knows (a superset of gitmole's default code list, e.g. Fortran); with it, the intersection."""
     types = filetypes.parse(types_spec)
-    files = blame.text_files(repo, ignore) if types_spec is None else blame.code_files(repo, ignore, types)
+    files = blame.text_files(repo, ignore, paths) if types_spec is None else blame.code_files(repo, ignore, types, paths)
     return [f for f in files if lizard.get_reader_for(f) is not None]
 
 
@@ -173,8 +173,9 @@ def main(argv=None) -> int:
     p.add_argument("--procs", type=int, default=1)
     p.add_argument("--ignore", action="append", default=[])
     p.add_argument("--types", default=None, help="file types spec as for gitmole --file-types")
+    p.add_argument("--path", action="append", default=[], help="only the files under this directory (repeatable), as gitmole --path")
     args = p.parse_args(argv)
-    files = select_files(args.repo, args.ignore, args.types)
+    files = select_files(args.repo, args.ignore, args.types, args.path)
     return measure(os.path.abspath(args.repo), files, os.path.abspath(args.out), max(1, args.procs))
 
 

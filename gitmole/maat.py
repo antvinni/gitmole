@@ -32,10 +32,11 @@ import sys
 from collections import Counter, defaultdict
 
 try:
-    from . import filetypes, identity
+    from . import filetypes, identity, scope as scopes
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
     import identity
+    import scope as scopes
 
 TRAILER_SEP = "\x1f"   # the unit separator between the subject and each Co-authored-by value in the log
 _TRAILER = re.compile(r"^\s*(?P<name>[^<]*?)\s*(?:<(?P<email>[^>]*)>)?\s*$")
@@ -588,12 +589,14 @@ def latenight(commits: list) -> list:
     return rows
 
 
-def component(path: str, depth: int) -> str:
+def component(path: str, depth: int, base: int = 0) -> str:
+    """The path's first `depth` directories below the first `base` (a --path run's shared directories, see
+    scope.base), or "(root files)" for a file with none there."""
     dirs = path.split("/")[:-1]
-    return "/".join(dirs[:depth]) + "/" if dirs else "(root files)"
+    return "/".join(dirs[:base + depth]) + "/" if len(dirs) > base else "(root files)"
 
 
-def components(commits: list, min_shared: int = 10, min_degree: int = 20, max_components: int = 10) -> list:
+def components(commits: list, min_shared: int = 10, min_degree: int = 20, max_components: int = 10, base: int = 0) -> list:
     """Coupling between components, the files truncated to their first one and two directories, over
     the logical changes: two files in one directory changing together is a layout, `auth/` and
     `billing/` changing together 40% of the time is architecture. A change that spans more than
@@ -602,7 +605,7 @@ def components(commits: list, min_shared: int = 10, min_degree: int = 20, max_co
     for depth in (1, 2):
         revs, shared = Counter(), Counter()
         for c in changesets(commits):
-            comps = sorted({component(p, depth) for p, _, _ in c["files"]} - {"(root files)"})
+            comps = sorted({component(p, depth, base) for p, _, _ in c["files"]} - {"(root files)"})
             if not comps or len(comps) > max_components:
                 continue
             revs.update(comps)
@@ -685,15 +688,17 @@ def entity_ownership(commits: list) -> list:
 
 
 def author_totals(commits: list) -> dict:
-    """Per person: commits they are credited on, lines added and deleted (shared with co-authors),
-    and the first and last date they committed."""
+    """Per person: commits they are credited on, the ones among them they authored (the rest came from
+    Co-authored-by trailers), lines added and deleted (shared with co-authors), and the first and last
+    date they committed."""
     out = {}
     for c in commits:
         crew = people(c)
         added, deleted = sum(x for _, x, _ in c["files"]), sum(x for _, _, x in c["files"])
         for who, x, y in zip(crew, _shares(added, len(crew)), _shares(deleted, len(crew))):
-            a = out.setdefault(who, {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
+            a = out.setdefault(who, {"commits": 0, "authored": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
             a["commits"] += 1
+            a["authored"] += who == c["author"]
             a["added"] += x
             a["deleted"] += y
             a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
@@ -760,8 +765,7 @@ def activity(commits: list, ignored: set = frozenset()) -> dict:
             if is_rev:
                 reverted[p] += 1
         net_by_year[c["date"][:4]] += net
-        for who in people(c):
-            timeline[who][c["date"][:7]] += 1
+        timeline[c["author"]][c["date"][:7]] += 1   # authored commits: a trailer's credit is not a commit of theirs
         fix_commits += is_fix(c.get("subject", ""))
         if is_rev:
             revert_commits += 1
@@ -840,6 +844,12 @@ def bots_from_meta(path: str) -> set:
     return {b["name"] for b in meta.get("bots") or []}
 
 
+def scope_from_meta(path: str) -> list:
+    """The --path directories the run recorded, or [] for the whole repository."""
+    with open(path) as fh:
+        return list(json.load(fh).get("scope") or [])
+
+
 def in_window(commits: list, since: str = None, until: str = None) -> list:
     """Commits authored on or after `since` and before `until` (YYYY-MM-DD); all of them when both are None."""
     return [c for c in commits if (not since or c["date"] >= since) and (not until or c["date"] < until)]
@@ -869,6 +879,8 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filet
         source = kept_all if name == "age" else kept   # ages describe the whole history
         if name == "doa":   # the files an import created have no creator here
             rows = fn(source, now=now, imported=imported_files(commits))
+        elif name == "components":   # a --path run's components are the directories below the ones it names
+            rows = fn(source, base=scopes.base(scope_from_meta(aliases_path) if aliases_path else []))
         else:
             rows = fn(source, now=now) if name in NEEDS_NOW else fn(source)
         with open(os.path.join(out_dir, f"maat-{name}.csv"), "w", newline="", encoding="utf-8") as fh:

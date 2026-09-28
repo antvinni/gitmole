@@ -13,6 +13,33 @@ IDS = [
 
 
 class Merge(unittest.TestCase):
+    def test_a_shared_no_reply_mailbox_does_not_make_two_names_one_person(self):
+        ids = [{"name": "Tool Alpha", "email": "noreply@service.example", "commits": 9},
+               {"name": "Tool Beta", "email": "noreply@service.example", "commits": 4},
+               {"name": "Tool Alpha (large)", "email": "noreply@service.example", "commits": 2},
+               {"name": "Helper", "email": "no-reply@other.example", "commits": 3},
+               {"name": "Assistant", "email": "No-Reply@other.example", "commits": 1}]
+        merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
+        self.assertEqual(merged, {"Tool Alpha": 11, "Tool Beta": 4, "Helper": 3, "Assistant": 1},
+                         "the mailbox names no one; two names that match on their own still merge")
+
+    def test_an_empty_email_does_not_make_two_names_one_person(self):
+        ids = [{"name": "Dao Cong Tien", "email": "", "commits": 2}, {"name": "Nguyen Van Trung", "email": "", "commits": 1}]
+        self.assertEqual(len(identity.merge(ids)), 2)
+
+    def test_a_per_account_github_no_reply_address_still_merges(self):
+        ids = [{"name": "antvinni", "email": "5262575+antvinni@users.noreply.github.com", "commits": 9},
+               {"name": "vinni", "email": "5262575+antvinni@users.noreply.github.com", "commits": 4},
+               {"name": "someone", "email": "someone@users.noreply.github.com", "commits": 1},
+               {"name": "some one", "email": "someone@users.noreply.github.com", "commits": 1}]
+        self.assertEqual({m["name"]: m["commits"] for m in identity.merge(ids)}, {"antvinni": 13, "someone": 2})
+
+    def test_shared_mailbox_is_a_shape(self):
+        for email in ("noreply@x.example", "no-reply@x.example", "no_reply@x.example", "donotreply@x.example", "do-not-reply@x.example", "", "  "):
+            self.assertTrue(identity.shared_mailbox(email), email)
+        for email in ("1+a@users.noreply.github.com", "a@users.noreply.github.com", "noreplyer@x.example", "ann@x.example", "reply@x.example"):
+            self.assertFalse(identity.shared_mailbox(email), email)
+
     def test_groups_by_shared_name_tokens_or_same_email(self):
         merged = identity.merge(IDS)
         names = [m["name"] for m in merged]

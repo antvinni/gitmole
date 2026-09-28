@@ -34,11 +34,25 @@ GIT_DIR = ".git/**"   # walked otherwise: the hook samples in .git/hooks are bas
 BLOCKS_KEPT = 1000   # the finding names three; the JSON export carries the largest thousand
 
 
-def select_files(repo: str, ignore=(), types_spec: str = None) -> list:
+def select_files(repo: str, ignore=(), types_spec: str = None, paths=()) -> list:
     """Tracked code files, as hotspots and coupling select them: the built-in source list without
     --file-types, the given list with it, everything with `all`. Data files are left out on purpose: a
-    locale file copied per language or a fixture pasted twice is not duplicated code."""
-    return blame.code_files(repo, ignore, filetypes.parse(types_spec))
+    locale file copied per language or a fixture pasted twice is not duplicated code. With `paths`
+    (--path's directories), only the files under them."""
+    return blame.code_files(repo, ignore, filetypes.parse(types_spec), paths)
+
+
+def _glob_escape(path: str) -> str:
+    return "".join("\\" + c if c in "*?[]{}()!\\" else c for c in path)
+
+
+def pattern(paths) -> list:
+    """jscpd's --pattern for --path's directories: it then walks only them and still names every file from
+    the root, which jscpd pointed at a directory does not (it names them from that directory)."""
+    if not paths:
+        return []
+    globs = [_glob_escape(p) + "/**" for p in paths]
+    return ["--pattern", globs[0] if len(globs) == 1 else "{" + ",".join(globs) + "}"]
 
 
 def _rel(name: str) -> str:
@@ -98,14 +112,14 @@ def rate(blocks: list, repo: str, files: list) -> float:
     return round(100.0 * duplicated / total, 2) if total else 0.0
 
 
-def run_jscpd(repo: str, out: str, procs: int, ignore=()) -> tuple:
+def run_jscpd(repo: str, out: str, procs: int, ignore=(), paths=()) -> tuple:
     """(returncode, report dict or None). The report goes to a temporary directory under `out`."""
     tmp = tempfile.mkdtemp(prefix=".jscpd-", dir=out)
     try:
         globs = [GIT_DIR] + [g for g in ignore if "," not in g]   # jscpd takes a comma list; a pattern with a comma is left to the filter
         # --silent keeps the progress off stderr; the ignore globs only save work, the tracked-file filter decides
         argv = ["jscpd", "--reporters", "json", "--output", tmp, "--silent", "--no-tips", "--ignore", ",".join(globs),
-                "--workers", str(max(1, procs)), "."]
+                "--workers", str(max(1, procs)), *pattern(paths), "."]
         # the jscpd --install-tools placed comes first, as on a run's PATH: called in-process (tests, measure) too
         path = os.pathsep.join([*userdirs.tool_dirs(["jscpd"]), os.environ.get("PATH", "")])
         proc = subprocess.run(argv, cwd=repo, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -130,16 +144,17 @@ def rev_before(repo: str, date: str):
     return out.stdout.strip() or None
 
 
-def files_at(repo: str, rev: str, ignore=(), types_spec: str = None) -> list:
+def files_at(repo: str, rev: str, ignore=(), types_spec: str = None, paths=()) -> list:
     """The tracked text files of the tree at `rev`, in the analysed types, as select_files lists HEAD's."""
     import fnmatch
     proc = subprocess.run([*filetypes.GIT, "grep", "-I", "--name-only", "-z", "-e", "", rev], cwd=repo, capture_output=True)
     types = filetypes.parse(types_spec)
-    paths = sorted(p.decode("utf-8", "surrogateescape").split(":", 1)[1] for p in proc.stdout.split(b"\0") if p)
-    return [f for f in paths if filetypes.matches(f, types) and not any(fnmatch.fnmatch(f, g) for g in ignore)]
+    names = sorted(p.decode("utf-8", "surrogateescape").split(":", 1)[1] for p in proc.stdout.split(b"\0") if p)
+    return [f for f in names if filetypes.matches(f, types) and not any(fnmatch.fnmatch(f, g) for g in ignore)
+            and (not paths or any(f.startswith(d + "/") for d in paths))]
 
 
-def rate_at(repo: str, out: str, rev: str, procs: int, ignore=(), types_spec: str = None):
+def rate_at(repo: str, out: str, rev: str, procs: int, ignore=(), types_spec: str = None, paths=()):
     """The duplicated share of the tree at `rev`: the tree exported through a temporary index under
     `out` (as the backtest exports its cut-off), jscpd over it, the same fold and rate as HEAD's."""
     tmp = tempfile.mkdtemp(prefix=".dup-then-", dir=out)
@@ -149,8 +164,10 @@ def rate_at(repo: str, out: str, rev: str, procs: int, ignore=(), types_spec: st
         env = dict(os.environ, GIT_INDEX_FILE=os.path.join(tmp, "index"))
         subprocess.run(["git", "read-tree", rev], cwd=repo, env=env, check=True, capture_output=True)
         subprocess.run(["git", "checkout-index", "-a", f"--prefix={tree}/"], cwd=repo, env=env, check=True, capture_output=True)
-        files = files_at(repo, rev, ignore, types_spec)
-        rc, report = run_jscpd(tree, out, procs, ignore)
+        files = files_at(repo, rev, ignore, types_spec, paths)
+        if paths and not files:   # the directories held no code a year back: nothing to measure, and never the whole tree
+            return None
+        rc, report = run_jscpd(tree, out, procs, ignore, paths)
         if rc != 0:
             return None
         blocks = fold(report.get("duplicates") or [], set(files))
@@ -177,11 +194,12 @@ def main(argv=None) -> int:
     p.add_argument("--procs", type=int, default=1)
     p.add_argument("--ignore", action="append", default=[])
     p.add_argument("--types", default=None, help="file types spec as for gitmole --file-types")
+    p.add_argument("--path", action="append", default=[], help="only the files under this directory (repeatable), as gitmole --path")
     p.add_argument("--then", metavar="YYYY-MM-DD", help="also measure the tree at the last commit before this date, for the direction")
     args = p.parse_args(argv)
     repo, out = os.path.abspath(args.repo), os.path.abspath(args.out)
-    files = select_files(repo, args.ignore, args.types)
-    rc, report = run_jscpd(repo, out, args.procs, args.ignore)
+    files = select_files(repo, args.ignore, args.types, args.path)
+    rc, report = run_jscpd(repo, out, args.procs, args.ignore, args.path)
     if rc != 0:
         return rc
     blocks = fold(report.get("duplicates") or [], set(files))
@@ -189,7 +207,7 @@ def main(argv=None) -> int:
               "rate": rate(blocks, repo, files), "blocks": blocks[:BLOCKS_KEPT]}
     if args.then:
         rev = rev_before(repo, args.then)
-        measured = rate_at(repo, out, rev, args.procs, args.ignore, args.types) if rev else None
+        measured = rate_at(repo, out, rev, args.procs, args.ignore, args.types, args.path) if rev else None
         if measured:
             result["then"] = {"date": args.then, "rev": rev[:12], **measured}
     write(result, os.path.join(out, "duplicates.json"))
