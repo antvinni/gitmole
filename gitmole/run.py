@@ -226,7 +226,7 @@ def manifest(repo_dir: str, args, version_of=tool_version, lizard_of=lizard_vers
 # Everything a run writes besides meta.json and run.log. Removed before each run so a reused
 # --out directory never shows a previous run's data as this run's (a step skipped or killed
 # this time would otherwise leave last time's file in place).
-OUTPUTS = ["size.json", "repo-health.txt", "secrets.json", "dependencies.json", "packages.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json", "provenance.json",
+OUTPUTS = ["size.json", "tree.txt", "repo-health.txt", "secrets.json", "dependencies.json", "packages.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json", "provenance.json",
            "duplicates.json", "duplicates.txt",   # duplicates.txt: what lizard's finder wrote before jscpd
            "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]
@@ -284,6 +284,8 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
                     "--procs", str(procs or os.cpu_count() or 2), "--interval", str(interval), *ignores]
     steps = [
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
+        # every path at HEAD, NUL-separated: scc lists only the files it has a language for, and a binary is not one
+        {"name": "tree", "argv": [*filetypes.GIT, "ls-tree", "-r", "-z", "--name-only", "HEAD"], "stdout": o("tree.txt"), "deps": []},
         *([] if is_shallow(repo_dir) else   # git-sizer needs the whole object graph; the run records why it is missing
           # over HEAD's history only, through health.py: what other references in this clone reach is the clone's, not the commit's
           [{"name": "git-sizer", "argv": [sys.executable, HEALTH_SCRIPT], "stdout": o("repo-health.txt"), "deps": []}]),

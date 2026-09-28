@@ -1289,7 +1289,7 @@ def dumps_json(report: dict, findings: list, risk: dict = None, compare: dict = 
 
 
 def to_json(report: dict, findings: list, risk: dict = None, compare: dict = None) -> dict:
-    out = {**{k: v for k, v in report.items() if k != "backtest"}, "findings": findings,   # the sub-report is a report of its own
+    out = {**{k: v for k, v in report.items() if k not in ("backtest", "tree")}, "findings": findings,   # the sub-report is a report of its own; the listing is the clone's
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
     out["watch_by_component"] = [{"component": g["component"], "share": round(g["share"], 3), "files": [x["file"] for x in g["files"]]}

@@ -280,6 +280,17 @@ def _read(out_dir: str, name: str) -> str:
         return fh.read()
 
 
+def parse_tree(out_dir: str, meta: dict):
+    """The paths at HEAD from tree.txt (git ls-tree -r -z --name-only), or None when the run has none to
+    judge by: an output directory from before the step, or a step that did not finish."""
+    path = os.path.join(out_dir, "tree.txt")
+    if not os.path.exists(path) or ((meta.get("steps") or {}).get("tree") or "run") != "run":
+        return None
+    with open(path, "rb") as fh:
+        paths = frozenset(p.decode("utf-8", "replace") for p in fh.read().split(b"\0") if p)
+    return paths or None
+
+
 def _read_json(out_dir: str, name: str, default):
     """`default` for a missing file or one a killed step left truncated or malformed."""
     return _json_or(_read(out_dir, name), default)
@@ -322,6 +333,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "meta": meta,
         # a run records its --file-types spec (None for the default list); a run from before that record
         # was measured unfiltered, so it is re-rendered unfiltered rather than with a guessed list
+        "tree": parse_tree(out_dir, meta),   # every path at HEAD, binaries too; None before 0.39
         "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta["file_types"]) if "file_types" in meta else None),
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "plumbing": parse_maat_csv(_read(out_dir, "maat-plumbing.csv")),

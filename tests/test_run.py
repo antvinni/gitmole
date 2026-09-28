@@ -226,7 +226,7 @@ class Plan(unittest.TestCase):
     def test_lists_every_tool_and_theseus_plots_depend_on_analyze(self):
         steps = run.plan("/r", "/o")
         names = [s["name"] for s in steps]
-        for expected in ["scc", "git-sizer", "betterleaks", "git-log", "change analysis", "code age", "signing", "hygiene", "provenance"]:
+        for expected in ["scc", "tree", "git-sizer", "betterleaks", "git-log", "change analysis", "code age", "signing", "hygiene", "provenance"]:
             self.assertIn(expected, names)
         self.assertEqual(by_name(steps)["signing"]["argv"][1:], [run.LAUNCH_SCRIPT, "gitmole.signing", "/o"], "commit signing coverage, read from the objects, no keyring")
         self.assertEqual(by_name(steps)["signing"]["deps"], [], "it reads meta.json for the bot names, written before the steps start")

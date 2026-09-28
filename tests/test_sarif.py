@@ -88,6 +88,12 @@ class Document(unittest.TestCase):
         self.assertEqual({r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for r in history["runs"][0]["results"] if "locations" in r},
                          {"gone.py", "src/a.py"})
 
+    def test_head_scope_judges_presence_by_the_listing_of_head(self):
+        found = [finding("bug_magnets", evidence={"files": [{"file": ".env"}, {"file": "gone.py"}]})]
+        head = sarif.build(report(tree=frozenset({"src/a.py", ".env"})), found, scope="head")
+        self.assertEqual([r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for r in head["runs"][0]["results"]], [".env"],
+                         "a file scc has no language for is at HEAD all the same")
+
     def test_secrets_are_one_result_per_place_from_the_rows_with_a_stable_fingerprint(self):
         rows = [{"rule": "aws-access-token", "file": "src/a.py", "commit": "c1c1c1c", "line": 9, "fingerprint": "x", "value": "h1", "placeholder": False},
                 {"rule": "aws-access-token", "file": "src/a.py", "commit": "c1c1c1c", "line": 9, "fingerprint": "x", "value": "h1", "placeholder": False},

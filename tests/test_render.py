@@ -1471,6 +1471,11 @@ class Json(unittest.TestCase):
         self.assertNotIn("backtest", j, "a second whole report inside the export helps nobody")
         self.assertIn("watch_backtest", j, "the numbers drawn from it stay")
 
+    def test_the_listing_of_head_is_left_out(self):
+        r = sample_report()
+        r["tree"] = frozenset({"a.py", "bin/tool"})
+        self.assertNotIn("tree", render.to_json(r, []), "every path in the clone is not a finding; the JSON is a cost lane")
+
 
 class ChangeRisk(unittest.TestCase):
     RISK = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times", "fixed 5 times in six months"], "watched": True},

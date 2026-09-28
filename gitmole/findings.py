@@ -232,14 +232,24 @@ def _tree(report: dict) -> dict:
     return (report.get("size") or {}).get("files") or {}
 
 
+def at_head(report: dict, path: str):
+    """Whether a path (a file, or a directory by its prefix) is in the tree at HEAD: from the run's
+    listing of HEAD when it has one, else from scc's file list, which leaves out every file it has no
+    language for (a binary, a .env); None when there is neither to judge by."""
+    tree = report.get("tree") or _tree(report)
+    if not tree:
+        return None
+    prefix = path.rstrip("/") + "/"
+    return path in tree or any(p.startswith(prefix) for p in tree)
+
+
 def sizer_concerns(report: dict) -> list:
-    tree = _tree(report)
     out = []
     for row in report.get("sizer") or []:
         sev = "warning" if row["concern"] >= 2 else "info"
         where = f" at {row['ref']}" if row.get("ref") else ""
         advice = _sizer_advice(row)
-        if row.get("ref") and tree and row["name"].startswith("Blobs: ") and row["ref"] not in tree:
+        if row.get("ref") and row["name"].startswith("Blobs: ") and at_head(report, row["ref"]) is False:
             where += ", no longer in the tree"   # deleting it did not shrink the clone
             advice = "It is already gone from the tree; a history rewrite is only worth it for clone size."
         out.append(_f(sev, "Repo health", f"{row['name']} is {row['value']}{where}. git-sizer level of concern {row['concern']}.", advice,

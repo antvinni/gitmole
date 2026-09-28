@@ -259,6 +259,20 @@ class ParseSecrets(unittest.TestCase):
         self.assertEqual(load.parse_secrets(""), [])
 
 
+class ParseTree(unittest.TestCase):
+    def test_the_listing_of_head_and_when_there_is_none(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as out:
+            self.assertIsNone(load.parse_tree(out, {}), "an output directory from before the step")
+            with open(os.path.join(out, "tree.txt"), "wb") as fh:
+                fh.write(b"a.py\0bin/tool\0caf\xe9.py\0")
+            self.assertEqual(load.parse_tree(out, {}), frozenset({"a.py", "bin/tool", "caf\ufffd.py"}))
+            self.assertIsNone(load.parse_tree(out, {"steps": {"tree": "failed"}}), "a step that did not finish is no listing")
+            with open(os.path.join(out, "tree.txt"), "wb") as fh:
+                fh.write(b"")
+            self.assertIsNone(load.parse_tree(out, {}))
+
+
 class LoadReport(unittest.TestCase):
     def test_reads_every_file_and_tolerates_missing_ones(self):
         import os, tempfile
