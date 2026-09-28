@@ -507,6 +507,62 @@ between releases. This is the guard against the worst kind of regression, where
 a classifier change excludes a fifth of the tree, nothing errors, and the
 report simply gets emptier.
 
+## Is a candidate better?
+
+Headroom compares a list with random, and every sensible list beats random: at a
+handful of repositories its interval is too wide for a real improvement to leave it.
+The question a ranking change has to answer is narrower — does it name more of the
+files that get fixed than the current watch list, on the same ground — and it is
+answered by `python -m gitmole.measure.candidate BASE CANDIDATE`, decided before any
+run as follows.
+
+- **Same ground.** Both releases are run from their own source on each repository
+  of the effectiveness set (development, large and well-kept), ranked at the same
+  six cut-offs, and scored on the baseline's pool against the same outcome. The
+  baseline is run again beside the candidate rather than read from its record, so
+  both share one toolchain and one clone state. A file the candidate did not rank
+  goes after the ones it did, in the baseline's order; where the candidate's own
+  pool differs (its classifier moved), the files it added and dropped are counted
+  in a "pool moved" column, since an added file cannot score on the baseline's
+  pool and a dropped one costs the candidate only if it was fixed.
+- **The effect** at a cut-off is the candidate's top-fifteen hits minus the
+  baseline's; a repository's effect is the mean over its cut-offs, since the
+  cut-offs of one history move together.
+- **The test** is an exact one-sided sign-flip over the repositories: every one of
+  the 2^n patterns of their effects' signs (16,384 for fourteen), the share whose
+  total is at least the observed one. No sampling and no seed; a bootstrap
+  interval is unreliable at ten to fourteen repositories. A repository where the
+  candidate changes nothing flips to itself, so z of them put a floor of 2^z/2^n
+  under p: with fewer than five repositories where anything changes, p cannot
+  reach 0.05.
+- **Nothing is dropped.** A repository or cut-off that failed on either side
+  makes the result "incomplete" (and the command exits 1), never a smaller test:
+  a candidate that crashes where it would lose must not be judged on the rest.
+- **The rule.** A candidate is better when its mean effect is positive and p is
+  under 0.05 on the effectiveness set, and then again on the holdout, read once
+  for that candidate when the maintainer agrees (`--holdout --approved "who,
+  when"`). A read is of a commit, never a working tree, over the whole holdout
+  (no `--only`), and only once every clone is present at its pinned commit and
+  the labels are in place; it is then appended to `measure/holdout-reads.jsonl`,
+  which is committed with the result, and a second read of the same candidate is
+  refused unless `--again` says it is one. This command is the one sanctioned way
+  to read the holdout; `signals --set holdout` below reads it without a log and is
+  for the analyses already recorded on this page. A
+  candidate that passes on development and fails on the holdout is selection,
+  as the twelve-month recency variant was (336 against 310 on development, 729
+  against 724 on the holdout).
+- **Reported, never deciding.** The mean without the saturated cut-offs, where
+  half the pool or more was fixed and both lists tend to hit alike; and on the dashboard,
+  how far the watch list sits above the better of churn alone and size alone,
+  which records carry from the next release round on (`size_*` beside
+  `churn_*`, and each cut-off's `pool_digest`, a fingerprint of the files it
+  scored, so two records can be checked for having scored the same pool).
+  Earlier records are not backfilled.
+
+With fourteen repositories the test can show a candidate that wins consistently,
+not a small, uneven gain; that is a property of the corpus, and a result that
+does not reach the line is "not shown", not "worse".
+
 ## The gate for a new signal
 
 Before a metric, rule or reason ships, it should be able to answer six questions.

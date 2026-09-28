@@ -161,6 +161,23 @@ def bootstrap(groups: dict, stat, rounds: int = 2000, seed: int = 20260918, leve
     return [lo, hi]
 
 
+def sign_flip(effects: list):
+    """The one-sided exact sign-flip test: the share of the 2^n patterns of the effects' signs whose total
+    is at least the observed total. The effects are per repository, since a repository's cut-offs move
+    together; every pattern is enumerated (16,384 for fourteen repositories), so there is no sampling and
+    no seed, and the arithmetic is exact over the effects given (Fractions in, exact ties out; a float is
+    taken at its exact binary value). A zero effect flips to itself, so z of them put a floor of 2^z / 2^n
+    under p. None with no effects."""
+    from fractions import Fraction
+    xs = [Fraction(x) for x in effects if x is not None]
+    if not xs:
+        return None
+    observed = sum(xs)
+    at_least = sum(1 for mask in range(1 << len(xs))
+                   if sum(-x if mask >> i & 1 else x for i, x in enumerate(xs)) >= observed)
+    return at_least / (1 << len(xs))
+
+
 def wilson(successes: int, n: int, z: float = 1.96):
     """The Wilson score interval of a proportion; None for n = 0."""
     if n == 0:

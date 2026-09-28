@@ -203,6 +203,8 @@ commit before each cut-off made buggy, by R-SZZ over the fixes that followed
 ApacheJIT's, Defectors' or a bare-hash shape; the variants include Hassan's
 change entropy (`maat.entropy`, decayed over calendar months); the results are in
 [validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md).
+`python -m gitmole.measure.candidate BASE CANDIDATE` decides whether a ranking
+change beats the current watch list (measurement.md, "Is a candidate better?").
 `python -m gitmole.measure` is the harness of
 [measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md):
 `run --ref TAG` runs a release from its own source over the corpus in

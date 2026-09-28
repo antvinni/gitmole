@@ -128,6 +128,23 @@ class HarnessScore(unittest.TestCase):
         self.assertIsNone(plain["popt_complexity"], "no complexity table, no complexity Popt: None, not a number built from zeros")
         self.assertEqual(plain["popt"], out["popt"], "the lines Popt keeps its value with or without a complexity table")
 
+class SignFlip(unittest.TestCase):
+    def test_sign_flip_is_the_share_of_sign_patterns_at_least_as_good(self):
+        """Exact and one-sided: every one of the 2^n patterns of the repository effects' signs, and the share
+        whose total is at least the observed one."""
+        self.assertEqual(metrics.sign_flip([1, 1, 1]), 1 / 8, "only the observed pattern is as good")
+        self.assertEqual(metrics.sign_flip([1, -1]), 3 / 4, "2, 0 and 0 are at least 0")
+        self.assertEqual(metrics.sign_flip([0, 0]), 1.0, "no effect: every pattern ties")
+        self.assertEqual(metrics.sign_flip([2, 1, -1]), 3 / 8, "totals 4, 2 and 2 reach the observed 2")
+        self.assertIsNone(metrics.sign_flip([]))
+        self.assertIsNone(metrics.sign_flip([None]))
+
+    def test_sign_flip_is_exact_for_fractions(self):
+        from fractions import Fraction
+        self.assertEqual(metrics.sign_flip([Fraction(1, 3), Fraction(1, 3), Fraction(-2, 3)]), 5 / 8,
+                         "totals 0, 4/3, 2/3, 2/3 and 0 reach the observed 0: no float rounding decides the two ties")
+
+
 class Scoring(unittest.TestCase):
     def test_one_cut_off_against_random_perfect_and_churn(self):
         rank = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40}
@@ -135,6 +152,20 @@ class Scoring(unittest.TestCase):
         self.assertEqual((s["positives"], s["hits"], s["best"], s["churn_hits"]), (2, 1, 2, 1))
         self.assertEqual(s["expected"], 1.0)
         self.assertEqual(s["top"], ["a", "b"], "the list's own top, kept for the carry-over")
+
+    def test_size_alone_is_scored_beside_churn(self):
+        rank = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 5, "b": 1, "c": 40, "d": 20}, "total_code": 66}
+        s = harness.score(rank, {"a", "c"}, top=2)
+        self.assertEqual(s["size_hits"], 1, "c and d are the two largest; c was fixed")
+        self.assertEqual(s["size_auc"], 0.75, "c above d and b, a above b but below d")
+        for k in ("size_recall20", "size_popt", "size_ifa"):
+            self.assertIn(k, s)
+
+    def test_the_pool_is_fingerprinted_so_a_later_comparison_can_tell_it_moved(self):
+        rank = {"pool": ["b", "a"], "revs": {}, "lines": {}, "total_code": 0}
+        same = harness.score({**rank, "pool": ["a", "b"]}, set())["pool_digest"]
+        self.assertEqual(harness.score(rank, set())["pool_digest"], same, "the set of files, not their order")
+        self.assertNotEqual(harness.score({**rank, "pool": ["a", "c"]}, set())["pool_digest"], same)
 
     def test_matched_magnets(self):
         rank = {"pool": [f"f{i}" for i in range(20)], "magnets": ["f0", "f1"]}
@@ -690,3 +721,38 @@ class WellKeptRanked(unittest.TestCase):
         both = self._rec(True)
         both["repos"]["L"] = dict(both["repos"]["a"], set="large")
         self.assertEqual(report._ranked_set(both), "development, large and well-kept")
+
+
+class SimpleLists(unittest.TestCase):
+    """How far the watch list sits above the better simple list, and how many cut-offs are saturated:
+    reported, never deciding (docs/measurement.md, "Is a candidate better?")."""
+
+    def _rec(self, with_size):
+        rec = _record({"a": "ok", "b": "ok"})
+        cuts = rec["repos"]["a"]["ranking"]["cutoffs"] + [dict(rec["repos"]["b"]["ranking"]["cutoffs"][0], positives=25)]
+        rec["repos"]["b"]["ranking"]["cutoffs"] = [cuts[1]]
+        if with_size:
+            rec["repos"]["a"]["ranking"]["cutoffs"][0]["size_hits"] = 7   # hits 6 against churn 5 and size 7: -1
+            rec["repos"]["b"]["ranking"]["cutoffs"][0]["size_hits"] = 4   # hits 6 against churn 5 and size 4: +1
+        return rec
+
+    def test_the_lift_over_the_better_simple_list_is_summed_per_cut_off(self):
+        s = dashboard.summarise(self._rec(True))
+        self.assertEqual(s["simple_lift"], 0)
+        self.assertEqual(s["simple_wins_losses_ties"], [1, 1, 0])
+
+    def test_a_record_without_size_alone_has_no_lift(self):
+        s = dashboard.summarise(self._rec(False))
+        self.assertIsNone(s["simple_lift"])
+        self.assertIsNone(s["simple_wins_losses_ties"])
+
+    def test_saturated_cut_offs_are_counted(self):
+        self.assertEqual(dashboard.summarise(self._rec(False))["saturated_cutoffs"], [1, 2], "25 of 40 fixed at b's cut-off")
+
+    def test_the_dashboard_prints_both_as_information(self):
+        from gitmole.measure import report
+        rec = self._rec(True)
+        rec["summary"] = dashboard.summarise(rec)
+        rows = [l for l in report.current(rec, None) if l.startswith("| top-15 hits above the better of churn and size") or l.startswith("| saturated cut-offs")]
+        self.assertEqual(rows, ["| top-15 hits above the better of churn and size, summed over cut-offs (information) | development | 0 over 2 cut-offs (1 ahead, 1 behind, 0 level) |",
+                                "| saturated cut-offs, half the pool or more fixed (information) | development | 1 of 2 |"])

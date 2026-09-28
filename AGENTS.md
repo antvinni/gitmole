@@ -31,9 +31,10 @@ is identical outside the envelope (command)" is a complete answer for a refactor
 a test is the answer for anything else. A number without its command is a claim, not a result, and a
 command that printed nothing proved nothing.
 
-**Claim better ranking only with a holdout number.** A change that says gitmole now ranks or catches
-better needs a holdout number behind it (`python -m gitmole.measure.signals --release X.Y.Z --set holdout`, read once,
-for that claim, when the maintainer asks for it; `docs/measurement.md`). Without one, describe what
+**Claim better ranking only with the candidate test.** A change that says gitmole now ranks or catches
+better needs the candidate test behind it (`python -m gitmole.measure.candidate`, `docs/measurement.md`, "Is a
+candidate better?"): positive on the effectiveness set and then on the holdout, read once, when the
+maintainer agrees. Without it, describe what
 changed and do not argue that it helps.
 
 **Mind the output budget.** A change that adds findings or report lines says how many, on which
@@ -49,7 +50,8 @@ record is not a harness change.
 
 **Leave the record alone.** Never edit `docs/measurement-history.md` or `docs/measurements/*` by hand
 (`python -m gitmole.measure` `run`, `extras` and `report` write them; do not overwrite a release's
-existing record), `measure/labels*.jsonl` or `measure/corpus.json`.
+existing record), `measure/labels*.jsonl`, `measure/corpus.json` or `measure/holdout-reads.jsonl` (only
+`candidate --holdout` appends to it).
 Do not add labels. Regenerate `tests/golden/report.txt` (`UPDATE_GOLDEN=1`) only when a report change
 is intended, in its own commit — never to make a test pass.
 

@@ -76,6 +76,8 @@ Each release runs from its own source over the development set (medium repositor
 | recall at 20% of lines | development and large | 27% |
 | top-15 stability over 50 commits | development and large | 1.00 |
 | top-15 carried over from one cut-off to the next, six months | development and large | 0.90 |
+| top-15 hits above the better of churn and size, summed over cut-offs (information) | development and large | size alone not in this record |
+| saturated cut-offs, half the pool or more fixed (information) | development and large | 1 of 60 |
 | findings per repository, median and p90 | development | 19.5 and 25.8 |
 | findings the default report spells out that are labelled actionable | development, large and well-kept | 78% of 121, 52% labelled |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 3, undecided 26, unlabelled 7 |

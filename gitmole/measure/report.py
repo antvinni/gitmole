@@ -178,6 +178,11 @@ def current(record: dict, extras: dict) -> list:
             ("recall at 20% of lines", "holdout" if s.get("holdout_recall20") is not None else ranked, _pct(s.get("holdout_recall20") if s.get("holdout_recall20") is not None else s.get("recall20"))),
             ("top-15 stability over 50 commits", ranked, _num(s.get("stability_top15"))),
             ("top-15 carried over from one cut-off to the next, six months", ranked, _num(s.get("carryover_top15"))),
+            ("top-15 hits above the better of churn and size, summed over cut-offs (information)", ranked,
+             f"{s['simple_lift']} over {sum(s['simple_wins_losses_ties'])} cut-offs ({s['simple_wins_losses_ties'][0]} ahead, {s['simple_wins_losses_ties'][1]} behind, {s['simple_wins_losses_ties'][2]} level)"
+             if s.get("simple_lift") is not None else "size alone not in this record"),
+            ("saturated cut-offs, half the pool or more fixed (information)", ranked,
+             f"{s['saturated_cutoffs'][0]} of {s['saturated_cutoffs'][1]}" if s.get("saturated_cutoffs") else "-"),
             ("findings per repository, median and p90", "development", f"{_num(s.get('findings_median'), '{:g}')} and {_num(s.get('findings_p90'), '{:g}')}")]
     u = record.get("useful") or {}
     usefulness_set = "development, large and well-kept" if _ran_large(record) else "development and well-kept"

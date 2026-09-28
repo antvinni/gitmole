@@ -7,6 +7,7 @@ is the current evaluate.fixed_between (or the corpus labels), over a change log 
 So a difference between two releases is a difference in the releases, not in the yardstick."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -50,15 +51,30 @@ def rev_at(repo: str, date: str):
     return proc.stdout.strip() or None
 
 
+SOURCE_STAMP = ".gitmole-source-commit"
+
+
 def source(ref: str, root: str) -> str:
-    """The release's source tree: `worktree` is this checkout, anything else a git ref extracted once."""
+    """The release's source tree: `worktree` is this checkout, anything else a git ref extracted into
+    src/<ref>. The commit it was extracted from is stamped beside it, and a ref that has since moved (a
+    branch, where a tag never does) is extracted again, so a candidate is never judged on stale source."""
     if ref == "worktree":
         return corpus.ROOT
+    commit = subprocess.run(["git", "rev-parse", "--verify", ref + "^{commit}"], cwd=corpus.ROOT, check=True,
+                            capture_output=True, text=True).stdout.strip()
     dest = os.path.join(root, "src", ref)
-    if not os.path.isfile(os.path.join(dest, "gitmole", "__init__.py")):
+    base = os.path.realpath(os.path.join(root, "src"))
+    if not os.path.realpath(dest).startswith(base + os.sep):
+        raise ValueError(f"ref {ref!r} would extract outside {base}")
+    stamp = os.path.join(dest, SOURCE_STAMP)
+    fresh = os.path.isfile(os.path.join(dest, "gitmole", "__init__.py")) and os.path.isfile(stamp) and open(stamp).read().strip() == commit
+    if not fresh:
+        shutil.rmtree(dest, ignore_errors=True)   # our own extraction under the workspace, never a checkout
         os.makedirs(dest, exist_ok=True)
-        archive = subprocess.run(["git", "archive", ref], cwd=corpus.ROOT, check=True, capture_output=True).stdout
+        archive = subprocess.run(["git", "archive", commit], cwd=corpus.ROOT, check=True, capture_output=True).stdout
         subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
+        with open(stamp, "w") as fh:
+            fh.write(commit + "\n")
     return dest
 
 
@@ -208,6 +224,8 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
     # twelve unsupervised predictors all generalise. A control, not a candidate — it takes a lines budget
     # by naming tiny files, which is exactly what its IFA beside it is for.
     manualup = sorted(pool, key=lambda f: (rank["lines"].get(f, 0), f))
+    # size alone, the largest file first: the other simple list the watch list has to beat (validation.md)
+    size = sorted(pool, key=lambda f: (-rank["lines"].get(f, 0), f))
     h, ch = metrics.hits(pool, positives, top), metrics.hits(churn, positives, top)
     # The 2025 effort-aware critique (arXiv 2504.19181): these measures are size-aware, and the verdict
     # can change when the effort driver is not lines. scc's per-file complexity is the second driver.
@@ -247,6 +265,12 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
             "popt_uniform": metrics.popt(pool, uniform, positives), "churn_popt_uniform": metrics.popt(churn, uniform, positives),
             "manualup_popt_uniform": metrics.popt(manualup, uniform, positives),
             "ifa_all": metrics.ifa(pool, positives), "churn_ifa_all": metrics.ifa(churn, positives), "manualup_ifa_all": metrics.ifa(manualup, positives),
+            "size_hits": metrics.hits(size, positives, top), "size_auc": metrics.auc(size, positives),
+            "size_recall20": metrics.recall_at_effort(size, rank["lines"], positives, total=rank.get("total_code")),
+            "size_popt": metrics.popt(size, rank["lines"], positives), "size_ifa": metrics.ifa(size, positives, top),
+            # the files scored, as a set: a candidate compared later is scored on this pool, and a pool that
+            # has since moved (the classifier changed) is a different comparison, which the digest shows
+            "pool_digest": hashlib.sha256("\n".join(sorted(pool)).encode("utf-8", "surrogateescape")).hexdigest()[:16],
             "top": pool[:top]}   # for the carry-over between consecutive cut-offs
 
 
@@ -263,6 +287,23 @@ def magnets_at(rank: dict, outcome: set) -> dict:
     return {"named": len(named), "named_fixed": len(named & outcome), "matched": len(matched), "matched_fixed": sum(f in outcome for f in matched)}
 
 
+def cutoff_windows(entry: dict, commits: list, labels: dict = None) -> list:
+    """[(cut-off, outcome)] for one repository: the six cut-offs the history reaches back to, and the files
+    fixed (or labelled) in the horizon after each. The releases' rankings and a candidate's comparison take
+    their dates and outcomes from here, so the two cannot drift apart."""
+    if not commits:
+        return []
+    last = entry.get("end") or max(c["date"] for c in commits)[:10]
+    earliest = min(c["date"] for c in commits)[:10]
+    out = []
+    for t in evaluate.cutoffs(last, WINDOWS, HORIZON):
+        if t <= earliest:
+            continue
+        end = evaluate.months_after(t, HORIZON)
+        out.append((t, evaluate.labelled_between(commits, labels, t, end) if labels is not None else evaluate.fixed_between(commits, t, end)))
+    return out
+
+
 def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache: str, labels: dict = None) -> dict:
     """The six cut-offs, the stability pair and the findings backtest for one repository."""
     commits = canonical_log(clone, cache)
@@ -271,15 +312,11 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
     last = entry.get("end") or max(c["date"] for c in commits)[:10]
     earliest = min(c["date"] for c in commits)[:10]
     rows, magnets = [], []
-    for t in evaluate.cutoffs(last, WINDOWS, HORIZON):
-        if t <= earliest:
-            continue
-        end = evaluate.months_after(t, HORIZON)
+    for t, outcome in cutoff_windows(entry, commits, labels):
         rank = ranking_at(src, clone, out, t, reference)
         if "error" in rank:
             rows.append({"cutoff": t, "error": rank["error"]})
             continue
-        outcome = evaluate.labelled_between(commits, labels, t, end) if labels is not None else evaluate.fixed_between(commits, t, end)
         rows.append({"cutoff": t, **score(rank, outcome)})
         m = magnets_at(rank, outcome)
         if m:

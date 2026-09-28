@@ -38,6 +38,7 @@ def _round(x, n=3):
     return None if x is None else round(x, n)
 
 
+SATURATED = 0.5   # half the pool or more fixed at a cut-off: flagged here and by candidate.py, never excluded
 MEASURED = ("development", "large")   # the sets a release round ranks; the development set alone carries the cost ceilings
 RANKED = (*MEASURED, "well-kept")   # well-kept adds to the effectiveness numbers only: chosen by an outside criterion, never tuned on
 
@@ -75,6 +76,13 @@ def summarise(record: dict, only=None) -> dict:
     named, nf = sum(m["named"] for m in mags), sum(m["named_fixed"] for m in mags)
     matched, mf = sum(m["matched"] for m in mags), sum(m["matched_fixed"] for m in mags)
     out["bug_magnets_ratio"] = _round((nf / named) / (mf / matched)) if named and matched and mf else None
+    # information, never a decision (measurement.md, "Is a candidate better?"): how far the list sits above
+    # the better simple list at each cut-off, and how many cut-offs had half their pool or more fixed
+    cuts = [c for r in pop.values() for c in ((r.get("ranking") or {}).get("cutoffs") or []) if "hits" in c]
+    lift = [c["hits"] - max(c["churn_hits"], c["size_hits"]) for c in cuts if c.get("size_hits") is not None]
+    out["simple_lift"] = sum(lift) if lift else None
+    out["simple_wins_losses_ties"] = [sum(x > 0 for x in lift), sum(x < 0 for x in lift), sum(x == 0 for x in lift)] if lift else None
+    out["saturated_cutoffs"] = [sum(1 for c in cuts if c.get("pool") and c["positives"] / c["pool"] >= SATURATED), len(cuts)] if cuts else None
     ok = [r for r in cost.values() if r["status"] == "ok"]
     out["findings_median"] = metrics.median([r.get("findings") for r in ok])
     out["findings_p90"] = _round(metrics.percentile([r.get("findings") for r in ok], 0.9), 1)
