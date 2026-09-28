@@ -190,6 +190,85 @@ with the commit under `properties.commit`.
     sarif_file: gitmole.sarif
 ```
 
+## GitHub Actions
+
+The repository is also a composite action. It installs gitmole from PyPI,
+the five tools with `--install-tools` at the versions that release pins
+(the formula's archives and hashes), caches them under the runner's tool
+cache keyed on those pins, runs one analysis and appends the Markdown report
+to the job summary:
+
+```yaml
+on: pull_request
+jobs:
+  gitmole:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0          # gitmole reads the whole history; a shallow clone has one commit
+      - uses: antvinni/gitmole@v0.39.0
+        with:
+          fail-on: critical
+```
+
+The tag decides the version: `@v0.39.0` installs `gitmole==0.39.0`.
+Pinned to a commit SHA instead (with the tag in a comment, as gitmole's own
+`unpinned_actions` finding asks of a workflow), or used from a branch or as
+`uses: ./`, the action installs gitmole from its own source at that commit;
+the `version` input overrides both. The inputs:
+
+| Input | Default | |
+|---|---|---|
+| `args` | `.` | The target and any other options, split on whitespace (no shell quoting). |
+| `fail-on` | none | `critical`, `warning` or `info`: fail the step when a finding is at that severity or worse. |
+| `risk` | none | `--risk` base, for a pull request `origin/${{ github.base_ref }}`. |
+| `risk-threshold` | none | With `risk`: fail when the changed files hold more than N percent. |
+| `sarif` | none | Write SARIF to this path. |
+| `upload-sarif` | `true` | With `sarif`: upload it to code scanning (`category: gitmole`); the job needs `permissions: security-events: write`, which a pull request from a fork does not get. |
+| `vulnerability-db` | `false` | Download osv-scanner's offline database first, cached per day. |
+| `summary` | `true` | Append the Markdown report to the job summary. |
+| `version` | the tag | The gitmole version to install from PyPI. |
+| `python-version` | `3.12` | The Python gitmole runs on. |
+
+Outputs: `exit-code` (0, or 3 when a gate tripped), `markdown` (the report's
+path) and `sarif`. A tripped gate fails the job only after the summary is
+written and the SARIF uploaded, so a blocked pull request still shows why.
+
+The network is reached in the setup steps only: pip, the tool archives, and
+with `vulnerability-db: true` the OSV database for the ecosystems the
+workspace's lock files use. The scan itself runs `osv-scanner --offline` and
+`betterleaks --validation=false` as it does anywhere else. Linux x86_64 and
+macOS runners are covered; a Linux arm64 runner is not, since git-sizer
+publishes no build for it (`gitmole --install-tools` says so and fails the
+step).
+
+## Docker
+
+The `Dockerfile` at the root installs gitmole from PyPI at a build argument's
+version, the five pinned tools with `--install-tools`, and git, with
+`safe.directory` set so git reads a repository mounted from the host. No
+image is published; build it in a clone of this repository:
+
+```bash
+docker build --build-arg GITMOLE_VERSION=0.38.0 -t gitmole .
+docker run --rm -v "$PWD:/repo" gitmole .
+docker run --rm -v "$PWD:/repo" gitmole . --fail-on critical --markdown /repo/gitmole.md
+```
+
+The image is linux/amd64 only (git-sizer again); on Apple silicon Docker runs
+it under emulation. The analysis goes to `/analysis-repo` inside the
+container unless `--out` names a mounted path. Run with
+`--user "$(id -u):$(id -g)"` to write exports as yourself; add
+`--out /tmp/analysis`, since that user cannot write to `/`. The vulnerability
+database lives in `/osv`; keep it in a volume and fetch it once:
+
+```bash
+docker run --rm -v gitmole-osv:/osv -v "$PWD:/repo" --entrypoint osv-scanner gitmole \
+  scan source -r --offline-vulnerabilities --download-offline-databases .
+docker run --rm -v gitmole-osv:/osv -v "$PWD:/repo" gitmole .
+```
+
 ## SBOM
 
 `gitmole . --sbom sbom.cdx.json` writes a CycloneDX 1.6 document of the
