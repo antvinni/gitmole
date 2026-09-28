@@ -361,3 +361,33 @@
   tool points at the pinned install (#163), Python imports resolve to the root nearest the importer
   (#162), deferred imports read as the interpreter runs them (#156), import cycles judge only trusted
   languages (#161), and the repository has a code of conduct and a security policy (#167).
+- **0.38.0 changes no finding and no ranking, and widens what the ranking is judged over.** Every
+  repository gives the findings and report it gave at 0.37.0, and over the fixed series every
+  effectiveness number is 0.37.0's. The effectiveness rows now span fourteen repositories instead of ten:
+  a release round ranks the four well-kept ones (#182), chosen by an outside criterion and never tuned
+  on. So headroom 0.65 [0.46, 0.83] becomes 0.60 [0.41, 0.80] and W/L/T against churn 35/10/15 becomes
+  46/13/25 because the population grew, not because the tool moved. All four are Go, so they add less
+  variety than their count suggests.
+- **The first record with size alone beside churn, and the baseline a ranking candidate is judged
+  against.** At the head of the list the watch list is no better than the better of the two simple
+  lists: summed over 84 cut-offs it names one more soon-to-be-fixed file (27 ahead, 26 behind, 31
+  level), five more over the fixed series (7/6/5). One cut-off of 84 is saturated, half its pool or more
+  fixed. From here a ranking change is judged by `python -m gitmole.measure.candidate` against this
+  release (#183, measurement.md "Is a candidate better?"), not by headroom.
+- **Costs are unchanged in findings and report lines; the times were taken under load.** Other work on
+  the machine kept the load between 5.7 and 15.9 through most of the timed runs (curl alone ran at 1.8),
+  so the wall times are not comparable with 0.37.0's: development 414 to 358 s, large 518 to 542 s, and
+  the peak-memory ceiling 1,239 to 1,034 MB (redis). django reads 118 s against 90 s and two report
+  lines shorter because its code-age projection fell just under the 60 s budget this time and the pass
+  ran (92 s); at 0.37.0 it was skipped. Its projection straddles the budget, so that is timing, not code.
+  What #180 did is measured apart from the load: django's identity merge before the steps fell from
+  about 55 s to 1 s, the same bytes on all eleven development and large clones.
+- **The extras are 0.37.0's.** Determinism identical on curl and django across two time zones and
+  locales, the same sensitivity verdicts, no unexplained description disagreement, the hook replay
+  unchanged. binutils-gdb's single `git log` took 302 s of its 374, the next cost to cut.
+- **Since 0.37.0, besides the measurement:** the remediation report lists every rule that fired (#175),
+  one `MIN_RESOLVED` and four unused functions gone (#176), the blame sample stops once a skip is
+  certain and the index is listed once per run (#177), a partial estimate names the budget rather than a
+  number that restates it (#181), identities merge by key (#180), AGENTS.md is a core and an unattended
+  appendix and the README says what gitmole is for (#178), and the history page leads with its table
+  (#179).

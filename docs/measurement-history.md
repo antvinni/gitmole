@@ -46,6 +46,7 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.35.1 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23/27 | 220.5 | 23% | 21/21 | 3/3 | 812 | 1125 |  |
 | 0.36.0 | 0.62 [0.36, 0.93] | 0.52 | 17/4/9 | 0.82 | 36% | 1.00 | 3.86 | 23.5/28 | 220.5 | 23% | 21/21 | 3/3 | 766 | 1130 |  |
 | 0.37.0 | 0.65 [0.46, 0.83] | 0.58 | 35/10/15 | 0.79 | 27% | 1.00 | 3.29 | 19.5/25.8 | 216 | 35% | 26/26 | 3/3 | 414 | 1239 | large set run, not in the previous release |
+| 0.38.0 | 0.60 [0.41, 0.80] | 0.55 | 46/13/25 | 0.78 | 34% | 1.00 | 3.24 | 19.5/25.8 | 216 | 35% | 26/26 | 3/3 | 358 | 1034 |  |
 
 ![ranking](evolution/ranking.svg)
 
@@ -67,23 +68,23 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 
 Each release runs from its own source over the development set (medium repositories, one or more per ecosystem, and gitmole itself; `development_criterion` in measure/corpus.json), the large set in a release round, the awkward inputs and the gate fixtures, one repository at a time, with the reference date fixed at 2026-09-17. What it produces is scored by the current definitions, which stay fixed across the history: the ranking is the release's own, rebuilt at six cut-offs by its own backtest, and the outcome is the files a fix commit touched in the six months after each cut-off. The holdout is not read here: it runs only for the release a note claims is more effective. A release that crashed or timed out on a development or large repository is drawn at the bottom of every graph with a red cross, and its row says why. The graphs draw every release over the same four repositories, curl, django, react and gitmole, so a repository joining the development set is not a move; the table and the dashboard use the whole set: cost over the development set, effectiveness over development and large, and well-kept where a release round ranked it. Robust counts every set a round ran, so its denominator is larger in a release round. The first three graphs are the ones the README shows: is the ranking right, are the findings worth acting on, does it run.
 
-## The dashboard for 0.37.0
+## The dashboard for 0.38.0
 
 | | set | value |
 |---|---|---|
 | median headroom at 15 | holdout | not run for this record |
-| median headroom at 15 | development and large | 0.65 |
-| recall at 20% of lines | development and large | 27% |
-| top-15 stability over 50 commits | development and large | 1.00 |
-| top-15 carried over from one cut-off to the next, six months | development and large | 0.90 |
-| top-15 hits above the better of churn and size, summed over cut-offs (information) | development and large | size alone not in this record |
-| saturated cut-offs, half the pool or more fixed (information) | development and large | 1 of 60 |
+| median headroom at 15 | development, large and well-kept | 0.60 |
+| recall at 20% of lines | development, large and well-kept | 34% |
+| top-15 stability over 50 commits | development, large and well-kept | 1.00 |
+| top-15 carried over from one cut-off to the next, six months | development, large and well-kept | 0.90 |
+| top-15 hits above the better of churn and size, summed over cut-offs (information) | development, large and well-kept | 1 over 84 cut-offs (27 ahead, 26 behind, 31 level) |
+| saturated cut-offs, half the pool or more fixed (information) | development, large and well-kept | 1 of 84 |
 | findings per repository, median and p90 | development | 19.5 and 25.8 |
 | findings the default report spells out that are labelled actionable | development, large and well-kept | 78% of 121, 52% labelled |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 3, undecided 26, unlabelled 7 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 414 s, 1239 MB |
-| wall time and peak memory | large | 518 s, 1127 MB |
+| wall time and peak memory | development | 358 s, 1034 MB |
+| wall time and peak memory | large | 542 s, 1037 MB |
 | scored share of tracked files | development | 35% |
 | findings whose text agrees with their own numbers | every set | 343 of 343 |
 | unexplained description disagreements | development | 0 |
