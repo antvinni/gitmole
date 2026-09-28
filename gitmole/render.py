@@ -543,7 +543,8 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     if not tl:
         return _section("Timeline", [("author", {})], [], note="no timeline data")
     last = max(m for per in tl.values() for m in per)
-    span = _month_range(last, months)
+    first = min(m for per in tl.values() for m in per)
+    span = [m for m in _month_range(last, months) if m >= first]   # no columns for months before the history began
     since = report["meta"].get("since")
     if since:
         span = [m for m in span if m >= since[:7]] or span[-1:]
@@ -569,7 +570,8 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     columns = [("author", {"no_wrap": True})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     room = width - INDENT - MONTH_WIDTH * len(span) if width else None
     rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
-    return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))
+    months_shown = _month_label(span[0]) if len(span) == 1 else f"{_month_label(span[0])} → {_month_label(span[-1])}"
+    return _section(f"Timeline ({months_shown})", columns, rows, caption=_more(len(ranked), limit))
 
 
 def signing_section(report: dict, full: bool = True, width=None) -> dict:

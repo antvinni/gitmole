@@ -1122,6 +1122,15 @@ class Timeline(unittest.TestCase):
         self.assertIn("Timeline (Jul 2026 → Sep 2026)", text)
         self.assertNotIn("Oct", text)
 
+    def test_timeline_starts_no_earlier_than_the_history(self):
+        r = sample_report()
+        r["activity"]["timeline"] = {"Ann": {"2026-09": 4}, "Bob": {"2026-08": 1}}
+        text = rendered(r, [], width=120)
+        self.assertIn("Timeline (Aug 2026 → Sep 2026)", text, "ten days of history once drew Oct 2025 onwards, empty")
+        self.assertNotIn("Oct", text)
+        r["activity"]["timeline"] = {"Ann": {"2026-09": 4}}
+        self.assertIn("Timeline (Sep 2026)", rendered(r, [], width=120), "one month is not a range")
+
     def test_people_caption_says_what_is_windowed(self):
         r = sample_report()
         r["meta"]["since"] = "2026-07-15"
