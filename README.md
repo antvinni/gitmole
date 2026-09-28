@@ -18,9 +18,9 @@ Free. Any stack. Local. Offline. Deterministic. Fast.
 
 Trusting and triaging a repository you did not write, or one you are about to change.
 
-- **A gate you can check.** Secrets in history, invisible and mixed-script characters, vulnerable dependencies and dependency-confusion shapes, agent settings that turn approval off: each a plain rule with its evidence, the same on every run, fit for CI (`--fail-on`, SARIF).
+- **A gate you can check.** Secrets in history, invisible and mixed-script characters, vulnerable dependencies and dependency-confusion shapes, agent settings that turn approval off: each a plain rule with its evidence, the same on every run, fit for CI (`--fail-on`, SARIF). It fails closed: a gate whose scan did not finish exits 4 instead of passing, and `--baseline` gates only on what is new since an earlier run, so a secret committed years ago does not block every build.
 - **A place to start looking.** The watch list is Tornhill's hotspots, revisions × lines of code. It tells you where to read first, and `--hook` gives an agent the same ranking for the files it just edited. It is not a defect model: on repositories nobody tuned against, at the top it names about as many soon-to-be-fixed files as churn alone, and per line read it finds fewer ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md#what-the-ranking-is-for)).
-- **Who and when.** Ownership, knowledge islands, code age and the files that change together, read from the history itself.
+- **Who and when.** Ownership, knowledge islands, code age and the files that change together, read from the history itself. Advice names only people still committing; someone who left is marked `(gone)`. `--path DIR` narrows all of it to one package or plugin of a monorepo.
 
 ## Install
 
@@ -56,6 +56,8 @@ gitmole . --risk main --risk-threshold 10  # exit 3 if the files changed since m
 gitmole . --sarif gitmole.sarif        # the findings for GitHub code scanning or GitLab
 gitmole . --sbom sbom.cdx.json         # a CycloneDX SBOM of every package the lock files pin
 gitmole . --compare last.json          # what changed since an earlier --json export
+gitmole . --fail-on critical --baseline last.json  # gate only on what is new since last.json
+gitmole . --path backend/plugins/github  # one directory: its history, owners and watch list
 gitmole analysis-repo --no-run --hook  # an agent's edit hook, over an earlier run's output: history's view of the files it just touched
 gitmole . --since 2y --full            # the current team, every row and column
 gitmole --clean                        # list what gitmole left behind, delete on a yes
@@ -80,9 +82,9 @@ Reports on repositories you know, each at a pinned commit, published as gitmole 
 
 | Repository | Commit | Commits | Lines | gitmole run |
 |---|---|---:|---:|---:|
-| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | [`540ee5b5`](https://github.com/curl/curl/commit/540ee5b560cc6e775e11317048a13cc7e355bf91) | 39,758 | 247,179 | 59 s |
-| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | [`8cbdd4a8`](https://github.com/django/django/commit/8cbdd4a814397f81adf0129288f32b615bd1f94f) | 34,933 | 431,749 | 135 s |
-| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | [`2b19aecd`](https://github.com/facebook/react/commit/2b19aecd0e9111b774fad0fad9862e50bcb5bc8a) | 21,703 | 681,078 | 157 s |
+| [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | [`540ee5b5`](https://github.com/curl/curl/commit/540ee5b560cc6e775e11317048a13cc7e355bf91) | 39,758 | 247,179 | 47 s |
+| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | [`8cbdd4a8`](https://github.com/django/django/commit/8cbdd4a814397f81adf0129288f32b615bd1f94f) | 34,933 | 431,749 | 85 s |
+| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | [`2b19aecd`](https://github.com/facebook/react/commit/2b19aecd0e9111b774fad0fad9862e50bcb5bc8a) | 21,703 | 681,078 | 75 s |
 
 Run times are one `gitmole CLONE` with every default step, on a MacBook Pro (M4, 16 GB).
 
@@ -153,8 +155,9 @@ Working on gitmole:
   against a local copy of its database that you download once, and gitmole
   never downloads it for you.
 - Remote targets are cloned into a fresh temp directory that is removed when
-  the run ends. Local clones are only read. The secrets scan reads every
-  branch; everything else describes the branch that is checked out.
+  the run ends. Local clones are only read. The secrets scan reads the whole
+  history of the checked-out commit and the objects no branch reaches;
+  everything else describes the branch that is checked out.
   `gitmole --clean` lists every directory gitmole created and deletes them
   after a y/N question, except the tools `--install-tools` placed for the
   version you run, which are in use.
