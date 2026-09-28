@@ -374,6 +374,16 @@ class Report(unittest.TestCase):
         self.assertRegex(block, r"2026\s+200\s+100\s+50%")
         self.assertIn("humans 36% signed, bots 0%; Ann 51%, Bob 1%; read from the commit objects, nothing verified", block)
         self.assertIn("## Signing by year", render.markdown(r, []))
+        r["signing"]["forge"] = {"commits": 60, "signed": 60, "mechanisms": {"ssh": 39, "gpg": 21}}
+        r["signing"]["last_year"]["forge_signed"] = 105
+        self.assertIn("17% of commits signed by their authors (ssh 17%), 0% of the last year's; 17% signed by the forge on merge", render.pulse(r))
+        full = rendered(r, [], width=200, full=True)
+        self.assertIn("60 of the signed commits were committed and signed by the forge on merge", _section_text(full, "Signing by year"))
+        r["signing"]["forge"] = {"commits": 121, "signed": 121, "mechanisms": {"ssh": 100, "gpg": 21}}
+        self.assertIn("no commits signed by their authors; 33% signed by the forge on merge", render.pulse(r), "a merge button's key is not developer signing")
+        r["signing"]["forge"] = {"commits": 1, "signed": 1, "mechanisms": {"ssh": 1}}
+        r["signing"]["last_year"]["forge_signed"] = 1
+        self.assertIn("33% of commits signed by their authors (ssh 27%, gpg 6%), 50% of the last year's", render.pulse(r), "a share that rounds to nothing is not spelled out")
         r["signing"] = {"commits": 5, "signed": 0, "mechanisms": {}, "by_year": {"2026": {"commits": 5, "signed": 0}}, "humans": {"commits": 5, "signed": 0},
                         "bots": {"commits": 0, "signed": 0}, "by_identity": [], "last_year": {"commits": 5, "signed": 0}}
         self.assertIn("no commits signed", render.pulse(r))

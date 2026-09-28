@@ -42,7 +42,11 @@ How to read each part of the terminal report, and what each run writes to disk; 
    is read from the `gpgsig` header in each commit object, so it needs no
    keyring and a fresh clone reads the same as the author's; nothing is
    verified, and the figure is evidence toward SLSA Source L2, never a
-   level. `--full` and Markdown add a Signing by year table with humans
+   level. A commit the forge committed itself, under a bare `noreply@`
+   address such as GitHub's `noreply@github.com` (a merge from the web),
+   carries the forge's signature and not its author's, so it is named
+   apart: `12% of commits signed by their authors (gpg 12%), 0% of the
+   last year's; 50% signed by the forge on merge`. `--full` and Markdown add a Signing by year table with humans
    against bots and the busiest identities. With a year of history, the
    header also gives the duplication rate's direction, `26.5% of lines
    duplicated, down from 28.1% a year before`: the duplicates step runs
@@ -716,7 +720,7 @@ directory for a remote target:
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |
 | `trend.json` | trend step | complexity and lines of the top hotspots at sampled commits |
 | `backtest/` | backtest step | the change analysis and size as of six months before the last commit |
-| `signing.json` | signing step | commits signed, by mechanism (gpg, ssh, x509), by year, humans against bots, per identity and over the last year, from the commit objects |
+| `signing.json` | signing step | commits signed, by mechanism (gpg, ssh, x509), by year, humans against bots, per identity and over the last year, from the commit objects; `forge` counts the commits the forge committed and signed itself (included in the other counts) |
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave; a property of this clone, so the `--json` export carries the counts in its `envelope` |
 | `structure.json` | structure step, Python 3.10 or newer | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports and which of those only after it loads (`deferred`), its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
