@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from gitmole.measure import consistency
 
@@ -106,7 +107,10 @@ class SarifGate(unittest.TestCase):
         f = finding("secrets_in_source", "1 distinct value in 1 place: github-pat in gone.js (abc1234).", severity="critical",
                     evidence={"files": ["gone.js"]})
         r = report(findings=[f], size={"files": {"kept.js": {}}})   # the file is no longer in the tree, so no location survives
-        self.assertIn("sarif_gate", checks(r))
+        # sarif.py now keeps a location-less result for such a finding; the check must still see a document without one
+        with mock.patch.object(consistency.sarif, "results", return_value=[]):
+            self.assertIn("sarif_gate", checks(r))
+        self.assertNotIn("sarif_gate", checks(r), "the finding has its result now")
 
     def test_info_findings_are_not_gated(self):
         r = report(findings=[finding("reverts", "5 reverts.")])

@@ -202,7 +202,13 @@ naming the commit; its line belongs to that commit's version of the file,
 so under the default `--sarif-scope head` it carries no region, and a
 secret in a file no longer in the tree, a sweeping commit and anything else
 without a HEAD location are left out. `--sarif-scope history` keeps them,
-with the commit under `properties.commit`.
+with the commit under `properties.commit`. A finding whose every place the
+head scope leaves out still gets one result, with no location and
+`properties.inTree` false, so the document holds every finding `--fail-on`
+stops on: a critical made only of secrets in files deleted years ago exits
+3 and is an `error` result. SARIF allows a result without a location;
+GitHub code scanning accepts it and does not display it, GitLab drops it,
+and `--sarif-scope history` gives it its places.
 
 ```yaml
 - run: gitmole . --out analysis --sarif gitmole.sarif

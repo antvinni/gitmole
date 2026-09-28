@@ -12,7 +12,9 @@ result carries `partialFingerprints["gitmole/v1"]`, a hash of rule, path, commit
 from non-secret data, so two runs agree although the keyed value hashes in secrets.json never do.
 Scope: a secret in an old commit, a sweeping commit, a git-sizer blob no longer in the tree have no
 HEAD location; `--sarif-scope head` (the default) keeps only results whose file is in the tree, and
-`history` keeps everything, with the commit under `properties.commit`."""
+`history` keeps everything, with the commit under `properties.commit`. A finding the head scope would
+leave with no result at all keeps one without a location (`properties.inTree` false), so every finding
+--fail-on can stop on is in the document."""
 from __future__ import annotations
 
 import hashlib
@@ -96,6 +98,10 @@ def _in_tree(report: dict, path: str) -> bool:
     files = (report.get("size") or {}).get("files") or {}
     if not files:
         return True   # nothing to judge by: keep the result rather than drop it
+    # scc's files are the ones it counts as a language; a credential file (.env) is tracked, from git's own
+    # index, and scc never lists it, which dropped prometheus's credential_files warning from head scope
+    if path in ((report.get("meta") or {}).get("credential_files") or []):
+        return True
     return path in files or any(p.startswith(path.rstrip("/") + "/") for p in files)
 
 
@@ -146,24 +152,41 @@ def leaks_prefix() -> str:
 def results(report: dict, found: list, scope: str = "head") -> list:
     out = []
     for f in found:
-        rule, level, severity = f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]]
-        if rule.startswith("secrets_"):
-            out += _secret_results(report, f, scope)
+        mine = _finding_results(report, f, scope)
+        out += mine or [_elsewhere(f)]
+    return out
+
+
+def _finding_results(report: dict, f: dict, scope: str) -> list:
+    rule, level, severity = f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]]
+    if rule.startswith("secrets_"):
+        return _secret_results(report, f, scope)
+    if rule.startswith("vulnerable_dependencies"):
+        return _dependency_results(f)
+    places = _places(f)
+    if not places:
+        return [_result(rule, level, severity, f["detail"])] if scope == "history" or not _repo_wide_needs_tree(f) else []
+    out = []
+    for path, line, commit, extra in places:
+        if path and scope == "head" and not _in_tree(report, path):
             continue
-        if rule.startswith("vulnerable_dependencies"):
-            out += _dependency_results(f)
+        if not path and scope == "head":
             continue
-        places = _places(f)
-        if not places:
-            if scope == "history" or not _repo_wide_needs_tree(f):
-                out.append(_result(rule, level, severity, f["detail"]))
-            continue
-        for path, line, commit, extra in places:
-            if path and scope == "head" and not _in_tree(report, path):
-                continue
-            if not path and scope == "head":
-                continue
-            out.append(_result(rule, level, severity, f["detail"], path, line, commit, extra))
+        out.append(_result(rule, level, severity, f["detail"], path, line, commit, extra))
+    return out
+
+
+def _elsewhere(f: dict) -> dict:
+    """The one result of a finding whose every place the head scope dropped: a secret only in files deleted
+    years ago, a blob no longer in the tree. --fail-on stops on the finding all the same, so leaving it out
+    made the exit code and the document disagree - devlake exited 3 on a critical with no error-level result.
+    It has no location, as nothing at HEAD is where it is: SARIF allows that, GitHub code scanning accepts
+    the upload and does not display the result, GitLab drops it; --sarif-scope history places it."""
+    from .compare import key
+    out = _result(f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]],
+                  f"{f['detail']} Nothing it names is in the tree at HEAD; --sarif-scope history lists where it was found.",
+                  extra="\0".join(str(k) for k in key(f)[1:]))
+    out["properties"]["inTree"] = False
     return out
 
 
