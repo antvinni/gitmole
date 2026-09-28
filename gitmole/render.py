@@ -314,11 +314,7 @@ def pulse(report: dict) -> list:
     """One phrase each for the descriptive tables the default report leaves out."""
     out = _unfinished(report)   # first: every number below may be missing because of it
     act = report.get("activity") or {}
-    days, hours = act.get("by_weekday") or [], act.get("by_hour") or []
-    if days and max(days):
-        day = WEEKDAYS[max(range(7), key=lambda i: days[i])]
-        when = f" at {max(range(24), key=lambda i: hours[i]):02d}:00" if hours and max(hours) else ""
-        out.append(f"most commits on {day}{when}")
+    days = act.get("by_weekday") or []   # the busiest weekday and hour are the Activity table's (--full), not a header phrase
     total = sum(days)
     if act.get("fix_commits") is not None and total:
         out.append(f"{_pct(act['fix_commits'], total)} of commits are fixes")
@@ -349,16 +345,26 @@ def pulse(report: dict) -> list:
 
 def signing_phrase(report: dict):
     """'33% of commits signed (ssh 28%, gpg 6%), 50% of the last year's', or 'no commits signed'; None
-    without the step. Read from the commit objects, nothing verified: evidence, not a level."""
+    without the step. Read from the commit objects, nothing verified: evidence, not a level. When the
+    forge committed and signed some of them itself (a merge from the web), those are named apart: its
+    signature says nothing about who wrote the change."""
     sig = report.get("signing") or {}
     if not sig.get("commits"):
         return None
     if not sig.get("signed"):
         return "no commits signed"
-    mix = ", ".join(f"{k} {_pct(v, sig['commits'])}" for k, v in sorted((sig.get("mechanisms") or {}).items(), key=lambda kv: (-kv[1], kv[0])))
+    forge = sig.get("forge") or {}
+    by_forge, forge_mix = forge.get("signed") or 0, forge.get("mechanisms") or {}
     last = sig.get("last_year") or {}
-    tail = f", {_pct(last['signed'], last['commits'])} of the last year's" if last.get("commits") else ""
-    return f"{_pct(sig['signed'], sig['commits'])} of commits signed ({mix}){tail}"
+    own = sig["signed"] - by_forge
+    mechanisms = {k: v - forge_mix.get(k, 0) for k, v in (sig.get("mechanisms") or {}).items()} if by_forge else (sig.get("mechanisms") or {})
+    mix = ", ".join(f"{k} {_pct(v, sig['commits'])}" for k, v in sorted(mechanisms.items(), key=lambda kv: (-kv[1], kv[0])) if v > 0)
+    tail = f", {_pct(last['signed'] - (last.get('forge_signed') or 0) if by_forge else last['signed'], last['commits'])} of the last year's" if last.get("commits") else ""
+    if not by_forge:
+        return f"{_pct(sig['signed'], sig['commits'])} of commits signed ({mix}){tail}"
+    head = f"{_pct(own, sig['commits'])} of commits signed by their authors ({mix}){tail}" if own else "no commits signed by their authors"
+    share = _pct(by_forge, sig['commits'])
+    return head if share == "0%" else f"{head}; {share} signed by the forge on merge"
 
 
 def _age_status(report: dict) -> str:
@@ -367,6 +373,38 @@ def _age_status(report: dict) -> str:
 
 def _age_reason(report: dict) -> str:
     return _step_phrase("code age", _age_status(report))
+
+
+def _p_words(p: float) -> str:
+    if p < 0.001:
+        return "p < 0.001"
+    shown = f"{p:.2g}"
+    if (p < watch.CHANCE_ALPHA) != (float(shown) < watch.CHANCE_ALPHA):   # rounding must not carry p across the line
+        shown = f"{p:.3g}"
+    return f"p = {shown}"
+
+
+def backtest_words(bt: dict) -> str:
+    """The backtest in one sentence, every count out of the same pool: the files that had changed more
+    than once by the cut-off, of which `positives` were fixed after it. Then what the numbers mean, in
+    words: against the same number of most-changed files, and against a random pick, by the one-sided
+    hypergeometric test at 5% (watch.p_by_chance). A backtest from before `positives` was recorded
+    says the old sentence rather than guess."""
+    n, k, churn = bt["listed"], bt["hits"], bt["baselines"]["churn"]
+    if "positives" not in bt:
+        return (f"6 months ago this list would have named {k} of the {bt['fixed']} files fixed since "
+                f"(a random {n} of the {bt['pool']} files that had changed more than once would name {bt['expected']}; "
+                f"the {n} most changed would name {churn})")
+    if not bt["positives"]:
+        return (f"none of the {bt['fixed']} files fixed since the cut-off six months ago had changed more than once by then, "
+                f"so there is nothing to score the list against")
+    p = bt.get("p_by_chance")
+    p = watch.p_by_chance(bt["pool"], bt["positives"], n, k) if p is None else p
+    versus = (f"fewer than the {n} most changed ({churn})" if k < churn else f"no more than the {n} most changed" if k == churn
+              else f"more than the {n} most changed ({churn})")
+    chance = (f"not distinguishable from a random {n}" if p >= watch.CHANCE_ALPHA else f"more than a random {n} would by chance")
+    return (f"6 months ago this list's top {n} would have named {k} of the {bt['positives']} file{'s' if bt['positives'] != 1 else ''} fixed since among the "
+            f"{bt['pool']} that had changed more than once: {versus}; {chance} ({bt['expected']} expected, {_p_words(p)})")
 
 
 def watch_section(report: dict, full: bool = True, width=None) -> dict:
@@ -386,10 +424,7 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     if bt and not bt["fixed"]:
         notes.append("nothing has been fixed since the cut-off six months ago, so there is nothing to score the list against")
     elif bt:
-        notes.append(f"6 months ago this list would have named {bt['hits']} of the {bt['fixed']} files fixed since "
-                     f"(a random {bt['listed']} of the {bt['pool']} files that had changed more than once would name {bt['expected']}; "
-                     f"the {bt['listed']} most changed would name {bt['baselines']['churn']})"
-                     + ("; whole history" if since else ""))   # the backtest ignores the window
+        notes.append(backtest_words(bt) + ("; whole history" if since else ""))   # the backtest ignores the window
     elif status.get("reason"):
         notes.append(status["reason"])
     elif status.get("status") in ("failed", "timeout"):
@@ -552,7 +587,8 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     if not tl:
         return _section("Timeline", [("author", {})], [], note="no timeline data")
     last = max(m for per in tl.values() for m in per)
-    span = _month_range(last, months)
+    first = min(m for per in tl.values() for m in per)
+    span = [m for m in _month_range(last, months) if m >= first]   # no columns for months before the history began
     since = report["meta"].get("since")
     if since:
         span = [m for m in span if m >= since[:7]] or span[-1:]
@@ -580,7 +616,8 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     columns = [("author", {"no_wrap": True})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     room = width - INDENT - MONTH_WIDTH * len(span) if width else None
     rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
-    return _section(f"Timeline ({_month_label(span[0])} → {_month_label(span[-1])})", columns, rows, caption=_more(len(ranked), limit))
+    months_shown = _month_label(span[0]) if len(span) == 1 else f"{_month_label(span[0])} → {_month_label(span[-1])}"
+    return _section(f"Timeline ({months_shown})", columns, rows, caption=_more(len(ranked), limit))
 
 
 def signing_section(report: dict, full: bool = True, width=None) -> dict:
@@ -597,6 +634,9 @@ def signing_section(report: dict, full: bool = True, width=None) -> dict:
     people = [i for i in (sig.get("by_identity") or [])[:5]]
     if people:
         parts.append(", ".join(f"{i['name']} {_pct(i['signed'], i['commits'])}" for i in people))
+    forge = sig.get("forge") or {}
+    if forge.get("signed"):
+        parts.append(f"{forge['signed']:,} of the signed commits were committed and signed by the forge on merge, not by their authors")
     parts.append("read from the commit objects, nothing verified")
     return _section("Signing by year", columns, rows, caption="; ".join(parts))
 

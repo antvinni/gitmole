@@ -637,6 +637,48 @@ class BugMagnets(unittest.TestCase):
         self.assertEqual(f[0]["severity"], "info")
         self.assertTrue(f[0]["detail"].endswith("Review core/util.py before the next release; fixes keep landing there."), f[0]["detail"])
 
+    def test_a_file_whose_recent_fixes_all_fixed_a_file_above_it_is_listed_with_that_file(self):
+        fixes = [{"entity": f"plug/tasks/{n}.go", "n-fixes": k, "last-fix": "2026-09-01", "recent-fixes": k}
+                 for n, k in (("user", 5), ("org", 4), ("ent", 4), ("helper", 4))] + [self.FIXES[0]]
+        history = {"plug/tasks/user.go": {"first": "2026-02-26", "recent": ["h5", "h4", "h3", "h2", "h1"]},
+                   "plug/tasks/org.go": {"first": "2026-02-26", "recent": ["h4", "h3", "h2", "h1"]},
+                   "plug/tasks/ent.go": {"first": "2026-02-26", "recent": ["h4", "h3", "h2", "h1"]},
+                   "plug/tasks/helper.go": {"first": "2026-02-26", "recent": ["h9", "h3", "h2", "h1"]},   # h9 is its own: it stands alone
+                   "core/parser.py": {"first": "2020-01-01", "recent": ["p1", "h1", "h2", "p4", "p5"]}}
+        r = report(fixes=fixes, fix_history=history)
+        r["meta"]["now"] = "2026-09-17"
+        f = findings.bug_magnets(r)[0]
+        self.assertIn("5 file(s) were fixed 3+ times in the last six months: core/parser.py (5 recent, 9 total); "
+                      "plug/tasks/user.go (5 recent, 5 total) and 2 files beside it fixed in the same commits; "
+                      "plug/tasks/helper.go (4 recent, 4 total).", f["detail"], "created seven months before now: not new in the window")
+        self.assertIn("Review core/parser.py and plug/tasks/user.go before the next release", f["advice"])
+        self.assertEqual(f["evidence"]["shared_fixes"], [{"file": "plug/tasks/user.go", "with": ["plug/tasks/ent.go", "plug/tasks/org.go"],
+                                                         "fixes": ["h5", "h4", "h3", "h2", "h1"]}])
+        self.assertEqual([x["file"] for x in f["evidence"]["files"]], ["core/parser.py", "plug/tasks/user.go", "plug/tasks/ent.go",
+                                                                      "plug/tasks/helper.go", "plug/tasks/org.go"], "the files it names are unchanged")
+
+    def test_a_file_elsewhere_is_not_beside_it(self):
+        fixes = [{"entity": "a/x.py", "n-fixes": 4, "last-fix": "2026-09-01", "recent-fixes": 4},
+                 {"entity": "b/y.py", "n-fixes": 3, "last-fix": "2026-09-01", "recent-fixes": 3}]
+        r = report(fixes=fixes, fix_history={"a/x.py": {"first": "2020-01-01", "recent": ["1", "2", "3", "4"]},
+                                             "b/y.py": {"first": "2020-01-01", "recent": ["1", "2", "3"]}})
+        self.assertIn("a/x.py (4 recent, 4 total) and 1 file fixed in the same commits.", findings.bug_magnets(r)[0]["detail"])
+
+    def test_a_file_younger_than_the_window_says_so(self):
+        r = report(fixes=[{**self.FIXES[0], "n-fixes": 5}, self.FIXES[1]], fix_history={"core/parser.py": {"first": "2026-05-01", "recent": ["a", "b", "c", "d", "e"]},
+                                                       "core/util.py": {"first": "2026-01-01", "recent": ["f", "g", "h"]}})
+        r["meta"]["now"] = "2026-09-17"
+        f = findings.bug_magnets(r)[0]
+        self.assertIn("core/parser.py (5 recent, new in the window); core/util.py (3 recent, 4 total).", f["detail"])
+        self.assertEqual(f["evidence"]["new_in_window"], ["core/parser.py"])
+        r["fixes"][0]["n-fixes"] = 6   # a count the window does not hold all of: both numbers stay
+        self.assertIn("core/parser.py (5 recent, 6 total, new in the window)", findings.bug_magnets(r)[0]["detail"])
+
+    def test_without_the_commits_every_file_stands_alone(self):
+        f = findings.bug_magnets(report(fixes=self.FIXES))[0]
+        self.assertNotIn("shared_fixes", f["evidence"])
+        self.assertNotIn("new in the window", f["detail"])
+
     def test_nothing_without_recent_fixes(self):
         self.assertEqual(findings.bug_magnets(report(fixes=self.FIXES[3:])), [])
         self.assertEqual(findings.bug_magnets(report()), [])
@@ -728,6 +770,14 @@ class BrainMethods(unittest.TestCase):
         f = findings.brain_methods(r)
         self.assertEqual(f[0]["advice"], "Split onSendEnd in lib/reply.js first, before the next change lands there.")
         self.assertNotIn("validate10", f[0]["detail"])
+
+    def test_a_numbered_schema_migration_is_not_a_brain_method(self):
+        fns = [{"file": "backend/core/models/migrationscripts/20240116_modify_fileds_sort.go", "function": "Up", "ccn": 37, "nloc": 146, "params": 1, "start": 1, "end": 146},
+               {"file": "backend/core/runner/run_task.go", "function": "RunPluginSubTasks", "ccn": 33, "nloc": 145, "params": 6, "start": 1, "end": 145}]
+        f = findings.brain_methods(report(functions=fns))
+        self.assertEqual(f[0]["advice"], "Split RunPluginSubTasks in backend/core/runner/run_task.go first, before the next change lands there.")
+        self.assertNotIn("20240116", f[0]["detail"], "a migration is replayed as written; nobody should split it")
+        self.assertEqual(findings.brain_methods(report(functions=fns[:1])), [])
 
     def test_example_code_is_not_a_brain_method(self):
         fns = [{"file": "examples/named-pipe-ready.rs", "function": "windows_main", "ccn": 25, "nloc": 109, "params": 0, "start": 1, "end": 109},
@@ -1135,6 +1185,11 @@ class ComplexityGrowth(unittest.TestCase):
         self.assertEqual(findings.complexity_growth(self._report([2, 2, 2, 2, 2])), [])
         self.assertEqual(findings.complexity_growth(report()), [])
 
+    def test_less_than_a_year_of_samples_claims_no_growth_in_a_year(self):
+        r = self._report([3, 3, 3, 0, 0])
+        r["trend"]["files"] = {p: [["2026-06-10", s[0][1], 100], s[1]] for p, s in r["trend"]["files"].items()}
+        self.assertEqual(findings.complexity_growth(r), [], "three months is not a year")
+
 
 class Advice(unittest.TestCase):
     def test_every_finding_carries_its_next_step_as_a_field_that_ends_the_detail(self):
@@ -1229,6 +1284,17 @@ class Hygiene(unittest.TestCase):
         self.assertIn("2 of 3 workflow steps use an action by tag or branch: actions/checkout@v4 and org/deploy@main in .github/workflows/ci.yml.", f["detail"])
         self.assertTrue(f["advice"].startswith("Pin org/deploy@main to a full commit SHA first"), f["advice"])
         self.assertEqual(f["rule"]["scorecard"], "Pinned-Dependencies")
+
+    def test_the_pin_advice_names_another_owners_action_before_the_repositorys_own(self):
+        unpinned = [{"file": ".github/workflows/a.yml", "uses": "actions/checkout@v7"}, {"file": ".github/workflows/a.yml", "uses": "apache/skywalking-eyes@main"},
+                    {"file": ".github/workflows/b.yml", "uses": "golangci/golangci-lint-action@v9"}]
+        def advice(origin):
+            return self.by_id(self.h(actions={"unpinned": unpinned, "unpinned_count": 3, "pinned": 0, "origin": origin}))["unpinned_actions"]["advice"]
+        self.assertTrue(advice({"host": "github.com", "owner": "Apache"}).startswith("Pin golangci/golangci-lint-action@v9 "), "apache's own action is nearer than golangci's")
+        self.assertTrue(advice(None).startswith("Pin apache/skywalking-eyes@main "), "no origin: the order as before")
+        self.assertTrue(advice({"host": "gitlab.com", "owner": "apache"}).startswith("Pin apache/skywalking-eyes@main "), "an account on another host is not the GitHub one")
+        f = self.by_id(self.h(actions={"unpinned": unpinned[:2], "unpinned_count": 2, "pinned": 0, "origin": {"host": "github.com", "owner": "apache"}}))["unpinned_actions"]
+        self.assertTrue(f["advice"].startswith("Pin apache/skywalking-eyes@main "), "the repository's own owner still comes before GitHub's")
 
     def test_lockfile_drift_and_missing_lockfiles(self):
         found = self.by_id(self.h(lockfiles={"drift": [{"manifest": "package.json", "lockfile": "package-lock.json", "manifest_date": "2026-03-01", "lockfile_date": "2026-01-01"}],

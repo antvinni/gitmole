@@ -253,6 +253,41 @@ class ParseSecrets(unittest.TestCase):
         self.assertEqual(load.parse_secrets(""), [])
 
 
+class ParseFixHistory(unittest.TestCase):
+    """Which commits a file's recent fixes were, rebuilt from log.txt the way the change analysis counted them."""
+    LOG = "\n".join([
+        "--c1--2026-09-01T10:00:00+00:00--Ann--fix: a and b",
+        "3\t1\tsrc/a.py", "2\t1\tsrc/b.py", "",
+        "--c2--2026-08-01T10:00:00+00:00--Ann--fix b's parser",
+        "3\t1\tsrc/a.py", "2\t1\tsrc/b.py", "",
+        "--c3--2026-07-01T10:00:00+00:00--Bob--bug in the parser",
+        "3\t1\tsrc/a.py", "2\t1\tsrc/b.py", "9\t0\tsrc/c.py", "",
+        "--c4--2026-06-01T10:00:00+00:00--Bob--move old to a",
+        "0\t0\tsrc/{old.py => a.py}", "",
+        "--c5--2025-08-01T10:00:00+00:00--Bob--fix b",
+        "1\t1\tsrc/b.py", "",
+        "--c6--2025-06-01T10:00:00+00:00--Ann--add old",
+        "40\t0\tsrc/old.py", ""])
+    FIXES = [{"entity": "src/a.py", "n-fixes": 3, "recent-fixes": 3}, {"entity": "src/b.py", "n-fixes": 4, "recent-fixes": 3},
+             {"entity": "src/c.py", "n-fixes": 1, "recent-fixes": 1}, {"entity": "src/d.py", "n-fixes": 2, "recent-fixes": 0}]
+
+    def test_names_the_recent_fix_commits_newest_first_and_the_day_each_file_began(self):
+        h = load.parse_fix_history(self.LOG, self.FIXES, {}, {}, "2026-09-17")
+        self.assertEqual(h["src/a.py"], {"first": "2025-06-01", "recent": ["c1", "c2", "c3"]}, "followed back past the move")
+        self.assertEqual(h["src/b.py"], {"first": "2025-08-01", "recent": ["c1", "c2", "c3"]}, "c5 is a fix, but not a recent one")
+        self.assertEqual(h["src/c.py"], {"first": "2026-07-01", "recent": ["c3"]})
+        self.assertNotIn("src/d.py", h, "no recent fix, nothing to name")
+
+    def test_a_pool_that_does_not_give_back_the_recorded_counts_names_nothing(self):
+        wrong = [{**self.FIXES[0], "n-fixes": 2}]   # say a declared revision left one out: which one is not known here
+        self.assertIsNone(load.parse_fix_history(self.LOG, wrong, {}, {}, "2026-09-17")["src/a.py"]["recent"])
+
+    def test_the_commits_activity_lists_as_left_out_are_left_out(self):
+        rows = [{"entity": "src/a.py", "n-fixes": 2, "recent-fixes": 2}]
+        h = load.parse_fix_history(self.LOG, rows, {}, {"sweeping": [{"hash": "c2"}]}, "2026-09-17")
+        self.assertEqual(h["src/a.py"]["recent"], ["c1", "c3"])
+
+
 class Authored(unittest.TestCase):
     """An older run counted a Co-authored-by credit as a commit and kept no `authored`; the trailer inventory
     says which identities only ever appear in trailers."""

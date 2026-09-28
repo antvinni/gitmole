@@ -250,6 +250,17 @@ class TestPaths(unittest.TestCase):
                      "requests/packages/urllib3/a.py"):   # decided with the repository in hand: packages_vendored
             self.assertFalse(filetypes.is_vendor_path(path), path)
 
+    def test_numbered_schema_migrations(self):
+        for path in ("backend/core/models/migrationscripts/20240116_modify_fileds_sort.go", "django/contrib/auth/migrations/0001_initial.py",
+                     "db/migrate/20240116123456_create_users.rb", "src/main/resources/db/migration/V1_2__init.sql",
+                     "alembic/versions/ae1027a6acf0_add_col.py", "migrations/versions/1a2b3c4d5e6f_x.py", "Migrations/20240116123456_Init.cs",
+                     "migrations/000001_create.up.sql"):
+            self.assertTrue(filetypes.is_migration_path(path), path)
+        for path in ("django/db/migrations/autodetector.py",   # the migration framework itself: the directory alone is not enough
+                     "backend/core/models/migrationscripts/register.go", "migrationscripts/archived/foo.go", "lib/migration.py",
+                     "src/20240116_x.go", "alembic/versions/env.py", "app/versions/ae1027a6acf0_x.py"):
+            self.assertFalse(filetypes.is_migration_path(path), path)
+
     def test_a_packages_dir_inside_a_package_is_vendored_unless_a_workspace_declares_it(self):
         # requests/packages/ is the Python vendoring convention; react's compiler/package.json lists packages/* as its
         # workspaces, so compiler/packages/ is react's own code, and so is a tree the root pnpm-workspace.yaml lists

@@ -246,6 +246,7 @@ class Risks(unittest.TestCase):
         self.assertEqual(grown["reasons"].index("complexity +220% in a year"), grown["reasons"].index("parse() complexity 41") + 1, "right after the function it is about")
         for series in ([["2025-09-01", 10, 300], ["2026-09-01", 12, 800]],      # +20%: under the floor
                        [["2025-09-01", 40, 300], ["2026-09-01", 10, 800]],      # shrinking is not a reason
+                       [["2026-08-31", 10, 300], ["2026-09-10", 126, 800]],     # ten days is not a year
                        []):                                                     # sampled, but with nothing to compare
             self.assertFalse([x for x in reasons(series)["reasons"] if "in a year" in x], series)
 
@@ -510,6 +511,16 @@ class Backtest(unittest.TestCase):
         out = watch.backtest(r, top=1)
         self.assertEqual((out["listed"], out["hits"]), (1, 1), "35 × 9000 leads the list, and big.py was fixed")
         self.assertEqual(out["baselines"], {"churn": 0, "size": 1}, "the most changed file is index.html; the largest is big.py")
+
+
+class PByChance(unittest.TestCase):
+    def test_the_one_sided_hypergeometric_tail(self):
+        # 3 of 10 fixed, 3 drawn, 2 or more hit: (C(3,2)·C(7,1) + C(3,3)·C(7,0)) / C(10,3) = 22/120
+        self.assertAlmostEqual(watch.p_by_chance(10, 3, 3, 2), 22 / 120)
+        self.assertEqual(watch.p_by_chance(10, 3, 3, 0), 1.0, "no hits is what any draw does")
+        self.assertAlmostEqual(watch.p_by_chance(10, 3, 3, 3), 1 / 120)
+        self.assertEqual(watch.p_by_chance(10, 0, 3, 1), 0.0, "nothing to hit")
+        self.assertEqual(watch.p_by_chance(0, 0, 0, 0), 1.0)
 
 
 class RankedBy(unittest.TestCase):

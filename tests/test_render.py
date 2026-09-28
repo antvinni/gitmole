@@ -374,6 +374,16 @@ class Report(unittest.TestCase):
         self.assertRegex(block, r"2026\s+200\s+100\s+50%")
         self.assertIn("humans 36% signed, bots 0%; Ann 51%, Bob 1%; read from the commit objects, nothing verified", block)
         self.assertIn("## Signing by year", render.markdown(r, []))
+        r["signing"]["forge"] = {"commits": 60, "signed": 60, "mechanisms": {"ssh": 39, "gpg": 21}}
+        r["signing"]["last_year"]["forge_signed"] = 105
+        self.assertIn("17% of commits signed by their authors (ssh 17%), 0% of the last year's; 17% signed by the forge on merge", render.pulse(r))
+        full = rendered(r, [], width=200, full=True)
+        self.assertIn("60 of the signed commits were committed and signed by the forge on merge", _section_text(full, "Signing by year"))
+        r["signing"]["forge"] = {"commits": 121, "signed": 121, "mechanisms": {"ssh": 100, "gpg": 21}}
+        self.assertIn("no commits signed by their authors; 33% signed by the forge on merge", render.pulse(r), "a merge button's key is not developer signing")
+        r["signing"]["forge"] = {"commits": 1, "signed": 1, "mechanisms": {"ssh": 1}}
+        r["signing"]["last_year"]["forge_signed"] = 1
+        self.assertIn("33% of commits signed by their authors (ssh 27%, gpg 6%), 50% of the last year's", render.pulse(r), "a share that rounds to nothing is not spelled out")
         r["signing"] = {"commits": 5, "signed": 0, "mechanisms": {}, "by_year": {"2026": {"commits": 5, "signed": 0}}, "humans": {"commits": 5, "signed": 0},
                         "bots": {"commits": 0, "signed": 0}, "by_identity": [], "last_year": {"commits": 5, "signed": 0}}
         self.assertIn("no commits signed", render.pulse(r))
@@ -457,9 +467,10 @@ class Report(unittest.TestCase):
         r["backtest"] = past
         r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
-        text = rendered(r, [], width=200)
-        self.assertIn("6 months ago this list would have named 1 of the 2 files fixed since "
-                      "(a random 2 of the 2 files that had changed more than once would name 1.0; the 2 most changed would name 1)", text)
+        text = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
+        self.assertIn("6 months ago this list's top 2 would have named 1 of the 1 file fixed since among the 2 that had changed more than once: "
+                      "no more than the 2 most changed; not distinguishable from a random 2 (1.0 expected, p = 1)", text)
+        self.assertEqual(render.to_json(r, [])["watch_backtest"]["positives"], 1, "static/other.html was not in the pool")
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["hits"], 1)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["pool"], 2)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["baselines"]["churn"], 1)
@@ -485,7 +496,26 @@ class Report(unittest.TestCase):
         r["meta"]["since"] = "2026-01-01"
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
         self.assertIn("ranked by revisions × lines of code alone; the reasons say what to look at there; commits since 2026-01-01", caption)
-        self.assertTrue(caption.endswith("the 2 most changed would name 1); whole history"), caption)
+        self.assertTrue(caption.endswith("(1.0 expected, p = 1); whole history"), caption)
+
+    def test_backtest_words_say_what_the_numbers_mean(self):
+        bt = {"t": "2026-03-10", "pool": 1245, "listed": 15, "fixed": 205, "positives": 128, "hits": 3, "expected": 1.5,
+              "baselines": {"churn": 5, "size": 2}, "p_by_chance": 0.19}
+        self.assertEqual(render.backtest_words(bt),
+                         "6 months ago this list's top 15 would have named 3 of the 128 files fixed since among the 1245 that had changed "
+                         "more than once: fewer than the 15 most changed (5); not distinguishable from a random 15 (1.5 expected, p = 0.19)",
+                         "devlake's, which once read 3 of the 205 beside a random 1.5 out of 128 and said nothing about either")
+        bt.update(hits=9, p_by_chance=0.00002)
+        self.assertTrue(render.backtest_words(bt).endswith("more than the 15 most changed (5); more than a random 15 would by chance (1.5 expected, p < 0.001)"))
+        bt.update(hits=5, p_by_chance=0.0496)
+        self.assertIn("no more than the 15 most changed; more than a random 15 would by chance (1.5 expected, p = 0.0496)", render.backtest_words(bt),
+                      "0.0496 is not rounded to a 0.05 that reads as the other side of the line")
+        bt.update(positives=0)
+        self.assertEqual(render.backtest_words(bt), "none of the 205 files fixed since the cut-off six months ago had changed more than once by then, "
+                                                    "so there is nothing to score the list against")
+        old = {k: v for k, v in bt.items() if k not in ("positives", "p_by_chance")}
+        self.assertIn("(a random 15 of the 1245 files that had changed more than once would name 1.5", render.backtest_words(old),
+                      "a backtest recorded before the pool's own count keeps its old sentence")
 
     def test_markdown_hotspots_hide_test_files_and_say_so(self):
         r = sample_report()
@@ -1001,10 +1031,12 @@ class FullOnlySections(unittest.TestCase):
         r = sample_report()
         r["activity"]["fix_commits"] = 58
         text = rendered(r, [])
-        self.assertIn("most commits on Thu at 10:00  ·  25% of commits are fixes  ·  76% of surviving code from 2025", text)
+        self.assertIn("25% of commits are fixes  ·  76% of surviving code from 2025", text)
+        self.assertNotIn("most commits on", text, "the busiest weekday and hour are trivia for the header; --full's Activity table has them")
+        self.assertIn("busiest hour 10:00", rendered(r, [], full=True))
         r["activity"] = {}
         r["cohorts"] = {}
-        self.assertNotIn("most commits", rendered(r, []))
+        self.assertNotIn("of commits are fixes", rendered(r, []))
 
     def test_header_line_says_when_code_age_did_not_run(self):
         # the age table is --full only now, so the header is where the timeout has to show
@@ -1025,7 +1057,7 @@ class FullOnlySections(unittest.TestCase):
             r["meta"]["structure"] = {"status": status}
             self.assertIn(phrase, rendered(r, []), status)
             self.assertIn(phrase, render.markdown(r, []), status)
-            self.assertLess(rendered(r, []).index(phrase), rendered(r, []).index("most commits on"), "a missing step is said before the numbers that may miss it")
+            self.assertLess(rendered(r, []).index(phrase), rendered(r, []).index("of surviving code from"), "a missing step is said before the numbers that may miss it")
         r["meta"]["structure"] = {"status": "skipped", "install": "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+"}
         self.assertNotIn("structure checks", rendered(r, []), "a skip is the interpreter's, said at install time: the report must not differ by Python version")
         r["meta"]["structure"] = {"status": "run"}
@@ -1040,7 +1072,8 @@ class FullOnlySections(unittest.TestCase):
         self.assertNotIn("structure checks", rendered(r, []), "an output directory written before the step existed says nothing")
 
     def test_header_line_is_in_markdown_too(self):
-        self.assertIn("most commits on Thu at 10:00 · 76% of surviving code from 2025", render.markdown(sample_report(), []))
+        self.assertIn("76% of surviving code from 2025", render.markdown(sample_report(), []))
+        self.assertNotIn("most commits on", render.markdown(sample_report(), []))
 
     def test_header_line_names_the_core_steps_that_did_not_finish(self):
         r = sample_report()
@@ -1121,6 +1154,15 @@ class Timeline(unittest.TestCase):
         text = rendered(r, [], width=120)
         self.assertIn("Timeline (Jul 2026 → Sep 2026)", text)
         self.assertNotIn("Oct", text)
+
+    def test_timeline_starts_no_earlier_than_the_history(self):
+        r = sample_report()
+        r["activity"]["timeline"] = {"Ann": {"2026-09": 4}, "Bob": {"2026-08": 1}}
+        text = rendered(r, [], width=120)
+        self.assertIn("Timeline (Aug 2026 → Sep 2026)", text, "ten days of history once drew Oct 2025 onwards, empty")
+        self.assertNotIn("Oct", text)
+        r["activity"]["timeline"] = {"Ann": {"2026-09": 4}}
+        self.assertIn("Timeline (Sep 2026)", rendered(r, [], width=120), "one month is not a range")
 
     def test_people_caption_says_what_is_windowed(self):
         r = sample_report()

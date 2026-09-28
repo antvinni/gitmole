@@ -76,9 +76,33 @@ _USES = re.compile(r"""^\s*(?:-\s*)?uses:\s*['"]?([^'"\s#]+)""", re.M)
 _SHA = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
 
+_SCP_URL = re.compile(r"^[\w.-]+@([\w.-]+):/?([^/]+)/")   # git@host:owner/repo.git
+
+
+def origin_owner(repo: str):
+    """{"host", "owner"} from the clone's `origin` remote, the account the repository says it lives
+    under (github.com/apache/devlake: apache), or None for a local path or no origin. Only the host and
+    the first path segment are kept, never the URL, which can carry a token."""
+    proc = subprocess.run(["git", "config", "--get", "remote.origin.url"], cwd=repo, capture_output=True, text=True)
+    url = proc.stdout.strip() if proc.returncode == 0 else ""
+    scp = _SCP_URL.match(url)
+    if scp:
+        host, owner = scp.group(1), scp.group(2)
+    elif "://" in url:
+        parts = urlsplit(url)
+        segments = [s for s in parts.path.split("/") if s]
+        if parts.scheme == "file" or not parts.hostname or len(segments) < 2:
+            return None
+        host, owner = parts.hostname, segments[0]
+    else:
+        return None
+    return {"host": host.lower(), "owner": owner}
+
+
 def actions_pinning(repo: str) -> dict:
     """Every `uses:` in the tracked workflows: pinned to a full commit SHA, a local action or a docker
-    image (neither), or unpinned (a tag or a branch the action's owner can move)."""
+    image (neither), or unpinned (a tag or a branch the action's owner can move). `origin` is the
+    account the clone's origin remote names, so the advice can put another owner's actions first."""
     unpinned, pinned, local = [], 0, 0
     for path in _tracked(repo):
         if not re.match(r"^\.github/workflows/[^/]+\.ya?ml$", path):
@@ -90,7 +114,7 @@ def actions_pinning(repo: str) -> dict:
                 pinned += 1
             else:
                 unpinned.append({"file": path, "uses": ref})
-    return {"unpinned": unpinned[:CAP], "unpinned_count": len(unpinned), "pinned": pinned, "local": local}
+    return {"unpinned": unpinned[:CAP], "unpinned_count": len(unpinned), "pinned": pinned, "local": local, "origin": origin_owner(repo)}
 
 
 # --- lock files ---------------------------------------------------------------------------------

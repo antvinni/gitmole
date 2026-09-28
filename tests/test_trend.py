@@ -29,7 +29,9 @@ class ChangeOverYear(unittest.TestCase):
     def test_compares_the_sample_nearest_a_year_back_with_the_latest(self):
         self.assertEqual(trend.change_over_year(self.S, "2025-11-09"), "+50%")       # 2024-11-01 (20) -> 30
         self.assertEqual(trend.change_over_year(self.S[1:], "2025-11-09"), "+50%")
-        self.assertEqual(trend.change_over_year(self.S[2:], "2025-11-09"), "+20%", "no sample a year back: the earliest")
+        self.assertEqual(trend.change_over_year(self.S[2:], "2025-11-09"), "-", "no sample a year back: no year to compare, not the earliest under a year's name")
+        ten_days = [["2026-09-07", 8, 50], ["2026-09-17", 101, 400]]
+        self.assertEqual(trend.change_over_year(ten_days, "2026-09-17"), "-", "gitmole's own ten days once read +1163% in a year")
 
     def test_flat_within_ten_percent_and_unmeasurable(self):
         self.assertEqual(trend.change_over_year([["2024-11-01", 20, 1], ["2025-11-01", 21, 1]], "2025-11-09"), "=")

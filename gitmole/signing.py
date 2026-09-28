@@ -11,6 +11,13 @@ out of scope, and so is reading the Fulcio certificate inside a CMS blob, which 
 dependency. About a tenth of commits across GitHub are signed; the figure is evidence toward SLSA
 Source L2, never a level assertion.
 
+A commit the forge made itself (a squash or rebase merge from the web, a web edit) carries the forge's
+signature, not the developer's: GitHub commits those as `GitHub <noreply@github.com>` and signs them
+with its web-flow key. Such a commit is recognised by the shape of the committer address recorded in the
+commit, a bare `noreply@<host>` that belongs to no person (a person's forge address has a local part
+of its own, `123+name@users.noreply.github.com`), and counted apart under `forge`, so a repository
+whose developers sign nothing does not read as fully signed because its merge button does.
+
 Runs as a pipeline step, `python -m gitmole.signing OUT_DIR`, from inside the repository; writes
 signing.json."""
 from __future__ import annotations
@@ -36,13 +43,22 @@ def kind(payload: str) -> str:
     return "other"
 
 
+def forge_committer(email: str) -> bool:
+    """True when the committer address is a forge's own no-reply address (`noreply@github.com`), the
+    identity a forge commits under when it makes the commit itself; a person's no-reply address has a
+    local part of its own and is not one."""
+    local, _, host = (email or "").strip().lower().partition("@")
+    return local == "noreply" and "." in host
+
+
 def _commits(repo: str) -> list:
-    """[(sha, author name, date)] of HEAD's history, author names through .mailmap, oldest last as git lists them."""
-    proc = subprocess.run(["git", "log", "HEAD", "--use-mailmap", "--format=%H%x1f%aN%x1f%ad", "--date=short"], cwd=repo, capture_output=True, check=True)
+    """[(sha, author name, date, committer email)] of HEAD's history, author names through .mailmap, oldest
+    last as git lists them. The committer address is the one recorded in the commit, not the mailmap's."""
+    proc = subprocess.run(["git", "log", "HEAD", "--use-mailmap", "--format=%H%x1f%aN%x1f%ad%x1f%ce", "--date=short"], cwd=repo, capture_output=True, check=True)
     out = []
     for line in proc.stdout.decode("utf-8", "replace").split("\n"):
         parts = line.split("\x1f")
-        if len(parts) == 3:
+        if len(parts) == 4:
             out.append(tuple(parts))
     return out
 
@@ -74,18 +90,27 @@ def _signatures(repo: str, shas: list) -> dict:
 
 def coverage(repo: str, bots: set = frozenset()) -> dict:
     """How much of HEAD's history is signed, and how: totals, by mechanism, by year, humans against
-    bots (the run's own bot names), per identity, and over the twelve months before the last commit."""
+    bots (the run's own bot names), per identity, and over the twelve months before the last commit.
+    `forge` counts the commits the forge committed itself, and how many of those carry its signature;
+    they are inside every other count too, so a reader subtracts them to get what the authors signed."""
     commits = _commits(repo)
-    signed = _signatures(repo, [sha for sha, _, _ in commits])
+    signed = _signatures(repo, [sha for sha, _, _, _ in commits])
     mechanisms, by_year, by_identity = Counter(), {}, {}
     humans, robots = {"commits": 0, "signed": 0}, {"commits": 0, "signed": 0}
-    last = max((d for _, _, d in commits), default="")
+    last = max((d for _, _, d, _ in commits), default="")
     cut = f"{int(last[:4]) - 1}{last[4:]}" if last else ""
-    last_year = {"commits": 0, "signed": 0}
-    for sha, author, date in commits:
+    last_year = {"commits": 0, "signed": 0, "forge_signed": 0}
+    forge, forge_mechanisms = {"commits": 0, "signed": 0}, Counter()
+    for sha, author, date, committer in commits:
         is_signed = sha in signed
+        by_forge = forge_committer(committer)
         if is_signed:
             mechanisms[signed[sha]] += 1
+        if by_forge:
+            forge["commits"] += 1
+            forge["signed"] += is_signed
+            if is_signed:
+                forge_mechanisms[signed[sha]] += 1
         year = by_year.setdefault(date[:4], {"commits": 0, "signed": 0})
         year["commits"] += 1
         year["signed"] += is_signed
@@ -98,9 +123,12 @@ def coverage(repo: str, bots: set = frozenset()) -> dict:
         if cut and date > cut:
             last_year["commits"] += 1
             last_year["signed"] += is_signed
+            last_year["forge_signed"] += is_signed and by_forge
+    forge["mechanisms"] = dict(sorted(forge_mechanisms.items()))
     identities = sorted(by_identity.values(), key=lambda i: (-i["commits"], i["name"]))
     return {"commits": len(commits), "signed": len(signed), "mechanisms": dict(sorted(mechanisms.items())),
-            "by_year": dict(sorted(by_year.items())), "humans": humans, "bots": robots, "by_identity": identities[:50], "last_year": last_year}
+            "by_year": dict(sorted(by_year.items())), "humans": humans, "bots": robots, "by_identity": identities[:50], "last_year": last_year,
+            "forge": forge}
 
 
 def main(argv=None) -> int:

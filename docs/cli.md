@@ -359,9 +359,11 @@ the `version` input overrides both. The inputs:
 | `version` | the tag | The gitmole version to install from PyPI. |
 | `python-version` | `3.12` | The Python gitmole runs on. |
 
-Outputs: `exit-code` (0, or 3 when a gate tripped), `markdown` (the report's
-path) and `sarif`. A tripped gate fails the job only after the summary is
-written and the SARIF uploaded, so a blocked pull request still shows why.
+Outputs: `exit-code` (0; 3 when a gate tripped; 4 when a gate could not check
+because a step it reads did not finish), `markdown` (the report's path) and
+`sarif`. A tripped gate, or one that could not check, fails the job only after
+the summary is written and the SARIF uploaded, so a blocked pull request still
+shows why.
 
 The network is reached in the setup steps only: pip, the tool archives, and
 with `vulnerability-db: true` the OSV database for the ecosystems the
