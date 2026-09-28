@@ -34,22 +34,18 @@ class SecretsFound(unittest.TestCase):
         return {"rule": rule, "file": file, "commit": commit, "line": line, "fingerprint": f"{commit}:{file}:{rule}:{line}",
                 "value": value, "placeholder": placeholder}
 
-    def test_source_values_are_critical_test_only_values_a_warning_each_counted_once(self):
+    def test_source_values_are_critical_and_test_only_values_are_no_finding(self):
         r = report(secrets=[self.row("h1", "app/settings.py", "c1", 9), self.row("h1", "app/settings.py", "c2", 9),
                             self.row("h2", "tests/data/a.html", "c3", 5), self.row("h2", "tests/data/a.html", "c3", 5),
                             self.row("h2", "app/tests/data/a.html", "c4", 5, rule="aws-access-token"),
                             self.row("h3", "tests/t.py", "c5", 2)])
         found = {f["severity"]: f for f in findings.secrets_found(r)}
-        self.assertEqual(set(found), {"critical", "warning"})
-        crit, warn = found["critical"], found["warning"]
+        self.assertEqual(set(found), {"critical"}, "a value only in test files was secrets_aside until 0.39.0: labelled never actionable, retired")
+        crit = found["critical"]
         self.assertEqual(crit["title"], "1 secret(s) in history")
         self.assertIn("1 distinct value in 2 places: generic-api-key in app/settings.py (c1, c2)", crit["detail"])
         self.assertIn("Rotate", crit["advice"])
         self.assertIn(".betterleaksignore", crit["advice"])
-        self.assertEqual(warn["title"], "2 secret(s) only in test, example, vendored, generated or documentation files")
-        self.assertIn("2 distinct values in 3 places", warn["detail"])
-        self.assertIn("tests/data/a.html and 1 other file", warn["detail"])
-        self.assertIn(".betterleaksignore", warn["advice"])
 
     def test_a_value_from_an_unreachable_blob_names_no_commit_rather_than_an_empty_one(self):
         """react's one critical finding read "in (unreachable blob 00db21063ea1) ()", and django's
@@ -74,32 +70,26 @@ class SecretsFound(unittest.TestCase):
 
     def test_test_only_secrets_do_not_fail_a_critical_gate(self):
         r = report(secrets=[self.row("h3", "tests/t.py")])
-        self.assertEqual([f["severity"] for f in findings.secrets_found(r)], ["warning"])
+        self.assertEqual(findings.secrets_found(r), [])
 
-    def test_a_value_only_in_an_example_fixture_or_rules_directory_is_a_warning(self):
+    def test_a_value_only_in_an_example_fixture_or_rules_directory_is_no_finding(self):
         r = report(secrets=[self.row("h1", "examples/language/bru.bru", "57d82e9", rule="generic-password"),
                             self.row("h2", "config/generate/rules/slack.go", "04bdee4", rule="slack-bot-token"),
                             self.row("h3", "pkg/testdata/creds.yaml", "c3")])
-        f = findings.secrets_found(r)
-        self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertEqual(f[0]["title"], "3 secret(s) only in test, example, vendored, generated or documentation files")
+        self.assertEqual(findings.secrets_found(r), [])
         r = report(secrets=[self.row("h1", "examples/app.py", "c1"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
 
-    def test_a_value_only_in_vendored_code_is_a_warning(self):
+    def test_a_value_only_in_vendored_code_is_no_finding(self):
         # oauthlib's RFC test vectors inside requests/packages/: upstream's specimen, not this repository's credential
         r = report(secrets=[self.row("h1", "requests/packages/oauthlib/oauth1/rfc5849/parameters.py", "9576518")])
+        self.assertEqual(len(findings.secrets_found(r)), 1, "not vendored: a leak")
         r["meta"]["vendored"] = ["requests/packages/"]
-        f = findings.secrets_found(r)
-        self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertIn("vendored", f[0]["title"])
+        self.assertEqual(findings.secrets_found(r), [])
 
-    def test_a_value_only_in_documentation_is_a_warning_that_says_template(self):
+    def test_a_value_only_in_documentation_is_no_finding(self):
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508")])
-        f = findings.secrets_found(r)
-        self.assertEqual([x["severity"] for x in f], ["warning"])
-        self.assertEqual(f[0]["title"], "1 secret(s) only in test, example, vendored, generated or documentation files")
-        self.assertIn("fixtures or templates", f[0]["advice"])
+        self.assertEqual(findings.secrets_found(r), [])
         r = report(secrets=[self.row("h1", "docs/GA4-API-INTEGRATION.md", "e8c0508"), self.row("h1", "app/config.py", "c2")])
         self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in source is a leak")
 
@@ -265,77 +255,6 @@ class SweepingCommits(unittest.TestCase):
         self.assertEqual(findings.sweeping_commits(report()), [], "an output directory from before the record")
 
 
-class MinorContributors(unittest.TestCase):
-    def report(self, minors, coupled=None, expected_on=()):
-        """Twelve hotspots; `minors[i]` minor contributors on src/f{i}.py. With `coupled`, src/f0.py is coupled
-        with it and the people named in `expected_on` are major contributors to it."""
-        size = {f"src/f{i}.py": {"code": 1000 - i, "complexity": 1} for i in range(12)}
-        revisions = [{"entity": f"src/f{i}.py", "n-revs": 100 - i} for i in range(12)]
-        authors = [{"entity": f"src/f{i}.py", "n-authors": 3 + m, "n-revs": 100 - i, "minor": m} for i, m in enumerate(minors)]
-        ownership = [{"entity": f"src/f{i}.py", "author": "Ann", "added": 500, "deleted": 0, "commits": 60} for i in range(12)]
-        ownership += [{"entity": "src/f0.py", "author": f"Minor {k}", "added": 1, "deleted": 0, "commits": 1} for k in range(minors[0])]
-        r = report(size={"files": size}, revisions=revisions, authors=authors, ownership=ownership)
-        if coupled:
-            r["coupling"] = [{"entity": "src/f0.py", "coupled": coupled, "degree": 50, "average-revs": 50}]
-            r["ownership"] += [{"entity": coupled, "author": who, "added": 100, "deleted": 0, "commits": 50} for who in expected_on]
-        return r
-
-    def test_minor_contributors_who_are_major_on_a_coupled_file_are_expected_traffic(self):
-        r = self.report([6] + [0] * 11, coupled="src/f1.py", expected_on=["Minor 0", "Minor 1"])
-        self.assertEqual(findings.minor_contributors(r), [], "6 minors, 2 of them major on the coupled f1: 4 strangers is under the threshold")
-        r = self.report([12] + [0] * 11, coupled="src/f1.py", expected_on=["Minor 0", "Minor 1", "Minor 2"])
-        [f] = findings.minor_contributors(r)
-        self.assertEqual(f["severity"], "info", "12 minors less 3 expected is 9, under warn_at")
-        self.assertIn("src/f0.py (9 of 15 authors)", f["detail"])
-        self.assertIn("3 of the minor contributors are major contributors to a file these change with and are not counted", f["detail"])
-        self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 9, "minor_all": 12, "authors": 15, "owner": "Ann",
-                                                     "owner_gone": False, "ask": "Ann", "expected": [{"author": "Minor 0", "via": ["src/f1.py"]}, {"author": "Minor 1", "via": ["src/f1.py"]},
-                                                                  {"author": "Minor 2", "via": ["src/f1.py"]}]})
-        self.assertEqual(f["rule"]["expected_share"], 0.05, "the major/minor line the exclusion uses is the rule's own")
-
-    def test_without_coupling_the_count_is_birds_count(self):
-        [f] = findings.minor_contributors(self.report([12] + [0] * 11))
-        self.assertEqual((f["severity"], f["evidence"]["files"][0]["minor"], f["evidence"]["files"][0]["minor_all"], f["evidence"]["files"][0]["expected"]),
-                         ("warning", 12, 12, []))
-        self.assertNotIn("not counted", f["detail"])
-
-    def test_top_hotspots_with_five_or_more_minor_contributors_are_named(self):
-        [f] = findings.minor_contributors(self.report([12, 0, 6, 0, 0, 0, 0, 0, 0, 0, 9, 0]))
-        self.assertEqual((f["severity"], f["title"]), ("warning", "Many minor contributors"))
-        self.assertIn("2 of the top 10 hotspots have 5 or more contributors with under 5% of the file's commits each: src/f0.py (12 of 15 authors); "
-                      "src/f2.py (6 of 9 authors).", f["detail"])
-        self.assertNotIn("src/f10.py", f["detail"], "outside the top ten")
-        self.assertEqual(f["advice"], "Have Ann, who wrote most of src/f0.py, review changes to it from anyone else; "
-                                      "Bird et al. found the count of minor contributors the strongest ownership predictor of defects.")
-        self.assertEqual(f["rule"], {"id": "minor_contributors", "min_minor": 5, "warn_at": 10, "minor_share": 0.05, "top_n": 10, "expected_share": 0.05,
-                                     "ref": "Bird et al., FSE 2011"})
-        self.assertEqual(f["evidence"]["files"][0], {"file": "src/f0.py", "minor": 12, "minor_all": 12, "authors": 15, "owner": "Ann", "owner_gone": False, "ask": "Ann", "expected": []})
-
-    def test_a_main_author_who_has_left_is_not_the_one_asked_to_review(self):
-        r = self.report([12] + [0] * 11)
-        r["meta"].update(last_date="2026-09-01", gone_months=12)
-        r["activity"] = {"authors_all": {"Ann": {"last": "2024-01-01"}, "Minor 0": {"last": "2026-08-01"}}}
-        [f] = findings.minor_contributors(r)
-        self.assertNotIn("Ann", f["advice"])
-        self.assertTrue(f["advice"].startswith("Have Minor 0, its largest author still here (its main one is gone), review changes to src/f0.py from anyone else;"),
-                        f["advice"])
-        self.assertEqual((f["evidence"]["files"][0]["owner"], f["evidence"]["files"][0]["owner_gone"]), ("Ann", True))
-
-    def test_info_below_ten_and_nothing_below_five(self):
-        [f] = findings.minor_contributors(self.report([5] + [0] * 11))
-        self.assertEqual(f["severity"], "info")
-        self.assertEqual(findings.minor_contributors(self.report([4] + [0] * 11)), [])
-        self.assertEqual(findings.minor_contributors(report()), [], "no size, no hotspots")
-
-    def test_test_files_and_files_out_of_the_pool_are_not_counted(self):
-        r = self.report([9] + [0] * 11)
-        r["size"]["files"]["tests/test_x.py"] = {"code": 5000, "complexity": 1}
-        r["revisions"].insert(0, {"entity": "tests/test_x.py", "n-revs": 500})
-        r["authors"].append({"entity": "tests/test_x.py", "n-authors": 40, "n-revs": 500, "minor": 30})
-        [f] = findings.minor_contributors(r)
-        self.assertNotIn("tests/test_x.py", f["detail"])
-
-
 class TangledCommits(unittest.TestCase):
     def tangled(self, h, files, dirs, subject, date="2026-03-01"):
         return {"hash": h, "date": date, "files": files, "dirs": dirs, "subject": subject}
@@ -487,67 +406,6 @@ class Dormant(unittest.TestCase):
         r["meta"].update({"last_date": "2026-06-14", "now": "2026-09-17"})
         self.assertEqual(findings.dormant(r), [])
         self.assertEqual(findings.dormant(report()), [], "no dates, no finding")
-
-    def test_stale_files_are_not_reported_for_a_dormant_repository(self):
-        age = [{"entity": f"f{i}", "age-months": 15} for i in range(10)]
-        r = report(age=age)
-        r["meta"].update({"last_date": "2025-06-14", "now": "2026-09-17"})
-        self.assertEqual(findings.stale_files(r), [], "every file is untouched because nothing is; the dormancy finding says so")
-
-
-class StaleFiles(unittest.TestCase):
-    def test_info_when_a_third_untouched_for_a_year(self):
-        age = [{"entity": f"f{i}", "age-months": 12} for i in range(4)] + [{"entity": "g", "age-months": 0} for _ in range(6)]
-        f = findings.stale_files(report(age=age))
-        self.assertIn("40%", f[0]["detail"])
-        self.assertIn("Consider deleting what nobody has needed; dead code hides in untouched files.", f[0]["detail"])
-
-    def test_nothing_when_fresh(self):
-        self.assertEqual(findings.stale_files(report()), [])
-
-    def test_the_evidence_names_files_not_only_how_many(self):
-        """A count cannot be checked against a later tree, so the rule could not be scored at all
-        (remediation.NO_SUBJECTS), and a reader could not act on it either."""
-        age = [{"entity": f"old{i}.py", "age-months": 20 + i} for i in range(12)] + \
-              [{"entity": "fresh.py", "age-months": 0}]
-        evidence = findings.stale_files(report(age=age))[0]["evidence"]
-        self.assertEqual((evidence["stale"], evidence["files"]), (12, 13))
-        self.assertEqual(len(evidence["untouched"]), 10, "capped, like every other rule's evidence")
-        self.assertNotIn("fresh.py", evidence["untouched"])
-
-    def test_it_names_the_largest_untouched_files_not_the_oldest(self):
-        """The advice is to delete dead code, and a file's lines are how much of it is at stake: the
-        oldest files in a long-lived repository are its empty `__init__.py`s."""
-        age = [{"entity": "pkg/__init__.py", "age-months": 200},
-               {"entity": "legacy/parser.py", "age-months": 30},
-               {"entity": "legacy/tiny.py", "age-months": 40}]
-        tree = {"pkg/__init__.py": {"code": 0, "complexity": 0},
-                "legacy/parser.py": {"code": 900, "complexity": 40},
-                "legacy/tiny.py": {"code": 3, "complexity": 0}}
-        evidence = findings.stale_files(report(age=age, size={"files": tree}))[0]["evidence"]
-        self.assertEqual(evidence["untouched"], ["legacy/parser.py", "legacy/tiny.py", "pkg/__init__.py"],
-                         "largest first, then oldest")
-
-    def test_vendored_and_generated_files_count_neither_way(self):
-        """A checked-in jquery.js has not changed in years because nobody maintains it here, and the
-        advice is not to delete it. Out of the numerator and the denominator both, so the share is a
-        share of the repository's own files."""
-        age = [{"entity": "vendor/jquery.js", "age-months": 90}, {"entity": "api_pb2.py", "age-months": 90},
-               {"entity": "legacy/parser.py", "age-months": 90}, {"entity": "live.py", "age-months": 0}]
-        tree = {a["entity"]: {"code": 10, "complexity": 0} for a in age}
-        r = report(age=age, size={"files": tree})
-        r["meta"]["generated"] = ["api_pb2.py"]
-        f = findings.stale_files(r)
-        self.assertIn("50% of files (1)", f[0]["detail"], "one of two, not three of four")
-        self.assertEqual(f[0]["evidence"]["untouched"], ["legacy/parser.py"])
-
-    def test_files_no_longer_in_the_tree_do_not_count(self):
-        age = [{"entity": f"f{i}", "age-months": 12} for i in range(4)] + [{"entity": f"g{i}", "age-months": 0} for i in range(6)]
-        in_tree = {f"f{i}": {"code": 1, "complexity": 0} for i in range(2)} | {f"g{i}": {"code": 1, "complexity": 0} for i in range(6)}
-        self.assertEqual(findings.stale_files(report(age=age, size={"files": in_tree})), [], "2 of 8 files in the tree are stale")
-        in_tree = {f"f{i}": {"code": 1, "complexity": 0} for i in range(4)} | {f"g{i}": {"code": 1, "complexity": 0} for i in range(6)}
-        f = findings.stale_files(report(age=age, size={"files": in_tree}))
-        self.assertIn("40% of files (4)", f[0]["detail"])
 
 
 class IdentityMerges(unittest.TestCase):
@@ -899,165 +757,6 @@ class KnowledgeIslands(unittest.TestCase):
         self.assertEqual(findings.knowledge_islands(report()), [])
 
 
-class Reverts(unittest.TestCase):
-    def _report(self, reverts, commits=100, reverted=None):
-        r = report()
-        r["meta"]["commits"] = commits
-        r["activity"] = {"revert_commits": reverts, "reverted": reverted or {}}
-        return r
-
-    def test_info_at_five_percent_names_the_most_reverted_file(self):
-        # maat.activity sorts by count desc then path, so the test file leads the table
-        f = findings.reverts(self._report(5, reverted={"tests/t.py": 4, "core/a.py": 3, "core/b.py": 2}))
-        self.assertEqual(f[0]["severity"], "info")
-        self.assertEqual(f[0]["title"], "Reverts")
-        self.assertIn("5 of 100 commits are reverts; core/a.py was reverted 3 times, core/b.py twice, tests/t.py 4 times",
-                      f[0]["detail"], "source files lead, test files still listed")
-        self.assertEqual(f[0]["advice"], "Add a check before merge for core/a.py; it is the file most often backed out.")
-
-    def test_files_reverted_once_each_are_spread_not_named(self):
-        # tokio: 16 reverts across 16 files; naming one of them as "most often backed out" says nothing
-        f = findings.reverts(self._report(16, commits=5008, reverted={f"src/f{i}.rs": 1 for i in range(16)}))
-        self.assertEqual(f[0]["detail"].split(" Look")[0], "16 of 5008 commits are reverts, spread over 16 files, none backed out twice.")
-        self.assertEqual(f[0]["advice"], "Look at why they were backed out; no single file keeps coming back.")
-        self.assertEqual(f[0]["evidence"]["files"], 16, "the file count the sentence quotes is in the evidence too")
-
-    def test_five_reverts_fire_even_below_five_percent(self):
-        self.assertEqual(len(findings.reverts(self._report(5, commits=1000, reverted={"a.py": 5}))), 1)
-        self.assertEqual(findings.reverts(self._report(4, commits=1000, reverted={"a.py": 4})), [])
-
-    def test_warning_at_ten_percent(self):
-        self.assertEqual(findings.reverts(self._report(10, reverted={"a.py": 10}))[0]["severity"], "warning")
-
-    def test_only_test_files_reverted_says_so(self):
-        f = findings.reverts(self._report(6, reverted={"tests/t.py": 6}))
-        self.assertEqual(f[0]["advice"], "Look at why they were backed out; only test files were touched.")
-
-    def test_nothing_without_reverts_or_activity(self):
-        self.assertEqual(findings.reverts(self._report(0)), [])
-        self.assertEqual(findings.reverts(report()), [])
-
-    def test_zero_commits_in_meta_gives_nothing_below_and_at_or_above_min_count(self):
-        self.assertEqual(findings.reverts(self._report(3, commits=0, reverted={"a.py": 3})), [])
-        self.assertEqual(findings.reverts(self._report(6, commits=0, reverted={"a.py": 6})), [])
-
-
-class KnowledgeLoss(unittest.TestCase):
-    def _report(self, **over):
-        r = report(**over)
-        r["meta"].update({"last_date": "2025-11-09", "bots": []})
-        r["activity"] = {"authors": {
-            "Ann": {"commits": 60, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2025-10-01"},
-            "Bob": {"commits": 40, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2024-06-01"}}}
-        return r
-
-    def test_warning_names_the_largest_area_nobody_around_wrote(self):
-        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
-                         age=[{"entity": "old/a.py", "age-months": 2}, {"entity": "docs/x.md", "age-months": 30}],
-                         ownership=[{"entity": "old/a.py", "author": "Bob", "added": 800, "deleted": 0},
-                                    {"entity": "docs/x.md", "author": "Bob", "added": 300, "deleted": 0},
-                                    {"entity": "app/b.py", "author": "Ann", "added": 900, "deleted": 0}])
-        f = findings.knowledge_loss(r)
-        self.assertEqual(f[0]["severity"], "warning")
-        self.assertEqual(f[0]["title"], "Knowledge loss")
-        self.assertIn("People with no commits since 2024-11-09 wrote 40% of the code that survives today: Bob (40%)", f[0]["detail"])
-        self.assertIn("Areas mostly theirs: old/ (100%), docs/ (100%)", f[0]["detail"])
-        self.assertEqual(f[0]["advice"], "Pair someone on old/ first; nobody who wrote it is around to ask.")
-
-    def test_areas_no_longer_in_the_tree_are_not_named(self):
-        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
-                         age=[{"entity": "flask/a.py", "age-months": 2}, {"entity": "src/x.py", "age-months": 2}],
-                         ownership=[{"entity": "flask/a.py", "author": "Bob", "added": 8000, "deleted": 0},   # the old layout, all Bob's
-                                    {"entity": "src/x.py", "author": "Bob", "added": 300, "deleted": 0},
-                                    {"entity": "app/b.py", "author": "Ann", "added": 900, "deleted": 0}],
-                         size={"files": {"src/x.py": {"code": 1, "complexity": 0}, "app/b.py": {"code": 1, "complexity": 0}}})
-        f = findings.knowledge_loss(r)
-        self.assertIn("Areas mostly theirs: src/ (100%).", f[0]["detail"])
-        self.assertNotIn("flask/", f[0]["detail"])
-        self.assertEqual(f[0]["advice"], "Pair someone on src/ first; nobody who wrote it is around to ask.")
-
-    def test_a_live_area_is_preferred_over_a_bigger_idle_one(self):
-        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
-                         age=[{"entity": "old/a.py", "age-months": 30}, {"entity": "live/b.py", "age-months": 3}],
-                         ownership=[{"entity": "old/a.py", "author": "Bob", "added": 800, "deleted": 0},
-                                    {"entity": "live/b.py", "author": "Bob", "added": 300, "deleted": 0},
-                                    {"entity": "app/c.py", "author": "Ann", "added": 900, "deleted": 0}])
-        f = findings.knowledge_loss(r)
-        self.assertEqual(f[0]["advice"], "Pair someone on live/ first; nobody who wrote it is around to ask.")
-        self.assertIn("Areas mostly theirs: live/ (100%), old/ (100%)", f[0]["detail"], "the live area leads the list too")
-
-    def test_advice_falls_back_when_no_area_is_still_live(self):
-        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
-                         age=[{"entity": "old/a.py", "age-months": 30}],
-                         ownership=[{"entity": "old/a.py", "author": "Bob", "added": 800, "deleted": 0},
-                                    {"entity": "app/c.py", "author": "Ann", "added": 900, "deleted": 0}])
-        f = findings.knowledge_loss(r)
-        self.assertEqual(f[0]["advice"], "Pair someone with the people who worked with Bob before the rest of that knowledge goes.")
-        self.assertIn("Areas mostly theirs: old/ (100%)", f[0]["detail"], "the areas are still worth naming")
-
-    def test_root_files_count_as_live_when_a_file_in_the_root_is_fresh(self):
-        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
-                         age=[{"entity": "main.py", "age-months": 1}, {"entity": "old/a.py", "age-months": 30}],
-                         ownership=[{"entity": "main.py", "author": "Bob", "added": 300, "deleted": 0},
-                                    {"entity": "old/a.py", "author": "Bob", "added": 800, "deleted": 0},
-                                    {"entity": "app/c.py", "author": "Ann", "added": 900, "deleted": 0}])
-        f = findings.knowledge_loss(r)
-        self.assertEqual(f[0]["advice"], "Pair someone on (root files) first; nobody who wrote it is around to ask.")
-
-    def test_areas_beyond_three_are_counted_not_named(self):
-        r = self._report(theseus_authors={"Ann": 60, "Bob": 40},
-                         age=[{"entity": "a1/x.py", "age-months": 2}],
-                         ownership=[{"entity": "a1/x.py", "author": "Bob", "added": 300, "deleted": 0},
-                                    {"entity": "a2/x.py", "author": "Bob", "added": 300, "deleted": 0},
-                                    {"entity": "a3/x.py", "author": "Bob", "added": 300, "deleted": 0},
-                                    {"entity": "a4/x.py", "author": "Bob", "added": 300, "deleted": 0},
-                                    {"entity": "app/b.py", "author": "Ann", "added": 900, "deleted": 0}])
-        f = findings.knowledge_loss(r)
-        self.assertIn("Areas mostly theirs: a1/ (100%), a2/ (100%), a3/ (100%) and 1 more.", f[0]["detail"])
-
-    def test_info_between_ten_and_thirty_percent(self):
-        f = findings.knowledge_loss(self._report(theseus_authors={"Ann": 85, "Bob": 15}))
-        self.assertEqual(f[0]["severity"], "info")
-        self.assertEqual(f[0]["advice"], "Pair someone with the people who worked with Bob before the rest of that knowledge goes.")
-
-    def test_nothing_below_ten_percent_or_when_nobody_is_gone(self):
-        self.assertEqual(findings.knowledge_loss(self._report(theseus_authors={"Ann": 95, "Bob": 5})), [])
-        r = self._report()
-        r["activity"]["authors"]["Bob"]["last"] = "2025-11-01"
-        self.assertEqual(findings.knowledge_loss(r), [])
-
-    def test_without_a_blame_pass_uses_lines_added_and_says_so(self):
-        r = self._report(theseus_authors={},
-                         ownership=[{"entity": "old/a.py", "author": "Bob", "added": 400, "deleted": 0},
-                                    {"entity": "app/b.py", "author": "Ann", "added": 600, "deleted": 0}])
-        f = findings.knowledge_loss(r)
-        self.assertEqual(f[0]["severity"], "warning")
-        self.assertIn("wrote 40% of all lines added (from lines added, not a blame)", f[0]["detail"])
-
-    def test_window_from_meta(self):
-        r = self._report(theseus_authors={"Ann": 60, "Bob": 40})
-        r["meta"]["gone_months"] = 24
-        self.assertEqual(findings.knowledge_loss(r), [], "Bob committed 17 months before the last commit")
-
-    def test_small_contributors_are_folded_into_others(self):
-        # total 1000; Dan, Eve and Fay each round to 0% individually and are folded into "others".
-        r = self._report(theseus_authors={"Ann": 718, "Bob": 250, "Cat": 20, "Dan": 4, "Eve": 4, "Fay": 4})
-        for name in ("Cat", "Dan", "Eve", "Fay"):
-            r["activity"]["authors"][name] = {"commits": 1, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2024-06-01"}
-        f = findings.knowledge_loss(r)
-        self.assertIn("wrote 28% of the code that survives today: Bob (25%), Cat (2%) and 3 others (1%)", f[0]["detail"])
-        self.assertNotIn("Dan", f[0]["detail"])
-
-    def test_everyone_under_one_percent_is_counted_not_named(self):
-        # total 1000; 20 gone people at 5 lines each is exactly the 10% floor, and each rounds to 0% individually.
-        people = {f"P{i}": 5 for i in range(20)}
-        r = self._report(theseus_authors={"Ann": 900, **people})
-        for name in people:
-            r["activity"]["authors"][name] = {"commits": 1, "added": 0, "deleted": 0, "first": "2020-01-01", "last": "2024-06-01"}
-        f = findings.knowledge_loss(r)
-        self.assertIn("20 people at under 1% each", f[0]["detail"])
-
-
 class ComplexityGrowth(unittest.TestCase):
     def _report(self, growth):
         files = {f"core/f{i}.py": {"code": 100, "complexity": 10} for i in range(5)}
@@ -1114,7 +813,7 @@ class Advice(unittest.TestCase):
         r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 5, "aliases": [{"name": "root", "email": "root@localhost", "commits": 1}]}]
         found = findings.evaluate(r)
         self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Bug magnets", "Brain methods",
-                                                      "A large share of files is untouched", "Unconfigured git identity", "Knowledge islands",
+                                                      "Unconfigured git identity", "Knowledge islands",
                                                       "Vulnerable dependencies"}, True)
         for f in found:
             self.assertTrue(f.get("advice"), f["title"])
@@ -1567,7 +1266,7 @@ class AgentSurface(unittest.TestCase):
 
 class References(unittest.TestCase):
     def test_every_rule_resting_on_a_paper_names_it_where_the_numbers_are(self):
-        expected = {"minor_contributors": "Bird et al., FSE 2011", "tangled_commits": "Herzig and Zeller, MSR 2013",
+        expected = {"tangled_commits": "Herzig and Zeller, MSR 2013",
                     "brain_methods": "Lanza and Marinescu, 2006", "tight_coupling": "Gall, Hajek and Jazayeri, ICSM 1998",
                     "trojan_source": "Boucher and Anderson, USENIX Security 2023",
                     "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
@@ -1656,29 +1355,6 @@ class TruckFactor(unittest.TestCase):
         self.assertIn("With knowledge halving every five months, more than half the files already have no author", f["detail"])
         self.assertEqual(f["evidence"]["truck_factor_decayed"], 0)
 
-    def test_files_whose_authors_all_left_while_others_still_edit_them(self):
-        doa = [self.row(f"core/a{i}.py", "Cat") for i in range(6)] + [self.row(f"core/a{i}.py", "Bob", author=0) for i in range(6)]
-        doa += [self.row(f"web/b{i}.py", who) for i in range(20) for who in ("Ann", "Bob")]
-        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa))}["authors_gone"]
-        self.assertEqual(f["severity"], "info")
-        self.assertIn("6 source files changed in the last year have no author still committing", f["detail"])
-        self.assertIn("core/a0.py (Cat)", f["detail"])
-
-
-class ComponentCoupling(unittest.TestCase):
-    def test_pairs_of_components_that_change_together(self):
-        files = {f"{d}/f{i}.py": {"code": 10, "complexity": 1} for d in ("auth", "billing", "tests", "web") for i in range(5)}
-        r = report(size={"files": files},
-                   components=[{"depth": 1, "entity": "auth/", "coupled": "billing/", "degree": 45, "shared": 30, "average-revs": 66},
-                               {"depth": 1, "entity": "auth/", "coupled": "tests/", "degree": 80, "shared": 50, "average-revs": 60},
-                               {"depth": 1, "entity": "billing/", "coupled": "web/", "degree": 22, "shared": 12, "average-revs": 50},
-                               {"depth": 2, "entity": "auth/x/", "coupled": "billing/y/", "degree": 90, "shared": 20, "average-revs": 22}])
-        f = {x["rule"]["id"]: x for x in findings.evaluate(r)}["component_coupling"]
-        self.assertIn("auth/ and billing/ change together in 45% of their changes (30 shared)", f["detail"])
-        self.assertNotIn("tests/", f["detail"], "a component of tests changes with what it tests")
-        self.assertNotIn("web/", f["detail"], "under the 30% floor")
-        self.assertNotIn("auth/x/", f["detail"], "the depth is the one the tree's layout asks for")
-
 
 class ImportCommits(unittest.TestCase):
     def test_the_import_is_named_with_its_share(self):
@@ -1705,21 +1381,21 @@ class SecretsByConfidence(unittest.TestCase):
         self.assertIn("1 possible secret(s)", f["secrets_possible"]["title"])
         self.assertIn("2 secret(s)", f["secrets_in_source"]["title"], "one medium sighting keeps a value critical; a provider's rule stays critical")
 
-    def test_generated_mock_tooling_and_testdata_files_are_aside(self):
+    def test_generated_mock_tooling_and_testdata_files_are_no_finding(self):
         rows = [self._row("g", "generic-password", "api/registry.pb.go", "medium"), self._row("m", "generic-api-key", "discovery/openstack/mock.go", "medium"),
                 self._row("h", "private-key", "hack/scripts-dev/certs/server.key.insecure", "high"), self._row("t", "ibm-cloud-user-api-key", "cmd/tsdb/testdata.20k", "high"),
                 self._row("f", "private-key", "integration/fixtures-expired/server.key", "high"), self._row("w", "private-key", "Godeps/_workspace/src/x/server.key", "high")]
         r = report(secrets=rows, meta={"name": "r", "commits": 100, "identities": [], "generated": ["api/registry.pb.go"]})
-        f = {x["rule"]["id"]: x for x in findings.secrets_found(r)}
-        self.assertNotIn("secrets_in_source", f)
-        self.assertIn("6 secret(s) only in", f["secrets_aside"]["title"])
+        self.assertEqual(findings.secrets_found(r), [])
 
     def test_an_unreachable_copy_is_placed_by_the_located_ones(self):
         rows = [self._row("t", "generic-password", "(unreachable blob 742c1cc5ebfb)", "medium"), self._row("t", "generic-password", "tests/mail/tests.py", "medium"),
                 self._row("u", "facebook-access-token", "(unreachable blob 00db21063ea1)", "high")]
         f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
-        self.assertIn("1 secret(s) only in", f["secrets_aside"]["title"], "its other copy is a test file")
+        self.assertEqual(set(f), {"secrets_in_source"})
         self.assertIn("1 secret(s) in history", f["secrets_in_source"]["title"], "only ever unreachable: nowhere to say it is test data")
+        self.assertIn("facebook-access-token", f["secrets_in_source"]["detail"])
+        self.assertNotIn("generic-password", f["secrets_in_source"]["detail"], "its other copy is a test file")
 
 
 class OneThreshold(unittest.TestCase):

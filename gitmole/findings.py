@@ -15,7 +15,7 @@ PLACEHOLDER_EMAIL = re.compile(r"(@example\.(com|org|net)$|^you@|^user@|^root@|@
 
 # The paper a rule rests on, as the short citation the rule dict carries in `ref`; the full entries are in
 # docs/references.md. A rule that is gitmole's own heuristic has none.
-REFS = {"minor_contributors": "Bird et al., FSE 2011", "tangled_commits": "Herzig and Zeller, MSR 2013",
+REFS = {"tangled_commits": "Herzig and Zeller, MSR 2013",
         "brain_methods": "Lanza and Marinescu, 2006", "tight_coupling": "Gall, Hajek and Jazayeri, ICSM 1998",
         "trojan_source": "Boucher and Anderson, USENIX Security 2023",
         "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
@@ -81,11 +81,12 @@ def _secret_evidence(groups: list) -> dict:
 
 
 def secrets_found(report: dict) -> list:
-    """Secrets grouped by value. A value anywhere in source is critical; one that only ever appears in
+    """Secrets grouped by value. A value anywhere in source is critical. One that only ever appears in
     test files (fixtures, saved pages), example or rule directories (language samples, a scanner's own
-    rules) or documentation (templates) is a warning, so a critical gate does not trip on test data or a
-    planning document. Version strings, template markers and key blocks without key material were
-    flagged as placeholders and are not a finding."""
+    rules), documentation (templates), vendored or generated files is not a finding: it was one
+    (secrets_aside) until 0.39.0, labelled never actionable, and it is still counted in the report's
+    Secrets line and kept in secrets.json. Version strings, template markers and key blocks without key
+    material were flagged as placeholders and are not a finding."""
     groups = leaks.group(report.get("secrets") or [])
 
     vendored, generated = filetypes.vendor_dirs(report), _generated(report)
@@ -100,7 +101,6 @@ def secrets_found(report: dict) -> list:
         return g["rule"].startswith("generic-") and g.get("confidence") == "low"
     source = [g for g in groups if in_source(g) and not possible(g)]
     maybe = [g for g in groups if in_source(g) and possible(g)]
-    aside = [g for g in groups if not in_source(g)]
     ignore = "Add the fingerprint of any false positive from secrets.json to .betterleaksignore in the repository."
     out = []
     if source:
@@ -112,10 +112,6 @@ def secrets_found(report: dict) -> list:
                       f"Look at each: the scanner's generic rules found them and graded every sighting low, which is how an ordinary assignment "
                       f"or a hash reads as well as a key. {ignore}",
                       rule={"id": "secrets_possible", "scanner": "betterleaks", "confidence": "low", "rules": "generic-*"}, evidence=_secret_evidence(maybe)))
-    if aside:
-        out.append(_f("warning", f"{len(aside)} secret(s) only in test, example, vendored, generated or documentation files", _secret_statement(aside),
-                      f"Confirm they are fixtures or templates, not live keys. {ignore}",
-                      rule={"id": "secrets_aside", "scanner": "betterleaks", "placeholders": "left out"}, evidence=_secret_evidence(aside)))
     return out
 
 
@@ -335,64 +331,6 @@ def tangled_commits(report: dict, min_share: float = 0.02, min_count: int = 5) -
                          "sample": [{"hash": c["hash"], "date": c["date"], "files": c["files"], "dirs": c["dirs"], "subject": c["subject"]} for c in listed[:10]]})]
 
 
-def minor_contributors(report: dict, min_minor: int = 5, warn_at: int = 10, top_n: int = 10) -> list:
-    """Top hotspots with a crowd of minor contributors, people with under 5% of the file's commits
-    each. Bird et al. ("Don't Touch My Code!", FSE 2011) found that count the strongest ownership
-    predictor of defects, ahead of the sole owner, which is the knowledge risk the watch list names
-    separately. Their section 7 finds most minor contributors are major contributors to a component
-    the file depends on — expected traffic — so a minor contributor who is major on a file this one
-    changes with (coupling.expected_minors) is not counted. Over the watch list's own pool: test,
-    vendored, example and generated files are out."""
-    minors = {a["entity"]: (a.get("minor", 0), a["n-authors"]) for a in report.get("authors") or []}
-    if not any(m for m, _ in minors.values()):
-        return []
-    cls = classify.Classifier(report)
-    top = [h["entity"] for h in hotspots.ranked(report) if h["code"] is not None and cls.reason(h["entity"]) is None][:top_n]
-    expected = coupling.expected_minors(report, [f for f in top if f in minors and minors[f][0] >= min_minor])
-    crowded = []
-    for f in top:
-        if f not in minors or minors[f][0] < min_minor:
-            continue
-        all_minor, n = minors[f]
-        counted = all_minor - len(expected.get(f) or [])
-        if counted >= min_minor:
-            crowded.append((f, counted, n, all_minor))
-    if not crowded:
-        return []
-    crowded.sort(key=lambda t: (-t[1], t[0]))
-    owners, by_file = {}, {}
-    for r in report.get("ownership") or []:
-        if r.get("added", 0) > (owners.get(r["entity"]) or ("", 0))[1]:
-            owners[r["entity"]] = (r["author"], r["added"])
-        by_file.setdefault(r["entity"], []).append((r["author"], r.get("added", 0)))
-    gone = _gone(report)
-
-    def active(f):   # who to ask: the one who wrote the most of it among the people still committing
-        return _still_here(sorted(by_file.get(f) or [], key=lambda o: (-o[1], o[0])), gone)
-    sev = "warning" if crowded[0][1] >= warn_at else "info"
-    listed = "; ".join(f"{f} ({m} of {n} authors)" for f, m, n, _ in crowded[:5]) + (f" and {len(crowded) - 5} more" if len(crowded) > 5 else "")
-    excluded = sum(len(expected.get(f) or []) for f, _, _, _ in crowded)
-    aside = (f" {excluded} of the minor contributors are major contributors to a file these change with and are not counted"
-             " (Bird et al., section 7)." if excluded else "")
-    first, owner = crowded[0][0], (owners.get(crowded[0][0]) or (None, 0))[0]
-    if owner and owner not in gone:
-        who = f"Have {owner}, who wrote most of {first}, review changes to it from anyone else"
-    elif owner and active(first):
-        who = f"Have {active(first)}, its largest author still here (its main one is gone), review changes to {first} from anyone else"
-    elif owner:
-        who = f"Nobody still here has written any of {first}; give it an owner who reviews every change to it"
-    else:
-        who = f"Give {first} an owner who reviews every change to it"
-    return [_f(sev, "Many minor contributors",
-               f"{len(crowded)} of the top {len(top)} hotspots have {min_minor} or more contributors with under {round(100 * maat.MINOR_SHARE)}% of the file's commits each: {listed}.{aside}",
-               f"{who}; Bird et al. found the count of minor contributors the strongest ownership predictor of defects.",
-               rule={"id": "minor_contributors", "min_minor": min_minor, "warn_at": warn_at, "minor_share": maat.MINOR_SHARE, "top_n": top_n,
-                     "expected_share": maat.MINOR_SHARE},
-               evidence={"files": [{"file": f, "minor": m, "minor_all": a, "authors": n, "owner": (owners.get(f) or (None, 0))[0],
-                                    "owner_gone": (owners.get(f) or (None, 0))[0] in gone, "ask": active(f),
-                                    "expected": (expected.get(f) or [])[:5]} for f, m, n, a in crowded[:10]]})]
-
-
 def _both_specimens(a: str, b: str) -> bool:
     """Whether a coupled pair is two pieces of example or documentation material rather than code the
     repository runs. curl's docs/examples/imap-ssl.c and docs/examples/pop3-ssl.c show one technique for
@@ -474,44 +412,6 @@ def dormant(report: dict, months: int = 12) -> list:
                rule={"id": "dormant", "months": months}, evidence={"last_date": report["meta"]["last_date"], "idle_months": idle})]
 
 
-def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
-    """Files still in the tree that nobody has touched. The age table covers every path in the
-    history, so paths that were deleted are left out here; they are not dead code, they are gone.
-    In a dormant repository every file is untouched because nothing is; the dormancy finding says so.
-
-    Vendored and generated files are left out of both counts, as every other rule here leaves them out:
-    a checked-in jquery.js has not changed in years because nobody maintains it here, and deleting it is
-    not the advice. On django they were three of the ten files the finding named.
-
-    The evidence names files, not only how many: a count cannot be checked against a later tree
-    (measure/remediation.py NO_SUBJECTS), and a reader cannot act on one either. It names the largest
-    untouched ones rather than the oldest, because the advice is about dead code and a file's lines are
-    how much of it is at stake: on django the ten oldest are all empty `__init__.py` files, which nobody
-    would delete and no later tree would show deleted. Ties break by age and then by path, so the
-    same commit gives the same list."""
-    if _dormant_months(report) >= months:
-        return []
-    age = report.get("age") or []
-    tree = _tree(report)
-    if tree:
-        age = [a for a in age if a["entity"] in tree]
-    vendored, derived = filetypes.vendor_dirs(report), _generated(report)
-    age = [a for a in age if not (filetypes.is_vendored(a["entity"], vendored) or a["entity"] in derived)]
-    if not age:
-        return []
-    stale = [a for a in age if a["age-months"] >= months]
-    if len(stale) / len(age) <= share:
-        return []
-    return [_f("info", "A large share of files is untouched",
-               f"{_pct(len(stale), len(age))} of files ({len(stale)}) have not changed in {months} months or more.",
-               "Consider deleting what nobody has needed; dead code hides in untouched files.",
-               rule={"id": "stale_files", "months": months, "share": share},
-               evidence={"stale": len(stale), "files": len(age),
-                         "untouched": [a["entity"] for a in sorted(
-                             stale, key=lambda a: (-(tree.get(a["entity"], {}).get("code") or 0),
-                                                   -a["age-months"], a["entity"]))[:10]]})]
-
-
 def _magnet_items(hot: list, history: dict, now: str) -> list:
     """The hot files as the finding lists them, as (files, text, label, new files), label being what the
     advice calls the item. A hot file whose recent fixes were all commits that also fixed a file listed
@@ -573,41 +473,6 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
                          **({"shared_fixes": clusters} if clusters else {}), **({"new_in_window": fresh} if fresh else {})})]
 
 
-def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_share: float = 0.10) -> list:
-    """Commits backed out with git revert. The file most often reverted is where a check before merge pays."""
-    act = report.get("activity") or {}
-    n = act.get("revert_commits") or 0
-    total = report["meta"].get("commits") or 0
-    if not n or not total or (n < min_count and n / total < min_share):
-        return []
-    rule = {"id": "reverts", "min_share": min_share, "min_count": min_count, "warn_share": warn_share}
-    sev = "warning" if total and n / total >= warn_share else "info"
-    reverted = act.get("reverted") or {}
-    repeat = {p: c for p, c in reverted.items() if c >= 2}
-    if reverted and not repeat:   # every reverted file was reverted once: no file keeps coming back
-        return [_f(sev, "Reverts", f"{n} of {total} commits are reverts, spread over {len(reverted)} files, none backed out twice.",
-                   "Look at why they were backed out; no single file keeps coming back.",
-                   rule=rule, evidence={"reverts": n, "commits": total, "files": len(reverted), "reverted": {}})]
-    reverted = repeat
-    # source files lead: a test file at the top of the table would otherwise be the one named first
-    items = sorted(reverted.items(), key=lambda kv: filetypes.is_test_path(kv[0]))[:3]
-    parts = []
-    for i, (p, c) in enumerate(items):
-        if i == 0:
-            parts.append(f"{p} was reverted {textfmt.times(c)}")
-        else:
-            parts.append(f"{p} {textfmt.times(c)}")
-    listed = ", ".join(parts)
-    statement = f"{n} of {total} commits are reverts" + (f"; {listed}." if listed else ".")
-    source = [p for p in reverted if not filetypes.is_test_path(p)]
-    if source:
-        advice = f"Add a check before merge for {source[0]}; it is the file most often backed out."
-    else:
-        advice = "Look at why they were backed out; only test files were touched."
-    return [_f(sev, "Reverts", statement, advice,
-               rule=rule, evidence={"reverts": n, "commits": total, "reverted": dict(list(reverted.items())[:10])})]
-
-
 def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9, min_fraction: float = 0.01) -> list:
     """Areas of the tree written almost entirely by one person. Areas that no longer exist are left
     out, of the islands and of the total they are measured against; an island under `min_fraction`
@@ -638,98 +503,6 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                evidence={"covered_lines": covered, "total_lines": total,
                          "islands": [{"area": i["area"], "owner": i["owner"], "gone": i["owner"] in gone, "share_pct": i["share"], "lines": i["lines"]}
                                      for i in islands[:10]]})]
-
-
-LIVE_MONTHS = 12
-
-
-def _is_live(area: str, age_rows: list, base: int = 0) -> bool:
-    """Has anything in this area changed in the last year? `age` covers every path in the history,
-    so an area whose files are all idle is knowledge about code nobody is touching."""
-    for row in age_rows:
-        if row["age-months"] >= LIVE_MONTHS:
-            continue
-        entity = row["entity"]
-        if knowledge.in_area(entity, area, base):
-            return True
-    return False
-
-
-def _loss_totals(report: dict, names: set, source_rows: list) -> tuple[int, int, dict, str]:
-    """(lost, total, by_person, basis): share of surviving code from the blame pass; when that did
-    not run, share of lines added instead, with the basis clause that says so."""
-    lost, total = loss.surviving(report, names)
-    by_person = {n: v for n, v in (report.get("theseus_authors") or {}).items() if n in names}
-    basis = "of the code that survives today"
-    if not total:
-        areas_all = loss.areas(source_rows, names, scope.report_base(report))
-        total = sum(a["lines"] for a in areas_all)
-        lost = sum(a["lost"] for a in areas_all)
-        by_person = {}
-        for r in (r for r in source_rows if r["author"] in names):
-            by_person[r["author"]] = by_person.get(r["author"], 0) + r["added"]
-        basis = "of all lines added (from lines added, not a blame)"
-    return lost, total, by_person, basis
-
-
-def _loss_people(by_person: dict, total: int) -> str:
-    """The "Bob (25%), Cat (2%) and 3 others (1%)" clause, or "N people at under 1% each" when
-    nobody's individual share rounds to 1% or more."""
-    people = sorted(by_person.items(), key=lambda kv: (-kv[1], kv[0]))
-    named = [(n, v) for n, v in people if round(100 * v / total) >= 1][:3]
-    if named:
-        named_names = {n for n, _ in named}
-        rest = [(n, v) for n, v in people if n not in named_names]
-        listed = ", ".join(f"{n} ({_pct(v, total)})" for n, v in named)
-        if rest:
-            listed += f" and {_plural(len(rest), 'other')} ({_pct(sum(v for _, v in rest), total)})"
-    else:
-        listed = f"{len(people)} {'person' if len(people) == 1 else 'people'} at under 1% each"
-    return listed
-
-
-def _loss_areas(report: dict, names: set, source_rows: list) -> list:
-    """Areas at 200+ lines where 80%+ of the surviving code is theirs, still in the tree, tagged live
-    or not and sorted live-first: that is where the gap bites soonest."""
-    theirs = [a for a in _present_areas(report, source_rows, build=lambda rows, base: loss.areas(rows, names, base))
-              if a["lines"] >= 200 and a["lost_share"] >= 0.8]
-    for a in theirs:
-        a["live"] = _is_live(a["area"], report.get("age") or [], scope.report_base(report))
-    theirs.sort(key=lambda a: (not a["live"], -a["lines"], a["area"]))   # a live area first: that is where the gap bites
-    return theirs
-
-
-def knowledge_loss(report: dict, min_share: float = 0.10, warn_share: float = 0.30) -> list:
-    """Code written by people who have stopped committing. Share of surviving code from the blame
-    pass; when that did not run, share of lines added, and the statement says so."""
-    months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
-    gone = loss.gone(report, months)
-    if not gone:
-        return []
-    names = {g["name"] for g in gone}
-    source_rows = _source_ownership(report)
-    lost, total, by_person, basis = _loss_totals(report, names, source_rows)
-    if not total or lost / total < min_share:
-        return []
-    sev = "warning" if lost / total >= warn_share else "info"
-    listed = _loss_people(by_person, total)
-    theirs = _loss_areas(report, names, source_rows)
-    statement = (f"People with no commits since {loss.cutoff(report, months)} "
-                 f"wrote {_pct(lost, total)} {basis}: {listed}.")
-    if theirs:
-        listed_areas = ", ".join(f"{a['area']} ({round(100 * a['lost_share'])}%)" for a in theirs[:3])
-        more = f" and {len(theirs) - 3} more" if len(theirs) > 3 else ""
-        statement += f" Areas mostly theirs: {listed_areas}{more}."
-    if theirs and theirs[0]["live"]:
-        advice = f"Pair someone on {theirs[0]['area']} first; nobody who wrote it is around to ask."
-    else:   # nothing there has been touched in a year: pairing on it would be work nobody has asked for
-        top = min(by_person, key=lambda n: (-by_person[n], n))
-        advice = f"Pair someone with the people who worked with {top} before the rest of that knowledge goes."
-    return [_f(sev, "Knowledge loss", statement, advice,
-               rule={"id": "knowledge_loss", "gone_months": months, "min_share": min_share, "warn_share": warn_share},
-               evidence={"lost_lines": lost, "total_lines": total, "basis": "surviving code" if basis.startswith("of the code") else "lines added",
-                         "people": dict(sorted(by_person.items(), key=lambda kv: (-kv[1], kv[0]))[:10]),
-                         "areas": [{"area": a["area"], "share_pct": round(100 * a["lost_share"]), "live": a["live"]} for a in theirs[:10]]})]
 
 
 def _partial(report: dict, step: str, label: str) -> str:
@@ -1626,63 +1399,20 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
                          "areas": [{"area": a, "author": w, "files": n, "orphaned": o} for a, w, n, o in lone[:10]]})]
 
 
-def authors_gone(report: dict, min_files: int = 5) -> list:
-    """Files whose every author by degree of authorship has stopped committing, while others still
-    change them: "creator left, editors remain", knowledge the blame share cannot show."""
-    if not report.get("doa"):
-        return []
-    months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
-    gone = {g["name"] for g in loss.gone(report, months)}
-    fresh = {a["entity"] for a in report.get("age") or [] if a["age-months"] < 12}
-    files = [f for f in _pool_files(report) if f in fresh]
-    authored = _authors_of(report, files)
-    left = [(f, sorted(a)) for f, a in authored.items() if a and a <= gone]
-    if len(left) < min_files:
-        return []
-    listed = "; ".join(f"{f} ({textfmt.join_and(a)})" for f, a in left[:5]) + (f" and {len(left) - 5} more" if len(left) > 5 else "")
-    return [_f("info", "Files whose authors have left", f"{len(left)} source files changed in the last year have no author still committing: {listed}.",
-               f"Make the people who edit {left[0][0]} its authors: review its design with them and write down what only {left[0][1][0]} knew.",
-               rule={"id": "authors_gone", "gone_months": months, "min_files": min_files, "ref": "Avelino et al., ICPC 2016"},
-               evidence={"count": len(left), "files": [{"file": f, "authors": a} for f, a in left[:10]]})]
-
-
-def component_coupling(report: dict, min_degree: int = 30) -> list:
-    """Components (top-level directories, or the level below a lone src/) that change together in a
-    large share of their changes: coupling at the level of the architecture, where two files in one
-    directory is only a layout."""
-    rows = report.get("components") or []
-    if not rows:
-        return []
-    depth = knowledge.depth_for(list(_tree(report)) or [r["entity"] + "x" for r in rows], base=scope.report_base(report))
-
-    def aside(c):
-        probe = c + "x.py"
-        return filetypes.is_test_path(probe) or filetypes.is_sample_path(probe) or filetypes.is_doc_path(probe) or filetypes.is_vendor_path(probe)
-    pairs = [r for r in rows if r["depth"] == depth and r["degree"] >= min_degree and not aside(r["entity"]) and not aside(r["coupled"])]
-    if not pairs:
-        return []
-    listed = "; ".join(f"{p['entity']} and {p['coupled']} change together in {p['degree']}% of their changes ({p['shared']} shared)" for p in pairs[:3])
-    more = f" ({_plural(len(pairs) - 3, 'more pair')})" if len(pairs) > 3 else ""
-    first = pairs[0]
-    return [_f("info", "Components that change together", f"{listed}{more}.",
-               f"Look at what {first['entity']} and {first['coupled']} share: a change that keeps landing in both is an interface nobody named.",
-               rule={"id": "component_coupling", "min_degree": min_degree, "depth": depth, "ref": "Tornhill, Your Code as a Crime Scene, 2024"},
-               evidence={"pairs": [{"a": p["entity"], "b": p["coupled"], "degree": p["degree"], "shared": p["shared"]} for p in pairs[:10]]})]
-
-
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, bug_magnets,
-         minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, stale_files, knowledge_islands, knowledge_loss,
+         brain_methods, complexity_growth, tight_coupling, knowledge_islands,
          sweeping_commits, import_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, import_cycles, unreferenced_files,
          agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author,
-         truck_factor, authors_gone, component_coupling, swallowed_errors, hardcoded_addresses, commented_out_code]
+         truck_factor, swallowed_errors, hardcoded_addresses, commented_out_code]
 
 
 # Rules whose findings were true when labelled but never something to act on: five or more labelled in
-# measure/labels.jsonl and none of them actionable (docs/measurement.md, "Hand labels"). The default terminal
-# report names them in one line instead of spelling each out; --full, Markdown, JSON, SARIF and --fail-on
-# see every finding as before. A test holds this set to the labels, both ways.
-SUMMARISED = frozenset({"authors_gone", "component_coupling", "knowledge_loss", "minor_contributors",
-                        "reverts", "secrets_aside", "stale_files"})
+# measure/labels.jsonl and none of them actionable (docs/measurement.md, "Hand labels"). Until 0.39.0 the
+# default report named them in one line; the nine it held then (authors_gone, component_coupling,
+# duplication, knowledge_loss, minor_contributors, repo_health, reverts, secrets_aside, stale_files) were
+# retired instead, with the duplicates and git-sizer steps. A test holds this set to the labels, both ways,
+# so a rule the labels find inert shows up here as a decision to make: retire it too, or say why not.
+SUMMARISED = frozenset()
 
 # Rules nobody has labelled yet: the structure step's, which ran only where tree-sitter was installed by hand
 # until 0.32.0 and so never reached the measurement's findings sheet. They are named in a line of their own, so
@@ -1697,9 +1427,7 @@ def evaluate(report: dict) -> list:
     for rule in RULES:
         found.extend(rule(report))
     for f in found:
-        if f["rule"]["id"] in SUMMARISED:
-            f["summary"] = True   # the default report's one line, not a full entry
-        elif f["rule"]["id"] in UNJUDGED:
+        if f["rule"]["id"] in UNJUDGED:
             f["summary"] = True
             f["unjudged"] = True   # a line of its own: true or not, nobody has said whether it is worth acting on
     found.sort(key=lambda f: SEVERITIES.index(f["severity"]))

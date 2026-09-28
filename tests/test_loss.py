@@ -56,10 +56,6 @@ class Gone(unittest.TestCase):
 
 
 class WhatWasLost(unittest.TestCase):
-    def test_surviving_lines_by_gone_people(self):
-        self.assertEqual(loss.surviving(report(), {"Bob"}), (300, 1000))
-        self.assertEqual(loss.surviving(report(theseus_authors={}), {"Bob"}), (0, 0))
-
     def test_areas_carry_the_lost_share_over_the_rows_given(self):
         from gitmole import filetypes
         rows = [r for r in report()["ownership"] if not filetypes.is_test_path(r["entity"])]

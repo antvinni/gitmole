@@ -74,16 +74,10 @@ def _places(f: dict) -> list:
         out.append((p["a"], None, None, p.get("b", "")))
     for c in items("clusters"):
         out.append((c["dir"].rstrip("/") if c["dir"] != "(root files)" else ".", None, None, ""))
-    for b in items("largest"):
-        if b.get("places"):
-            place = b["places"][0]
-            out.append((place[0], place[1] if len(place) > 1 else None, None, ""))
     for a in items("islands") or items("areas"):
         area = a.get("area") if isinstance(a, dict) else None
         if area and area != "(root files)":
             out.append((area.rstrip("/"), None, None, ""))
-    for path in (e.get("reverted") if isinstance(e.get("reverted"), dict) else {}):
-        out.append((path, None, None, ""))
     if isinstance(e.get("file"), str):
         out.append((e["file"], None, None, ""))
     if isinstance(e.get("ref"), str) and e["ref"]:
@@ -192,7 +186,7 @@ def _elsewhere(f: dict) -> dict:
 
 
 def _repo_wide_needs_tree(f: dict) -> bool:
-    """A finding with no place to point at (dormant, placeholder identity, stale files) stays in either
+    """A finding with no place to point at (dormant, placeholder identity) stays in either
     scope: it describes the repository, not history that HEAD no longer has."""
     return False
 

@@ -9,6 +9,8 @@ met, gap, not seen, unrecognised, not applicable, or not checked (the step that 
 A result is evidence for the control, not an audit of it."""
 from __future__ import annotations
 
+from . import leaks
+
 BASELINE = "OSPS Baseline, ossf/security-baseline at 17e09dd (8 September 2026, draft)"
 
 # control id -> (what it asks, in short; the rules that give evidence for it)
@@ -48,8 +50,14 @@ def coverage(report: dict, found: list) -> list:
     rows = []
 
     fired = _fired(found, "OSPS-BR-07.01")
-    # what the scan found that is not a secret in source: said beside "met", so the row does not read as nothing found
-    lesser = [f["title"] for f in found if (f.get("rule") or {}).get("id") in ("secrets_possible", "secrets_aside")]
+    # what the scan found that is not a secret in source: said beside "met", so the row does not read as nothing found.
+    # A value only in test, example, vendored, generated or documentation files is no finding since 0.39.0 (it was
+    # secrets_aside), so it is counted here from the scan: every distinct value the findings do not hold.
+    lesser = [f["title"] for f in found if (f.get("rule") or {}).get("id") == "secrets_possible"]
+    held = sum((f.get("evidence") or {}).get("values", 0) for f in found if (f.get("rule") or {}).get("id") in ("secrets_in_source", "secrets_possible"))
+    aside = len(leaks.group(report.get("secrets") or [])) - held
+    if aside > 0:
+        lesser.append(f"{aside} distinct value{'s' if aside != 1 else ''} only in test, example, vendored, generated or documentation files")
     rows.append(_row("OSPS-BR-07.01", "gap" if fired else "met" if report.get("secrets_scanned") else "not checked",
                      "; ".join(f["title"] for f in fired) if fired
                      else ("no secret in source in HEAD's history; " + "; ".join(lesser) if lesser else "the secrets scan of HEAD's history found none")

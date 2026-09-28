@@ -1695,26 +1695,20 @@ class PeopleMerges(unittest.TestCase):
 
 class SummaryLine(unittest.TestCase):
     def _findings(self):
-        mk = lambda rid, sev, title, summary=False: {"severity": sev, "title": title, "detail": f"{title} detail", "advice": "act", "rule": {"id": rid},
-                                                     **({"summary": True} if summary else {})}   # noqa: E731
-        return [mk("secrets_in_source", "critical", "1 secret(s) in history"), mk("knowledge_loss", "warning", "Knowledge loss", True),
-                mk("repo_health", "info", "Repo health", True), mk("repo_health", "info", "Repo health", True), mk("bug_magnets", "warning", "Bug magnets")]
+        mk = lambda rid, sev, title: {"severity": sev, "title": title, "detail": f"{title} detail", "advice": "act", "rule": {"id": rid}}   # noqa: E731
+        return [mk("secrets_in_source", "critical", "1 secret(s) in history"), mk("bug_magnets", "warning", "Bug magnets")]
 
     def _text(self, panel):
         out = io.StringIO()
         Console(file=out, width=200, color_system=None).print(panel)
         return out.getvalue()
 
-    def test_the_default_report_names_summarised_findings_in_one_line(self):
+    def test_the_default_report_has_no_seldom_acted_on_line(self):
+        """The rules it named were retired at 0.39.0 (findings.SUMMARISED is empty)."""
         text = self._text(render.findings_panel(self._findings(), {}, full=False))
         self.assertIn("Bug magnets detail", text)
-        self.assertNotIn("Knowledge loss detail", text)
-        self.assertIn("3 more, true but seldom acted on: Knowledge loss and Repo health (2); --full lists them", text)
-
-    def test_full_spells_out_every_finding(self):
-        text = self._text(render.findings_panel(self._findings(), {}, full=True))
-        self.assertIn("Knowledge loss detail", text)
         self.assertNotIn("seldom acted on", text)
+        self.assertFalse(hasattr(render, "summary_line"))
 
     def test_the_structure_step_s_unlabelled_findings_get_a_line_of_their_own(self):
         unjudged = [{"severity": "warning", "title": "Deep nesting", "detail": "deep", "advice": "act",
@@ -1722,7 +1716,6 @@ class SummaryLine(unittest.TestCase):
                     {"severity": "info", "title": "Debt in hotspots", "detail": "debt", "advice": "act",
                      "rule": {"id": "debt_in_hotspots"}, "summary": True, "unjudged": True}]
         text = self._text(render.findings_panel(self._findings() + unjudged, {}, full=False))
-        self.assertIn("3 more, true but seldom acted on: Knowledge loss and Repo health (2); --full lists them", text)
         self.assertIn("2 more from the structure step, not labelled yet: Deep nesting and Debt in hotspots; --full lists them", text)
         self.assertNotIn("deep", text.replace("Deep nesting", ""))
         full = self._text(render.findings_panel(self._findings() + unjudged, {}, full=True))

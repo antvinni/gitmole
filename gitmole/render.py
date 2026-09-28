@@ -1062,13 +1062,6 @@ def header(report: dict, findings: list = (), full: bool = False) -> Panel:
     return Panel(body, title=f"[bold]{s['name']}[/bold]", title_align="left", border_style="blue")
 
 
-def summary_line(findings: list) -> str:
-    """'7 more, true but seldom acted on: Knowledge loss, Repo health (3) and Reverts; --full lists them':
-    the findings of the rules the labels found never actionable, in one line of the default report."""
-    names = [g["title"] for g in textfmt.group_findings(findings)]   # a repeated title already reads "Repo health (3)"
-    return f"{len(findings)} more, true but seldom acted on: {textfmt.join_and(names)}; --full lists them"
-
-
 def unjudged_line(findings: list) -> str:
     """'4 more from the structure step, not labelled yet: Deep nesting and Debt in hotspots; --full lists them':
     the rules whose worth nobody has judged (findings.UNJUDGED), kept out of the default report's entries."""
@@ -1080,9 +1073,8 @@ def findings_panel(findings: list, report: dict = None, full: bool = True) -> Pa
     passed = checks_passed(report or {})
     if not findings and not passed:
         return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
-    brief = [] if full else [f for f in findings if f.get("summary") and not f.get("unjudged")]
     unjudged = [] if full else [f for f in findings if f.get("unjudged")]
-    shown = [f for f in findings if f not in brief and f not in unjudged]
+    shown = [f for f in findings if f not in unjudged]
     grid = Table.grid(padding=(0, 1))
     grid.add_column(no_wrap=True)
     grid.add_column(overflow="fold")
@@ -1094,8 +1086,6 @@ def findings_panel(findings: list, report: dict = None, full: bool = True) -> Pa
         for advice in g["advice"]:
             body.append(f"\n↳ {advice}", style="dim italic")
         grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
-    if brief:
-        grid.add_row(Text("·", style="dim"), Text(summary_line(brief), style="dim"))
     if unjudged:
         grid.add_row(Text("·", style="dim"), Text(unjudged_line(unjudged), style="dim"))
     if passed:   # last: problems first, then the checks that passed

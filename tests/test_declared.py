@@ -205,7 +205,12 @@ class OspsCoverage(unittest.TestCase):
         self.assertEqual(rows["OSPS-BR-07.01"][0], "met")
         self.assertTrue(rows["OSPS-BR-07.01"][1].startswith("no secret in source in HEAD's history; "), rows["OSPS-BR-07.01"][1])
         self.assertIn("1 possible secret(s) in source", rows["OSPS-BR-07.01"][1])
-        self.assertIn("1 secret(s) only in test", rows["OSPS-BR-07.01"][1], "not 'found none' while the findings list them")
+        self.assertIn("1 distinct value only in test, example, vendored, generated or documentation files", rows["OSPS-BR-07.01"][1],
+                      "not 'found none' while the scan found one: no finding holds it since secrets_aside was retired at 0.39.0")
+        r = self._report(secrets=[{"rule": "private-key", "file": "tests/server.key", "commit": "abc1234", "line": 1, "value": "h2", "confidence": "high"}])
+        rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
+        self.assertEqual(rows["OSPS-BR-07.01"], ("met", "no secret in source in HEAD's history; 1 distinct value only in test, example, vendored, "
+                                                        "generated or documentation files"))
 
     def test_nothing_run_is_not_checked_rather_than_met(self):
         r = report()

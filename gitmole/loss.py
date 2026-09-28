@@ -29,12 +29,6 @@ def gone(report: dict, months: int = DEFAULT_MONTHS) -> list:
     return sorted(out, key=lambda g: g["name"])
 
 
-def surviving(report: dict, gone_names) -> tuple:
-    """(surviving lines written by gone people, all surviving lines); (0, 0) without a blame pass."""
-    shares = report.get("theseus_authors") or {}
-    return sum(n for name, n in shares.items() if name in gone_names), sum(shares.values())
-
-
 def areas(rows: list, gone_names, base: int = 0) -> list:
     """knowledge.areas over the given ownership rows, each row with `lost` lines and `lost_share`."""
     out = []

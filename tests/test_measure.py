@@ -506,7 +506,7 @@ class SummarisedRules(unittest.TestCase):
         from gitmole import findings
         from gitmole.measure import labels
         emitted = set(re.findall(r'"id": "([a-z_]+)"', inspect.getsource(findings)))
-        self.assertIn("stale_files", emitted, "the pattern still finds the ids")
+        self.assertIn("bus_factor", emitted, "the pattern still finds the ids")
         rules = labels.score()["rules"]
         inert = {r for r, v in rules.items() if v["labelled"] >= 5 and v["actionable_share"] == 0}
         self.assertEqual(set(findings.SUMMARISED) - emitted, set(), "a retired rule leaves SUMMARISED")

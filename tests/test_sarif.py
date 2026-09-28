@@ -45,12 +45,12 @@ class Document(unittest.TestCase):
         fullDescription naming docs/MANUAL and five commit hashes - paths and commits the scope had
         dropped from every one of that rule's results."""
         detail = "37 distinct values in 82 places: generic-password in docs/MANUAL (2f69240). Confirm them."
-        f = finding("stale_files", detail=detail, advice="Delete docs/MANUAL first.",
+        f = finding("bug_magnets", detail=detail, advice="Delete docs/MANUAL first.",
                     evidence={"files": ["src/a.py"]}, months=12, share=0.3, ref="Bird et al., FSE 2011",
                     osps=["OSPS-BR-07.01"])
         [rule] = sarif.build(report(), [f])["runs"][0]["tool"]["driver"]["rules"]
         self.assertEqual(rule["fullDescription"]["text"],
-                         "gitmole's stale_files rule. Settings: months 12, share 0.3. Rests on Bird et al., FSE 2011. "
+                         "gitmole's bug_magnets rule. Settings: months 12, share 0.3. Rests on Bird et al., FSE 2011. "
                          "Evidence for OSPS-BR-07.01. https://github.com/antvinni/gitmole")
         self.assertEqual(rule["help"]["text"], rule["fullDescription"]["text"])
         for leak in ("docs/MANUAL", "2f69240", "37 distinct"):
@@ -62,24 +62,24 @@ class Document(unittest.TestCase):
         """--fail-on stops on the finding whatever the scope, so the document has it too: devlake exited 3 on a
         critical whose secrets were all in files deleted years ago, and its SARIF had no error-level result."""
         kept = finding("bug_magnets", evidence={"files": [{"file": "src/a.py"}]})
-        dropped = finding("duplication", evidence={"largest": [{"lines": 40, "places": [["gone/old.py", 1, 40]]}]})
+        dropped = finding("brain_methods", evidence={"functions": [{"file": "gone/old.py", "start": 1, "function": "f"}]})
         head = sarif.build(report(), [kept, dropped])
-        self.assertEqual([r["id"] for r in head["runs"][0]["tool"]["driver"]["rules"]], ["bug_magnets", "duplication"])
-        gone = next(r for r in head["runs"][0]["results"] if r["ruleId"] == "duplication")
+        self.assertEqual([r["id"] for r in head["runs"][0]["tool"]["driver"]["rules"]], ["bug_magnets", "brain_methods"])
+        gone = next(r for r in head["runs"][0]["results"] if r["ruleId"] == "brain_methods")
         self.assertNotIn("locations", gone, "nothing at HEAD is where it is")
         self.assertFalse(gone["properties"]["inTree"])
         self.assertIn("--sarif-scope history", gone["message"]["text"])
-        self.assertEqual([r["ruleId"] for r in head["runs"][0]["results"]], ["bug_magnets", "duplication"])
+        self.assertEqual([r["ruleId"] for r in head["runs"][0]["results"]], ["bug_magnets", "brain_methods"])
         history = sarif.build(report(), [kept, dropped], scope="history")
-        self.assertEqual(sorted(r["id"] for r in history["runs"][0]["tool"]["driver"]["rules"]), ["bug_magnets", "duplication"])
+        self.assertEqual(sorted(r["id"] for r in history["runs"][0]["tool"]["driver"]["rules"]), ["brain_methods", "bug_magnets"])
 
     def test_levels_and_severities_follow_the_finding(self):
         doc = sarif.build(report(), [finding("dormant", "warning", evidence={}), finding("credential_files", "critical", evidence={"files": ["src/a.py"]}),
-                                     finding("duplication", "info", evidence={"largest": [{"lines": 40, "places": [["src/a.py", 1, 40]]}]})], scope="history")
+                                     finding("brain_methods", "info", evidence={"functions": [{"file": "src/a.py", "start": 1, "function": "f"}]})], scope="history")
         by = {r["ruleId"]: r for r in doc["runs"][0]["results"]}
         self.assertEqual((by["credential_files"]["level"], by["credential_files"]["properties"]["security-severity"]), ("error", "9.0"))
-        self.assertEqual((by["duplication"]["level"], by["duplication"]["properties"]["security-severity"]), ("note", "2.0"))
-        self.assertEqual(by["duplication"]["locations"][0]["physicalLocation"]["region"], {"startLine": 1})
+        self.assertEqual((by["brain_methods"]["level"], by["brain_methods"]["properties"]["security-severity"]), ("note", "2.0"))
+        self.assertEqual(by["brain_methods"]["locations"][0]["physicalLocation"]["region"], {"startLine": 1})
         self.assertNotIn("locations", by["dormant"], "a repository-wide finding has no file to point at")
 
     def test_every_finding_the_gate_stops_on_has_an_error_result_under_head_scope(self):
