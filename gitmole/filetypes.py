@@ -113,6 +113,22 @@ def is_sample_path(path: str) -> bool:
     return bool(_SAMPLE_PATH.search(path)) and not _PACKAGE_EXAMPLE.search(path)
 
 
+# A schema migration by the conventions of the migration tools: a file under a migrations directory
+# (Django and Knex migrations/, Rails db/migrate/, Flyway db/migration/, EF Core Migrations/, and any
+# directory named migration-something) or under Alembic's versions/, whose name leads with the
+# version it applies: a sequence number or timestamp (0001_initial.py, 20240116123456_create_users.rb,
+# 000001_x.up.sql), Flyway's V1_2__x.sql, or Alembic's twelve-hex revision id. The directory alone is
+# not enough: django/db/migrations/ is the migration framework itself.
+_MIGRATION_DIR = re.compile(r"(^|/)((migrations?[\w-]*|db/migrate)/(versions/)?|alembic/versions/)[^/]+$", re.I)
+_MIGRATION_NAME = re.compile(r"^(\d{3,}[_.-]|V\d+(_\d+)*__|[0-9a-f]{12}_)", re.I)
+
+
+def is_migration_path(path: str) -> bool:
+    """A dated or numbered schema migration (see _MIGRATION_DIR): written once for one release and
+    replayed as it stands, so refactoring it is work nobody should be asked to do."""
+    return bool(_MIGRATION_DIR.search(path)) and bool(_MIGRATION_NAME.match(path.rsplit("/", 1)[-1]))
+
+
 _VENDOR_PATH = re.compile(r"(^|/)(_?vendor|vendored|node_modules|third_?party|external|deps|\.yarn|Godeps/_workspace)(/|$)", re.I)   # Godeps/_workspace: godep's vendoring
 
 

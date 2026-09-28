@@ -675,13 +675,14 @@ def _partial_functions(report: dict) -> str:
 
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
     """Functions that are both long and complex, in this repository's own source files: test files,
-    example code, vendored code and generated files (amalgamations included) are left out, and so is
-    a span the function step marked suspect, since a mis-parse that swallowed the next function is
+    example code, vendored code, generated files (amalgamations included) and numbered schema
+    migrations (written once and replayed as they stand, so nobody should split one) are left out, and
+    so is a span the function step marked suspect, since a mis-parse that swallowed the next function is
     long and complex by construction. A warning when one sits in a hotspot."""
     generated, vendored = _generated(report), filetypes.vendor_dirs(report)
     big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not f.get("suspect")
            and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
-                    or f["file"] in generated)]
+                    or f["file"] in generated or filetypes.is_migration_path(f["file"]))]
     if not big:
         return []
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))

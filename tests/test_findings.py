@@ -690,6 +690,14 @@ class BrainMethods(unittest.TestCase):
         self.assertEqual(f[0]["advice"], "Split onSendEnd in lib/reply.js first, before the next change lands there.")
         self.assertNotIn("validate10", f[0]["detail"])
 
+    def test_a_numbered_schema_migration_is_not_a_brain_method(self):
+        fns = [{"file": "backend/core/models/migrationscripts/20240116_modify_fileds_sort.go", "function": "Up", "ccn": 37, "nloc": 146, "params": 1, "start": 1, "end": 146},
+               {"file": "backend/core/runner/run_task.go", "function": "RunPluginSubTasks", "ccn": 33, "nloc": 145, "params": 6, "start": 1, "end": 145}]
+        f = findings.brain_methods(report(functions=fns))
+        self.assertEqual(f[0]["advice"], "Split RunPluginSubTasks in backend/core/runner/run_task.go first, before the next change lands there.")
+        self.assertNotIn("20240116", f[0]["detail"], "a migration is replayed as written; nobody should split it")
+        self.assertEqual(findings.brain_methods(report(functions=fns[:1])), [])
+
     def test_example_code_is_not_a_brain_method(self):
         fns = [{"file": "examples/named-pipe-ready.rs", "function": "windows_main", "ccn": 25, "nloc": 109, "params": 0, "start": 1, "end": 109},
                {"file": "tokio/src/sync/notify.rs", "function": "poll_notified", "ccn": 17, "nloc": 140, "params": 2, "start": 1, "end": 140}]
