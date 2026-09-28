@@ -1011,10 +1011,12 @@ class FullOnlySections(unittest.TestCase):
         r = sample_report()
         r["activity"]["fix_commits"] = 58
         text = rendered(r, [])
-        self.assertIn("most commits on Thu at 10:00  ·  25% of commits are fixes  ·  76% of surviving code from 2025", text)
+        self.assertIn("25% of commits are fixes  ·  76% of surviving code from 2025", text)
+        self.assertNotIn("most commits on", text, "the busiest weekday and hour are trivia for the header; --full's Activity table has them")
+        self.assertIn("busiest hour 10:00", rendered(r, [], full=True))
         r["activity"] = {}
         r["cohorts"] = {}
-        self.assertNotIn("most commits", rendered(r, []))
+        self.assertNotIn("of commits are fixes", rendered(r, []))
 
     def test_header_line_says_when_code_age_did_not_run(self):
         # the age table is --full only now, so the header is where the timeout has to show
@@ -1035,7 +1037,7 @@ class FullOnlySections(unittest.TestCase):
             r["meta"]["structure"] = {"status": status}
             self.assertIn(phrase, rendered(r, []), status)
             self.assertIn(phrase, render.markdown(r, []), status)
-            self.assertLess(rendered(r, []).index(phrase), rendered(r, []).index("most commits on"), "a missing step is said before the numbers that may miss it")
+            self.assertLess(rendered(r, []).index(phrase), rendered(r, []).index("of surviving code from"), "a missing step is said before the numbers that may miss it")
         r["meta"]["structure"] = {"status": "skipped", "install": "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+"}
         self.assertNotIn("structure checks", rendered(r, []), "a skip is the interpreter's, said at install time: the report must not differ by Python version")
         r["meta"]["structure"] = {"status": "run"}
@@ -1050,7 +1052,8 @@ class FullOnlySections(unittest.TestCase):
         self.assertNotIn("structure checks", rendered(r, []), "an output directory written before the step existed says nothing")
 
     def test_header_line_is_in_markdown_too(self):
-        self.assertIn("most commits on Thu at 10:00 · 76% of surviving code from 2025", render.markdown(sample_report(), []))
+        self.assertIn("76% of surviving code from 2025", render.markdown(sample_report(), []))
+        self.assertNotIn("most commits on", render.markdown(sample_report(), []))
 
     def test_header_line_names_the_core_steps_that_did_not_finish(self):
         r = sample_report()

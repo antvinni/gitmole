@@ -313,11 +313,7 @@ def pulse(report: dict) -> list:
     """One phrase each for the descriptive tables the default report leaves out."""
     out = _unfinished(report)   # first: every number below may be missing because of it
     act = report.get("activity") or {}
-    days, hours = act.get("by_weekday") or [], act.get("by_hour") or []
-    if days and max(days):
-        day = WEEKDAYS[max(range(7), key=lambda i: days[i])]
-        when = f" at {max(range(24), key=lambda i: hours[i]):02d}:00" if hours and max(hours) else ""
-        out.append(f"most commits on {day}{when}")
+    days = act.get("by_weekday") or []   # the busiest weekday and hour are the Activity table's (--full), not a header phrase
     total = sum(days)
     if act.get("fix_commits") is not None and total:
         out.append(f"{_pct(act['fix_commits'], total)} of commits are fixes")

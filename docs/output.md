@@ -34,9 +34,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
 ## The terminal report
 
 1. **Header**: commits, date span, identities, branch, size, top languages,
-   one line for the busiest day and hour, the share of fix commits, the
-   share that are reverts when there are any, the year most surviving
-   code was written (or why the blame pass did not run), and the share of
+   one line for the share of fix commits, the share that are reverts when
+   there are any (the busiest weekday and hour are `--full`'s Activity
+   table), the year most surviving code was written (or why the blame pass did not run), and the share of
    commits signed and by what (`51% of commits signed (gpg 49%, ssh 2%),
    60% of the last year's`), and a one-line tally of the findings. Signing
    is read from the `gpgsig` header in each commit object, so it needs no
