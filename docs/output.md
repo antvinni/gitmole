@@ -198,7 +198,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
      although neither file imports the other, which Ajienka and Capiluppi
      found is common and usually a shared format, a duplicated rule or
      copied code; only for languages whose imports the graph mostly
-     resolves;
+     resolves, and not for two Go files in one directory, which are one
+     package and share every name with no import;
    - import cycles: groups of Python, JavaScript and TypeScript source files
      that import each other, directly or round a loop, as they load, each
      named by its shortest loop (`a.py → b.py → a.py`; of equal loops, the
@@ -209,8 +210,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
      repository (the same gate as possibly unreferenced files and the
      dependents count on `--risk`), so two `.tsx` components in a loop with
      TypeScript count where three lone TypeScript files do not; tests,
-     examples and fixtures, vendored code and generated files are left out.
-     An import inside a function (not one called where it is written) or an
+     examples and fixtures, vendored code and generated files are left out,
+     and so is Go, whose compiler refuses a loop between packages, so a
+     loop through Go files could only be the graph's mistake. An import inside a function (not one called where it is written) or an
      instance field's initialiser, TypeScript's and Flow's `import type`
      and an import whose every name is marked `type` (erased by
      TypeScript's default; a project built with `verbatimModuleSyntax` keeps
@@ -222,14 +224,15 @@ How to read each part of the terminal report, and what each run writes to disk; 
      near a cycle change more often and found no rule that tells a harmful
      cycle from a harmless one, so the finding names the loops and says
      nothing about which to keep;
-   - possibly unreferenced files: Python, JavaScript and TypeScript files
-     nothing imports that are no entry point by convention (such as
+   - possibly unreferenced files: Python, JavaScript, TypeScript and Go
+     files nothing imports that are no entry point by convention (such as
      `__main__.py`, `index.*`, `main.*`, `*.config.*`, a dotfile, a file
-     beside `package.json`, `bin/`, `scripts/`, `migrations/`, file-routed
-     `pages/` and `app/`), by declaration (`pyproject.toml` scripts,
-     `package.json` main, bin and exports) or by content (a `__main__`
-     guard, a shebang); a basename that recurs across directories, and a
-     directory the code itself barely imports, are loaded by name and left
+     beside `package.json` or `go.mod`, `bin/`, `scripts/`, `migrations/`,
+     file-routed `pages/` and `app/`), by declaration (`pyproject.toml`
+     scripts, `package.json` main, bin and exports) or by content (a
+     `__main__` guard, a shebang, Go's `package main`); a basename that
+     recurs across directories, and a directory the code itself barely
+     imports, are loaded by name and left
      out, and a language where too many files still look unreferenced loads
      code by name and gets no list at all. Never "dead": a dynamic import
      does not show in an import graph;
@@ -719,6 +722,6 @@ directory for a remote target:
 | `signing.json` | signing step | commits signed, by mechanism (gpg, ssh, x509), by year, humans against bots, per identity and over the last year, from the commit objects |
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave; a property of this clone, so the `--json` export carries the counts in its `envelope` |
-| `structure.json` | structure step, Python 3.10 or newer | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports and which of those only after it loads (`deferred`), its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
+| `structure.json` | structure step, Python 3.10 or newer | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports and which of those only after it loads (`deferred`) — resolved for Python (from a root), JavaScript and TypeScript (relative paths), C and C++ (quoted includes), Ruby (`require_relative`, and `require` of a tracked file) and Go (an import path against the `module` and relative `replace` lines of the go.mod files in the tree; a Go import names a package, so it is an edge to every file of that directory the build compiles into it, `_test.go` and `package main` aside), while Rust, Java, C# and PHP imports stay unresolved — its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
 | `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the marked cohort against the rest (with each side's watch-list hit rate), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
 | `run.log` | gitmole | every command run and its stderr |

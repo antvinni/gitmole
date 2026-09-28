@@ -143,8 +143,8 @@ nobody tuned it on ([validation.md](validation.md#the-hooks-coupling-warning));
 so one is uncommon and right a little more often than not. Every touched file,
 scored or not, also says what imports it (`imported by 4 files, 31 counting
 what imports them`), from the structure step's import graph. Only importers
-in a language the graph is trusted for count: Python, JavaScript or
-TypeScript (`.ts` and `.tsx` gated apart), with ten or more files of that
+in a language the graph is trusted for count: Python, JavaScript,
+TypeScript (`.ts` and `.tsx` gated apart) or Go, with ten or more files of that
 language and 60% or more of its imports resolved (`structure.trusted`, the same gate as possibly unreferenced
 files), and never a test file, which exercises a module rather than breaks
 with it; a file whose own language fails that gate and that no trusted
