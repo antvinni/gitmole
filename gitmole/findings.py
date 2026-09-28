@@ -180,6 +180,23 @@ def _present_areas(report: dict, rows: list, build=knowledge.areas) -> list:
     return [a for a in build(knowledge.present_rows(rows, tree)) if knowledge.in_tree(a["area"], tree)]
 
 
+def _gone(report: dict) -> set:
+    """The names the knowledge map counts as gone (loss.gone), which a finding marks and never sends a
+    reader to: advice to pair with someone who stopped committing a year ago cannot be followed."""
+    return {g["name"] for g in loss.gone(report, report["meta"].get("gone_months", loss.DEFAULT_MONTHS))}
+
+
+def _who(name: str, gone: set) -> str:
+    """A name as a finding's statement prints it: "(gone)" after it, as the knowledge map does, when
+    the person has stopped committing."""
+    return f"{name} (gone)" if name in gone else name
+
+
+def _still_here(owners, gone: set):
+    """The first of (name, lines) owners, most first, who is not gone, or None when nobody active holds any."""
+    return next((n for n, x in owners if n not in gone and x > 0), None)
+
+
 def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> list:
     """One author owns most of the surviving code (whole history). The areas named in the advice
     come from lines added, which `--since` windows, so the advice says so when it applies."""
@@ -190,22 +207,35 @@ def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> li
     name, lines = max(shares.items(), key=lambda kv: kv[1])
     if lines / total <= threshold:
         return []
-    theirs = []
+    theirs, owners_of = [], {}
     for a in _present_areas(report, _source_ownership(report)):
         owned = dict(a["owners"]).get(name, 0)
         if a["lines"] >= min_lines and owned / a["lines"] >= 0.8:
             theirs.append((a["area"], round(100 * owned / a["lines"])))
-    if theirs:
+            owners_of[a["area"]] = a["owners"]
+    gone = _gone(report)
+    ask = None
+    if name not in gone and theirs:
         areas = " and ".join(t[0] for t in theirs[:2])
         shares_ = " and ".join(f"{t[1]}%" for t in theirs[:2])
         since = report["meta"].get("since")
         advice = (f"Pair someone with {name} on {areas} first; {'they are' if len(theirs) > 1 else 'it is'} {shares_} theirs"
                   f"{f' since {since}' if since else ''}.")
-    else:
+    elif name not in gone:
         advice = f"Pair someone with {name} before they are unavailable."
-    return [_f("warning", "Bus factor of one", f"{name} wrote {_pct(lines, total)} of the code that survives today.", advice,
+    elif theirs:   # they have left: the one to ask is whoever still here wrote the most of what they owned
+        area = theirs[0][0]
+        ask = _still_here(owners_of[area], gone)
+        advice = (f"Have {ask}, its largest author still here, own {area} first." if ask
+                  else f"Nobody still here has written any of {area}; give it an owner.")
+    else:
+        ask = _still_here(sorted(shares.items(), key=lambda kv: (-kv[1], kv[0])), gone)
+        advice = (f"Have {ask}, who holds the most surviving code among the people still here, take over what they wrote." if ask
+                  else "Nobody still here holds any of the code; give it owners.")
+    return [_f("warning", "Bus factor of one", f"{_who(name, gone)} wrote {_pct(lines, total)} of the code that survives today.", advice,
                rule={"id": "bus_factor", "threshold": threshold, "min_lines": min_lines},
-               evidence={"author": name, "lines": lines, "total_lines": total, "areas": [{"area": a, "share_pct": s} for a, s in theirs[:10]]})]
+               evidence={"author": name, "gone": name in gone, "ask": ask, "lines": lines, "total_lines": total,
+                         "areas": [{"area": a, "share_pct": s} for a, s in theirs[:10]]})]
 
 
 def _sizer_advice(row: dict) -> str:
@@ -285,10 +315,11 @@ def import_commits(report: dict) -> list:
     if not rows:
         return []
     total = act.get("added_total") or 0
+    gone = _gone(report)
 
     def one(c):
         share = f", {100 * c['added'] / total:.0f}% of every line the history adds" if total else ""
-        return f"{c['hash']} by {c['author']} ({c['files']:,} files, {c['added']:,} lines{share}, {c['date']}, {textfmt.cut(c.get('subject', ''), 50)})"
+        return f"{c['hash']} by {c['author']} ({'gone, ' if c['author'] in gone else ''}{c['files']:,} files, {c['added']:,} lines{share}, {c['date']}, {textfmt.cut(c.get('subject', ''), 50)})"
     listed = "; ".join(one(c) for c in rows[:3])
     return [_f("info", "Imports left out of ownership",
                f"{_plural(len(rows), 'commit')} brought code in without changing any: {listed}. "
@@ -351,23 +382,36 @@ def minor_contributors(report: dict, min_minor: int = 5, warn_at: int = 10, top_
     if not crowded:
         return []
     crowded.sort(key=lambda t: (-t[1], t[0]))
-    owners = {}
+    owners, by_file = {}, {}
     for r in report.get("ownership") or []:
         if r.get("added", 0) > (owners.get(r["entity"]) or ("", 0))[1]:
             owners[r["entity"]] = (r["author"], r["added"])
+        by_file.setdefault(r["entity"], []).append((r["author"], r.get("added", 0)))
+    gone = _gone(report)
+
+    def active(f):   # who to ask: the one who wrote the most of it among the people still committing
+        return _still_here(sorted(by_file.get(f) or [], key=lambda o: (-o[1], o[0])), gone)
     sev = "warning" if crowded[0][1] >= warn_at else "info"
     listed = "; ".join(f"{f} ({m} of {n} authors)" for f, m, n, _ in crowded[:5]) + (f" and {len(crowded) - 5} more" if len(crowded) > 5 else "")
     excluded = sum(len(expected.get(f) or []) for f, _, _, _ in crowded)
     aside = (f" {excluded} of the minor contributors are major contributors to a file these change with and are not counted"
              " (Bird et al., section 7)." if excluded else "")
     first, owner = crowded[0][0], (owners.get(crowded[0][0]) or (None, 0))[0]
-    who = f"Have {owner}, who wrote most of {first}, review changes to it from anyone else" if owner else f"Give {first} an owner who reviews every change to it"
+    if owner and owner not in gone:
+        who = f"Have {owner}, who wrote most of {first}, review changes to it from anyone else"
+    elif owner and active(first):
+        who = f"Have {active(first)}, its largest author still here (its main one is gone), review changes to {first} from anyone else"
+    elif owner:
+        who = f"Nobody still here has written any of {first}; give it an owner who reviews every change to it"
+    else:
+        who = f"Give {first} an owner who reviews every change to it"
     return [_f(sev, "Many minor contributors",
                f"{len(crowded)} of the top {len(top)} hotspots have {min_minor} or more contributors with under {round(100 * maat.MINOR_SHARE)}% of the file's commits each: {listed}.{aside}",
                f"{who}; Bird et al. found the count of minor contributors the strongest ownership predictor of defects.",
                rule={"id": "minor_contributors", "min_minor": min_minor, "warn_at": warn_at, "minor_share": maat.MINOR_SHARE, "top_n": top_n,
                      "expected_share": maat.MINOR_SHARE},
                evidence={"files": [{"file": f, "minor": m, "minor_all": a, "authors": n, "owner": (owners.get(f) or (None, 0))[0],
+                                    "owner_gone": (owners.get(f) or (None, 0))[0] in gone, "ask": active(f),
                                     "expected": (expected.get(f) or [])[:5]} for f, m, n, a in crowded[:10]]})]
 
 
@@ -557,16 +601,25 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
         return []
     covered = sum(i["lines"] for i in islands)
     sev = "warning" if total and covered / total > 0.5 else "info"
-    listed = "; ".join(f"{i['area']} ({i['owner']} {i['share']}%)" for i in islands[:5])
+    gone = _gone(report)
+    listed = "; ".join(f"{i['area']} ({_who(i['owner'], gone)} {i['share']}%)" for i in islands[:5])
     more = f" and {len(islands) - 5} more" if len(islands) > 5 else ""
     largest = max(islands, key=lambda i: i["lines"])
+    at = f"it is the largest at {largest['lines']:,} lines"
+    if largest["owner"] not in gone:
+        advice = f"Pair someone with {largest['owner']} on {largest['area']} first; {at}."
+    else:   # its author has left: the one to ask is whoever still here wrote the most of the rest of it
+        ask = _still_here(next(a["owners"] for a in areas if a["area"] == largest["area"]), gone)
+        advice = (f"Have {ask}, its largest author still here, own {largest['area']} first; {at}."
+                  if ask else f"Give {largest['area']} an owner first; {at} and nobody still here has written any of it.")
     return [_f(sev, "Knowledge islands",
                f"{len(islands)} area(s) with at least {min_lines} lines were written almost entirely by one person: {listed}{more}. "
                f"That is {_pct(covered, total)} of all lines added.",
-               f"Pair someone with {largest['owner']} on {largest['area']} first; it is the largest at {largest['lines']:,} lines.",
+               advice,
                rule={"id": "knowledge_islands", "min_lines": min_lines, "min_share": min_share, "min_fraction": min_fraction},
                evidence={"covered_lines": covered, "total_lines": total,
-                         "islands": [{"area": i["area"], "owner": i["owner"], "share_pct": i["share"], "lines": i["lines"]} for i in islands[:10]]})]
+                         "islands": [{"area": i["area"], "owner": i["owner"], "gone": i["owner"] in gone, "share_pct": i["share"], "lines": i["lines"]}
+                                     for i in islands[:10]]})]
 
 
 LIVE_MONTHS = 12
@@ -1483,21 +1536,50 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
     if tf > 2 and not lone:
         return []
     orphans = round(share * len(files))
-    statement = (f"Truck factor {tf}: without {textfmt.join_and(removed)}, {orphans} of the {len(files)} source files ({_pct(orphans, len(files))}) "
+    gone = _gone(report)
+
+    def names(people):
+        return textfmt.join_and([_who(p, gone) for p in people])
+    shares = report.get("theseus_authors") or {}
+    whole = sum(shares.values())
+    top, lines = max(shares.items(), key=lambda kv: kv[1]) if shares else (None, 0)
+    lead = names(removed)
+    if tf == 1 and top == removed[0] and 2 * lines <= whole:
+        # one departure orphans most files while the lines are split: the two measures differ, so the share is said where the name is
+        lead = f"{top} ({'gone, ' if top in gone else ''}{_pct(lines, whole)} of the surviving code)"
+    statement = (f"Truck factor {tf}: without {lead}, {orphans} of the {len(files)} source files ({_pct(orphans, len(files))}) "
                  f"have no author left.")
+    left = sum(1 for p in removed if p in gone)
+    if left:   # for them it is not a risk but a loss that has happened
+        statement += " For those marked gone it already has."
     if tf_d != tf and not removed_d:
         statement += " With knowledge halving every five months, more than half the files already have no author."
+    elif tf_d != tf and set(removed) < set(removed_d):   # the same people and some more: only the more are new
+        statement += f" With knowledge halving every five months it is {tf_d}, adding {names([p for p in removed_d if p not in removed])}."
     elif tf_d != tf:
-        statement += f" With knowledge halving every five months it is {tf_d} ({textfmt.join_and(removed_d)})."
+        statement += f" With knowledge halving every five months it is {tf_d} ({names(removed_d)})."
     if lone:
-        statement += " Areas with a truck factor of one: " + ", ".join(f"{a} ({w})" for a, w, _, _ in lone[:5]) + (f" and {len(lone) - 5} more" if len(lone) > 5 else "") + "."
-    shares = report.get("theseus_authors") or {}
-    if shares and removed:
-        top, lines = max(shares.items(), key=lambda kv: kv[1])
-        if top != removed[0]:
-            statement += f" The surviving code's largest share is {top}'s ({_pct(lines, sum(shares.values()))}), which the bus-factor finding reads."
-    first_area = next((a for a, w, _, _ in lone if w == removed[0]), lone[0][0] if lone else None)
-    advice = f"Pair someone with {removed[0]}" + (f" on {first_area}" if first_area else "") + " first; they author most of what would be left without an author."
+        statement += " Areas with a truck factor of one: " + ", ".join(f"{a} ({_who(w, gone)})" for a, w, _, _ in lone[:5]) + (f" and {len(lone) - 5} more" if len(lone) > 5 else "") + "."
+    if shares and top != removed[0]:
+        statement += (f" The surviving code's largest share is {top}'s ({_pct(lines, whole)}), which the bus-factor finding reads." if top not in gone else
+                      f" The surviving code's largest share, {_pct(lines, whole)}, belongs to {top} (gone), which the bus-factor finding reads.")
+    # the person to pair with is the first named who is still here, on an area that is theirs
+    ask = next((p for p in removed if p not in gone), None)
+    if ask is None:
+        counts = {}
+        for a in authored.values():
+            for p in a:
+                if p not in gone:
+                    counts[p] = counts.get(p, 0) + 1
+        ask = min(counts, key=lambda p: (-counts[p], p)) if counts else None
+    first_area = next((a for a, w, _, _ in lone if w == ask), None)
+    if ask is None:
+        advice = "Everyone who authors these files has stopped committing; give the files owners, starting with the ones changed most."
+    else:
+        why = ("they author most of what would be left without an author" if ask == removed[0] else
+               "those named before them are gone" if ask in removed else
+               "they author the most files among the people still here")
+        advice = f"Pair someone with {ask}" + (f" on {first_area}" if first_area else "") + f" first; {why}."
     return [_f("warning" if tf == 1 else "info", "Truck factor", statement, advice,
                rule={"id": "truck_factor", "doa_author_share": 0.75, "doa_floor": 3.293, "orphan_share": 0.5, "decay_months": 5,
                      "ref": "Avelino et al., ICPC 2016"},
