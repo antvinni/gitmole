@@ -134,7 +134,7 @@ class Plan(unittest.TestCase):
             self.assertNotIn("--path", argv)
         self.assertNotIn("--", whole["git-log"])
         self.assertEqual(scoped["git-log"][-3:], ["--", ":(literal)svc", ":(literal)web"])
-        for name in ["code age", "functions", "duplicates"]:
+        for name in ["code age", "functions"]:
             argv = scoped[name]
             self.assertEqual([argv[i + 1] for i, a in enumerate(argv) if a == "--path"], ["svc", "web"], name)
         for name in ["scc", "betterleaks", "osv-scanner", "signing", "hygiene", "provenance", "change analysis"]:

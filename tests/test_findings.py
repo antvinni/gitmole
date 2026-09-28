@@ -821,49 +821,6 @@ class BrainMethods(unittest.TestCase):
         self.assertIn("Function metrics timed out part way, so there may be more. Split parse in core/parser.py first", findings.brain_methods(r)[0]["detail"])
 
 
-class Duplication(unittest.TestCase):
-    def test_large_blocks_are_reported(self):
-        dup = {"rate": 4.2, "blocks": [{"lines": 71, "places": [("a/x.py", 10, 80), ("b/y.py", 5, 75)]},
-                                       {"lines": 12, "places": [("c.py", 1, 12), ("d.py", 1, 12)]}]}
-        f = findings.duplication(report(duplicates=dup))
-        self.assertEqual(len(f), 1)
-        self.assertIn("71 lines", f[0]["detail"])
-        self.assertIn("a/x.py:10", f[0]["detail"])
-        self.assertNotIn("c.py", f[0]["detail"], "short blocks are noise")
-        self.assertIn("4.2%", f[0]["detail"])
-        self.assertTrue(f[0]["detail"].endswith("Extract the 71-line block shared by a/x.py and b/y.py first."), f[0]["detail"])
-
-    def test_advice_names_each_file_once_and_says_within_for_one_file(self):
-        block = lambda places: {"rate": 3.1, "blocks": [{"lines": 45, "places": places}]}
-        f = findings.duplication(report(duplicates=block([("core/parser.py", 10, 54), ("core/parser.py", 200, 244)])))
-        self.assertEqual(f[0]["advice"], "Extract the 45-line block repeated within core/parser.py first.")
-        f = findings.duplication(report(duplicates=block([("a.py", 1, 45), ("a.py", 50, 94), ("b.py", 1, 45)])))
-        self.assertEqual(f[0]["advice"], "Extract the 45-line block shared by a.py and b.py first.")
-
-    def test_nothing_without_large_blocks(self):
-        self.assertEqual(findings.duplication(report(duplicates={"rate": 0.5, "blocks": [{"lines": 12, "places": [("c.py", 1, 12), ("d.py", 1, 12)]}]})), [])
-        self.assertEqual(findings.duplication(report()), [])
-
-    def test_a_partial_run_says_there_may_be_more(self):
-        dup = {"rate": 4.2, "blocks": [{"lines": 71, "places": [("a/x.py", 10, 80), ("b/y.py", 5, 75)]}]}
-        r = report(duplicates=dup)
-        r["meta"]["duplicates"] = {"status": "failed"}
-        self.assertIn("4.2% of lines are duplicated. Duplicate detection failed part way, so there may be more. Extract", findings.duplication(r)[0]["detail"])
-        r["meta"]["duplicates"] = {"status": "run"}
-        r["meta"]["functions"] = {"status": "failed"}
-        self.assertNotIn("part way", findings.duplication(r)[0]["detail"], "lizard's status says nothing about jscpd's step")
-
-    def test_a_block_whose_every_copy_is_vendored_or_generated_is_not_this_repositorys(self):
-        dup = {"rate": 4.2, "blocks": [{"lines": 71, "places": [("vendor/a.py", 10, 80), ("vendor/b.py", 5, 75)]},
-                                       {"lines": 50, "places": [("dist/app.js", 1, 50), ("dist/app.min.js", 1, 50)]},
-                                       {"lines": 40, "places": [("src/mine.py", 1, 40), ("vendor/a.py", 100, 139)]}]}   # sorted, as the loader gives them
-        r = report(duplicates=dup)
-        r["meta"]["generated"] = ["dist/app.js", "dist/app.min.js"]   # as the run records them
-        f = findings.duplication(r)
-        self.assertEqual(f[0]["advice"], "Extract the 40-line block shared by src/mine.py and vendor/a.py first.")
-        self.assertIn("1 block(s)", f[0]["detail"])
-
-
 class VulnerableDependencies(unittest.TestCase):
     def row(self, name, version, source, score=7.5, fixed="9.9.9", aliases=("CVE-2024-1",), ids=("GHSA-x",), malicious=False):
         sev = "critical" if malicious or (score is not None and score >= 9) else "high" if score is not None and score >= 7 else "unknown"
@@ -1211,7 +1168,6 @@ class Advice(unittest.TestCase):
                    fixes=[{"entity": "a.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5}],
                    functions=[{"file": "a.py", "function": "go", "ccn": 20, "nloc": 150, "params": 2, "start": 1, "end": 150}],
                    coupling=[{"entity": "a.py", "coupled": "b.py", "degree": 90, "average-revs": 11}],
-                   duplicates={"rate": 4.2, "blocks": [{"lines": 71, "places": [("a.py", 10, 80), ("b.py", 5, 75)]}]},
                    dependencies={"status": "scanned", "sources": [{"path": "uv.lock", "packages": 3}], "packages": 3, "database_date": None,
                                  "vulnerable": [{"name": "x", "version": "1", "ecosystem": "PyPI", "source": "uv.lock", "ids": ["GHSA-1"], "aliases": [],
                                                  "advisories": 1, "score": 8.0, "severity": "high", "summary": "", "fixed": "2"}]},
@@ -1219,7 +1175,7 @@ class Advice(unittest.TestCase):
                    ownership=[{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0}])
         r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 5, "aliases": [{"name": "root", "email": "root@localhost", "commits": 1}]}]
         found = findings.evaluate(r)
-        self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Repo health", "Bug magnets", "Brain methods", "Duplicated code",
+        self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Repo health", "Bug magnets", "Brain methods",
                                                       "A large share of files is untouched", "Unconfigured git identity", "Knowledge islands",
                                                       "Vulnerable dependencies"}, True)
         for f in found:

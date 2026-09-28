@@ -44,7 +44,7 @@ def _ordered(found: list) -> list:
 def _options_differ(before_meta: dict, after_meta: dict) -> list:
     """The options that change what a run sees: --since and --file-types from meta's top level, --ignore and
     --ignore-data from the manifest when both exports have one. --deep is recorded there too but only
-    decides whether code age, plots and duplicates ran, none of which reach the findings or the watch list."""
+    decides whether code age and plots ran, none of which reach the findings or the watch list."""
     out = [name for name in ("since", "file_types") if before_meta.get(name) != after_meta.get(name)]
     b, a = (before_meta.get("run") or {}).get("options"), (after_meta.get("run") or {}).get("options")
     if b is not None and a is not None:
@@ -94,7 +94,7 @@ def _version_changed(before_meta: dict, after_meta: dict):
 def _tools_changed(before_meta: dict, after_meta: dict) -> dict:
     """{tool: {before, after}} for the external tools whose version moved between the two exports, else {}.
     The same argument as _version_changed, for the instruments gitmole reads: scc counts differently, a
-    lizard release parses a language better, jscpd finds another block. Both manifests record every tool's
+    lizard release parses a language better. Both manifests record every tool's
     version, so this needs no guessing; a tool only one of them names is not a change anyone can check."""
     b = (before_meta.get("run") or {}).get("tools") or {}
     a = (after_meta.get("run") or {}).get("tools") or {}

@@ -849,33 +849,6 @@ def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = trend.G
                evidence={"hotspots": len(top), "grown": [{"file": p, "growth_pct": g} for p, g in grown[:10]]})]
 
 
-def duplication(report: dict, min_lines: int = 30) -> list:
-    """Blocks of min_lines+ lines that appear more than once in this repository's own code. A block
-    whose every copy sits in vendored or generated code is somebody else's, or a generator's, duplication."""
-    dup = report.get("duplicates") or {}
-    generated, vendored = _generated(report), filetypes.vendor_dirs(report)
-
-    def own(b):
-        return any(not (filetypes.is_vendored(p, vendored) or p in generated) for p, _, _ in b["places"])
-    blocks = [b for b in dup.get("blocks") or [] if b["lines"] >= min_lines and own(b)]
-    if not blocks:
-        return []
-    blocks.sort(key=lambda b: (-b["lines"], b["places"]))
-    def place(b):
-        return " and ".join(f"{p}:{start}" for p, start, _ in b["places"][:3])
-    listed = "; ".join(f"{b['lines']} lines in {place(b)}" for b in blocks[:3])
-    more = f" and {len(blocks) - 3} more" if len(blocks) > 3 else ""
-    rate = f" Overall {dup['rate']}% of lines are duplicated." if dup.get("rate") is not None else ""
-    first = blocks[0]
-    files = list(dict.fromkeys(p for p, _, _ in first["places"]))   # each file once, in place order
-    where = f"repeated within {files[0]}" if len(files) == 1 else f"shared by {files[0]} and {files[1]}"
-    return [_f("info", "Duplicated code", f"{len(blocks)} block(s) of {min_lines}+ duplicated lines: {listed}{more}.{rate}{_partial(report, 'duplicates', 'Duplicate detection')}",
-               f"Extract the {first['lines']}-line block {where} first.",
-               rule={"id": "duplication", "min_lines": min_lines},
-               evidence={"blocks": len(blocks), "rate_pct": dup.get("rate"), "partial": bool(_partial(report, "duplicates", "Duplicate detection")),
-                         "largest": [{"lines": b["lines"], "places": [list(p) for p in b["places"][:3]]} for b in blocks[:3]]})]
-
-
 CRITICAL_SCORE = 9.0   # CVSS: the band the advisories themselves call critical
 MALICIOUS_PREFIX = "MAL-"   # OpenSSF malicious-packages records: the package is malicious, whatever its score
 IGNORE_DEPS = "A vulnerability that does not apply to this code can be ignored in osv-scanner.toml at the repository root."
@@ -1732,7 +1705,7 @@ def component_coupling(report: dict, min_degree: int = 30) -> list:
 
 
 RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, placeholder_identity, bus_factor, sizer_concerns, bug_magnets,
-         minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, duplication, stale_files, knowledge_islands, knowledge_loss,
+         minor_contributors, reverts, brain_methods, complexity_growth, tight_coupling, stale_files, knowledge_islands, knowledge_loss,
          sweeping_commits, import_commits, tangled_commits, hygiene_findings, debt_in_hotspots, deep_nesting, hidden_coupling, import_cycles, unreferenced_files,
          agent_approval_disabled, agent_local_settings, mcp_literal_env, agent_instructions_drift, signoff_by_co_author,
          truck_factor, authors_gone, component_coupling, swallowed_errors, hardcoded_addresses, commented_out_code]
@@ -1742,7 +1715,7 @@ RULES = [dormant, secrets_found, credential_files, vulnerable_dependencies, plac
 # measure/labels.jsonl and none of them actionable (docs/measurement.md, "Hand labels"). The default terminal
 # report names them in one line instead of spelling each out; --full, Markdown, JSON, SARIF and --fail-on
 # see every finding as before. A test holds this set to the labels, both ways.
-SUMMARISED = frozenset({"authors_gone", "component_coupling", "duplication", "knowledge_loss", "minor_contributors", "repo_health",
+SUMMARISED = frozenset({"authors_gone", "component_coupling", "knowledge_loss", "minor_contributors", "repo_health",
                         "reverts", "secrets_aside", "stale_files"})
 
 # Rules nobody has labelled yet: the structure step's, which ran only where tree-sitter was installed by hand

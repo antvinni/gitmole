@@ -17,17 +17,17 @@ def pinned_everywhere(name):
 class Rows(unittest.TestCase):
     def test_every_tool_at_its_pin_is_ok(self):
         rows = doctor.rows(present=lambda n: True, version_of=pinned_everywhere)
-        self.assertEqual([r["tool"] for r in rows], ["scc", "git-sizer", "betterleaks", "jscpd", "osv-scanner", "lizard"])
+        self.assertEqual([r["tool"] for r in rows], ["scc", "git-sizer", "betterleaks", "osv-scanner", "lizard"])
         self.assertEqual({r["state"] for r in rows}, {"ok"})
 
     def test_a_missing_tool_a_moved_one_and_a_silent_one(self):
-        versions = {**tools.PINNED, "git-sizer": "1.4.0", "betterleaks": None}
-        rows = doctor.rows(present=lambda n: n != "jscpd", version_of=versions.get)
+        versions = {**tools.PINNED, "scc": "4.0.9", "betterleaks": None}
+        rows = doctor.rows(present=lambda n: n != "osv-scanner", version_of=versions.get)
         state = {r["tool"]: r["state"] for r in rows}
-        self.assertEqual(state["jscpd"], "missing")
-        self.assertEqual(state["git-sizer"], "moved")
+        self.assertEqual(state["osv-scanner"], "missing")
+        self.assertEqual(state["scc"], "moved")
         self.assertEqual(state["betterleaks"], "no version")
-        self.assertEqual(state["scc"], "ok")
+        self.assertEqual(state["lizard"], "ok")
 
 
 class Main(unittest.TestCase):
@@ -40,18 +40,18 @@ class Main(unittest.TestCase):
         self.assertIn("2026-09-20", text)
         self.assertIn("available", text)
         oks = [l for l in text.splitlines() if l.endswith("  ok")]
-        self.assertEqual(len(oks), 6)
+        self.assertEqual(len(oks), len(doctor.NAMES))
         self.assertEqual(len({len(l) for l in oks}), 1)   # the versions line up, 1.24.0 beside 4.1.0
 
     def test_a_moved_tool_exits_1_and_says_where_to_get_the_pin(self):
-        versions = {**tools.PINNED, "git-sizer": "1.4.0"}
+        versions = {**tools.PINNED, "scc": "4.0.9"}
         c = console()
         rc = doctor.main(c, rows_of=lambda: doctor.rows(present=lambda n: True, version_of=versions.get),
                          structure_of=lambda: False, db_of=lambda: None)
         text = c.export_text()
         self.assertEqual(rc, 1)
-        self.assertIn("1.4.0", text)
-        self.assertIn("pinned 1.5.0", text)
+        self.assertIn("4.0.9", text)
+        self.assertIn("pinned 4.1.0", text)
         self.assertIn("brew install gitmole", text)
         self.assertIn("gitmole --install-tools", text)   # the pip user's route to the same pinned set
         self.assertIn("Python 3.10", text)                 # why the structure step is skipped

@@ -201,43 +201,6 @@ def parse_functions(text: str) -> list:
     return rows
 
 
-_DUP_PLACE = re.compile(r"^(.+?):(\d+) ~ (\d+)$")
-_DUP_RATE = re.compile(r"Total duplicate rate:\s*([\d.]+)%")
-
-
-def parse_duplicates_json(data) -> dict | None:
-    """duplicates.json as the jscpd step writes it: the rate over the kept files and the blocks, largest
-    first, each place a (path, start, end) tuple. None when there is no such file."""
-    if not isinstance(data, dict):
-        return None
-    blocks = [{"lines": _num(b.get("lines")), "places": sorted(tuple(p[:3]) for p in b.get("places") or [] if len(p) >= 3)}
-              for b in data.get("blocks") or []]
-    rate = data.get("rate")
-    out = {"rate": float(rate) if rate is not None else None, "blocks": blocks, "files": _num(data.get("files"))}
-    if isinstance(data.get("then"), dict):
-        out["then"] = data["then"]   # the rate at the last commit a year before: the direction
-    return out
-
-
-def parse_duplicates(text: str) -> dict:
-    """lizard -Eduplicate output, which runs before 0.7 wrote: blocks of 'path:start ~ end' lines and the overall rate."""
-    blocks, current = [], None
-    for line in text.splitlines():
-        line = line.rstrip()
-        if line == "Duplicate block:":
-            current = []
-        elif current is not None:
-            m = _DUP_PLACE.match(line)
-            if m:
-                current.append((_rel(m.group(1)), int(m.group(2)), int(m.group(3))))
-            elif line.startswith("^^^"):
-                if current:
-                    blocks.append({"lines": current[0][2] - current[0][1] + 1, "places": sorted(current)})
-                current = None
-    m = _DUP_RATE.search(text)
-    return {"rate": float(m.group(1)) if m else None, "blocks": blocks}
-
-
 def parse_secrets(text: str) -> list:
     """betterleaks rows as rule, file, short commit, line, fingerprint, the hashed value and the placeholder
     flag. A report written before values were hashed still has them: hash them here, keep nothing raw."""
@@ -471,7 +434,6 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "secrets_scanned": isinstance(_read_json(out_dir, "secrets.json", None), list),
         "activity": activity,
         "functions": parse_functions(_read(out_dir, "functions.csv")),
-        "duplicates": parse_duplicates_json(_read_json(out_dir, "duplicates.json", None)) or parse_duplicates(_read(out_dir, "duplicates.txt")),
         # the osv-scanner step writes the file whatever it found (no lock files, no local database, a
         # scan); a missing file means the step did not finish or the run predates it
         "dependencies": parse_dependencies(_read_json(out_dir, "dependencies.json", None)),

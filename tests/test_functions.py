@@ -52,7 +52,7 @@ class FunctionsScript(unittest.TestCase):
         self.assertNotIn("vendored", csv, "--ignore applies")
         self.assertNotIn("not_code", csv, "markdown is not code")
         self.assertNotIn("shelled", csv, "no lizard reader for shell: no guessing with the C-like fallback")
-        self.assertEqual(written, ["functions.csv"], "duplicates are jscpd's step, not lizard's")
+        self.assertEqual(written, ["functions.csv"], "lizard's duplicate finder is not run")
 
     def test_a_huge_nested_name_is_cut_before_it_is_written(self):
         from types import SimpleNamespace

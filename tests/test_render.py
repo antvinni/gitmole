@@ -29,7 +29,6 @@ def sample_report():
         "fixes": [{"entity": "static/apps-metadata.json", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 4}],
         "functions": [{"file": "static/js/app.js", "function": "render", "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200},
                       {"file": "static/js/util.js", "function": "tidy", "ccn": 12, "nloc": 30, "params": 1, "start": 1, "end": 31}],
-        "duplicates": {"rate": 1.5, "blocks": []},
         "dependencies": {"status": "scanned", "sources": [{"path": "package-lock.json", "packages": 120}, {"path": "uv.lock", "packages": 31}],
                          "packages": 151, "vulnerable": [], "database_date": "2026-09-16"},
         "ownership": [{"entity": "static/a.html", "author": "Ann", "added": 900, "deleted": 0},
@@ -258,13 +257,10 @@ class Report(unittest.TestCase):
         self.assertEqual(short, " · ".join(many[:6]) + " · 3 more")
         self.assertEqual(full, " · ".join(many))
 
-    def test_the_duplication_direction_is_a_header_phrase(self):
+    def test_the_duplication_rate_is_no_longer_a_header_phrase(self):
+        """The duplicates step left at 0.39.0; an old report dict that still carries its rate says nothing of it."""
         r = sample_report()
         r["duplicates"] = {"rate": 6.1, "blocks": [], "then": {"date": "2025-09-10", "rate": 4.2, "files": 30}}
-        self.assertIn("6.1% of lines duplicated, up from 4.2% a year before", render.pulse(r))
-        r["duplicates"]["then"]["rate"] = 6.1
-        self.assertIn("6.1% of lines duplicated, as a year before", render.pulse(r))
-        del r["duplicates"]["then"]
         self.assertFalse([x for x in render.pulse(r) if "duplicated" in x])
 
     def test_provenance_is_a_full_only_section_of_trailers_with_the_cohort_and_shape_below(self):

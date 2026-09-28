@@ -269,7 +269,7 @@ def summary(report: dict) -> dict:
 
 
 # The steps every table leans on, by what the reader loses without them. The optional steps (code age,
-# functions, duplicates, trend, backtest) say so in their own sections; the structure step has none, so pulse names it.
+# functions, trend, backtest) say so in their own sections; the structure step has none, so pulse names it.
 CORE_STEPS = {"scc": "size", "git-sizer": "repo health", "git-log": "change log", "change analysis": "change analysis",
               "betterleaks": "secrets scan", "osv-scanner": "dependency scan"}
 
@@ -334,12 +334,6 @@ def pulse(report: dict) -> list:
     signed = signing_phrase(report)
     if signed:
         out.append(signed)
-    dup = report.get("duplicates") or {}
-    then = dup.get("then") or {}
-    if dup.get("rate") is not None and then.get("rate") is not None and max(dup["rate"], then["rate"]) >= 0.5:
-        now, before = dup["rate"], then["rate"]
-        way = "as a year before" if round(now, 1) == round(before, 1) else f"{'up' if now > before else 'down'} from {before:.1f}% a year before"
-        out.append(f"{now:.1f}% of lines duplicated, {way}")
     return out
 
 

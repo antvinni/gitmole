@@ -7,7 +7,7 @@ Cargo.lock, Gemfile.lock and the rest) and matches the packages against a copy o
 this machine; with --offline nothing leaves the machine, and the copy is downloaded once by the user, never
 by gitmole. Its report repeats every advisory in full; this wrapper keeps one row per vulnerable package
 (ids, the CVE aliases, the worst score, the version that fixes it, whether an advisory is a MAL- record) and the lock files with their package
-counts, and writes only that. Standalone, like leaks.py and duplicates.py.
+counts, and writes only that. Standalone, like leaks.py.
 
 The same module reads the status back for the report footer.
 """

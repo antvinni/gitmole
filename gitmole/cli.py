@@ -66,9 +66,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_.add_argument("--time-budget", type=float, default=60, metavar="SECONDS",
                       help="skip code age projected past this (default 60)")
     run_.add_argument("--budget", type=int, default=50000, metavar="N", help="skip --plots over N blames (default 50000)")
-    run_.add_argument("--deep", action="store_true", help="run code age, plots and duplicates past budget")
+    run_.add_argument("--deep", action="store_true", help="run code age and plots past budget")
     run_.add_argument("--plots", action="store_true", help="also draw the code-age and survival plots")
-    run_.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
+    run_.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # the duplicates step is gone (0.39.0); kept so older scripts still parse
 
     scope = p.add_argument_group("scope")
     scope.add_argument("--since", metavar="WHEN", help="only history newer than 2y, 18m, 90d or a date")
@@ -523,17 +523,12 @@ def _list_file_types(repo_dir: str, args, console: Console) -> int:
     return 0
 
 
-def _budgets(args, estimate, ui) -> tuple[bool, bool, float, bool]:
-    """Decide whether code age, plots and the duplicates step fit their time/size budgets, printing a
+def _budgets(args, estimate, ui) -> tuple[bool, bool, float]:
+    """Decide whether code age and plots fit their time budgets, printing a
     skip notice for each one cut. The projected blame time comes back with them: meta.json records it."""
     projected = float(estimate.get("seconds", 0.0))
     age_ok = args.deep or projected <= args.time_budget
     plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
-    text_mb = estimate.get("text_bytes", 0) / 1e6
-    duplicates_ok = args.deep or text_mb <= run.DUPLICATES_BUDGET_MB
-    if not duplicates_ok:
-        ui.print(f"[yellow]duplicates skipped:[/yellow] {text_mb:,.0f} MB of tracked text is over the {run.DUPLICATES_BUDGET_MB} MB budget; "
-                 f"jscpd would need about {text_mb / 25:,.0f} GB of memory. Rerun with --deep to force it, or --ignore-data to shrink it.")
     if not age_ok:
         # a partial estimate stopped at the first value over the budget, so its number only restates the budget
         took = (f"more than the {args.time_budget:,.0f}s time budget" if estimate.get("partial")
@@ -544,10 +539,10 @@ def _budgets(args, estimate, ui) -> tuple[bool, bool, float, bool]:
         ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
                  f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
                  f"Rerun with --deep to force them, or --ignore-data to shrink them.")
-    return age_ok, plots_ok, projected, duplicates_ok
+    return age_ok, plots_ok, projected
 
 
-def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, projected: float, duplicates_ok: bool = True,
+def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, projected: float,
                   tracked: list = None) -> tuple[dict, str | None]:
     """Collect this run's meta.json: repo facts plus a planned status record for every optional step.
     Raises NoCommits when --since leaves no commits to analyse."""
@@ -557,7 +552,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     meta["run"] = run.manifest(repo_dir, args)   # what produced this report: commit, gitmole and tool versions, the options
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     meta["gone_months"] = args.gone
-    tracked = blame.text_files(repo_dir) if tracked is None else tracked   # every tracked text file: --ignore shapes blame, functions and duplicates, never what a file is
+    tracked = blame.text_files(repo_dir) if tracked is None else tracked   # every tracked text file: --ignore shapes blame and functions, never what a file is
     attrs = filetypes.attributes(repo_dir, tracked)   # one git check-attr pass, shared by the two lists below
     meta["generated"] = filetypes.generated_files(repo_dir, tracked, attrs=attrs)   # hidden from the tables, out of the findings
     meta["vendored"] = filetypes.vendored_paths(repo_dir, tracked, attrs=attrs)    # somebody else's code, by the licence it carries or the attribute it declares
@@ -576,15 +571,10 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     meta["functions"] = {"status": "planned" if lizard_ok else "skipped"}   # "run" only once the step has finished
     meta["structure"] = ({"status": "planned"} if getattr(args, "structure", False)
                          else {"status": "skipped", "install": "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+"})
-    meta["duplicates"] = {"status": "planned" if duplicates_ok else "skipped", "text_mb": round(estimate.get("text_bytes", 0) / 1e6, 1),
-                          "budget_mb": run.DUPLICATES_BUDGET_MB}
     meta["trend"] = {"status": "planned"}
     from . import maat as _maat
     cut = _maat.months_before(meta["last_date"], 6) if meta["last_date"] else None
     first = meta.get("first_date_all") or meta["first_date"]   # the backtest reads the whole history, window or not
-    year = _maat.months_before(meta["last_date"], 12) if meta["last_date"] else None
-    if year and first and first <= year:
-        meta["duplicates"]["then"] = year   # the rate a year back, when the history reaches it
     if cut and first and first <= _maat.months_before(cut, 6):
         meta["backtest"] = {"status": "planned", "until": cut}
     else:
@@ -593,7 +583,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     return meta, cut
 
 
-def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: bool, cut, duplicates_ok: bool = True) -> None:
+def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: bool, cut) -> None:
     """Turn each step's exit code into its final status: run, skipped, timeout or failed."""
     def status(step, default="run"):
         rc = results.get(step, 0)
@@ -606,8 +596,6 @@ def _record_statuses(meta, results, age_ok: bool, plots_ok: bool, lizard_ok: boo
         meta["functions"]["status"] = status("functions")
     if (meta.get("structure") or {}).get("status") == "planned":
         meta["structure"]["status"] = status("structure")
-    if duplicates_ok and "duplicates" in results:
-        meta["duplicates"]["status"] = status("duplicates")
     if "trend" in results:
         meta["trend"]["status"] = status("trend")
     if cut and "backtest" in results:
@@ -644,17 +632,17 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     tracked = blame.text_files(repo_dir)   # read the index once: the steps below do not change it
     estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types),
                          budget=None if args.deep else args.time_budget, tracked=tracked, **({"scope": args.path} if args.path else {}))
-    age_ok, plots_ok, projected, duplicates_ok = _budgets(args, estimate, ui)
+    age_ok, plots_ok, projected = _budgets(args, estimate, ui)
 
-    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected, duplicates_ok, tracked=tracked)
+    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected, tracked=tracked)
     types_spec = meta["file_types"]
     if run.is_shallow(repo_dir):
         meta["shallow"] = True   # the history stops at the graft, and git-sizer does not run
     lizard_ok = args.lizard
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
-                    since=args.since_date, lizard=lizard_ok, duplicates=duplicates_ok, backtest=cut, ignore_revs=run.ignore_revs_files(repo_dir),
-                    structure=getattr(args, "structure", False), duplicates_then=meta["duplicates"].get("then"),
+                    since=args.since_date, lizard=lizard_ok, backtest=cut, ignore_revs=run.ignore_revs_files(repo_dir),
+                    structure=getattr(args, "structure", False),
                     **({"scope": args.path} if args.path else {}))
     run.save_meta(meta, out_dir)
     stats = {}
@@ -664,7 +652,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
         ui.print(f"[red]interrupted:[/red] killed {len(killed)} step(s)")
         raise Interrupted()
 
-    _record_statuses(meta, results, age_ok, plots_ok, lizard_ok, cut, duplicates_ok)
+    _record_statuses(meta, results, age_ok, plots_ok, lizard_ok, cut)
     # what each step cost, for the measurement harness's runtime guard; they vary, so --json keeps them in its envelope
     meta["step_seconds"] = {n: s["seconds"] for n, s in sorted(stats.items())}
     meta["step_peak_mb"] = {n: s["peak_mb"] for n, s in sorted(stats.items())}

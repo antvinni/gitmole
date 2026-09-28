@@ -130,7 +130,7 @@ def digest(data: bytes) -> str:
 
 def pick(names: list, tool: str) -> str | None:
     """The archive member that is the tool, found as the formula finds it. Homebrew steps into an archive's
-    one top-level directory (jscpd's npm package/), then takes the first file of `tool`, `bin/tool`, and the
+    one top-level directory, then takes the first file of `tool`, `bin/tool`, and the
     `tool_*` names at that level, sorted (osv-scanner ships a bare osv-scanner_darwin_arm64). Nothing
     deeper is searched and a directory is never a candidate."""
     files = [n for n in names if not n.endswith("/")]

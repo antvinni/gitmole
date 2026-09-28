@@ -48,7 +48,7 @@ class Pinned(unittest.TestCase):
                       "the venv is created without pip's script, so pip runs as a module")
 
     def test_differences_names_only_the_tools_that_moved(self):
-        found = {"scc": "4.1.0", "git-sizer": "1.6.0", "betterleaks": None, "jscpd": "5.3.0",
+        found = {"scc": "4.1.0", "git-sizer": "1.6.0", "betterleaks": None,
                  "osv-scanner": "2.6.0", "lizard": "1.24.0"}
         self.assertEqual(tools.differences(found), [("git-sizer", "1.5.0", "1.6.0")], "a missing tool is not a difference")
         self.assertEqual(tools.differences({}), [])
@@ -61,39 +61,43 @@ class Pinned(unittest.TestCase):
 
     @staticmethod
     def _formula_by_platform() -> dict:
-        """{(system, cpu): {(url, sha256)}} for the five tools, read per on_macos/on_linux and on_arm/on_intel
-        block, so an archive listed under the wrong platform is a difference too."""
+        """{(system, cpu): {tool: (url, sha256)}} for every tool resource (the grammar wheels left out), read per
+        on_macos/on_linux and on_arm/on_intel block, so an archive listed under the wrong platform is a difference too."""
         text = formula()
         out = {}
         for system in ("macos", "linux"):
             block = re.search(rf"\n  on_{system} do\n(.*?)\n  end\n", text, re.S).group(1)
             for cpu_block, cpu in (("arm", "arm64"), ("intel", "x86_64")):
                 inner = re.search(rf"\n    on_{cpu_block} do\n(.*?)\n    end\n", "\n" + block + "\n", re.S).group(1)
-                out[("darwin" if system == "macos" else "linux", cpu)] = set(re.findall(
-                    r'resource "(?:scc|git-sizer|betterleaks|osv-scanner|jscpd)" do\s*url "([^"]+)"\s*sha256 "([0-9a-f]{64})"', inner))
+                found = re.findall(r'resource "([\w-]+)" do\s*url "([^"]+)"\s*sha256 "([0-9a-f]{64})"', inner)
+                out[("darwin" if system == "macos" else "linux", cpu)] = {name: (url, sha) for name, url, sha in found
+                                                                          if not name.startswith("tree-sitter")}
         return out
 
     def test_the_installer_downloads_the_archives_the_formula_installs(self):
         """One table of urls and hashes in two places is the bug this catches: on every platform, every archive
-        the installer names must be one the formula names there, with the same hash, and the formula's only
-        extra is the git-sizer source it compiles on Linux arm64, which the installer cannot use. The musl
-        entries are the installer's own: Homebrew on Linux is glibc."""
+        the installer names must be the one the formula names for that tool there, with the same hash. A tool the
+        installer has no url for is one the formula compiles (git-sizer's source on Linux arm64). The formula may
+        also name a tool gitmole no longer runs: it installs the last released tarball, so a dropped tool stays
+        in it through the version bump and the release (docs/development.md) and leaves it in a commit of its
+        own; the check is then that every pinned tool is in the formula, not that the two lists are equal. The
+        musl entries are the installer's own: Homebrew on Linux is glibc."""
         in_formula = self._formula_by_platform()
         self.assertEqual(sorted(in_formula), sorted(k for k in tools.ARCHIVES if k[0] != "linux-musl"))
-        self.assertEqual(sum(len(v) for v in in_formula.values()), 20, "five tools, four platforms")
         for key, entries in in_formula.items():
             with self.subTest(platform=key):
-                in_table = {(e["url"], e["sha256"]) for e in tools.ARCHIVES[key].values() if "url" in e}
-                self.assertEqual(in_table - entries, set())
-                extra = sorted(url for url, _ in entries - in_table)
-                self.assertEqual(extra, ["https://github.com/github/git-sizer/archive/refs/tags/v1.5.0.tar.gz"] if key == ("linux", "arm64") else [])
+                for name, entry in tools.ARCHIVES[key].items():
+                    self.assertIn(name, entries, f"{name} is pinned but the formula does not install it")
+                    if "url" in entry:
+                        self.assertEqual(entries[name], (entry["url"], entry["sha256"]), name)
+                self.assertEqual(set(entries) - set(tools.ARCHIVES[key]), set(entries) - set(tools.PINNED),
+                                 "the formula's extras are tools no longer pinned")
 
-    def test_musl_differs_from_glibc_linux_in_jscpd_alone(self):
+    def test_musl_takes_the_linux_builds(self):
+        """The pinned tools are static builds that run on either C library."""
         for cpu in ("arm64", "x86_64"):
             with self.subTest(cpu=cpu):
-                musl, glibc = tools.ARCHIVES[("linux-musl", cpu)], tools.ARCHIVES[("linux", cpu)]
-                self.assertEqual({n for n in musl if musl[n] != glibc[n]}, {"jscpd"})
-                self.assertIn("-musl-", musl["jscpd"]["url"])
+                self.assertEqual(tools.ARCHIVES[("linux-musl", cpu)], tools.ARCHIVES[("linux", cpu)])
 
     def test_every_platform_names_every_tool_and_every_url_carries_its_pin(self):
         self.assertEqual(sorted(tools.ARCHIVES), [("darwin", "arm64"), ("darwin", "x86_64"), ("linux", "arm64"), ("linux", "x86_64"),

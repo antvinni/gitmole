@@ -40,17 +40,15 @@ def archives() -> dict:
     return {
         "https://example.test/scc_Test_cpu.tar.gz": tar_gz({"LICENSE": b"mit", "README.md": b"#", "scc": FAKE_BIN["scc"]}),
         "https://example.test/git-sizer-1.5.0-test-cpu.zip": zipped({"LICENSE.md": b"mit", "git-sizer": FAKE_BIN["git-sizer"]}),
-        "https://example.test/betterleaks_1.8.1_test_cpu.tar.gz": tar_gz({"LICENSE": b"mit", "betterleaks": FAKE_BIN["betterleaks"]}),
+        "https://downloads.example.test/betterleaks_1.8.1_test_cpu.tar.gz": tar_gz({"LICENSE": b"mit", "betterleaks": FAKE_BIN["betterleaks"]}),
         "https://example.test/osv-scanner_test_cpu": FAKE_BIN["osv-scanner"],
-        "https://registry.example.test/jscpd-test-cpu/-/jscpd-test-cpu-5.3.0.tgz": tar_gz(
-            {"package/bin/jscpd": FAKE_BIN["jscpd"], "package/LICENSE": b"mit", "package/package.json": b"{}"}),
     }
 
 
 def table(served: dict) -> dict:
     """tools.ARCHIVES[KEY] for the served archives, hashes computed from the bytes."""
     by_tool = {"scc": "scc_Test_cpu.tar.gz", "git-sizer": "git-sizer-1.5.0-test-cpu.zip", "betterleaks": "betterleaks_1.8.1_test_cpu.tar.gz",
-               "osv-scanner": "osv-scanner_test_cpu", "jscpd": "jscpd-test-cpu-5.3.0.tgz"}
+               "osv-scanner": "osv-scanner_test_cpu"}
     out = {}
     for name, tail in by_tool.items():
         url = next(u for u in served if u.endswith(tail))
@@ -109,7 +107,7 @@ class Platform(unittest.TestCase):
 
     def test_downloadable_is_the_subset_the_table_has_a_url_for(self):
         with mock.patch.dict(tools.ARCHIVES, {KEY: {**table(archives()), "git-sizer": {"note": "none"}}}):
-            self.assertEqual(install.downloadable(["scc", "git-sizer", "jscpd"], key=KEY), ["scc", "jscpd"])
+            self.assertEqual(install.downloadable(["scc", "git-sizer", "betterleaks"], key=KEY), ["scc", "betterleaks"])
         self.assertEqual(install.downloadable(["scc"], key=("nowhere", "cpu")), [])
         self.assertEqual(install.downloadable(["git-sizer"], key=("linux", "arm64")), [])
         self.assertEqual(install.downloadable(["git-sizer"], key=("linux", "x86_64")), ["git-sizer"])
@@ -118,7 +116,7 @@ class Platform(unittest.TestCase):
 class Pick(unittest.TestCase):
     def test_the_root_executable_then_bin_then_the_prefixed_bare_name(self):
         self.assertEqual(install.pick(["LICENSE", "README.md", "scc"], "scc"), "scc")
-        self.assertEqual(install.pick(["package/bin/jscpd", "package/LICENSE", "package/package.json"], "jscpd"), "package/bin/jscpd")
+        self.assertEqual(install.pick(["package/bin/tool", "package/LICENSE", "package/package.json"], "tool"), "package/bin/tool")
         self.assertEqual(install.pick(["osv-scanner_darwin_arm64"], "osv-scanner"), "osv-scanner_darwin_arm64")
         self.assertEqual(install.pick(["deep/scc", "scc"], "scc"), "scc", "the shallowest exact name wins")
         self.assertIsNone(install.pick(["LICENSE", "README.md"], "scc"))
@@ -150,8 +148,8 @@ class Install(unittest.TestCase):
                     self.assertEqual(fh.read(), FAKE_BIN[name], name)
                 self.assertTrue(os.access(path, os.X_OK), name)
                 self.assertTrue(run.has_tool(name, path=os.path.dirname(path)), f"{name} is found on a PATH holding only its directory")
-        self.assertEqual(len(fetcher.calls), 5)
-        self.assertEqual(sum(1 for l in said if ": downloading https://" in l), 5)
+        self.assertEqual(len(fetcher.calls), len(run.REQUIRED_TOOLS))
+        self.assertEqual(sum(1 for l in said if ": downloading https://" in l), len(run.REQUIRED_TOOLS))
         self.assertEqual(sum(1 for l in said if ": installed " in l and tools.PINNED["scc"] in l), 1, "each installed line names the pin")
 
     def test_a_hash_mismatch_writes_nothing_and_the_rest_still_install(self):
@@ -160,9 +158,9 @@ class Install(unittest.TestCase):
         wrong["scc"] = {**wrong["scc"], "sha256": "0" * 64}
         said = []
         with tempfile.TemporaryDirectory() as d, mock.patch.dict(tools.ARCHIVES, {KEY: wrong}):
-            done = install.install(["scc", "jscpd"], dest=d, key=KEY, fetcher=Fetcher(served), say=said.append)
-            self.assertEqual(done, ["jscpd"])
-            self.assertEqual(os.listdir(d), [f"jscpd-{tools.PINNED['jscpd']}"])
+            done = install.install(["scc", "betterleaks"], dest=d, key=KEY, fetcher=Fetcher(served), say=said.append)
+            self.assertEqual(done, ["betterleaks"])
+            self.assertEqual(os.listdir(d), [f"betterleaks-{tools.PINNED['betterleaks']}"])
         line = [l for l in said if l.startswith("scc: ")][-1]   # after "scc: downloading ..." comes the verdict
         self.assertIn("sha256", line)
         self.assertIn("expected " + "0" * 64, line)
@@ -195,7 +193,7 @@ class Install(unittest.TestCase):
         fetcher = Fetcher({})
         said = []
         with tempfile.TemporaryDirectory() as d:
-            done = install.install(["scc", "jscpd"], dest=d, key=("windows", "x86_64"), fetcher=fetcher, say=said.append)
+            done = install.install(["scc", "betterleaks"], dest=d, key=("windows", "x86_64"), fetcher=fetcher, say=said.append)
         self.assertEqual(done, [])
         self.assertEqual(fetcher.calls, [])
         self.assertEqual(len(said), 2)
@@ -205,18 +203,18 @@ class Install(unittest.TestCase):
     def test_an_archive_without_the_tool_or_not_an_archive_at_all_is_refused(self):
         served = {"https://example.test/scc_Test_cpu.tar.gz": tar_gz({"LICENSE": b"mit"}),
                   "https://example.test/git-sizer-1.5.0-test-cpu.zip": b"not a zip",
-                  "https://example.test/jscpd-test-cpu-5.3.0.tgz": b"not gzip either"}
+                  "https://example.test/betterleaks_1.8.1_test_cpu.tar.gz": b"not gzip either"}
         entries = {name: {"url": url, "sha256": install.digest(data)}
-                   for name, (url, data) in zip(["scc", "git-sizer", "jscpd"], served.items())}
+                   for name, (url, data) in zip(["scc", "git-sizer", "betterleaks"], served.items())}
         said = []
         with tempfile.TemporaryDirectory() as d, mock.patch.dict(tools.ARCHIVES, {KEY: entries}):
-            done = install.install(["scc", "git-sizer", "jscpd"], dest=d, key=KEY, fetcher=Fetcher(served), say=said.append)
+            done = install.install(["scc", "git-sizer", "betterleaks"], dest=d, key=KEY, fetcher=Fetcher(served), say=said.append)
             self.assertEqual(done, [])
             self.assertEqual(os.listdir(d), [])
         self.assertIn("no scc executable in the archive", " ".join(said))
         self.assertIn("LICENSE", " ".join(said), "what the archive did hold is named")
         self.assertIn("git-sizer: https://example.test/git-sizer-1.5.0-test-cpu.zip: cannot unpack", " ".join(said))
-        self.assertIn("jscpd: https://example.test/jscpd-test-cpu-5.3.0.tgz: cannot unpack", " ".join(said))
+        self.assertIn("betterleaks: https://example.test/betterleaks_1.8.1_test_cpu.tar.gz: cannot unpack", " ".join(said))
 
     def test_a_tool_already_there_is_replaced_not_appended_to(self):
         served = archives()
@@ -259,16 +257,16 @@ class Install(unittest.TestCase):
         self.assertIn("GITMOLE_TOOLS must be an absolute path", said[0])
 
     def test_a_copy_that_does_not_print_its_pin_is_removed_and_the_rest_still_install(self):
-        """A glibc jscpd on Alpine placed fine and failed every run after; running it once catches that."""
+        """A build for another C library placed fine and failed every run after; running it once catches that."""
         served = archives()
         served["https://example.test/osv-scanner_test_cpu"] = b"#!/bin/sh\necho osv-scanner version: 0.0.1\n"
         broken = tar_gz({"scc": b"\x7fELF not for this machine"})
         served["https://example.test/scc_Test_cpu.tar.gz"] = broken
         said = []
         with tempfile.TemporaryDirectory() as d, mock.patch.dict(tools.ARCHIVES, {KEY: table(served)}):
-            done = install.install(["scc", "osv-scanner", "jscpd"], dest=d, key=KEY, fetcher=Fetcher(served), say=said.append)
-            self.assertEqual(done, ["jscpd"])
-            self.assertEqual(os.listdir(d), [f"jscpd-{tools.PINNED['jscpd']}"], "nothing of the two refused copies is left")
+            done = install.install(["scc", "osv-scanner", "betterleaks"], dest=d, key=KEY, fetcher=Fetcher(served), say=said.append)
+            self.assertEqual(done, ["betterleaks"])
+            self.assertEqual(os.listdir(d), [f"betterleaks-{tools.PINNED['betterleaks']}"], "nothing of the two refused copies is left")
         self.assertTrue(any(l.startswith("osv-scanner: ") and "prints version 0.0.1" in l for l in said), said)
         self.assertTrue(any(l.startswith("scc: ") and "does not run here" in l for l in said), said)
 
@@ -296,18 +294,17 @@ class Offer(unittest.TestCase):
     def test_the_question_names_the_versions_the_hosts_and_the_directory(self):
         served = archives()
         with mock.patch.dict(tools.ARCHIVES, {KEY: table(served)}):
-            question = install.offer(["scc", "jscpd"], dest="/x/tools", key=KEY)
+            question = install.offer(["scc", "betterleaks"], dest="/x/tools", key=KEY)
         self.assertIn("scc 4.1.0", question)
-        self.assertIn("jscpd 5.3.0", question)
-        self.assertIn("example.test, registry.example.test", question, "the hosts, sorted, once each")
+        self.assertIn("betterleaks 1.8.1", question)
+        self.assertIn("downloads.example.test, example.test", question, "the hosts, sorted, once each")
         self.assertIn("/x/tools", question)
         self.assertTrue(question.endswith("[y/N] "), "a prompt, with the default a no")
 
-    def test_the_real_table_names_github_its_download_host_and_npm(self):
+    def test_the_real_table_names_github_and_its_download_host(self):
         """A GitHub release download is sent on to a second host; behind an allowlist both must be admitted."""
         question = install.offer(run.REQUIRED_TOOLS, dest="/x", key=("linux", "x86_64"))
-        self.assertIn("github.com, registry.npmjs.org, release-assets.githubusercontent.com", question)
-        self.assertEqual(install.hosts(["jscpd"], key=("linux", "x86_64")), ["registry.npmjs.org"])
+        self.assertIn("from github.com, release-assets.githubusercontent.com into", question)
 
 
 class Fetch(unittest.TestCase):
@@ -405,24 +402,20 @@ class OnThePath(unittest.TestCase):
             self.assertNotIn(os.path.join(d, "scc-4.0.9"), parts)
             self.assertNotIn(d, parts)
 
-    def test_backtest_and_duplicates_look_where_a_run_looks(self):
-        """In-process callers (evaluate, measure, the tests) ran scc and jscpd off the plain PATH."""
-        from gitmole import backtest, duplicates
+    def test_backtest_looks_where_a_run_looks(self):
+        """In-process callers (evaluate, measure, the tests) ran scc off the plain PATH."""
+        from gitmole import backtest
         seen = []
         def fake_run(argv, **kw):
             seen.append((argv[0], (kw.get("env") or {}).get("PATH", "")))
             raise RuntimeError("stop here")
         with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"GITMOLE_TOOLS": d}):
-            for name in ("scc", "jscpd"):
-                os.makedirs(userdirs.tool_dir(name))
-            with mock.patch("subprocess.run", side_effect=fake_run):
-                with self.assertRaises(RuntimeError):
-                    duplicates.run_jscpd(d, d, 1)
+            os.makedirs(userdirs.tool_dir("scc"))
             with mock.patch("gitmole.backtest.subprocess.run", side_effect=lambda argv, **kw: fake_run(argv, **kw) if argv[0] == "scc"
                             else mock.MagicMock(returncode=0, stdout=b"", stderr=b"")):
                 with self.assertRaises(RuntimeError):
                     backtest.snapshot_at(d, "HEAD", d)
-            self.assertEqual([argv0 for argv0, _ in seen], ["jscpd", "scc"])
+            self.assertEqual([argv0 for argv0, _ in seen], ["scc"])
             for name, path in seen:
                 self.assertEqual(path.split(os.pathsep)[0], userdirs.tool_dir(name), name)
 

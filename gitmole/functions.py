@@ -4,8 +4,8 @@
 Runs as its own process (a pipeline step) and drives lizard through its Python API rather
 than its command line: the file list never touches a shell or a list file, the analysed
 repository is never on sys.path, only files lizard has a reader for are measured, and the
-CSV is streamed so a killed step still leaves what was measured. Duplicated blocks are
-jscpd's job (duplicates.py); lizard's own finder kept a hash node per token and ran to gigabytes."""
+CSV is streamed so a killed step still leaves what was measured. lizard's duplicate finder is not run:
+it kept a hash node per token and ran to gigabytes."""
 from __future__ import annotations
 
 import argparse
