@@ -24,54 +24,95 @@ INSTALL_URL = "https://github.com/antvinni/gitmole/blob/main/docs/install.md"
 INSTALL_HINT = "gitmole --install-tools downloads the pinned set; brew install gitmole brings it with it; without either, see"
 
 
+DOCS_URL = "https://github.com/antvinni/gitmole/blob/main/docs"
+
+EPILOG = f"""\
+examples:
+  gitmole .                            the clone you are in
+  gitmole owner/repo                   clone into a temp dir, then report
+  gitmole . --full                     every section, row and column
+  gitmole . --markdown report.md       the report as a Markdown document
+  gitmole . --fail-on warning          exit 3 on a warning or worse
+  gitmole . --risk main --risk-threshold 10
+                                       exit 3 if the change since main is risky
+  gitmole analysis-repo --no-run --json -
+                                       re-render an earlier run as JSON
+  gitmole --install-tools              download the five pinned tools
+  gitmole --doctor                     check the tools against their pins
+
+every option in detail:
+  {DOCS_URL}/cli.md
+reading your first report:
+  {DOCS_URL}/first-report.md
+"""
+
+
+USAGE = """gitmole [options] [target]
+       gitmole --doctor | --install-tools | --clean [DIR]"""
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """The command line, in groups, one line per option; the prose for each lives in docs/cli.md."""
+    p = argparse.ArgumentParser(prog="gitmole", usage=USAGE, description="Analyse a git repository offline and print a report.",
+                                epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter, add_help=False)
+    p.add_argument("target", nargs="?", help="a clone, owner/repo, 'owner/*' or a git URL; with --no-run, an output "
+                                             "directory; with --clean, where to look (default .)")
+
+    run_ = p.add_argument_group("run")
+    run_.add_argument("--out", metavar="DIR", help="output directory (default analysis-<repo>)")
+    run_.add_argument("--no-run", action="store_true", help="re-render the report from an output directory")
+    run_.add_argument("--workers", type=int, default=6, metavar="N", help="how many tools run at once (default 6)")
+    run_.add_argument("--timeout", type=float, default=900, metavar="SECONDS", help="kill a tool after this long (default 900)")
+    run_.add_argument("--time-budget", type=float, default=60, metavar="SECONDS",
+                      help="skip code age projected past this (default 60)")
+    run_.add_argument("--budget", type=int, default=50000, metavar="N", help="skip --plots over N blames (default 50000)")
+    run_.add_argument("--deep", action="store_true", help="run code age, plots and duplicates past budget")
+    run_.add_argument("--plots", action="store_true", help="also draw the code-age and survival plots")
+    run_.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
+
+    scope = p.add_argument_group("scope")
+    scope.add_argument("--since", metavar="WHEN", help="only history newer than 2y, 18m, 90d or a date")
+    scope.add_argument("--path", action="append", default=[], metavar="DIR",
+                       help="describe only the files under DIR (repeatable)")
+    scope.add_argument("--gone", type=int, default=loss.DEFAULT_MONTHS, metavar="MONTHS",
+                       help="months without a commit that count as gone (12)")
+    scope.add_argument("--file-types", metavar="LIST", help="extensions that count as code, comma-separated, or all")
+    scope.add_argument("--ignore-data", action="store_true", help="leave csv, json, lock, minified and vendored out")
+    scope.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="another pattern to leave out (repeatable)")
+
+    report = p.add_argument_group("report and exports")
+    report.add_argument("--full", action="store_true", help="print the report with every section, row and column")
+    report.add_argument("--json", metavar="PATH", help="write report and findings as JSON (- for stdout)")
+    report.add_argument("--markdown", metavar="PATH", help="write the report as Markdown (- for stdout)")
+    report.add_argument("--sarif", metavar="PATH", help="write the findings as SARIF 2.1.0 (- for stdout)")
+    report.add_argument("--sarif-scope", choices=["head", "history"], default="head", metavar="SCOPE",
+                        help="with --sarif: head (default) or history")
+    report.add_argument("--sbom", metavar="PATH", help="write a CycloneDX 1.6 SBOM of the locked packages")
+    report.add_argument("--compare", metavar="BEFORE.json", help="add what changed since an earlier --json export")
+    report.add_argument("--feedback", action="store_true", help="ask five questions about the findings; sends nothing")
+
+    gates = p.add_argument_group("gates")
+    gates.add_argument("--fail-on", choices=findings.SEVERITIES, metavar="LEVEL",
+                       help="exit 3 at LEVEL or worse; 4 if a step failed")
+    gates.add_argument("--baseline", metavar="BEFORE.json", help="gate only on findings not in that earlier export")
+    gates.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (a local clone)")
+    gates.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk or --hook: fail over N percent")
+    gates.add_argument("--hook", action="store_true", help="with --no-run: score the files an agent hook names")
+
+    other = p.add_argument_group("tools and housekeeping")
+    other.add_argument("--doctor", action="store_true", help="check the tools against their pinned versions")
+    other.add_argument("--install-tools", action="store_true", help="download the five pinned tools, then exit")
+    other.add_argument("--list-file-types", action="store_true", help="list the file types and which count as code")
+    other.add_argument("--clean", action="store_true", help="list what gitmole left behind; delete on a yes")
+    other.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
+    other.add_argument("--version", action="version", version=f"gitmole {__version__}",
+                       help="print gitmole's version and exit")
+    other.add_argument("-h", "--help", action="help", help="show this help and exit")
+    return p
+
+
 def parse_args(argv):
-    p = argparse.ArgumentParser(prog="gitmole", description="Analyse a git repository offline and print a report.")
-    p.add_argument("target", nargs="?", help="local clone path, owner/repo, or git URL; with --no-run, the output "
-                                             "directory to re-render; with --clean, the directory to look in (default .)")
-    p.add_argument("--out", help="output directory (default: analysis-<repo> next to the clone, or in cwd for remote targets)")
-    p.add_argument("--no-run", action="store_true", help="skip the tools; re-render the report from an existing output directory")
-    p.add_argument("--workers", type=int, default=6, help="how many tools to run at once")
-    p.add_argument("--plots", action="store_true", help="also run git-of-theseus for the code-age and survival plots")
-    p.add_argument("--deep", action="store_true", help="run code age and plots even when the repo exceeds the blame budget")
-    p.add_argument("--time-budget", type=float, default=60, metavar="SECONDS", help="skip code age when its projected time exceeds this (default 60)")
-    p.add_argument("--budget", type=int, default=50000, help="max git blames before plots are skipped (default 50000)")
-    p.add_argument("--timeout", type=float, default=900, help="seconds any single tool may run before being killed (default 900)")
-    p.add_argument("--ignore-data", action="store_true", help="exclude data-like files (csv, json, lock, minified, vendored) from code age, function metrics and plots")
-    p.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="extra ignore pattern for code age, function metrics and plots (repeatable)")
-    p.add_argument("--path", action="append", default=[], metavar="DIR",
-                   help="describe only the files under DIR, a directory of the tree at HEAD relative to the root (repeatable): "
-                        "their history, ownership, knowledge map and watch list; secrets, dependencies, signing, repository size, "
-                        "workflows, policy and agent files stay repository-wide")
-    p.add_argument("--since", metavar="WHEN", help="only analyse history newer than this: 2y, 18m, 90d or YYYY-MM-DD (code age is always the whole tree)")
-    p.add_argument("--gone", type=int, default=loss.DEFAULT_MONTHS, metavar="MONTHS", help="a person with no commits this many months before the last commit counts as gone (default 12)")
-    p.add_argument("--file-types", metavar="LIST", help="comma-separated extensions to treat as code (default: a built-in source list), or 'all'")
-    p.add_argument("--list-file-types", action="store_true", help="list the file types in the repository, with counts and whether they count as code, then exit")
-    p.add_argument("--doctor", action="store_true", help="list every tool gitmole runs, the version found against the version pinned, and where to get the pinned one, then exit")
-    p.add_argument("--install-tools", action="store_true", help="download the five tools at the versions gitmole pins, from the release archives "
-                   "the Homebrew formula installs and checked against the same hashes, into gitmole's own directory (GITMOLE_TOOLS, else the "
-                   "per-user data directory), then exit. This and a yes to the question a run asks when a tool is missing are the only downloads "
-                   "gitmole makes of its own; the network is otherwise reached only to clone a remote target, to list owner/* with gh, and by git "
-                   "itself for the objects a partial clone left behind")
-    p.add_argument("--clean", action="store_true", help="list what gitmole left behind (temp clones, analysis-* under the target, tools installed for pins it no longer uses) "
-                   "and delete them after a y/N question, then exit")
-    p.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
-    p.add_argument("--duplicates", action="store_true", help=argparse.SUPPRESS)   # duplicates always run now; kept so older scripts still parse
-    p.add_argument("--feedback", action="store_true", help="ask five questions about the findings and write the answers to a file you can send; "
-                   "gitmole uploads nothing. Asked once on a plain interactive run anyway; GITMOLE_NO_FEEDBACK=1 turns it off for good")
-    p.add_argument("--full", action="store_true", help="every section, column and row in the terminal report: adds hotspots, size, activity and code age, the test files the default tables hide, and the findings the default names in one line (the default is the tighter, readable one)")
-    p.add_argument("--json", metavar="PATH", help="write the report and findings as JSON to PATH, or - for stdout")
-    p.add_argument("--markdown", metavar="PATH", help="write the report as Markdown to PATH, or - for stdout")
-    p.add_argument("--sarif", metavar="PATH", help="write the findings as SARIF 2.1.0 to PATH, or - for stdout, for GitHub code scanning and GitLab")
-    p.add_argument("--sarif-scope", choices=["head", "history"], default="head",
-                   help="with --sarif: head keeps only results whose file is in the tree (default); history keeps every result, the commit in its properties")
-    p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
-    p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) by their share of the repository's revisions × lines of code; needs a local path")
-    p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the changed files hold more than N percent of the repository's revisions × lines of code")
-    p.add_argument("--sbom", metavar="PATH", help="write a CycloneDX 1.6 SBOM of every locked package to PATH, or - for stdout, from the osv-scanner step's package list")
-    p.add_argument("--compare", metavar="BEFORE_JSON", help="add a 'Since last report' section against an earlier --json export of the same clone")
-    p.add_argument("--hook", action="store_true", help="with --no-run: read an agent hook's JSON on stdin (or files after --), score the files it names like --risk, "
-                                                       "print a summary the agent reads back, exit 2 when --risk-threshold is exceeded")
-    p.add_argument("--version", action="version", version=f"gitmole {__version__}")
+    p = build_parser()
     # --hook takes the files to score after --, pre-commit's way. Split them off here: Python 3.9's argparse
     # cannot give a second positional a value once optionals sit between it and the first.
     argv = list(argv)
@@ -195,7 +236,8 @@ def _check_args(args, err, kind=None) -> int | None:
                "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk and not args.hook else
                "--compare: no such file: " + args.compare if args.compare and not os.path.isfile(args.compare) else
                "--path needs a run: a re-render cannot narrow an earlier analysis" if args.path and args.no_run else
-               "--plots cannot be narrowed by --path: git-of-theseus reads the whole tree" if args.path and args.plots else None)
+               "--plots cannot be narrowed by --path: git-of-theseus reads the whole tree" if args.path and args.plots else
+               "--baseline: no such file: " + args.baseline if args.baseline and not os.path.isfile(args.baseline) else None)
         if not bad and args.path:
             try:
                 args.path = scope.clean(args.path)
@@ -205,6 +247,7 @@ def _check_args(args, err, kind=None) -> int | None:
         bad = None
     else:
         bad = ("--compare needs one repository, not owner/*" if args.compare and kind == "org" else
+               "--baseline needs one repository, not owner/*" if args.baseline and kind == "org" else
                "--sbom needs one repository, not owner/*" if args.sbom and kind == "org" else
                "--path needs one repository, not owner/*" if args.path and kind == "org" else
                "--risk needs a local path" if args.risk else
@@ -278,7 +321,7 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
 def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
     """The agent-hook gate (see hook.py): 2 over the threshold, 0 otherwise, silent when the event
     names no file in the repository."""
-    from . import hook, watch
+    from . import gate, hook, watch
     try:
         report = load.load_report(out_dir)
     except load.Unreadable as e:
@@ -298,6 +341,11 @@ def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
     if args.risk_threshold is not None and risk["total"] > args.risk_threshold:
         err.print("\n".join(lines), soft_wrap=True, markup=False, highlight=False)   # exit 2: what the agent is told
         return 2
+    missing = gate.unfinished(report, gate.RISK_STEPS) if args.risk_threshold is not None else []
+    if missing:   # every file scores 0 without the log or the sizes: under the threshold, and not because it is safe
+        err.print(f"gate incomplete: {gate.describe(missing)} in the run {out_dir} holds, so these scores are not the files' "
+                  f"and --risk-threshold could not check them (exit {gate.EXIT_INCOMPLETE})", soft_wrap=True, markup=False, highlight=False)
+        return gate.EXIT_INCOMPLETE
     return 0
 
 
@@ -681,9 +729,16 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
     if "-" not in (args.json, args.markdown):
         render.print_section(console, render.portfolio_section(reports))
         console.print(Text(f"\nPer-repository results in {base}", style="dim"), soft_wrap=True)
-    all_found = [f for _, _, found in reports for f in found]
-    if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in all_found):
-        return 3
+    if not args.fail_on:
+        return 0
+    from . import gate
+    if gate.tripped([f for _, _, found in reports for f in found], args.fail_on):
+        return gate.EXIT_FOUND
+    missing = [(name, gate.describe(gate.unfinished(report))) for name, report, _ in reports if gate.unfinished(report)]
+    if missing:
+        ui.print(f"[red]gate incomplete:[/red] {'; '.join(f'{name}: {what}' for name, what in missing)}, so --fail-on could not check "
+                 f"what those steps would have found (exit {gate.EXIT_INCOMPLETE})", soft_wrap=True)
+        return gate.EXIT_INCOMPLETE
     return 0
 
 
@@ -735,8 +790,6 @@ def _write(text: str, target: str, console: Console) -> None:
 
 
 def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> int:
-    import json
-
     from . import render
 
     try:
@@ -757,19 +810,8 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
     comparison = None
     if args.compare:
         from . import compare as _compare
-        try:
-            with open(args.compare, encoding="utf-8") as fh:
-                before = json.load(fh)
-        except (OSError, ValueError) as e:
-            err.print(f"[red]--compare {args.compare}:[/red] {e}", soft_wrap=True)
-            return 2
-        if not _compare.is_export(before):
-            err.print(f"[red]--compare {args.compare}:[/red] not a gitmole --json export (it needs meta, findings with rule ids, and watch; "
-                      "exports from before 0.8.0 have no rule ids)", soft_wrap=True)
-            return 2
-        if before["meta"].get("name") != report["meta"].get("name"):
-            err.print(f"[red]--compare {args.compare}:[/red] it describes {before['meta'].get('name')}, this run describes {report['meta'].get('name')}; "
-                      "the two exports must be of the same clone", soft_wrap=True)
+        before = _export(args.compare, "--compare", report, err)
+        if before is None:
             return 2
         if scope.of(before["meta"]) != scope.of(report["meta"]):
             def said(m):
@@ -778,6 +820,13 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
                       "compare two runs over the same --path", soft_wrap=True)
             return 2
         comparison = _compare.compare(before, report, found)
+    counted = found
+    if args.baseline:
+        before = _export(args.baseline, "--baseline", report, err)
+        if before is None:
+            return 2
+        from . import gate
+        counted = gate.against_baseline(report, found, before)
     if args.json:
         _write(render.dumps_json(report, found, risk=risk, compare=comparison), args.json, console)
     if args.markdown:
@@ -796,11 +845,58 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
     if "-" not in (args.json, args.markdown, args.sarif, args.sbom):
         render.report(report, found, console, full=args.full, risk=risk, base=args.risk, compare=comparison)
     _feedback(report, found, args, console, err)
-    if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
-        return 3
-    if risk is not None and args.risk_threshold is not None and risk["total"] > args.risk_threshold:
-        return 3
-    return 0
+    if args.baseline and args.fail_on:
+        from . import gate
+        known = [f for f in found if f.get("baseline") == "in the baseline" and gate.tripped([f], args.fail_on)]
+        if known:
+            err.print(f"[dim]--baseline: {len(known)} finding(s) at {args.fail_on} or worse were in {args.baseline} and do not count toward "
+                      f"--fail-on: {', '.join(dict.fromkeys(f['rule']['id'] for f in known))}[/dim]", soft_wrap=True)
+    return _gate_exit(report, counted, risk, args, err)
+
+
+def _export(path: str, flag: str, report: dict, err: Console):
+    """An earlier --json export of the same clone, or None after saying why not."""
+    import json
+
+    from . import compare as _compare
+    try:
+        with open(path, encoding="utf-8") as fh:
+            before = json.load(fh)
+    except (OSError, ValueError) as e:
+        err.print(f"[red]{flag} {path}:[/red] {e}", soft_wrap=True)
+        return None
+    if not _compare.is_export(before):
+        err.print(f"[red]{flag} {path}:[/red] not a gitmole --json export (it needs meta, findings with rule ids, and watch; "
+                  "exports from before 0.8.0 have no rule ids)", soft_wrap=True)
+        return None
+    if before["meta"].get("name") != report["meta"].get("name"):
+        err.print(f"[red]{flag} {path}:[/red] it describes {before['meta'].get('name')}, this run describes {report['meta'].get('name')}; "
+                  "the two exports must be of the same clone", soft_wrap=True)
+        return None
+    return before
+
+
+def _gate_exit(report: dict, found: list, risk, args, err: Console) -> int:
+    """The exit code of the gates asked for: 3 when one found what it stops on; 4 when none did and a step
+    one of them reads did not complete, so it could not check (gate.py); 0 otherwise, and always without a gate."""
+    from . import gate
+    code, missing, flags = 0, [], []
+    if args.fail_on:
+        missing, flags = gate.unfinished(report), ["--fail-on"]
+        if gate.tripped(found, args.fail_on):
+            code = gate.EXIT_FOUND
+    if risk is not None and args.risk_threshold is not None:
+        short = gate.unfinished(report, gate.RISK_STEPS)
+        missing, flags = sorted(set(missing) | set(short)), flags + (["--risk-threshold"] if short else [])
+        if risk["total"] > args.risk_threshold:
+            code = gate.EXIT_FOUND
+    if missing:
+        flags = " and ".join(flags)
+        err.print(f"[red]gate incomplete:[/red] {gate.describe(missing)}, so {flags} could not check what "
+                  f"{'that step' if len(missing) == 1 else 'those steps'} would have found"
+                  + ("" if code else f" (exit {gate.EXIT_INCOMPLETE}); run.log in the output directory says why"), soft_wrap=True)
+        code = code or gate.EXIT_INCOMPLETE
+    return code
 
 
 def _feedback(report: dict, found: list, args, console: Console, err: Console, ask=None) -> None:

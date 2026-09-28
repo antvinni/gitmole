@@ -231,8 +231,10 @@ value — to a file the reader chooses to send. They are per rule, so they canno
 be joined to a labelled finding, and they lean toward people who liked the tool
 enough to answer.
 
-Two things act on the labels. `labels.usefulness` gives each release its
-actionable share — of the findings its default report spells out, the share
+No outside labels exist, so every number below that rests on `actionable` is
+one agent's reading of the findings, not evidence that they are worth acting
+on, and the docs quote it as that. Two things act on the labels.
+`labels.usefulness` gives each release its actionable share — of the findings its default report spells out, the share
 labelled actionable, beside how many carry a label at all. And a rule with five
 or more labelled findings, none of them actionable, is named in one line of the
 default report instead of spelled out (`findings.SUMMARISED`; a test holds the
@@ -313,6 +315,45 @@ piece there. Two further shapes are counted apart as advisory, because they are
 judgements and not errors: a count over one followed by what reads as a
 singular (mostly `23 of 78` and units), and the `(s)` spelling. `python -m
 gitmole.measure claims` re-checks a round already run, in seconds.
+
+## Consistency: does a finding agree with the rest of the report
+
+A finding can agree with its own numbers and still contradict the report it
+sits in. In the 0.38.0 reports of apache/devlake and of gitmole itself the
+collected data was right and the finding drawn from it was not: the knowledge
+map marked someone gone and the advice still asked them to review; the
+sweeping-commit list held a module rename and the lock-file rule fired on it;
+git had a binary at HEAD and repo health said it had left the tree.
+
+`consistency.py` holds each finding to the facts the same run collected, so it
+needs no label and has no threshold:
+
+- **gone_in_advice / gone_unmarked** — advice names someone the report counts as
+  gone, or a finding names them without the knowledge map's `(gone)`. The two
+  rules whose subject is the people who left are exempt.
+- **wrong_area** — advice pairs someone on an area its own evidence gives to
+  someone else.
+- **growth_window** — a change "in a year" over less than a year of history.
+- **secrets_headline** — the first value a secrets finding names is graded lower
+  than another value in the same finding.
+- **sarif_gate** — a critical or warning finding with no SARIF result, so
+  `--fail-on` and code scanning disagree about the same run.
+- **trailer_author** — a People row whose every commit came from
+  `Co-authored-by` trailers, shown as an author.
+- **tree_claim / sweeping_evidence** (with the clone, read at the recorded
+  commit) — a path called gone that git has, and a finding resting on a commit
+  the report says it left out as sweeping.
+
+As with claims, a complaint is a defect and the number to want is zero; the
+dashboard reads it as *contradictions between a finding and the report's own
+facts*, by check. `python -m gitmole.measure consistency` re-checks a round
+already run; with `--rerender` it judges the current tree's rules instead, by
+re-rendering each saved analysis with `--no-run`, so a change to how findings
+are drawn gets its before and after in about two minutes, with nothing
+collected again. The 0.38.0 round, before any fix: 394 contradictions, 304 of
+343 findings consistent — trailer_author 322, gone_unmarked 38, gone_in_advice
+9, sarif_gate 8, growth_window 6, secrets_headline 6, wrong_area 3,
+tree_claim 2.
 
 ## The gate
 
@@ -468,7 +509,7 @@ in a release round.
 | top-15 carried over across six months | ranked | the list responds to the repository |
 | hits above the better of churn and size; saturated cut-offs | ranked | information only, never deciding |
 | findings per repository, median and p90 | development | the report stays short |
-| findings spelled out that are labelled actionable | development and well-kept, plus large in a release round | the findings are worth acting on |
+| findings spelled out that are labelled actionable | development and well-kept, plus large in a release round | one agent's reading of whether the findings are worth acting on; no outside labels |
 | rules sound, broken and undecided | labelled sample | the findings are true |
 | repositories that fired a critical | well-kept | the gate is usable |
 | wall time and peak memory | development; large | the tool stays fast |
@@ -478,7 +519,7 @@ in a release round.
 
 The README draws three of these as graphs, one per question. *Is it right?*
 Headroom against churn, with the holdout's readings as dots. *Is it useful?*
-The actionable share. *Does it run?* Robustness and the gate. Findings, report
+The actionable share, captioned as one agent's labels. *Does it run?* Robustness and the gate. Findings, report
 length, run time and memory are costs, and they stay on the history page.
 
 A release that moves none of these added features rather than effectiveness.

@@ -101,6 +101,14 @@ def summarise(record: dict, only=None) -> dict:
     claimed = [r.get("claims") for r in runs if isinstance(r.get("claims"), dict)]
     if claimed:
         out["claims_clean"] = [sum(c.get("clean") or 0 for c in claimed), sum(c.get("checked") or 0 for c in claimed)]
+    consistent = [r.get("consistency") for r in runs if isinstance(r.get("consistency"), dict)]
+    if consistent:   # every complaint is a contradiction between a finding and the report's own facts; the number to want is zero
+        by = {}
+        for c in consistent:
+            for k, v in (c.get("by_check") or {}).items():
+                by[k] = by.get(k, 0) + v
+        out["contradictions"] = sum(by.values())
+        out["contradictions_by_check"] = dict(sorted(by.items()))
     robust = [r["status"] in ("ok", "refused") and not r.get("steps_failed") for r in runs]
     out["robust"] = [sum(robust), len(robust)]
     gate = [r for r in runs if r.get("set") == "gate"]

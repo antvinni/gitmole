@@ -434,8 +434,131 @@ class Export(unittest.TestCase):
             self.assertEqual(cli.main([out, "--no-run"], console=console()), 0)
 
 
+class IncompleteGate(unittest.TestCase):
+    """A gate whose steps did not all finish cannot vouch for what they would have found: a betterleaks that
+    timed out left no secrets table, no finding, and --fail-on critical exited 0 like a clean scan."""
+
+    def _dir(self, out, steps, identities=None):
+        with open(os.path.join(out, "meta.json"), "w") as fh:
+            json.dump({"name": "demo", "commits": 5, "identities": identities or [], "steps": steps}, fh)
+
+    def test_a_step_that_timed_out_under_a_gate_exits_4_and_names_it(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"scc": "run", "betterleaks": "timeout", "osv-scanner": "run"})
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical"], console=c), 4)
+            self.assertIn("gate incomplete: betterleaks timed out, so --fail-on could not check", c.export_text())
+            self.assertEqual(cli.main([out, "--no-run"], console=console()), 0, "no gate asked for: the run is still a report")
+
+    def test_what_the_gate_found_is_an_answer_whatever_else_is_missing(self):
+        ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"betterleaks": "failed"}, ids)
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "warning"], console=c), 3)
+            self.assertIn("gate incomplete: betterleaks failed", c.export_text(), "still said, though the gate tripped")
+
+    def test_a_step_no_rule_reads_does_not_make_the_gate_incomplete(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"scc": "run", "backtest": "failed", "theseus stack plot": "failed"})
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "info"], console=console()), 0)
+
+    def test_sarif_says_the_run_did_not_complete(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"betterleaks": "timeout", "osv-scanner": "skipped", "scc": "run"})
+            path = os.path.join(out, "r.sarif")
+            cli.main([out, "--no-run", "--sarif", path], console=console())
+            with open(path) as fh:
+                invocation = json.load(fh)["runs"][0]["invocations"][0]
+            self.assertFalse(invocation["executionSuccessful"])
+            self.assertEqual([n["descriptor"]["id"] for n in invocation["toolExecutionNotifications"]], ["betterleaks", "osv-scanner"])
+            self._dir(out, {"scc": "run"})
+            cli.main([out, "--no-run", "--sarif", path], console=console())
+            with open(path) as fh:
+                self.assertEqual(json.load(fh)["runs"][0]["invocations"], [{"executionSuccessful": True}])
+
+
+class Baseline(unittest.TestCase):
+    """--baseline: what an earlier export already held is reported, marked, and does not count toward --fail-on;
+    a mature repository's secrets in files deleted years ago otherwise block a critical gate forever."""
+
+    @staticmethod
+    def _secret(file, commit, line, value):
+        return {"RuleID": "github-pat", "File": file, "Commit": commit, "StartLine": line, "Fingerprint": f"{commit}:{file}:github-pat:{line}",
+                "SecretHash": value, "Placeholder": False, "Confidence": "high"}
+
+    def _dir(self, out, rows, identities=None):
+        _report_dir(out, identities)
+        with open(os.path.join(out, "secrets.json"), "w") as fh:
+            json.dump(rows, fh)
+
+    def test_a_known_secret_does_not_count_and_a_new_one_does(self):
+        old = self._secret("src/gone.py", "a" * 40, 3, "h1")
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, [old])
+            base = os.path.join(out, "base.json")
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--json", base], console=console()), 3)
+            c = console()
+            now = os.path.join(out, "now.json")
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--baseline", base, "--json", now], console=c), 0)
+            self.assertIn("1 finding(s) at critical or worse were in", c.export_text())
+            with open(now) as fh:
+                crit = next(f for f in json.load(fh)["findings"] if f["rule"]["id"] == "secrets_in_source")
+            self.assertEqual(crit["baseline"], "in the baseline")
+            self.assertTrue(crit["detail"].startswith("In the baseline: "), "still reported, marked")
+            self._dir(out, [old, self._secret("src/app.py", "b" * 40, 9, "h2")])
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--baseline", base], console=console()), 3,
+                             "a secret the baseline did not have counts, though the finding's rule id is the same")
+            self._dir(out, [old, self._secret("src/app.py", "b" * 40, 9, "h1")])
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--baseline", base], console=console()), 3,
+                             "a known value committed again in a new place is a new place")
+            path = os.path.join(out, "r.sarif")
+            cli.main([out, "--no-run", "--baseline", base, "--sarif", path, "--sarif-scope", "history"], console=console())
+            with open(path) as fh:
+                self.assertEqual({r["baselineState"] for r in json.load(fh)["runs"][0]["results"]}, {"new"})
+
+    def test_other_findings_are_known_by_rule_and_key_and_a_worse_severity_is_new(self):
+        from gitmole import gate
+        ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, [], ids)
+            base = os.path.join(out, "base.json")
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "warning", "--json", base], console=console()), 3)
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "warning", "--baseline", base], console=console()), 0)
+            with open(base) as fh:
+                before = json.load(fh)
+            found = [{"severity": "critical", "title": "T", "detail": "D", "rule": {"id": "placeholder_identity"},
+                      "evidence": {"email": "you@example.com"}}]
+            before["findings"][0]["severity"] = "warning"
+            self.assertEqual(len(gate.against_baseline({"meta": {}}, found, before)), 1, "warning then, critical now: new")
+
+    def test_a_vulnerable_package_is_known_by_name_version_lock_file_and_advisory(self):
+        from gitmole import gate
+        row = {"name": "lodash", "version": "4.17.0", "source": "package-lock.json", "ids": ["GHSA-x"], "score": 9.8, "fixed": "4.17.21"}
+        report = {"meta": {}, "dependencies": {"status": "scanned", "vulnerable": [row]}}
+        before = {"findings": [{"severity": "critical", "rule": {"id": "vulnerable_dependencies"}}],
+                  "dependencies": {"vulnerable": [dict(row)]}}
+        found = [{"severity": "critical", "detail": "D", "rule": {"id": "vulnerable_dependencies"}, "evidence": {}}]
+        self.assertEqual(gate.against_baseline(report, found, before), [])
+        report["dependencies"]["vulnerable"].append({**row, "name": "minimist", "ids": ["GHSA-y"]})
+        found = [{"severity": "critical", "detail": "D", "rule": {"id": "vulnerable_dependencies"}, "evidence": {}}]
+        counted = gate.against_baseline(report, found, before)
+        self.assertEqual([p["name"] for p in counted[0]["evidence"]["packages"]], ["minimist"], "only the new package counts")
+
+    def test_a_baseline_of_another_clone_or_no_export_is_refused(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, [])
+            other = os.path.join(out, "other.json")
+            with open(other, "w") as fh:
+                json.dump({"meta": {"name": "elsewhere"}, "findings": [], "watch": []}, fh)
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--baseline", other], console=c), 2)
+            self.assertIn("the two exports must be of the same clone", c.export_text())
+            self.assertEqual(cli.main([out, "--no-run", "--baseline", os.path.join(out, "none.json")], console=console()), 2)
+
+
 class Portfolio(unittest.TestCase):
-    def _run(self, extra=(), fail=False):
+    def _run(self, extra=(), fail=False, step=("q", "true")):
         with tempfile.TemporaryDirectory() as work:
             def cloner(target, parent):
                 d = os.path.join(parent, target.split("/")[-1])
@@ -446,7 +569,7 @@ class Portfolio(unittest.TestCase):
                     subprocess.run(["git", "-C", d, "-c", "user.name=Your Name", "-c", "user.email=you@example.com",
                                     "commit", "-q", "--allow-empty", "-m", "x"], check=True)
                 return d
-            planner = lambda repo, out, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            planner = lambda repo, out, branch="HEAD", **kw: [{"name": step[0], "argv": [step[1]], "stdout": None, "deps": []}]
             c = console()
             rc = cli.main(["acme/*", "--out", os.path.join(work, "pf"), *extra], console=c, tool_check=lambda **kw: [], planner=planner,
                           estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1},
@@ -471,6 +594,13 @@ class Portfolio(unittest.TestCase):
     def test_fail_on_looks_across_all_repos(self):
         rc, *_ = self._run(["--fail-on", "warning"])
         self.assertEqual(rc, 3)
+
+    def test_fail_on_says_which_repository_it_could_not_check(self):
+        rc, text, *_ = self._run(["--fail-on", "critical"], step=("betterleaks", "false"))
+        self.assertEqual(rc, 4)
+        self.assertIn("one: betterleaks failed; two: betterleaks failed", text)
+        rc, *_ = self._run(["--fail-on", "warning"], step=("betterleaks", "false"))
+        self.assertEqual(rc, 3, "a finding at the level is an answer")
 
     def test_markdown_export_writes_a_portfolio_file(self):
         rc, _, _, _, md = self._run(["--markdown", "portfolio.md"])

@@ -65,10 +65,10 @@ def graphs(history: list) -> dict:
         {"label": "churn alone", "values": col("churn_headroom"), "dashed": True, "color": "#57606a"},
         {"label": "watch list, 13 held-out repositories", "values": [x.get("holdout_headroom") for x in whole], "color": "#bf3989"}], crashed, (0, 1), "%",
         "curl, django, react and gitmole (every release), six cut-offs, fixes in the next six months; dots: independent labels, repositories never tuned on")
-    out["useful.svg"] = svg.chart("Is it useful? Findings the default report spells out that are worth acting on", labels_, [
+    out["useful.svg"] = svg.chart("Is it useful? Findings the default report spells out that one agent labelled actionable", labels_, [
         {"label": "labelled actionable", "values": [u.get("actionable_share") for u in useful]},
         {"label": "carrying a label at all", "values": [u.get("labelled_share") for u in useful], "dashed": True, "color": "#57606a"}], crashed, (0, 1), "%",
-        "development, large and well-kept sets, hand labels (measure/labels.jsonl); none before 0.28.0")
+        "development, large and well-kept sets; every label is one agent's (measure/labels.jsonl), none before 0.28.0")
     out["whole-ranking.svg"] = svg.chart("The whole ranking: ROC-AUC and recall at 20% of the lines", labels_, [
         {"label": "AUC", "values": col("auc")}, {"label": "AUC, churn", "values": col("churn_auc"), "dashed": True, "color": "#0969da"},
         {"label": "recall at 20%", "values": col("recall20"), "color": "#8250df"},
@@ -199,6 +199,10 @@ def current(record: dict, extras: dict) -> list:
     clean = s.get("claims_clean")
     rows.append(("findings whose text agrees with their own numbers", "every set",
                  f"{clean[0]} of {clean[1]}" if clean else "not checked in this record"))
+    contra = s.get("contradictions")
+    rows.append(("contradictions between a finding and the report's own facts", "every set",
+                 (f"{contra} ({', '.join(f'{k} {v}' for k, v in (s.get('contradictions_by_check') or {}).items())})" if contra else "0")
+                 if contra is not None else "not checked in this record"))
     desc = (extras or {}).get("description") or {}
     unexplained = sum(1 for checks in desc.values() for c in checks if c["agree"] is False and not c.get("explained"))
     rows.append(("unexplained description disagreements", "development", str(unexplained) if desc else "not run"))
