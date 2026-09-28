@@ -374,25 +374,30 @@ def _elf_relocatable(head: bytes) -> bool:
     return len(head) >= 18 and int.from_bytes(head[16:18], "big" if head[5] == 2 else "little") == ET_REL
 
 
-def _binary_paths(repo: str) -> list:
-    """Tracked files whose index content git itself calls binary (`ls-files --eol`: i/-text)."""
+def _inside(path: str, scope) -> bool:
+    return not scope or any(path.startswith(d + "/") for d in scope)
+
+
+def _binary_paths(repo: str, scope=()) -> list:
+    """Tracked files whose index content git itself calls binary (`ls-files --eol`: i/-text), under --path's
+    directories when there are any."""
     out = subprocess.run([*filetypes.GIT, "ls-files", "--eol", "-z"], cwd=repo, capture_output=True).stdout
     paths = []
     for entry in out.split(b"\0"):
         if not entry or b"\t" not in entry:
             continue
         info, path = entry.split(b"\t", 1)
-        if info.startswith(b"i/-text"):
-            paths.append(path.decode("utf-8", "surrogateescape"))
+        if info.startswith(b"i/-text") and _inside(name := path.decode("utf-8", "surrogateescape"), scope):
+            paths.append(name)
     return sorted(paths)
 
 
-def binaries(repo: str) -> dict:
+def binaries(repo: str, scope=()) -> dict:
     """Executables by their first bytes (ELF, PE, Mach-O; a Java class shares Mach-O's fat magic and is
     left alone, and so is an ELF relocatable object, which nothing runs), native libraries and archives by
     name, and binary blobs .gitattributes sends to LFS that were committed as they are rather than as
     pointers."""
-    found = _binary_paths(repo)
+    found = _binary_paths(repo, scope)
     executables = []
     for path in found:
         head = _read(repo, path, 18) or b""
@@ -446,13 +451,13 @@ def submodules(repo: str) -> dict:
 
 # --- symlinks -----------------------------------------------------------------------------------
 
-def symlinks(repo: str) -> dict:
+def symlinks(repo: str, scope=()) -> dict:
     """Tracked symlinks (mode 120000) whose target resolves outside the tree or into .git/: a checkout
     that follows them reads or writes where the repository has no business."""
     out = subprocess.run([*filetypes.GIT, "ls-files", "-s", "-z"], cwd=repo, capture_output=True).stdout
     links = []
     for entry in out.split(b"\0"):
-        if entry.startswith(b"120000 "):
+        if entry.startswith(b"120000 ") and _inside(entry.split(b"\t", 1)[1].decode("utf-8", "surrogateescape"), scope):
             meta, path = entry.split(b"\t", 1)
             links.append((path.decode("utf-8", "surrogateescape"), meta.split()[1].decode()))
     outside, into_git = [], []
@@ -500,14 +505,14 @@ def _script(c: str) -> str:
         return ""
 
 
-def trojan_source(repo: str, generated=frozenset()) -> dict:
+def trojan_source(repo: str, generated=frozenset(), scope=()) -> dict:
     """Bidirectional control characters in source files (CVE-2021-42574: code that reads one way and
     compiles another), and identifiers that mix Latin with a confusable script's look-alike letters (a
     Cyrillic о inside `process`; a Greek μ before a unit reads as itself, and is not one). Source files only, tests, examples, documentation and vendored code left out, so the
     false-positive rate stays near zero; a whole word in one script is prose, not a trick."""
     bidi, mixed, files = [], [], 0
     for path in _tracked(repo):
-        if not filetypes.matches(path, filetypes.DEFAULT) or _aside(path) or filetypes.is_doc_path(path) or path in generated:
+        if not filetypes.matches(path, filetypes.DEFAULT) or _aside(path) or filetypes.is_doc_path(path) or path in generated or not _inside(path, scope):
             continue   # a generated file's bytes (a protobuf descriptor) are the generator's, not a reviewer's trap
         data = _read(repo, path)
         if data is None or b"\0" in data[:8000]:
@@ -536,6 +541,9 @@ def trojan_source(repo: str, generated=frozenset()) -> dict:
 CHECKS = {"actions": actions_pinning, "lockfiles": lockfiles, "updates": dependency_updates, "presence": presence,
           "confusion": dependency_confusion, "install": install_scripts, "binaries": binaries, "submodules": submodules,
           "symlinks": symlinks, "trojan": trojan_source, "licences": licences.check, "imports": imports.unused}
+# The checks about a file of the tree, which --path narrows to its directories. The rest are about the repository:
+# its policy files, workflows, submodules and dependency manifests (a lock file above the directories governs them).
+SCOPED = {"binaries", "symlinks", "trojan"}
 
 
 def main(argv=None) -> int:
@@ -544,15 +552,18 @@ def main(argv=None) -> int:
         print("usage: hygiene.py OUT_DIR", file=sys.stderr)
         return 2
     repo, out = os.getcwd(), {}
-    generated = set()
+    generated, scope = set(), []
     try:
         with open(os.path.join(args[0], "meta.json"), encoding="utf-8") as fh:
-            generated = set(json.load(fh).get("generated") or [])   # the run's own classification, written before the steps
+            meta = json.load(fh)
+        generated = set(meta.get("generated") or [])   # the run's own classification, written before the steps
+        scope = list(meta.get("scope") or [])
     except (OSError, ValueError):
         pass
     for key, check in CHECKS.items():
+        extra = {"scope": scope} if scope and key in SCOPED else {}
         try:
-            out[key] = check(repo, generated) if key == "trojan" else check(repo)
+            out[key] = check(repo, generated, **extra) if key == "trojan" else check(repo, **extra)
         except (OSError, subprocess.SubprocessError, ValueError) as e:   # one check failing leaves the others standing
             print(f"hygiene.py: {key}: {e}", file=sys.stderr)
             out[key] = None

@@ -288,6 +288,32 @@ class ParseFixHistory(unittest.TestCase):
         self.assertEqual(h["src/a.py"]["recent"], ["c1", "c3"])
 
 
+class Authored(unittest.TestCase):
+    """An older run counted a Co-authored-by credit as a commit and kept no `authored`; the trailer inventory
+    says which identities only ever appear in trailers."""
+    def test_an_older_run_has_its_trailer_only_credit_taken_out(self):
+        meta = {"identities": [{"name": "Ann", "email": "ann@x", "commits": 10, "aliases": []},
+                               {"name": "Cat", "email": "cat@c.example", "commits": 3, "aliases": [{"name": "cat", "email": "cat@users.example", "commits": 2}]},
+                               {"name": "Tool", "email": "noreply@t.example", "commits": 8,
+                                "aliases": [{"name": "Tool Two", "email": "noreply@t.example", "commits": 2}]}],
+                "aliases": {"Tool Two": "Tool"}}
+        activity = {"authors": {"Ann": {"commits": 10}, "Tool": {"commits": 8}}, "authors_all": {"Tool": {"commits": 9}}}
+        prov = {"trailers": {"never_author": [{"name": "Tool", "email": "noreply@t.example", "commits": 6},
+                                              {"name": "Tool Two", "email": "noreply@t.example", "commits": 2},
+                                              {"name": "Cat", "email": "cat@c.example", "commits": 1}]}}
+        load._authored(meta, activity, prov)
+        self.assertEqual([i["authored"] for i in meta["identities"]], [10, 2, 0], "Cat authored the two under the other address")
+        self.assertEqual(activity["authors"]["Tool"]["authored"], 0)
+        self.assertEqual(activity["authors_all"]["Tool"]["authored"], 1)
+        self.assertNotIn("authored", activity["authors"]["Ann"], "nothing to take out: the commits are what they were")
+
+    def test_a_newer_run_is_left_as_it_wrote_it(self):
+        meta = {"identities": [{"name": "Tool", "email": "noreply@t.example", "commits": 6, "authored": 2}]}
+        activity = {"authors": {"Tool": {"commits": 6, "authored": 2}}}
+        load._authored(meta, activity, {"trailers": {"never_author": [{"name": "Tool", "email": "noreply@t.example", "commits": 4}]}})
+        self.assertEqual((meta["identities"][0]["authored"], activity["authors"]["Tool"]["authored"]), (2, 2))
+
+
 class LoadReport(unittest.TestCase):
     def test_reads_every_file_and_tolerates_missing_ones(self):
         import os, tempfile

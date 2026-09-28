@@ -9,7 +9,7 @@ import os
 import re
 from collections import Counter, OrderedDict
 
-from . import filetypes, identity, leaks, maat, textfmt
+from . import filetypes, identity, leaks, maat, scope as scopes, textfmt
 
 
 def _rel(path: str) -> str:
@@ -17,16 +17,18 @@ def _rel(path: str) -> str:
     return path[2:] if path.startswith("./") else path
 
 
-def _only(rows: list, types) -> list:
-    """scc's language rows with the files outside `types` dropped and the totals rebuilt from what is
-    left. A row without per-file data (an older size.json) is kept as it is."""
+def _only(rows: list, types, scope=()) -> list:
+    """scc's language rows with the files outside `types` (None: none) or outside --path's directories
+    dropped and the totals rebuilt from what is left. A row without per-file data (an older size.json)
+    is kept as it is."""
     out = []
     for r in rows:
         files = r.get("Files")
         if files is None:
             out.append(r)
             continue
-        kept = [f for f in files if filetypes.matches(_rel(f.get("Location", "")), types)]
+        kept = [f for f in files if (types is None or filetypes.matches(_rel(f.get("Location", "")), types))
+                and scopes.within(_rel(f.get("Location", "")), scope)]
         if kept:
             out.append({**r, "Count": len(kept), "Files": kept,
                         **{k: sum(f.get(k, 0) for f in kept) for k in ("Code", "Comment", "Blank", "Complexity")}})
@@ -47,14 +49,16 @@ def _json_or(text: str, default):
         return default
 
 
-def parse_scc(text: str, types=None) -> dict:
+def parse_scc(text: str, types=None, scope=()) -> dict:
     """scc --by-file JSON as languages and per-file rows. `types` (as filetypes.parse gives it: a
-    set, or None for everything) keeps only the code files, so the size matches the other tables."""
+    set, or None for everything) keeps only the code files, so the size matches the other tables;
+    `scope` (a run's --path directories) keeps only the files under them. scc itself always measures the
+    whole tree: the backtest's tree at its cut-off is narrowed here too, from the scope its meta records."""
     rows = _json_or(text, [])
     if not isinstance(rows, list):
         rows = []
-    if types is not None:
-        rows = _only(rows, types)
+    if types is not None or scope:
+        rows = _only(rows, types, scope)
     languages = sorted(
         (
             {
@@ -370,6 +374,34 @@ def _nested(out_dir: str):
         return None
 
 
+def _authored(meta: dict, activity: dict, provenance: dict) -> None:
+    """Fill in `authored` where an older run left it out, so the People table and the Timeline
+    do not call a Co-authored-by credit a commit. What such a run kept is the trailer inventory: the
+    identities that are named in trailers and never author a commit (provenance never_author), whose
+    every credit is a trailer's. An identity row loses the commits of those variants; a per-person total
+    loses those credits, never below zero. A person who both authors and is credited under one address
+    keeps the credit, which only the newer run can tell apart."""
+    never = (provenance.get("trailers") or {}).get("never_author") or []
+    if not never:
+        return
+    emails = {(t.get("email") or "").lower() for t in never}
+    for i in meta.get("identities") or []:
+        if "authored" not in i:
+            others = i.get("aliases") or []
+            head = {"email": i.get("email"), "commits": i["commits"] - sum(a["commits"] for a in others)}   # the row's commits are its variants' sum
+            credit = sum(v["commits"] for v in [head, *others] if (v.get("email") or "").lower() in emails)
+            i["authored"] = max(0, i["commits"] - credit)
+    aliases = meta.get("aliases") or {}
+    credited = {}
+    for t in never:
+        name = aliases.get(t.get("name"), t.get("name"))
+        credited[name] = credited.get(name, 0) + (t.get("commits") or 0)
+    for key in ("authors", "authors_all"):
+        for name, a in (activity.get(key) or {}).items():
+            if "authored" not in a and name in credited:
+                a["authored"] = max(0, (a.get("commits") or 0) - credited[name])
+
+
 def load_report(out_dir: str, nested: bool = True) -> dict:
     """Read every output file gitmole writes. Missing optional files become empty values.
 
@@ -393,12 +425,14 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
     ownership = [r for r in parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")) if not is_bot(r.get("author") or "")]
     fixes = parse_maat_csv(_read(out_dir, "maat-fixes.csv"))
     activity = _read_json(out_dir, "activity.json", {})
+    provenance = _read_json(out_dir, "provenance.json", {}) or {}
+    _authored(meta, activity if isinstance(activity, dict) else {}, provenance if isinstance(provenance, dict) else {})
     return {
         "out_dir": out_dir,
         "meta": meta,
         # a run records its --file-types spec (None for the default list); a run from before that record
         # was measured unfiltered, so it is re-rendered unfiltered rather than with a guessed list
-        "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta["file_types"]) if "file_types" in meta else None),
+        "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta["file_types"]) if "file_types" in meta else None, scopes.of(meta)),
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "plumbing": parse_maat_csv(_read(out_dir, "maat-plumbing.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
@@ -432,6 +466,6 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "hygiene": _read_json(out_dir, "hygiene.json", {}) or {},   # the hygiene checks (hygiene.py); {} before 0.15
         "unreachable": _read_json(out_dir, "unreachable.json", {}) or {},
         "structure": _read_json(out_dir, "structure.json", {}) or {},
-        "provenance": _read_json(out_dir, "provenance.json", {}) or {},   # trailers, cohorts, commit shape, agent files; {} before 0.17   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
+        "provenance": provenance,   # trailers, cohorts, commit shape, agent files; {} before 0.17   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
         "backtest": _nested(out_dir) if nested else None,
     }

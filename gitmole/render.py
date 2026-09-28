@@ -15,7 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import classify, coupling, filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
+from . import classify, coupling, filetypes, hotspots, identity, knowledge, leaks, loss, scope, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -261,6 +261,7 @@ def summary(report: dict) -> dict:
         "lines": report["size"]["total_code"], "files": report["size"]["total_files"],
         "languages": [l["name"] for l in report["size"]["languages"][:4]],
         "since": m.get("since"),
+        "scope": scope.of(m),   # --path's directories; [] for the whole repository
         "pulse": pulse(report),
         "coverage": m.get("coverage") or {},
         "commit": (m.get("run") or {}).get("commit"),
@@ -496,17 +497,25 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
 def people_section(report: dict, full: bool = True, width=None) -> dict:
     ids = report["meta"].get("identities") or []
     merges = any(i.get("merges") for i in ids)   # merges apart: merging every pull request is not writing the code
-    ids = sorted(ids, key=lambda i: -(i["commits"] - i.get("merges", 0))) if merges else ids
-    total_commits = sum(i["commits"] - i.get("merges", 0) for i in ids)
+
+    def own(i):   # the commits they authored: a Co-authored-by credit is shown apart, not as a commit of theirs
+        return i.get("authored", i["commits"]) - i.get("merges", 0)
+
+    def credit(i):
+        return i["commits"] - i.get("authored", i["commits"])
+    ids = sorted(ids, key=lambda i: -own(i)) if merges or any(credit(i) for i in ids) else ids
+    total_commits = sum(own(i) for i in ids)
     surviving = report.get("theseus_authors") or {}
     total_lines = sum(surviving.values())
     limit = _limit("People", full)
-    rows = [(i["name"], i["email"], i["commits"] - i.get("merges", 0), *((i.get("merges", 0),) if merges else ()),
-             _pct(i["commits"] - i.get("merges", 0), total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
+    credited = any(credit(i) for i in ids[:limit])   # a column only when a row shown has any
+    rows = [(i["name"], i["email"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
+             _pct(own(i), total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
     columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
-               ("share", RIGHT), ("surviving code", RIGHT)]
+               *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving code", RIGHT)]
     if full is not True:
-        columns, rows = _keep(columns, rows, ["author", "commits", *(["merges"] if merges else []), "share", "surviving code"])
+        columns, rows = _keep(columns, rows, ["author", "commits", *(["merges"] if merges else []), *(["co-authored"] if credited else []),
+                                              "share", "surviving code"])
     since = report["meta"].get("since")
     notes = [f"commits since {since}; surviving code is for the whole tree"] if since else []
     if merges:
@@ -562,7 +571,7 @@ def _month_label(ym: str) -> str:
 
 
 def timeline_section(report: dict, full: bool = True, width=None, months: int = 12) -> dict:
-    """Commits per author, one column per month. Names never fold: when the year does not fit the
+    """Commits each person authored, one column per month. Names never fold: when the year does not fit the
     terminal width, the oldest months are dropped (down to FLOOR) instead. If a name is still too long
     for the room FLOOR leaves, the name gives way, not the months: it is shown cut with an ellipsis
     (never fewer than NAME_FLOOR characters), so the months a reader came for stay full width. The
@@ -579,12 +588,14 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
         span = [m for m in span if m >= since[:7]] or span[-1:]
     # the run decided who is a bot from name and email; the timeline only has the name, so it asks the run
     bots = {b["name"] for b in report["meta"].get("bots") or []}
+    # an older run counted a Co-authored-by credit here as a commit; a person with no commit of their own is not listed
+    credit_only = {n for n, a in ((report.get("activity") or {}).get("authors") or {}).items() if a.get("authored", 1) == 0}
 
     def active(shown):
         """Who to list and in what order: commits inside the months actually shown, most first."""
         totals = {a: sum(per.get(m, 0) for m in shown) for a, per in tl.items()}
         return [a for a in sorted(totals, key=lambda a: -totals[a])
-                if totals[a] > 0 and a not in bots and not identity.is_bot(a)]
+                if totals[a] > 0 and a not in bots and a not in credit_only and not identity.is_bot(a)]
 
     ranked = active(span)
     limit = _limit("Timeline", full)
@@ -623,7 +634,7 @@ def signing_section(report: dict, full: bool = True, width=None) -> dict:
 
 def watch_by_component_section(report: dict, full: bool = True, width=None) -> dict:
     """The watch list's top files within each component: --full and Markdown only."""
-    groups = watch.by_component(watch.risks(report))
+    groups = watch.by_component(watch.risks(report), base=scope.report_base(report))
     rows = [(g["component"], f"{g['share']:.0f}%", " · ".join(x["file"] for x in g["files"]))
             for g in groups]
     columns = [("component", PATH), ("share", RIGHT), ("top files", {"overflow": "fold", "ratio": 3})]
@@ -841,14 +852,15 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
     gone = {g["name"] for g in loss.gone(report, months)}
     rows_all = report.get("ownership") or []   # every area the map showed before, tests included
-    areas = loss.areas(rows_all, gone)
+    base = scope.report_base(report)   # a --path run's areas are the directories below the ones it names
+    areas = loss.areas(rows_all, gone, base)
     hidden_note = None
     tree = (report.get("size") or {}).get("files") or {}
     if full is not True and tree:
         # a directory the history knows but HEAD does not is a layout that no longer exists; the rows are
         # filtered before the areas are built so a vanished layout cannot hide that one directory now dominates
-        areas = [a for a in loss.areas(knowledge.present_rows(rows_all, tree), gone) if knowledge.in_tree(a["area"], tree)]
-        hidden = len({knowledge.top_area(r["entity"]) for r in rows_all if not knowledge.in_tree(knowledge.top_area(r["entity"]), tree)})
+        areas = [a for a in loss.areas(knowledge.present_rows(rows_all, tree), gone, base) if knowledge.in_tree(a["area"], tree, base)]
+        hidden = len({knowledge.top_area(r["entity"], base) for r in rows_all if not knowledge.in_tree(knowledge.top_area(r["entity"], base), tree, base)})
         hidden_note = f"{hidden} historical area{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None
     limit = _limit("Knowledge map", full)
     rows = []
@@ -1040,6 +1052,9 @@ def header(report: dict, findings: list = (), full: bool = False) -> Panel:
         body.append(f"  ·  since {s['since']}", style="yellow")
     body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}"
                 f"  ·  branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "\n")
+    if s["scope"]:
+        body.append(scope.label(s["scope"]), style="bold yellow")
+        body.append(f"  ·  {scope.REPOSITORY_WIDE}\n", style="dim")
     body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}\n")
     if full and s["coverage"]:
         body.append(classify.coverage_line(s["coverage"]) + "\n", style="dim")
@@ -1255,6 +1270,7 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
            f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
            + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}"
            + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "  ",
+           *([f"{scope.label(s['scope'])} · {scope.REPOSITORY_WIDE}  "] if s["scope"] else []),
            f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["coverage"] or s["pulse"] else ""),
            *([classify.coverage_line(s["coverage"]) + ("  " if s["pulse"] else "")] if s["coverage"] else []),
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
@@ -1324,7 +1340,7 @@ def to_json(report: dict, findings: list, risk: dict = None, compare: dict = Non
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
     out["watch_by_component"] = [{"component": g["component"], "share": round(g["share"], 3), "files": [x["file"] for x in g["files"]]}
-                                 for g in watch.by_component(watch.risks(report))]
+                                 for g in watch.by_component(watch.risks(report), base=scope.report_base(report))]
     from . import osps
     out["osps"] = {"baseline": osps.BASELINE, "controls": osps.coverage(report, findings)}
     bt = watch.backtest(report)

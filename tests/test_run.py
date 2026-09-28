@@ -605,8 +605,8 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(meta["merges"], 0, "how many commits have two parents: the merge regime")
         self.assertEqual(meta["first_date"], "2025-01-02")
         self.assertEqual(meta["last_date"], "2026-03-04")
-        self.assertEqual(meta["identities"], [{"name": "Ann", "email": "ann@x.com", "commits": 2, "aliases": []},
-                                              {"name": "Bob", "email": "bob@x.com", "commits": 1, "aliases": []}])
+        self.assertEqual(meta["identities"], [{"name": "Ann", "email": "ann@x.com", "commits": 2, "aliases": [], "authored": 2},
+                                              {"name": "Bob", "email": "bob@x.com", "commits": 1, "aliases": [], "authored": 1}])
 
     def test_identities_are_merged_and_mailmap_is_honoured(self):
         with tempfile.TemporaryDirectory() as d:
