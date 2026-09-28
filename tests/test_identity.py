@@ -140,3 +140,60 @@ class IsBot(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _merge_all_pairs(identities):
+    """identity.merge as it was before the key index: every identity against every member of every
+    group. The index must give the same groups, in the same order, with the same alias order."""
+    shared = identity.shared_words(identities)
+    groups = []
+    for i in identities:
+        matched = [g for g in groups if any(identity.same_person(i, j, shared) for j in g)]
+        if not matched:
+            groups.append([i])
+            continue
+        first = matched[0]
+        first.append(i)
+        for other in matched[1:]:
+            first.extend(other)
+            groups.remove(other)
+    merged = []
+    for g in groups:
+        g = sorted(g, key=lambda x: -x["commits"])
+        merged.append({"name": g[0]["name"], "email": g[0]["email"], "commits": sum(x["commits"] for x in g),
+                       "aliases": [{"name": x["name"], "email": x["email"], "commits": x["commits"]} for x in g[1:]]})
+    merged.sort(key=lambda m: (-m["commits"], m["name"]))
+    return merged
+
+
+def _history(seed, n):
+    """Identities built from a small vocabulary, so that every way same_person can match turns up:
+    shared emails, two shared tokens, identical handles, a handle inside a full name, a name run
+    together, an initial plus a surname, and given names that must stay apart."""
+    import random
+    rnd = random.Random(seed)
+    first = ["Jack", "David", "Niels", "Robin", "Junegunn", "Tom", "Ann", "Hayden"]
+    last = ["Lohmann", "Malfait", "Choi", "Tromey", "Smith", "Sanders", "Kot", "Bankosz"]
+    out = []
+    for k in range(n):
+        f, l = rnd.choice(first), rnd.choice(last)
+        shape = rnd.randrange(7)
+        name = [f"{f} {l}", f"{f}{l}", f"{f[0].lower()}{l.lower()}", f.lower() + l.lower(), f, l.lower(), f"Author: {f} {l}"][shape]
+        email = rnd.choice([f"{f.lower()}@x.org", f"{l.lower()}@y.org", f"{k}@users.noreply.github.com"])
+        out.append({"name": name, "email": email, "commits": rnd.randrange(1, 6)})
+    return out
+
+
+class KeyIndex(unittest.TestCase):
+    def test_merge_gives_exactly_what_comparing_every_pair_gives(self):
+        for seed in range(40):
+            ids = _history(seed, 60)
+            self.assertEqual(identity.merge([dict(i) for i in ids]), _merge_all_pairs([dict(i) for i in ids]), f"seed {seed}")
+
+    def test_people_who_share_nothing_are_not_compared_with_each_other(self):
+        from unittest import mock
+        ids = [{"name": f"Person{k:04d} Surname{k:04d}", "email": f"p{k}@x.org", "commits": 1} for k in range(400)]
+        with mock.patch.object(identity, "same_person", wraps=identity.same_person) as compared:
+            merged = identity.merge(ids)
+        self.assertEqual(len(merged), 400)
+        self.assertLess(compared.call_count, 400, "all pairs would be 79,800 comparisons")

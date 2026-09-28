@@ -103,25 +103,56 @@ def _squash(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
+def _keys(i: dict) -> set:
+    """Every value same_person can match two identities on: two identities that share none of these
+    cannot be the same person, so merge compares only identities that share one. The email; each name
+    token (two shared tokens, and a one-word handle that is a token of the other's name); the name as
+    written; the name run together; and initial-plus-surname, from a full name and from a handle."""
+    plain = _plain(i["name"])
+    keys = {("email", i["email"].lower()), ("plain", plain), ("squash", _squash(i["name"]))}
+    keys |= {("token", t) for t in _tokens(i["name"])}
+    words = plain.split()
+    if len(words) >= 2:
+        keys.add(("initial", words[0][0] + words[-1]))
+    elif plain:
+        keys.add(("initial", plain))
+    return keys
+
+
 def merge(identities: list) -> list:
     """Group identities by shared name tokens or email. Each row keeps the most-committed
     variant's name and email, sums the commits, and lists the other variants as aliases.
 
     Grouping is transitive: an identity that matches two groups joins them into one, so
     "Hayden <h@noreply>" and "hay-kot <h@pm.me>" end up together once "hay-kot <h@noreply>"
-    shows up to link them. Without that the same person appears twice."""
+    shows up to link them. Without that the same person appears twice.
+
+    Each identity is compared only with the earlier ones that share a key with it (_keys), not with
+    every member of every group: django's 5,000 identities were 20 million comparisons. The groups,
+    their order and their members' order are what comparing every pair gives."""
     shared = shared_words(identities)
-    groups = []
-    for i in identities:
-        matched = [g for g in groups if any(same_person(i, j, shared) for j in g)]
+    groups, group_of, members, by_key = [], {}, {}, {}   # members: id(group) -> the indices it holds
+    for n, i in enumerate(identities):
+        keys = _keys(i)
+        seen = sorted({m for k in keys for m in by_key.get(k, ())})
+        hits = {id(group_of[m]) for m in seen if same_person(i, identities[m], shared)}
+        matched = [g for g in groups if id(g) in hits]
+        for k in keys:
+            by_key.setdefault(k, []).append(n)
         if not matched:
             groups.append([i])
+            group_of[n], members[id(groups[-1])] = groups[-1], [n]
             continue
         first = matched[0]
         first.append(i)
+        group_of[n] = first
+        members[id(first)].append(n)
         for other in matched[1:]:
             first.extend(other)
             groups.remove(other)
+            for m in members.pop(id(other)):
+                group_of[m] = first
+                members[id(first)].append(m)
     merged = []
     for g in groups:
         g = sorted(g, key=lambda x: -x["commits"])
