@@ -231,8 +231,10 @@ value — to a file the reader chooses to send. They are per rule, so they canno
 be joined to a labelled finding, and they lean toward people who liked the tool
 enough to answer.
 
-Two things act on the labels. `labels.usefulness` gives each release its
-actionable share — of the findings its default report spells out, the share
+No outside labels exist, so every number below that rests on `actionable` is
+one agent's reading of the findings, not evidence that they are worth acting
+on, and the docs quote it as that. Two things act on the labels.
+`labels.usefulness` gives each release its actionable share — of the findings its default report spells out, the share
 labelled actionable, beside how many carry a label at all. And a rule with five
 or more labelled findings, none of them actionable, is named in one line of the
 default report instead of spelled out (`findings.SUMMARISED`; a test holds the
@@ -507,7 +509,7 @@ in a release round.
 | top-15 carried over across six months | ranked | the list responds to the repository |
 | hits above the better of churn and size; saturated cut-offs | ranked | information only, never deciding |
 | findings per repository, median and p90 | development | the report stays short |
-| findings spelled out that are labelled actionable | development and well-kept, plus large in a release round | the findings are worth acting on |
+| findings spelled out that are labelled actionable | development and well-kept, plus large in a release round | one agent's reading of whether the findings are worth acting on; no outside labels |
 | rules sound, broken and undecided | labelled sample | the findings are true |
 | repositories that fired a critical | well-kept | the gate is usable |
 | wall time and peak memory | development; large | the tool stays fast |
@@ -517,7 +519,7 @@ in a release round.
 
 The README draws three of these as graphs, one per question. *Is it right?*
 Headroom against churn, with the holdout's readings as dots. *Is it useful?*
-The actionable share. *Does it run?* Robustness and the gate. Findings, report
+The actionable share, captioned as one agent's labels. *Does it run?* Robustness and the gate. Findings, report
 length, run time and memory are costs, and they stay on the history page.
 
 A release that moves none of these added features rather than effectiveness.

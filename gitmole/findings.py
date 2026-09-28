@@ -2,6 +2,7 @@
 carries the short citation in its rule dict's `ref` (see REFS); docs/references.md has the full entries."""
 from __future__ import annotations
 
+import os
 import re
 
 from . import classify, coupling, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, structure, textfmt, trend
@@ -1110,7 +1111,7 @@ def _aside_path(path: str) -> bool:
     return filetypes.is_test_path(path) or filetypes.is_sample_path(path) or filetypes.is_vendor_path(path)
 
 
-STRUCTURE_LANGUAGES = {"python", "javascript", "typescript", "tsx", "c", "cpp", "ruby"}   # where the import graph resolves at all
+STRUCTURE_LANGUAGES = {"python", "javascript", "typescript", "tsx", "c", "cpp", "ruby", "go"}   # where the import graph resolves at all
 
 
 def _structure(report: dict) -> dict:
@@ -1255,7 +1256,8 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
     Capiluppi found across 79 projects that many co-changed pairs have no structural dependency at
     all: such a pair is a shared format, a duplicated rule or copy-paste, and neither a pure-git nor a
     pure-static tool can print it. Only for languages whose imports this graph mostly resolves, and not
-    for a pair that is example or documentation material on both sides (_both_specimens)."""
+    for a pair that is example or documentation material on both sides (_both_specimens). Two Go files in
+    one directory are one package and see each other with no import, so they are not a hidden pair."""
     s = _structure(report)
     if not s:
         return []
@@ -1279,6 +1281,8 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
             continue
         if b in (files[a].get("imports") or []) or a in (files[b].get("imports") or []):
             continue
+        if files[a].get("language") == files[b].get("language") == "go" and os.path.dirname(a) == os.path.dirname(b):
+            continue   # one Go package: its files share every name without an import, as the language defines a package
         hidden.append(p)
     if not hidden:
         return []
@@ -1293,6 +1297,9 @@ def hidden_coupling(report: dict, min_degree: int = 60, min_revs: int = 5, min_r
                evidence={"pairs": [{"a": p["entity"], "b": p["coupled"], "degree": p["degree"], "revs": p["average-revs"]} for p in hidden[:10]]})]
 
 
+# Go's compiler refuses an import loop between packages, so a loop through Go files in this graph (an edge runs to every
+# file of a package, whatever its build tags) could only be the graph's mistake
+NO_CYCLES = {"go"}
 DEFERRED_MARKS_FROM = 4   # the structure analyser that first marked deferred imports; an older structure.json would show loops broken on purpose
 
 
@@ -1377,7 +1384,8 @@ def import_cycles(report: dict, min_resolved: float = structure.MIN_RESOLVED, mi
     loop is broken on purpose. Oyetoyan et al. found classes near a cycle change more often (Java, SANER
     2015) and found no rule that tells a harmful cycle from a harmless one, so this names the loops and
     leaves the verdict to the reader. Only groups holding a language structure.trusted vouches for (resolved
-    by path, mostly resolved, enough files); tests, examples, vendored and generated files are left out."""
+    by path, mostly resolved, enough files) and not Go (NO_CYCLES); tests, examples, vendored and generated
+    files are left out."""
     s = _structure(report)
     if not s or int(s.get("analyser") or 0) < DEFERRED_MARKS_FROM:
         return []   # a structure.json from before the deferred marks would name the loops deferred imports break on purpose
@@ -1386,7 +1394,7 @@ def import_cycles(report: dict, min_resolved: float = structure.MIN_RESOLVED, mi
     # the graph holds every language that resolves well enough, since .ts, .tsx and .js are one module graph to
     # the loader; a group is named when a trusted language is in it, so two components in a loop with
     # TypeScript count and three lone TypeScript files do not
-    keep = {p for p, info in files.items() if info.get("language") in structure.GRAPH_LANGUAGES
+    keep = {p for p, info in files.items() if info.get("language") in structure.GRAPH_LANGUAGES - NO_CYCLES
             and resolved.get(info.get("language"), 0) >= min_resolved and not _aside_path(p) and p not in derived}
     edges = {p: sorted(set(t for t in files[p].get("imports") or [] if t in keep) - set(files[p].get("deferred") or [])) for p in sorted(keep)}
     groups = [g for g in _groups(edges) if any(files[p].get("language") in judged for p in g)]
