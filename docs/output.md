@@ -599,8 +599,8 @@ How to read each part of the terminal report, and what each run writes to disk; 
    weakest degree; the caption counts both and `--full` shows every pair.
    Hotspots hide files no longer in the tree the same way. Hotspots carry a `trend` column, sampled for the
    top hotspots: the change in complexity over the last year from scc on
-   the file at sampled commits (`--full` shows the whole series as a
-   sparkline), and under `--full` a `minors` column (contributors with a
+   the file at sampled commits, `-` when no sample is a year old (`--full`
+   shows the whole series as a sparkline), and under `--full` a `minors` column (contributors with a
    small share of the file's commits) and a `co-changes` column (the files
    it often changes with). The knowledge map marks owners who have stopped committing
    with `(gone)`, and under `--full` shows the share of each area's lines

@@ -246,6 +246,7 @@ class Risks(unittest.TestCase):
         self.assertEqual(grown["reasons"].index("complexity +220% in a year"), grown["reasons"].index("parse() complexity 41") + 1, "right after the function it is about")
         for series in ([["2025-09-01", 10, 300], ["2026-09-01", 12, 800]],      # +20%: under the floor
                        [["2025-09-01", 40, 300], ["2026-09-01", 10, 800]],      # shrinking is not a reason
+                       [["2026-08-31", 10, 300], ["2026-09-10", 126, 800]],     # ten days is not a year
                        []):                                                     # sampled, but with nothing to compare
             self.assertFalse([x for x in reasons(series)["reasons"] if "in a year" in x], series)
 

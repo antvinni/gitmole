@@ -1089,6 +1089,11 @@ class ComplexityGrowth(unittest.TestCase):
         self.assertEqual(findings.complexity_growth(self._report([2, 2, 2, 2, 2])), [])
         self.assertEqual(findings.complexity_growth(report()), [])
 
+    def test_less_than_a_year_of_samples_claims_no_growth_in_a_year(self):
+        r = self._report([3, 3, 3, 0, 0])
+        r["trend"]["files"] = {p: [["2026-06-10", s[0][1], 100], s[1]] for p, s in r["trend"]["files"].items()}
+        self.assertEqual(findings.complexity_growth(r), [], "three months is not a year")
+
 
 class Advice(unittest.TestCase):
     def test_every_finding_carries_its_next_step_as_a_field_that_ends_the_detail(self):

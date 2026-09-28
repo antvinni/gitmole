@@ -37,11 +37,16 @@ GROWTH_FLOOR = 25   # percent in a year: below it a hotspot's complexity is not 
 
 
 def change_over_year(series: list, last_date: str) -> str:
+    """The change from the last sample at or before a year ago to the latest. With no sample that old
+    (a history, or a file, younger than a year) there is no year to compare: "-", not the change since
+    the earliest sample under a year's name - ten days of history once read "+1163% in a year"."""
     if len(series) < 2:
         return "-"
     year_ago = maat.months_before(last_date, 12)
     before = [s for s in series if s[0] <= year_ago]
-    base = before[-1] if before else series[0]
+    if not before:
+        return "-"
+    base = before[-1]
     then, now = base[1], series[-1][1]
     if not then:
         return "-"
