@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 from gitmole import leaks
 
@@ -108,6 +109,12 @@ class Placeholder(unittest.TestCase):
             self.assertEqual(leaks.line_of(d, sha, "gen.sh", 9), "", "past the end is nothing, not an error")
             self.assertEqual(leaks.line_of(d, sha, "missing.sh", 1), "")
             self.assertEqual(leaks.line_of(d, "", "gen.sh", 1), "")
+            rows = [{"RuleID": "generic-api-key", "Commit": sha, "File": "gen.sh", "StartLine": n} for n in (1, 2)]
+            rows.append({"RuleID": "brave-search-api-key", "Commit": sha, "File": "gen.sh", "StartLine": 3})
+            with unittest.mock.patch.object(leaks, "LINE_LOOKUPS", 1):
+                leaks.read_lines(d, rows)
+            self.assertEqual([r.get("Line") for r in rows], ["#!/bin/sh", None, "#!/bin/sh\n# Example password: nz5ej2kypkvcw0rn5cvhs6qxtm\necho hi"],
+                             "past the cap a generic row goes without its line and a provider's row still gets it")
 
     def test_a_line_that_calls_itself_an_example_is_a_placeholder(self):
         # `# Example password: nz5ej2kypkvcw0rn5cvhs6qxtm` in a password generator's header comment
@@ -433,6 +440,75 @@ class HeadOnly(unittest.TestCase):
             self._git("merge", "-q", "--no-edit", "leaky", cwd=d)
             found = self._scan(d)
             self.assertEqual(sorted({f["File"] for f in found}), ["deploy.py"], "merged into HEAD's history, it is the commit's")
+
+
+class ContextAndForms(unittest.TestCase):
+    """The placeholder rules against the scanner's two kinds of rule. Every value is built at runtime:
+    a literal in these shapes would trip secret scanners on this very file."""
+    KEY_ID = "AKIA" + "Q7ZR4W2N" + "K5TM3XPB"          # an access key id's shape, no EXAMPLE in it
+    PAT = "ghp_" + "Zq8vLm2Rt7Kp" * 3                  # a classic GitHub token's shape
+
+    def test_a_word_inside_an_identifier_or_a_path_does_not_make_an_example_line(self):
+        value = "nz5ej2kypkvcw0rn5cvhs6qxtm"
+        self.assertFalse(leaks.is_placeholder(value, f"sample_rate = 0.1\napi_key = '{value}'"), "sample_rate names a rate, not this value")
+        self.assertFalse(leaks.is_placeholder(value, f"# see examples/README for the setup\napi_key = '{value}'"), "a path, not a word")
+        self.assertFalse(leaks.is_placeholder(value, f"fake_clock = Clock()\napi_key = '{value}'"))
+        self.assertTrue(leaks.is_placeholder(value, f"# Example:\napi_key = '{value}'"), "a word of its own still calls it an example")
+        self.assertTrue(leaks.is_placeholder(value, f"sampleApiKey = '{value}'"), "the value's own key calls it a sample")
+
+    def test_a_provider_key_next_to_an_example_comment_is_still_a_key(self):
+        """A gate fixture: a committed key under a comment that says "example" or "sample" must be caught."""
+        for line in (f"# example config\nAWS_ACCESS_KEY_ID={self.KEY_ID}", f"sample_rate = 0.1\naws_key = '{self.KEY_ID}'",
+                     f"# e.g. from the console\nkey = {self.KEY_ID}"):
+            self.assertFalse(leaks.is_placeholder(self.KEY_ID, line, "deploy/env.sh", "aws-access-token"), line)
+        self.assertFalse(leaks.is_placeholder(self.PAT, f"# see examples/README\nTOKEN = {self.PAT}", "ci/push.py", "github-pat"),
+                         "a provider's key is judged by its own shape, not the words around it")
+        self.assertTrue(leaks.is_placeholder("AKIA" + "IOSFODNN7" + "EXAMPLE", "", "", "aws-access-token"), "EXAMPLE in the value itself")
+        self.assertTrue(leaks.is_placeholder("username:" + "fakepwd", "", "", "curl-auth-user"), "so is fake")
+        self.assertFalse(leaks.is_placeholder("Zq8vLm2" + "fAkE" + "Rt7KpWn3", "", "", "square-access-token"), "not in mixed case")
+        self.assertTrue(leaks.is_placeholder(self.KEY_ID, f"# Example:\nkey = {self.KEY_ID}", "", "generic-api-key"),
+                        "a generic rule's value keeps its context")
+
+    def test_a_match_inside_a_data_uri_is_image_bytes(self):
+        payload = "iVBORw0KGgo" + "AAAANSUhEUgAAAB" + "BSA" + "Zq8vLm2Rt7KpWn3cXe9YbH4" + "AAAAAElFTkSuQmCC"
+        line = f'      {{/* <img src="data:image/png;base64,{payload}" /> */}}'
+        value = "BSA" + "Zq8vLm2Rt7KpWn3cXe9YbH4"
+        self.assertTrue(leaks.is_placeholder(value, line, "ui/src/pages/offline/index.jsx", "brave-search-api-key"))
+        self.assertFalse(leaks.is_placeholder(value, f"BRAVE_KEY = '{value}'", "ui/src/api.js", "brave-search-api-key"))
+
+    def test_a_guid_in_a_table_of_guids_is_an_id_whichever_rule_matched_it(self):
+        guid = "EAAAC2D7-C290-11D1-905D-00C04FD9189D"
+        table = f"EAAAC2D6-C290-11D1-905D-00C04FD9189D IDXB\n{guid} IDXC"
+        self.assertTrue(leaks.is_placeholder(guid, table, "data/iids.txt", "square-access-token"))
+        self.assertFalse(leaks.is_placeholder(guid, f"# example\ntoken = {guid}", "app.py", "square-access-token"))
+
+    def test_form_labels_and_hints_are_placeholders(self):
+        # apache/devlake's connection forms: the labels a user reads, not the values they type
+        self.assertTrue(leaks.is_placeholder("eg. " + "*" * 12, "    password: 'eg. " + "*" * 12 + "',"))
+        self.assertTrue(leaks.is_placeholder("e.g. hunter2", ""))
+        self.assertTrue(leaks.is_placeholder("*" * 12))
+        self.assertTrue(leaks.is_placeholder("Enter Password"))
+        self.assertTrue(leaks.is_placeholder("jenkins api access token"))
+        self.assertTrue(leaks.is_placeholder("Token", "    token: 'Token',"), "a value that repeats its own key")
+        self.assertTrue(leaks.is_placeholder("DB_PASS", '  "db.pass": "DB_PASS"'), "the same name in another case")
+        self.assertFalse(leaks.is_placeholder("correct horse battery staple"), "a passphrase has spaces and names no credential")
+        self.assertFalse(leaks.is_placeholder("my token is 7Hq2"), "a digit among the words: not a label")
+        self.assertFalse(leaks.is_placeholder("Zq8vLm2Rt7Kp", "    token: 'Zq8vLm2Rt7Kp',"))
+        self.assertFalse(leaks.is_placeholder("egg.Zq8vLm2Rt7Kp"), "eg. only as a word of its own")
+
+    def test_a_private_key_block_is_not_prose(self):
+        body = "MIIEpAIBAAKCAQEA" + "Zq8vLm2Rt7KpWn3c" * 8 + "fake"   # a long body can spell anything
+        block = f"-----BEGIN RSA PRIVATE KEY-----\n{body}\n-----END RSA PRIVATE KEY-----"
+        self.assertFalse(leaks.is_placeholder(block, "", "", "private-key"))
+
+    def test_sanitise_judges_a_provider_rule_without_its_context(self):
+        row = {"RuleID": "github-pat", "File": "ui/src/data/Blueprint.js", "Commit": "c1", "StartLine": 3, "Secret": self.PAT,
+               "Line": f"// example blueprint\nurl: 'https://{self.PAT}@github.com/o/r.git',", "Attributes": {"confidence": "high"}}
+        [clean] = leaks.sanitise([row])
+        self.assertFalse(clean["Placeholder"])
+        self.assertEqual(clean["Confidence"], "high")
+        [clean] = leaks.sanitise([dict(row, RuleID="generic-api-key")])
+        self.assertTrue(clean["Placeholder"], "the same line keeps a generic hit out")
 
 
 class HeadlineOrder(unittest.TestCase):

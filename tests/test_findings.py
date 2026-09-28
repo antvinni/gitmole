@@ -107,6 +107,10 @@ class SecretsFound(unittest.TestCase):
     def test_the_token_the_scanner_graded_high_is_named_first(self):
         """apache/devlake's critical named three generic-password form labels and never the GitHub token
         in a clone URL, which betterleaks graded high: the headline names the strongest values."""
+        from gitmole import leaks
+        pat = "ghp_" + "Zq8vLm2Rt7Kp" * 3   # built at runtime
+        line = f"      url: 'https://{pat}@github.com/o/r.git',"
+        self.assertFalse(leaks.is_placeholder(pat, line, "ui/src/data/TestBlueprintDetail.js", "github-pat"))
         rows = [dict(self.row(f"h{n}", f"ui/src/registry/plugins/p{n}.json", rule="generic-password"), confidence="medium") for n in range(5)]
         rows.append(dict(self.row("hp", "ui/src/data/TestBlueprintDetail.js", rule="github-pat"), confidence="high"))
         [crit] = findings.secrets_found(report(secrets=rows))

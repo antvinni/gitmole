@@ -74,7 +74,17 @@ def digest(value: str, key: bytes) -> str:
 _HEADER = re.compile(r"^\^?-----BEGIN[ \\A-Z]*KEY-----")
 _BASE64_RUN = re.compile(r"[A-Za-z0-9+/=]{40,}")
 # A line that calls its own value an example is documentation, wherever it sits: "# Example password: ...".
-_EXAMPLE_LINE = re.compile(r"\b(example|sample|dummy|fake|placeholder)|\be\.g\.", re.I)
+# The word stands on its own: a prefix of an identifier (`sample_rate = 0.1`, `fake_clock`) or a path
+# segment (`see examples/README`) names something else, not the value. An identifier that is the value's
+# own key (SAMPLE_KEY = '...') is read separately, by its segments (_segments).
+_EXAMPLE_LINE = re.compile(r"(?<![\w/-])(examples?|samples?|dummy|fake|placeholder)(?![\w/-])|\be\.g\.", re.I)
+# The value itself says so: AWS's documented AKIAIOSFODNN7EXAMPLE, `username:fakepwd` (the line rule used to
+# catch these through the value's own text on the line; a provider's rule now reads only the value). The
+# word in one case, as words are written: a random key's chance of spelling `fake` so is one in 64^4 per
+# position, against one in 32^4 case-blind. A key block is left to its own rule, since its body is long
+# enough to spell anything.
+_SAYS_EXAMPLE = re.compile("|".join(w for word in ("example", "sample", "dummy", "fake", "placeholder") for w in (word, word.upper(), word.capitalize())))
+_EXAMPLE_SEGMENTS = {"example", "examples", "sample", "samples", "dummy", "fake", "placeholder"}
 
 
 def _made_up(value: str) -> bool:
@@ -94,6 +104,23 @@ _TEMPLATE_FIELD = re.compile(r"\{[A-Za-z_][\w.]*\}|\$\{[^{}]*\}|\$\{\{.*?\}\}|%\
 _PROSE = re.compile(r"^[A-Za-z][A-Za-z'-]*(\s+[A-Za-z][A-Za-z'-]*){4,}\s*$")
 # A dotted path of lowercase words (passwords.password, auth.failed): a translation or config key, not a password.
 _KEY_PATH = re.compile(r"^[a-z_]+(\.[a-z_]+)+$")
+# A hint written into a form field: `'eg. ************'`, `"e.g. admin"`, `"i.e. https://..."`. A secret has
+# no "eg." standing as a word of its own inside it.
+_HINT = re.compile(r"(?:^|\s)(?:e\.?g|i\.e)\.(?:\s|$)", re.I)
+# A value made only of mask characters: `************`, `••••••`. (x's are _MARKER's.)
+_MASK_ONLY = re.compile(r"^[*•●]{3,}$")
+# A value of several words that names the kind of credential it stands for (`Enter Password`, `jenkins api
+# access token`) is a form label or a description. The words are the keywords of betterleaks' own
+# generic-password and generic-api-key rules. Whitespace alone decides nothing: betterleaks captures it only
+# in generic-password's quoted form (its unquoted form and generic-api-key's value exclude it), and a
+# passphrase has spaces, so `correct horse battery staple` is still taken seriously; what marks a label is
+# that it names the credential rather than being one.
+_CREDENTIAL_WORD = re.compile(r"(?<![A-Za-z])(passw(?:or)?ds?|passphrases?|pwd|psw|tokens?|secrets?|keys?|credentials?|creds|auth)(?![A-Za-z])", re.I)
+_WORDS = re.compile(r"^[A-Za-z][A-Za-z'./-]*(?:\s+[A-Za-z][A-Za-z'./-]*)+$")   # two or more words of letters, nothing else
+# A data: URI's base64 payload (an inline image, a font): a provider's pattern can match inside its bytes.
+_DATA_URI = re.compile(r"data:[\w.+-]+/[\w.+-]+(?:;[\w.+-]+=[\w.+-]+)*;base64,([A-Za-z0-9+/=]+)", re.I)
+# What stands between a key and its value on the value's own line: `password: '`, `"token" => "`, `KEY = `.
+_KEY_BEFORE = re.compile(r"([A-Za-z_][\w.-]*)[\"'`\]]?\s*(?:=>|:=|=|:)\s*[\"'`]?$")
 
 
 # Languages whose string literals must be quoted: there, a value the scanner matched without a quote in
@@ -148,12 +175,50 @@ def _repeats_nearby(value: str, line: str) -> bool:
     return value.lower() in words
 
 
-def is_placeholder(value: str, line: str = "", path: str = "") -> bool:
+def _key_of(value: str, line: str) -> str:
+    """The key the value is assigned to on its own line (`password` in `password: 'x'`), or ""."""
+    if not line:
+        return ""
+    last = line.split("\n")[-1]
+    i = last.rfind(value)   # the value follows its key, which can be the same word
+    m = _KEY_BEFORE.search(last[:i]) if i > 0 else None
+    return m.group(1) if m else ""
+
+
+def _segments(name: str) -> list:
+    """An identifier's words: SAMPLE_KEY, sampleKey and sample-key are all [sample, key]."""
+    return [w.lower() for w in re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+", name)]
+
+
+def _in_data_uri(value: str, line: str) -> bool:
+    """Whether the value sits inside a data: URI's base64 payload on its own line: bytes of an image."""
+    last = (line or "").split("\n")[-1]
+    return bool(value) and any(value in m.group(1) for m in _DATA_URI.finditer(last))
+
+
+def is_placeholder(value: str, line: str = "", path: str = "", rule: str = "") -> bool:
     """Whether `value` has a shape that cannot be a live secret. `line` is the source line the value
     sat on (with two above), read from the clone at scan time and never written; `path` is the file,
-    which with the line says whether the value was a quoted literal."""
+    which with the line says whether the value was a quoted literal. `rule` is betterleaks' rule id: a
+    provider's rule (anything but generic-*) matched the provider's own key format, so its value is
+    judged by its own shape and where it sits (in a data: URI, in a table of GUIDs), never by the words
+    around it (a real key under `# see examples/README` is still a key); the generic rules matched a
+    keyword and a string, and there the context is the evidence."""
     value = (value or "").strip()
+    if _in_data_uri(value, line or ""):
+        return True
+    if line and _UUID.fullmatch(value) and len(_UUID.findall(line)) >= 2:   # a table of interface ids, not a token (ghidra's iids.txt, where a
+        return True                                                        # provider's pattern for tokens beginning EAAA matched a GUID)
+    if rule and not rule.startswith("generic-"):
+        line = ""
     if _HEADER_WRITTEN.match(value) or _MASKED.match(value) or (_FILE_REF.search(value) and not any(ch.isspace() for ch in value)) or _is_label(value):
+        return True
+    if (_HINT.search(value) or _MASK_ONLY.match(value) or (_WORDS.match(value) and _CREDENTIAL_WORD.search(value))
+            or (_SAYS_EXAMPLE.search(value) and "-----BEGIN" not in value)):
+        return True
+    key = _key_of(value, line or "")
+    if key and (re.sub(r"[^a-z0-9]", "", value.lower()) in {re.sub(r"[^a-z0-9]", "", k.lower()) for k in (key, key.rsplit(".", 1)[-1])}
+                or _EXAMPLE_SEGMENTS & set(_segments(key))):   # password: 'Password'; SAMPLE_KEY = '...'
         return True
     if _unquoted(value, line or "", path or ""):
         return True
@@ -161,8 +226,6 @@ def is_placeholder(value: str, line: str = "", path: str = "") -> bool:
         return True
     stripped = re.sub(r"[^A-Za-z0-9]", "", value).lower()
     if stripped != value.lower() and stripped in _EXAMPLE_WORDS:   # pass?word, p-a-s-s-w-o-r-d: an example word with its punctuation
-        return True
-    if line and _UUID.fullmatch(value) and len(_UUID.findall(line)) >= 2:   # a table of interface ids, not a token
         return True
     if (_VERSION.match(value) or value.endswith("...") or value.endswith("…") or _MARKER.match(value) or value.lower() in _EXAMPLE_WORDS
             or _ENV_REF.match(value) or _made_up(value) or _TEMPLATE_FIELD.search(value) or _PROSE.match(value) or _KEY_PATH.match(value)):
@@ -179,22 +242,42 @@ def is_placeholder(value: str, line: str = "", path: str = "") -> bool:
     return False
 
 
-def line_of(repo: str, commit: str, path: str, number: int, above: int = 0) -> str:
+def _file_at(repo: str, commit: str, path: str):
+    """The lines of `path` at `commit`, or None when it cannot be read."""
+    proc = subprocess.run(["git", "-C", repo, "show", f"{commit}:{path}"], capture_output=True)
+    return proc.stdout.decode("utf-8", "replace").split("\n") if proc.returncode == 0 else None
+
+
+def line_of(repo: str, commit: str, path: str, number: int, above: int = 0, files: dict = None) -> str:
     """Line `number` of `path` as it was at `commit`, from the clone, with `above` lines before it
     joined on; "" when it cannot be read. Read for the placeholder rules and dropped, like every
-    other raw field. Two lines above catch a comment that calls the value an example."""
+    other raw field. Two lines above catch a comment that calls the value an example. `files`, when
+    given, keeps each file read for the next row in it, so a file is one git call however many rows."""
     if not (commit and path and number):
         return ""
-    proc = subprocess.run(["git", "-C", repo, "show", f"{commit}:{path}"], capture_output=True)
-    if proc.returncode != 0:
-        return ""
-    lines = proc.stdout.decode("utf-8", "replace").split("\n")
-    if not 0 < number <= len(lines):
+    if files is None:
+        lines = _file_at(repo, commit, path)
+    else:
+        if (commit, path) not in files:
+            files[(commit, path)] = _file_at(repo, commit, path)
+        lines = files[(commit, path)]
+    if lines is None or not 0 < number <= len(lines):
         return ""
     return "\n".join(lines[max(0, number - 1 - above):number])
 
 
-LINE_LOOKUPS = 400   # one git call per finding; past this many the rest go without their line
+LINE_LOOKUPS = 400   # rows whose line is read; past this many a generic rule's rows go without it
+
+
+def read_lines(repo: str, rows: list) -> None:
+    """Each row's source line, for the placeholder rules: the first LINE_LOOKUPS rows, and past them the
+    rows of a provider's rule, which are few and whose line can still show the value is not a key (bytes
+    of an inline image, a table of GUIDs). A generic rule's row past the cap goes without, as before."""
+    files = {}
+    for i, r in enumerate(rows):
+        if i >= LINE_LOOKUPS and str(r.get("RuleID") or "").startswith("generic-"):
+            continue
+        r["Line"] = line_of(repo, r.get("Commit") or "", r.get("File") or "", int(r.get("StartLine") or 0), above=2, files=files)
 
 
 def sanitise(rows: list) -> list:
@@ -209,7 +292,7 @@ def sanitise(rows: list) -> list:
             if str(r.get("RuleID", "")).startswith("generic-") and _ONE_WORD.fullmatch(value):
                 clean["Confidence"] = "low"   # PGPASSWORD: postgres. The context raised it; a word of one case is a service default or a sample
         clean["SecretHash"] = digest(value, key)
-        clean["Placeholder"] = is_placeholder(value, r.get("Line") or "", r.get("File") or "")   # read here and dropped with the other raw fields
+        clean["Placeholder"] = is_placeholder(value, r.get("Line") or "", r.get("File") or "", str(r.get("RuleID") or ""))   # read here and dropped with the other raw fields
         out.append(clean)
     return out
 
@@ -333,8 +416,7 @@ def main(argv=None) -> int:
         return proc.returncode
     text = proc.stdout.decode("utf-8", "surrogateescape").strip()
     raw = (json.loads(text) if text else None) or []   # a clean repository is reported as null
-    for r in raw[:LINE_LOOKUPS]:   # betterleaks does not report the line; the clone in the current directory has it
-        r["Line"] = line_of(os.getcwd(), r.get("Commit") or "", r.get("File") or "", int(r.get("StartLine") or 0), above=2)
+    read_lines(os.getcwd(), raw)   # betterleaks does not report the line; the clone in the current directory has it
     found = unreachable(os.getcwd())
     extra = scan_unreachable(os.getcwd(), os.path.dirname(os.path.abspath(target)), found) if found else []
     rows = sanitise(raw + extra)
