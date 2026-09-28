@@ -2,6 +2,9 @@
 
 How to read each part of the terminal report, and what each run writes to disk; back to [the README](https://github.com/antvinni/gitmole#readme).
 
+New to the report? [Reading your first report](first-report.md) is the one-screen version: each section
+in plain words, and what to do first. This page is the reference.
+
 ## How to read the output
 
 1. Start with the header and the findings.

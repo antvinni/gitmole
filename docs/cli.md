@@ -32,38 +32,74 @@ next to it), with sizes, and deletes them after one y/N question.
 
 ## Options
 
+`gitmole --help` prints the same groups, one line per option; this is the long form.
+
+### Run
+
+Where the output goes and how much a run may spend.
+
 | Option | What it does |
 |---|---|
-| `--full` | Every section, column and row. Adds the hotspots, size, activity and code age tables; the default report keeps the columns you read, caps each table, elides long paths in the middle, hides test files, deleted files and vendored code, shows a directory that changes as one as a single coupling row, and names in one line the findings labelled true but never acted on. |
 | `--out DIR` | The output directory. Default: `analysis-<repo>` next to a local clone, or in the current directory for a remote target. |
 | `--no-run` | Skip the tools and re-render the report from the output directory of an earlier run. **The target is that directory, not the clone**: `gitmole analysis-curl --no-run`. `--out` is not read here. Works with the exports, `--risk` and `--compare`. |
-| `--since WHEN` | Bound the history by author date: `2y`, `18m`, `90d` or a `YYYY-MM-DD` date. People, activity, timeline, hotspots and coupling then describe the current team rather than the founders. File ages and code age always cover the whole history, identity aliases are still merged over all of it, and an empty window is an error. |
-| `--plots` | Also draw the git-of-theseus code-age and survival charts. Needs `gitmole[plots]`. |
-| `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile. |
-| `--list-file-types` | List the file types in the tree with counts and whether each counts as code, then exit. |
-| `--doctor` | List every tool gitmole runs with the version found and the version pinned, and where to get a missing or moved one; whether the structure step can run; and the date of the local vulnerability database; then exit. Takes no target; other options are ignored. Exit 0 when every tool is at its pin, 1 otherwise. |
-| `--install-tools` | Download the five tools at the versions gitmole pins, from the release archives the Homebrew formula installs and checked against the same sha256, into gitmole's own directory, one `<tool>-<version>` directory each: `GITMOLE_TOOLS` if set (an absolute path), else `~/Library/Application Support/gitmole/tools` on macOS or `$XDG_DATA_HOME/gitmole/tools` (default `~/.local/share/gitmole/tools`) elsewhere. Each tool is run once after it lands to check it prints its pin. A run looks in the current pins' directories before PATH. Takes no target and refuses `--doctor`; other options are ignored. Nothing downloads when the directory cannot be written. Exit 0 when all five landed, 1 when one did not (no build for this platform, a hash mismatch, no network, a copy that does not run here) with the reason named. This and a yes to the missing-tools question, which is asked only of a person at a terminal and never in CI or with an export or gate flag, are the only downloads gitmole makes of its own; see [install.md](install.md) for everything that reaches the network. |
-| `--clean [DIR]` | List what gitmole left behind, temp clones, `analysis-*` outputs under DIR and tools `--install-tools` placed for pins this version no longer uses, with their sizes, and delete them after a y/N question. The temp clones show as one row with their count; `--full` lists each one. Exit 0 whether you answer yes or no, 2 without a terminal. |
-| `--yes` | With `--clean`: delete without asking. For scripts and pipes. |
-| `--feedback` | Ask five yes/no questions about the findings this run spelled out, and write the answers to `gitmole-feedback.json` beside the output. gitmole sends nothing: it prints a `gh issue create` command and a URL, and you choose. The file holds the rule id, the severity, your answer, gitmole's version and three bands (main language, file count, commit count) — no paths, names or values. Asked once on a plain interactive run without the flag; a decline is never repeated, and an answer is followed up after 90 days. Never asked with an export or gate flag (`--json`, `--markdown`, `--sarif`, `--sbom`, `--fail-on`, `--risk`, `--hook`, `--compare`), in portfolio mode, without a terminal, or where the environment declares CI. `GITMOLE_NO_FEEDBACK=1` turns it off for good, and `GITMOLE_CACHE=off` keeps no record of having asked. |
-| `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics, duplicates and plots. Never changes what a file is: the classifier reads every tracked file. |
-| `--ignore GLOB` | An extra ignore pattern for the same steps. Repeatable. |
-| `--workers N` | How many tools run at once. |
-| `--timeout S` | Seconds any single tool may run before it is killed. Default 900. A killed tool is marked in the report and the rest still renders. |
-| `--time-budget S` | Skip the code-age pass when its projected time exceeds this. Default 60. |
+| `--workers N` | How many tools run at once. Default 6. |
+| `--timeout SECONDS` | Seconds any single tool may run before it is killed. Default 900. A killed tool is marked in the report and the rest still renders. |
+| `--time-budget SECONDS` | Skip the code-age pass when its projected time exceeds this. Default 60. |
 | `--budget N` | Skip the plots above this many git blames. Default 50,000. |
 | `--deep` | Run code age, plots and the duplicates step regardless of their budgets. |
+| `--plots` | Also draw the git-of-theseus code-age and survival charts. Needs `gitmole[plots]`. |
+
+### Scope
+
+Which history and which files the analysis reads.
+
+| Option | What it does |
+|---|---|
+| `--since WHEN` | Bound the history by author date: `2y`, `18m`, `90d` or a `YYYY-MM-DD` date. People, activity, timeline, hotspots and coupling then describe the current team rather than the founders. File ages and code age always cover the whole history, identity aliases are still merged over all of it, and an empty window is an error. |
 | `--gone MONTHS` | How long without a commit counts as gone, measured before the last commit. Default 12. |
+| `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile. |
+| `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics, duplicates and plots. Never changes what a file is: the classifier reads every tracked file. |
+| `--ignore GLOB` | An extra ignore pattern for the same steps. Repeatable. |
+
+### Report and exports
+
+What is printed, and what is written beside it.
+
+| Option | What it does |
+|---|---|
+| `--full` | A report option, not a help option: print the report with every section, column and row. Adds the hotspots, size, activity and code age tables; the default report keeps the columns you read, caps each table, elides long paths in the middle, hides test files, deleted files and vendored code, shows a directory that changes as one as a single coupling row, and names in one line the findings labelled true but never acted on. With `--clean`, it lists each temp clone rather than one row for them all. |
+| `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
 | `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout. |
 | `--sarif PATH` | Write the findings as SARIF 2.1.0 to PATH, or `-` for stdout, for GitHub code scanning and GitLab. See [SARIF](#sarif). |
+| `--sarif-scope SCOPE` | With `--sarif`, `head` or `history`: `head` (the default) keeps only the results whose file is in the tree; `history` keeps every result, the commit in its properties. |
 | `--sbom PATH` | Write a CycloneDX 1.6 SBOM of every locked package to PATH, or `-` for stdout. See [SBOM](#sbom). |
-| `--sarif-scope head\|history` | With `--sarif`: `head` (the default) keeps only the results whose file is in the tree; `history` keeps every result, the commit in its properties. |
-| `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
-| `--fail-on LEVEL` | Exit 3 if any finding is at `critical`, `warning` or `info` or worse. |
-| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
-| `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent. |
 | `--compare BEFORE.json` | Add a "Since last report" section against an earlier `--json` export of the same clone: findings new, resolved and persisting (with the counts that moved), files that entered or left the watch list. Works with `--no-run`; never changes the exit code; not with `owner/*`. |
+| `--feedback` | Ask five yes/no questions about the findings this run spelled out, and write the answers to `gitmole-feedback.json` beside the output. gitmole sends nothing: it prints a `gh issue create` command and a URL, and you choose. The file holds the rule id, the severity, your answer, gitmole's version and three bands (main language, file count, commit count) — no paths, names or values. Asked once on a plain interactive run without the flag; a decline is never repeated, and an answer is followed up after 90 days. Never asked with an export or gate flag (`--json`, `--markdown`, `--sarif`, `--sbom`, `--fail-on`, `--risk`, `--hook`, `--compare`), in portfolio mode, without a terminal, or where the environment declares CI. `GITMOLE_NO_FEEDBACK=1` turns it off for good, and `GITMOLE_CACHE=off` keeps no record of having asked. |
+
+### Gates
+
+Exit codes for CI and for coding agents.
+
+| Option | What it does |
+|---|---|
+| `--fail-on LEVEL` | Exit 3 if any finding is at LEVEL or worse, LEVEL being `critical`, `warning` or `info`. |
+| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
+| `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent. With `--hook`: exit 2 at the same point. |
 | `--hook` | With `--no-run` and an output directory: read an agent hook's JSON on stdin (or take files after `--`), score the files it names like `--risk`, print a summary the agent reads back, and exit 2 when `--risk-threshold` is exceeded. See [Agent hooks](#agent-hooks). |
+
+### Tools and housekeeping
+
+Checking and installing the tools, looking before a run, and tidying up after one.
+
+| Option | What it does |
+|---|---|
+| `--doctor` | List every tool gitmole runs with the version found and the version pinned, and where to get a missing or moved one; whether the structure step can run; and the date of the local vulnerability database; then exit. Takes no target; other options are ignored. Exit 0 when every tool is at its pin, 1 otherwise. |
+| `--install-tools` | Download the five tools at the versions gitmole pins, from the release archives the Homebrew formula installs and checked against the same sha256, into gitmole's own directory, one `<tool>-<version>` directory each: `GITMOLE_TOOLS` if set (an absolute path), else `~/Library/Application Support/gitmole/tools` on macOS or `$XDG_DATA_HOME/gitmole/tools` (default `~/.local/share/gitmole/tools`) elsewhere. Each tool is run once after it lands to check it prints its pin. A run looks in the current pins' directories before PATH. Takes no target and refuses `--doctor`; other options are ignored. Nothing downloads when the directory cannot be written. Exit 0 when all five landed, 1 when one did not (no build for this platform, a hash mismatch, no network, a copy that does not run here) with the reason named. This and a yes to the missing-tools question, which is asked only of a person at a terminal and never in CI or with an export or gate flag, are the only downloads gitmole makes of its own; see [install.md](install.md) for everything that reaches the network. |
+| `--list-file-types` | List the file types in the tree with counts and whether each counts as code, then exit. |
+| `--clean [DIR]` | List what gitmole left behind, temp clones, `analysis-*` outputs under DIR and tools `--install-tools` placed for pins this version no longer uses, with their sizes, and delete them after a y/N question. The temp clones show as one row with their count; `--full` lists each one. Exit 0 whether you answer yes or no, 2 without a terminal. |
+| `--yes` | With `--clean`: delete without asking. For scripts and pipes. |
+| `--version` | Print gitmole's version and exit. |
+| `-h`, `--help` | Print the options in these groups, one line each, with examples, and exit. `--help --full` prints the same: `--full` is a report option. |
 
 ## Exports and CI
 
@@ -241,14 +277,14 @@ pass the same shape of JSON on stdin and read the exit code:
 
 pre-commit, from the `.pre-commit-hooks.yaml` in gitmole's repository:
 `gitmole-risk` runs the whole analysis against `origin/main` at `pre-push`
-(the external tools have to be on PATH); `gitmole-hook` scores the staged
+(the external tools have to be on PATH, or installed once with `gitmole --install-tools`); `gitmole-hook` scores the staged
 files against an earlier run at `pre-commit`, with the output directory as
 its first argument:
 
 ```yaml
 repos:
   - repo: https://github.com/antvinni/gitmole
-    rev: v0.13.0
+    rev: vX.Y.Z   # the latest release tag; pre-commit autoupdate fills it in
     hooks:
       - id: gitmole-risk
         args: [--risk, origin/main, --risk-threshold, "10"]
@@ -256,7 +292,9 @@ repos:
         args: [analysis-repo, --no-run, --hook, --risk-threshold, "10", --]
 ```
 
-Secrets are betterleaks' own pre-commit hook; gitmole does not repeat it.
+Put the latest tag from [the releases page](https://github.com/antvinni/gitmole/releases)
+in place of `vX.Y.Z`, or run `pre-commit autoupdate`, which sets it and moves it
+forward later. Secrets are betterleaks' own pre-commit hook; gitmole does not repeat it.
 
 ## Big repositories
 
