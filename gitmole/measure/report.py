@@ -199,6 +199,10 @@ def current(record: dict, extras: dict) -> list:
     clean = s.get("claims_clean")
     rows.append(("findings whose text agrees with their own numbers", "every set",
                  f"{clean[0]} of {clean[1]}" if clean else "not checked in this record"))
+    contra = s.get("contradictions")
+    rows.append(("contradictions between a finding and the report's own facts", "every set",
+                 (f"{contra} ({', '.join(f'{k} {v}' for k, v in (s.get('contradictions_by_check') or {}).items())})" if contra else "0")
+                 if contra is not None else "not checked in this record"))
     desc = (extras or {}).get("description") or {}
     unexplained = sum(1 for checks in desc.values() for c in checks if c["agree"] is False and not c.get("explained"))
     rows.append(("unexplained description disagreements", "development", str(unexplained) if desc else "not run"))

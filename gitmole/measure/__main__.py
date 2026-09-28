@@ -5,6 +5,7 @@
     python -m gitmole.measure extras [--release]                                                 # the current tree's one-off checks
     python -m gitmole.measure report                                                             # docs/measurement-history.md and the graphs
     python -m gitmole.measure labels dump|score                                                  # the hand-label sheet and its verdicts
+    python -m gitmole.measure consistency [--version V] [--rerender]                             # findings against the report's own facts
 
 The timed runs are sequential, one repository at a time and nothing else on the machine, so the times
 and memory are comparable. The rankings at cut-offs are not timed, so they run side by side once every
@@ -130,6 +131,11 @@ def main(argv=None) -> int:
     sub.add_parser("report")
     cl = sub.add_parser("claims", help="check a round's findings against their own numbers, without measuring again")
     cl.add_argument("--version", action="append", default=[], help="a release already run (default: the latest recorded)")
+    co = sub.add_parser("consistency", help="check a round's findings against each other and the facts the runs collected")
+    co.add_argument("--version", default=None, help="a release already run (default: the latest recorded)")
+    co.add_argument("--rerender", action="store_true",
+                    help="judge this tree's rules instead: re-render each saved analysis with --no-run first (no collection)")
+    co.add_argument("--only", action="append", default=[], help="only these corpus entries")
     lab = sub.add_parser("labels")
     lab.add_argument("action", choices=["dump", "score"])
     args = p.parse_args(argv)
@@ -181,6 +187,10 @@ def main(argv=None) -> int:
             for name, rule, kind in complaints:
                 print(f"  {name}/{rule}: {kind}")
         return 0
+    if args.command == "consistency":
+        from . import consistency
+        version = args.version or dashboard.load_history(RECORDS)[-1]["version"]
+        return consistency.round_(manifest, root, version, rerender=args.rerender, only=set(args.only) or None)
     if args.command == "extras":
         from . import extras
         print(write(extras.run_all(manifest, root, release=args.release), os.path.join(RECORDS, "extras")))

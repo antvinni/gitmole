@@ -18,7 +18,7 @@ import sys
 import time
 
 from .. import evaluate, maat, run, szz
-from . import claims, corpus, metrics
+from . import claims, consistency, corpus, metrics
 from . import labels as hand_labels   # `labels` is the ApacheJIT dict below
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -153,8 +153,9 @@ def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool =
     return rec
 
 
-def read_outputs(rec: dict) -> dict:
-    """What the run's own files say: findings by severity and rule, step statuses and timings, coverage."""
+def read_outputs(rec: dict, clone: str = None) -> dict:
+    """What the run's own files say: findings by severity and rule, step statuses and timings, coverage,
+    and whether the findings agree with the rest of the report (with `clone`, with git too)."""
     out = {}
     try:
         with open(rec["report"], encoding="utf-8") as fh:
@@ -167,6 +168,8 @@ def read_outputs(rec: dict) -> dict:
     out["rules"] = sorted({(f.get("rule") or {}).get("id") or f.get("title", "") for f in found})
     out["shown"] = sum(1 for f in found if not f.get("summary"))   # what the default report spells out
     out["claims"] = claims.over(found)   # does each finding's text agree with its own numbers
+    one = consistency.over(data, clone)   # does it agree with the other findings and the facts the run collected
+    out["consistency"] = {"checked": one["checked"], "clean": one["clean"], "by_check": consistency.by_check(one["complaints"]), "clone": one["clone"]}
     meta = data.get("meta") or {}
     steps = meta.get("steps")
     if isinstance(steps, dict):
@@ -351,7 +354,7 @@ def run_entry(src: str, entry: dict, root: str, reference: str, env_extra: dict 
     started = time.monotonic()
     rec = run_release(src, clone, work, reference, fail_on=entry["set"] == "gate",
                       timeout=FIXTURE_TIMEOUT if entry.get("fixture") else MAIN_TIMEOUT, env_extra=env_extra)
-    rec.update(read_outputs(rec))
+    rec.update(read_outputs(rec, clone))
     rec["measure_seconds"] = round(time.monotonic() - started, 1)
     rec["clone"] = clone
     return rec
