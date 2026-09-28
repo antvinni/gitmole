@@ -69,14 +69,26 @@ def _given(name: str) -> bool:
     return len(name) >= 2 and name.isalpha() and name[0].isupper() and name[1:].islower()
 
 
+_NO_REPLY = re.compile(r"(?:do[-_.]?not[-_.]?reply|no[-_.]?reply)", re.I)
+
+
+def shared_mailbox(email: str) -> bool:
+    """An address that names no one: empty (a Co-authored-by trailer with no <...>), or a bare no-reply
+    mailbox (noreply@, no-reply@, donotreply@), which a service gives every account it commits for. Two
+    names under it are two identities unless the names themselves match. GitHub's per-account
+    <id>+<login>@users.noreply.github.com has the account in its local part and still merges."""
+    local = email.strip().lower().rpartition("@")[0] if "@" in email else email.strip().lower()
+    return not local or bool(_NO_REPLY.fullmatch(local))
+
+
 def same_person(a: dict, b: dict, shared: frozenset = frozenset()) -> bool:
-    """Same email; two shared name tokens; the same name spelled identically (a handle such as KaKa
+    """Same email, unless it is a shared_mailbox; two shared name tokens; the same name spelled identically (a handle such as KaKa
     under three emails), unless that name is one word that two full names here share or that is written
     as a given name; or a one-word handle that is one distinctive word of the other's fuller name
     (junegunn and Junegunn Choi), a given name excepted. `shared` is shared_words over the whole history,
     which merge passes. A bare first name under another email is left apart: flink's three Jacks are
     three people, and nothing in the name says which of them a fuller name is."""
-    if a["email"].lower() == b["email"].lower():
+    if a["email"].lower() == b["email"].lower() and not shared_mailbox(a["email"]):
         return True
     ta, tb = _tokens(a["name"]), _tokens(b["name"])
     if len(ta & tb) >= 2:

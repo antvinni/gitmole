@@ -58,12 +58,18 @@ class Document(unittest.TestCase):
         [result] = sarif.build(report(), [f])["runs"][0]["results"]
         self.assertEqual(result["message"]["text"], detail, "the occurrence text is the result's, and is still there")
 
-    def test_a_rule_whose_every_result_the_scope_dropped_is_not_declared(self):
+    def test_a_finding_whose_every_place_the_scope_dropped_keeps_one_result_without_a_location(self):
+        """--fail-on stops on the finding whatever the scope, so the document has it too: devlake exited 3 on a
+        critical whose secrets were all in files deleted years ago, and its SARIF had no error-level result."""
         kept = finding("bug_magnets", evidence={"files": [{"file": "src/a.py"}]})
         dropped = finding("duplication", evidence={"largest": [{"lines": 40, "places": [["gone/old.py", 1, 40]]}]})
         head = sarif.build(report(), [kept, dropped])
-        self.assertEqual([r["id"] for r in head["runs"][0]["tool"]["driver"]["rules"]], ["bug_magnets"])
-        self.assertEqual({r["ruleId"] for r in head["runs"][0]["results"]}, {"bug_magnets"})
+        self.assertEqual([r["id"] for r in head["runs"][0]["tool"]["driver"]["rules"]], ["bug_magnets", "duplication"])
+        gone = next(r for r in head["runs"][0]["results"] if r["ruleId"] == "duplication")
+        self.assertNotIn("locations", gone, "nothing at HEAD is where it is")
+        self.assertFalse(gone["properties"]["inTree"])
+        self.assertIn("--sarif-scope history", gone["message"]["text"])
+        self.assertEqual([r["ruleId"] for r in head["runs"][0]["results"]], ["bug_magnets", "duplication"])
         history = sarif.build(report(), [kept, dropped], scope="history")
         self.assertEqual(sorted(r["id"] for r in history["runs"][0]["tool"]["driver"]["rules"]), ["bug_magnets", "duplication"])
 
@@ -76,12 +82,27 @@ class Document(unittest.TestCase):
         self.assertEqual(by["duplication"]["locations"][0]["physicalLocation"]["region"], {"startLine": 1})
         self.assertNotIn("locations", by["dormant"], "a repository-wide finding has no file to point at")
 
+    def test_every_finding_the_gate_stops_on_has_an_error_result_under_head_scope(self):
+        rows = [{"rule": "github-pat", "file": "old/gone.js", "commit": "d2d2d2d", "line": 3, "fingerprint": "y", "value": "h2", "placeholder": False}]
+        found = [finding("secrets_in_source", "critical", evidence={"files": ["old/gone.js"]})]
+        results = sarif.build(report(secrets=rows), found)["runs"][0]["results"]
+        self.assertEqual([(r["ruleId"], r["level"]) for r in results], [("secrets_in_source", "error")])
+        self.assertNotIn("locations", results[0])
+
+    def test_a_tracked_credential_file_is_in_the_tree_though_scc_does_not_count_it(self):
+        """prometheus: web/ui/react-app/.env is in git's index (meta.credential_files) and in no scc language."""
+        r = report(meta={"name": "demo", "credential_files": ["web/.env"]})
+        results = sarif.build(r, [finding("credential_files", evidence={"files": ["web/.env"]})])["runs"][0]["results"]
+        self.assertEqual(results[0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"], "web/.env")
+
     def test_head_scope_drops_what_is_not_in_the_tree_and_history_keeps_it_with_the_commit(self):
         found = [finding("sweeping_commits", "info", evidence={"commits": [{"hash": "fmt1", "files": 900}]}),
                  finding("bug_magnets", evidence={"files": [{"file": "gone.py"}, {"file": "src/a.py"}]})]
         head = sarif.build(report(), found, scope="head")
-        self.assertEqual([(r["ruleId"], r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]) for r in head["runs"][0]["results"]],
-                         [("bug_magnets", "src/a.py")], "the deleted file and the commit-level finding are gone")
+        self.assertEqual([(r["ruleId"], r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]) for r in head["runs"][0]["results"] if "locations" in r],
+                         [("bug_magnets", "src/a.py")], "the deleted file and the commit-level finding have no place at HEAD")
+        self.assertEqual([r["ruleId"] for r in head["runs"][0]["results"] if "locations" not in r], ["sweeping_commits"],
+                         "the commit-level finding keeps one result, with no location")
         history = sarif.build(report(), found, scope="history")
         by = {r["ruleId"]: r for r in history["runs"][0]["results"]}
         self.assertEqual(by["sweeping_commits"]["properties"]["commit"], "fmt1")

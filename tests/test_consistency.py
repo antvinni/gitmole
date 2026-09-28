@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from gitmole.measure import consistency
 
@@ -106,7 +107,10 @@ class SarifGate(unittest.TestCase):
         f = finding("secrets_in_source", "1 distinct value in 1 place: github-pat in gone.js (abc1234).", severity="critical",
                     evidence={"files": ["gone.js"]})
         r = report(findings=[f], size={"files": {"kept.js": {}}})   # the file is no longer in the tree, so no location survives
-        self.assertIn("sarif_gate", checks(r))
+        # sarif.py now keeps a location-less result for such a finding; the check must still see a document without one
+        with mock.patch.object(consistency.sarif, "results", return_value=[]):
+            self.assertIn("sarif_gate", checks(r))
+        self.assertNotIn("sarif_gate", checks(r), "the finding has its result now")
 
     def test_info_findings_are_not_gated(self):
         r = report(findings=[finding("reverts", "5 reverts.")])
@@ -129,6 +133,13 @@ class TrailerAuthor(unittest.TestCase):
     def test_authored_commits_kept_apart_are_fine(self):
         r = report(activity={"authors": {"Bot Author": {"commits": 19, "authored": 0, "last": "2026-08-01"}}},
                    provenance={"trailers": {"never_author": [{"name": "Bot Author", "commits": 19}]}})
+        self.assertEqual(checks(r), [])
+
+    def test_an_export_with_authored_counts_is_honest_by_construction(self):
+        """Someone who wrote commits and is also credited under another address: after the People table
+        started counting authored commits apart, comparing credit with them fired on such people."""
+        r = report(activity={"authors": {"Bo": {"commits": 9, "authored": 3, "last": "2026-08-30"}}},
+                   provenance={"trailers": {"never_author": [{"name": "Bo", "commits": 6}]}})
         self.assertEqual(checks(r), [])
 
     def test_someone_who_also_authored(self):

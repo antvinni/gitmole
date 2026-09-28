@@ -1,0 +1,197 @@
+name: gitmole
+description: Offline git repository analysis in CI; the report in the job summary, a gate on the findings, SARIF for code scanning.
+author: antvinni
+branding:
+  icon: search
+  color: gray-dark
+
+# The action installs gitmole and the five tools it runs at the versions it pins, caches both, runs one
+# analysis and writes its Markdown report to the job summary. The network is reached in the setup steps
+# only: pip, the pinned tool archives (the ones Formula/gitmole.rb names, checked against the same sha256),
+# and, when vulnerability-db is true, osv-scanner's offline database. The scan itself stays offline.
+# Check out with fetch-depth: 0; gitmole reads the whole history.
+
+inputs:
+  args:
+    description: The target and any extra options, split on whitespace (no shell quoting). The target is a path in the workspace.
+    default: "."
+  version:
+    description: >-
+      The gitmole version to install from PyPI. Empty (the default) means the action's own tag when it is
+      used as antvinni/gitmole@vX.Y.Z, and the action's own source otherwise (a commit SHA, a branch, uses: ./).
+    default: ""
+  fail-on:
+    description: Fail the step when a finding is at this severity or worse (critical, warning, info); empty never fails on findings.
+    default: ""
+  risk:
+    description: Score the files changed since this base (for a pull request, origin/<base branch>); empty skips it.
+    default: ""
+  risk-threshold:
+    description: With risk, fail the step when the changed files hold more than this percent of the repository's revisions x lines.
+    default: ""
+  sarif:
+    description: Write the findings as SARIF 2.1.0 to this path; empty writes none.
+    default: ""
+  upload-sarif:
+    description: With sarif, upload the file to GitHub code scanning (the job needs security-events write).
+    default: "true"
+  vulnerability-db:
+    description: Download osv-scanner's offline database before the scan (cached per day), so the dependency scan has something to match against.
+    default: "false"
+  summary:
+    description: Append the Markdown report to the job summary.
+    default: "true"
+  python-version:
+    description: The Python gitmole runs on (3.10 or newer for the structure step).
+    default: "3.12"
+
+outputs:
+  exit-code:
+    description: gitmole's exit code (0, or 3 when fail-on or risk-threshold tripped).
+    value: ${{ steps.run.outputs.exit-code }}
+  markdown:
+    description: The path of the Markdown report.
+    value: ${{ steps.run.outputs.markdown }}
+  sarif:
+    description: The path of the SARIF file, when one was asked for.
+    value: ${{ steps.run.outputs.sarif }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install gitmole
+      id: install
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        if [ -n "$INPUT_VERSION" ]; then
+          spec="gitmole==${INPUT_VERSION#v}"
+        elif [[ "$ACTION_REF" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+          spec="gitmole==${BASH_REMATCH[1]}"   # the release this tag is: its PyPI package
+        else
+          spec="$ACTION_PATH"                  # a SHA, a branch or uses: ./ — the source the action came from
+        fi
+        echo "installing $spec"
+        python -m pip install --disable-pip-version-check --quiet "$spec"
+        gitmole --version
+        # gitmole's own tool directory and osv-scanner's database, both under the runner's tool cache so the
+        # cache steps below can name them
+        echo "GITMOLE_TOOLS=$RUNNER_TOOL_CACHE/gitmole-tools" >> "$GITHUB_ENV"
+        echo "OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY=$RUNNER_TOOL_CACHE/gitmole-osv" >> "$GITHUB_ENV"
+        # the cache keys: the pinned tool versions, and osv-scanner's alone for its database
+        python - <<'PY' >> "$GITHUB_OUTPUT"
+        from gitmole import tools
+        pins = "-".join(f"{name}{version}" for name, version in sorted(tools.PINNED.items()) if name != "lizard")
+        print(f"pins={pins}")
+        print(f"osv={tools.PINNED['osv-scanner']}")
+        PY
+        echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+    - name: Restore the pinned tools
+      id: tools-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.tool_cache }}/gitmole-tools
+        key: gitmole-tools-${{ runner.os }}-${{ runner.arch }}-${{ steps.install.outputs.pins }}
+
+    - name: Install the pinned tools
+      if: steps.tools-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: gitmole --install-tools
+
+    - name: Put the tools on PATH
+      shell: bash
+      run: |
+        set -euo pipefail
+        # gitmole finds them by itself; PATH is for the later steps (osv-scanner below, and the caller's own)
+        python - <<'PY' >> "$GITHUB_PATH"
+        from gitmole import run, userdirs
+        missing = [t for t in run.REQUIRED_TOOLS if not userdirs.tool_dirs([t])]
+        if missing:
+            raise SystemExit(f"not installed: {', '.join(missing)}; see gitmole --doctor")
+        print("\n".join(userdirs.tool_dirs(run.REQUIRED_TOOLS)))
+        PY
+
+    - name: Restore the vulnerability database
+      id: osv-cache
+      if: inputs.vulnerability-db == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.tool_cache }}/gitmole-osv
+        key: gitmole-osv-${{ runner.os }}-${{ steps.install.outputs.osv }}-${{ steps.install.outputs.day }}
+        restore-keys: gitmole-osv-${{ runner.os }}-${{ steps.install.outputs.osv }}-
+
+    - name: Download the vulnerability database
+      if: inputs.vulnerability-db == 'true' && steps.osv-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        # the one step that fetches the database: it covers the ecosystems this workspace's lock files use.
+        # osv-scanner exits 1 when it finds a vulnerability and 128 when there is no lock file; neither is a
+        # failed download, and the scan reports on the database either way
+        rc=0
+        osv-scanner scan source -r --offline-vulnerabilities --download-offline-databases . > /dev/null || rc=$?
+        case "$rc" in
+          0|1|128) ;;
+          *) echo "::error::osv-scanner exited $rc downloading the offline database"; exit "$rc" ;;
+        esac
+
+    - name: Run gitmole
+      id: run
+      shell: bash
+      env:
+        INPUT_ARGS: ${{ inputs.args }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_RISK: ${{ inputs.risk }}
+        INPUT_RISK_THRESHOLD: ${{ inputs.risk-threshold }}
+        INPUT_SARIF: ${{ inputs.sarif }}
+        INPUT_SUMMARY: ${{ inputs.summary }}
+      run: |
+        set -uo pipefail
+        read -r -a argv <<< "$INPUT_ARGS"   # split on whitespace, never evaluated by a shell
+        markdown="$RUNNER_TEMP/gitmole-report.md"
+        argv+=(--out "$RUNNER_TEMP/gitmole-analysis" --markdown "$markdown")
+        [ -n "$INPUT_FAIL_ON" ] && argv+=(--fail-on "$INPUT_FAIL_ON")
+        [ -n "$INPUT_RISK" ] && argv+=(--risk "$INPUT_RISK")
+        [ -n "$INPUT_RISK_THRESHOLD" ] && argv+=(--risk-threshold "$INPUT_RISK_THRESHOLD")
+        [ -n "$INPUT_SARIF" ] && argv+=(--sarif "$INPUT_SARIF")
+        rc=0
+        gitmole "${argv[@]}" || rc=$?
+        echo "exit-code=$rc" >> "$GITHUB_OUTPUT"
+        echo "markdown=$markdown" >> "$GITHUB_OUTPUT"
+        echo "sarif=$INPUT_SARIF" >> "$GITHUB_OUTPUT"
+        if [ "$INPUT_SUMMARY" = "true" ] && [ -s "$markdown" ]; then
+          limit=1000000   # a job summary holds 1 MiB
+          if [ "$(wc -c < "$markdown")" -gt "$limit" ]; then
+            head -c "$limit" "$markdown" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n\n(report cut at %s bytes; the whole of it is %s)\n' "$limit" "$markdown" >> "$GITHUB_STEP_SUMMARY"
+          else
+            cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
+          fi
+        fi
+        # 3 is a tripped gate: fail, but only after the report and the SARIF are written and the upload below
+        # has run; anything else non-zero is gitmole failing, and fails here
+        if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
+          exit "$rc"
+        fi
+
+    - name: Upload SARIF to code scanning
+      if: inputs.sarif != '' && inputs.upload-sarif == 'true'   # after a clean run or a tripped gate: both wrote the file
+      uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+      with:
+        sarif_file: ${{ inputs.sarif }}
+        category: gitmole
+
+    - name: Fail on a tripped gate
+      if: steps.run.outputs.exit-code == '3'
+      shell: bash
+      run: |
+        echo "::error::gitmole's gate tripped (fail-on or risk-threshold); the report is in the job summary"
+        exit 3

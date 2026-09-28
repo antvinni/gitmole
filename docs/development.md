@@ -196,10 +196,10 @@ change beats the current watch list (measurement.md, "Is a candidate better?").
 `python -m gitmole.measure` is the harness of
 [measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md):
 `run --ref TAG` runs a release from its own source over the corpus in
-`measure/corpus.json` and writes `docs/measurements/<version>.json`,
-`history` does that for every release tag not yet recorded (`--releases minor`
-for the first shipped release of each x.y series only; since only releases that
-change what gitmole finds or ranks are measured, prefer `run --ref` for those); both default to the
+`measure/corpus.json` and writes `docs/measurements/<version>.json` (only
+releases that change what gitmole finds or ranks are measured; the command that
+re-measured every past release tag was dropped at 0.39.0 as more machine time than
+it was worth, and the records it made stay as they are); it defaults to the
 fast loop's sets (development, awkward, gate), and `--release` runs a release
 round's instead (development, large, awkward, gate, well-kept); `extras` runs the
 current tree's sensitivity sweep, description checks and hook replay over

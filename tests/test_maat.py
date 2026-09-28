@@ -224,7 +224,7 @@ class Activity(unittest.TestCase):
         self.assertEqual(a["by_hour"][9], 4)
         self.assertEqual(a["by_hour"][22], 1)
         self.assertEqual(a["by_month"], {"2026-01": 1, "2026-02": 1, "2026-03": 2, "2026-04": 3})
-        self.assertEqual(a["authors"]["Ann"], {"commits": 5, "added": 16, "deleted": 1, "first": "2026-01-10", "last": "2026-04-02"})
+        self.assertEqual(a["authors"]["Ann"], {"commits": 5, "authored": 5, "added": 16, "deleted": 1, "first": "2026-01-10", "last": "2026-04-02"})
         self.assertEqual(a["authors"]["Cat"]["deleted"], 3)
         self.assertEqual(a["fix_commits"], 3)
 
@@ -336,8 +336,8 @@ class SinceWindow(unittest.TestCase):
         self.assertEqual(sorted(act["authors"]), ["Ann", "Cat"], "only the people who committed in the window")
         self.assertEqual(act["authors"]["Ann"]["first"], "2026-04-01")
         self.assertEqual(sorted(act["authors_all"]), ["Ann", "Bob", "Cat"], "knowledge loss needs everyone")
-        self.assertEqual(act["authors_all"]["Ann"], {"commits": 5, "added": 16, "deleted": 1, "first": "2026-01-10", "last": "2026-04-02"})
-        self.assertEqual(act["authors_all"]["Bob"], {"commits": 1, "added": 6, "deleted": 6, "first": "2026-02-10", "last": "2026-02-10"})
+        self.assertEqual(act["authors_all"]["Ann"], {"commits": 5, "authored": 5, "added": 16, "deleted": 1, "first": "2026-01-10", "last": "2026-04-02"})
+        self.assertEqual(act["authors_all"]["Bob"], {"commits": 1, "authored": 1, "added": 6, "deleted": 6, "first": "2026-02-10", "last": "2026-02-10"})
 
     def test_empty_window_is_reported(self):
         commits = maat.parse_log(LOG)
@@ -430,8 +430,9 @@ class CoAuthors(unittest.TestCase):
         self.assertEqual(own[("src/b.py", "Ann")], (3, 1, 1), "the odd line and the odd deletion go to the committer")
         self.assertEqual(own[("src/b.py", "Bob")], (2, 0, 1))
         totals = maat.author_totals(commits)
-        self.assertEqual(totals["Bob"], {"commits": 1, "added": 7, "deleted": 0, "first": "2026-01-10", "last": "2026-01-10"})
-        self.assertEqual(maat.activity(commits)["timeline"]["Bob"], {"2026-01": 1})
+        self.assertEqual(totals["Bob"], {"commits": 1, "authored": 0, "added": 7, "deleted": 0, "first": "2026-01-10", "last": "2026-01-10"},
+                         "credited with the commit, which is not one Bob authored")
+        self.assertNotIn("Bob", maat.activity(commits)["timeline"], "the Timeline counts the commits a person authored, not a trailer's credit")
 
 
 class MinorContributors(unittest.TestCase):
