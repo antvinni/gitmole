@@ -17,6 +17,7 @@ function in the file is what the reasons name, since lizard has no reader for sh
 Makefiles and the like."""
 from __future__ import annotations
 
+import math
 import os
 from collections import Counter, defaultdict
 
@@ -423,10 +424,25 @@ def ranked_by(rows: list, key) -> list:
     return [r["file"] for r in sorted(sorted(rows, key=lambda r: r["file"]), key=key, reverse=True)]
 
 
+CHANCE_ALPHA = 0.05   # the conventional level for "not distinguishable from chance" (Fisher 1935)
+
+
+def p_by_chance(pool: int, positives: int, listed: int, hits: int) -> float:
+    """The one-sided hypergeometric tail (Fisher's exact test): the chance that `listed` files drawn at
+    random from a pool of `pool`, `positives` of them fixed later, would hold `hits` or more fixed ones."""
+    if pool <= 0 or listed <= 0 or hits <= 0:
+        return 1.0
+    total = math.comb(pool, listed)
+    tail = sum(math.comb(positives, i) * math.comb(pool - positives, listed - i) for i in range(hits, min(listed, positives) + 1))
+    return tail / total
+
+
 def backtest(report: dict, top: int = WATCH_TOP):
     """How the watch list as of the cut-off T (report["backtest"]) did against the fixes that came after.
-    Expected value is a random pick of listed files from the same pool the list draws from; `baselines`
-    is what the same number of files ranked by churn alone and by size alone would have named."""
+    Expected value is a random pick of listed files from the same pool the list draws from; `positives`
+    is how many of that pool were fixed, the count the hits and the expected value are out of;
+    `p_by_chance` is how likely a random pick is to do as well; `baselines` is what the same number of
+    files ranked by churn alone and by size alone would have named."""
     past = report.get("backtest")
     if not past or not (past.get("size") or {}).get("files"):
         return None
@@ -437,7 +453,9 @@ def backtest(report: dict, top: int = WATCH_TOP):
     pool = [r["file"] for r in rows]
     listed = pool[:top]
     fixed = {f["entity"] for f in report.get("fixes") or [] if f.get("last-fix", "") > t and not filetypes.is_test_path(f["entity"])}
-    expected = round(len(listed) * len(fixed.intersection(pool)) / len(pool), 1) if pool else 0.0
+    positives = len(fixed.intersection(pool))   # the fixed files the list could have named: `fixed` counts the rest too
+    expected = round(len(listed) * positives / len(pool), 1) if pool else 0.0
     baselines = {name: len(fixed.intersection(ranked_by(rows, key)[:top])) for name, key in BASELINES.items()}
-    return {"t": t, "pool": len(pool), "listed": len(listed), "fixed": len(fixed), "hits": len(fixed.intersection(listed)),
-            "expected": expected, "baselines": baselines}
+    hits = len(fixed.intersection(listed))
+    return {"t": t, "pool": len(pool), "listed": len(listed), "fixed": len(fixed), "positives": positives, "hits": hits,
+            "expected": expected, "baselines": baselines, "p_by_chance": round(p_by_chance(len(pool), positives, len(listed), hits), 4)}

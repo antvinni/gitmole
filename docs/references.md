@@ -14,6 +14,7 @@ citation in its `rule.ref`, so a reader checking the JSON sees it where the numb
 - Borg, Hagatulah, Tornhill and Söderberg, "Code for Machines, Not Just Humans," 2026. [arXiv:2601.02200](https://arxiv.org/html/2601.02200): why structure metrics earned the optional `structure.py` step.
 - Boucher and Anderson, "Trojan Source: Invisible Vulnerabilities," *USENIX Security* 2023: the `trojan_source` check in `hygiene.py`.
 - Eyolfson, Tan and Lam, "Correlations between bugginess and time-based commit characteristics," *EMSE* 19, 2014. [PDF](https://www.cs.purdue.edu/homes/lintan/publications/commitTime-emse14.pdf): `maat.latenight` and the midnight-to-4-am watch reason, never a rank.
+- Fisher, *The Design of Experiments*, Oliver and Boyd 1935: the exact test on a hypergeometric tail, one-sided at the conventional 5%, behind the watch-list backtest line's "not distinguishable from a random 15" (`watch.p_by_chance`).
 - Fu and Menzies, "Revisiting Unsupervised Learning for Defect Prediction," *FSE* 2017. [arXiv:1703.00132](https://arxiv.org/pdf/1703.00132): why the Kamei factors on `--risk` stay reasons and never a score.
 - Gall, Hajek and Jazayeri, "Detection of logical coupling based on product release history," *ICSM* 1998: change coupling, the `tight_coupling` finding.
 - Hassan, "Predicting Faults Using the Complexity of Code Changes," *ICSE* 2009. [PDF](https://sailresearch.github.io/sail-website/data/pdfs/ICSE2009_PredictingFaultsUsingTheComplexityOfCodeChanges.pdf): `maat.entropy`, the backtest variant and the `changed in N different months` reason.

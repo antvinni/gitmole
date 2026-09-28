@@ -45,6 +45,19 @@ class ActionsPinning(unittest.TestCase):
         self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4"}, {"file": ".github/workflows/ci.yml", "uses": "org/repo@main"}])
         self.assertEqual(out["pinned"], 2)
         self.assertEqual(out["local"], 3, "a local action, a docker image and a path without @ref (curl writes $/.github/...) are neither")
+        self.assertIsNone(out["origin"], "no origin remote")
+
+    def test_the_origin_owner_is_read_from_the_remote_without_the_rest_of_the_url(self):
+        cases = {"https://github.com/apache/devlake": {"host": "github.com", "owner": "apache"},
+                 "https://x-access-token:s3cret@GitHub.com/apache/devlake.git": {"host": "github.com", "owner": "apache"},
+                 "git@github.com:Homebrew/brew.git": {"host": "github.com", "owner": "Homebrew"},
+                 "ssh://git@github.com:22/tokio-rs/tokio.git": {"host": "github.com", "owner": "tokio-rs"},
+                 "/tmp/clones/devlake": None, "file:///tmp/clones/devlake": None, "https://example.org/repo.git": None}
+        for url, expected in cases.items():
+            with tempfile.TemporaryDirectory() as d:
+                Repo(d)
+                subprocess.run(["git", "remote", "add", "origin", url], cwd=d, check=True, capture_output=True)
+                self.assertEqual(hygiene.origin_owner(d), expected, url)
 
 
 class Lockfiles(unittest.TestCase):

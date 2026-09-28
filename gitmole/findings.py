@@ -546,9 +546,43 @@ def stale_files(report: dict, months: int = 12, share: float = 0.3) -> list:
                                                    -a["age-months"], a["entity"]))[:10]]})]
 
 
+def _magnet_items(hot: list, history: dict, now: str) -> list:
+    """The hot files as the finding lists them, as (files, text, label, new files), label being what the
+    advice calls the item. A hot file whose recent fixes were all commits that also fixed a file listed
+    before it is listed with that file, not on its own: it has no fix of its own in the window, so
+    counting it again counts the same commits twice (one fix touching four sibling files was once four
+    magnets). No threshold: a file joins only when every one of its recent fix commits is the other's.
+    A file is "new in the window" when it first appeared less than the six months ago the window
+    reaches back to, so its fix count is the whole of its life."""
+    def new(f):
+        first = (history.get(f["entity"]) or {}).get("first")
+        return bool(first) and maat._months_between(first, now) < maat.RECENT_MONTHS
+    commits = {f["entity"]: set((history.get(f["entity"]) or {}).get("recent") or ()) for f in hot}
+    items, done = [], set()
+    for f in hot:
+        if f["entity"] in done:
+            continue
+        lead = f["entity"]
+        members = [g for g in hot if g["entity"] not in done and g["entity"] != lead and commits[g["entity"]] and commits[lead]
+                   and commits[g["entity"]] <= commits[lead]]
+        done.add(lead)
+        done.update(g["entity"] for g in members)
+        fresh = [m["entity"] for m in (f, *members) if new(m)]
+        # a file new in the window has had every fix inside it, so its total would only repeat the recent count
+        counts = [f"{f['recent-fixes']} recent"] + ([] if new(f) and f["n-fixes"] == f["recent-fixes"] else [f"{f['n-fixes']} total"])
+        text = f"{lead} ({', '.join(counts + (['new in the window'] if new(f) else []))})"
+        if members:
+            beside = all(g["entity"].rpartition("/")[0] == lead.rpartition("/")[0] for g in members)
+            text += f" and {_plural(len(members), 'file')}{' beside it' if beside else ''} fixed in the same commits"
+        items.append(([lead, *(g["entity"] for g in members)], text, lead, fresh))
+    return items
+
+
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     """Source files with a run of recent fix commits. Test files are left out: they change with every fix.
-    So is release plumbing: a manifest touched by every fix release is not where the bug was."""
+    So is release plumbing: a manifest touched by every fix release is not where the bug was.
+    A file whose recent fixes all fixed a file above it too is listed with that file (see _magnet_items)."""
+    import datetime as _dt
     plumb, derived = filetypes.plumbing_paths(report), _generated(report)
     hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent
            and not (filetypes.is_test_path(f["entity"]) or filetypes.is_release(f["entity"], plumb) or f["entity"] in derived)]
@@ -556,15 +590,21 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
     sev = "warning" if hot[0]["recent-fixes"] >= warn_at else "info"
-    listed = "; ".join(f"{f['entity']} ({f['recent-fixes']} recent, {f['n-fixes']} total)" for f in hot[:5])
-    more = f" and {len(hot) - 5} more" if len(hot) > 5 else ""
-    first = " and ".join(f["entity"] for f in hot[:2])
+    history = report.get("fix_history") or {}
+    items = _magnet_items(hot, history, report["meta"].get("now") or _dt.date.today().isoformat())
+    listed = "; ".join(text for _, text, _, _ in items[:5])
+    more = len(hot) - sum(len(paths) for paths, _, _, _ in items[:5])
+    more = f" and {more} more" if more > 0 else ""
+    first = " and ".join(label for _, _, label, _ in items[:2])
+    clusters = [{"file": paths[0], "with": paths[1:], "fixes": history[paths[0]]["recent"]} for paths, _, _, _ in items if len(paths) > 1]
+    fresh = [p for _, _, _, new in items for p in new]
     return [_f(sev, "Bug magnets",
                f"{len(hot)} file(s) were fixed {min_recent}+ times in the last six months: {listed}{more}.",
                f"Review {first} before the next release; fixes keep landing there.",
                rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so",
                      "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing"},
-               evidence={"count": len(hot), "files": [{"file": f["entity"], "recent_fixes": f["recent-fixes"], "fixes": f["n-fixes"]} for f in hot[:10]]})]
+               evidence={"count": len(hot), "files": [{"file": f["entity"], "recent_fixes": f["recent-fixes"], "fixes": f["n-fixes"]} for f in hot[:10]],
+                         **({"shared_fixes": clusters} if clusters else {}), **({"new_in_window": fresh} if fresh else {})})]
 
 
 def reverts(report: dict, min_share: float = 0.05, min_count: int = 5, warn_share: float = 0.10) -> list:
@@ -739,13 +779,14 @@ def _partial_functions(report: dict) -> str:
 
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
     """Functions that are both long and complex, in this repository's own source files: test files,
-    example code, vendored code and generated files (amalgamations included) are left out, and so is
-    a span the function step marked suspect, since a mis-parse that swallowed the next function is
+    example code, vendored code, generated files (amalgamations included) and numbered schema
+    migrations (written once and replayed as they stand, so nobody should split one) are left out, and
+    so is a span the function step marked suspect, since a mis-parse that swallowed the next function is
     long and complex by construction. A warning when one sits in a hotspot."""
     generated, vendored = _generated(report), filetypes.vendor_dirs(report)
     big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not f.get("suspect")
            and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
-                    or f["file"] in generated)]
+                    or f["file"] in generated or filetypes.is_migration_path(f["file"]))]
     if not big:
         return []
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
@@ -927,8 +968,7 @@ def _hygiene_actions(h: dict, out: list) -> None:
             if u["uses"] not in by_file.setdefault(u["file"], []):
                 by_file[u["file"]].append(u["uses"])
         listed = "; ".join(f"{textfmt.join_and(v[:3])}{' and more' if len(v) > 3 else ''} in {k}" for k, v in list(by_file.items())[:3])
-        third = [u for u in a["unpinned"] if not u["uses"].split("/", 1)[0] in ("actions", "github")]
-        first = (third or a["unpinned"])[0]["uses"]
+        first = min(a["unpinned"], key=lambda u: _action_trust(u["uses"], a.get("origin")))["uses"]
         out.append(_f("warning", "Actions pinned by tag or branch",
                       f"{n} of {total} workflow steps use an action by tag or branch: {listed}. Whoever controls the action can move the tag to other code.",
                       f"Pin {first} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
@@ -958,6 +998,17 @@ def _drift_row(d: dict) -> dict:
     if d.get("changes"):
         row["commit"] = d["changes"][0]["commit"]
     return row
+
+
+def _action_trust(uses: str, origin) -> int:
+    """How far an action's owner sits from the repository, nearest last: another account's action (0)
+    before one from the account the repository itself lives under on GitHub (1), before GitHub's own
+    actions/ and github/ (2). Without an origin on github.com, only GitHub's own come last."""
+    owner = uses.split("/", 1)[0]
+    if owner in ("actions", "github"):
+        return 2
+    home = origin or {}
+    return 1 if home.get("host") == "github.com" and owner.lower() == (home.get("owner") or "").lower() else 0
 
 
 def _hygiene_lockfiles(h: dict, out: list) -> None:
