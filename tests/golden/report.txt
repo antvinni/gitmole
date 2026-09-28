@@ -53,8 +53,6 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 
 λ Complex functions: nothing over complexity 10 (2 functions measured)
 
-✚ Repo health (git-sizer concerns): nothing flagged
-
 Secrets: none found; no unreachable objects (a fresh clone fetches only what a ref reaches)
 Dependencies: no lock files found
 Full results and plots in <out>
