@@ -1,0 +1,45 @@
+name: Action
+
+# The GitHub Action at the repository root, run on this repository the way a user's workflow runs it, so a
+# change that breaks it fails a pull request rather than someone else's build. Pull requests only: it
+# publishes nothing, and the release jobs live in ci.yml.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  action:
+    name: the action on this repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # gitmole reads the whole history
+      - name: Run the action from this checkout
+        id: gitmole
+        uses: ./   # installs gitmole from this checkout, since a local action has no tag to take a version from
+        with:
+          fail-on: ""          # the gate is not what is tested here
+          risk: origin/${{ github.base_ref }}
+          sarif: gitmole.sarif
+          upload-sarif: "false"   # a pull request's findings are not this repository's alerts
+          vulnerability-db: "true"
+      - name: The action ran and wrote what it said
+        env:
+          EXIT_CODE: ${{ steps.gitmole.outputs.exit-code }}
+          MARKDOWN: ${{ steps.gitmole.outputs.markdown }}
+          SARIF: ${{ steps.gitmole.outputs.sarif }}
+        run: |
+          set -euo pipefail
+          test "$EXIT_CODE" = 0
+          test -s "$MARKDOWN"
+          python3 - "$SARIF" <<'PY'
+          import json, sys
+          sarif = json.load(open(sys.argv[1]))
+          assert sarif["version"] == "2.1.0", sarif.get("version")
+          assert sarif["runs"][0]["tool"]["driver"]["name"] == "gitmole"
+          PY
+          gitmole --doctor

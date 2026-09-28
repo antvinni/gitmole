@@ -12,14 +12,16 @@ result carries `partialFingerprints["gitmole/v1"]`, a hash of rule, path, commit
 from non-secret data, so two runs agree although the keyed value hashes in secrets.json never do.
 Scope: a secret in an old commit, a sweeping commit, a git-sizer blob no longer in the tree have no
 HEAD location; `--sarif-scope head` (the default) keeps only results whose file is in the tree, and
-`history` keeps everything, with the commit under `properties.commit`."""
+`history` keeps everything, with the commit under `properties.commit`. A finding the head scope would
+leave with no result at all keeps one without a location (`properties.inTree` false), so every finding
+--fail-on can stop on is in the document."""
 from __future__ import annotations
 
 import hashlib
 import json
 import re
 
-from . import __version__, leaks
+from . import __version__, gate, leaks
 
 LEVELS = {"critical": "error", "warning": "warning", "info": "note"}
 SEVERITY = {"critical": "9.0", "warning": "5.0", "info": "2.0"}
@@ -93,6 +95,10 @@ def _places(f: dict) -> list:
 
 
 def _in_tree(report: dict, path: str) -> bool:
+    # a credential file (.env) is tracked, from git's own index; scc never lists it, so with no tree listing to
+    # read (an older output directory) it would drop prometheus's credential_files warning from head scope
+    if path in ((report.get("meta") or {}).get("credential_files") or []):
+        return True
     from .findings import at_head
     return at_head(report, path) is not False   # nothing to judge by: keep the result rather than drop it
 
@@ -144,24 +150,44 @@ def leaks_prefix() -> str:
 def results(report: dict, found: list, scope: str = "head") -> list:
     out = []
     for f in found:
-        rule, level, severity = f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]]
-        if rule.startswith("secrets_"):
-            out += _secret_results(report, f, scope)
+        mine = _finding_results(report, f, scope) or [_elsewhere(f)]
+        if f.get("baseline"):   # --baseline: SARIF's own word for a result an earlier run already had
+            for r in mine:
+                r["baselineState"] = "unchanged" if f["baseline"] == "in the baseline" else "new"
+        out += mine
+    return out
+
+
+def _finding_results(report: dict, f: dict, scope: str) -> list:
+    rule, level, severity = f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]]
+    if rule.startswith("secrets_"):
+        return _secret_results(report, f, scope)
+    if rule.startswith("vulnerable_dependencies"):
+        return _dependency_results(f)
+    places = _places(f)
+    if not places:
+        return [_result(rule, level, severity, f["detail"])] if scope == "history" or not _repo_wide_needs_tree(f) else []
+    out = []
+    for path, line, commit, extra in places:
+        if path and scope == "head" and not _in_tree(report, path):
             continue
-        if rule.startswith("vulnerable_dependencies"):
-            out += _dependency_results(f)
+        if not path and scope == "head":
             continue
-        places = _places(f)
-        if not places:
-            if scope == "history" or not _repo_wide_needs_tree(f):
-                out.append(_result(rule, level, severity, f["detail"]))
-            continue
-        for path, line, commit, extra in places:
-            if path and scope == "head" and not _in_tree(report, path):
-                continue
-            if not path and scope == "head":
-                continue
-            out.append(_result(rule, level, severity, f["detail"], path, line, commit, extra))
+        out.append(_result(rule, level, severity, f["detail"], path, line, commit, extra))
+    return out
+
+
+def _elsewhere(f: dict) -> dict:
+    """The one result of a finding whose every place the head scope dropped: a secret only in files deleted
+    years ago, a blob no longer in the tree. --fail-on stops on the finding all the same, so leaving it out
+    made the exit code and the document disagree - devlake exited 3 on a critical with no error-level result.
+    It has no location, as nothing at HEAD is where it is: SARIF allows that, GitHub code scanning accepts
+    the upload and does not display the result, GitLab drops it; --sarif-scope history places it."""
+    from .compare import key
+    out = _result(f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]],
+                  f"{f['detail']} Nothing it names is in the tree at HEAD; --sarif-scope history lists where it was found.",
+                  extra="\0".join(str(k) for k in key(f)[1:]))
+    out["properties"]["inTree"] = False
     return out
 
 
@@ -217,9 +243,25 @@ def build(report: dict, found: list, scope: str = "head") -> dict:
     run = {"tool": {"driver": {"name": "gitmole", "version": manifest.get("gitmole") or __version__, "informationUri": HOMEPAGE, "rules": rules}},
            "results": found_results,
            "properties": {"scope": scope, "repository": (report.get("meta") or {}).get("name")}}
+    run["invocations"] = [_invocation(report)]
     if manifest.get("commit"):
         run["versionControlProvenance"] = [{"revisionId": manifest["commit"]}]
     return {"$schema": SCHEMA, "version": "2.1.0", "runs": [run]}
+
+
+def _invocation(report: dict) -> dict:
+    """Whether the run behind these results completed: a step a rule reads that failed or timed out means
+    the document is missing whatever that step would have found, so the invocation is not successful and
+    one notification per step names it. A consumer reading `results` alone would take an empty list from a
+    killed secrets scan for a clean one."""
+    missing = gate.unfinished(report)
+    out = {"executionSuccessful": not missing}
+    if missing:
+        out["toolExecutionNotifications"] = [
+            {"level": "error", "descriptor": {"id": name},
+             "message": {"text": f"step {gate.describe([(name, status)])}: the results are missing whatever it would have found"}}
+            for name, status in missing]
+    return out
 
 
 def dumps(report: dict, found: list, scope: str = "head") -> str:
