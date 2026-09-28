@@ -864,6 +864,14 @@ class ComplexFunctions(unittest.TestCase):
             r["meta"]["functions"] = {"status": status}
             self.assertIn(f"Complex functions: {note}", rendered(r, []), status)
 
+    def test_a_partial_projection_is_kept_in_the_envelope(self):
+        """Whether the blame sample stopped early depends on how fast this machine blamed, like the seconds."""
+        a = sample_report()
+        a["meta"]["age"] = {"status": "skipped", "projected_seconds": 60.02, "projected_partial": True, "files": 10}
+        out = json.loads(render.dumps_json(a, []))
+        self.assertIs(out["envelope"]["projected_partial"], True)
+        self.assertNotIn("projected_partial", out["meta"]["age"])
+
     def test_a_partial_run_says_so_even_with_rows(self):
         r = sample_report()
         for status, reason in (("timeout", "function metrics timed out"), ("failed", "function metrics failed (see run.log)")):

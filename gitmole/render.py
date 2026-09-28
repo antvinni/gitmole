@@ -1261,6 +1261,8 @@ def _envelope(out: dict) -> dict:
     age = meta.get("age")
     if isinstance(age, dict) and "projected_seconds" in age:
         env["projected_seconds"] = age.pop("projected_seconds")
+    if isinstance(age, dict) and "projected_partial" in age:   # whether the sample stopped early is as load-dependent as the seconds
+        env["projected_partial"] = age.pop("projected_partial")
     struct = out.get("structure")
     if isinstance(struct, dict) and "cached" in struct:
         env["structure_cached"] = struct.pop("cached")

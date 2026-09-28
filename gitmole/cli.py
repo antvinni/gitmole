@@ -470,9 +470,11 @@ def _budgets(args, estimate, ui) -> tuple[bool, bool, float, bool]:
         ui.print(f"[yellow]duplicates skipped:[/yellow] {text_mb:,.0f} MB of tracked text is over the {run.DUPLICATES_BUDGET_MB} MB budget; "
                  f"jscpd would need about {text_mb / 25:,.0f} GB of memory. Rerun with --deep to force it, or --ignore-data to shrink it.")
     if not age_ok:
+        # a partial estimate stopped at the first value over the budget, so its number only restates the budget
+        took = (f"more than the {args.time_budget:,.0f}s time budget" if estimate.get("partial")
+                else f"about {projected:,.0f}s, over the {args.time_budget:,.0f}s time budget")
         ui.print(f"[yellow]code age skipped:[/yellow] a blame pass over {estimate.get('code_files', estimate['files']):,} files is projected "
-                 f"to take {'at least' if estimate.get('partial') else 'about'} {projected:,.0f}s, over the {args.time_budget:,.0f}s time budget. "
-                 f"Rerun with --deep to force it, raise --time-budget, or --ignore-data to shrink it.")
+                 f"to take {took}. Rerun with --deep to force it, raise --time-budget, or --ignore-data to shrink it.")
     if args.plots and not plots_ok:
         ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "
                  f"({estimate['files']:,} files × {estimate['samples']} samples) exceeds the budget of {args.budget:,}. "
@@ -501,6 +503,8 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
         meta["now"] = args.now
     meta["age"] = {"status": "run" if age_ok else "skipped", "method": "blame", "files": estimate.get("code_files", estimate["files"]),
                    "projected_seconds": projected, "time_budget": args.time_budget}
+    if estimate.get("partial"):
+        meta["age"]["projected_partial"] = True   # projected_seconds is a lower bound: the sample stopped once it was over
     if args.plots:
         meta["plots"] = {"status": "run" if plots_ok else "skipped", "blames": estimate["blames"], "samples": estimate["samples"], "budget": args.budget}
     lizard_ok = args.lizard

@@ -290,11 +290,19 @@ class Budget(unittest.TestCase):
         self._main([], self.SMALL, calls)
         self.assertEqual(list(calls[0]["ignore"]), [])
 
-    def test_a_projection_cut_short_is_reported_as_a_lower_bound(self):
-        calls = []
-        _, text, meta = self._main([], dict(self.SLOW, partial=True), calls)
-        self.assertIn("at least 390s", text)
+    def test_a_projection_cut_short_names_the_budget_not_a_number(self):
+        """A partial estimate stops at the first value over the budget, so it always sits just above it:
+        printed, 60.02 reads as "60s, over the 60s time budget"."""
+        _, text, meta = self._main([], dict(self.SLOW, seconds=60.02, partial=True), [])
+        self.assertIn("projected to take more than the 60s time budget", " ".join(text.split()))
+        self.assertNotIn("60s, over", text)
         self.assertEqual(meta["age"]["status"], "skipped")
+        self.assertIs(meta["age"]["projected_partial"], True)
+
+    def test_a_complete_projection_gives_its_number(self):
+        _, text, meta = self._main([], self.SLOW, [])
+        self.assertIn("projected to take about 390s, over the 60s time budget", " ".join(text.split()))
+        self.assertNotIn("projected_partial", meta["age"])
 
     def test_the_estimator_is_given_the_time_budget_unless_deep(self):
         seen = []

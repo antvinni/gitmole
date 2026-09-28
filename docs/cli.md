@@ -92,7 +92,8 @@ written with its keys sorted, rows come back in one order whatever order a
 parallel step wrote them in, and each secret's keyed hash (the key is made
 for one run) is replaced by a stable label, `v1`, `v2`, the same value
 getting the same label. What does differ from one run to the next sits in
-one top-level key, `envelope`: the blame pass's measured projection, the
+one top-level key, `envelope`: the blame pass's measured projection (and
+`projected_partial` when its sample stopped early, over the budget), the
 output directory, the clone's path on this machine, the structure cache's
 hits, each step's wall time and peak memory, and the count of objects no ref
 reaches — a reflog, a dropped stash, whatever gc has not collected — which
