@@ -513,6 +513,16 @@ class Backtest(unittest.TestCase):
         self.assertEqual(out["baselines"], {"churn": 0, "size": 1}, "the most changed file is index.html; the largest is big.py")
 
 
+class PByChance(unittest.TestCase):
+    def test_the_one_sided_hypergeometric_tail(self):
+        # 3 of 10 fixed, 3 drawn, 2 or more hit: (C(3,2)·C(7,1) + C(3,3)·C(7,0)) / C(10,3) = 22/120
+        self.assertAlmostEqual(watch.p_by_chance(10, 3, 3, 2), 22 / 120)
+        self.assertEqual(watch.p_by_chance(10, 3, 3, 0), 1.0, "no hits is what any draw does")
+        self.assertAlmostEqual(watch.p_by_chance(10, 3, 3, 3), 1 / 120)
+        self.assertEqual(watch.p_by_chance(10, 0, 3, 1), 0.0, "nothing to hit")
+        self.assertEqual(watch.p_by_chance(0, 0, 0, 0), 1.0)
+
+
 class RankedBy(unittest.TestCase):
     def test_best_first_ties_by_file_name_and_rows_carry_their_size(self):
         rows = watch.risks(report())

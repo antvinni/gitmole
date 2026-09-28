@@ -550,10 +550,15 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Under the watch list, one line says how the list would have done:
    gitmole reruns the change analysis as of six months before the last
    commit, with scc on the tree at that time, ranks the watch list from
-   that, and counts how many of the files fixed since were on it, next to
-   what a random list of the same size, drawn from the files that had
-   changed more than once, would score. Repositories with under a year
-   of history say `too little history to backtest`.
+   that, and counts how many of the files fixed since were on it, out of
+   the fixed files that had changed more than once by then (the pool the
+   list draws from). It then says in words whether that was fewer, no more
+   or more than the same number of most-changed files, and whether it was
+   more than a random list of the same size would name by chance: the
+   one-sided hypergeometric test (Fisher's exact test) at p < 0.05, from
+   the pool, its fixed files, the list's length and its hits, all in the
+   JSON's `watch_backtest`. Repositories with under a year of history say
+   `too little history to backtest`.
 
    That line is one cut-off on one repository. How the list does over six
    cut-offs on curl, django and react, next to lists ranked by churn alone,

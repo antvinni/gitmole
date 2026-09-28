@@ -368,6 +368,38 @@ def _age_reason(report: dict) -> str:
     return _step_phrase("code age", _age_status(report))
 
 
+def _p_words(p: float) -> str:
+    if p < 0.001:
+        return "p < 0.001"
+    shown = f"{p:.2g}"
+    if (p < watch.CHANCE_ALPHA) != (float(shown) < watch.CHANCE_ALPHA):   # rounding must not carry p across the line
+        shown = f"{p:.3g}"
+    return f"p = {shown}"
+
+
+def backtest_words(bt: dict) -> str:
+    """The backtest in one sentence, every count out of the same pool: the files that had changed more
+    than once by the cut-off, of which `positives` were fixed after it. Then what the numbers mean, in
+    words: against the same number of most-changed files, and against a random pick, by the one-sided
+    hypergeometric test at 5% (watch.p_by_chance). A backtest from before `positives` was recorded
+    says the old sentence rather than guess."""
+    n, k, churn = bt["listed"], bt["hits"], bt["baselines"]["churn"]
+    if "positives" not in bt:
+        return (f"6 months ago this list would have named {k} of the {bt['fixed']} files fixed since "
+                f"(a random {n} of the {bt['pool']} files that had changed more than once would name {bt['expected']}; "
+                f"the {n} most changed would name {churn})")
+    if not bt["positives"]:
+        return (f"none of the {bt['fixed']} files fixed since the cut-off six months ago had changed more than once by then, "
+                f"so there is nothing to score the list against")
+    p = bt.get("p_by_chance")
+    p = watch.p_by_chance(bt["pool"], bt["positives"], n, k) if p is None else p
+    versus = (f"fewer than the {n} most changed ({churn})" if k < churn else f"no more than the {n} most changed" if k == churn
+              else f"more than the {n} most changed ({churn})")
+    chance = (f"not distinguishable from a random {n}" if p >= watch.CHANCE_ALPHA else f"more than a random {n} would by chance")
+    return (f"6 months ago this list's top {n} would have named {k} of the {bt['positives']} file{'s' if bt['positives'] != 1 else ''} fixed since among the "
+            f"{bt['pool']} that had changed more than once: {versus}; {chance} ({bt['expected']} expected, {_p_words(p)})")
+
+
 def watch_section(report: dict, full: bool = True, width=None) -> dict:
     """The files to keep an eye on, with the reasons in words. Paths stay whole here."""
     ranked = watch.risks(report)
@@ -385,10 +417,7 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     if bt and not bt["fixed"]:
         notes.append("nothing has been fixed since the cut-off six months ago, so there is nothing to score the list against")
     elif bt:
-        notes.append(f"6 months ago this list would have named {bt['hits']} of the {bt['fixed']} files fixed since "
-                     f"(a random {bt['listed']} of the {bt['pool']} files that had changed more than once would name {bt['expected']}; "
-                     f"the {bt['listed']} most changed would name {bt['baselines']['churn']})"
-                     + ("; whole history" if since else ""))   # the backtest ignores the window
+        notes.append(backtest_words(bt) + ("; whole history" if since else ""))   # the backtest ignores the window
     elif status.get("reason"):
         notes.append(status["reason"])
     elif status.get("status") in ("failed", "timeout"):
