@@ -478,6 +478,85 @@ class IncompleteGate(unittest.TestCase):
                 self.assertEqual(json.load(fh)["runs"][0]["invocations"], [{"executionSuccessful": True}])
 
 
+class Baseline(unittest.TestCase):
+    """--baseline: what an earlier export already held is reported, marked, and does not count toward --fail-on;
+    a mature repository's secrets in files deleted years ago otherwise block a critical gate forever."""
+
+    @staticmethod
+    def _secret(file, commit, line, value):
+        return {"RuleID": "github-pat", "File": file, "Commit": commit, "StartLine": line, "Fingerprint": f"{commit}:{file}:github-pat:{line}",
+                "SecretHash": value, "Placeholder": False, "Confidence": "high"}
+
+    def _dir(self, out, rows, identities=None):
+        _report_dir(out, identities)
+        with open(os.path.join(out, "secrets.json"), "w") as fh:
+            json.dump(rows, fh)
+
+    def test_a_known_secret_does_not_count_and_a_new_one_does(self):
+        old = self._secret("src/gone.py", "a" * 40, 3, "h1")
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, [old])
+            base = os.path.join(out, "base.json")
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--json", base], console=console()), 3)
+            c = console()
+            now = os.path.join(out, "now.json")
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--baseline", base, "--json", now], console=c), 0)
+            self.assertIn("1 finding(s) at critical or worse were in", c.export_text())
+            with open(now) as fh:
+                crit = next(f for f in json.load(fh)["findings"] if f["rule"]["id"] == "secrets_in_source")
+            self.assertEqual(crit["baseline"], "in the baseline")
+            self.assertTrue(crit["detail"].startswith("In the baseline: "), "still reported, marked")
+            self._dir(out, [old, self._secret("src/app.py", "b" * 40, 9, "h2")])
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--baseline", base], console=console()), 3,
+                             "a secret the baseline did not have counts, though the finding's rule id is the same")
+            self._dir(out, [old, self._secret("src/app.py", "b" * 40, 9, "h1")])
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--baseline", base], console=console()), 3,
+                             "a known value committed again in a new place is a new place")
+            path = os.path.join(out, "r.sarif")
+            cli.main([out, "--no-run", "--baseline", base, "--sarif", path, "--sarif-scope", "history"], console=console())
+            with open(path) as fh:
+                self.assertEqual({r["baselineState"] for r in json.load(fh)["runs"][0]["results"]}, {"new"})
+
+    def test_other_findings_are_known_by_rule_and_key_and_a_worse_severity_is_new(self):
+        from gitmole import gate
+        ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, [], ids)
+            base = os.path.join(out, "base.json")
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "warning", "--json", base], console=console()), 3)
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "warning", "--baseline", base], console=console()), 0)
+            with open(base) as fh:
+                before = json.load(fh)
+            found = [{"severity": "critical", "title": "T", "detail": "D", "rule": {"id": "placeholder_identity"},
+                      "evidence": {"email": "you@example.com"}}]
+            before["findings"][0]["severity"] = "warning"
+            self.assertEqual(len(gate.against_baseline({"meta": {}}, found, before)), 1, "warning then, critical now: new")
+
+    def test_a_vulnerable_package_is_known_by_name_version_lock_file_and_advisory(self):
+        from gitmole import gate
+        row = {"name": "lodash", "version": "4.17.0", "source": "package-lock.json", "ids": ["GHSA-x"], "score": 9.8, "fixed": "4.17.21"}
+        report = {"meta": {}, "dependencies": {"status": "scanned", "vulnerable": [row]}}
+        before = {"findings": [{"severity": "critical", "rule": {"id": "vulnerable_dependencies"}}],
+                  "dependencies": {"vulnerable": [dict(row)]}}
+        found = [{"severity": "critical", "detail": "D", "rule": {"id": "vulnerable_dependencies"}, "evidence": {}}]
+        self.assertEqual(gate.against_baseline(report, found, before), [])
+        report["dependencies"]["vulnerable"].append({**row, "name": "minimist", "ids": ["GHSA-y"]})
+        found = [{"severity": "critical", "detail": "D", "rule": {"id": "vulnerable_dependencies"}, "evidence": {}}]
+        counted = gate.against_baseline(report, found, before)
+        self.assertEqual([p["name"] for p in counted[0]["evidence"]["packages"]], ["minimist"], "only the new package counts")
+
+    def test_a_baseline_of_another_clone_or_no_export_is_refused(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, [])
+            other = os.path.join(out, "other.json")
+            with open(other, "w") as fh:
+                json.dump({"meta": {"name": "elsewhere"}, "findings": [], "watch": []}, fh)
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--baseline", other], console=c), 2)
+            self.assertIn("the two exports must be of the same clone", c.export_text())
+            self.assertEqual(cli.main([out, "--no-run", "--baseline", os.path.join(out, "none.json")], console=console()), 2)
+
+
 class Portfolio(unittest.TestCase):
     def _run(self, extra=(), fail=False, step=("q", "true")):
         with tempfile.TemporaryDirectory() as work:

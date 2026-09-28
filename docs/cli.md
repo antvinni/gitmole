@@ -60,6 +60,7 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--sarif-scope head\|history` | With `--sarif`: `head` (the default) keeps only the results whose file is in the tree; `history` keeps every result, the commit in its properties. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
 | `--fail-on LEVEL` | Exit 3 if any finding is at `critical`, `warning` or `info` or worse; exit 4 when none is and a step the findings read did not complete. See [Exit codes](#exit-codes). |
+| `--baseline BEFORE.json` | With an earlier `--json` export of the same clone: the findings it already had are still reported, their statement opening "In the baseline:", and do not count toward `--fail-on`. See [Baseline](#baseline). Not with `owner/*`. |
 | `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
 | `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent; exit 4 when they do not and scc, the log or the change analysis did not complete. |
 | `--compare BEFORE.json` | Add a "Since last report" section against an earlier `--json` export of the same clone: findings new, resolved and persisting (with the counts that moved), files that entered or left the watch list. Works with `--no-run`; never changes the exit code; not with `owner/*`. |
@@ -128,7 +129,7 @@ exports also work with `--no-run` against an earlier output directory.
 | 0 | Done, and no gate asked for found anything. Without `--fail-on`, `--risk-threshold` or `--hook` a run exits 0 even when a step did not complete; the run names the step and the report's header says what is missing. |
 | 1 | `--doctor` found a tool off its pin; `--install-tools` or `--clean` could not do all it was asked. |
 | 2 | Bad arguments or an unreadable output directory; with `--hook`, over `--risk-threshold`. |
-| 3 | A gate found what it stops on: a finding at the `--fail-on` level or worse, or a change over `--risk-threshold`. |
+| 3 | A gate found what it stops on: a finding at the `--fail-on` level or worse that is not in the `--baseline`, or a change over `--risk-threshold`. |
 | 4 | A gate could not check: a step it reads failed, timed out or was skipped, and it found nothing it stops on in what the other steps left. The message names the step; `run.log` in the output directory says why. `--fail-on` reads every step but the two plots and the backtest; `--risk-threshold` and `--hook` read scc, the log and the change analysis. |
 | 130 | Interrupted. |
 
@@ -141,6 +142,38 @@ recorded (before 0.8.0) cannot say, and is judged on what it holds. Under
 had an unfinished step. `--sarif` records the same thing on its run:
 `invocations[0].executionSuccessful` is false and
 `toolExecutionNotifications` names each unfinished step.
+
+### Baseline
+
+The secrets step reads the whole history, because a key rotated or a file
+deleted is still in every clone. So a repository with a secret committed in
+2021 and deleted in 2022 has a critical finding on every run, and
+`--fail-on critical` would block it forever. `--baseline` takes an earlier
+`--json` export of the same clone and gates on what is new since:
+
+```yaml
+# first run, once, after the findings in it have been looked at: keep the export
+- run: gitmole . --json gitmole-baseline.json
+# every later run: report everything, fail only on what the baseline did not have
+- run: gitmole . --fail-on critical --baseline gitmole-baseline.json --sarif gitmole.sarif
+```
+
+Commit the baseline, or keep it as a CI artifact, and write it again when
+the findings in it have been dealt with. A finding counts as in the
+baseline when the export has one with the same rule id (and, for the rules
+that report several, the same metric or email) at the same severity or
+worse; a finding that was a warning and is now critical is new. Secrets and
+vulnerable dependencies are compared by their rows, because one finding
+holds every value or package: a secret's place by betterleaks'
+fingerprint (`commit:file:rule:line`, the same one `.betterleaksignore`
+takes), a package by name, version, lock file and advisory ids. The rows the
+baseline did not have go through the same rule on their own, and what that
+finds is what counts, so a new secret fails the gate while the old ones
+stay reported. A known value committed again is a new place, and counts.
+Findings in the baseline carry `"baseline": "in the baseline"` in the JSON
+(`"new"` otherwise) and `baselineState` `unchanged` or `new` in the SARIF;
+stderr names the ones that did not count. `--baseline` does not change the
+exit code for a step that did not complete: 4 stays 4.
 
 `--risk-threshold` needs `--risk`; it exits 3 when the files changed since
 main hold more than 10% of the repository's revisions × lines of code, and

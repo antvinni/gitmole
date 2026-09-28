@@ -152,8 +152,11 @@ def leaks_prefix() -> str:
 def results(report: dict, found: list, scope: str = "head") -> list:
     out = []
     for f in found:
-        mine = _finding_results(report, f, scope)
-        out += mine or [_elsewhere(f)]
+        mine = _finding_results(report, f, scope) or [_elsewhere(f)]
+        if f.get("baseline"):   # --baseline: SARIF's own word for a result an earlier run already had
+            for r in mine:
+                r["baselineState"] = "unchanged" if f["baseline"] == "in the baseline" else "new"
+        out += mine
     return out
 
 

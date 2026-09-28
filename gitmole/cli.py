@@ -60,7 +60,9 @@ def parse_args(argv):
     p.add_argument("--sarif", metavar="PATH", help="write the findings as SARIF 2.1.0 to PATH, or - for stdout, for GitHub code scanning and GitLab")
     p.add_argument("--sarif-scope", choices=["head", "history"], default="head",
                    help="with --sarif: head keeps only results whose file is in the tree (default); history keeps every result, the commit in its properties")
-    p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse")
+    p.add_argument("--fail-on", choices=findings.SEVERITIES, help="exit 3 if any finding is at this severity or worse; 4 if a step it reads did not complete")
+    p.add_argument("--baseline", metavar="BEFORE_JSON", help="an earlier --json export of the same clone: the findings it already had (for secrets and "
+                                                            "vulnerable packages, the places and packages it already had) are marked and do not count toward --fail-on")
     p.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (merge base with HEAD) by their share of the repository's revisions × lines of code; needs a local path")
     p.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: exit 3 when the changed files hold more than N percent of the repository's revisions × lines of code")
     p.add_argument("--sbom", metavar="PATH", help="write a CycloneDX 1.6 SBOM of every locked package to PATH, or - for stdout, from the osv-scanner step's package list")
@@ -189,11 +191,13 @@ def _check_args(args, err, kind=None) -> int | None:
                "target required" if args.target is None and not args.clean else
                "--hook needs --no-run and an output directory" if args.hook and not args.no_run else
                "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk and not args.hook else
-               "--compare: no such file: " + args.compare if args.compare and not os.path.isfile(args.compare) else None)
+               "--compare: no such file: " + args.compare if args.compare and not os.path.isfile(args.compare) else
+               "--baseline: no such file: " + args.baseline if args.baseline and not os.path.isfile(args.baseline) else None)
     elif kind == "path":
         bad = None
     else:
         bad = ("--compare needs one repository, not owner/*" if args.compare and kind == "org" else
+               "--baseline needs one repository, not owner/*" if args.baseline and kind == "org" else
                "--sbom needs one repository, not owner/*" if args.sbom and kind == "org" else
                "--risk needs a local path" if args.risk else
                "--list-file-types needs a local path" if args.list_file_types else None)
@@ -725,8 +729,6 @@ def _write(text: str, target: str, console: Console) -> None:
 
 
 def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> int:
-    import json
-
     from . import render
 
     try:
@@ -747,21 +749,17 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
     comparison = None
     if args.compare:
         from . import compare as _compare
-        try:
-            with open(args.compare, encoding="utf-8") as fh:
-                before = json.load(fh)
-        except (OSError, ValueError) as e:
-            err.print(f"[red]--compare {args.compare}:[/red] {e}", soft_wrap=True)
-            return 2
-        if not _compare.is_export(before):
-            err.print(f"[red]--compare {args.compare}:[/red] not a gitmole --json export (it needs meta, findings with rule ids, and watch; "
-                      "exports from before 0.8.0 have no rule ids)", soft_wrap=True)
-            return 2
-        if before["meta"].get("name") != report["meta"].get("name"):
-            err.print(f"[red]--compare {args.compare}:[/red] it describes {before['meta'].get('name')}, this run describes {report['meta'].get('name')}; "
-                      "the two exports must be of the same clone", soft_wrap=True)
+        before = _export(args.compare, "--compare", report, err)
+        if before is None:
             return 2
         comparison = _compare.compare(before, report, found)
+    counted = found
+    if args.baseline:
+        before = _export(args.baseline, "--baseline", report, err)
+        if before is None:
+            return 2
+        from . import gate
+        counted = gate.against_baseline(report, found, before)
     if args.json:
         _write(render.dumps_json(report, found, risk=risk, compare=comparison), args.json, console)
     if args.markdown:
@@ -780,7 +778,35 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
     if "-" not in (args.json, args.markdown, args.sarif, args.sbom):
         render.report(report, found, console, full=args.full, risk=risk, base=args.risk, compare=comparison)
     _feedback(report, found, args, console, err)
-    return _gate_exit(report, found, risk, args, err)
+    if args.baseline and args.fail_on:
+        from . import gate
+        known = [f for f in found if f.get("baseline") == "in the baseline" and gate.tripped([f], args.fail_on)]
+        if known:
+            err.print(f"[dim]--baseline: {len(known)} finding(s) at {args.fail_on} or worse were in {args.baseline} and do not count toward "
+                      f"--fail-on: {', '.join(dict.fromkeys(f['rule']['id'] for f in known))}[/dim]", soft_wrap=True)
+    return _gate_exit(report, counted, risk, args, err)
+
+
+def _export(path: str, flag: str, report: dict, err: Console):
+    """An earlier --json export of the same clone, or None after saying why not."""
+    import json
+
+    from . import compare as _compare
+    try:
+        with open(path, encoding="utf-8") as fh:
+            before = json.load(fh)
+    except (OSError, ValueError) as e:
+        err.print(f"[red]{flag} {path}:[/red] {e}", soft_wrap=True)
+        return None
+    if not _compare.is_export(before):
+        err.print(f"[red]{flag} {path}:[/red] not a gitmole --json export (it needs meta, findings with rule ids, and watch; "
+                  "exports from before 0.8.0 have no rule ids)", soft_wrap=True)
+        return None
+    if before["meta"].get("name") != report["meta"].get("name"):
+        err.print(f"[red]{flag} {path}:[/red] it describes {before['meta'].get('name')}, this run describes {report['meta'].get('name')}; "
+                  "the two exports must be of the same clone", soft_wrap=True)
+        return None
+    return before
 
 
 def _gate_exit(report: dict, found: list, risk, args, err: Console) -> int:
