@@ -496,12 +496,21 @@ class HookReplay(unittest.TestCase):
 class SummarisedRules(unittest.TestCase):
     def test_the_summarised_set_is_what_the_labels_say(self):
         """A rule with five or more labelled findings, none of them actionable, is summarised; every summarised
-        rule is one. New labels that break this ask for the set to change with them."""
+        rule is one. New labels that break this ask for the set to change with them.
+
+        A rule findings.py no longer emits is retired: its labels stay in labels.jsonl, which nobody may edit,
+        but it has no findings left to summarise, so it is out of both sides. A summarised rule must still be
+        emitted, so retiring a rule takes it out of SUMMARISED too."""
+        import inspect
+        import re
         from gitmole import findings
         from gitmole.measure import labels
+        emitted = set(re.findall(r'"id": "([a-z_]+)"', inspect.getsource(findings)))
+        self.assertIn("stale_files", emitted, "the pattern still finds the ids")
         rules = labels.score()["rules"]
         inert = {r for r, v in rules.items() if v["labelled"] >= 5 and v["actionable_share"] == 0}
-        self.assertEqual(set(findings.SUMMARISED), inert)
+        self.assertEqual(set(findings.SUMMARISED) - emitted, set(), "a retired rule leaves SUMMARISED")
+        self.assertEqual(set(findings.SUMMARISED), inert & emitted)
 
     def test_the_unjudged_set_is_the_rules_no_label_has_reached(self):
         """findings.UNJUDGED holds the structure step's rules only while nobody has labelled them. A label on
