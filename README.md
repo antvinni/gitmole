@@ -91,11 +91,14 @@ Run times are one `gitmole CLONE` with every default step, on a MacBook Pro (M4,
 Every release that changes what gitmole finds or ranks is run from its own
 source over the same pinned repositories and judged by the same yardsticks
 ([measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md)):
-is the watch list right against churn alone, are the findings worth acting on,
-and does it run on awkward inputs and catch the gate's planted problems.
+is the watch list right against churn alone, and does it run on awkward inputs
+and catch the gate's planted problems. The second graph is weaker evidence than
+the other two: every "actionable" label behind it is one agent's reading, the
+same agent that wrote the rules, and no outside labels exist. Read it as that
+agent's opinion, not as a measure of whether the findings are worth acting on.
 
 <img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/ranking.svg" width="900" alt="Headroom of the watch list by release, against churn alone, with the held-out repositories">
-<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/useful.svg" width="900" alt="Share of the default report's findings labelled actionable, by release">
+<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/useful.svg" width="900" alt="Share of the default report's findings one agent labelled actionable, by release">
 <img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/robustness.svg" width="900" alt="Runs completed and gate cases caught, by release">
 
 What it costs (findings per repository, report length, run time, memory) and
