@@ -420,6 +420,7 @@ class Unreferenced(unittest.TestCase):
         self.assertEqual(structure.unreferenced(files, edges, {"python": 0.3}, set()), [], "a graph that resolves a third of the time is not judged")
         self.assertEqual(structure.unreferenced(files, edges, {"python": 0.9}, {"pkg/m0.py"}), [], "a declared entry point is no orphan")
 
+    @unittest.skipUnless(HAVE, "the tree-sitter grammars need Python 3.10 or newer")
     def test_a_module_the_readme_shows_being_imported_is_referenced(self):
         # devlake's backend/python/README.md shows `import pydevlake.domain_layer.crossdomain as cross`
         import tempfile
