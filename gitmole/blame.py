@@ -90,14 +90,15 @@ def drop_ignored(files: list, ignore=()) -> list:
     return [f for f in files if not any(fnmatch.fnmatch(f, g) for g in ignore)]
 
 
-def text_files(repo: str, ignore=()) -> list:
-    """Tracked, non-binary files, minus ignore globs."""
-    return drop_ignored(filetypes.git_paths(repo, "grep", "-I", "--name-only", "--cached", "-e", ""), ignore)
+def text_files(repo: str, ignore=(), paths=()) -> list:
+    """Tracked, non-binary files, minus ignore globs; only those under `paths` (--path's directories) when given."""
+    spec = ["--", *(":(literal)" + d for d in paths)] if paths else []   # literal: a directory named with * or ? is that directory
+    return drop_ignored(filetypes.git_paths(repo, "grep", "-I", "--name-only", "--cached", "-e", "", *spec), ignore)
 
 
-def code_files(repo: str, ignore=(), types=filetypes.DEFAULT) -> list:
+def code_files(repo: str, ignore=(), types=filetypes.DEFAULT, paths=()) -> list:
     """text_files() restricted to source file types (None = no restriction)."""
-    return [f for f in text_files(repo, ignore) if filetypes.matches(f, types)]
+    return [f for f in text_files(repo, ignore, paths) if filetypes.matches(f, types)]
 
 
 _HEADER = re.compile(r"^[0-9a-f]{40,64} \d+ \d+")
@@ -176,7 +177,8 @@ def _series(counter: Counter, label) -> dict:
     return {"labels": [label(k) for k, _ in items], "ts": [now], "y": [[n] for _, n in items]}
 
 
-def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, procs: int = None, types=filetypes.DEFAULT, log_path: str = None) -> dict:
+def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, procs: int = None, types=filetypes.DEFAULT, log_path: str = None,
+              paths=()) -> dict:
     aliases = aliases_from_meta(aliases_path) if aliases_path else {}
     shared, imported = {}, []
     if log_path and os.path.exists(log_path):
@@ -184,7 +186,7 @@ def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, proc
             text = fh.read()
         shared = co_authors_by_commit(text, aliases)
         imported = imports_in(text, types)
-    files = code_files(repo, ignore, types)
+    files = code_files(repo, ignore, types, paths)
     years, authors = Counter(), Counter()
     with Pool(procs or default_procs(), initializer=_low_priority, initargs=(shared, imported)) as pool:
         for counts in pool.imap_unordered(_job, [(repo, f) for f in files], chunksize=8):
@@ -207,7 +209,9 @@ def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, proc
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    procs, aliases, ignore, types, log_path = None, None, [], filetypes.DEFAULT, None
+    procs, aliases, ignore, types, log_path, paths = None, None, [], filetypes.DEFAULT, None, []
+    while "--path" in args:
+        i = args.index("--path"); paths.append(args[i + 1]); del args[i:i + 2]
     while "--log" in args:
         i = args.index("--log"); log_path = args[i + 1]; del args[i:i + 2]
     while "--types" in args:
@@ -219,5 +223,5 @@ if __name__ == "__main__":
     while "--ignore" in args:
         i = args.index("--ignore"); ignore.append(args[i + 1]); del args[i:i + 2]
     if len(args) != 2:
-        sys.exit("usage: blame.py REPO OUT_DIR [--procs N] [--ignore GLOB]... [--aliases META_JSON] [--types LIST|all] [--log LOG]")
-    print(json.dumps(write_all(args[0], args[1], ignore, aliases, procs, types, log_path)))
+        sys.exit("usage: blame.py REPO OUT_DIR [--procs N] [--ignore GLOB]... [--aliases META_JSON] [--types LIST|all] [--log LOG] [--path DIR]...")
+    print(json.dumps(write_all(args[0], args[1], ignore, aliases, procs, types, log_path, paths)))

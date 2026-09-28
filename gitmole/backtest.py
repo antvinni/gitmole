@@ -87,7 +87,7 @@ def main(argv=None) -> int:
         fh.write(size)
     with open(os.path.join(sub, "meta.json"), "w", encoding="utf-8") as fh:
         json.dump({"now": until, "last_date": until, "file_types": meta.get("file_types"), "aliases": meta.get("aliases", {}),
-                   "generated": generated, "vendored": vendored}, fh)
+                   "generated": generated, "vendored": vendored, **({"scope": meta["scope"]} if meta.get("scope") else {})}, fh)
     return 0
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import classify, coupling, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, structure, textfmt, trend
+from . import classify, coupling, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, scope, structure, textfmt, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -175,9 +175,10 @@ def _source_ownership(report: dict) -> list:
 def _present_areas(report: dict, rows: list, build=knowledge.areas) -> list:
     """Areas built from the ownership rows of directories that still exist, then only those areas that
     exist themselves: a directory the history knows but HEAD does not (the layout before a move to
-    src/ or crates/) is nowhere to pair anyone on. `build` is knowledge.areas or a wrapper of it."""
-    tree = _tree(report)
-    return [a for a in build(knowledge.present_rows(rows, tree)) if knowledge.in_tree(a["area"], tree)]
+    src/ or crates/) is nowhere to pair anyone on. `build` is knowledge.areas or a wrapper of it, called
+    with the base a --path run counts its areas from."""
+    tree, base = _tree(report), scope.report_base(report)
+    return [a for a in build(knowledge.present_rows(rows, tree), base=base) if knowledge.in_tree(a["area"], tree, base)]
 
 
 def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> list:
@@ -572,15 +573,14 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
 LIVE_MONTHS = 12
 
 
-def _is_live(area: str, age_rows: list) -> bool:
+def _is_live(area: str, age_rows: list, base: int = 0) -> bool:
     """Has anything in this area changed in the last year? `age` covers every path in the history,
     so an area whose files are all idle is knowledge about code nobody is touching."""
     for row in age_rows:
         if row["age-months"] >= LIVE_MONTHS:
             continue
         entity = row["entity"]
-        in_area = "/" not in entity if area == knowledge.ROOT else entity.startswith(area)
-        if in_area:
+        if knowledge.in_area(entity, area, base):
             return True
     return False
 
@@ -592,7 +592,7 @@ def _loss_totals(report: dict, names: set, source_rows: list) -> tuple[int, int,
     by_person = {n: v for n, v in (report.get("theseus_authors") or {}).items() if n in names}
     basis = "of the code that survives today"
     if not total:
-        areas_all = loss.areas(source_rows, names)
+        areas_all = loss.areas(source_rows, names, scope.report_base(report))
         total = sum(a["lines"] for a in areas_all)
         lost = sum(a["lost"] for a in areas_all)
         by_person = {}
@@ -621,10 +621,10 @@ def _loss_people(by_person: dict, total: int) -> str:
 def _loss_areas(report: dict, names: set, source_rows: list) -> list:
     """Areas at 200+ lines where 80%+ of the surviving code is theirs, still in the tree, tagged live
     or not and sorted live-first: that is where the gap bites soonest."""
-    theirs = [a for a in _present_areas(report, source_rows, build=lambda rows: loss.areas(rows, names))
+    theirs = [a for a in _present_areas(report, source_rows, build=lambda rows, base: loss.areas(rows, names, base))
               if a["lines"] >= 200 and a["lost_share"] >= 0.8]
     for a in theirs:
-        a["live"] = _is_live(a["area"], report.get("age") or [])
+        a["live"] = _is_live(a["area"], report.get("age") or [], scope.report_base(report))
     theirs.sort(key=lambda a: (not a["live"], -a["lines"], a["area"]))   # a live area first: that is where the gap bites
     return theirs
 
@@ -1470,10 +1470,11 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
         # history the clone does not hold, have no creator), so there is no truck factor and no one to name.
         return []
     tf_d, removed_d, _ = knowledge.truck_factor(_authors_of(report, files, "is_author_decayed"))
-    depth = knowledge.depth_for(files)
+    base = scope.report_base(report)
+    depth = knowledge.depth_for(files, base=base)
     areas = {}
     for f in files:
-        areas.setdefault(knowledge._area(f, depth), []).append(f)
+        areas.setdefault(knowledge._area(f, depth, base), []).append(f)
     lone = []
     for area, fs in sorted(areas.items()):
         if len(fs) >= area_files and area != knowledge.ROOT:
@@ -1533,7 +1534,7 @@ def component_coupling(report: dict, min_degree: int = 30) -> list:
     rows = report.get("components") or []
     if not rows:
         return []
-    depth = knowledge.depth_for(list(_tree(report)) or [r["entity"] + "x" for r in rows])
+    depth = knowledge.depth_for(list(_tree(report)) or [r["entity"] + "x" for r in rows], base=scope.report_base(report))
 
     def aside(c):
         probe = c + "x.py"

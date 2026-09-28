@@ -9,7 +9,7 @@ import os
 import re
 from collections import Counter, OrderedDict
 
-from . import filetypes, identity, leaks, textfmt
+from . import filetypes, identity, leaks, scope as scopes, textfmt
 
 
 def _rel(path: str) -> str:
@@ -17,16 +17,18 @@ def _rel(path: str) -> str:
     return path[2:] if path.startswith("./") else path
 
 
-def _only(rows: list, types) -> list:
-    """scc's language rows with the files outside `types` dropped and the totals rebuilt from what is
-    left. A row without per-file data (an older size.json) is kept as it is."""
+def _only(rows: list, types, scope=()) -> list:
+    """scc's language rows with the files outside `types` (None: none) or outside --path's directories
+    dropped and the totals rebuilt from what is left. A row without per-file data (an older size.json)
+    is kept as it is."""
     out = []
     for r in rows:
         files = r.get("Files")
         if files is None:
             out.append(r)
             continue
-        kept = [f for f in files if filetypes.matches(_rel(f.get("Location", "")), types)]
+        kept = [f for f in files if (types is None or filetypes.matches(_rel(f.get("Location", "")), types))
+                and scopes.within(_rel(f.get("Location", "")), scope)]
         if kept:
             out.append({**r, "Count": len(kept), "Files": kept,
                         **{k: sum(f.get(k, 0) for f in kept) for k in ("Code", "Comment", "Blank", "Complexity")}})
@@ -47,14 +49,16 @@ def _json_or(text: str, default):
         return default
 
 
-def parse_scc(text: str, types=None) -> dict:
+def parse_scc(text: str, types=None, scope=()) -> dict:
     """scc --by-file JSON as languages and per-file rows. `types` (as filetypes.parse gives it: a
-    set, or None for everything) keeps only the code files, so the size matches the other tables."""
+    set, or None for everything) keeps only the code files, so the size matches the other tables;
+    `scope` (a run's --path directories) keeps only the files under them. scc itself always measures the
+    whole tree: the backtest's tree at its cut-off is narrowed here too, from the scope its meta records."""
     rows = _json_or(text, [])
     if not isinstance(rows, list):
         rows = []
-    if types is not None:
-        rows = _only(rows, types)
+    if types is not None or scope:
+        rows = _only(rows, types, scope)
     languages = sorted(
         (
             {
@@ -320,7 +324,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "meta": meta,
         # a run records its --file-types spec (None for the default list); a run from before that record
         # was measured unfiltered, so it is re-rendered unfiltered rather than with a guessed list
-        "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta["file_types"]) if "file_types" in meta else None),
+        "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta["file_types"]) if "file_types" in meta else None, scopes.of(meta)),
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "plumbing": parse_maat_csv(_read(out_dir, "maat-plumbing.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),

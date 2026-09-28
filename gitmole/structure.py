@@ -843,7 +843,12 @@ def printable(value):
     return value
 
 
-def collect(repo: str, procs: int = None, vendored=()) -> dict:
+def collect(repo: str, procs: int = None, vendored=(), scope=()) -> dict:
+    """The tree-sitter metrics and the import graph. With `scope` (--path's directories) the whole tree is
+    still parsed and resolved, and only the result is narrowed: an import from outside the directories
+    still counts, so a file only the rest of the repository imports is not called unreferenced."""
+    def inside(p):
+        return not scope or any(p.startswith(d + "/") for d in scope)
     paths = [p for p in filetypes.git_paths(repo, "ls-files") if os.path.splitext(p)[1].lower() in GRAMMARS
              and not filetypes.is_vendored(p, vendored) and "node_modules/" not in p]
     blobs = _blobs(repo, paths)
@@ -860,9 +865,9 @@ def collect(repo: str, procs: int = None, vendored=()) -> dict:
                 languages[result["language"]] += 1
                 cached += hit
     edges, eager, resolved = _resolve(files)   # one pass: the second walk cost the step twice its resolution on a large clone
-    orphans = unreferenced(files, edges, resolved, entry_points(repo, set(filetypes.git_paths(repo, "ls-files"))))
+    orphans = [p for p in unreferenced(files, edges, resolved, entry_points(repo, set(filetypes.git_paths(repo, "ls-files")))) if inside(p)]
     functions = []
-    for path in sorted(files):
+    for path in sorted(p for p in files if inside(p)):
         for f in files[path].get("functions") or []:
             if f["nesting"] >= 3 or f["cognitive"] >= 15 or f["bumps"] >= 2 or f["complex_conditions"]:
                 functions.append({"file": path, **f})
@@ -874,7 +879,9 @@ def collect(repo: str, procs: int = None, vendored=()) -> dict:
                 "shapes": _slim_shapes(v.get("shapes") or {}),
                 "max_nesting": max((f["nesting"] for f in v.get("functions") or []), default=0),
                 "max_cognitive": max((f["cognitive"] for f in v.get("functions") or []), default=0)}
-            for p, v in files.items() if "failed" not in v}
+            for p, v in files.items() if "failed" not in v and inside(p)}
+    if scope:
+        languages = Counter(files[p]["language"] for p in slim)
     return {"status": "run", "analyser": ANALYSER, "languages": dict(sorted(languages.items())), "missing_grammars": dict(sorted(missing.items())),
             "cached": cached, "resolved": resolved, "files": slim, "functions": functions[:FUNCTIONS_KEPT], "functions_count": len(functions),
             "unreferenced": orphans[:200], "unreferenced_count": len(orphans)}
@@ -900,7 +907,7 @@ def main(argv=None) -> int:
             with open(meta_path, encoding="utf-8") as fh:
                 meta = json.load(fh)
         vendored = filetypes.vendor_dirs({"meta": meta})
-        result = collect(os.getcwd(), procs, vendored)
+        result = collect(os.getcwd(), procs, vendored, meta.get("scope") or [])
     with open(os.path.join(out_dir, "structure.json"), "w", encoding="utf-8") as fh:
         json.dump(printable(result), fh)
     return 0

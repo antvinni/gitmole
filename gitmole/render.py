@@ -15,7 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import classify, coupling, filetypes, hotspots, identity, knowledge, leaks, loss, textfmt, trend, watch
+from . import classify, coupling, filetypes, hotspots, identity, knowledge, leaks, loss, scope, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -261,6 +261,7 @@ def summary(report: dict) -> dict:
         "lines": report["size"]["total_code"], "files": report["size"]["total_files"],
         "languages": [l["name"] for l in report["size"]["languages"][:4]],
         "since": m.get("since"),
+        "scope": scope.of(m),   # --path's directories; [] for the whole repository
         "pulse": pulse(report),
         "coverage": m.get("coverage") or {},
         "commit": (m.get("run") or {}).get("commit"),
@@ -592,7 +593,7 @@ def signing_section(report: dict, full: bool = True, width=None) -> dict:
 
 def watch_by_component_section(report: dict, full: bool = True, width=None) -> dict:
     """The watch list's top files within each component: --full and Markdown only."""
-    groups = watch.by_component(watch.risks(report))
+    groups = watch.by_component(watch.risks(report), base=scope.report_base(report))
     rows = [(g["component"], f"{g['share']:.0f}%", " · ".join(x["file"] for x in g["files"]))
             for g in groups]
     columns = [("component", PATH), ("share", RIGHT), ("top files", {"overflow": "fold", "ratio": 3})]
@@ -810,14 +811,15 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
     gone = {g["name"] for g in loss.gone(report, months)}
     rows_all = report.get("ownership") or []   # every area the map showed before, tests included
-    areas = loss.areas(rows_all, gone)
+    base = scope.report_base(report)   # a --path run's areas are the directories below the ones it names
+    areas = loss.areas(rows_all, gone, base)
     hidden_note = None
     tree = (report.get("size") or {}).get("files") or {}
     if full is not True and tree:
         # a directory the history knows but HEAD does not is a layout that no longer exists; the rows are
         # filtered before the areas are built so a vanished layout cannot hide that one directory now dominates
-        areas = [a for a in loss.areas(knowledge.present_rows(rows_all, tree), gone) if knowledge.in_tree(a["area"], tree)]
-        hidden = len({knowledge.top_area(r["entity"]) for r in rows_all if not knowledge.in_tree(knowledge.top_area(r["entity"]), tree)})
+        areas = [a for a in loss.areas(knowledge.present_rows(rows_all, tree), gone, base) if knowledge.in_tree(a["area"], tree, base)]
+        hidden = len({knowledge.top_area(r["entity"], base) for r in rows_all if not knowledge.in_tree(knowledge.top_area(r["entity"], base), tree, base)})
         hidden_note = f"{hidden} historical area{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None
     limit = _limit("Knowledge map", full)
     rows = []
@@ -1009,6 +1011,9 @@ def header(report: dict, findings: list = (), full: bool = False) -> Panel:
         body.append(f"  ·  since {s['since']}", style="yellow")
     body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}"
                 f"  ·  branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "\n")
+    if s["scope"]:
+        body.append(scope.label(s["scope"]), style="bold yellow")
+        body.append(f"  ·  {scope.REPOSITORY_WIDE}\n", style="dim")
     body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}\n")
     if full and s["coverage"]:
         body.append(classify.coverage_line(s["coverage"]) + "\n", style="dim")
@@ -1224,6 +1229,7 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
            f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
            + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}"
            + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "  ",
+           *([f"{scope.label(s['scope'])} · {scope.REPOSITORY_WIDE}  "] if s["scope"] else []),
            f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["coverage"] or s["pulse"] else ""),
            *([classify.coverage_line(s["coverage"]) + ("  " if s["pulse"] else "")] if s["coverage"] else []),
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
@@ -1293,7 +1299,7 @@ def to_json(report: dict, findings: list, risk: dict = None, compare: dict = Non
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
     out["watch_by_component"] = [{"component": g["component"], "share": round(g["share"], 3), "files": [x["file"] for x in g["files"]]}
-                                 for g in watch.by_component(watch.risks(report))]
+                                 for g in watch.by_component(watch.risks(report), base=scope.report_base(report))]
     from . import osps
     out["osps"] = {"baseline": osps.BASELINE, "controls": osps.coverage(report, findings)}
     bt = watch.backtest(report)

@@ -35,10 +35,10 @@ def surviving(report: dict, gone_names) -> tuple:
     return sum(n for name, n in shares.items() if name in gone_names), sum(shares.values())
 
 
-def areas(rows: list, gone_names) -> list:
+def areas(rows: list, gone_names, base: int = 0) -> list:
     """knowledge.areas over the given ownership rows, each row with `lost` lines and `lost_share`."""
     out = []
-    for a in knowledge.areas(rows):
+    for a in knowledge.areas(rows, base=base):
         lost = sum(n for name, n in a["owners"] if name in gone_names)
         out.append({**a, "lost": lost, "lost_share": lost / a["lines"] if a["lines"] else 0.0})
     return out

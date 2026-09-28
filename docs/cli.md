@@ -38,6 +38,7 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--out DIR` | The output directory. Default: `analysis-<repo>` next to a local clone, or in the current directory for a remote target. |
 | `--no-run` | Skip the tools and re-render the report from the output directory of an earlier run. **The target is that directory, not the clone**: `gitmole analysis-curl --no-run`. `--out` is not read here. Works with the exports, `--risk` and `--compare`. |
 | `--since WHEN` | Bound the history by author date: `2y`, `18m`, `90d` or a `YYYY-MM-DD` date. People, activity, timeline, hotspots and coupling then describe the current team rather than the founders. File ages and code age always cover the whole history, identity aliases are still merged over all of it, and an empty window is an error. |
+| `--path DIR` | Describe only the files under DIR, a directory of the tree at HEAD relative to the repository root. Repeatable. The header says the scope and what stays repository-wide; the output directory is `analysis-<repo>-<dir>`, so a scoped run never replaces the whole repository's. See [One part of a repository](#one-part-of-a-repository). |
 | `--plots` | Also draw the git-of-theseus code-age and survival charts. Needs `gitmole[plots]`. |
 | `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile. |
 | `--list-file-types` | List the file types in the tree with counts and whether each counts as code, then exit. |
@@ -64,6 +65,37 @@ next to it), with sizes, and deletes them after one y/N question.
 | `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent. |
 | `--compare BEFORE.json` | Add a "Since last report" section against an earlier `--json` export of the same clone: findings new, resolved and persisting (with the counts that moved), files that entered or left the watch list. Works with `--no-run`; never changes the exit code; not with `owner/*`. |
 | `--hook` | With `--no-run` and an output directory: read an agent hook's JSON on stdin (or take files after `--`), score the files it names like `--risk`, print a summary the agent reads back, and exit 2 when `--risk-threshold` is exceeded. See [Agent hooks](#agent-hooks). |
+
+## One part of a repository
+
+`--path DIR` narrows a run to the files under DIR: a package of a monorepo, one plugin, the subsystem a new
+hire was given. DIR is relative to the repository root and must be a directory of the tree at HEAD; a
+mistyped one is an error before anything is written. Give it more than once for several directories.
+
+What is narrowed, and how:
+
+| Step | Scope |
+|---|---|
+| change log (`git log`) and everything read from it: revisions, fixes, coupling, ownership, authorship, the truck factor, activity, timeline, the backtest | the commits that touch DIR, with only DIR's files in them (`git log -- DIR`). A commit's other files do not count towards its size |
+| commits, people, identities, dates in the header | the same commits. Merges are those whose diff against their first parent touches DIR |
+| size (scc), the watch list, hotspots, complexity trend | the files under DIR. scc still reads the tree, and the report keeps DIR's files |
+| code age (blame), function metrics (lizard), duplicates (jscpd) | the files under DIR only; the duplicated share is of DIR's lines, so a copy of a file outside DIR is not counted |
+| structure (tree-sitter) | the whole tree is parsed and the imports resolved, then the result is narrowed to DIR: a file only the rest of the repository imports is not called unreferenced |
+| knowledge map, components, the truck factor's areas | counted from below DIR: `--path backend/plugins` maps `backend/plugins/github/`, `backend/plugins/gitlab/` and so on, with the files directly in DIR as the root files |
+| committed binaries, symlinks, Trojan Source characters | the files under DIR |
+
+What stays repository-wide, and why:
+
+- **secrets** (betterleaks over history, unreachable objects, credential file names): history is one object
+  store, and whoever has the clone has every secret in it, wherever it was committed;
+- **dependencies** (osv-scanner, lock files, dependency confusion, install scripts, unused declared
+  dependencies): a manifest above DIR, a `go.mod` or a workspace root, governs DIR's code as much as one inside it;
+- **signing**, **repository size** (git-sizer), **workflows** (actions pinning), **policy files** (licence,
+  security policy, CODEOWNERS, the OSPS baseline), **submodules** and **agent files**: each is a property of
+  the repository, declared at its root.
+
+Not with `--no-run` (a re-render cannot narrow an analysis), `--plots` (git-of-theseus reads the whole tree)
+or `owner/*`. `--compare` refuses an export of a different scope, a whole-repository one included.
 
 ## Exports and CI
 

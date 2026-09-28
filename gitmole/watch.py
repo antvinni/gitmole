@@ -207,7 +207,7 @@ def _reasons(r: dict) -> list:
     return out
 
 
-def by_component(rows: list, top: int = 3, min_share: float = 5.0, limit: int = 8) -> list:
+def by_component(rows: list, top: int = 3, min_share: float = 5.0, limit: int = 8, base: int = 0) -> list:
     """The watch list within each component (top-level directory, or the next level down when one holds
     most of the files): one busy subtree otherwise takes the whole list. Components holding at least
     `min_share` percent of the pool's score, largest first, each with its own top files."""
@@ -215,10 +215,10 @@ def by_component(rows: list, top: int = 3, min_share: float = 5.0, limit: int = 
     from .maat import component
     if not rows:
         return []
-    depth = knowledge.depth_for([r["file"] for r in rows])
+    depth = knowledge.depth_for([r["file"] for r in rows], base=base)
     groups = {}
     for r in rows:
-        groups.setdefault(component(r["file"], depth), []).append(r)
+        groups.setdefault(component(r["file"], depth, base), []).append(r)
     out = [{"component": c, "share": sum(x["score"] for x in rs), "files": rs[:top]} for c, rs in groups.items()]
     out.sort(key=lambda g: (-g["share"], g["component"]))
     return [g for g in out if g["share"] >= min_share][:limit]
