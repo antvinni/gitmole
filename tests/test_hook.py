@@ -134,6 +134,28 @@ class Gate(unittest.TestCase):
             self.assertIn("core/hot.py: 99.4%", stdout.getvalue())
             self.assertNotIn("hookSpecificOutput", stdout.getvalue(), "with files on the command line the summary is plain text, for pre-commit's log")
 
+    def test_a_run_without_its_log_cannot_pass_an_edit(self):
+        """Without the change analysis every file scores 0, under any threshold; that is not a safe edit."""
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = self._out(d)
+            with open(os.path.join(out, "meta.json")) as fh:
+                meta = json.load(fh)
+            for steps, want in (({"change analysis": "failed", "betterleaks": "run"}, 2), ({"change analysis": "run", "betterleaks": "timeout"}, 2)):
+                with open(os.path.join(out, "meta.json"), "w") as fh:
+                    json.dump({**meta, "steps": steps}, fh)
+                stdout = io.StringIO()
+                rc = cli.main([out, "--no-run", "--hook", "--risk-threshold", "50", "--", "core/hot.py"], console=Console(file=stdout, width=300), stdin=io.StringIO(""))
+                self.assertEqual(rc, want, f"{steps}: over the threshold is an answer, and betterleaks is not the hook's")
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({**meta, "steps": {"change analysis": "failed"}}, fh)
+            stdout = io.StringIO()
+            rc = cli.main([out, "--no-run", "--hook", "--risk-threshold", "99.9", "--", "core/cold.py"], console=Console(file=stdout, width=300), stdin=io.StringIO(""))
+            self.assertEqual(rc, 4)
+            self.assertIn("gate incomplete: change analysis failed", stdout.getvalue())
+            rc = cli.main([out, "--no-run", "--hook", "--", "core/cold.py"], console=Console(file=io.StringIO(), width=300), stdin=io.StringIO(""))
+            self.assertEqual(rc, 0, "no threshold, no gate")
+
     def test_the_hook_needs_an_output_directory(self):
         c = Console(file=io.StringIO(), width=200)
         rc = cli.main(["owner/repo", "--hook"], console=c, tool_check=lambda **kw: [])

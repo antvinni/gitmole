@@ -2,15 +2,16 @@
 #
 #   repos:
 #     - repo: https://github.com/antvinni/gitmole
-#       rev: v0.13.0
+#       rev: vX.Y.Z                   # the latest release tag; `pre-commit autoupdate` fills it in
 #       hooks:
 #         - id: gitmole-risk            # pre-push: the whole change against the branch's history
 #           args: [--risk, origin/main, --risk-threshold, "10"]
 #         - id: gitmole-hook            # pre-commit: the staged files against the last analysis
 #           args: [analysis-repo, --no-run, --hook, --risk-threshold, "10", --]
 #
-# The external tools (scc, git-sizer, betterleaks, jscpd, osv-scanner) have to be on PATH for
-# gitmole-risk; gitmole-hook only reads an output directory an earlier run wrote.
+# The external tools (scc, git-sizer, betterleaks, jscpd, osv-scanner) have to be on PATH, or
+# installed once with `gitmole --install-tools`, for gitmole-risk; gitmole-hook only reads an
+# output directory an earlier run wrote.
 - id: gitmole-risk
   name: gitmole change risk
   description: Score the files changed since the base branch by their share of the repository's revisions × lines of code; fail over the threshold.

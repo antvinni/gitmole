@@ -124,6 +124,14 @@ class Metrics(unittest.TestCase):
         r = parse(".py", "if (not TYPE_CHECKING):\n    from .a import A\nelse:\n    from .b import B\n")
         self.assertEqual(r["deferred"], [1], "brackets round `not` the constant are the same condition")
 
+    def test_go_imports_are_paths_and_package_main_is_a_program(self):
+        r = parse(".go", 'package main\n\nimport "fmt"\n\nimport (\n\tx "example.com/a/b"\n\t_ `example.com/c`\n\t. "d"\n)\n\nfunc f() {}\n')
+        self.assertEqual(r["imports"], [("go", "fmt"), ("go", "example.com/a/b"), ("go", "example.com/c"), ("go", "d")],
+                         "every import spec, blank and dot imports too, by its path")
+        self.assertEqual(r["deferred"], [], "a Go import is always at the top of its file")
+        self.assertTrue(r["main"], "package main is run, never imported")
+        self.assertFalse(parse(".go", "package store\n\nimport \"fmt\"\n")["main"])
+
     def test_a_function_without_a_name_takes_the_one_it_is_bound_to(self):
         r = parse(".js", "const handle = async (e) => { if (e) {} };\nclass S { onChange = () => { if (a) {} } }\nconst o = { go: function () {} };\n")
         self.assertEqual(sorted(f["name"] for f in r["functions"]), ["go", "handle", "onChange"])
@@ -234,6 +242,34 @@ class Resolve(unittest.TestCase):
         self.assertEqual((eager["pkg/a.py"], eager["pkg/b.py"], eager["pkg/c.py"]), (["pkg/b.py"], ["pkg/c.py"], []))
         self.assertEqual(same, resolved, "the resolved share is over every import either way")
 
+    def test_go_modules_come_from_the_module_lines_and_the_replaces_into_the_tree(self):
+        mods = {"go.mod": "module example.com/root // the main module\n\ngo 1.22\n\nrequire example.com/sdk v1.0.0\n\n"
+                          "replace example.com/sdk => ./sdk\nreplace example.com/far => ../outside\nreplace example.com/pinned => example.com/fork v1.2.3\n",
+                "api/go.mod": 'module "example.com/root/api/v2"\n\nreplace (\n\texample.com/root => ../\n\texample.com/tools v0.1.0 => ../tools // local\n)\n',
+                "sdk/go.mod": "module example.com/sdk\n",
+                "testdata/go.mod": "module example.com/root\n"}
+        self.assertEqual(structure.go_modules(mods), {"example.com/root": "", "example.com/root/api/v2": "api", "example.com/sdk": "sdk",
+                                                      "example.com/tools": "tools"},
+                         "a replace outside the tree or to another version is left out; the shallowest go.mod wins a path; a module's own line beats a replace")
+
+    def test_go_imports_resolve_to_every_file_of_the_package_the_build_compiles(self):
+        go = lambda *imports, main=False: {"language": "go", "imports": [["go", i] for i in imports], "main": main}
+        modules = {"example.com/root": "", "example.com/root/api/v2": "api", "example.com/sdk": "sdk"}
+        files = {"store/a.go": go("fmt", "example.com/root/api/v2/types"), "store/b.go": go(), "store/b_test.go": go("example.com/root/store"),
+                 "store/gen.go": go(main=True),
+                 "server/s.go": go("example.com/root/store", "github.com/other/lib", "example.com/sdk/client"),
+                 "cmd/tool/main.go": go("example.com/root/store", "example.com/root/missing", main=True),
+                 "api/types/t.go": go(), "sdk/client/c.go": go()}
+        edges, resolved = structure.resolve(files, modules=modules)
+        self.assertEqual(edges["server/s.go"], ["sdk/client/c.go", "store/a.go", "store/b.go"],
+                         "the package's files, not its tests or a program in its directory; another module's package is nothing here")
+        self.assertEqual(edges["cmd/tool/main.go"], ["store/a.go", "store/b.go"], "one package imported from two files")
+        self.assertEqual(edges["store/a.go"], ["api/types/t.go"], "a nested module by its own path, the longest that matches")
+        self.assertEqual(edges["store/b_test.go"], ["store/a.go", "store/b.go"], "an external test imports its package")
+        self.assertEqual(resolved["go"], 0.833, "five of six imports this tree declares resolved; fmt and github.com/other/lib are not counted")
+        edges, resolved = structure.resolve(files)
+        self.assertEqual((edges["server/s.go"], resolved.get("go")), ([], None), "no go.mod: nothing is this tree's")
+
     def test_the_lowest_path_wins_when_several_files_answer_one_module_name(self):
         """django has two json.py under django/, so an import of it has two candidates and the first wins. The
         suffix index was built by walking a set, so which one came first followed the hash seed: two runs of the
@@ -279,6 +315,31 @@ class Step(unittest.TestCase):
         self.assertEqual(data["files"]["pkg/a.py"]["debt"], 1)
         self.assertEqual(data["files"]["pkg/a.py"]["max_nesting"], 3)
         self.assertEqual([f["name"] for f in data["functions"]], ["f"])
+
+
+    def test_the_step_reads_go_mod_from_the_tree(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo, out = os.path.join(d, "repo"), os.path.join(d, "out")
+            env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x",
+                       GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x", GITMOLE_CACHE="off", PYTHONPATH=ROOT)
+            tree = {"go.mod": "module example.com/m\n\nreplace example.com/lib => ./lib\n", "lib/go.mod": "module example.com/lib\n",
+                    "lib/util/u.go": "package util\n", "store/s.go": 'package store\n\nimport "example.com/lib/util"\n',
+                    "cmd/app/main.go": 'package main\n\nimport (\n\t"fmt"\n\t"example.com/m/store"\n)\n'}
+            for p, text in tree.items():
+                os.makedirs(os.path.join(repo, os.path.dirname(p)), exist_ok=True)
+                with open(os.path.join(repo, p), "w") as fh:
+                    fh.write(text)
+            os.makedirs(out)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "commit", "-q", "-m", "c"], cwd=repo, check=True, env=env)
+            p = subprocess.run([sys.executable, "-m", "gitmole.structure", out, "--procs", "1"], cwd=repo, env=env, capture_output=True, text=True)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            with open(os.path.join(out, "structure.json")) as fh:
+                data = json.load(fh)
+        self.assertEqual(data["files"]["cmd/app/main.go"]["imports"], ["store/s.go"])
+        self.assertEqual(data["files"]["store/s.go"]["imports"], ["lib/util/u.go"])
+        self.assertEqual(data["resolved"], {"go": 1.0})
 
 
 class Blobs(unittest.TestCase):

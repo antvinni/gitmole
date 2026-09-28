@@ -1426,6 +1426,17 @@ class Structure(unittest.TestCase):
                 self.assertTrue(all(b in edges[a] for a, b in zip(loop, loop[1:])), "every step of the loop is an import")
                 self.assertTrue(all(len(findings._loop_from(edges, set(g), m) or loop) >= len(loop) for m in g), "no member has a shorter loop: the group's shortest")
 
+    def test_import_cycles_leave_out_go_whose_compiler_refuses_them(self):
+        """A Go import is an edge to every file of the package, whatever its build tags, so two files built for
+        different platforms can close a loop the compiler would never see; a real one does not build."""
+        r = self.base()
+        files = r["structure"]["files"]
+        r["structure"]["resolved"]["go"] = 1.0
+        go = {"language": "go", "debt": 0, "definitions": 5, "max_nesting": 1, "max_cognitive": 3}
+        for i in range(structure.MIN_FILES):
+            files[f"p{i}/x_linux.go"] = dict(go, imports=[f"p{(i + 1) % structure.MIN_FILES}/x_linux.go"])
+        self.assertNotIn("import_cycles", self.by_id(r))
+
     def test_import_cycles_is_unjudged_until_labelled(self):
         self.assertIn("import_cycles", findings.UNJUDGED)
 
@@ -1457,6 +1468,22 @@ class Structure(unittest.TestCase):
         self.assertNotIn("examples/", f["detail"])
         r["coupling"] = r["coupling"][:1]
         self.assertNotIn("hidden_coupling", self.by_id(r), "nothing left to say once the family is out")
+
+    def test_hidden_coupling_leaves_out_two_go_files_of_one_package(self):
+        """A Go package is a directory whose files share every name with no import between them, so two of
+        them changing together is the package at work; two Go files in different packages are a pair."""
+        r = self.base()
+        for p in ("store/a.go", "store/b.go", "api/c.go"):
+            r["size"]["files"][p] = {"code": 100, "complexity": 1}
+            r["structure"]["files"][p] = {"language": "go", "debt": 0, "imports": [], "definitions": 5, "max_nesting": 1, "max_cognitive": 3}
+        r["structure"]["resolved"]["go"] = 0.9
+        r["coupling"] = [{"entity": "store/a.go", "coupled": "store/b.go", "degree": 90, "average-revs": 20},
+                         {"entity": "store/a.go", "coupled": "api/c.go", "degree": 80, "average-revs": 20}]
+        f = self.by_id(r)["hidden_coupling"]
+        self.assertIn("store/a.go and api/c.go", f["detail"])
+        self.assertNotIn("store/b.go", f["detail"], "one package: no import is needed between its files")
+        r["structure"]["files"]["api/c.go"]["imports"] = ["store/a.go", "store/b.go"]
+        self.assertNotIn("hidden_coupling", self.by_id(r), "an import of the package explains the other pair")
 
     def test_one_more_hidden_pair_is_one_pair(self):
         """gitmole's own report read "(1 more pairs like them)"."""
