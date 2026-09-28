@@ -385,9 +385,9 @@ docker run --rm -v "$PWD:/repo" gitmole .
 docker run --rm -v "$PWD:/repo" gitmole . --fail-on critical --markdown /repo/gitmole.md
 ```
 
-The image is linux/amd64 only, which the Dockerfile pins because a release
-before 0.39.0 installs git-sizer, which has no Linux arm64 build; on Apple
-silicon Docker runs it under emulation. The analysis goes to `/analysis-repo` inside the
+The image builds for linux/amd64 and linux/arm64, natively on Apple silicon;
+an image of a release before 0.39.0 installs git-sizer, which has no Linux arm64
+build, and needs `--platform linux/amd64`. The analysis goes to `/analysis-repo` inside the
 container unless `--out` names a mounted path. Run with
 `--user "$(id -u):$(id -g)"` to write exports as yourself; add
 `--out /tmp/analysis`, since that user cannot write to `/`. The vulnerability

@@ -1,15 +1,15 @@
-# gitmole from PyPI and the five tools it runs, at the versions that release pins.
+# gitmole from PyPI and the three tools it runs, at the versions that release pins.
 #
-#   docker build --build-arg GITMOLE_VERSION=0.38.0 -t gitmole .
+#   docker build --build-arg GITMOLE_VERSION=0.39.0 -t gitmole .
 #   docker run --rm -v "$PWD:/repo" gitmole .
 #
-# linux/amd64 only: upstream publishes no Linux arm64 build of git-sizer, so --install-tools cannot place one
-# there (gitmole/tools.py). On Apple silicon Docker runs this image under emulation.
+# Builds for linux/amd64 and linux/arm64: every pinned tool publishes both (gitmole/tools.py). Before 0.39.0
+# git-sizer, which has no Linux arm64 build, held the image to amd64.
 # The base is pinned by digest, python:3.12-slim-bookworm as of 28 Sep 2026.
 ARG BASE=python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e
 
-FROM --platform=linux/amd64 ${BASE} AS build
-ARG GITMOLE_VERSION=0.38.0
+FROM ${BASE} AS build
+ARG GITMOLE_VERSION=0.39.0
 ENV GITMOLE_TOOLS=/opt/gitmole/tools
 RUN python -m venv /opt/gitmole/venv \
  && /opt/gitmole/venv/bin/pip install --no-cache-dir --disable-pip-version-check "gitmole==${GITMOLE_VERSION}" \
@@ -17,7 +17,7 @@ RUN python -m venv /opt/gitmole/venv \
  && mkdir /opt/gitmole/bin \
  && ln -s /opt/gitmole/tools/*/* /opt/gitmole/bin/
 
-FROM --platform=linux/amd64 ${BASE}
+FROM ${BASE}
 # a mounted repository belongs to the host's user, not to the container's: without safe.directory git refuses
 # it. /osv is osv-scanner's database directory, open to any user so a run with --user and no database there
 # says "not scanned" rather than failing to create it.
