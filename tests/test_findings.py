@@ -1203,6 +1203,26 @@ class Hygiene(unittest.TestCase):
         self.assertEqual(found["lockfile_missing"]["severity"], "info")
         self.assertIn("lib/Cargo.toml has no Cargo.lock", found["lockfile_missing"]["detail"])
 
+    def test_a_drift_whose_changes_were_sweeping_is_left_out(self):
+        # devlake: backend/go.mod's last change was e355317df, the module rename the report lists as sweeping
+        drift = [{"manifest": "backend/go.mod", "lockfile": "backend/go.sum", "manifest_date": "2026-09-02", "lockfile_date": "2026-08-26",
+                  "changes": [{"commit": "e355317df1f1d40af094d5e9c63d7dc9b5530f83", "date": "2026-09-02"}]},
+                 {"manifest": "web/package.json", "lockfile": "web/package-lock.json", "manifest_date": "2026-09-02", "lockfile_date": "2026-01-01",
+                  "changes": [{"commit": "e355317df1f1d40af094d5e9c63d7dc9b5530f83", "date": "2026-09-02"}, {"commit": "abc1234ffff", "date": "2026-03-01"}]}]
+        r = self.h(lockfiles={"drift": drift, "drift_count": 2, "missing": [], "missing_count": 0, "pairs": 2})
+        r["activity"] = {"sweeping": [{"hash": "e355317df", "files": 900}]}
+        f = self.by_id(r)["lockfile_drift"]
+        self.assertIn("1 manifest changed after the lock file that pins it: web/package.json changed on 2026-03-01", f["detail"])
+        self.assertEqual(f["evidence"]["drift"], [{"manifest": "web/package.json", "lockfile": "web/package-lock.json", "manifest_date": "2026-03-01",
+                                                   "lockfile_date": "2026-01-01", "commit": "abc1234ffff"}])
+        r["hygiene"]["lockfiles"]["drift"] = drift[:1]
+        r["hygiene"]["lockfiles"]["drift_count"] = 1
+        self.assertNotIn("lockfile_drift", self.by_id(r))
+        r["hygiene"]["lockfiles"]["drift"] = [{**drift[0], "more": True}]
+        self.assertIn("lockfile_drift", self.by_id(r), "the recorded changes ran out: nothing says the older ones were sweeps")
+        r["hygiene"]["lockfiles"]["drift"] = [{k: v for k, v in drift[0].items() if k != "changes"}]
+        self.assertIn("lockfile_drift", self.by_id(r), "an output directory from before the changes were recorded")
+
     def test_update_tooling(self):
         f = self.by_id(self.h(updates={"tool": "dependabot", "covered": ["npm"], "uncovered": ["gomod", "pip"]}))["dependency_updates"]
         self.assertIn("dependabot.yml covers npm but not gomod and pip", f["detail"])

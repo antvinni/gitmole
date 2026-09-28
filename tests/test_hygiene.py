@@ -61,9 +61,33 @@ class Lockfiles(unittest.TestCase):
             r.write("package.json", '{"name": "x", "dependencies": {"left-pad": "1"}}\n')
             r.commit("bump", date="2026-03-01T00:00:00")
             out = hygiene.lockfiles(d)
-        self.assertEqual(out["drift"], [{"manifest": "package.json", "lockfile": "package-lock.json", "manifest_date": "2026-03-01", "lockfile_date": "2026-01-01"}])
+            bump = r.git("rev-parse", "HEAD").stdout.decode().strip()
+        self.assertEqual(out["drift"], [{"manifest": "package.json", "lockfile": "package-lock.json", "manifest_date": "2026-03-01", "lockfile_date": "2026-01-01",
+                                         "changes": [{"commit": bump, "date": "2026-03-01"}]}])
         self.assertEqual(out["missing"], [{"manifest": "lib/Cargo.toml", "expected": ["Cargo.lock"]}])
         self.assertEqual(out["pairs"], 3, "root npm, api uv and the workspace member through the root lockfile")
+
+    def test_a_change_the_lock_does_not_record_is_not_drift(self):
+        # devlake's backend/go.mod "changed on 2026-09-02, after go.sum": the module rename, one line
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("go.mod", "module example.com/incubator-x\n\ngo 1.26\n\nrequire golang.org/x/text v0.3.0\n")
+            r.write("go.sum", "golang.org/x/text v0.3.0 h1:abc=\n")
+            r.write("web/package.json", '{"name": "web", "scripts": {"build": "vite"}, "dependencies": {"vite": "5"}}\n')
+            r.write("web/package-lock.json", '{"lockfileVersion": 3}\n')
+            r.commit(date="2026-01-01T00:00:00")
+            r.write("go.mod", "module example.com/x // renamed\n\ngo 1.26\n\nrequire golang.org/x/text v0.3.0\n")
+            r.write("web/package.json", '{\n  "name": "web",\n  "scripts": {"build": "vite build"},\n  "dependencies": {"vite": "5"}\n}\n')
+            r.commit("rename the module, reformat", date="2026-03-01T00:00:00")
+            self.assertEqual(hygiene.lockfiles(d)["drift"], [])
+            r.write("go.mod", "module example.com/x\n\ngo 1.26\n\nrequire golang.org/x/text v0.4.0\n")
+            r.commit("bump", date="2026-04-01T12:00:00")
+            bump = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            r.write("go.mod", "module example.com/y\n\ngo 1.26\n\nrequire golang.org/x/text v0.4.0\n")
+            r.commit("rename again", date="2026-05-01T12:00:00")
+            drift = hygiene.lockfiles(d)["drift"]
+        self.assertEqual(drift, [{"manifest": "go.mod", "lockfile": "go.sum", "manifest_date": "2026-04-01", "lockfile_date": "2026-01-01",
+                                  "changes": [{"commit": bump, "date": "2026-04-01"}]}], "dated by the change the lock records, not the rename after it")
 
 
 class DependencyUpdates(unittest.TestCase):

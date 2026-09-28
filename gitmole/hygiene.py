@@ -110,6 +110,61 @@ def _last_commit(repo: str, path: str) -> int:
     return int(out) if out.isdigit() else 0
 
 
+# what a lock file records from its manifest: a change to anything else cannot put the lock behind.
+# go.sum holds the checksums of the modules go.mod requires, so the `module` line (a rename) and comments
+# do not reach it; package-lock.json copies the dependency sections and the root's name and version.
+_NPM_LOCKED = ("name", "version", "dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta",
+               "bundleDependencies", "bundledDependencies", "overrides", "resolutions", "workspaces")
+DRIFT_WALK = 200   # manifest commits read past the lock file's last one: a cost bound, not a threshold
+DRIFT_KEPT = 5     # changes kept per drifting manifest, newest first, for the findings to leave the sweeping ones out
+
+
+def _locked_part(name: str, data):
+    """The part of a manifest its lock file records, or None when that cannot be told (a manifest of
+    another ecosystem, a missing or unparseable file): then every change counts."""
+    if data is None:
+        return None
+    text = data.decode("utf-8", "replace")
+    if name == "go.mod":
+        lines = (line.split("//", 1)[0].strip() for line in text.splitlines())
+        return [line for line in lines if line and not line.startswith("module ")]
+    if name == "package.json":
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            return None
+        return {k: doc.get(k) for k in _NPM_LOCKED} if isinstance(doc, dict) else None
+    return None
+
+
+def _show(repo: str, rev: str, path: str):
+    done = subprocess.run(["git", "cat-file", "blob", f"{rev}:{path}"], cwd=repo, capture_output=True)
+    return done.stdout if done.returncode == 0 else None
+
+
+def _moves_lock(repo: str, commit: str, path: str) -> bool:
+    """Whether this commit's change to the manifest touched what the lock file records."""
+    name = path.rsplit("/", 1)[-1]
+    after = _locked_part(name, _show(repo, commit, path))
+    return after is None or after != _locked_part(name, _show(repo, f"{commit}^", path))
+
+
+def _changes_after(repo: str, path: str, since: int) -> tuple:
+    """The manifest's commits after `since` that touched what its lock records, newest first, as
+    (hash, commit time), at most DRIFT_KEPT; and whether the walk stopped before it had read them all."""
+    out = subprocess.run(["git", "log", "--format=%H %ct", f"-{DRIFT_WALK + 1}", "--", path], cwd=repo, capture_output=True, text=True).stdout.split("\n")
+    rows = [(h, int(t)) for h, _, t in (line.partition(" ") for line in out if line) if t.isdigit()]
+    kept, cut = [], len(rows) > DRIFT_WALK
+    for h, t in rows[:DRIFT_WALK]:
+        if t <= since:
+            return kept, False
+        if _moves_lock(repo, h, path):
+            kept.append((h, t))
+            if len(kept) == DRIFT_KEPT:
+                return kept, True
+    return kept, cut
+
+
 def _day(ts: int) -> str:
     import datetime as dt
     return dt.datetime.fromtimestamp(ts, dt.timezone.utc).date().isoformat()
@@ -117,9 +172,12 @@ def _day(ts: int) -> str:
 
 def lockfiles(repo: str) -> dict:
     """Each tracked manifest with the lock file that pins it: in its own directory, or in an ancestor
-    (a workspace member is locked by the root). Drift is a manifest whose last commit is newer than its
-    lock file's, by commit time, which a clone keeps and mtime does not; missing is a manifest of an
-    ecosystem that locks by convention with no lock file anywhere above it."""
+    (a workspace member is locked by the root). Drift is a manifest changed after its lock file's last
+    commit, by commit time, which a clone keeps and mtime does not, in a part the lock records (a go.mod
+    whose only change is its `module` line, a package.json whose only change is its scripts, is not
+    behind); each drift names those changes, newest first, so the findings can leave out a sweeping
+    commit. Missing is a manifest of an ecosystem that locks by convention with no lock file anywhere
+    above it."""
     tracked = set(_tracked(repo))
     drift, missing, pairs = [], [], 0
     for path in sorted(tracked):
@@ -144,7 +202,10 @@ def lockfiles(repo: str) -> dict:
         pairs += 1
         m, l = _last_commit(repo, path), _last_commit(repo, lock)
         if m > l:
-            drift.append({"manifest": path, "lockfile": lock, "manifest_date": _day(m), "lockfile_date": _day(l)})
+            changes, more = _changes_after(repo, path, l)
+            if changes:
+                drift.append({"manifest": path, "lockfile": lock, "manifest_date": _day(changes[0][1]), "lockfile_date": _day(l),
+                              "changes": [{"commit": h, "date": _day(t)} for h, t in changes], **({"more": True} if more else {})})
     return {"drift": drift[:CAP], "drift_count": len(drift), "missing": missing[:CAP], "missing_count": len(missing), "pairs": pairs}
 
 

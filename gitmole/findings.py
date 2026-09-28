@@ -853,6 +853,9 @@ def hygiene_findings(report: dict) -> list:
     """The hygiene checks (hygiene.py), one finding per rule, each naming the OpenSSF Scorecard check it
     stands in for without the GitHub API. Nothing for an output directory from before the step."""
     h = report.get("hygiene") or {}
+    swept = [c["hash"] for c in (report.get("activity") or {}).get("sweeping") or [] if c.get("hash")]
+    if swept and (h.get("lockfiles") or {}).get("drift"):
+        h = {**h, "lockfiles": _drift_past_sweeps(h["lockfiles"], swept)}
     out = []
     for check in (_hygiene_actions, _hygiene_lockfiles, _hygiene_updates, _hygiene_presence, _hygiene_confusion, _hygiene_install, _hygiene_binaries, _hygiene_submodules, _hygiene_symlinks, _hygiene_trojan,
                   _hygiene_unused, _hygiene_licence, _hygiene_copyleft):
@@ -878,6 +881,31 @@ def _hygiene_actions(h: dict, out: list) -> None:
                       rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0), "unpinned": a["unpinned"][:10]}))
 
 
+def _drift_past_sweeps(lf: dict, swept: list) -> dict:
+    """The lock file drift without the manifest changes the report leaves out of every count as sweeping
+    (a module rename across the tree is not a dependency change): each drift dated by its newest change
+    that is not a sweep, and dropped when every change was one. A drift from before the changes were
+    recorded, or whose recorded changes ran out before a non-sweeping one, is kept as it is."""
+    kept = []
+    for d in lf["drift"]:
+        changes = d.get("changes")
+        rest = [c for c in changes or [] if not any(c["commit"].startswith(s) for s in swept)]
+        if changes is None or (not rest and d.get("more")):
+            kept.append(d)
+        elif rest:
+            kept.append({**d, "manifest_date": rest[0]["date"], "changes": rest})
+    dropped = len(lf["drift"]) - len(kept)
+    return {**lf, "drift": kept, "drift_count": lf.get("drift_count", len(lf["drift"])) - dropped}
+
+
+def _drift_row(d: dict) -> dict:
+    """One drift for the evidence, naming the change that dates it rather than listing them all."""
+    row = {k: v for k, v in d.items() if k not in ("changes", "more")}
+    if d.get("changes"):
+        row["commit"] = d["changes"][0]["commit"]
+    return row
+
+
 def _hygiene_lockfiles(h: dict, out: list) -> None:
     lf = h.get("lockfiles") or {}
     if lf.get("drift"):
@@ -885,7 +913,8 @@ def _hygiene_lockfiles(h: dict, out: list) -> None:
         listed = "; ".join(f"{x['manifest']} changed on {x['manifest_date']}, after {x['lockfile']} last did on {x['lockfile_date']}" for x in d[:3])
         out.append(_f("warning", "Lock files behind their manifests", f"{_plural(lf.get('drift_count', len(d)), 'manifest')} changed after the lock file that pins it: {listed}.",
                       f"Regenerate {d[0]['lockfile']} and commit it with the manifest; a frozen install does not catch this.",
-                      rule={"id": "lockfile_drift", "by": "last commit time"}, evidence={"count": lf.get("drift_count", len(d)), "drift": d[:10]}))
+                      rule={"id": "lockfile_drift", "by": "last commit time"},
+                      evidence={"count": lf.get("drift_count", len(d)), "drift": [_drift_row(x) for x in d[:10]]}))
     if lf.get("missing"):
         m = lf["missing"]
         listed = "; ".join(f"{x['manifest']} has no {x['expected'][0]}" for x in m[:3])
