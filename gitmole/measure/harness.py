@@ -321,7 +321,7 @@ def run_entry(src: str, entry: dict, root: str, reference: str, env_extra: dict 
 
 
 def needs_ranking(entry: dict, rec: dict) -> bool:
-    return rec.get("status") == "ok" and entry["set"] in ("development", "large", "holdout") and not entry.get("fixture")
+    return rec.get("status") == "ok" and entry["set"] in ("development", "large", "well-kept", "holdout") and not entry.get("fixture")
 
 
 def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labels_dir: str = None) -> dict:

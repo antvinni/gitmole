@@ -55,7 +55,11 @@ development set's, which the loop measures whole; the effectiveness numbers —
 headroom and its interval, wins against churn, AUC, recall, stability, carry-over,
 bug magnets — span development and large in a release round, because the large
 repositories are where the ranking loses, and a set without them would read better
-than the tool is. A loop's effectiveness numbers are therefore compared only with
+than the tool is. From the next release round on, it also ranks the four well-kept
+repositories: they were chosen by an outside criterion before any run and are never
+tuned on, so they widen the effectiveness set from ten repositories to fourteen
+(all four are Go, so they add less variety than the count suggests). They stay out
+of the cost ceilings, and a crash there does not mark the release as crashed. A loop's effectiveness numbers are therefore compared only with
 the last release cut to the repositories the loop ran, never with the release
 headline. The large set's own wall time and peak memory are ceilings too, checked
 at release rounds. The long graphs draw over the fixed series whichever of the two

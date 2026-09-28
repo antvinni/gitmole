@@ -34,8 +34,12 @@ def _ran_large(record: dict) -> bool:
 
 
 def _ranked_set(record: dict) -> str:
-    """The set the effectiveness rows span: development alone, or development and large in a release round."""
-    return "development and large" if _ran_large(record) else "development"
+    """The sets the effectiveness rows span: development, and in a release round large and, once it was
+    ranked, well-kept."""
+    sets = ["development"] + (["large"] if _ran_large(record) else [])
+    if any(x.get("set") == "well-kept" and x.get("ranking") for x in record["repos"].values()):
+        sets.append("well-kept")
+    return sets[0] if len(sets) == 1 else ", ".join(sets[:-1]) + " and " + sets[-1]
 
 
 def _sets_note(prev, cur: dict) -> str:
@@ -157,7 +161,7 @@ def page(history: list, extras: dict) -> str:
               "with a red cross, and its row says why. The graphs draw every release over the same four repositories, "
               "curl, django, react and gitmole, so a repository joining the development set is not a move; the table "
               "and the dashboard use the whole set: cost over the development set, effectiveness over development and "
-              "large. Robust counts every set a round ran, so its denominator is larger in a release round. "
+              "large, and well-kept where a release round ranked it. Robust counts every set a round ran, so its denominator is larger in a release round. "
               "The first three graphs are the ones the README shows: is the "
               "ranking right, are the findings worth acting on, does it run.", ""]
     if history:

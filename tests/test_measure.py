@@ -657,3 +657,36 @@ class HistoryPage(unittest.TestCase):
         text = report.page(self._history(), None)
         self.assertIn("measure/history-notes.md", text)
         self.assertNotIn("## What the history shows", text, "the readings live in their own file")
+
+
+class WellKeptRanked(unittest.TestCase):
+    """The four well-kept repositories were chosen by an outside criterion before any run, so they can
+    widen the effectiveness set at release rounds without being tuned against: fourteen repositories
+    instead of ten. They stay out of the cost ceilings, which are the development set's."""
+
+    def _rec(self, well_kept_ranked):
+        rec = _record({"a": "ok"})
+        kept = dict(rec["repos"]["a"], set="well-kept", findings=40, seconds=900)
+        if not well_kept_ranked:
+            kept.pop("ranking")   # a record from before well-kept was ranked
+        rec["repos"]["k"] = kept
+        return rec
+
+    def test_a_well_kept_run_is_ranked(self):
+        self.assertTrue(harness.needs_ranking({"set": "well-kept"}, {"status": "ok"}))
+
+    def test_its_ranking_counts_for_effectiveness_and_not_for_cost(self):
+        s = dashboard.summarise(self._rec(True))
+        self.assertEqual(s["wins_losses_ties"], [2, 0, 0], "the development cut-off and the well-kept one")
+        self.assertEqual(s["findings_median"], 4, "cost stays the development set's")
+
+    def test_a_record_from_before_it_was_ranked_reads_as_before(self):
+        self.assertEqual(dashboard.summarise(self._rec(False))["wins_losses_ties"], [1, 0, 0])
+
+    def test_the_rows_name_the_sets_they_span(self):
+        from gitmole.measure import report
+        self.assertEqual(report._ranked_set(self._rec(True)), "development and well-kept")
+        self.assertEqual(report._ranked_set(self._rec(False)), "development")
+        both = self._rec(True)
+        both["repos"]["L"] = dict(both["repos"]["a"], set="large")
+        self.assertEqual(report._ranked_set(both), "development, large and well-kept")

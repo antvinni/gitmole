@@ -39,6 +39,7 @@ def _round(x, n=3):
 
 
 MEASURED = ("development", "large")   # the sets a release round ranks; the development set alone carries the cost ceilings
+RANKED = (*MEASURED, "well-kept")   # well-kept adds to the effectiveness numbers only: chosen by an outside criterion, never tuned on
 
 
 def summarise(record: dict, only=None) -> dict:
@@ -46,15 +47,16 @@ def summarise(record: dict, only=None) -> dict:
     report lines, wall time, memory, scored share) are the development set's, which the fast loop
     measures whole, so a loop can be held to them. The effectiveness keys (headroom, AUC, recall,
     stability, carry-over, magnets) span development and large, since the large repositories are the
-    ranking's hard cases. With `only`, the like-for-like series the long graphs draw: every key over
+    ranking's hard cases, and the well-kept set where it was ranked (release rounds after 28 September 2026); a
+    well-kept crash is not a release crash, as before. With `only`, the like-for-like series the long graphs draw: every key over
     those repositories, whichever of the two sets holds them."""
     repos = record["repos"]
     if only is None:
-        pop = {n: r for n, r in repos.items() if r.get("set") in MEASURED}
+        pop = {n: r for n, r in repos.items() if r.get("set") in RANKED}
         cost = {n: r for n, r in pop.items() if r.get("set") == "development"}
     else:
         pop = cost = {n: r for n, r in repos.items() if r.get("set") in MEASURED and n in only}
-    crashed = {n: r.get("note") or r["status"] for n, r in pop.items() if r["status"] in ("crashed", "timeout")}
+    crashed = {n: r.get("note") or r["status"] for n, r in pop.items() if r["status"] in ("crashed", "timeout") and r.get("set") in MEASURED}
     out = {"crashed": crashed or None}
     ranked = {n: _repo_ranking(r) for n, r in pop.items()}
     ranked = {n: v for n, v in ranked.items() if v}
