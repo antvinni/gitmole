@@ -19,7 +19,7 @@ import hashlib
 import json
 import re
 
-from . import __version__, leaks
+from . import __version__, gate, leaks
 
 LEVELS = {"critical": "error", "warning": "warning", "info": "note"}
 SEVERITY = {"critical": "9.0", "warning": "5.0", "info": "2.0"}
@@ -219,9 +219,25 @@ def build(report: dict, found: list, scope: str = "head") -> dict:
     run = {"tool": {"driver": {"name": "gitmole", "version": manifest.get("gitmole") or __version__, "informationUri": HOMEPAGE, "rules": rules}},
            "results": found_results,
            "properties": {"scope": scope, "repository": (report.get("meta") or {}).get("name")}}
+    run["invocations"] = [_invocation(report)]
     if manifest.get("commit"):
         run["versionControlProvenance"] = [{"revisionId": manifest["commit"]}]
     return {"$schema": SCHEMA, "version": "2.1.0", "runs": [run]}
+
+
+def _invocation(report: dict) -> dict:
+    """Whether the run behind these results completed: a step a rule reads that failed or timed out means
+    the document is missing whatever that step would have found, so the invocation is not successful and
+    one notification per step names it. A consumer reading `results` alone would take an empty list from a
+    killed secrets scan for a clean one."""
+    missing = gate.unfinished(report)
+    out = {"executionSuccessful": not missing}
+    if missing:
+        out["toolExecutionNotifications"] = [
+            {"level": "error", "descriptor": {"id": name},
+             "message": {"text": f"step {gate.describe([(name, status)])}: the results are missing whatever it would have found"}}
+            for name, status in missing]
+    return out
 
 
 def dumps(report: dict, found: list, scope: str = "head") -> str:

@@ -266,7 +266,7 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
 def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
     """The agent-hook gate (see hook.py): 2 over the threshold, 0 otherwise, silent when the event
     names no file in the repository."""
-    from . import hook, watch
+    from . import gate, hook, watch
     try:
         report = load.load_report(out_dir)
     except load.Unreadable as e:
@@ -286,6 +286,11 @@ def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
     if args.risk_threshold is not None and risk["total"] > args.risk_threshold:
         err.print("\n".join(lines), soft_wrap=True, markup=False, highlight=False)   # exit 2: what the agent is told
         return 2
+    missing = gate.unfinished(report, gate.RISK_STEPS) if args.risk_threshold is not None else []
+    if missing:   # every file scores 0 without the log or the sizes: under the threshold, and not because it is safe
+        err.print(f"gate incomplete: {gate.describe(missing)} in the run {out_dir} holds, so these scores are not the files' "
+                  f"and --risk-threshold could not check them (exit {gate.EXIT_INCOMPLETE})", soft_wrap=True, markup=False, highlight=False)
+        return gate.EXIT_INCOMPLETE
     return 0
 
 
@@ -659,9 +664,16 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
     if "-" not in (args.json, args.markdown):
         render.print_section(console, render.portfolio_section(reports))
         console.print(Text(f"\nPer-repository results in {base}", style="dim"), soft_wrap=True)
-    all_found = [f for _, _, found in reports for f in found]
-    if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in all_found):
-        return 3
+    if not args.fail_on:
+        return 0
+    from . import gate
+    if gate.tripped([f for _, _, found in reports for f in found], args.fail_on):
+        return gate.EXIT_FOUND
+    missing = [(name, gate.describe(gate.unfinished(report))) for name, report, _ in reports if gate.unfinished(report)]
+    if missing:
+        ui.print(f"[red]gate incomplete:[/red] {'; '.join(f'{name}: {what}' for name, what in missing)}, so --fail-on could not check "
+                 f"what those steps would have found (exit {gate.EXIT_INCOMPLETE})", soft_wrap=True)
+        return gate.EXIT_INCOMPLETE
     return 0
 
 
@@ -768,11 +780,30 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
     if "-" not in (args.json, args.markdown, args.sarif, args.sbom):
         render.report(report, found, console, full=args.full, risk=risk, base=args.risk, compare=comparison)
     _feedback(report, found, args, console, err)
-    if args.fail_on and any(findings.SEVERITIES.index(f["severity"]) <= findings.SEVERITIES.index(args.fail_on) for f in found):
-        return 3
-    if risk is not None and args.risk_threshold is not None and risk["total"] > args.risk_threshold:
-        return 3
-    return 0
+    return _gate_exit(report, found, risk, args, err)
+
+
+def _gate_exit(report: dict, found: list, risk, args, err: Console) -> int:
+    """The exit code of the gates asked for: 3 when one found what it stops on; 4 when none did and a step
+    one of them reads did not complete, so it could not check (gate.py); 0 otherwise, and always without a gate."""
+    from . import gate
+    code, missing, flags = 0, [], []
+    if args.fail_on:
+        missing, flags = gate.unfinished(report), ["--fail-on"]
+        if gate.tripped(found, args.fail_on):
+            code = gate.EXIT_FOUND
+    if risk is not None and args.risk_threshold is not None:
+        short = gate.unfinished(report, gate.RISK_STEPS)
+        missing, flags = sorted(set(missing) | set(short)), flags + (["--risk-threshold"] if short else [])
+        if risk["total"] > args.risk_threshold:
+            code = gate.EXIT_FOUND
+    if missing:
+        flags = " and ".join(flags)
+        err.print(f"[red]gate incomplete:[/red] {gate.describe(missing)}, so {flags} could not check what "
+                  f"{'that step' if len(missing) == 1 else 'those steps'} would have found"
+                  + ("" if code else f" (exit {gate.EXIT_INCOMPLETE}); run.log in the output directory says why"), soft_wrap=True)
+        code = code or gate.EXIT_INCOMPLETE
+    return code
 
 
 def _feedback(report: dict, found: list, args, console: Console, err: Console, ask=None) -> None:

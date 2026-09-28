@@ -434,8 +434,52 @@ class Export(unittest.TestCase):
             self.assertEqual(cli.main([out, "--no-run"], console=console()), 0)
 
 
+class IncompleteGate(unittest.TestCase):
+    """A gate whose steps did not all finish cannot vouch for what they would have found: a betterleaks that
+    timed out left no secrets table, no finding, and --fail-on critical exited 0 like a clean scan."""
+
+    def _dir(self, out, steps, identities=None):
+        with open(os.path.join(out, "meta.json"), "w") as fh:
+            json.dump({"name": "demo", "commits": 5, "identities": identities or [], "steps": steps}, fh)
+
+    def test_a_step_that_timed_out_under_a_gate_exits_4_and_names_it(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"scc": "run", "betterleaks": "timeout", "osv-scanner": "run"})
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical"], console=c), 4)
+            self.assertIn("gate incomplete: betterleaks timed out, so --fail-on could not check", c.export_text())
+            self.assertEqual(cli.main([out, "--no-run"], console=console()), 0, "no gate asked for: the run is still a report")
+
+    def test_what_the_gate_found_is_an_answer_whatever_else_is_missing(self):
+        ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"betterleaks": "failed"}, ids)
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "warning"], console=c), 3)
+            self.assertIn("gate incomplete: betterleaks failed", c.export_text(), "still said, though the gate tripped")
+
+    def test_a_step_no_rule_reads_does_not_make_the_gate_incomplete(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"scc": "run", "backtest": "failed", "theseus stack plot": "failed"})
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "info"], console=console()), 0)
+
+    def test_sarif_says_the_run_did_not_complete(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"betterleaks": "timeout", "osv-scanner": "skipped", "scc": "run"})
+            path = os.path.join(out, "r.sarif")
+            cli.main([out, "--no-run", "--sarif", path], console=console())
+            with open(path) as fh:
+                invocation = json.load(fh)["runs"][0]["invocations"][0]
+            self.assertFalse(invocation["executionSuccessful"])
+            self.assertEqual([n["descriptor"]["id"] for n in invocation["toolExecutionNotifications"]], ["betterleaks", "osv-scanner"])
+            self._dir(out, {"scc": "run"})
+            cli.main([out, "--no-run", "--sarif", path], console=console())
+            with open(path) as fh:
+                self.assertEqual(json.load(fh)["runs"][0]["invocations"], [{"executionSuccessful": True}])
+
+
 class Portfolio(unittest.TestCase):
-    def _run(self, extra=(), fail=False):
+    def _run(self, extra=(), fail=False, step=("q", "true")):
         with tempfile.TemporaryDirectory() as work:
             def cloner(target, parent):
                 d = os.path.join(parent, target.split("/")[-1])
@@ -446,7 +490,7 @@ class Portfolio(unittest.TestCase):
                     subprocess.run(["git", "-C", d, "-c", "user.name=Your Name", "-c", "user.email=you@example.com",
                                     "commit", "-q", "--allow-empty", "-m", "x"], check=True)
                 return d
-            planner = lambda repo, out, branch="HEAD", **kw: [{"name": "q", "argv": ["true"], "stdout": None, "deps": []}]
+            planner = lambda repo, out, branch="HEAD", **kw: [{"name": step[0], "argv": [step[1]], "stdout": None, "deps": []}]
             c = console()
             rc = cli.main(["acme/*", "--out", os.path.join(work, "pf"), *extra], console=c, tool_check=lambda **kw: [], planner=planner,
                           estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1},
@@ -471,6 +515,13 @@ class Portfolio(unittest.TestCase):
     def test_fail_on_looks_across_all_repos(self):
         rc, *_ = self._run(["--fail-on", "warning"])
         self.assertEqual(rc, 3)
+
+    def test_fail_on_says_which_repository_it_could_not_check(self):
+        rc, text, *_ = self._run(["--fail-on", "critical"], step=("betterleaks", "false"))
+        self.assertEqual(rc, 4)
+        self.assertIn("one: betterleaks failed; two: betterleaks failed", text)
+        rc, *_ = self._run(["--fail-on", "warning"], step=("betterleaks", "false"))
+        self.assertEqual(rc, 3, "a finding at the level is an answer")
 
     def test_markdown_export_writes_a_portfolio_file(self):
         rc, _, _, _, md = self._run(["--markdown", "portfolio.md"])
