@@ -294,6 +294,34 @@ def _nested(out_dir: str):
         return None
 
 
+def _authored(meta: dict, activity: dict, provenance: dict) -> None:
+    """Fill in `authored` where an older run left it out, so the People table and the Timeline
+    do not call a Co-authored-by credit a commit. What such a run kept is the trailer inventory: the
+    identities that are named in trailers and never author a commit (provenance never_author), whose
+    every credit is a trailer's. An identity row loses the commits of those variants; a per-person total
+    loses those credits, never below zero. A person who both authors and is credited under one address
+    keeps the credit, which only the newer run can tell apart."""
+    never = (provenance.get("trailers") or {}).get("never_author") or []
+    if not never:
+        return
+    emails = {(t.get("email") or "").lower() for t in never}
+    for i in meta.get("identities") or []:
+        if "authored" not in i:
+            others = i.get("aliases") or []
+            head = {"email": i.get("email"), "commits": i["commits"] - sum(a["commits"] for a in others)}   # the row's commits are its variants' sum
+            credit = sum(v["commits"] for v in [head, *others] if (v.get("email") or "").lower() in emails)
+            i["authored"] = max(0, i["commits"] - credit)
+    aliases = meta.get("aliases") or {}
+    credited = {}
+    for t in never:
+        name = aliases.get(t.get("name"), t.get("name"))
+        credited[name] = credited.get(name, 0) + (t.get("commits") or 0)
+    for key in ("authors", "authors_all"):
+        for name, a in (activity.get(key) or {}).items():
+            if "authored" not in a and name in credited:
+                a["authored"] = max(0, (a.get("commits") or 0) - credited[name])
+
+
 def load_report(out_dir: str, nested: bool = True) -> dict:
     """Read every output file gitmole writes. Missing optional files become empty values.
 
@@ -315,6 +343,9 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
             continue
         surviving[key] = surviving.get(key, 0) + lines
     ownership = [r for r in parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")) if not is_bot(r.get("author") or "")]
+    activity = _read_json(out_dir, "activity.json", {})
+    provenance = _read_json(out_dir, "provenance.json", {}) or {}
+    _authored(meta, activity if isinstance(activity, dict) else {}, provenance if isinstance(provenance, dict) else {})
     return {
         "out_dir": out_dir,
         "meta": meta,
@@ -342,7 +373,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         # the wrapper writes the file only when the scan finished, so a killed step or an old output
         # directory leaves it missing, and the report must not claim a clean scan
         "secrets_scanned": isinstance(_read_json(out_dir, "secrets.json", None), list),
-        "activity": _read_json(out_dir, "activity.json", {}),
+        "activity": activity,
         "functions": parse_functions(_read(out_dir, "functions.csv")),
         "duplicates": parse_duplicates_json(_read_json(out_dir, "duplicates.json", None)) or parse_duplicates(_read(out_dir, "duplicates.txt")),
         # the osv-scanner step writes the file whatever it found (no lock files, no local database, a
@@ -353,6 +384,6 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "hygiene": _read_json(out_dir, "hygiene.json", {}) or {},   # the hygiene checks (hygiene.py); {} before 0.15
         "unreachable": _read_json(out_dir, "unreachable.json", {}) or {},
         "structure": _read_json(out_dir, "structure.json", {}) or {},
-        "provenance": _read_json(out_dir, "provenance.json", {}) or {},   # trailers, cohorts, commit shape, agent files; {} before 0.17   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
+        "provenance": provenance,   # trailers, cohorts, commit shape, agent files; {} before 0.17   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
         "backtest": _nested(out_dir) if nested else None,
     }

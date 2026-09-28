@@ -593,6 +593,11 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
         "bots": [{"name": n, "commits": c} for n, c in sorted(bots.items(), key=lambda kv: (-kv[1], kv[0]))],
         "aliases": aliases,
     }
+    # the commits each identity authored, apart from the ones a trailer credits it with: the People table's
+    # commits are these, and the credit is shown beside them, not as authorship
+    authored = Counter((n, e) for _, n, e in all_windowed if n not in bot_names)
+    for i in meta["identities"]:
+        i["authored"] = sum(authored[(v["name"], v["email"])] for v in [i, *(i.get("aliases") or [])])
     if since:
         meta["since"] = since
     # merges per person, through .mailmap and the same alias merge: the People table shows them apart, since

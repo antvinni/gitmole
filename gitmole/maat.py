@@ -685,15 +685,17 @@ def entity_ownership(commits: list) -> list:
 
 
 def author_totals(commits: list) -> dict:
-    """Per person: commits they are credited on, lines added and deleted (shared with co-authors),
-    and the first and last date they committed."""
+    """Per person: commits they are credited on, the ones among them they authored (the rest came from
+    Co-authored-by trailers), lines added and deleted (shared with co-authors), and the first and last
+    date they committed."""
     out = {}
     for c in commits:
         crew = people(c)
         added, deleted = sum(x for _, x, _ in c["files"]), sum(x for _, _, x in c["files"])
         for who, x, y in zip(crew, _shares(added, len(crew)), _shares(deleted, len(crew))):
-            a = out.setdefault(who, {"commits": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
+            a = out.setdefault(who, {"commits": 0, "authored": 0, "added": 0, "deleted": 0, "first": c["date"], "last": c["date"]})
             a["commits"] += 1
+            a["authored"] += who == c["author"]
             a["added"] += x
             a["deleted"] += y
             a["first"], a["last"] = min(a["first"], c["date"]), max(a["last"], c["date"])
@@ -760,8 +762,7 @@ def activity(commits: list, ignored: set = frozenset()) -> dict:
             if is_rev:
                 reverted[p] += 1
         net_by_year[c["date"][:4]] += net
-        for who in people(c):
-            timeline[who][c["date"][:7]] += 1
+        timeline[c["author"]][c["date"][:7]] += 1   # authored commits: a trailer's credit is not a commit of theirs
         fix_commits += is_fix(c.get("subject", ""))
         if is_rev:
             revert_commits += 1

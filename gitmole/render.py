@@ -467,17 +467,25 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
 def people_section(report: dict, full: bool = True, width=None) -> dict:
     ids = report["meta"].get("identities") or []
     merges = any(i.get("merges") for i in ids)   # merges apart: merging every pull request is not writing the code
-    ids = sorted(ids, key=lambda i: -(i["commits"] - i.get("merges", 0))) if merges else ids
-    total_commits = sum(i["commits"] - i.get("merges", 0) for i in ids)
+
+    def own(i):   # the commits they authored: a Co-authored-by credit is shown apart, not as a commit of theirs
+        return i.get("authored", i["commits"]) - i.get("merges", 0)
+
+    def credit(i):
+        return i["commits"] - i.get("authored", i["commits"])
+    ids = sorted(ids, key=lambda i: -own(i)) if merges or any(credit(i) for i in ids) else ids
+    total_commits = sum(own(i) for i in ids)
     surviving = report.get("theseus_authors") or {}
     total_lines = sum(surviving.values())
     limit = _limit("People", full)
-    rows = [(i["name"], i["email"], i["commits"] - i.get("merges", 0), *((i.get("merges", 0),) if merges else ()),
-             _pct(i["commits"] - i.get("merges", 0), total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
+    credited = any(credit(i) for i in ids[:limit])   # a column only when a row shown has any
+    rows = [(i["name"], i["email"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
+             _pct(own(i), total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
     columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
-               ("share", RIGHT), ("surviving code", RIGHT)]
+               *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving code", RIGHT)]
     if full is not True:
-        columns, rows = _keep(columns, rows, ["author", "commits", *(["merges"] if merges else []), "share", "surviving code"])
+        columns, rows = _keep(columns, rows, ["author", "commits", *(["merges"] if merges else []), *(["co-authored"] if credited else []),
+                                              "share", "surviving code"])
     since = report["meta"].get("since")
     notes = [f"commits since {since}; surviving code is for the whole tree"] if since else []
     if merges:
@@ -533,7 +541,7 @@ def _month_label(ym: str) -> str:
 
 
 def timeline_section(report: dict, full: bool = True, width=None, months: int = 12) -> dict:
-    """Commits per author, one column per month. Names never fold: when the year does not fit the
+    """Commits each person authored, one column per month. Names never fold: when the year does not fit the
     terminal width, the oldest months are dropped (down to FLOOR) instead. If a name is still too long
     for the room FLOOR leaves, the name gives way, not the months: it is shown cut with an ellipsis
     (never fewer than NAME_FLOOR characters), so the months a reader came for stay full width. The
@@ -549,12 +557,14 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
         span = [m for m in span if m >= since[:7]] or span[-1:]
     # the run decided who is a bot from name and email; the timeline only has the name, so it asks the run
     bots = {b["name"] for b in report["meta"].get("bots") or []}
+    # an older run counted a Co-authored-by credit here as a commit; a person with no commit of their own is not listed
+    credit_only = {n for n, a in ((report.get("activity") or {}).get("authors") or {}).items() if a.get("authored", 1) == 0}
 
     def active(shown):
         """Who to list and in what order: commits inside the months actually shown, most first."""
         totals = {a: sum(per.get(m, 0) for m in shown) for a, per in tl.items()}
         return [a for a in sorted(totals, key=lambda a: -totals[a])
-                if totals[a] > 0 and a not in bots and not identity.is_bot(a)]
+                if totals[a] > 0 and a not in bots and a not in credit_only and not identity.is_bot(a)]
 
     ranked = active(span)
     limit = _limit("Timeline", full)
