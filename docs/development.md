@@ -40,8 +40,8 @@ silently skew a real report.
 [AGENTS.md](https://github.com/antvinni/gitmole/blob/main/AGENTS.md) is the short
 version an agent follows, and
 [pipeline.md](https://github.com/antvinni/gitmole/blob/main/docs/pipeline.md) is
-the loop around all of this: which lane a change is in, what it has to prove, and
-which decisions an agent is not allowed to make.
+the loop around all of this: what a change has to show, and which decisions an
+agent is not allowed to make.
 
 ## Rules
 
@@ -70,8 +70,10 @@ Versions are git tags and follow semantic versioning. A minor release (0.31.0)
 adds something: a finding, a section, a column, an option, an export, a tool.
 A patch release (0.30.1) only fixes what is there: a rule that misclassified
 a file, merged two people or named the wrong executable, a crash, the docs.
-A fix can still move the report and the measured numbers; its release gets
-its own record in `docs/measurements/` all the same. While the version is
+A release that changes what gitmole finds or ranks (findings, scoring, a pinned
+tool) gets its own record in `docs/measurements/`, patch or minor; a release of
+docs, packaging or a refactor needs its tests and the determinism jobs, not a
+measurement round. Release when something worth releasing has landed. While the version is
 0.x, a change that removes or renames an option or a JSON key is a minor
 release and says so in its notes.
 
@@ -206,7 +208,8 @@ change entropy (`maat.entropy`, decayed over calendar months); the results are i
 `run --ref TAG` runs a release from its own source over the corpus in
 `measure/corpus.json` and writes `docs/measurements/<version>.json`,
 `history` does that for every release tag not yet recorded (`--releases minor`
-for the first shipped release of each x.y series only); both default to the
+for the first shipped release of each x.y series only; since only releases that
+change what gitmole finds or ranks are measured, prefer `run --ref` for those); both default to the
 fast loop's sets (development, awkward, gate), and `--release` runs a release
 round's instead (development, large, awkward, gate, well-kept); `extras` runs the
 current tree's sensitivity sweep, description checks and hook replay over

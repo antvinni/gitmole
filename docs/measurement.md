@@ -67,7 +67,7 @@ one decision (the watch list kept its ranking while tying churn alone, 674 to
 674), and nothing was tuned against them. Treat them as the first holdout and
 keep it that way.
 
-A holdout is spent by use. Releases here are cut several times a day, so "run it
+A holdout is spent by use. Releases here were once cut several times a day, so "run it
 at every release" would read it dozens of times a week and turn it into a second
 development set. Two rules keep it honest:
 

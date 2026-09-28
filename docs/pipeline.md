@@ -8,8 +8,20 @@ conclusions as rules, which an agent follows without reading the reasoning here.
 is the mechanics — checkout, tests, releases.
 [measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md)
 is what the tool's effectiveness means and how it is measured. This page is the
-loop that connects them: who proposes a change, what it has to prove before it
-lands, and which decisions an agent is not allowed to make.
+loop that connects them: what a change has to show before it lands, and which
+decisions an agent is not allowed to make.
+
+**Revised 28 September 2026.** The process had grown faster than the tool: three
+lanes, a receipt format per lane, a measurement round per release and a release
+several times a day, around a ranking that the corpus is too small to show
+improving. The rules that protect the evidence stay — determinism, the record,
+the holdout, no agent labels, a harness before the change it judges, the output
+budget, offline scans, the rule-writing constraints and the git hygiene learned
+from incidents. The lanes became one requirement (say what changed and how you know), a
+measurement round runs only when what gitmole finds or ranks can move, and
+AGENTS.md is a core that always applies plus an appendix for unattended loops.
+The sections below keep their reasoning; where they describe the old ceremony,
+this paragraph supersedes them.
 
 ## The diagnosis this page exists for
 
@@ -36,35 +48,25 @@ build could have objected.
 The pipeline design question is therefore not how to produce more. It is how to
 wire the instruments to the controls.
 
-## Three lanes
+## Say what changed and how you know
 
 Not every change should move the same number, and pretending otherwise turns a
-useful metric into a tax on good work.
+useful metric into a tax on good work. The earlier answer was three lanes —
+effectiveness, correctness, reach — each with its own number to move. In
+practice the taxonomy became the work: commits argued which lane they were in,
+and a refactor needed a paragraph to say it moved nothing.
 
-**Effectiveness** changes claim the tool gets better at ranking or at catching:
-a ranking change, a new signal, a threshold. These must move an effectiveness
-number — headroom, ROC-AUC, recall at a fifth of the lines, gate catches — on
-the holdout, or they do not ship. "It seems right" is what the corpus exists to
-replace.
+What survives is the honest core of it. Every change says what it does to the
+output and how that was shown: a refactor says the JSON is identical outside the
+envelope, a false positive removed names the rule and the count before and
+after, a cost change gives the timing, a new export shows that it works and that
+determinism holds. The command sits beside the number.
 
-**Correctness** changes claim an existing output was wrong: a false positive
-removed, a rule taught an exclusion it should always have had, a statement
-corrected. These do not touch the ranking and must not be argued as if they
-might. They have their own numbers and should be held to them — precision on
-the labelled sample for that rule, false positives removed, and the cost lanes
-falling rather than rising. A correctness change that moves none of those has
-not been measured yet.
-
-**Reach** changes make the tool usable somewhere it was not: SARIF, SBOM,
-pre-commit, the hooks, packaging, documentation. Their acceptance test is that
-the new surface works, determinism holds, and the cost lanes do not move.
-
-The lane is declared in the brief and repeated in the release note, and the
-build asks only for a number in the declared lane. A change that genuinely
-moves nothing in any lane is still allowed, but it says so and says why, and
-that sentence is the record. Most of 0.11.0 to 0.25.0 was reach work described
-in effectiveness language, which is why the history reads as a plateau rather
-than as a deliberate phase.
+One claim keeps a higher bar. A change that says gitmole now ranks or catches
+better needs a holdout number from a release round. Most of 0.11.0 to 0.25.0 was
+new surface described in effectiveness language, which is why the history reads
+as a plateau; the fix is not a lane field; it is not making the claim without
+the number.
 
 ## Budgets
 
@@ -163,8 +165,10 @@ runs the corpus: it can reach whatever the harness can reach. Two mechanisms
 work without pretending otherwise.
 
 Make the *number* the controlled thing rather than the clone. A holdout figure
-counts only when a release-tag job produced it; one computed locally has no
-standing and does not enter the history, whoever computed it. That is checkable
+counts only when the maintainer asked for it, for a named claim, and it is
+recorded with that release; one computed during development has no standing and
+does not enter the history, whoever computed it. (A release-tag job that
+produces it would make this mechanical; none exists yet.) That is checkable
 after the fact, which a rule about what not to look at is not.
 
 Then plan for contamination instead of forbidding it. `corpus.json` already
@@ -199,19 +203,12 @@ written.
 
 ## Briefs state the number
 
-The spec-driven layout already produces a brief and a report per task. One
-addition makes them load-bearing: the brief names the metric that will move, the
-direction, roughly how much, and what result would mean the idea was wrong. The
-report then measures rather than describes.
-
-A brief that cannot name a number is a reach change, and should say so in the
-lane field instead of reaching for a justification it does not have.
-
-Worth noting that `.superpowers/` and `docs/superpowers/` are both gitignored, so
-none of this reasoning survives in the repository. For a tool whose entire pitch
-is that you can check its working, the record of why each rule exists is the one
-artefact most worth keeping. Committing the briefs, or a distilled decision log,
-would cost almost nothing.
+When a change is meant to move a number, its brief names the metric, the
+direction, roughly how much, and what result would mean the idea was wrong, and
+the report then measures rather than describes. A brief that cannot name a
+number says what the change is for instead of reaching for a justification it
+does not have. Size the brief to the change: a one-line fix needs a pull request
+description, not a plan.
 
 ## Self-hosting
 
@@ -273,15 +270,17 @@ reach.
 
 ## Cadence
 
-Given what the history says, the next effectiveness release should probably
-remove rather than add: every rule below its precision floor or above its share
-of the noise budget gets demoted to `info` or to the JSON, and findings per
-repository comes back down while the ranking holds. That is a measurable win and
-it is available now, without a new idea.
+Release when something worth releasing has landed, not several times a day: a
+release round is about twenty-five minutes of timed runs plus the untimed
+extras, and a record to read, and sixty-three releases in twelve days (fifteen
+since each got a record) turned the records into bookkeeping.
+Measure a release when it changes what gitmole finds or ranks — findings,
+scoring, a pinned tool; a release of docs, packaging or a refactor needs its
+tests and its determinism check, not a round.
 
-After that, alternate. A build phase takes items from the roadmap in whichever
-lane; a validation phase runs the holdout, refreshes the labels with a
-hand-signed anchor, re-runs the sensitivity sweep and prunes whatever did not
-earn its place. The build phase is where agents are fastest and the validation
-phase is where the project stays honest, and the second one is the one that will
-get skipped unless it is scheduled.
+The next effectiveness work should start with the yardstick, not a rule: at a
+handful of development repositories the intervals are too wide for a real
+improvement to register, and at the head of the list the watch list draws
+with churn alone on the holdout. Score against the better of size alone and churn alone, and give the
+effectiveness set enough repositories to see a difference, before asking any
+rule to show one.

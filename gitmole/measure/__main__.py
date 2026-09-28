@@ -8,7 +8,7 @@
 
 The timed runs are sequential, one repository at a time and nothing else on the machine, so the times
 and memory are comparable. The rankings at cut-offs are not timed, so they run side by side once every
-timed run is over (--jobs). Records go to docs/measurements/<version>.json, one per release, committed
+timed run is over (--jobs). Records go to docs/measurements/<version>.json, one per measured release, committed
 so two releases diff."""
 from __future__ import annotations
 
