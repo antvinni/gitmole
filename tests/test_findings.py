@@ -1192,6 +1192,17 @@ class Hygiene(unittest.TestCase):
         self.assertTrue(f["advice"].startswith("Pin org/deploy@main to a full commit SHA first"), f["advice"])
         self.assertEqual(f["rule"]["scorecard"], "Pinned-Dependencies")
 
+    def test_the_pin_advice_names_another_owners_action_before_the_repositorys_own(self):
+        unpinned = [{"file": ".github/workflows/a.yml", "uses": "actions/checkout@v7"}, {"file": ".github/workflows/a.yml", "uses": "apache/skywalking-eyes@main"},
+                    {"file": ".github/workflows/b.yml", "uses": "golangci/golangci-lint-action@v9"}]
+        def advice(origin):
+            return self.by_id(self.h(actions={"unpinned": unpinned, "unpinned_count": 3, "pinned": 0, "origin": origin}))["unpinned_actions"]["advice"]
+        self.assertTrue(advice({"host": "github.com", "owner": "Apache"}).startswith("Pin golangci/golangci-lint-action@v9 "), "apache's own action is nearer than golangci's")
+        self.assertTrue(advice(None).startswith("Pin apache/skywalking-eyes@main "), "no origin: the order as before")
+        self.assertTrue(advice({"host": "gitlab.com", "owner": "apache"}).startswith("Pin apache/skywalking-eyes@main "), "an account on another host is not the GitHub one")
+        f = self.by_id(self.h(actions={"unpinned": unpinned[:2], "unpinned_count": 2, "pinned": 0, "origin": {"host": "github.com", "owner": "apache"}}))["unpinned_actions"]
+        self.assertTrue(f["advice"].startswith("Pin apache/skywalking-eyes@main "), "the repository's own owner still comes before GitHub's")
+
     def test_lockfile_drift_and_missing_lockfiles(self):
         found = self.by_id(self.h(lockfiles={"drift": [{"manifest": "package.json", "lockfile": "package-lock.json", "manifest_date": "2026-03-01", "lockfile_date": "2026-01-01"}],
                                              "drift_count": 1, "missing": [{"manifest": "lib/Cargo.toml", "expected": ["Cargo.lock"]}], "missing_count": 1, "pairs": 3}))

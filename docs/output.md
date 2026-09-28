@@ -124,7 +124,9 @@ How to read each part of the terminal report, and what each run writes to disk; 
    Scorecard and the OSPS Baseline otherwise make through the GitHub API,
    each rule naming the Scorecard check it stands in for: workflow steps
    that use an action by tag or branch rather than a full commit SHA (a
-   warning); a manifest whose last commit is newer than its lock file's, by
+   warning, whose advice names another account's action before one from
+   the account the `origin` remote says the repository lives under, and
+   either before GitHub's own `actions/`); a manifest whose last commit is newer than its lock file's, by
    commit time (a warning), and a manifest of an ecosystem that locks by
    convention with no lock file in its directory or above it (a note); the
    ecosystems with a tracked lock file that `dependabot.yml` does not cover,

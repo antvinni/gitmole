@@ -861,12 +861,22 @@ def _hygiene_actions(h: dict, out: list) -> None:
             if u["uses"] not in by_file.setdefault(u["file"], []):
                 by_file[u["file"]].append(u["uses"])
         listed = "; ".join(f"{textfmt.join_and(v[:3])}{' and more' if len(v) > 3 else ''} in {k}" for k, v in list(by_file.items())[:3])
-        third = [u for u in a["unpinned"] if not u["uses"].split("/", 1)[0] in ("actions", "github")]
-        first = (third or a["unpinned"])[0]["uses"]
+        first = min(a["unpinned"], key=lambda u: _action_trust(u["uses"], a.get("origin")))["uses"]
         out.append(_f("warning", "Actions pinned by tag or branch",
                       f"{n} of {total} workflow steps use an action by tag or branch: {listed}. Whoever controls the action can move the tag to other code.",
                       f"Pin {first} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
                       rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0), "unpinned": a["unpinned"][:10]}))
+
+
+def _action_trust(uses: str, origin) -> int:
+    """How far an action's owner sits from the repository, nearest last: another account's action (0)
+    before one from the account the repository itself lives under on GitHub (1), before GitHub's own
+    actions/ and github/ (2). Without an origin on github.com, only GitHub's own come last."""
+    owner = uses.split("/", 1)[0]
+    if owner in ("actions", "github"):
+        return 2
+    home = origin or {}
+    return 1 if home.get("host") == "github.com" and owner.lower() == (home.get("owner") or "").lower() else 0
 
 
 def _hygiene_lockfiles(h: dict, out: list) -> None:
