@@ -637,3 +637,23 @@ class FirstParentCutOff(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(RuntimeError):
                 harness.rev_at(tmp, "2026-01-15")
+
+
+class HistoryPage(unittest.TestCase):
+    def _history(self):
+        rec = _record({"a": "ok"})
+        rec.update(summary=dashboard.summarise(rec), reference_date="2026-09-17")
+        return [rec]
+
+    def test_the_table_comes_before_the_graphs_and_the_explanation(self):
+        from gitmole.measure import report
+        text = report.page(self._history(), None)
+        self.assertLess(text.index("## By release"), text.index("![ranking](evolution/ranking.svg)"))
+        self.assertLess(text.index("## By release"), text.index("## How a release is measured"))
+        self.assertIn("| 9.9.9 |", text)
+
+    def test_the_hand_written_readings_are_linked_not_pasted_in(self):
+        from gitmole.measure import report
+        text = report.page(self._history(), None)
+        self.assertIn("measure/history-notes.md", text)
+        self.assertNotIn("## What the history shows", text, "the readings live in their own file")
