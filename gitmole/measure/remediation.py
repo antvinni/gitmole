@@ -387,8 +387,9 @@ NOT_OBSERVABLE = {
     "sweeping_commits": "history cannot be un-committed",
     "import_commits": "history cannot be un-committed",
     "tangled_commits": "history cannot be un-committed",
-    "secrets_possible": "as secrets_in_source: the value stays in history whatever the tree does",
-    "reverts": "history cannot be un-committed",
+    "secrets_possible": "the advice is to look at each value; what would show it was done, a fingerprint in "
+                        ".betterleaksignore, is not in the evidence, which names files only",
+    "reverts": "the advice is a check before merge, and a later tree does not show one as such",
 }
 
 # Rules that name their subjects only as totals. Extending the evidence to list them is what makes

@@ -171,7 +171,7 @@ class Scoring(unittest.TestCase):
 
     def test_a_fired_rule_outside_the_table_is_printed_with_its_reason(self):
         text = r.unscored({"reverts", "commented_out_code", "stale_files", "unpinned_actions"})
-        self.assertIn("- **reverts** — history cannot be un-committed\n", text)
+        self.assertIn(f"- **reverts** — {r.NOT_OBSERVABLE['reverts']}\n", text)
         self.assertIn("- **commented_out_code** — ", text)
         self.assertIn("- **stale_files** — ", text)
         self.assertNotIn("unpinned_actions", text, "a scored rule is in the table, not in these lists")
