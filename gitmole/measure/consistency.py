@@ -191,9 +191,12 @@ def sweeping_evidence(report: dict, found: list, clone: str, commit: str) -> lis
 
 
 def trailer_author(report: dict, found: list) -> list:
-    """An identity every one of whose commits came from Co-authored-by trailers, shown as an author. A
-    row that keeps its authored commits apart (`authored`) is judged by those, so crediting a co-author
-    is fine as long as the table does not call the credit authorship."""
+    """An identity every one of whose commits came from Co-authored-by trailers, shown as an author. An
+    export that records `authored` per identity counts authored commits apart from trailer credit by
+    construction, so its tables cannot call the credit authorship and nothing is judged: comparing credit
+    with authored commits there fired on people who wrote commits of their own and were also credited
+    under another address. Older exports, whose `commits` mixed the two, are judged by the heuristic that
+    the credit covers every commit the row shows."""
     trailers = ((report.get("provenance") or {}).get("trailers") or {}).get("never_author") or []
     aliases = (report.get("meta") or {}).get("aliases") or {}
     authors = (report.get("activity") or {}).get("authors") or {}
@@ -201,7 +204,9 @@ def trailer_author(report: dict, found: list) -> list:
     for t in trailers:
         name = aliases.get(t.get("name"), t.get("name"))
         credited[name] = credited.get(name, 0) + (t.get("commits") or 0)
-    shown = {name: a.get("authored", a.get("commits")) or 0 for name, a in authors.items()}
+    if any("authored" in a for a in authors.values()):
+        return []
+    shown = {name: a.get("commits") or 0 for name, a in authors.items()}
     return [_complaint("trailer_author", None, name) for name, n in sorted(credited.items())
             if name in shown and n >= shown[name] > 0]
 
