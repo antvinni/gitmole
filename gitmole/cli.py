@@ -17,7 +17,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 
-from . import __version__, banner, blame, filetypes, findings, load, loss, run, tools
+from . import __version__, banner, blame, filetypes, findings, load, loss, run, scope, tools
 
 INSTALL_URL = "https://github.com/antvinni/gitmole/blob/main/docs/install.md"
 # what to do about a missing or moved required tool, said by a run and by --doctor alike
@@ -72,6 +72,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     scope = p.add_argument_group("scope")
     scope.add_argument("--since", metavar="WHEN", help="only history newer than 2y, 18m, 90d or a date")
+    scope.add_argument("--path", action="append", default=[], metavar="DIR",
+                       help="describe only the files under DIR (repeatable)")
     scope.add_argument("--gone", type=int, default=loss.DEFAULT_MONTHS, metavar="MONTHS",
                        help="months without a commit that count as gone (12)")
     scope.add_argument("--file-types", metavar="LIST", help="extensions that count as code, comma-separated, or all")
@@ -233,13 +235,21 @@ def _check_args(args, err, kind=None) -> int | None:
                "--hook needs --no-run and an output directory" if args.hook and not args.no_run else
                "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk and not args.hook else
                "--compare: no such file: " + args.compare if args.compare and not os.path.isfile(args.compare) else
+               "--path needs a run: a re-render cannot narrow an earlier analysis" if args.path and args.no_run else
+               "--plots cannot be narrowed by --path: git-of-theseus reads the whole tree" if args.path and args.plots else
                "--baseline: no such file: " + args.baseline if args.baseline and not os.path.isfile(args.baseline) else None)
+        if not bad and args.path:
+            try:
+                args.path = scope.clean(args.path)
+            except ValueError as e:
+                bad = str(e)
     elif kind == "path":
         bad = None
     else:
         bad = ("--compare needs one repository, not owner/*" if args.compare and kind == "org" else
                "--baseline needs one repository, not owner/*" if args.baseline and kind == "org" else
                "--sbom needs one repository, not owner/*" if args.sbom and kind == "org" else
+               "--path needs one repository, not owner/*" if args.path and kind == "org" else
                "--risk needs a local path" if args.risk else
                "--list-file-types needs a local path" if args.list_file_types else None)
     if bad:
@@ -478,7 +488,7 @@ def _resolve_target(kind, target, args, console, ui, err, planner, estimator, li
     else:
         repo_dir = target
 
-    out_dir = run.output_dir(kind, repo_dir, args.out)
+    out_dir = run.output_dir(kind, repo_dir, args.out, scope=args.path)
     return None, repo_dir, out_dir
 
 
@@ -501,7 +511,12 @@ def _types_spec(spec):
 def _list_file_types(repo_dir: str, args, console: Console) -> int:
     from . import render
 
-    rows = [(k, n, "yes" if inc else "no") for k, n, inc in filetypes.discover(repo_dir, filetypes.parse(args.file_types))]
+    try:
+        scope.validate(repo_dir, args.path)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]", soft_wrap=True)
+        return 2
+    rows = [(k, n, "yes" if inc else "no") for k, n, inc in filetypes.discover(repo_dir, filetypes.parse(args.file_types), args.path)]
     sec = render._section("File types", [("type", {}), ("files", render.RIGHT), ("code", {})], rows, note="no tracked files",
                           caption="code = analysed for hotspots, coupling and code age")
     render.print_section(console, sec)
@@ -538,7 +553,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     Raises NoCommits when --since leaves no commits to analyse."""
     types_spec = _types_spec(args.file_types)
 
-    meta = run.collect_meta(repo_dir, since=args.since_date)
+    meta = run.collect_meta(repo_dir, since=args.since_date, scope=args.path)
     meta["run"] = run.manifest(repo_dir, args)   # what produced this report: commit, gitmole and tool versions, the options
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     meta["gone_months"] = args.gone
@@ -548,7 +563,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     meta["vendored"] = filetypes.vendored_paths(repo_dir, tracked, attrs=attrs)    # somebody else's code, by the licence it carries or the attribute it declares
     meta["credential_files"] = filetypes.credential_files(filetypes.git_paths(repo_dir, "ls-files"))   # by name, over every tracked file
     if args.since_date and meta["commits"] == 0:
-        raise NoCommits(f"no commits since {args.since_date}; widen --since")
+        raise NoCommits(f"no commits since {args.since_date}" + (f" under {', '.join(args.path)}" if args.path else "") + "; widen --since")
     if args.now:
         meta["now"] = args.now
     meta["age"] = {"status": "run" if age_ok else "skipped", "method": "blame", "files": estimate.get("code_files", estimate["files"]),
@@ -617,6 +632,10 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     no commit yet, before anything reads its history."""
     if not run.has_commits(repo_dir):
         raise NoCommits("no commits yet: there is nothing to analyse")
+    try:
+        scope.validate(repo_dir, args.path)   # before anything is written: a mistyped --path leaves no output directory behind
+    except ValueError as e:
+        raise NoCommits(str(e)) from None
     os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)
     log_path = os.path.join(out_dir, "run.log")
     open(log_path, "w").close()
@@ -624,7 +643,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
     tracked = blame.text_files(repo_dir)   # read the index once: the steps below do not change it
     estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types),
-                         budget=None if args.deep else args.time_budget, tracked=tracked)
+                         budget=None if args.deep else args.time_budget, tracked=tracked, **({"scope": args.path} if args.path else {}))
     age_ok, plots_ok, projected, duplicates_ok = _budgets(args, estimate, ui)
 
     meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected, duplicates_ok, tracked=tracked)
@@ -635,7 +654,8 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     run.clear_outputs(out_dir)
     steps = planner(repo_dir, out_dir, branch=meta["branch"], age=age_ok, plots=plots_ok, ignore=ignore, types=types_spec, now=args.now,
                     since=args.since_date, lizard=lizard_ok, duplicates=duplicates_ok, backtest=cut, ignore_revs=run.ignore_revs_files(repo_dir),
-                    structure=getattr(args, "structure", False), duplicates_then=meta["duplicates"].get("then"))
+                    structure=getattr(args, "structure", False), duplicates_then=meta["duplicates"].get("then"),
+                    **({"scope": args.path} if args.path else {}))
     run.save_meta(meta, out_dir)
     stats = {}
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout, stats=stats)
@@ -648,7 +668,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     # what each step cost, for the measurement harness's runtime guard; they vary, so --json keeps them in its envelope
     meta["step_seconds"] = {n: s["seconds"] for n, s in sorted(stats.items())}
     meta["step_peak_mb"] = {n: s["peak_mb"] for n, s in sorted(stats.items())}
-    meta["coverage"] = _coverage(repo_dir, out_dir, tracked)
+    meta["coverage"] = _coverage(repo_dir, out_dir, scope.keep(tracked, args.path))
     run.save_meta(meta, out_dir)
 
     failed = [n for n, rc in results.items() if rc != 0]
@@ -792,6 +812,12 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
         from . import compare as _compare
         before = _export(args.compare, "--compare", report, err)
         if before is None:
+            return 2
+        if scope.of(before["meta"]) != scope.of(report["meta"]):
+            def said(m):
+                return scope.label(scope.of(m)) if scope.of(m) else "the whole repository"
+            err.print(f"[red]--compare {args.compare}:[/red] it describes {said(before['meta'])}, this run describes {said(report['meta'])}; "
+                      "compare two runs over the same --path", soft_wrap=True)
             return 2
         comparison = _compare.compare(before, report, found)
     counted = found

@@ -56,6 +56,7 @@ Which history and which files the analysis reads.
 | Option | What it does |
 |---|---|
 | `--since WHEN` | Bound the history by author date: `2y`, `18m`, `90d` or a `YYYY-MM-DD` date. People, activity, timeline, hotspots and coupling then describe the current team rather than the founders. File ages and code age always cover the whole history, identity aliases are still merged over all of it, and an empty window is an error. |
+| `--path DIR` | Describe only the files under DIR, a directory of the tree at HEAD relative to the repository root. Repeatable. The header says the scope and what stays repository-wide; the output directory is `analysis-<repo>-<dir>`, so a scoped run never replaces the whole repository's. See [One part of a repository](#one-part-of-a-repository). |
 | `--gone MONTHS` | How long without a commit counts as gone, measured before the last commit. Default 12. |
 | `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile. |
 | `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics, duplicates and plots. Never changes what a file is: the classifier reads every tracked file. |
@@ -101,6 +102,37 @@ Checking and installing the tools, looking before a run, and tidying up after on
 | `--yes` | With `--clean`: delete without asking. For scripts and pipes. |
 | `--version` | Print gitmole's version and exit. |
 | `-h`, `--help` | Print the options in these groups, one line each, with examples, and exit. `--help --full` prints the same: `--full` is a report option. |
+
+## One part of a repository
+
+`--path DIR` narrows a run to the files under DIR: a package of a monorepo, one plugin, the subsystem a new
+hire was given. DIR is relative to the repository root and must be a directory of the tree at HEAD; a
+mistyped one is an error before anything is written. Give it more than once for several directories.
+
+What is narrowed, and how:
+
+| Step | Scope |
+|---|---|
+| change log (`git log`) and everything read from it: revisions, fixes, coupling, ownership, authorship, the truck factor, activity, timeline, the backtest | the commits that touch DIR, with only DIR's files in them (`git log -- DIR`). A commit's other files do not count towards its size |
+| commits, people, identities, dates in the header | the same commits. Merges are those whose diff against their first parent touches DIR |
+| size (scc), the watch list, hotspots, complexity trend | the files under DIR. scc still reads the tree, and the report keeps DIR's files |
+| code age (blame), function metrics (lizard), duplicates (jscpd) | the files under DIR only; the duplicated share is of DIR's lines, so a copy of a file outside DIR is not counted |
+| structure (tree-sitter) | the whole tree is parsed and the imports resolved, then the result is narrowed to DIR: a file only the rest of the repository imports is not called unreferenced |
+| knowledge map, components, the truck factor's areas | counted from below DIR: `--path backend/plugins` maps `backend/plugins/github/`, `backend/plugins/gitlab/` and so on, with the files directly in DIR as the root files |
+| committed binaries, symlinks, Trojan Source characters | the files under DIR |
+
+What stays repository-wide, and why:
+
+- **secrets** (betterleaks over history, unreachable objects, credential file names): history is one object
+  store, and whoever has the clone has every secret in it, wherever it was committed;
+- **dependencies** (osv-scanner, lock files, dependency confusion, install scripts, unused declared
+  dependencies): a manifest above DIR, a `go.mod` or a workspace root, governs DIR's code as much as one inside it;
+- **signing**, **repository size** (git-sizer), **workflows** (actions pinning), **policy files** (licence,
+  security policy, CODEOWNERS, the OSPS baseline), **submodules** and **agent files**: each is a property of
+  the repository, declared at its root.
+
+Not with `--no-run` (a re-render cannot narrow an analysis), `--plots` (git-of-theseus reads the whole tree)
+or `owner/*`. `--compare` refuses an export of a different scope, a whole-repository one included.
 
 ## Exports and CI
 

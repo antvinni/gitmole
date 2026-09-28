@@ -14,7 +14,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
-from . import blame, filetypes, identity, userdirs
+from . import blame, filetypes, identity, scope as scopes, userdirs
 
 MAAT_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "maat.py")
 BLAME_SCRIPT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "blame.py")
@@ -75,10 +75,12 @@ def repo_name(target: str) -> str:
     return tail[:-4] if tail.endswith(".git") else tail
 
 
-def output_dir(kind: str, repo_dir: str, explicit, cwd: str = None) -> str:
+def output_dir(kind: str, repo_dir: str, explicit, cwd: str = None, scope=()) -> str:
+    """--out as given, or analysis-<repo> beside the clone (in cwd for a remote target); a --path run gets
+    the directories in the name too, so it never overwrites, or is re-rendered as, the whole repository's."""
     if explicit:
         return os.path.abspath(explicit)
-    name = f"analysis-{repo_name(repo_dir)}"
+    name = f"analysis-{repo_name(repo_dir)}" + (f"-{scopes.slug(scope)}" if scope else "")
     base = os.path.dirname(repo_dir) if kind == "path" else (cwd or os.getcwd())
     return os.path.join(base, name)
 
@@ -273,15 +275,20 @@ def ignore_revs_files(repo_dir: str) -> list:
 def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, plots: bool = False,
          procs: int = None, interval: int = MONTH, ignore=(), types: str = None, now: str = None, since: str = None,
          lizard: bool = False, duplicates: bool = True, trend: bool = True, samples: int = 12, backtest: str = None,
-         ignore_revs=(), structure: bool = False, duplicates_then: str = None) -> list:
+         ignore_revs=(), structure: bool = False, duplicates_then: str = None, scope=()) -> list:
+    """The steps of one run. `scope` (--path's directories) narrows the change log to their history and the
+    per-file steps to their files; the steps whose meaning is the repository (scope.REPOSITORY_WIDE) keep
+    the whole clone, and the size, structure and backtest steps are narrowed from meta.json's record."""
     o = lambda name: os.path.join(out_dir, name)  # noqa: E731
     log = o("log.txt")
     ignores = [x for pattern in ignore for x in ("--ignore", pattern)]
+    theseus_ignores = ignores   # git-of-theseus has no --path; the command line refuses --plots with --path
+    ignores = ignores + [x for d in scope for x in ("--path", d)]   # blame, functions and duplicates take both
     type_args = ["--types", types] if types else []
     revs_args = [x for path in ignore_revs for x in ("--ignore-revs", path)]
     blame_argv = [sys.executable, BLAME_SCRIPT, repo_dir, out_dir, "--procs", str(procs or blame.default_procs()), *ignores, *type_args, "--aliases", o("meta.json"), "--log", log]
     theseus_argv = ["git-of-theseus-analyze", ".", "--branch", branch, "--outdir", o("theseus"),
-                    "--procs", str(procs or os.cpu_count() or 2), "--interval", str(interval), *ignores]
+                    "--procs", str(procs or os.cpu_count() or 2), "--interval", str(interval), *theseus_ignores]
     steps = [
         {"name": "scc", "argv": ["scc", "--by-file", "--format", "json"], "stdout": o("size.json"), "deps": []},
         *([] if is_shallow(repo_dir) else   # git-sizer needs the whole object graph; the run records why it is missing
@@ -292,7 +299,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         # -M: a move is not an edit; -w --ignore-blank-lines: a whitespace-only hunk is not a changed line, so a reformat that only
         # re-indents a file is not a revision of it; HEAD, not --all: a backport on a release branch is not a second fix, and the
         # stash is not a commit
-        {"name": "git-log", "argv": [*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", f"--pretty=format:{LOG_FORMAT}", "-M", "-w", "--ignore-blank-lines"], "stdout": log, "deps": []},
+        {"name": "git-log", "argv": [*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", f"--pretty=format:{LOG_FORMAT}", "-M", "-w", "--ignore-blank-lines", *scopes.pathspec(scope)], "stdout": log, "deps": []},
         {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json"), *revs_args], "stdout": None, "deps": ["git-log"]},
         {"name": "signing", "argv": [*module("signing"), out_dir], "stdout": None, "deps": []},   # the gpgsig headers, no keyring
         {"name": "hygiene", "argv": [*module("hygiene"), out_dir], "stdout": None, "deps": []},   # the Scorecard checks, from the clone
@@ -482,16 +489,17 @@ def _git(repo_dir: str, *args) -> str:
 
 
 def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int = 25, types=filetypes.DEFAULT,
-                    budget: float = None, tracked: list = None) -> dict:
+                    budget: float = None, tracked: list = None, scope=()) -> dict:
     """Cost of the blame passes: a timed projection for the HEAD pass (seconds, a lower bound when `partial`)
     and tracked files times sampled commits for git-of-theseus (blames); and the bytes of tracked text jscpd
     would hold (text_bytes). `budget` lets the projection stop once it is over; `tracked` is blame.text_files()
-    already listed, so the index is not read again."""
-    files = len(_git(repo_dir, "ls-files").splitlines())
-    times = [int(t) for t in _git(repo_dir, "log", "--format=%ct").split()]
+    already listed, so the index is not read again. `scope` is --path's directories: the files and the
+    history under them."""
+    files = len(_git(repo_dir, "ls-files", *scopes.pathspec(scope)).splitlines())
+    times = [int(t) for t in _git(repo_dir, "log", "--format=%ct", *scopes.pathspec(scope)).split()]
     span = (max(times) - min(times)) if times else 0
     samples = min(len(times), span // interval + 1) if times else 0
-    text = blame.drop_ignored(tracked, ignore) if tracked is not None else blame.text_files(repo_dir, ignore)
+    text = blame.drop_ignored(scopes.keep(tracked, scope), ignore) if tracked is not None else blame.text_files(repo_dir, ignore, scope)
     code = [f for f in text if filetypes.matches(f, types)]
     projection = blame.estimate(repo_dir, files=code, sample=sample, types=types, budget=budget)
     return {"files": files, "samples": samples, "blames": files * samples,
@@ -551,7 +559,25 @@ def _co_author_rows(repo_dir: str, lines: list) -> tuple:
     return rows, renamed
 
 
-def collect_meta(repo_dir: str, since: str = None) -> dict:
+def _merge_rows(repo_dir: str, scope=()) -> list:
+    """[date, name, email] per merge on HEAD, through .mailmap. With --path's directories, only the merges that
+    brought a change into them: whose diff against their first parent touches them. A pathspec alone would
+    simplify history to one parent at nearly every merge and count none, and --full-history alone keeps
+    every merge whose second parent had the directories older than the first did, which is most of them."""
+    if not scope:
+        return [l.split("\t", 2) for l in _git(repo_dir, "log", "HEAD", "--merges", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").split("\n")
+                if l.count("\t") == 2]
+    text = _git(repo_dir, *filetypes.GIT[1:], "log", "HEAD", "--merges", "--use-mailmap", "--full-history", "--diff-merges=first-parent", "--name-only",
+                "--format=%x01%ad\t%aN\t%aE", "--date=short", *scopes.pathspec(scope))
+    rows = []
+    for block in text.split("\x01")[1:]:
+        head, _, names = block.partition("\n")
+        if names.strip() and head.count("\t") == 2:
+            rows.append(head.split("\t", 2))
+    return rows
+
+
+def collect_meta(repo_dir: str, since: str = None, scope=()) -> dict:
     """Repository facts from git. The window (author date >= since) bounds the commit count, the
     date range and the identity table; aliases are merged over the whole history so blame and
     ownership keep merging people who have no commits in the window, and `first_date_all` keeps the
@@ -559,13 +585,14 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
     (anything named *[bot], anything merging with such a name, and names that say bot, CI, deploy
     or automation) are counted apart under "bots", not as identities. The people the Co-authored-by
     trailers name are identities too, credited with the commits they are named on; a bot named only
-    in a trailer is nobody."""
+    in a trailer is nobody. With `scope` (--path's directories) every count is over the commits that
+    touch them, as the change log is, and meta records the scope."""
     from collections import Counter
 
     from .load import parse_authors_log
 
     lines = _git(repo_dir, "log", "HEAD", "--use-mailmap", "--format=%ad\t%aN\t%aE%x1f%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x1f)",
-                 "--date=short").split("\n")
+                 "--date=short", *scopes.pathspec(scope)).split("\n")
     all_rows = [l.partition("\x1f")[0].split("\t", 2) for l in lines if l.partition("\x1f")[0].count("\t") == 2]
     co_rows, renamed = _co_author_rows(repo_dir, lines)
     bot_names = identity.bot_names(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in all_rows + co_rows)))
@@ -576,6 +603,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
     all_dates = [r[0] for r in all_rows]
     bots = Counter(n for _, n, e in all_windowed if n in bot_names)
     all_identities = identity.merge(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in rows)))
+    merge_rows = _merge_rows(repo_dir, scope)
     aliases = {a["name"]: i["name"] for i in all_identities for a in i.get("aliases", [])}
     canonical = {i["name"]: i["name"] for i in all_identities} | aliases
     for spelling, name in renamed.items():   # a trailer's own spelling, to the name .mailmap gives it, to whatever that merged into
@@ -585,7 +613,7 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
         "path": repo_dir,
         "branch": _git(repo_dir, "rev-parse", "--abbrev-ref", "HEAD").strip(),
         "commits": len(dates),
-        "merges": int(_git(repo_dir, "rev-list", "--count", "--merges", "HEAD").strip() or 0),   # the merge regime: squash, merge commits or linear
+        "merges": (int(_git(repo_dir, "rev-list", "--count", "--merges", "HEAD").strip() or 0) if not scope else len(merge_rows)),   # the merge regime: squash, merge commits or linear
         "first_date": min(dates) if dates else "",
         "first_date_all": min(all_dates) if all_dates else "",   # unwindowed: the backtest asks how long the history is
         "last_date": max(dates) if dates else "",
@@ -593,12 +621,17 @@ def collect_meta(repo_dir: str, since: str = None) -> dict:
         "bots": [{"name": n, "commits": c} for n, c in sorted(bots.items(), key=lambda kv: (-kv[1], kv[0]))],
         "aliases": aliases,
     }
+    # the commits each identity authored, apart from the ones a trailer credits it with: the People table's
+    # commits are these, and the credit is shown beside them, not as authorship
+    authored = Counter((n, e) for _, n, e in all_windowed if n not in bot_names)
+    for i in meta["identities"]:
+        i["authored"] = sum(authored[(v["name"], v["email"])] for v in [i, *(i.get("aliases") or [])])
     if since:
         meta["since"] = since
+    if scope:
+        meta["scope"] = list(scope)   # absent for the whole repository, so its meta.json is the one it always was
     # merges per person, through .mailmap and the same alias merge: the People table shows them apart, since
     # a maintainer who merges every pull request would otherwise lead it on merges alone
-    merge_rows = [l.split("\t", 2) for l in _git(repo_dir, "log", "HEAD", "--merges", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").split("\n")
-                  if l.count("\t") == 2]
     by_name = Counter(n for d, n, _ in merge_rows if not since or d >= since)
     for i in meta["identities"]:
         names = {i["name"]} | {a["name"] for a in i.get("aliases") or []}

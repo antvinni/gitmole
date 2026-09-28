@@ -135,6 +135,13 @@ class TrailerAuthor(unittest.TestCase):
                    provenance={"trailers": {"never_author": [{"name": "Bot Author", "commits": 19}]}})
         self.assertEqual(checks(r), [])
 
+    def test_an_export_with_authored_counts_is_honest_by_construction(self):
+        """Someone who wrote commits and is also credited under another address: after the People table
+        started counting authored commits apart, comparing credit with them fired on such people."""
+        r = report(activity={"authors": {"Bo": {"commits": 9, "authored": 3, "last": "2026-08-30"}}},
+                   provenance={"trailers": {"never_author": [{"name": "Bo", "commits": 6}]}})
+        self.assertEqual(checks(r), [])
+
     def test_someone_who_also_authored(self):
         r = report(activity={"authors": {"Bo": {"commits": 90, "last": "2026-08-30"}}},
                    provenance={"trailers": {"never_author": [{"name": "Bo", "commits": 4}]}})

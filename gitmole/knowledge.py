@@ -1,4 +1,8 @@
-"""Who knows which part of the tree: ownership aggregated by directory."""
+"""Who knows which part of the tree: ownership aggregated by directory.
+
+Every helper takes `base`, the directory levels a --path run's files all share (scope.base): the areas
+are then counted from below them, so a run over backend/plugins/ maps backend/plugins/github/ and its
+siblings rather than one backend/ holding everything. 0, the default, is the whole repository."""
 from __future__ import annotations
 
 from collections import Counter, defaultdict
@@ -7,26 +11,30 @@ from collections import Counter, defaultdict
 ROOT = "(root files)"
 
 
-def in_tree(area: str, tree: dict) -> bool:
+def in_area(entity: str, area: str, base: int = 0) -> bool:
+    """Whether the file `entity` is in `area` (a directory prefix ending in "/", or ROOT: the files with
+    no directory below the base)."""
+    return entity.count("/") <= base if area == ROOT else entity.startswith(area)
+
+
+def in_tree(area: str, tree: dict, base: int = 0) -> bool:
     """Whether any tracked file sits under `area` (a directory prefix ending in "/", or ROOT). With
     no tree listing every area counts: there is nothing to judge by."""
     if not tree:
         return True
-    if area == ROOT:
-        return any("/" not in path for path in tree)
-    return any(path.startswith(area) for path in tree)
+    return any(in_area(path, area, base) for path in tree)
 
 
-def _area(entity: str, depth: int) -> str:
+def _area(entity: str, depth: int, base: int = 0) -> str:
     dirs = entity.split("/")[:-1]
-    if not dirs:
+    if len(dirs) <= base:
         return ROOT
-    return "/".join(dirs[:depth]) + "/"
+    return "/".join(dirs[:base + depth]) + "/"
 
 
-def top_area(entity: str) -> str:
-    """The top-level directory of a path, or ROOT."""
-    return _area(entity, 1)
+def top_area(entity: str, base: int = 0) -> str:
+    """The top-level directory of a path (below the base), or ROOT."""
+    return _area(entity, 1, base)
 
 
 def present_rows(rows: list, tree: dict) -> list:
@@ -39,10 +47,10 @@ def present_rows(rows: list, tree: dict) -> list:
     return [r for r in rows if r["entity"] in tree]
 
 
-def _aggregate(rows: list, depth: int) -> list:
+def _aggregate(rows: list, depth: int, base: int = 0) -> list:
     lines, per_author = Counter(), defaultdict(Counter)
     for r in rows:
-        a = _area(r["entity"], depth)
+        a = _area(r["entity"], depth, base)
         lines[a] += r["added"]
         per_author[a][r["author"]] += r["added"]
     out = []
@@ -53,7 +61,7 @@ def _aggregate(rows: list, depth: int) -> list:
     return out
 
 
-def areas(ownership_rows: list, dominant: float = 0.8) -> list:
+def areas(ownership_rows: list, dominant: float = 0.8, base: int = 0) -> list:
     """Areas of the tree by lines added, with per-author ownership.
 
     Top-level directories, unless one of them holds `dominant` of all lines
@@ -61,10 +69,10 @@ def areas(ownership_rows: list, dominant: float = 0.8) -> list:
     rows = [r for r in ownership_rows if r.get("added", 0) > 0]
     if not rows:
         return []
-    top = _aggregate(rows, 1)
+    top = _aggregate(rows, 1, base)
     total = sum(a["lines"] for a in top)
     if top[0]["area"] != ROOT and top[0]["lines"] >= dominant * total:
-        return _aggregate(rows, 2)
+        return _aggregate(rows, 2, base)
     return top
 
 
@@ -106,9 +114,9 @@ def truck_factor(authors_of: dict, orphan_share: float = 0.5) -> tuple:
     return len(removed), removed, orphaned()
 
 
-def depth_for(paths: list, dominant: float = 0.8) -> int:
+def depth_for(paths: list, dominant: float = 0.8, base: int = 0) -> int:
     """1 for top-level directories, 2 when one top-level directory holds `dominant` of the files (a lone
     src/), as the knowledge map chooses."""
     from collections import Counter
-    tops = Counter(_area(p, 1) for p in paths)
+    tops = Counter(_area(p, 1, base) for p in paths)
     return 2 if tops and tops.most_common(1)[0][1] >= dominant * len(paths) and tops.most_common(1)[0][0] != ROOT else 1

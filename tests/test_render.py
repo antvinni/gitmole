@@ -1141,6 +1141,13 @@ class Timeline(unittest.TestCase):
         text = rendered(r, [])
         self.assertIn("commits since 2026-07-15; surviving code is for the whole tree", text)
 
+    def test_a_person_with_no_commit_of_their_own_has_no_timeline_row(self):
+        r = sample_report()
+        r["activity"]["timeline"]["Tool"] = {"2026-09": 40}   # an older run counted trailer credits here
+        r["activity"]["authors"] = {"Ann": {"commits": 22}, "Tool": {"commits": 40, "authored": 0}}
+        text = rendered(r, [], width=120)
+        self.assertNotRegex(text.split("Timeline")[1], r"Tool\s+·")
+
     def test_bots_are_left_out_of_the_timeline_and_named_under_people(self):
         r = sample_report()
         r["meta"]["bots"] = [{"name": "renovate[bot]", "commits": 940}, {"name": "github-actions[bot]", "commits": 195}]
@@ -1644,6 +1651,16 @@ class PeopleMerges(unittest.TestCase):
         self.assertIn("leave out merges", sec["caption"])
         plain = render.people_section({"meta": {"identities": [{"name": "Dee", "email": "d@x", "commits": 30}]}})
         self.assertNotIn("merges", plain["columns"])
+
+    def test_co_author_credit_is_shown_apart_from_the_commits_they_authored(self):
+        rep = {"meta": {"identities": [{"name": "Tool", "email": "t@x", "commits": 60, "authored": 0},
+                                       {"name": "Dee", "email": "d@x", "commits": 45, "authored": 30}]}}
+        sec = render.people_section(rep, full=False)
+        self.assertEqual(sec["columns"], ["author", "commits", "co-authored", "share", "surviving code"])
+        self.assertEqual([r[:4] for r in sec["rows"]], [["Dee", "30", "15", "100%"], ["Tool", "0", "60", "0%"]],
+                         "commits and share count the commits each authored; the credit is its own column")
+        plain = render.people_section({"meta": {"identities": [{"name": "Dee", "email": "d@x", "commits": 30, "authored": 30}]}})
+        self.assertNotIn("co-authored", plain["columns"])
 
 
 class SummaryLine(unittest.TestCase):

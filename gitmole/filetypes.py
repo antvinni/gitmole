@@ -469,8 +469,8 @@ def matches(path: str, types) -> bool:
     return k in types or k in NAMES and types is DEFAULT
 
 
-def discover(repo: str, types=DEFAULT) -> list:
-    """[(key, file count, included)] over the index, most common first."""
-    counts = Counter(key(p) for p in git_paths(repo, "ls-files"))
+def discover(repo: str, types=DEFAULT, paths=()) -> list:
+    """[(key, file count, included)] over the index (under `paths`, --path's directories, when given), most common first."""
+    counts = Counter(key(p) for p in git_paths(repo, "ls-files", *(["--", *(":(literal)" + d for d in paths)] if paths else [])))
     rows = [(k, n, matches(f"x.{k}" if k not in NAMES else k, types)) for k, n in counts.items()]
     return sorted(rows, key=lambda r: (-r[1], r[0]))
