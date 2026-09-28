@@ -16,8 +16,9 @@ and installed with gitmole by the Homebrew formula, because their own rules
 decide part of the report: a tool that moved on its own would move the report
 under an unchanged gitmole version. A run with other versions still works and
 says so; `meta.json` records both. Everything about history is computed by gitmole from `git log`.
-lizard adds function-level metrics for two dozen languages when it is
-installed, in well under a second per thousand files. git-of-theseus only adds
+lizard, a pinned python dependency installed with gitmole, adds
+function-level metrics for two dozen languages in well under a second per
+thousand files. git-of-theseus only adds
 the plots, so it is off by default and only needed with `--plots`. betterleaks
 should never be skipped on a repo you did not author.
 

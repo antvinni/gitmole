@@ -54,18 +54,11 @@ gitmole --install-tools                          # the five tools, pinned, into 
 `--install-tools` downloads the same release archives the formula does, from
 github.com (which sends each download on to
 release-assets.githubusercontent.com; an allowlist must admit both) and
-registry.npmjs.org, about 80 MB on macOS arm64 at 0.36.0. It checks each
-against the same sha256, keeps the one executable from each, runs it once to
-see that it prints its pinned version, and puts it in a directory per tool and
-pin, such as `scc-4.1.0/`, under `~/Library/Application Support/gitmole/tools`
-on macOS or `$XDG_DATA_HOME/gitmole/tools`, default
-`~/.local/share/gitmole/tools`, on Linux. `GITMOLE_TOOLS` names another
-directory; it must be an absolute path (`~` is expanded), and a relative one
-is refused rather than resolved inside whatever repository you run in. A run
-looks in the current pins' directories before PATH, so a distribution's copy
-of a tool cannot shadow the pinned one, and a copy left by an older gitmole is
-never used: `gitmole --clean` lists it. `pipx uninstall gitmole` does not
-remove the directory; delete it by hand.
+registry.npmjs.org. Where the tools land, `GITMOLE_TOOLS`, the checks each
+download passes and the lookup order are in
+[the `--install-tools` row of cli.md](cli.md#options).
+`pipx uninstall gitmole` does not remove the tools' directory; delete it by
+hand.
 
 Skip the command and the first `gitmole .` asks whether to download the tools
 it is missing, when a person is there to answer: stdin and the output are

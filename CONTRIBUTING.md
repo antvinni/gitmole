@@ -65,8 +65,9 @@ One tool per question. A new tool needs a paragraph in
 [docs/tools.md](https://github.com/antvinni/gitmole/blob/main/docs/tools.md)
 saying which question it answers that nothing already in the set does, and
 must be free, offline and installable as a single binary or a pip package.
-The change also touches `REQUIRED_TOOLS` in `gitmole/run.py`, the
-`depends_on` list in `Formula/gitmole.rb`, the install line in
+The change also touches `REQUIRED_TOOLS` in `gitmole/run.py`, the pin and
+`ARCHIVES` in `gitmole/tools.py`, the tool's `resource` blocks in
+`Formula/gitmole.rb`, the install line in
 `.github/workflows/ci.yml`, and the install docs. The formula installs the
 last released tarball, so a swap keeps the old dependency in the formula
 until the release after the change; the development doc explains the order.

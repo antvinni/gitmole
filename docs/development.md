@@ -5,16 +5,13 @@ Setting up a checkout, running the tests, cutting a release, and where the code 
 ## Setup
 
 Homebrew for the five tools, `brew install scc git-sizer betterleaks jscpd osv-scanner`.
-Then either a virtual environment with `pip install -e .`, or the checkout
-style: `python3 -m pip install --user rich lizard` and
-`ln -sfn "$PWD/bin/gitmole" "$(brew --prefix)/bin/gitmole"`, which makes
-the checkout what runs.
+Then `python -m pip install -e .` in a virtual environment, which installs
+the pinned python dependencies (rich, lizard and the tree-sitter grammars)
+and puts the checkout's `gitmole` on that environment's PATH.
 
-The checkout symlink and `brew install gitmole` claim the same path, so pick
-one: `brew link --overwrite gitmole` makes the Homebrew install what runs,
-and the `ln` line above switches back. The launcher runs on whichever
-`python3` is first on your PATH, so that interpreter needs rich and lizard;
-installing python@3.14 through Homebrew changes which one that is.
+`gitmole --install-tools` is the alternative to Homebrew for the five tools.
+A `brew install gitmole` on the same machine is a separate install; the
+first `gitmole` on your PATH is the one that runs.
 
 ## Tests
 
@@ -36,12 +33,6 @@ UPDATE_GOLDEN=1 python3 -m unittest tests.test_golden
 what keeps that report stable. gitmole validates it, announces it at the
 start of a run, and records it in `meta.json`, so a forgotten export cannot
 silently skew a real report.
-
-[AGENTS.md](https://github.com/antvinni/gitmole/blob/main/AGENTS.md) is the short
-version an agent follows, and
-[pipeline.md](https://github.com/antvinni/gitmole/blob/main/docs/pipeline.md) is
-the loop around all of this: what a change has to show, and which decisions an
-agent is not allowed to make.
 
 ## Rules
 
@@ -94,10 +85,7 @@ cannot: opening one needs the repository's "Allow GitHub Actions to create and
 approve pull requests", which is off, because the same setting lets a workflow
 approve a pull request and so satisfy this ruleset's extra approval for
 unattributed changes — and the formula commit is the bot's. When it cannot, the
-run's summary says which branch to open. Publishing must not hang on a pull
-request being openable: v0.34.0 and v0.34.1 both failed on that line after the
-formula had been audited, built from source and tested, which skipped the publish
-job behind it.
+run's summary says which branch to open, and publishing goes on regardless.
 
 So a release is three or four clicks: approve the release job, approve the publish
 job, open the formula pull request if the run says to, merge it. `main` takes pull
@@ -221,10 +209,8 @@ run), `report` redraws `docs/measurement-history.md` and the
 graphs in `docs/evolution/`, and `labels dump|score` handle the hand labels.
 Clones, fixtures and run outputs go under `$GITMOLE_MEASURE_DIR` (default
 `$TMPDIR/gitmole-measure`). Point it outside any temporary directory the
-system cleans by age: on 26 September 2026 a cleaner of `/tmp` deleted the
-unread files of four clones made four days earlier (their `.git/config`, loose
-objects and branch refs) in the middle of the 0.37.0 extras, and a clone
-broken that way reads as "no commits yet". `GITMOLE_LABELS_DIR` points at ApacheJIT's
+system cleans by age: a cleaner that removes a clone's unread files leaves a
+clone that reads as "no commits yet". `GITMOLE_LABELS_DIR` points at ApacheJIT's
 `dataset/` for the holdout. The timed runs are sequential and share the
 machine with nothing, so the recorded times and memory are comparable, and
 each records the load average it ran under. The rankings at cut-offs are not
