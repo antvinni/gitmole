@@ -4,12 +4,12 @@ Setting up a checkout, running the tests, cutting a release, and where the code 
 
 ## Setup
 
-Homebrew for the five tools, `brew install scc git-sizer betterleaks jscpd osv-scanner`.
+Homebrew for the three tools, `brew install scc betterleaks osv-scanner`.
 Then `python -m pip install -e .` in a virtual environment, which installs
 the pinned python dependencies (rich, lizard and the tree-sitter grammars)
 and puts the checkout's `gitmole` on that environment's PATH.
 
-`gitmole --install-tools` is the alternative to Homebrew for the five tools.
+`gitmole --install-tools` is the alternative to Homebrew for the three tools.
 A `brew install gitmole` on the same machine is a separate install; the
 first `gitmole` on your PATH is the one that runs.
 
@@ -104,8 +104,8 @@ has bumped the formula.
 `Formula/gitmole.rb` holds the archive and checksum for each platform;
 `tests/test_tools.py` fails when the two disagree. To move one: bump the table,
 bump the formula's resource (url and sha256 for both CPUs on both systems),
-copy the same urls and hashes into `tools.ARCHIVES` for `--install-tools` (plus
-the musl jscpd builds, which only the installer uses), then measure the release, since a tool's own rules decide part of the report and
+copy the same urls and hashes into `tools.ARCHIVES` for `--install-tools` (a
+musl Linux takes the Linux builds), then measure the release, since a tool's own rules decide part of the report and
 the measurement is where that shows. The python dependencies are pinned in
 `pyproject.toml` for the same reason; `brew update-python-resources` refreshes
 their resources and is run by hand when a pin moves, never by the release job,
@@ -150,7 +150,7 @@ the layout matches what code-maat produced; degree of authorship, commits
 between midnight and 4 am and coupling between components are gitmole's own), `blame.py` is the standalone
 code-age pass (its output mimics git-of-theseus so one loader serves both),
 `leaks.py` runs betterleaks and hashes the values before anything is
-written, `duplicates.py` runs jscpd and keeps the blocks without their text,
+written,
 `deps.py` runs osv-scanner offline and keeps one row per vulnerable package,
 `identity.py` merges author aliases, `load.py` parses the outputs,
 `classify.py` gives every table, the watch list and `--risk` one answer for

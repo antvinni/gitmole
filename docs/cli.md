@@ -46,7 +46,7 @@ Where the output goes and how much a run may spend.
 | `--timeout SECONDS` | Seconds any single tool may run before it is killed. Default 900. A killed tool is marked in the report and the rest still renders. |
 | `--time-budget SECONDS` | Skip the code-age pass when its projected time exceeds this. Default 60. |
 | `--budget N` | Skip the plots above this many git blames. Default 50,000. |
-| `--deep` | Run code age, plots and the duplicates step regardless of their budgets. |
+| `--deep` | Run code age and plots regardless of their budgets. |
 | `--plots` | Also draw the git-of-theseus code-age and survival charts. Needs `gitmole[plots]`. |
 
 ### Scope
@@ -59,7 +59,7 @@ Which history and which files the analysis reads.
 | `--path DIR` | Describe only the files under DIR, a directory of the tree at HEAD relative to the repository root. Repeatable. The header says the scope and what stays repository-wide; the output directory is `analysis-<repo>-<dir>`, so a scoped run never replaces the whole repository's. See [One part of a repository](#one-part-of-a-repository). |
 | `--gone MONTHS` | How long without a commit counts as gone, measured before the last commit. Default 12. |
 | `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile. |
-| `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics, duplicates and plots. Never changes what a file is: the classifier reads every tracked file. |
+| `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics and plots. Never changes what a file is: the classifier reads every tracked file. |
 | `--ignore GLOB` | An extra ignore pattern for the same steps. Repeatable. |
 
 ### Report and exports
@@ -96,7 +96,7 @@ Checking and installing the tools, looking before a run, and tidying up after on
 | Option | What it does |
 |---|---|
 | `--doctor` | List every tool gitmole runs with the version found and the version pinned, and where to get a missing or moved one; whether the structure step can run; and the date of the local vulnerability database; then exit. Takes no target; other options are ignored. Exit 0 when every tool is at its pin, 1 otherwise. |
-| `--install-tools` | Download the five tools at the versions gitmole pins, from the release archives the Homebrew formula installs and checked against the same sha256, into gitmole's own directory, one `<tool>-<version>` directory each: `GITMOLE_TOOLS` if set (an absolute path), else `~/Library/Application Support/gitmole/tools` on macOS or `$XDG_DATA_HOME/gitmole/tools` (default `~/.local/share/gitmole/tools`) elsewhere. Each tool is run once after it lands to check it prints its pin. A run looks in the current pins' directories before PATH. Takes no target and refuses `--doctor`; other options are ignored. Nothing downloads when the directory cannot be written. Exit 0 when all five landed, 1 when one did not (no build for this platform, a hash mismatch, no network, a copy that does not run here) with the reason named. This and a yes to the missing-tools question, which is asked only of a person at a terminal and never in CI or with an export or gate flag, are the only downloads gitmole makes of its own; see [install.md](install.md) for everything that reaches the network. |
+| `--install-tools` | Download the three tools at the versions gitmole pins, from the release archives the Homebrew formula installs and checked against the same sha256, into gitmole's own directory, one `<tool>-<version>` directory each: `GITMOLE_TOOLS` if set (an absolute path), else `~/Library/Application Support/gitmole/tools` on macOS or `$XDG_DATA_HOME/gitmole/tools` (default `~/.local/share/gitmole/tools`) elsewhere. Each tool is run once after it lands to check it prints its pin. A run looks in the current pins' directories before PATH. Takes no target and refuses `--doctor`; other options are ignored. Nothing downloads when the directory cannot be written. Exit 0 when all three landed, 1 when one did not (no build for this platform, a hash mismatch, no network, a copy that does not run here) with the reason named. This and a yes to the missing-tools question, which is asked only of a person at a terminal and never in CI or with an export or gate flag, are the only downloads gitmole makes of its own; see [install.md](install.md) for everything that reaches the network. |
 | `--list-file-types` | List the file types in the tree with counts and whether each counts as code, then exit. |
 | `--clean [DIR]` | List what gitmole left behind, temp clones, `analysis-*` outputs under DIR and tools `--install-tools` placed for pins this version no longer uses, with their sizes, and delete them after a y/N question. The temp clones show as one row with their count; `--full` lists each one. Exit 0 whether you answer yes or no, 2 without a terminal. |
 | `--yes` | With `--clean`: delete without asking. For scripts and pipes. |
@@ -116,7 +116,7 @@ What is narrowed, and how:
 | change log (`git log`) and everything read from it: revisions, fixes, coupling, ownership, authorship, the truck factor, activity, timeline, the backtest | the commits that touch DIR, with only DIR's files in them (`git log -- DIR`). A commit's other files do not count towards its size |
 | commits, people, identities, dates in the header | the same commits. Merges are those whose diff against their first parent touches DIR |
 | size (scc), the watch list, hotspots, complexity trend | the files under DIR. scc still reads the tree, and the report keeps DIR's files |
-| code age (blame), function metrics (lizard), duplicates (jscpd) | the files under DIR only; the duplicated share is of DIR's lines, so a copy of a file outside DIR is not counted |
+| code age (blame), function metrics (lizard) | the files under DIR only |
 | structure (tree-sitter) | the whole tree is parsed and the imports resolved, then the result is narrowed to DIR: a file only the rest of the repository imports is not called unreferenced |
 | knowledge map, components, the truck factor's areas | counted from below DIR: `--path backend/plugins` maps `backend/plugins/github/`, `backend/plugins/gitlab/` and so on, with the files directly in DIR as the root files |
 | committed binaries, symlinks, Trojan Source characters | the files under DIR |
@@ -127,7 +127,7 @@ What stays repository-wide, and why:
   store, and whoever has the clone has every secret in it, wherever it was committed;
 - **dependencies** (osv-scanner, lock files, dependency confusion, install scripts, unused declared
   dependencies): a manifest above DIR, a `go.mod` or a workspace root, governs DIR's code as much as one inside it;
-- **signing**, **repository size** (git-sizer), **workflows** (actions pinning), **policy files** (licence,
+- **signing**, **workflows** (actions pinning), **policy files** (licence,
   security policy, CODEOWNERS, the OSPS baseline), **submodules** and **agent files**: each is a property of
   the repository, declared at its root.
 
@@ -321,7 +321,7 @@ and `--sarif-scope history` gives it its places.
 ## GitHub Actions
 
 The repository is also a composite action. It installs gitmole from PyPI,
-the five tools with `--install-tools` at the versions that release pins
+the pinned tools with `--install-tools` at the versions that release pins
 (the formula's archives and hashes), caches them under the runner's tool
 cache keyed on those pins, runs one analysis and appends the Markdown report
 to the job summary:
@@ -368,15 +368,14 @@ shows why.
 The network is reached in the setup steps only: pip, the tool archives, and
 with `vulnerability-db: true` the OSV database for the ecosystems the
 workspace's lock files use. The scan itself runs `osv-scanner --offline` and
-`betterleaks --validation=false` as it does anywhere else. Linux x86_64 and
-macOS runners are covered; a Linux arm64 runner is not, since git-sizer
-publishes no build for it (`gitmole --install-tools` says so and fails the
-step).
+`betterleaks --validation=false` as it does anywhere else. Linux and macOS
+runners are covered, x86_64 and arm64; before 0.39.0 a Linux arm64 runner was
+not, since those versions install git-sizer, which publishes no build for it.
 
 ## Docker
 
 The `Dockerfile` at the root installs gitmole from PyPI at a build argument's
-version, the five pinned tools with `--install-tools`, and git, with
+version, the pinned tools with `--install-tools`, and git, with
 `safe.directory` set so git reads a repository mounted from the host. No
 image is published; build it in a clone of this repository:
 
@@ -386,8 +385,9 @@ docker run --rm -v "$PWD:/repo" gitmole .
 docker run --rm -v "$PWD:/repo" gitmole . --fail-on critical --markdown /repo/gitmole.md
 ```
 
-The image is linux/amd64 only (git-sizer again); on Apple silicon Docker runs
-it under emulation. The analysis goes to `/analysis-repo` inside the
+The image is linux/amd64 only, which the Dockerfile pins because a release
+before 0.39.0 installs git-sizer, which has no Linux arm64 build; on Apple
+silicon Docker runs it under emulation. The analysis goes to `/analysis-repo` inside the
 container unless `--out` names a mounted path. Run with
 `--user "$(id -u):$(id -g)"` to write exports as yourself; add
 `--out /tmp/analysis`, since that user cannot write to `/`. The vulnerability
@@ -474,8 +474,7 @@ forward later. Secrets are betterleaks' own pre-commit hook; gitmole does not re
 
 ## Big repositories
 
-Blame and the duplicate finder are the two costs that scale with repo size.
-gitmole keeps them in check:
+Blame is the cost that scales with repo size. gitmole keeps it in check:
 
 - the code-age table comes from one `git blame` per tracked code file at
   HEAD, run on all but two CPU cores at low priority so the machine stays
@@ -489,17 +488,12 @@ gitmole keeps them in check:
   sampling (tracked files × samples blames) on top, skipped above
   `--budget` (default 50,000 blames);
 - `--deep` forces both regardless of the budgets;
-- the duplicates step runs jscpd over the tracked code files, in seconds,
-  but jscpd holds every token in memory: about a gigabyte per 25 MB of
-  tracked text. Above 80 MB of tracked text the step is skipped with a
-  message that says how much memory it would need; `--deep` forces it. With a
-  year of history jscpd runs a second time, over the tree as it stood a year
-  before the last commit, exported under the output directory and removed
-  again, so the report can say which way duplication is going. Older
-  scripts that pass `--duplicates` still parse; the flag does nothing now;
+- there is no duplicates step since 0.39.0 (jscpd was retired with the rule it
+  fed; [tools.md](tools.md#retired)). Older scripts that pass `--duplicates`
+  still parse; the flag does nothing;
 - `--ignore-data` excludes data-like files (csv, json, lock files, minified
-  and vendored assets) from blame, from the function metrics and from the
-  duplicates step, and `--ignore GLOB` adds your own patterns, repeatable.
+  and vendored assets) from blame and from the function metrics, and
+  `--ignore GLOB` adds your own patterns, repeatable.
   Both shrink the blame count a lot on repos full of exports and fixtures.
 
 Two steps read history rather than the working tree, and both are bounded.

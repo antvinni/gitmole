@@ -1,18 +1,16 @@
 # Install
 
-Every way to install gitmole and the five tools it runs; back to [the README](https://github.com/antvinni/gitmole#readme).
+Every way to install gitmole and the three tools it runs; back to [the README](https://github.com/antvinni/gitmole#readme).
 
 In short: `brew install gitmole` brings everything ([macOS](#macos)); without Homebrew,
-`pipx install gitmole` then `gitmole --install-tools` downloads the five pinned tools into
+`pipx install gitmole` then `gitmole --install-tools` downloads the three pinned tools into
 gitmole's own directory ([below](#the-pinned-versions)). Either way, `gitmole --doctor` checks
 the result ([Check](#check)).
 
-gitmole needs git, Python 3.9 or newer, and five tools, on your PATH or in a
+gitmole needs git, Python 3.9 or newer, and three tools, on your PATH or in a
 directory of gitmole's own:
 [scc](https://github.com/boyter/scc) for size,
-[git-sizer](https://github.com/github/git-sizer) for repository health,
-[betterleaks](https://github.com/betterleaks/betterleaks) for secrets,
-[jscpd](https://github.com/kucherenko/jscpd) for duplicated blocks and
+[betterleaks](https://github.com/betterleaks/betterleaks) for secrets and
 [osv-scanner](https://github.com/google/osv-scanner) for known vulnerabilities
 in the dependencies. gitmole itself
 is a Python package; install it with [pipx](https://pipx.pypa.io) so it gets
@@ -20,7 +18,7 @@ its own environment and a `gitmole` command.
 
 ## macOS
 
-Homebrew installs gitmole and the five tools in one go, each at the version
+Homebrew installs gitmole and the three tools in one go, each at the version
 gitmole pins, into gitmole's own `libexec/tools`. The tap lives in
 the gitmole repository, so the first command names it by URL; the second marks it
 trusted, which Homebrew 7 requires before it will install from a third-party
@@ -53,13 +51,12 @@ Without Homebrew, pipx installs gitmole and gitmole installs the tools:
 ```bash
 pipx ensurepath                                  # once; then open a new shell
 pipx install gitmole
-gitmole --install-tools                          # the five tools, pinned, into gitmole's own directory
+gitmole --install-tools                          # the three tools, pinned, into gitmole's own directory
 ```
 
 `--install-tools` downloads the same release archives the formula does, from
 github.com (which sends each download on to
-release-assets.githubusercontent.com; an allowlist must admit both) and
-registry.npmjs.org. Where the tools land, `GITMOLE_TOOLS`, the checks each
+release-assets.githubusercontent.com; an allowlist must admit both). Where the tools land, `GITMOLE_TOOLS`, the checks each
 download passes and the lookup order are in
 [the `--install-tools` row of cli.md](cli.md#options).
 `pipx uninstall gitmole` does not remove the tools' directory; delete it by
@@ -85,18 +82,11 @@ Certificates.command`, gitmole verifies the downloads against macOS's own
 ## Linux
 
 With Homebrew on Linux the same three commands work unchanged, and the pinned
-tools come with gitmole exactly as on macOS; on Linux arm64, where git-sizer
-publishes no build, the formula builds the pinned version from source, which
-needs Go at install time. Without Homebrew, `pipx install gitmole` and
-`gitmole --install-tools` work as on macOS, on x86_64 and arm64, with the
-same one gap: on Linux arm64 `--install-tools` installs the other four and says
-why git-sizer did not land.
-`go install -ldflags "-X main.ReleaseVersion=1.5.0" github.com/github/git-sizer@v1.5.0`
-builds the pinned one into `~/go/bin`, which must then be on PATH (without the
-`-X` flag the build prints no version, and `--doctor` cannot tell it is the
-pinned one), or take your distribution's package and accept the version note.
-On a musl distribution such as Alpine, `--install-tools` takes jscpd's musl
-build; the other four are static and are the same files.
+tools come with gitmole exactly as on macOS. Without Homebrew, `pipx install
+gitmole` and `gitmole --install-tools` work as on macOS, on x86_64 and arm64:
+upstream publishes a build of every pinned tool for both. On a musl
+distribution such as Alpine, `--install-tools` takes the same files, since all
+three are static.
 
 The manual route below is for a machine that cannot reach github.com: take the
 tools from your package manager where it has them, or copy the archives
@@ -105,17 +95,16 @@ names from a machine that can, and check them against its sha256. Each ships a
 static binary, so dropping it into `~/.local/bin` is enough.
 
 ```bash
-# Debian and Ubuntu: git-sizer and pipx are packaged
-sudo apt install git git-sizer pipx
+# Debian and Ubuntu: pipx is packaged
+sudo apt install git pipx
 pipx ensurepath                                  # once; then open a new shell
 
-# scc, betterleaks, jscpd and osv-scanner: one static binary each, from their release pages
+# scc, betterleaks and osv-scanner: one static binary each, from their release pages
 #   https://github.com/boyter/scc/releases               (the Linux x86_64 or arm64 archive)
 #   https://github.com/betterleaks/betterleaks/releases (the linux x64 or arm64 archive)
-#   https://github.com/kucherenko/jscpd/releases        (the linux x64 or arm64 gnu archive; or pip install jscpd)
 #   https://github.com/google/osv-scanner/releases      (the linux_amd64 or linux_arm64 binary)
 # unpack and move the binary into ~/.local/bin, then:
-chmod +x ~/.local/bin/scc ~/.local/bin/betterleaks ~/.local/bin/jscpd ~/.local/bin/osv-scanner
+chmod +x ~/.local/bin/scc ~/.local/bin/betterleaks ~/.local/bin/osv-scanner
 
 pipx install gitmole
 ```

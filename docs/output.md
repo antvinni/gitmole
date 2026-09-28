@@ -30,9 +30,8 @@ in plain words, and what to do first. This page is the reference.
    subdirectories of a lone top-level one such as `src/`. A directory the
    history knows but the tree no longer has (the layout before a move to `src/`
    or `crates/`) is hidden from the map with a count, and left out of the
-   islands, bus-factor and knowledge-loss findings; `--full` shows it.
-5. Repo health and secrets are pass or fail checks. Read them only if they
-   flag something.
+   islands and bus-factor findings; `--full` shows it.
+5. Secrets is a pass or fail check. Read it only if it flags something.
 
 ## The terminal report
 
@@ -50,11 +49,7 @@ in plain words, and what to do first. This page is the reference.
    carries the forge's signature and not its author's, so it is named
    apart: `12% of commits signed by their authors (gpg 12%), 0% of the
    last year's; 50% signed by the forge on merge`. `--full` and Markdown add a Signing by year table with humans
-   against bots and the busiest identities. With a year of history, the
-   header also gives the duplication rate's direction, `26.5% of lines
-   duplicated, down from 28.1% a year before`: the duplicates step runs
-   jscpd a second time over the tree as it stood a year before the last
-   commit. `--full` and Markdown add a Trailers table: every hyphenated
+   against bots and the busiest identities. `--full` and Markdown add a Trailers table: every hyphenated
    trailer key and how many commits carry it, then the commits an
    `Assisted-by` trailer or a co-author who never authors a commit marks,
    against the rest (reverted, fixes, a file changed again within two
@@ -75,22 +70,22 @@ in plain words, and what to do first. This page is the reference.
    carries its id and the thresholds it fired on, and its `evidence` the
    numbers they were compared with.
 
-   The default report folds two sets of rules into closing lines instead of
-   spelling them out: the rules whose findings were labelled true but never
-   as something to act on ("7 more, true but seldom acted on: Knowledge
-   loss, Repo health (3) and Reverts; --full lists them";
-   [measurement.md](measurement.md), "Hand labels"), and the rules no label
-   has reached yet ("4 more from the structure step, not labelled yet").
-   The two sets are `SUMMARISED` and `UNJUDGED` in
+   The default report folds the rules no label has reached yet into a
+   closing line instead of spelling them out ("4 more from the structure
+   step, not labelled yet"); the set is `UNJUDGED` in
    [gitmole/findings.py](https://github.com/antvinni/gitmole/blob/main/gitmole/findings.py).
-   `--full`, Markdown, JSON (where they carry `"summary": true`, and the
-   unlabelled ones `"unjudged": true`), SARIF and `--fail-on` treat them
-   like any other finding.
+   `--full`, Markdown, JSON (where they carry `"summary": true` and
+   `"unjudged": true`), SARIF and `--fail-on` treat them like any other
+   finding. Until 0.39.0 a second line named the rules whose findings were
+   labelled true but never as something to act on ([measurement.md](measurement.md),
+   "Hand labels"); those nine rules were retired instead: duplicated blocks,
+   git-sizer's repository health, reverts, stale files, components that
+   change together, secrets only in test and other set-aside files, many
+   minor contributors, files whose authors have left, and knowledge loss.
 
    The history and size rules:
 
-   - a dormant repository, measured against the run's reference date, which
-     also silences the untouched-files note;
+   - a dormant repository, measured against the run's reference date;
    - secrets in history (see below);
    - credential-shaped files tracked (a warning): a tracked `.env` or
      `.env.*` that is not a template, `.netrc`, `_netrc`, `.pypirc`,
@@ -103,28 +98,18 @@ in plain words, and what to do first. This page is the reference.
      share of the commits; the advice offers the `.mailmap` line that would
      merge it into the busiest real identity;
    - one author owning most surviving code;
-   - git-sizer concerns; a large blob that is no longer in the tree says so,
-     since deleting it did not shrink the clone;
    - bug magnets: source files fixed again and again in recent months; a file
      whose recent fixes were all commits that also fixed a file listed above
      it is counted with that file ("fixed in the same commits"), and a file
      that first appeared inside the six months says it is new in the window;
-   - reverts, naming the file most often backed out when any file was backed
-     out twice, otherwise saying the reverts are spread;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
    - hotspots getting more complex, a warning when the top one did;
    - tightly coupled file pairs; a file and its test are expected to change
      together, so those pairs are left out;
-   - duplicated blocks (jscpd, over the tracked code files); a block whose
-     every copy is vendored or generated is left out;
    - vulnerable dependencies (see below);
-   - a large share of stale files, counting files still in the tree;
-     deleted paths do not count;
    - knowledge islands: areas written almost entirely by one person, a
-     warning when such areas hold most of the code;
-   - knowledge loss: people who have stopped committing and wrote a large
-     share of the surviving code.
+     warning when such areas hold most of the code.
 
    Repository hygiene is read from the clone alone, the checks OpenSSF
    Scorecard and the OSPS Baseline otherwise make through the GitHub API,
@@ -309,13 +294,7 @@ in plain words, and what to do first. This page is the reference.
    low one is a finding, and an area whose own truck factor is one is
    named. It is computed a second time with knowledge decaying over time
    (JetBrains' Bus Factor Explorer), and when the surviving code's largest
-   share belongs to someone else, the finding says so. Files whose authors
-   have left: source files changed recently whose every author has stopped
-   committing, "creator left, editors remain". Components that change
-   together: top-level directories (or the level below a lone `src/`)
-   sharing many of their logical changes, test, documentation, example and
-   vendored directories left out: coupling at the level of the
-   architecture.
+   share belongs to someone else, the finding says so.
 
    Two checks are also reported when they pass: a green `No secrets in
    history` line closes the panel whenever the betterleaks scan ran and
@@ -358,9 +337,13 @@ in plain words, and what to do first. This page is the reference.
    `.rst`, `.txt`, `.adoc`, anything under `docs/` or a CamelCase
    `ProjectDocs/`, and type stubs, `.pyi`
    and `.d.ts`, which declare shapes and hold no runtime values), where it
-   is usually a template, is a warning; so is a value found only in
-   generated files, mocks (`mock/`, `mocks/`, `mock_*`, `*_mock.*`),
-   tooling under `hack/`, `fixtures-*` directories or `testdata.*` files.
+   is usually a template, is no finding (it was a warning until 0.39.0, and
+   labelled never actionable); nor is a value found only in generated
+   files, mocks (`mock/`, `mocks/`, `mock_*`, `*_mock.*`), tooling under
+   `hack/`, `fixtures-*` directories or `testdata.*` files. Such values
+   still count in the footer's `Secrets:` line and stay in `secrets.json`,
+   so the green `No secrets in history` line does not appear while any is
+   there, and the OSPS-BR-07.01 row counts them beside its result.
    A copy in an unreachable blob has no path, so the value's other copies
    decide; a value found only in unreachable blobs counts as source.
    betterleaks grades each sighting low, medium or high. A value that only
@@ -476,9 +459,9 @@ in plain words, and what to do first. This page is the reference.
    pressed the button.
 3. **Since last report**: with `--compare BEFORE.json`, what changed
    against an earlier `--json` export of the same clone. Findings are
-   matched by their rule id, and for the two rules that emit one finding per
-   row by the rule id with the metric (repo health) or the mailbox
-   (unconfigured identity); each one is listed as new, resolved or
+   matched by their rule id, and for a rule that emits one finding per row
+   by the rule id with the mailbox (unconfigured identity), or the metric
+   for an export from before 0.39.0 that still has git-sizer's repo health; each one is listed as new, resolved or
    persisting, and a persisting finding whose severity moved says
    `warning → info`. A persisting finding whose counts moved says which,
    from the numbers in its evidence (`values 16 → 1`, `files 3,217 →
@@ -712,7 +695,6 @@ directory for a remote target:
 | `gitmole-feedback.json` | you | written only when you answer the five questions (`--feedback`): each answer's rule id, severity, whether it was true and whether you would act on it, plus gitmole's version and three bands (main language, file count, commit count). Nothing else, and nothing is sent |
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, the import commits left out with the history's total lines added, and how many declared commits the log holds; the oversized fixes left out of the fix counts, the tangled commits with a sample, and how many subjects end in a squash-merge suffix |
 | `size.json` | scc | lines per language, COCOMO estimate |
-| `repo-health.txt` | git-sizer | oversized objects, deep trees, other repo problems, over HEAD's history only (a throwaway repository borrowing the clone's objects with one reference, so the numbers are the commit's, not the clone's; reference and tag counts are the clone's and are not reported) |
 | `secrets.json` | betterleaks | secret-looking strings across HEAD's history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
 | `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record), the database date and a digest of that snapshot; or a status: no lock files, no local database |
 | `packages.json` | osv-scanner, with or without its database | every package the lock files pin, once per ecosystem, name and version, with the lock files that pin it and the licence a lock file declares; read by `--sbom`, not part of the report |
@@ -723,14 +705,13 @@ directory for a remote target:
 | `maat-tests.csv` | change analysis | per production file, how many logical changes touched it and how many of those also touched a test file |
 | `maat-doa.csv` | change analysis | degree of authorship per file and person: created it, own changes, others' changes, the degree undecayed and decayed, and whether each counts as an author |
 | `maat-latenight.csv` | change analysis | per file, its revisions and how many were committed between midnight and 4 am in the author's own time zone |
-| `maat-components.csv` | change analysis | coupling between components at one and two directory levels, over logical changes: shared changes, degree, average revisions |
+| `maat-components.csv` | change analysis | coupling between components at one and two directory levels, over logical changes: shared changes, degree, average revisions; read by nothing since the component-coupling rule was retired at 0.39.0 |
 | `maat-entropy.csv` | change analysis | Hassan's change entropy per file: the months it changed in, and its decayed history complexity (its share of each month's changes times that month's entropy over files, halved per month back) |
 | `maat-authors.csv` | change analysis | authors per file (co-authors included), and how many of them are minor contributors |
 | `maat-age.csv` | change analysis | months since last change per file |
 | `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file, a commit's lines shared between its author and co-authors, and the commits crediting each of them that touched the file |
 | `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
 | `functions.csv` | lizard | per-function complexity, length, parameters, in lizard's own `--csv` columns, then two of gitmole's: a label for a function lizard could not name (the text of its start line) and, when the span looks mis-parsed, why |
-| `duplicates.json` | jscpd | duplicated blocks over the tracked code files, largest first (the thousand largest), each with every place it appears, and the share of lines inside a block, now and at the last commit a year before; no source text |
 | `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |
 | `code-age.png` | git-of-theseus, `--plots` only | stacked plot of surviving code by year |
 | `survival.png` | git-of-theseus, `--plots` only | how long a line of code tends to live |

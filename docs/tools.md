@@ -5,11 +5,10 @@ Why gitmole includes each tool in the tool set, and the ones it left out; back t
 One tool per question. Together they cover most of what a single-command
 analysis can tell you about a repo.
 
-Five external tools: scc for size, git-sizer for repo health, betterleaks for
-secrets, jscpd for duplicated blocks, osv-scanner for known vulnerabilities in
-the dependencies. git-sizer and betterleaks read HEAD's history only, not every
-reference the clone happens to carry, so two clones of one commit report the
-same health and the same secrets; what no reference reaches is scanned
+Three external tools: scc for size, betterleaks for secrets, osv-scanner for
+known vulnerabilities in the dependencies. betterleaks reads HEAD's history
+only, not every reference the clone happens to carry, so two clones of one
+commit report the same secrets; what no reference reaches is scanned
 separately and recorded as the clone's. Each is pinned to one version, listed in
 [gitmole/tools.py](https://github.com/antvinni/gitmole/blob/main/gitmole/tools.py)
 and installed with gitmole by the Homebrew formula, because their own rules
@@ -21,14 +20,6 @@ function-level metrics for two dozen languages in well under a second per
 thousand files. git-of-theseus only adds
 the plots, so it is off by default and only needed with `--plots`. betterleaks
 should never be skipped on a repo you did not author.
-
-**jscpd** answers "which blocks of code appear more than once", over the same
-tracked code files as the hotspots. Its Rust engine (v5, 2026) takes seconds
-where lizard's finder took minutes, and holds about a gigabyte of memory per
-25 MB of tracked text, so the step is skipped above 80 MB unless `--deep` asks
-for it. gitmole keeps the pairs whose two sides are both tracked code files,
-folds the pairs of one fragment into a block with all its places, and drops
-the fragment text: no source lands in the output directory.
 
 **osv-scanner** answers "does this repository depend on anything with a known
 vulnerability", from the lock files (package-lock.json, yarn.lock, uv.lock,
@@ -59,13 +50,29 @@ What gitmole does not do: dead-code detection (the import graph can say
 "dead"; the real thing needs a symbol graph per language) and test coverage
 (that needs the project's own test run). It will not guess at either.
 
+## Retired
+
+- **jscpd** and **git-sizer**, at 0.39.0 (September 2026). Each fed one rule,
+  `duplication` and `repo_health`, and both rules were among the nine whose
+  findings were checked and found true but never something a reader acted on:
+  five or more labelled findings each, none labelled actionable
+  ([measurement.md](measurement.md), "Hand labels"). Until then the default
+  report named them in one line and spelled them out only under `--full`; the
+  steps still ran on every repository and cost wall time and memory for it.
+  jscpd held about a gigabyte per 25 MB of tracked text (on apache/devlake it
+  was the second-largest memory user, 856 MB), and git-sizer was the one tool
+  with no Linux arm64 build upstream. The maintainer chose to remove the nine
+  rules rather than keep paying for them, and the two tools went with the
+  rules they fed. The committed-binaries check (hygiene) still names the
+  executables in the tree and the files .gitattributes sends to LFS that were
+  committed as blobs.
+- **lizard's duplicate finder**, before that: replaced by jscpd at 0.7.0. It
+  kept a hash node per token and every worker grew to 1.5 to 2 GB on a large
+  repository. lizard still measures the functions.
+
 ## Considered and left out
 
-- **lizard's duplicate finder**: replaced by jscpd in September 2026 (0.7.0). It
-  kept a hash node per token and every worker grew to 1.5 to 2 GB on a large
-  repository, which is why duplicates used to be opt-in. lizard still measures
-  the functions.
-- **PMD CPD**: the other established duplicate finder; needs Java and was thirty
+- **PMD CPD**: another established duplicate finder; needs Java and was thirty
   times slower than jscpd on the same corpus.
 - **grype**, **trivy**: answer the same question as osv-scanner from lock files.
   Both need a larger database download, and osv-scanner's offline contract is
@@ -79,8 +86,8 @@ What gitmole does not do: dead-code detection (the import graph can say
   they were dropped to shrink the install.
 - **GrimoireLab**: a community-analytics platform (Elasticsearch, Kibana,
   scheduled collectors across GitHub, mailing lists, chat). Not a
-  point-at-a-clone tool, and it does not cover code age, hotspots, size,
-  repo health, or secrets.
+  point-at-a-clone tool, and it does not cover code age, hotspots, size or
+  secrets.
 - **gitleaks**: replaced by betterleaks in September 2026. betterleaks is the
   successor written by the same author, takes the same flags, reads the same
   config and `.gitleaksignore`, and its detector catches more than the
@@ -110,9 +117,7 @@ processes. gitmole itself is MIT.
 | Tool | Licence |
 |---|---|
 | scc | MIT |
-| git-sizer | MIT |
 | betterleaks | MIT |
-| jscpd | MIT |
 | osv-scanner | Apache-2.0 |
 | rich | MIT |
 | lizard | MIT |

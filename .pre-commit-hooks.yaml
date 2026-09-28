@@ -9,7 +9,7 @@
 #         - id: gitmole-hook            # pre-commit: the staged files against the last analysis
 #           args: [analysis-repo, --no-run, --hook, --risk-threshold, "10", --]
 #
-# The external tools (scc, git-sizer, betterleaks, jscpd, osv-scanner) have to be on PATH, or
+# The external tools (scc, betterleaks, osv-scanner) have to be on PATH, or
 # installed once with `gitmole --install-tools`, for gitmole-risk; gitmole-hook only reads an
 # output directory an earlier run wrote.
 - id: gitmole-risk

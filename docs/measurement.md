@@ -236,10 +236,13 @@ one agent's reading of the findings, not evidence that they are worth acting
 on, and the docs quote it as that. Two things act on the labels.
 `labels.usefulness` gives each release its actionable share — of the findings its default report spells out, the share
 labelled actionable, beside how many carry a label at all. And a rule with five
-or more labelled findings, none of them actionable, is named in one line of the
-default report instead of spelled out (`findings.SUMMARISED`; a test holds the
-set to the labels both ways): the report says less, and what it still says is
-more often worth doing.
+or more labelled findings, none of them actionable, is a decision to make
+(`findings.SUMMARISED`; a test holds the set to the labels both ways). Until
+0.39.0 such a rule was named in one line of the default report instead of
+spelled out; at 0.39.0 the nine it held were retired instead, with the
+duplicates and git-sizer steps they alone needed ([tools.md](tools.md#retired)),
+so the set is empty: the report says less, and what it still says is more often
+worth doing.
 
 ### The noise budget
 
@@ -405,8 +408,8 @@ one.
 
 **Runtime.** Every run records its wall time, peak memory, the load average and
 the seconds of each step, since step-level numbers say which step to look at.
-The ceilings are the last release's record; jscpd's memory behaviour is the
-documented hazard.
+The ceilings are the last release's record; jscpd's memory behaviour was the
+documented hazard until it was retired at 0.39.0.
 
 **Robustness.** The share of runs that complete with no step in a failed or
 timed-out state, read from the per-step status in `meta.json`, over every set a

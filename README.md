@@ -11,26 +11,26 @@ Free. Any stack. Local. Offline. Deterministic. Fast.
 - **Free.** MIT licence, no paid tier, no account, no token. A local clone needs no credentials. An `owner/repo` is cloned with `gh` when it is there, so a private repository uses your login, and with plain git when it is not, since a public repository needs no token; `owner/*` lists repositories through `gh`. The tools it runs are open source too.
 - **Any stack.** It reads what every repository has: the git log, git blame and the files themselves.
 - **Local & Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home; the vulnerability database is a copy you download once. Once, on a run with a terminal, gitmole asks five yes/no questions about its own findings and writes your answers to a file it tells you how to send — it still uploads nothing, and `GITMOLE_NO_FEEDBACK=1` turns the question off for good.
-- **Deterministic.** No AI at runtime. Every finding is a plain rule over counts you can recompute by hand. The JSON export carries each finding's rule, the numbers it fired on and, where a rule rests on a paper, the citation. The same commit gives the same bytes: gitmole's own CI runs it twice on every commit, compares the exports and attests the report. One gitmole version is one toolchain, since the five tools are pinned and installed with it, and every report records the versions it ran.
-- **Fast.** A default run over a large repository takes a minute or two (the example reports below give their times). The expensive passes have budgets: code age is skipped when its blame pass is projected past a minute, duplicate detection when the tracked text is over 80 MB, and the report says so and how to force them (`--deep`).
+- **Deterministic.** No AI at runtime. Every finding is a plain rule over counts you can recompute by hand. The JSON export carries each finding's rule, the numbers it fired on and, where a rule rests on a paper, the citation. The same commit gives the same bytes: gitmole's own CI runs it twice on every commit, compares the exports and attests the report. One gitmole version is one toolchain, since the three tools are pinned and installed with it, and every report records the versions it ran.
+- **Fast.** A default run over a large repository takes a minute or two (the example reports below give their times). The expensive passes have budgets: code age is skipped when its blame pass is projected past a minute, and the report says so and how to force it (`--deep`).
 
 ## What it is for
 
 Trusting and triaging a repository you did not write, or one you are about to change.
 
-- **A gate you can check.** Secrets in history, invisible and mixed-script characters, vulnerable dependencies and dependency-confusion shapes, agent settings that turn approval off, a repository that is unhealthy to clone: each a plain rule with its evidence, the same on every run, fit for CI (`--fail-on`, SARIF).
+- **A gate you can check.** Secrets in history, invisible and mixed-script characters, vulnerable dependencies and dependency-confusion shapes, agent settings that turn approval off: each a plain rule with its evidence, the same on every run, fit for CI (`--fail-on`, SARIF).
 - **A place to start looking.** The watch list is Tornhill's hotspots, revisions × lines of code. It tells you where to read first, and `--hook` gives an agent the same ranking for the files it just edited. It is not a defect model: on repositories nobody tuned against, at the top it names about as many soon-to-be-fixed files as churn alone, and per line read it finds fewer ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md#what-the-ranking-is-for)).
 - **Who and when.** Ownership, knowledge islands, code age and the files that change together, read from the history itself.
 
 ## Install
 
 ```bash
-# macOS, or Linux with Homebrew: gitmole and the five tools it runs, each pinned
+# macOS, or Linux with Homebrew: gitmole and the three tools it runs, each pinned
 brew tap antvinni/gitmole https://github.com/antvinni/gitmole
 brew trust antvinni/gitmole
 brew install gitmole
 
-# anywhere else: gitmole from PyPI, then the same five pinned tools into gitmole's own directory
+# anywhere else: gitmole from PyPI, then the same three pinned tools into gitmole's own directory
 pipx install gitmole
 gitmole --install-tools
 
@@ -60,7 +60,7 @@ gitmole analysis-repo --no-run --hook  # an agent's edit hook, over an earlier r
 gitmole . --since 2y --full            # the current team, every row and column
 gitmole --clean                        # list what gitmole left behind, delete on a yes
 gitmole --doctor                       # every tool gitmole runs, the version found against the one pinned
-gitmole --install-tools                # the five pinned tools, downloaded into gitmole's own directory
+gitmole --install-tools                # the three pinned tools, downloaded into gitmole's own directory
 ```
 
 A CI job that runs `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"`
@@ -114,12 +114,10 @@ you about a clone.
 |---|---|---|
 | What is this repo, at a glance; who commits, when, how much churn | gitmole itself, from the git log | built in |
 | How big is the codebase, per language | [scc](https://github.com/boyter/scc) | brew |
-| Is the repo itself healthy (huge blobs, deep trees) | [git-sizer](https://github.com/github/git-sizer) | brew |
 | Where is the risk: hotspots, coupling, ownership | gitmole's own change analysis over `git log --numstat` | built in |
 | How old is the surviving code, per year and author | gitmole's own blame pass (one `git blame` per file at HEAD) | built in |
 | Code-age and survival plots over time | [git-of-theseus](https://github.com/erikbern/git-of-theseus) | pip, opt-in with `--plots` |
 | Per-function complexity, length, parameters | [lizard](https://github.com/terryyin/lizard) | pip, installed with gitmole; tracked code files only |
-| Which blocks of code appear more than once | [jscpd](https://github.com/kucherenko/jscpd) | brew |
 | Have secrets ever been committed | [betterleaks](https://github.com/betterleaks/betterleaks) | brew |
 | Do the dependencies have known vulnerabilities | [osv-scanner](https://github.com/google/osv-scanner), offline against a local copy of the OSV database | brew, plus a one-time database download |
 | How deeply nested is the code, what did the authors flag, what imports what | [tree-sitter](https://github.com/tree-sitter/py-tree-sitter) grammars for eleven languages | built in, pinned (Python 3.10+) |

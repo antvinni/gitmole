@@ -5,7 +5,7 @@ branding:
   icon: search
   color: gray-dark
 
-# The action installs gitmole and the five tools it runs at the versions it pins, caches both, runs one
+# The action installs gitmole and the tools it runs at the versions it pins, caches both, runs one
 # analysis and writes its Markdown report to the job summary. The network is reached in the setup steps
 # only: pip, the pinned tool archives (the ones Formula/gitmole.rb names, checked against the same sha256),
 # and, when vulnerability-db is true, osv-scanner's offline database. The scan itself stays offline.

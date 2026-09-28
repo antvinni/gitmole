@@ -5,14 +5,12 @@ full reference; back to [the README](https://github.com/antvinni/gitmole#readme)
 
 **Header box.** The repository at a glance: commits, date span, people, the branch and commit analysed,
 size and languages, when people commit, how many commits are fixes or reverts, how old the surviving code
-is, how many commits are signed and how much code is duplicated. Its last line counts the findings by
+is and how many commits are signed. Its last line counts the findings by
 severity; a step that failed or timed out is named here too.
 
 **Findings.** What the rules flagged, worst first. `✖` is critical, `▲` a warning, `●` a note. Each
 finding states the facts, and the line starting `↳` names the file, area or person to start with.
 
-- *"N more, true but seldom acted on"*: rules whose findings were checked and found correct, but that
-  people rarely do anything about. Named in one line; `--full` spells them out.
 - *"N more from the structure step, not labelled yet"*: newer rules nobody has checked against real
   repositories yet. Treat them as leads, not verdicts.
 

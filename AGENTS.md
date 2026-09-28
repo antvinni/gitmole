@@ -10,7 +10,7 @@ The core below applies to every change. The appendix applies only when nobody is
 ## Setup and tests
 
 ```bash
-brew install scc git-sizer betterleaks jscpd osv-scanner   # the versions gitmole/tools.py pins
+brew install scc betterleaks osv-scanner   # the versions gitmole/tools.py pins
 python -m pip install -e .
 python3 -m unittest discover -s tests -t .
 ```

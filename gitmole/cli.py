@@ -37,7 +37,7 @@ examples:
                                        exit 3 if the change since main is risky
   gitmole analysis-repo --no-run --json -
                                        re-render an earlier run as JSON
-  gitmole --install-tools              download the five pinned tools
+  gitmole --install-tools              download the three pinned tools
   gitmole --doctor                     check the tools against their pins
 
 every option in detail:
@@ -101,7 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     other = p.add_argument_group("tools and housekeeping")
     other.add_argument("--doctor", action="store_true", help="check the tools against their pinned versions")
-    other.add_argument("--install-tools", action="store_true", help="download the five pinned tools, then exit")
+    other.add_argument("--install-tools", action="store_true", help="download the three pinned tools, then exit")
     other.add_argument("--list-file-types", action="store_true", help="list the file types and which count as code")
     other.add_argument("--clean", action="store_true", help="list what gitmole left behind; delete on a yes")
     other.add_argument("--yes", action="store_true", help="with --clean: delete without asking")

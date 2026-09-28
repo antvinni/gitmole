@@ -8,9 +8,9 @@ citation in its `rule.ref`, so a reader checking the JSON sees it where the numb
 ## Research
 
 - Ajienka and Capiluppi, "Understanding the interplay between the logical and structural coupling of software classes," *JSS* 134, 2017. [link](https://www.sciencedirect.com/science/article/abs/pii/S016412121730184X): the `hidden_coupling` finding.
-- Avelino, Passos, Hora and Valente, "A Novel Approach for Estimating Truck Factors," *ICPC* 2016. [arXiv:1604.06766](https://arxiv.org/pdf/1604.06766): `maat.doa`, the `truck_factor` and `authors_gone` findings.
+- Avelino, Passos, Hora and Valente, "A Novel Approach for Estimating Truck Factors," *ICPC* 2016. [arXiv:1604.06766](https://arxiv.org/pdf/1604.06766): `maat.doa` and the `truck_factor` finding.
 - Becker et al., "Bus Factor Explorer," *ASE* 2023 tool paper. [arXiv:2403.08038](https://arxiv.org/pdf/2403.08038): the five-month knowledge decay in `maat.doa` and the decayed truck factor.
-- Bird, Nagappan, Murphy, Gall and Devanbu, "Don't Touch My Code!," *FSE* 2011. [PDF](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/bird2011dtm.pdf): the `minor` column in `maat-authors.csv`, the watch reason and the `minor_contributors` finding.
+- Bird, Nagappan, Murphy, Gall and Devanbu, "Don't Touch My Code!," *FSE* 2011. [PDF](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/bird2011dtm.pdf): the `minor` column in `maat-authors.csv` and the watch reason.
 - Borg, Hagatulah, Tornhill and Söderberg, "Code for Machines, Not Just Humans," 2026. [arXiv:2601.02200](https://arxiv.org/html/2601.02200): why structure metrics earned the optional `structure.py` step.
 - Boucher and Anderson, "Trojan Source: Invisible Vulnerabilities," *USENIX Security* 2023: the `trojan_source` check in `hygiene.py`.
 - Eyolfson, Tan and Lam, "Correlations between bugginess and time-based commit characteristics," *EMSE* 19, 2014. [PDF](https://www.cs.purdue.edu/homes/lintan/publications/commitTime-emse14.pdf): `maat.latenight` and the midnight-to-4-am watch reason, never a rank.
@@ -77,7 +77,7 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 
 - CodeScene, Code Health. [docs](https://docs.enterprise.codescene.io/latest/guides/technical/code-health.html): nesting and the bumpy road in `structure.py`, the `deep_nesting` finding.
 - CodeScene, terminology. [docs](https://docs.enterprise.codescene.io/versions/6.0.8/terminology/codescene-terminology.html): ticket-ID grouping in `maat.changesets`.
-- CodeScene, hotspots guide. [docs](https://docs.enterprise.codescene.io/versions/4.4.2/guides/technical/hotspots.html): the watch list by component and `component_coupling`.
+- CodeScene, hotspots guide. [docs](https://docs.enterprise.codescene.io/versions/4.4.2/guides/technical/hotspots.html): the watch list by component.
 - SonarSource, Cognitive Complexity. [PDF](https://www.sonarsource.com/docs/CognitiveComplexity.pdf): cognitive complexity in `structure.py`.
 - SonarSource rules S108, S1313 and S125. [rules](https://rules.sonarsource.com/java/RSPEC-108/): an empty block with a comment is intentional, the addresses left out, commented-out code; `swallowed_errors`, `hardcoded_addresses` and `commented_out_code`.
 - RFC 5737, IPv4 address blocks reserved for documentation. [RFC](https://www.rfc-editor.org/rfc/rfc5737): the ranges `hardcoded_addresses` leaves out.
@@ -111,7 +111,7 @@ The tools gitmole runs, and why each, are in [tools.md](https://github.com/antvi
 - OpenSSF, "Detecting Malicious Packages Using the OSV API," May 2026. [post](https://openssf.org/blog/2026/05/20/detecting-malicious-packages-using-the-osv-api/): `MAL-` records in the offline database.
 - Nesbitt, "Git submodules as a package manager," September 2026. [post](https://nesbitt.io/2026/09/01/git-submodules-as-a-package-manager.html): the submodule checks.
 - Anchore, "SBOMs and the EU CRA." [post](https://anchore.com/sbom/eu-cra/): why `--sbom` emits CycloneDX 1.6 (`sbom.py`).
-- GitClear, "AI Code Quality and the Maintainability Gap," 2026, and "AI Assistant Code Quality," 2025. [2026](https://www.gitclear.com/the_ai_code_quality_maintainability_gap), [2025](https://www.gitclear.com/ai_assistant_code_quality_2025_research): the duplication rate a year back, and the moved and two-week churned lines in `provenance.lines`.
+- GitClear, "AI Code Quality and the Maintainability Gap," 2026, and "AI Assistant Code Quality," 2025. [2026](https://www.gitclear.com/the_ai_code_quality_maintainability_gap), [2025](https://www.gitclear.com/ai_assistant_code_quality_2025_research): the moved and two-week churned lines in `provenance.lines`.
 - CodeRabbit, "State of AI vs Human Code Generation." [post](https://www.coderabbit.ai/blog/state-of-ai-vs-human-code-generation-report): why the cohort imports no prior.
 - Google Cloud, "Announcing the 2025 DORA Report." [post](https://cloud.google.com/blog/products/ai-machine-learning/announcing-the-2025-dora-report): the same.
 - METR, "Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity," July 2025. [post](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/): the same.

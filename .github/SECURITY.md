@@ -19,7 +19,7 @@ its shape instead.
 ## What counts
 
 gitmole reads repositories it did not write and hands their bytes to scc,
-git-sizer, betterleaks, jscpd, osv-scanner and the tree-sitter grammars.
+betterleaks, osv-scanner and the tree-sitter grammars.
 Anything that goes wrong on that path is in scope, for example:
 
 - a secret value reaching the output directory, the terminal or an export;

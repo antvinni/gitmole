@@ -976,7 +976,8 @@ def secrets_line(report: dict) -> str:
 
 def secrets_pass(report: dict):
     """A check worth saying out loud when it passes: (title, detail) when the scan ran and found no
-    secret value, else None. Found values are findings already; a scan that did not run says nothing."""
+    secret value, else None. Found values are findings already, or, when every copy is in test, example, vendored,
+    generated or documentation files, counted in the footer's Secrets line; a scan that did not run says nothing."""
     rows = report.get("secrets") or []
     if not report.get("secrets_scanned") or leaks.group(rows):
         return None
