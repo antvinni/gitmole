@@ -391,3 +391,44 @@
   number that restates it (#181), identities merge by key (#180), AGENTS.md is a core and an unattended
   appendix and the README says what gitmole is for (#178), and the history page leads with its table
   (#179).
+
+- **0.39.0 lowers the findings ceiling by retiring nine rules, and raises one memory ceiling, by decision.**
+  The nine rules that were the whole of `SUMMARISED` (labelled five or more times, never actionable) are
+  gone with the duplicates and git-sizer steps and both tools (#202): findings per repository fall from
+  19.5 and 25.8 at the median and 90th percentile to 11 and 16.9, the large set's median from 24 to 14,
+  report lines from 216 to 209, while the findings the default report spells out stay at 8.5, since those
+  rules were already only named in one line. Every effectiveness number is 0.38.0's (headroom 0.60
+  [0.41, 0.80], ROC-AUC 0.78, W/L/T 46/13/25, recall at a fifth of the lines 34%, simple lift 1): no
+  change touched the ranking. Robustness 26 of 26, the gate 3 of 3, no critical on a well-kept repository.
+- **The first record with contradictions, and they are down to one.** The consistency harness (#188)
+  holds each finding to the facts its own run collected. Over the saved 0.38.0 analyses it found 394
+  (a trailer-only identity shown as an author 322, a gone person named without the mark 38 and in advice
+  9, a critical with no SARIF result 8, a year claimed over less than one 6, a secrets finding led by its
+  weakest value 6, pairing on another's area 3, a path at HEAD called gone 2); the correctness changes
+  below took that to 3 on the same analyses, and this round's own runs have 1, a secrets finding that
+  shares a file with a stronger value of the critical, which is the check's own limit.
+- **The large set's peak memory rises from 1,037 to 1,133 MB, decided by the maintainer on 29 September.**
+  All of it is ghidra (binutils-gdb 998, django 599), confirmed by a second run with the structure cache
+  warm (1,136 then 1,133). Its structure, git-log, hygiene and provenance steps each hold more (structure
+  386 to 587 MB, git-log 379 to 524): the steps where this release collects the tree listing, authored
+  counts, the committer address for forge signing, the lock files' change lists and the Markdown import
+  scan, not profiled one by one. Raised because the same release cuts findings by 44%, the development
+  set's peak from 1,034 to 995 MB and the large set's time from 542 to 438 s; the next release that
+  touches those steps should profile ghidra first.
+- **Times.** The development set 358 to 351 s and the large set 542 to 438 s, taken with the machine
+  otherwise idle (load 4.8 at the start, the runs' own parallel steps raising it). django's 118 s to 32 s
+  is mostly its code-age projection landing over the 60 s budget this time, so the pass was skipped; at
+  0.38.0 it ran. That projection straddles the budget, as the 0.38.0 note says.
+- **No extras, and no backfill.** The maintainer judged the historical runs more machine time than they
+  are worth: this round ran no extras (determinism is checked by CI on every pull request), and
+  `measure history`, which re-measured every past tag, is gone (#192).
+- **Since 0.38.0, besides the measurement:** `--path` narrows a report to one directory (#194); the
+  gate exits 4 when a step it reads did not finish, every gated finding has a SARIF result, and
+  `--baseline` gates on what is new (#191); a GitHub Action and a Dockerfile (#190, #200); Go imports
+  resolve through go.mod (#189); advice names no one who left, People counts authored commits, a shared
+  no-reply address merges no one (#195); forge signing is told from author signing, migrations leave the
+  brain methods, pinning advice leads with third-party actions (#196); five false positives found on
+  apache/devlake (#198); time windows that say what they cover and a backtest line that says whether the
+  list beat churn and chance (#199); secrets name their strongest value and form labels are placeholders
+  (#201); `--help` in groups and a first-report page (#187); the usefulness graph says its labels are one
+  agent's (#193).
