@@ -636,17 +636,145 @@ def go_modules(gomods: dict) -> dict:
     return {**replaced, **declared}
 
 
-def resolve(files: dict, eager: bool = False, modules: dict = None) -> tuple:
+def jsonc(text: str):
+    """JSON with comments and trailing commas, as tsconfig.json and wrangler.jsonc allow; None when it
+    does not parse. Comments are removed outside strings only, so "@/*" in a paths key survives."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            out.append(text[i:j + 1])
+            i = j + 1
+        elif text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        elif c == ",":
+            j = i + 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            if not (j < n and text[j] in "}]"):   # a trailing comma is dropped
+                out.append(c)
+            i += 1
+        else:
+            out.append(c)
+            i += 1
+    try:
+        return json.loads("".join(out))
+    except ValueError:
+        return None
+
+
+_TSCONFIG = re.compile(r"^[jt]sconfig[\w.-]*\.json$")
+
+
+def _inside_tree(p: str) -> bool:
+    return p != ".." and not p.startswith("../") and not os.path.isabs(p) and "node_modules/" not in f"{p}/"
+
+
+def ts_aliases(configs: dict) -> list:
+    """The import aliases the tsconfig.json and jsconfig.json files declare, from {path: text}: for each
+    directory holding one, its compilerOptions.paths patterns with their targets as tree paths, and its
+    baseUrl. `extends` is followed to a config in the tree (a relative path); a config a package ships is
+    out of reach and left out. As TypeScript reads them, paths targets are relative to baseUrl when there
+    is one and otherwise to the config that declares the paths, and a config's own paths or baseUrl
+    replace what it extends. A target outside the tree or in node_modules is not this tree's code, and a
+    pattern with no other target is dropped. Every config in one directory applies to the files under it
+    (a project's tsconfig.web.json and tsconfig.node.json split one tree); the first by name wins a
+    pattern two of them declare. Sorted by directory, deepest first, so the nearest config answers."""
+    parsed = {p: jsonc(t) for p, t in configs.items()}
+
+    def options(path, seen):
+        doc = parsed.get(path)
+        if not isinstance(doc, dict) or path in seen:
+            return None, None, None
+        seen = seen | {path}
+        paths, paths_dir, base = None, None, None
+        extends = doc.get("extends")
+        for e in extends if isinstance(extends, list) else [extends]:
+            if isinstance(e, str) and e.startswith("."):
+                target = os.path.normpath(os.path.join(os.path.dirname(path), e))
+                target = target if target in parsed else target + ".json"
+                p, d, b = options(target, seen)
+                paths, paths_dir = (p, d) if p is not None else (paths, paths_dir)
+                base = b if b is not None else base
+        opts = doc.get("compilerOptions") if isinstance(doc.get("compilerOptions"), dict) else {}
+        if isinstance(opts.get("baseUrl"), str):
+            base = os.path.normpath(os.path.join(os.path.dirname(path), opts["baseUrl"]))
+        if isinstance(opts.get("paths"), dict):
+            paths, paths_dir = opts["paths"], os.path.dirname(path)
+        return paths, paths_dir, base
+
+    scopes = {}
+    for path in sorted(parsed):
+        paths, paths_dir, base = options(path, frozenset())
+        scope = scopes.setdefault(os.path.dirname(path), {"dir": os.path.dirname(path), "patterns": {}, "base": None})
+        root = base if base is not None else paths_dir
+        for key, targets in (paths or {}).items():
+            if not isinstance(key, str) or key.count("*") > 1 or not isinstance(targets, list) or key in scope["patterns"]:
+                continue
+            kept = [t for t in (os.path.normpath(os.path.join(root or "", x)) for x in targets if isinstance(x, str) and x.count("*") <= key.count("*"))
+                    if _inside_tree(t)]
+            if kept:
+                scope["patterns"][key] = ["" if t == "." else t for t in kept]
+        if base is not None and scope["base"] is None and _inside_tree(base):
+            scope["base"] = "" if base == "." else base
+    return sorted((s for s in scopes.values() if s["patterns"] or s["base"] is not None),
+                  key=lambda s: (-(s["dir"].count("/") + bool(s["dir"])), s["dir"]))
+
+
+def _alias_resolver(aliases: list, tracked: set):
+    """(importer, spec) -> the tree paths a bare ES import names through the nearest config's paths (the
+    longest matching prefix wins, as in TypeScript) or, failing every pattern, a baseUrl when the import's
+    first segment names something there; None for a package."""
+    tops = {}
+
+    def base_tops(base):
+        if base not in tops:
+            prefix = base + "/" if base else ""
+            tops[base] = {p[len(prefix):].split("/", 1)[0].split(".", 1)[0] for p in tracked if p.startswith(prefix)}
+        return tops[base]
+
+    def lookup(path, spec):
+        within = [a for a in aliases if not a["dir"] or path.startswith(a["dir"] + "/")]
+        for a in within:
+            best = None
+            for key, targets in a["patterns"].items():
+                if "*" in key:
+                    pre, _, post = key.partition("*")
+                    if len(spec) >= len(pre) + len(post) and spec.startswith(pre) and spec.endswith(post):
+                        if best is None or len(pre) > best[0]:
+                            best = (len(pre), [os.path.normpath(t.replace("*", spec[len(pre):len(spec) - len(post)])) for t in targets])
+                elif spec == key:
+                    best = (len(key) + 1, targets)
+            if best:
+                return best[1]
+        for a in within:
+            if a["base"] is not None and spec.split("/", 1)[0].split(".", 1)[0] in base_tops(a["base"]):
+                return [os.path.normpath(os.path.join(a["base"], spec))]
+        return None
+    return lookup
+
+
+def resolve(files: dict, eager: bool = False, modules: dict = None, aliases: list = None) -> tuple:
     """(edges {path: sorted imported paths}, resolved share per language); with `eager`, the edges leave
     out the imports marked deferred (see _deferred), while the share stays over every import. One pass
-    computes both graphs (_resolve); this returns the one asked for. `modules` is go_modules' map."""
-    edges, lazy_free, resolved = _resolve(files, modules)
+    computes both graphs (_resolve); this returns the one asked for. `modules` is go_modules' map,
+    `aliases` ts_aliases' list."""
+    edges, lazy_free, resolved = _resolve(files, modules, aliases)
     return (lazy_free if eager else edges), resolved
 
 
-def _resolve(files: dict, modules: dict = None) -> tuple:
+def _resolve(files: dict, modules: dict = None, aliases: list = None) -> tuple:
     """(edges, eager edges, resolved share per language), one walk over the imports. Crude on purpose: a
-    relative ES import against the directory with the usual extensions and index files, a Python
+    relative ES import against the directory with the usual extensions and index files, and a bare one
+    the same way through the paths or baseUrl a tsconfig.json declares (ts_aliases; any other bare import
+    is a package and is not counted), a Python
     module by its path from a root (the tree's top, or any directory no package sits above, so src/
     layouts and test directories resolve and a module inside a package is reached only through the
     package's name), a quoted include against the directory and then by suffix, Ruby's
@@ -658,6 +786,7 @@ def _resolve(files: dict, modules: dict = None) -> tuple:
     stay raw."""
     tracked = set(files)
     modules = modules or {}
+    alias = _alias_resolver(aliases or [], tracked)
     by_length = sorted(modules, key=lambda m: (-len(m), m))
     go_packages = {}   # directory -> the files an import of it reaches
     for p in sorted(tracked):
@@ -743,12 +872,16 @@ def _resolve(files: dict, modules: dict = None) -> tuple:
                 if not found:
                     found = lookup(_python_candidates(path, (kind, entry[1], [])))
             elif kind == "path":
-                if not entry[1].startswith("."):
+                bases = [os.path.normpath(os.path.join(os.path.dirname(path), entry[1]))] if entry[1].startswith(".") else alias(path, entry[1])
+                if not bases:
                     continue   # a package from node_modules, not this tree
-                base = os.path.normpath(os.path.join(os.path.dirname(path), entry[1]))
-                stem = base[:-3] if base.endswith((".js", ".jsx")) else base   # TypeScript imports name the .js output
-                candidates = [base, *(stem + e for e in _JS_EXTS), *(f"{base}/index{e}" for e in _JS_EXTS)]
-                found = [c for c in candidates if c in tracked and c != path]
+                found = []
+                for base in bases:   # a paths pattern's targets in order, the first that exists winning
+                    stem = base[:-3] if base.endswith((".js", ".jsx")) else base   # TypeScript imports name the .js output
+                    candidates = [base, *(stem + e for e in _JS_EXTS), *(f"{base}/index{e}" for e in _JS_EXTS)]
+                    found = [c for c in candidates if c in tracked and c != path]
+                    if found:
+                        break
             elif kind == "include":
                 local = os.path.normpath(os.path.join(os.path.dirname(path), entry[1]))
                 found = [local] if local in tracked else by_suffix.get(entry[1], [])[:1]
@@ -1007,7 +1140,10 @@ def collect(repo: str, procs: int = None, vendored=(), scope=()) -> dict:
                 cached += hit
     gomods = _blobs(repo, [p for p in tracked if p.rsplit("/", 1)[-1] == "go.mod" and not filetypes.is_vendored(p, vendored)])
     modules = go_modules({p: data.decode("utf-8", "replace") for p, (_, data) in gomods.items()})
-    edges, eager, resolved = _resolve(files, modules)   # one pass: the second walk cost the step twice its resolution on a large clone
+    tsconfigs = _blobs(repo, [p for p in tracked if _TSCONFIG.match(p.rsplit("/", 1)[-1]) and "node_modules/" not in p
+                              and not filetypes.is_vendored(p, vendored)])
+    aliases = ts_aliases({p: data.decode("utf-8", "replace") for p, (_, data) in tsconfigs.items()})
+    edges, eager, resolved = _resolve(files, modules, aliases)   # one pass: the second walk cost the step twice its resolution on a large clone
     orphans = [p for p in unreferenced(files, edges, resolved, entry_points(repo, set(tracked)), documented(repo, set(tracked), files, vendored)) if inside(p)]
     functions = []
     for path in sorted(p for p in files if inside(p)):
