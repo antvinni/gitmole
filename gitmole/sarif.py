@@ -15,7 +15,17 @@ HEAD location; `--sarif-scope head` (the default) keeps only results whose file 
 secret, whose file at HEAD still holds the value, at the line that does), and
 `history` keeps everything, with the commit under `properties.commit`. A finding the head scope would
 leave with no result at all keeps one without a location (`properties.inTree` false), so every finding
---fail-on can stop on is in the document."""
+--fail-on can stop on is in the document.
+
+A critical secret removed from the tree is the one result code scanning most needs, and a location-less
+result is one GitHub accepts and does not display (GitLab drops it). So under the head scope each value of
+secrets_in_source that HEAD no longer holds anywhere gets one result where it was first committed: the
+path as it was, the line of that commit's version, the commit under `properties.commit` and
+`properties.inTree` false. SARIF 2.1.0 has no per-result revision (versionControlProvenance is the run's,
+HEAD), so the commit rides in the property bag, as it does under the history scope, and the message names
+it. GitHub's upload takes a repository-relative uri without checking that the file exists at the analysed
+commit, and shows such an alert with its path and message and no source excerpt; its fingerprint is the
+history scope's for the same place, so switching scopes does not reopen the alert."""
 from __future__ import annotations
 
 import hashlib
@@ -105,24 +115,42 @@ def _in_tree(report: dict, path: str) -> bool:
 
 
 def _secret_results(report: dict, f: dict, scope: str) -> list:
-    """One result per distinct (file, commit, line) the scanner reported under this finding's files, from
-    the rows themselves, so the line and the commit are the scanner's; placeholders are not secrets. A value
-    the repository declared allowed is secrets_declared's, and no other finding's, though they share a file."""
-    wanted = set((f.get("evidence") or {}).get("files") or [])
-    declared = {g["value"] for g in leaks.group(report.get("secrets") or []) if g.get("declared") and g.get("value")}
-    mine = f["rule"]["id"] == "secrets_declared"
+    """One result per distinct (file, commit, line) the scanner reported for a value this finding holds, from
+    the rows themselves, so the line and the commit are the scanner's; placeholders are not secrets. Each
+    value is one finding's (findings.secret_groups): a file often holds values of several, and taking every
+    row of the finding's evidence files put hindsight's documentation-only placeholder phrase under the
+    critical. Under the head scope a critical value HEAD no longer holds is placed where it was first
+    committed (see the module's docstring)."""
+    from .findings import secret_groups
+    groups = secret_groups(report).get(f["rule"]["id"]) or []
+    values = {g["value"] for g in groups if g.get("value")}
+    loose = {(p, c) for g in groups if not g.get("value") for p in g["files"] for c in g["commits"]}   # a row with no value is its own group
+
+    def held(r):
+        return r.get("value") in values if r.get("value") else (r["file"], r["commit"]) in loose
+
+    def at_head(r):   # the value itself decides, where the scan recorded it: a file still in the tree need not hold it any more
+        return r["at_head"] if isinstance(r.get("at_head"), bool) else _in_tree(report, r["file"])
+    rows = [r for r in report.get("secrets") or [] if not r.get("placeholder") and held(r)]
+    first = {}
+    if scope == "head" and f["severity"] == "critical":
+        now = {r.get("value") for r in rows if r.get("value") and at_head(r)}
+        for r in sorted(rows, key=lambda r: (r.get("date") or "~", r["file"], r["commit"], r.get("line") or 0)):
+            if r.get("value") and r["value"] not in now and r["value"] not in first and not r["file"].startswith(leaks.UNREACHABLE):
+                first[r["value"]] = r
+    placed = {id(r) for r in first.values()}
     seen, out = set(), []
-    for r in report.get("secrets") or []:
-        if r.get("placeholder") or r["file"] not in wanted or (r.get("value") in declared) != mine:
-            continue
+    for r in rows:
         key = (r["file"], r["commit"], r.get("line"))
         if key in seen:
             continue
-        seen.add(key)
-        # the value itself decides, where the scan recorded it: a file still in the tree need not hold it any more
-        at_head = r["at_head"] if isinstance(r.get("at_head"), bool) else _in_tree(report, r["file"])
-        if scope == "head" and not at_head:
+        if scope == "head" and id(r) in placed:
+            seen.add(key)
+            out.append(_removed_result(f, r))
             continue
+        if scope == "head" and not at_head(r):
+            continue
+        seen.add(key)
         line_text = f", line {r['line']} of that commit's version" if r.get("line") else ""
         head_text = f"; at HEAD, line {r['head_line']}" if scope == "head" and r.get("head_line") else ""
         out.append(_result(f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]],
@@ -132,9 +160,28 @@ def _secret_results(report: dict, f: dict, scope: str) -> list:
     return out
 
 
-def _dependency_results(f: dict) -> list:
+def _removed_result(f: dict, r: dict) -> dict:
+    """A critical value HEAD no longer holds, where it was first committed: the path and line as they were."""
+    line_text = f", line {r['line']} of that commit's version" if r.get("line") else ""
+    out = _result(f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]],
+                  f"{r['rule']} in {r['file']} at commit {r['commit']}{line_text}; no longer in the tree at HEAD, still in history: "
+                  "rotate it", r["file"], r.get("line"), r["commit"])
+    out["partialFingerprints"]["gitmole/v1"] = _fingerprint(f["rule"]["id"], r["file"], r["commit"], r.get("line"))
+    out["properties"]["inTree"] = False
+    return out
+
+
+def _dependency_results(report: dict, f: dict) -> list:
+    """One result per vulnerable row the finding holds, located at the file that pins it: every row from the
+    report, not the ten the finding's evidence keeps (hindsight's SARIF carried 10 of 34). A finding with no
+    rows in the report behind it (a hand-built one) falls back to its evidence."""
+    from . import findings
+    rows = next((group for rid, _, _, group in findings._vuln_rows(report) if rid == f["rule"]["id"]), None)
+    if rows is None:
+        ev = f.get("evidence") or {}
+        rows = list(ev.get("packages") or []) + [{**r, "version": r.get("floor")} for r in ev.get("requirements") or []]
     out = []
-    for p in (f.get("evidence") or {}).get("packages") or []:
+    for p in rows:
         ref = next((x for x in list(p.get("ids") or []) + list(p.get("aliases") or []) if str(x).startswith(leaks_prefix())), None) \
             or (p["aliases"][0] if p.get("aliases") else (p["ids"][0] if p.get("ids") else ""))
         if p.get("malicious"):
@@ -143,6 +190,9 @@ def _dependency_results(f: dict) -> list:
             score = f" ({p['score']:.1f})" if p.get("score") is not None else ""
             fixed = f"fixed in {p['fixed']}" if p.get("fixed") else "no fix yet"
             text = f"{p['name']} {p['version']} in {p['source']}: {ref}{score}, {fixed}"
+            if findings._floating(p):
+                text = (f"{p['name']}{p['requirement'] or ' (any version)'} in {p['source']} admits a vulnerable version, its floor {p['version']}: {ref}{score}, {fixed}"
+                        if p.get("requirement") is not None else f"{p['name']} {p['version']} in {p['source']}, perhaps only the floor a requirement admits: {ref}{score}, {fixed}")
             severity = f"{max(0.1, min(10.0, float(p['score']))):.1f}" if p.get("score") is not None else SEVERITY[f["severity"]]
         out.append(_result(f["rule"]["id"], LEVELS[f["severity"]], severity, text, p["source"], None, None, f"{p['name']}@{p['version']}"))
     return out
@@ -169,7 +219,7 @@ def _finding_results(report: dict, f: dict, scope: str) -> list:
     if rule.startswith("secrets_"):
         return _secret_results(report, f, scope)
     if rule.startswith("vulnerable_dependencies"):
-        return _dependency_results(f)
+        return _dependency_results(report, f)
     places = _places(f)
     if not places:
         return [_result(rule, level, severity, f["detail"])] if scope == "history" or not _repo_wide_needs_tree(f) else []

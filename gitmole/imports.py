@@ -235,12 +235,43 @@ def _manifest_or_lock(path: str) -> bool:
     return base in ("package.json", "composer.json", "deno.json") or "lock" in base or base == "npm-shrinkwrap.json"
 
 
+# A crate that compiles in code its build script wrote: `include!(concat!(env!("OUT_DIR"), "/x.rs"))`, Cargo's
+# documented way to use generated code. What that code imports is in no tracked file.
+_RS_OUT_DIR = re.compile(r"""include!\s*\(\s*concat!\s*\(\s*env!\s*\(\s*"OUT_DIR"\s*\)""")
+
+
+def _crate_of(path: str, crates: list) -> str | None:
+    """The directory of the nearest Cargo.toml above `path`, from `crates` (directories, "" for the root)."""
+    best = None
+    for d in crates:
+        if (not d or path.startswith(d + "/")) and (best is None or len(d) > len(best)):
+            best = d
+    return best
+
+
+def built_crates(repo: str, paths: list, manifests: list) -> set:
+    """The Cargo.toml manifests whose crate includes code from OUT_DIR (see _RS_OUT_DIR): the crate's own
+    tracked sources are not all of its code, so a dependency no tracked file names may be one the
+    generated code uses."""
+    crates = {os.path.dirname(m): m for m in manifests if os.path.basename(m) == "Cargo.toml"}
+    out = set()
+    if not crates:
+        return out
+    for p in paths:
+        if p.endswith(".rs") and "OUT_DIR" in (text := _read(repo, p)) and _RS_OUT_DIR.search(text):
+            d = _crate_of(p, list(crates))
+            if d is not None:
+                out.add(crates[d])
+    return out
+
+
 def unused(repo: str, paths: list = None) -> dict:
     """Declared runtime dependencies that no tracked file imports: for npm, not imported, not named in
     a quoted string of any JavaScript, TypeScript, JSON or YAML file other than a manifest or lock file,
     and not a word in the manifest's scripts; for Go, no import path or go:generate line under the module; for Rust, no `name::` path,
-    `use name` or `extern crate name`. Manifests under tests, examples, documentation and vendored
-    code are left out."""
+    `use name` or `extern crate name`, and not in a crate that includes code its build script generated
+    (built_crates, listed under `built`: what that code imports cannot be read). Manifests under tests,
+    examples, documentation and vendored code are left out."""
     paths = filetypes.git_paths(repo, "ls-files") if paths is None else paths
     manifests = [p for p in paths if os.path.basename(p) in ("package.json", "go.mod", "Cargo.toml") and not _aside(p)]
     if not manifests:
@@ -254,8 +285,11 @@ def unused(repo: str, paths: list = None) -> dict:
             if "node_modules/" not in p and p.lower().endswith(JS + (".json", ".jsonc", ".json5", ".yml", ".yaml")) and not _manifest_or_lock(p):
                 named |= _quoted_heads(_read(repo, p))
         imported["npm"] = imported["npm"] | named
+    built = built_crates(repo, paths, manifests) if "crates.io" in wanted else set()
     out = []
     for m in sorted(manifests):
+        if m in built:
+            continue
         text = _read(repo, m)
         base = os.path.basename(m)
         if base == "package.json":
@@ -267,4 +301,4 @@ def unused(repo: str, paths: list = None) -> dict:
             out += [{"manifest": m, "ecosystem": "Go", "package": n} for n in go_declared(text) if not _go_match(n, imported["Go"])]
         else:
             out += [{"manifest": m, "ecosystem": "crates.io", "package": n} for n in cargo_declared(text) if rust_name(n) not in imported["crates.io"]]
-    return {"manifests": len(manifests), "unused": out[:50], "count": len(out)}
+    return {"manifests": len(manifests), "unused": out[:50], "count": len(out), **({"built": sorted(built)} if built else {})}

@@ -58,6 +58,23 @@ def tripped(found: list, level: str) -> bool:
     return any(SEVERITIES.index(f["severity"]) <= SEVERITIES.index(level) for f in found)
 
 
+def tripping(found: list, level: str, where: str = "") -> list:
+    """One line per rule with a finding at `level` or worse, for stderr: an exit 3 with nothing said left a CI
+    log reader to rerun the scan to learn what it stopped on. `where` names the repository in a portfolio."""
+    from .findings import SEVERITIES
+    by = {}
+    for f in found:
+        if SEVERITIES.index(f["severity"]) <= SEVERITIES.index(level):
+            by.setdefault(f["rule"]["id"], []).append(f)
+    lines = []
+    for rule, fs in by.items():
+        worst = min((f["severity"] for f in fs), key=SEVERITIES.index)
+        titles = "; ".join(dict.fromkeys(f["title"] for f in fs))
+        lines.append(f"--fail-on {level}: {where + ': ' if where else ''}{rule}, {len(fs)} {worst} finding{'s' if len(fs) != 1 else ''}"
+                     f" ({titles}) (exit {EXIT_FOUND})")
+    return lines
+
+
 # --- the baseline ----------------------------------------------------------
 #
 # A mature repository's history holds secrets in files deleted years ago; the secrets step always reads the

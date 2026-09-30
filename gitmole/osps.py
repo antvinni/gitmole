@@ -53,8 +53,8 @@ def coverage(report: dict, found: list) -> list:
     # what the scan found that is not a secret in source: said beside "met", so the row does not read as nothing found.
     # A value only in test, example, vendored, generated or documentation files is no finding since 0.39.0 (it was
     # secrets_aside), so it is counted here from the scan: every distinct value the findings do not hold.
-    lesser = [f["title"] for f in found if (f.get("rule") or {}).get("id") == "secrets_possible"]
-    held = sum((f.get("evidence") or {}).get("values", 0) for f in found if (f.get("rule") or {}).get("id") in ("secrets_in_source", "secrets_possible", "secrets_declared"))
+    lesser = [f["title"] for f in found if (f.get("rule") or {}).get("id") in ("secrets_possible", "secrets_local")]
+    held = sum((f.get("evidence") or {}).get("values", 0) for f in found if (f.get("rule") or {}).get("id") in ("secrets_in_source", "secrets_possible", "secrets_declared", "secrets_local"))
     aside = len(leaks.group(report.get("secrets") or [])) - held
     if aside > 0:
         lesser.append(f"{aside} distinct value{'s' if aside != 1 else ''} only in test, example, vendored, generated or documentation files")

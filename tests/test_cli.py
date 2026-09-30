@@ -433,6 +433,19 @@ class Export(unittest.TestCase):
             self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical"], console=console()), 0)
             self.assertEqual(cli.main([out, "--no-run"], console=console()), 0)
 
+    def test_a_tripped_gate_says_what_it_stopped_on(self):
+        """--fail-on critical exited 3 with an empty stderr: a CI log said the job failed and not why."""
+        ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            _report_dir(out, ids)
+            c = console()   # a console that is not stdout is stderr too (cli.main)
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "warning"], console=c), 3)
+            self.assertEqual([l for l in c.export_text().splitlines() if l.startswith("--fail-on")],
+                             ["--fail-on warning: placeholder_identity, 1 warning finding (Unconfigured git identity) (exit 3)"])
+            c = console()
+            cli.main([out, "--no-run", "--fail-on", "critical"], console=c)
+            self.assertNotIn("--fail-on", c.export_text(), "nothing tripped, nothing said")
+
 
 class IncompleteGate(unittest.TestCase):
     """A gate whose steps did not all finish cannot vouch for what they would have found: a betterleaks that
@@ -637,8 +650,10 @@ class Portfolio(unittest.TestCase):
         self.assertIn("Unconfigured git identity", text, "worst finding per repo is shown")
 
     def test_fail_on_looks_across_all_repos(self):
-        rc, *_ = self._run(["--fail-on", "warning"])
+        rc, text, *_ = self._run(["--fail-on", "warning"])
         self.assertEqual(rc, 3)
+        self.assertIn("--fail-on warning: two: placeholder_identity, 1 warning finding", text, "the tripped rules, by repository")
+        self.assertNotIn("--fail-on warning: one:", text, "a repository with nothing at the level is not named")
 
     def test_fail_on_says_which_repository_it_could_not_check(self):
         rc, text, *_ = self._run(["--fail-on", "critical"], step=("betterleaks", "false"))

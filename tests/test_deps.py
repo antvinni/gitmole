@@ -91,6 +91,85 @@ class Summarise(unittest.TestCase):
         self.assertIs(row["malicious"], False)
 
 
+class Requirements(unittest.TestCase):
+    """osv-scanner reads `mcp>=1.0.0` as mcp 1.0.0: the row keeps the specifier, so a floor is not an install."""
+
+    def test_the_specifier_is_read_by_the_normalised_name(self):
+        text = "# pinned\n-r base.txt\nMCP >= 1.0.0 ; python_version >= '3.9'  # the SDK\nrequests[socks]==2.31.0\nPyYAML\n"
+        self.assertEqual(deps.requirement(text, "mcp"), ">=1.0.0")
+        self.assertEqual(deps.requirement(text, "requests"), "==2.31.0")
+        self.assertEqual(deps.requirement(text, "pyyaml"), "", "the bare name admits any version")
+        self.assertIsNone(deps.requirement(text, "base"), "an option line names no package")
+        self.assertIsNone(deps.requirement(text, "absent"))
+
+    def test_a_row_from_a_requirement_file_says_whether_it_is_pinned(self):
+        with tempfile.TemporaryDirectory() as repo:
+            os.makedirs(os.path.join(repo, "tools"))
+            with open(os.path.join(repo, "tools", "requirements.txt"), "w") as fh:
+                fh.write("mcp>=1.0.0\nrequests==2.31.0\npytest==7.*\n")
+            pkgs = [package(n, v, [vuln("GHSA-" + n, name=n)], ecosystem="PyPI") for n, v in (("mcp", "1.0.0"), ("requests", "2.31.0"), ("pytest", "7.0"))]
+            out = deps.summarise({"results": [{"source": {"path": os.path.join(repo, "tools", "requirements.txt"), "type": "lockfile"}, "packages": pkgs}]}, repo)
+        got = {r["name"]: (r.get("requirement"), r.get("pinned")) for r in out["vulnerable"]}
+        self.assertEqual(got, {"mcp": (">=1.0.0", False), "requests": ("==2.31.0", True), "pytest": ("==7.*", False)})
+
+    def test_a_lock_file_row_carries_no_specifier(self):
+        self.assertNotIn("requirement", deps.summarise(report(), "/repo")["vulnerable"][0])
+
+    def test_files_are_counted_by_kind(self):
+        self.assertEqual(deps.files_phrase(["uv.lock", "a/package-lock.json"]), "2 lock files")
+        self.assertEqual(deps.files_phrase(["uv.lock", "x/requirements-dev.txt", "y/requirements.txt"]), "1 lock file and 2 requirement files")
+        self.assertEqual(deps.files_phrase(["constraints.txt"]), "1 requirement file")
+
+
+class Declarations(unittest.TestCase):
+    """What a lock's directory declares about how it ships, read from its files at collection."""
+
+    def write(self, repo, path, text):
+        full = os.path.join(repo, path)
+        os.makedirs(os.path.dirname(full) or repo, exist_ok=True)
+        with open(full, "w") as fh:
+            fh.write(text)
+
+    def test_workspace_members_and_their_entry_points(self):
+        with tempfile.TemporaryDirectory() as repo:
+            self.write(repo, "package.json", json.dumps({"private": True, "workspaces": ["web"]}))   # npm's members are not uv.lock's
+            self.write(repo, "pyproject.toml", '[tool.uv.workspace]\nmembers = [\n  "api",\n  "libs/*",\n]\nexclude = ["libs/old"]\n')
+            self.write(repo, "api/pyproject.toml", '[project]\nname = "api"\n\n[project.scripts]\napi = "api.main:main"\n')
+            self.write(repo, "libs/core/pyproject.toml", '[project]\nname = "core"\n')
+            self.write(repo, "libs/old/pyproject.toml", '[project]\nname = "old"\n[project.scripts]\nold = "x:y"\n')
+            self.write(repo, "web/package.json", json.dumps({"name": "w", "workspaces": ["packages/*", "!packages/skip"]}))
+            self.write(repo, "web/packages/cli/package.json", json.dumps({"name": "c", "bin": {"c": "cli.js"}}))
+            self.write(repo, "web/packages/skip/package.json", json.dumps({"name": "s", "bin": "s.js"}))
+            self.write(repo, "lib/package.json", json.dumps({"name": "lib", "main": "index.js"}))
+            self.write(repo, "rs/Cargo.toml", '[package]\nname = "x"\n\n[[bin]]\nname = "x"\n')
+            self.write(repo, "deploy/docker-compose.yml", "services:\n  api:\n    build:\n      context: ../api\n      dockerfile: Dockerfile\n  web:\n    build: ../web\n  db:\n    image: postgres\n")
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(["git", "add", "."], cwd=repo, check=True)
+            result = {"sources": [{"path": p, "packages": 1} for p in ("uv.lock", "web/package-lock.json", "lib/package-lock.json", "rs/Cargo.lock")]}
+            deps.declare(result, repo)
+        src = {s["path"]: s for s in result["sources"]}
+        self.assertEqual(src["uv.lock"]["members"], ["api", "libs/core"], "an excluded member is not one")
+        self.assertEqual(src["uv.lock"]["entry_points"], ["api/pyproject.toml [project.scripts]"])
+        self.assertEqual(src["web/package-lock.json"]["entry_points"], ["web/packages/cli/package.json bin"])
+        self.assertNotIn("entry_points", src["lib/package-lock.json"], "a library declares no program")
+        self.assertEqual(src["rs/Cargo.lock"]["entry_points"], ["rs/Cargo.toml [[bin]]"])
+        self.assertEqual(result["compose_builds"], ["api", "web"])
+
+    def test_compose_build_contexts(self):
+        text = "services:\n  a:\n    build: .\n  b:\n    build:\n      dockerfile: x\n  c:\n    build: https://github.com/x/y.git\n  d:\n    build: ${CTX}\n"
+        self.assertEqual(deps.compose_builds(text, "docker/a"), ["docker/a", "docker/a"])
+        self.assertEqual(deps.compose_builds("services:\n  a:\n    build: ../../..\n", "a"), [], "outside the repository")
+
+    def test_what_declares_a_lock_ships(self):
+        tree = {"svc/Dockerfile", "svc/uv.lock", "lib/src/lib.rs", "cli/src/main.rs", "tool/cmd/x/main.go", "Chart.yaml"}
+        self.assertEqual(deps.deploys({"path": "svc/uv.lock"}, tree), ["svc/Dockerfile"])
+        self.assertEqual(deps.deploys({"path": "lib/Cargo.lock"}, tree), [])
+        self.assertEqual(deps.deploys({"path": "cli/Cargo.lock"}, tree), ["cli/src/main.rs"])
+        self.assertEqual(deps.deploys({"path": "tool/go.mod"}, tree), ["tool/cmd/x/main.go"])
+        self.assertEqual(deps.deploys({"path": "uv.lock"}, tree), ["Chart.yaml"])
+        self.assertEqual(deps.deploys({"path": "svc/uv.lock"}, None), [], "an older run without a tree")
+
+
 class DatabaseDate(unittest.TestCase):
     def test_newest_file_under_the_cache_names_the_day_and_nothing_means_none(self):
         with tempfile.TemporaryDirectory() as d:

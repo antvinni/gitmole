@@ -15,7 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import classify, coupling, filetypes, hotspots, identity, knowledge, leaks, loss, scope, textfmt, trend, watch
+from . import classify, coupling, deps, filetypes, hotspots, identity, knowledge, leaks, loss, scope, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -946,7 +946,7 @@ def sections(report: dict, full: bool = True, width=None) -> list:
     return out
 
 
-SECRET_FINDINGS = ("secrets_in_source", "secrets_possible", "secrets_declared")
+SECRET_FINDINGS = ("secrets_in_source", "secrets_possible", "secrets_declared", "secrets_local")
 
 
 def secrets_line(report: dict) -> str:
@@ -990,13 +990,17 @@ def secrets_pass(report: dict):
     return "No secrets in history", detail
 
 
+def _dependency_files(scan: dict) -> str:
+    """'61 lock files', or '58 lock files and 3 requirement files': osv-scanner reads both, and only one locks."""
+    return deps.files_phrase(s.get("path") or "" for s in scan.get("sources") or [])
+
+
 def dependencies_pass(report: dict):
     """(title, detail) when the lock files were scanned and no package has a known vulnerability, else None."""
     deps = report.get("dependencies") or {}
     if deps.get("status") != "scanned" or deps.get("vulnerable") or not deps.get("packages"):
         return None
-    n = len(deps.get("sources") or [])
-    detail = f"osv-scanner checked {deps['packages']:,} packages in {n} lock file{'s' if n != 1 else ''} against the local database"
+    detail = f"osv-scanner checked {deps['packages']:,} packages in {_dependency_files(deps)} against the local database"
     if deps.get("database_date"):
         detail += f" from {deps['database_date']}"
     return "No known vulnerabilities in dependencies", detail
@@ -1025,10 +1029,10 @@ def dependencies_line(report: dict):
     deps = report.get("dependencies") or {}
     status = deps.get("status")
     if status == "scanned":
-        n = len(deps.get("sources") or [])
-        bad = len(deps.get("vulnerable") or [])
-        line = f"Dependencies: {deps.get('packages', 0):,} packages in {n} lock file{'s' if n != 1 else ''}, "
-        line += f"{bad} vulnerable" if bad else "none vulnerable"
+        rows = deps.get("vulnerable") or []
+        bad = len({r.get("name") for r in rows})
+        line = f"Dependencies: {deps.get('packages', 0):,} packages in {_dependency_files(deps)}, "
+        line += (f"{bad} vulnerable" + (f" in {len(rows)} places" if len(rows) != bad else "")) if bad else "none vulnerable"
         if deps.get("database_date"):
             line += f" (database from {deps['database_date']})"
         return line, ("red" if bad else "green")

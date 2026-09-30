@@ -110,11 +110,40 @@ class SecretsFound(unittest.TestCase):
         r = report(secrets=[self.row("h4", "web/package.json", placeholder=True)])
         self.assertEqual(findings.secrets_found(r), [])
 
-    def test_examples_name_at_most_three_values(self):
+    def test_examples_name_at_most_three_values_past_five(self):
+        r = report(secrets=[self.row(f"h{i}", f"app/f{i}.py", f"c{i}") for i in range(6)])
+        crit = findings.secrets_found(r)[0]
+        self.assertIn("and 3 more", crit["detail"])
+        self.assertEqual(crit["title"], "6 secret(s) in history")
+
+    def test_up_to_five_values_every_one_is_named(self):
+        """hindsight's hosted-database password was the fifth value and read as "and 5 more"."""
         r = report(secrets=[self.row(f"h{i}", f"app/f{i}.py", f"c{i}") for i in range(5)])
         crit = findings.secrets_found(r)[0]
-        self.assertIn("and 2 more", crit["detail"])
-        self.assertEqual(crit["title"], "5 secret(s) in history")
+        self.assertNotIn("more", crit["detail"])
+        self.assertIn("generic-api-key in app/f4.py (c4).", crit["detail"])
+
+    def test_a_value_only_in_template_files_is_no_finding(self):
+        r = report(secrets=[self.row("h1", "docker/timescale/.env.example", rule="generic-password"),
+                            self.row("h2", "config/settings.yml.sample"), self.row("h3", "deploy/values.template")])
+        self.assertEqual(findings.secrets_found(r), [])
+        r = report(secrets=[self.row("h1", ".env.example"), self.row("h1", ".env.dev", "c2")])
+        self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in a real file is a leak")
+
+    def test_a_password_to_a_local_service_is_info_and_the_hosted_one_stays_critical(self):
+        rows = [dict(self.row("hl", f"docker/f{i}.yml", f"c{i}", rule="generic-credential-uri"), local=True, confidence="medium") for i in range(4)]
+        rows += [dict(self.row("hr", ".env.dev", "c9", rule="generic-credential-uri"), confidence="medium"),
+                 dict(self.row("hm", "app/db.py", "c8", rule="generic-credential-uri"), confidence="medium", local=True),
+                 dict(self.row("hm", "app/prod.py", "c8", rule="generic-credential-uri"), confidence="medium", local=False),
+                 dict(self.row("hl", "docker/docker-compose.yml", "c1", rule="generic-password"), confidence="medium")]
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
+        self.assertEqual(set(f), {"secrets_in_source", "secrets_local"})
+        self.assertEqual(f["secrets_local"]["severity"], "info")
+        self.assertIn("1 password(s) to a local service", f["secrets_local"]["title"])
+        self.assertEqual(f["secrets_local"]["evidence"]["files"], ["docker/docker-compose.yml"] + [f"docker/f{i}.yml" for i in range(4)],
+                         "the evidence names the files; the compose file's own setting of the password is the same default")
+        self.assertIn("2 secret(s) in history", f["secrets_in_source"]["title"], "a value also sent to another host is not a local default")
+        self.assertIn(".env.dev", f["secrets_in_source"]["detail"])
 
 
 class CredentialFiles(unittest.TestCase):
@@ -717,10 +746,40 @@ class VulnerableDependencies(unittest.TestCase):
 
     def test_a_critical_score_makes_it_critical_and_the_worst_leads(self):
         rows = [self.row("minimist", "0.0.8", "package-lock.json", score=9.8, fixed="1.2.6"), self.row("lodash", "4.17.15", "package-lock.json", score=7.2)]
-        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows), tree=frozenset({"Dockerfile", "package-lock.json"})))
         self.assertEqual(f["severity"], "critical")
-        self.assertTrue(f["advice"].startswith("Upgrade minimist to 1.2.6 in package-lock.json first; it scores 9.8."), f["advice"])
+        self.assertTrue(f["advice"].startswith("Upgrade minimist to 1.2.6 in package-lock.json first; it scores 9.8, and Dockerfile ships that lock."), f["advice"])
         self.assertIn("2 vulnerable packages in 1 lock file", f["detail"])
+        self.assertEqual(f["evidence"]["packages"][0]["deploys"], ["Dockerfile"])
+
+    def test_a_critical_score_in_a_lock_nothing_declares_it_ships_is_a_warning(self):
+        """hindsight: the headline was chromadb in an integration library's development lock, not the shipped
+        service's pyjwt in the root uv.lock."""
+        rows = [self.row("chromadb", "1.1.1", "integrations/crewai/uv.lock", score=9.4, fixed=None)]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows), tree=frozenset({"integrations/crewai/pyproject.toml"})))
+        self.assertEqual(f["severity"], "warning")
+        self.assertIn("A critical score in integrations/crewai/uv.lock is a warning here, as nothing in its directory declares a deployment", f["detail"])
+        self.assertEqual(f["evidence"]["packages"][0]["deploys"], [])
+
+    def test_what_ships_is_read_from_the_tree_the_workspace_and_the_compose_builds(self):
+        base = self.row("pyjwt", "2.13.0", "uv.lock", score=9.1, fixed="2.14.0")
+        cases = [({"path": "uv.lock", "packages": 1, "members": ["api"]}, frozenset({"api/Dockerfile.prod"}), (), ["api/Dockerfile.prod"]),
+                 ({"path": "uv.lock", "packages": 1, "entry_points": ["api/pyproject.toml [project.scripts]"]}, frozenset(), (), ["api/pyproject.toml [project.scripts]"]),
+                 ({"path": "svc/uv.lock", "packages": 1}, frozenset(), ["svc"], ["a compose service built from svc"]),
+                 ({"path": "svc/uv.lock", "packages": 1}, frozenset({"helm/Chart.yaml", "svc/sub/Dockerfile"}), (), [])]
+        for source, tree, builds, want in cases:
+            row = {**base, "source": source["path"]}
+            deps = {**self.deps([row]), "sources": [source], "compose_builds": list(builds)}
+            [f] = findings.vulnerable_dependencies(report(dependencies=deps, tree=tree))
+            self.assertEqual(f["evidence"]["packages"][0]["deploys"], want, source)
+            self.assertEqual(f["severity"], "critical" if want else "warning", source)
+
+    def test_within_a_grade_a_fixable_package_leads_a_fixless_one(self):
+        rows = [self.row("chromadb", "1.1.1", "uv.lock", score=9.4, fixed=None), self.row("pyjwt", "2.13.0", "uv.lock", score=9.1, fixed="2.14.0"),
+                self.row("click", "8.1.8", "uv.lock", score=7.2, fixed="8.3.3")]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows), tree=frozenset({"Dockerfile"})))
+        self.assertEqual([p["name"] for p in f["evidence"]["packages"]], ["pyjwt", "chromadb", "click"])
+        self.assertTrue(f["advice"].startswith("Upgrade pyjwt to 2.14.0 in uv.lock first"), f["advice"])
 
     def test_a_malicious_package_is_critical_without_a_score_and_the_advice_is_to_remove_it(self):
         rows = [self.row("evil-pad", "1.0.2", "package-lock.json", score=None, fixed=None, aliases=(), ids=("MAL-2026-1234",), malicious=True),
@@ -757,6 +816,37 @@ class VulnerableDependencies(unittest.TestCase):
         rows = [self.row(f"p{i}", "1", "package-lock.json", score=5.0) for i in range(5)]
         [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
         self.assertIn("p2 1 (CVE-2024-1, 5.0, fixed in 9.9.9) in package-lock.json and 2 more.", f["detail"])
+
+    def test_a_requirement_range_is_said_as_a_range_and_kept_out_of_the_installed_rows(self):
+        """hindsight: `mcp>=1.0.0` was reported as "mcp 1.0.0" in a "lock file"; the floor is what osv-scanner
+        read, and no install picks it on purpose."""
+        floor = {**self.row("mcp", "1.0.0", "tools/requirements.txt", score=9.1, fixed="1.9.4"), "requirement": ">=1.0.0", "pinned": False}
+        pin = {**self.row("requests", "2.31.0", "tools/requirements.txt", score=5.6, fixed="2.32.0"), "requirement": "==2.31.0", "pinned": True}
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps([floor, pin])))   # one group, wherever requirement files are filed
+        self.assertNotEqual(f["severity"], "critical", "a vulnerable floor is not an installed critical")
+        self.assertIn("1 vulnerable package in 1 requirement file: requests 2.31.0 (CVE-2024-1, 5.6, fixed in 2.32.0) in tools/requirements.txt.", f["detail"])
+        self.assertIn("1 requirement range admits a vulnerable version: mcp>=1.0.0 in tools/requirements.txt, whose floor 1.0.0 is vulnerable (CVE-2024-1, 9.1, fixed in 1.9.4).", f["detail"])
+        self.assertEqual([p["name"] for p in f["evidence"]["packages"]], ["requests"])
+        self.assertEqual(f["evidence"]["lock_files"], 0, "a requirement file is not a lock file")
+        self.assertEqual(f["evidence"]["requirements"][0]["floor"], "1.0.0")
+        self.assertEqual(f["evidence"]["requirements"][0]["requirement"], ">=1.0.0")
+        self.assertNotIn("version", f["evidence"]["requirements"][0])
+        self.assertTrue(f["advice"].startswith("Upgrade requests to 2.32.0 in tools/requirements.txt first"), f["advice"])
+
+    def test_only_ranges_advise_raising_the_floor(self):
+        old = self.row("mcp", "1.0.0", "requirements.txt", score=8.7, fixed="1.9.4")   # a scan from before the specifier was kept
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps([old])))
+        self.assertIn("mcp 1.0.0 in requirements.txt, a requirement file that may name only the lowest version it admits", f["detail"])
+        self.assertTrue(f["advice"].startswith("Raise the floor of mcp to 1.9.4 in requirements.txt first; its floor scores 8.7."), f["advice"])
+        self.assertEqual(f["evidence"]["packages"], [])
+
+    def test_a_package_in_many_lock_files_is_counted_once_and_its_places_apart(self):
+        """hindsight said "34 vulnerable packages": 34 rows of package and lock file, about 20 packages."""
+        rows = [self.row("pyjwt", "2.13.0", f"{d}/uv.lock", score=7.1) for d in ("a", "b", "c")] + [self.row("click", "8.1.8", "a/uv.lock", score=7.0)]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        self.assertIn("2 vulnerable packages in 4 places across 3 lock files: pyjwt 2.13.0 (CVE-2024-1, 7.1, fixed in 9.9.9) in a/uv.lock and 2 more files; click 8.1.8", f["detail"])
+        self.assertEqual((f["evidence"]["names"], f["evidence"]["places"], f["evidence"]["lock_files"]), (2, 4, 3))
+        self.assertEqual(len(f["evidence"]["packages"]), 4, "the evidence keeps a row per place")
 
     def test_nothing_without_a_scan_or_without_vulnerable_packages(self):
         self.assertEqual(findings.vulnerable_dependencies(report()), [])
@@ -820,6 +910,17 @@ class KnowledgeIslands(unittest.TestCase):
         self.assertNotIn("vendor/", f[0]["detail"])
         self.assertNotIn("web/", f[0]["detail"])
         self.assertIn("100% of all lines added", f[0]["detail"], "vendored lines are not in the denominator either")
+
+    def test_generated_files_are_not_islands(self):
+        # hindsight's OpenAPI client: the person who last ran the generator "owns" thousands of lines they did not write
+        own = [{"entity": "clients/python/api/a_api.py", "author": "Ann", "added": 500000, "deleted": 0},
+               {"entity": "core/a.py", "author": "Bob", "added": 300, "deleted": 0}]
+        r = report(ownership=own)
+        r["meta"]["generated"] = ["clients/python/api/a_api.py"]
+        f = findings.knowledge_islands(r)
+        self.assertEqual(f[0]["advice"], "Pair someone with Bob on core/ first; it is the largest at 300 lines.")
+        self.assertNotIn("clients/", f[0]["detail"])
+        self.assertEqual(findings.bus_factor(r), findings.bus_factor(report(ownership=own[1:])), "the bus factor reads the same rows")
 
     def test_an_island_that_is_a_sliver_of_the_code_is_not_named(self):
         # laravel: 216 root-file lines by one person against 900,000 lines of src/; prettier's benchmarks/
@@ -1317,6 +1418,17 @@ class Structure(unittest.TestCase):
         self.assertEqual((f["severity"], f["title"]), ("info", "Possibly unreferenced files"))
         self.assertIn("src/f11.py", f["detail"])
         self.assertIn("dynamic imports, plugins loaded by name and framework routing do not show", f["advice"])
+
+    def test_a_skipped_file_in_a_judged_language_is_named(self):
+        """hindsight's busiest file was over the size limit, its imports vanished, and a file it imports read as
+        unreferenced with nothing saying so."""
+        skipped = [{"file": "src/huge.py", "bytes": 5_000_000, "reason": "over 4 MB"}, {"file": "web/app.min.js", "bytes": 2_000_000, "reason": "minified"}]
+        f = self.by_id(self.base(unreferenced=["src/f11.py"], unreferenced_count=1, skipped=skipped))["unreferenced_files"]
+        self.assertIn("src/huge.py was too big to parse (over 4 MB), so what it imports is not seen.", f["detail"])
+        self.assertNotIn("app.min.js", f["detail"], "a language the list does not judge says nothing about it")
+        self.assertEqual(f["evidence"]["skipped"], skipped[:1])
+        f = self.by_id(self.base(unreferenced=["src/f11.py"], unreferenced_count=1, skipped=skipped[1:]))["unreferenced_files"]
+        self.assertNotIn("skipped", f["evidence"])
 
     def test_nothing_without_the_step(self):
         r = self.base()

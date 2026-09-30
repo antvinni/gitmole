@@ -133,12 +133,14 @@ dart ex exs lua r jl zig nim cr ml hs sql proto sinc slaspec
 """.split())
 _MASKED = re.compile(r"^[^:\s]+:(x{3,}|\*{3,}|<[^<>]+>|\.{3,})$", re.I)   # user:XXXXXX, user:****, user:<password>
 _FILE_REF = re.compile(r"\.(png|jpe?g|gif|svg|ico|icns|bmp|webp|pdf|html?|css|md|txt|xml|properties)\b", re.I)
-_LABEL = re.compile(r"^[A-Za-z_]*(pass(word|wd|phrase)|secret|token)[A-Za-z_]*$", re.I)   # resetpassword, password_missing: a name, not a value
+# resetpassword, password_missing, a-strong-password-here: a name or a phrase standing in for a value. A hyphen joins
+# words as an underscore does; kebab-case is how a placeholder phrase is written in a README or an .env template.
+_LABEL = re.compile(r"^[A-Za-z_-]*(pass(word|wd|phrase)|secret|token)[A-Za-z_-]*$", re.I)
 
 
 def _is_label(value: str) -> bool:
     """A name built on the keyword, in one case as names are written (resetpassword, CURLOPT_PASSWD,
-    password_missing); a mixed-case word such as MyCompanySecret is more likely a chosen password."""
+    password_missing, my-db-password); a mixed-case word such as MyCompanySecret is more likely a chosen password."""
     return bool(_LABEL.match(value)) and (value == value.lower() or value == value.upper())
 _HEADER_WRITTEN = re.compile(r"^-----BEGIN[ A-Z]*KEY-----(?:\\n)?[\"'`]")   # print("-----BEGIN ... KEY-----\n"): code writing a PEM file
 _UUID = re.compile(r"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b")
@@ -196,6 +198,27 @@ def _in_data_uri(value: str, line: str) -> bool:
     return bool(value) and any(value in m.group(1) for m in _DATA_URI.finditer(last))
 
 
+# A signed media link: a value that is a query parameter of a URL whose path ends in an image, audio or video
+# extension (`https://cdn.example/a/photo.jpg?token=eyJ...`). What it grants is that one file for a while, the
+# way a data file of saved conversations carries them; it is not a key anyone rotates. Judged by where it sits,
+# like a data: URI, whichever rule matched it.
+_URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s\"'<>`\\]+")
+_MEDIA_PATH = re.compile(r"\.(png|jpe?g|gif|webp|avif|heic|bmp|tiff?|svg|ico|mp4|m4v|mov|webm|mkv|avi|mpe?g|m3u8|mp3|m4a|wav|ogg|flac)$", re.I)
+
+
+def _in_media_url(value: str, line: str) -> bool:
+    """Whether the value is a query parameter of a media file's URL on its own line."""
+    last = (line or "").split("\n")[-1].replace("\\/", "/")   # JSON may escape the slashes
+    if not value or value not in last:
+        return False
+    for m in _URL.finditer(last):
+        url = m.group(0)
+        path, sep, query = url.partition("?")
+        if sep and _MEDIA_PATH.search(path) and any(p.partition("=")[2] == value for p in re.split(r"[&;]", query.split("#")[0])):
+            return True
+    return False
+
+
 def is_placeholder(value: str, line: str = "", path: str = "", rule: str = "") -> bool:
     """Whether `value` has a shape that cannot be a live secret. `line` is the source line the value
     sat on (with two above), read from the clone at scan time and never written; `path` is the file,
@@ -205,7 +228,7 @@ def is_placeholder(value: str, line: str = "", path: str = "", rule: str = "") -
     around it (a real key under `# see examples/README` is still a key); the generic rules matched a
     keyword and a string, and there the context is the evidence."""
     value = (value or "").strip()
-    if _in_data_uri(value, line or ""):
+    if _in_data_uri(value, line or "") or _in_media_url(value, line or ""):
         return True
     if line and _UUID.fullmatch(value) and len(_UUID.findall(line)) >= 2:   # a table of interface ids, not a token (ghidra's iids.txt, where a
         return True                                                        # provider's pattern for tokens beginning EAAA matched a GUID)
@@ -470,6 +493,79 @@ def annotate(repo: str, rows: list) -> None:
             r["Declared"] = declared
 
 
+# A connection string's password to a database on this machine, or on a service the repository's own compose
+# file runs (`postgresql://hindsight:hindsight@postgres:5432/`), is the development default that file sets up:
+# graded apart from a password to a host somewhere else. Loopback by its shape (RFC 6761's localhost, 127/8,
+# ::1); a service by the repository's declaration, the `services:` keys of any version of a Compose file
+# (compose.yaml, docker-compose.yml and their -override/.x variants, the names the Compose spec reads).
+_CREDENTIAL_URI = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s/@:'\"`]*:([^\s/@'\"`]+)@(\[[^\]\s]+\]|[^\s/:?#'\"`,;]+)")
+_COMPOSE_FILE = re.compile(r"(^|/)(docker-)?compose([.-][\w.-]+)?\.ya?ml$", re.I)
+_SERVICE_KEY = re.compile(r"^(\s+)([\"']?)([A-Za-z0-9][\w.-]*)\2\s*:(\s|$)")
+
+
+def _uri_host(value: str, *texts) -> str:
+    """The host of the credential URI whose password is `value`, from the scanner's match or the line; ""."""
+    for text in texts:
+        for m in _CREDENTIAL_URI.finditer(text or ""):
+            if m.group(1) == value:
+                return m.group(2).strip("[]").lower()
+    return ""
+
+
+def is_loopback(host: str) -> bool:
+    host = (host or "").lower().rstrip(".")
+    return host == "localhost" or host.endswith(".localhost") or host == "::1" or bool(re.fullmatch(r"127(\.\d{1,3}){3}", host))
+
+
+def compose_services(text: str) -> set:
+    """The keys under a Compose file's top-level `services:`: the host names its containers answer to."""
+    out, inside, indent = set(), False, None
+    for line in (text or "").split("\n"):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line[0].isspace():
+            inside, indent = line.split("#")[0].strip() == "services:", None
+            continue
+        if inside:
+            m = _SERVICE_KEY.match(line)
+            width = len(line) - len(line.lstrip())
+            if indent is None:
+                indent = width
+            if m and width == indent:
+                out.add(m.group(3).lower())
+    return out
+
+
+def declared_services(repo: str) -> set:
+    """The services every version of every Compose file in HEAD's history declares."""
+    proc = subprocess.run(["git", "-C", repo, "log", "--format=%x00%H", "--name-only", "HEAD", "--",
+                           ":(glob)**/*compose*.yml", ":(glob)**/*compose*.yaml"], capture_output=True)
+    if proc.returncode != 0:
+        return set()
+    versions = []
+    for chunk in proc.stdout.decode("utf-8", "surrogateescape").split("\x00")[1:]:
+        lines = [l for l in chunk.split("\n") if l]
+        versions += [(lines[0], p) for p in lines[1:] if _COMPOSE_FILE.search(p)]
+    out = set()
+    for _, text in _blobs(repo, [f"{c}:{p}" for c, p in versions]):
+        out |= compose_services(text or "")
+    return out
+
+
+def mark_local(repo: str, rows: list) -> None:
+    """`Local` on each row whose value is the password of a credential URI: True when its host is loopback or
+    a service a Compose file of the repository declares, False when it is any other host. The host is read
+    here and dropped with the value."""
+    services = None
+    for r in rows:
+        host = _uri_host(r.get("Secret") or "", r.get("Match"), (r.get("Line") or "").split("\n")[-1])
+        if not host:
+            continue
+        if not is_loopback(host) and services is None:
+            services = declared_services(repo)
+        r["Local"] = is_loopback(host) or host in services
+
+
 def sanitise(rows: list) -> list:
     key = new_key()   # one key for the whole report, so repeats of a value still group
     out = []
@@ -505,7 +601,7 @@ def group(rows: list) -> list:
         key = r.get("value") or ("row", i)
         if key not in groups:
             groups[key] = {"value": r.get("value"), "rule": r["rule"], "files": [], "commits": [], "_places": set(), "test": True, "docs": True,
-                           "confidence": None, "declared": None}
+                           "confidence": None, "declared": None, "local": False, "_remote": False}
             order.append(key)
         g = groups[key]
         if r["file"] not in g["files"]:
@@ -517,12 +613,18 @@ def group(rows: list) -> list:
             g["confidence"] = r.get("confidence")
         if r.get("declared") and not g["declared"]:   # the value is one: a declaration of it anywhere covers every place
             g["declared"] = r["declared"]
+        # a password sent to this machine or to a compose service, and never to another host; its other sightings are
+        # the same default where it is set (POSTGRES_PASSWORD in the compose file itself)
+        g["local"] = g["local"] or r.get("local") is True
+        g["_remote"] = g["_remote"] or r.get("local") is False
         g["test"] = g["test"] and filetypes.is_test_path(r["file"])
         g["docs"] = g["docs"] and filetypes.is_doc_path(r["file"])
     out = []
     for key in order:
         g = groups[key]
         places = g.pop("_places")
+        remote = g.pop("_remote")
+        g["local"] = g["local"] and not remote
         out.append({**g, "places": len(places)})
     out.sort(key=lambda g: (-CONFIDENCE.get(g["confidence"], -1), str(g["rule"]).startswith("generic-"), g["test"], -g["places"]))   # stable: first-seen order breaks ties
     return out
@@ -612,6 +714,7 @@ def main(argv=None) -> int:
     found = unreachable(os.getcwd())
     extra = scan_unreachable(os.getcwd(), os.path.dirname(os.path.abspath(target)), found) if found else []
     annotate(os.getcwd(), raw + extra)   # before sanitise drops the values
+    mark_local(os.getcwd(), raw + extra)
     rows = sanitise(raw + extra)
     if found is not None:
         with open(os.path.join(os.path.dirname(os.path.abspath(target)), "unreachable.json"), "w", encoding="utf-8") as fh:

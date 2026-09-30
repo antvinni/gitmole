@@ -448,6 +448,39 @@ class Blobs(unittest.TestCase):
         self.assertEqual(blobs["a.py"][1], b"x = 1\n")
 
 
+class TooBig(unittest.TestCase):
+    def test_a_big_file_is_parsed_when_its_lines_are_a_persons_length(self):
+        ordinary = b"import os\n" + b"x = 1  # a line of ordinary length\n" * 40_000        # 1.4 MB of short lines
+        self.assertIsNone(structure.skip_reason(len(ordinary), ordinary))
+        bundle = (b"var a=1;" * 200 + b"\n") * 800                                          # 1.3 MB, 1,601-character lines
+        self.assertEqual(structure.skip_reason(len(bundle), bundle), "lines average over 110 characters, as a minified file's do")
+        huge = b"x = 1\n" * 700_000                                                         # 4.2 MB
+        self.assertEqual(structure.skip_reason(len(huge), huge), "over 4 MB")
+        self.assertIsNone(structure.skip_reason(10, b"var a=1;" * 125), "under MAX_BYTES everything is parsed")
+
+    @unittest.skipUnless(HAVE, "the tree-sitter grammars need Python 3.10 or newer")
+    def test_the_step_names_what_it_skipped(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = os.path.join(d, "repo")
+            os.makedirs(os.path.join(repo, "src"))
+            env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="A",
+                       GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+            files = {"src/engine.py": "from src import budget\n" + "x = 1  # a line of ordinary length\n" * 40_000,
+                     "src/budget.py": "LIMIT = 1\n", "src/app.min.js": ("var a=1;" * 200 + "\n") * 800, "src/__init__.py": ""}
+            for p, text in files.items():
+                with open(os.path.join(repo, p), "w") as fh:
+                    fh.write(text)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "commit", "-q", "-m", "c"], cwd=repo, check=True, env=env)
+            from unittest.mock import patch
+            with patch.dict(os.environ, {"GITMOLE_CACHE": "off"}):
+                data = structure.collect(repo, procs=1)
+        self.assertIn("src/engine.py", data["files"], "a 1.4 MB module of ordinary lines is parsed")
+        self.assertEqual(data["files"]["src/engine.py"]["imports"], ["src/budget.py"])
+        self.assertEqual(data["skipped"], [{"file": "src/app.min.js", "bytes": len(files["src/app.min.js"]), "reason": "lines average over 110 characters, as a minified file's do"}])
+
+
 class NotInstalled(unittest.TestCase):
     def test_without_tree_sitter_the_step_says_how_to_install_it(self):
         with tempfile.TemporaryDirectory() as out:

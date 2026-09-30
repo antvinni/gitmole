@@ -83,6 +83,23 @@ class DeclaredUnused(unittest.TestCase):
                          "another manifest naming a package is not a use of it, and an example's manifest is left out")
 
 
+    def test_a_crate_that_includes_generated_code_is_not_judged(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            cargo = '[package]\nname = "{}"\n[dependencies]\nreqwest = "0.12"\nserde = "1"\n[build-dependencies]\nprogenitor = "0.9"\n'
+            r.write("client/Cargo.toml", cargo.format("client"))
+            r.write("client/build.rs", "fn main() { progenitor::generate(); }\n")
+            r.write("client/src/lib.rs", 'include!(concat!(env!("OUT_DIR"), "/client_generated.rs"));\n')
+            r.write("cli/Cargo.toml", cargo.format("cli"))
+            r.write("cli/src/main.rs", "use serde::Deserialize;\nfn main() {}\n")
+            r.commit()
+            out = imports.unused(d)
+        self.assertEqual([(x["manifest"], x["package"]) for x in out["unused"]], [("cli/Cargo.toml", "reqwest")],
+                         "what the build script's output uses is in no tracked file, so the crate is not judged")
+        self.assertEqual(out["built"], ["client/Cargo.toml"])
+        self.assertEqual(imports._crate_of("a/b/src/x.rs", ["", "a", "a/b"]), "a/b")
+
+
 class LicenceExpressions(unittest.TestCase):
     def test_or_takes_the_choice_and_and_takes_every_term(self):
         self.assertEqual(licences.classify("MIT OR GPL-3.0-only"), licences.PERMISSIVE)
@@ -158,7 +175,7 @@ class VulnerableImported(unittest.TestCase):
     def test_the_row_says_when_nothing_imports_it_and_the_severity_stands(self):
         rows = [{"name": "qs", "version": "1", "ecosystem": "npm", "source": "package-lock.json", "ids": ["GHSA-1"], "aliases": [], "score": 9.8,
                  "severity": "critical", "fixed": "2", "malicious": False, "imported": False}]
-        f = findings.vulnerable_dependencies(report(dependencies={"status": "scanned", "vulnerable": rows}))
+        f = findings.vulnerable_dependencies(report(dependencies={"status": "scanned", "vulnerable": rows}, tree=frozenset({"Dockerfile", "package-lock.json"})))
         self.assertEqual(f[0]["severity"], "critical", "an unimported package is still installed; nothing is suppressed on it")
         self.assertIn("imported by no tracked source", f[0]["detail"])
         self.assertIs(f[0]["evidence"]["packages"][0]["imported"], False)

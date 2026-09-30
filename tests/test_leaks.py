@@ -65,8 +65,11 @@ class Placeholder(unittest.TestCase):
         # `password: 'hello'` in a doc comment, `secret` in a sample config: the words every example uses
         for value in ["hello", "Hello", "secret", "password", "PASSWORD", "example", "123456", "qwerty", "letmein", "foo", "dummy"]:
             self.assertTrue(leaks.is_placeholder(value), value)
-        for value in ["x-oauth-basic", "x-access-token", "x-token-auth"]:   # one service's documented literals are vocabulary, not a shape
-            self.assertFalse(leaks.is_placeholder(value), value)
+        # one service's documented literals are vocabulary, not a shape: no word list names them. Those built on a
+        # credential word are a hyphen-joined name by shape (_LABEL), as x_access_token always was
+        self.assertFalse(leaks.is_placeholder("x-oauth-basic"))
+        for value in ["x-access-token", "x-token-auth"]:
+            self.assertTrue(leaks.is_placeholder(value), value)
         self.assertTrue(leaks.is_placeholder("hunter2", line='url = f"https://{token}:hunter2@github.com/{SLUG}.git"'),
                         "a line with a template field is a template being filled in")
         for value in ["hello123", "secret-9f8a7b6c5d4e", "s3cr3t!Passw0rd", "foobarbaz2024"]:
@@ -334,7 +337,7 @@ class Group(unittest.TestCase):
         groups = leaks.group(rows)
         self.assertEqual([g["value"] for g in groups], ["h1", "h2", "h3"], "source first, then by places; placeholders left out")
         self.assertEqual(groups[0], {"value": "h1", "rule": "generic-api-key", "files": ["app/settings.py"], "commits": ["c1", "c2"],
-                                     "places": 2, "test": False, "docs": False, "confidence": None, "declared": None})
+                                     "places": 2, "test": False, "docs": False, "confidence": None, "declared": None, "local": False})
         self.assertEqual(groups[1]["files"], ["tests/data/a.html", "app/tests/data/a.html"])
         self.assertEqual(groups[1]["places"], 2)
         self.assertTrue(groups[1]["test"])
@@ -382,6 +385,10 @@ class PlaceholderShapes(unittest.TestCase):
         self.assertTrue(leaks.is_placeholder('-----BEGIN PRIVATE KEY-----");\n\t\twriter.println();'))
         self.assertFalse(leaks.is_placeholder("P4ssw0rd!x9Q"))
         self.assertTrue(leaks.is_placeholder("CURLOPT_PASSWD"))
+        self.assertTrue(leaks.is_placeholder("choose-a-strong-password"), "hyphens join a phrase as underscores do")
+        self.assertTrue(leaks.is_placeholder("CLIENT-SECRET"))
+        self.assertFalse(leaks.is_placeholder("My-Company-Secret"), "mixed case, hyphenated or not")
+        self.assertFalse(leaks.is_placeholder("password-7Hq2x9"), "a digit: not a name")
         self.assertFalse(leaks.is_placeholder("MyCompanySecret"), "mixed case reads as a chosen password, not a name")
 
     def test_a_guid_in_a_table_of_guids_is_an_interface_id(self):
@@ -475,6 +482,17 @@ class ContextAndForms(unittest.TestCase):
         value = "BSA" + "Zq8vLm2Rt7KpWn3cXe9YbH4"
         self.assertTrue(leaks.is_placeholder(value, line, "ui/src/pages/offline/index.jsx", "brave-search-api-key"))
         self.assertFalse(leaks.is_placeholder(value, f"BRAVE_KEY = '{value}'", "ui/src/api.js", "brave-search-api-key"))
+
+    def test_a_query_parameter_of_a_media_files_url_is_a_signed_link_not_a_key(self):
+        jwt = "eyJ" + "hbGciOiJIUzI1NiJ9" + ".eyJ" + "zdWIiOiIxMjM0In0" + ".Zq8vLm2Rt7KpWn3cXe9YbH4"   # built at runtime
+        media = f'{{"img_url": ["https://cdn.example.org/a/b/photo.jpg?token={jwt}&w=640"]}}'
+        self.assertTrue(leaks.is_placeholder(jwt, media, "benchmarks/data.json", "jwt"))
+        self.assertTrue(leaks.is_placeholder(jwt, media.replace("/", "\\/"), "benchmarks/data.json", "jwt"), "JSON's escaped slashes")
+        self.assertTrue(leaks.is_placeholder(jwt, f"src: https://x.test/v/clip.MP4?sig={jwt}", "a.yml", "jwt"))
+        self.assertFalse(leaks.is_placeholder(jwt, f"curl https://api.example.org/v1/items.json?token={jwt}", "run.sh", "jwt"),
+                         "an API's URL: the token is a credential")
+        self.assertFalse(leaks.is_placeholder(jwt, f"Authorization: Bearer {jwt}", "run.sh", "jwt"))
+        self.assertFalse(leaks.is_placeholder(jwt, f"https://cdn.example.org/photo.jpg#{jwt}", "a.md", "jwt"), "not a query parameter")
 
     def test_a_guid_in_a_table_of_guids_is_an_id_whichever_rule_matched_it(self):
         guid = "EAAAC2D7-C290-11D1-905D-00C04FD9189D"
@@ -619,6 +637,52 @@ class DeclaredToml(unittest.TestCase):
         self.assertEqual([(a["regexes"], a["stopwords"], a["paths"], a["commits"], a["target"], a["condition"]) for a in lists],
                          [(["^a$", "b\\.c"], ["s1"], [], [], "secret", "or"), (["q\\d"], [], [], [], "line", "or"), ([], [], ["^t/"], ["abc"], "secret", "and")],
                          "a basic string's escapes are TOML's; a literal string's are the regex's; a rule's detection regex is not read")
+
+
+class Local(unittest.TestCase):
+    """A connection string's password to loopback or to a service the repository's compose file declares."""
+
+    def test_the_services_a_compose_file_declares(self):
+        text = ("version: '3'\nservices:\n  # the database\n  postgres:\n    image: pg\n    environment:\n      POSTGRES_USER: u\n"
+                "  \"api\":\n    ports: ['8080:8080']\nvolumes:\n  data:\n")
+        self.assertEqual(leaks.compose_services(text), {"postgres", "api"}, "keys under services only, at their own indent")
+
+    def test_loopback_hosts(self):
+        for host in ("localhost", "LOCALHOST", "db.localhost", "127.0.0.1", "127.1.2.3", "::1"):
+            self.assertTrue(leaks.is_loopback(host), host)
+        for host in ("db.example.com", "10.0.0.1", "localhost.example.com", "0.0.0.0", ""):
+            self.assertFalse(leaks.is_loopback(host), host)
+
+    def test_marked_by_the_uris_host(self):
+        from tests.test_hygiene import Repo
+        pw = "Zq8vLm2Rt7Kp"
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("docker/docker-compose.override.yml", "services:\n  db:\n    image: pg\n")
+            r.commit(date="2026-01-01T00:00:00")
+            os.remove(os.path.join(d, "docker/docker-compose.override.yml"))
+            r.write("README.md", "x\n")
+            r.commit(date="2026-01-02T00:00:00")
+
+            def row(uri, line=""):
+                return {"RuleID": "generic-credential-uri", "File": ".env", "Commit": "c", "StartLine": 1, "Secret": pw, "Match": uri, "Line": line}
+            rows = [row(f"postgresql://u:{pw}@localhost:5432/x"), row(f"postgres://u:{pw}@[::1]/x"), row(f"postgres://u:{pw}@db/x"),
+                    row(f"postgres://u:{pw}@db.eu-west.rds.example.com:5432/x"), row("", f"DATABASE_URL=mysql://u:{pw}@127.0.0.1/x"),
+                    row(f"postgres://u:{pw}X@localhost/x"), {"RuleID": "jwt", "File": "a", "Commit": "c", "Secret": pw, "Match": pw}]
+            leaks.mark_local(d, rows)
+        self.assertEqual([x.get("Local") for x in rows], [True, True, True, False, True, None, None],
+                         "loopback by shape; db by a compose file some commit declared; the host is read only where the value is the password")
+        self.assertFalse(leaks.sanitise(rows[3:4])[0]["Local"])
+        self.assertTrue(leaks.sanitise(rows[:1])[0]["Local"])
+
+    def test_a_value_is_a_local_default_unless_it_is_also_sent_to_another_host(self):
+        def row(value, file, local=None):
+            return {"rule": "generic-credential-uri", "file": file, "commit": "c", "line": 1, "fingerprint": file, "value": value,
+                    "placeholder": False, **({} if local is None else {"local": local})}
+        groups = {g["value"]: g["local"] for g in leaks.group([row("a", ".env", True), row("a", "docker-compose.yml"),
+                                                               row("b", ".env", True), row("b", "prod.env", False), row("c", "x.py")])}
+        self.assertEqual(groups, {"a": True, "b": False, "c": False},
+                         "the compose file's POSTGRES_PASSWORD is the same default; one URI to another host makes it a password")
 
 
 class AtHead(unittest.TestCase):

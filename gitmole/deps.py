@@ -155,8 +155,63 @@ def _relative(path: str, cwd: str) -> str:
     return path[2:] if path.startswith("./") else path
 
 
+# pip's requirement files: osv-scanner reads them as it reads a lock file (its JSON calls both "lockfile"),
+# but a requirement is a specifier, not an installed version, and for `mcp>=1.0.0` it reports the floor, 1.0.0,
+# which no install picks on purpose. The file's name is the convention pip and pip-tools use.
+REQUIREMENT_FILE = re.compile(r"(^|/)[^/]*(requirements|constraints)[^/]*\.(txt|in)$")
+_REQUIREMENT = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*([^;]*)")
+_EXACT = re.compile(r"^===?[^,*]+$")   # one `==` or `===` clause without a wildcard: the only specifier that names one version
+
+
+def is_requirement_file(path: str) -> bool:
+    """Whether osv-scanner read this file as a pip requirement file rather than a lock file."""
+    return bool(REQUIREMENT_FILE.search(path or ""))
+
+
+def _normal(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name or "").lower()   # PEP 503
+
+
+def requirement(text: str, name: str):
+    """The specifier a requirement file gives `name` ('>=1.0.0'; '' for the bare name), or None when no line
+    names it (an included file, a URL). Comments, options and environment markers are left out."""
+    for raw in text.splitlines():
+        line = re.split(r"(?:^|\s)#", raw, maxsplit=1)[0].strip()
+        if not line or line.startswith("-"):
+            continue
+        m = _REQUIREMENT.match(line)
+        if m and _normal(m.group(1)) == _normal(name):
+            return re.sub(r"\s+", "", m.group(2))
+    return None
+
+
+def _pin(row: dict, cwd: str, texts: dict) -> None:
+    """On a row from a requirement file, the specifier it was read from and whether that names one version:
+    `requirement` and `pinned`, so the report can tell a floor from a pin. Nothing when the line is not found."""
+    path = row["source"]
+    if path not in texts:
+        try:
+            with open(os.path.join(cwd, path), encoding="utf-8", errors="replace") as fh:
+                texts[path] = fh.read()
+        except OSError:
+            texts[path] = ""
+    spec = requirement(texts[path], row["name"])
+    if spec is not None:
+        row["requirement"] = spec
+        row["pinned"] = bool(_EXACT.match(spec))
+
+
+def files_phrase(paths) -> str:
+    """'3 lock files', or '3 lock files and 1 requirement file': a requirement file is not a lock file."""
+    paths = set(paths)
+    reqs = sum(1 for p in paths if is_requirement_file(p))
+    locks = len(paths) - reqs
+    out = [f"{n} {word}{'' if n == 1 else 's'}" for n, word in ((locks, "lock file"), (reqs, "requirement file")) if n]
+    return " and ".join(out) or "0 lock files"
+
+
 def summarise(data: dict, cwd: str) -> dict:
-    sources, vulnerable, packages = [], [], 0
+    sources, vulnerable, packages, texts = [], [], 0, {}
     for r in data.get("results") or []:
         path = _relative((r.get("source") or {}).get("path") or "", cwd)
         pkgs = r.get("packages") or []
@@ -176,8 +231,197 @@ def summarise(data: dict, cwd: str) -> dict:
                                "summary": next((v.get("summary") for v in vulns if v.get("summary")), ""),
                                "fixed": fixed_version(vulns, info.get("name", ""), info.get("version", "")),
                                "malicious": is_malicious(vulns)})
+            if is_requirement_file(path):
+                _pin(vulnerable[-1], cwd, texts)
     vulnerable.sort(key=lambda r: (not r["malicious"], -(r["score"] if r["score"] is not None else -1), r["name"], r["source"]))
     return {"status": "scanned", "sources": sources, "packages": packages, "vulnerable": vulnerable}
+
+
+# --- what a lock's directory declares about how it ships ---------------------------------------------
+#
+# A lock file pins what gets installed where that lock is used: a service built from its directory
+# installs exactly those versions, while a library's lock pins only its own development environment
+# (whoever installs the published package resolves its dependencies again). Which one a directory is, it
+# declares itself: a container build, a Helm chart, a platform's deploy file, a compose service built from
+# it, or an entry point that makes it a program. The collection records what needs a file's contents (the
+# entry points, the workspace members, the compose build contexts); the file names are read from the tree
+# when the report is drawn, so an older scan still gets those.
+
+DEPLOY_FILE = re.compile(r"^(?:Dockerfile(?:\..+)?|.+\.Dockerfile|Containerfile(?:\..+)?|Chart\.yaml|Procfile|fly\.toml|"
+                         r"vercel\.json|netlify\.toml|wrangler\.toml|serverless\.ya?ml)$")
+COMPOSE_FILE = re.compile(r"(^|/)(?:docker-)?compose(?:\.[^/]+)?\.ya?ml$")
+_TOML_TABLE = re.compile(r"^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(?:#.*)?$")
+_ENTRY_TABLES = {"project.scripts": "[project.scripts]", "project.gui-scripts": "[project.gui-scripts]",
+                 "tool.poetry.scripts": "[tool.poetry.scripts]", "bin": "[[bin]]"}
+
+
+def _file(cwd: str, path: str) -> str:
+    try:
+        with open(os.path.join(cwd, path), encoding="utf-8", errors="replace") as fh:
+            return fh.read(2_000_000)
+    except OSError:
+        return ""
+
+
+def _toml_tables(text: str) -> dict:
+    """{table: its lines} for a TOML file, enough to see which tables exist and read a string array."""
+    out, table = {"": []}, ""
+    for line in text.splitlines():
+        m = _TOML_TABLE.match(line)
+        if m:
+            table = re.sub(r"\s*\.\s*", ".", m.group(1)).replace('"', "")
+            out.setdefault(table, [])
+            continue
+        out[table].append(line)
+    return out
+
+
+def _toml_array(lines: list, key: str) -> list:
+    text = "\n".join(lines)
+    m = re.search(rf"(?m)^\s*{re.escape(key)}\s*=\s*\[(.*?)\]", text, re.S)
+    return re.findall(r"[\"']([^\"']+)[\"']", m.group(1)) if m else []
+
+
+def _join(d: str, name: str) -> str:
+    return f"{d}/{name}" if d else name
+
+
+_NPM_LOCKS = ("package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "bun.lock", "bun.lockb")
+
+
+def _members(cwd: str, lock_dir: str, lock: str) -> list:
+    """The workspace members a lock at `lock_dir` pins, from the manifest its own tool reads: uv.lock from
+    uv's [tool.uv.workspace], Cargo.lock from Cargo's [workspace], npm, Yarn and Bun locks from
+    package.json `workspaces`, pnpm-lock.yaml from pnpm-workspace.yaml."""
+    import glob
+    patterns, drop = [], []
+    if lock == "uv.lock":
+        py = _toml_tables(_file(cwd, _join(lock_dir, "pyproject.toml")))
+        patterns += _toml_array(py.get("tool.uv.workspace", []), "members")
+        drop += _toml_array(py.get("tool.uv.workspace", []), "exclude")
+    if lock == "Cargo.lock":
+        cargo = _toml_tables(_file(cwd, _join(lock_dir, "Cargo.toml")))
+        patterns += _toml_array(cargo.get("workspace", []), "members")
+        drop += _toml_array(cargo.get("workspace", []), "exclude")
+    if lock in _NPM_LOCKS:
+        try:
+            declared = json.loads(_file(cwd, _join(lock_dir, "package.json")) or "{}").get("workspaces")
+        except (ValueError, AttributeError):
+            declared = None
+        declared = declared.get("packages") if isinstance(declared, dict) else declared
+        for p in declared if isinstance(declared, list) else []:
+            if isinstance(p, str):
+                (drop if p.startswith("!") else patterns).append(p.lstrip("!"))
+    in_packages = False
+    for line in (_file(cwd, _join(lock_dir, "pnpm-workspace.yaml")) if lock == "pnpm-lock.yaml" else "").splitlines():
+        if re.match(r"^packages\s*:", line):
+            in_packages = True
+            continue
+        if in_packages:
+            m = re.match(r"^\s*-\s*[\"']?([^\"'#]+?)[\"']?\s*(?:#.*)?$", line)
+            if m:
+                (drop if m.group(1).startswith("!") else patterns).append(m.group(1).lstrip("!"))
+            elif line.strip() and not line.startswith((" ", "\t")):
+                in_packages = False
+    base = os.path.join(cwd, lock_dir)
+
+    def expand(ps):
+        found = set()
+        for p in ps:
+            for hit in glob.glob(os.path.join(base, p.strip().rstrip("/"))):
+                if os.path.isdir(hit):
+                    rel = os.path.relpath(hit, cwd)
+                    if not rel.startswith(".."):
+                        found.add(rel.replace(os.sep, "/"))
+        return found
+    return sorted(expand(patterns) - expand(drop) - {lock_dir or "."})
+
+
+def _entry_points(cwd: str, d: str) -> list:
+    """What makes the directory a program by its manifests: [project.scripts] and the like in
+    pyproject.toml, `bin` in package.json, [[bin]] in Cargo.toml."""
+    out = []
+    for name in ("pyproject.toml", "Cargo.toml"):
+        tables = _toml_tables(_file(cwd, _join(d, name)))
+        for t, label in _ENTRY_TABLES.items():
+            if t in tables and (name == "Cargo.toml") == (t == "bin"):
+                out.append(f"{_join(d, name)} {label}")
+        if name == "pyproject.toml" and any(re.match(r"^\s*(?:gui-)?scripts\s*=", line) for line in tables.get("project", [])):
+            out.append(f"{_join(d, name)} [project.scripts]")
+    try:
+        doc = json.loads(_file(cwd, _join(d, "package.json")) or "{}")
+    except ValueError:
+        doc = {}
+    if isinstance(doc, dict) and doc.get("bin"):
+        out.append(f"{_join(d, 'package.json')} bin")
+    return sorted(set(out))
+
+
+def compose_builds(text: str, compose_dir: str) -> list:
+    """The directories a compose file's services build from: `build: path`, or `context:` under
+    `build:` (the compose file's own directory when it names none), relative to the repository."""
+    out, lines = [], text.splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"^(\s*)build\s*:\s*(.*?)\s*(?:#.*)?$", line)
+        if not m:
+            continue
+        indent, value = len(m.group(1)), m.group(2).strip("\"'")
+        if not value:
+            value = "."
+            for nxt in lines[i + 1:]:
+                if nxt.strip() and len(nxt) - len(nxt.lstrip()) <= indent:
+                    break
+                c = re.match(r"^\s*context\s*:\s*[\"']?([^\"'#]+?)[\"']?\s*(?:#.*)?$", nxt)
+                if c:
+                    value = c.group(1)
+                    break
+        if value.startswith("{") or "://" in value or value.startswith("git@") or "$" in value:
+            continue
+        rel = os.path.normpath(os.path.join(compose_dir, value)).replace(os.sep, "/")
+        if not rel.startswith(".."):
+            out.append("" if rel == "." else rel)
+    return out
+
+
+def declare(result: dict, cwd: str) -> None:
+    """Add to each lock file's source row what needs its directory's files read: the workspace `members` it
+    pins and the `entry_points` of it and its members; and to the result the `compose_builds`."""
+    for src in result.get("sources") or []:
+        d = os.path.dirname(src["path"])
+        members = _members(cwd, d, os.path.basename(src["path"]))
+        entries = [e for m in [d] + members for e in _entry_points(cwd, m)]
+        if members:
+            src["members"] = members
+        if entries:
+            src["entry_points"] = entries
+    listed = subprocess.run(["git", "ls-files", "-z"], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True)
+    builds = set()
+    for path in listed.stdout.decode("utf-8", "replace").split("\0"):
+        if path and COMPOSE_FILE.search(path) and "node_modules/" not in path:
+            builds.update(compose_builds(_file(cwd, path), os.path.dirname(path)))
+    result["compose_builds"] = sorted(builds)
+
+
+def deploys(source: dict, tree, builds=()) -> list:
+    """What declares that this lock ships: a deploy file (DEPLOY_FILE) in its directory or a workspace
+    member's, a compose service built from one of them, an entry point; for Cargo and Go also the
+    ecosystem's own program layout (src/main.rs or src/bin/, main.go or cmd/). [] when nothing does:
+    a library, or a workspace kept for development and integration."""
+    path = source.get("path") or ""
+    dirs = [os.path.dirname(path)] + list(source.get("members") or [])
+    lock = os.path.basename(path)
+    out = list(source.get("entry_points") or [])
+    wanted = set(dirs)
+    for p in tree or ():
+        d, _, name = p.rpartition("/")
+        if d in wanted and DEPLOY_FILE.match(name):
+            out.append(p)
+        elif lock == "Cargo.lock" and any(p == _join(x, "src/main.rs") or p.startswith(_join(x, "src/bin/")) for x in dirs):
+            out.append(p)
+        elif lock in ("go.mod", "go.sum") and any(p == _join(x, "main.go") or p.startswith(_join(x, "cmd/")) for x in dirs):
+            out.append(p)
+    out += [f"a compose service built from {x or 'the root'}" for x in dirs if x in set(builds)]
+    return sorted(set(out))
 
 
 PACKAGES = "packages.json"   # every locked package, for --sbom; not part of the report, which keeps the vulnerable ones
@@ -273,6 +517,10 @@ def main(argv=None) -> int:
             print("deps.py: osv-scanner printed no JSON report; nothing written", file=sys.stderr)
             return 1
         result = summarise(data, os.getcwd())
+        try:
+            declare(result, os.getcwd())
+        except OSError as e:   # the rows stand without it; the report then reads only the tree
+            print(f"deps.py: declarations: {e}", file=sys.stderr)
         result["database_date"] = database_date()
         result["database_digest"] = database_digest()
         try:
