@@ -2,6 +2,7 @@
 carries the short citation in its rule dict's `ref` (see REFS); docs/references.md has the full entries."""
 from __future__ import annotations
 
+import bisect
 import math
 import os
 import re
@@ -499,16 +500,36 @@ def _benjamini_hochberg(pvalues: dict, q: float) -> set:
     return {k for k, _ in ranked[:cut]}
 
 
+FIX_RATE_STRATA = 10   # tenths of the tested files by lines of code: a big file is compared with big files
+FIX_RATE_MIN_MONTHS = 12   # twice the six-month window: a shorter history tests the window's own counts again
+
+
+def _size_strata(files, size: dict, n: int = FIX_RATE_STRATA) -> dict:
+    """Each file's stratum by lines of code: the n-tiles of the tested files' sizes, ties kept together (a
+    file's stratum is how many cut points its size reaches), so files of one size are always compared alike."""
+    code = {e: ((size.get(e) or {}).get("code") or 0) for e in files}
+    ranked = sorted(code.values())
+    cuts = [ranked[len(ranked) * i // n] for i in range(1, n)] if ranked else []
+    return {e: bisect.bisect_right(cuts, c) for e, c in code.items()}
+
+
 def fix_prone(report: dict, keep, q: float = FIX_RATE_Q):
-    """The files fixed more often than the repository's own fixes explain: per file, a one-sided
-    binomial test of its fix commits against its changes at the repository's rate (fixes over changes
-    across every file `keep` admits), then Benjamini-Hochberg over all of them at false discovery rate
-    `q`. Counts are the whole analysed history's, as maat-fixes and maat-revisions draw them from the
-    same commits; the six-month window is what picked the magnets, and testing them on the counts they
-    were picked by would find what it selected. Fixes cluster (one pull request, several fix commits),
-    so the variance is wider than a binomial's and the test errs towards discovery (Spiegelhalter,
-    Stat Med 2005): the result orders and annotates, it decides nothing. None when there is no rate to
-    test against: no change table, or every change a fix or none."""
+    """The files fixed more often than files of their size in this repository explain: the tested files are
+    split into tenths by lines of code, and each file's fix commits are tested against its changes at its
+    tenth's rate (fixes over changes) with a one-sided binomial test, then Benjamini-Hochberg over all of
+    them at false discovery rate `q`. Against the whole repository's rate, the test mostly named the largest
+    files (hindsight at 0.40.0: all 13 in the top tenth by lines, 2 left within their tenth): a big file is
+    changed and fixed more, which the magnets' ranking already says. Counts are the whole analysed
+    history's, as maat-fixes and maat-revisions draw them from the same commits; the six-month window is
+    what picked the magnets, so a history shorter than FIX_RATE_MIN_MONTHS is mostly that window and is not
+    tested. Fixes cluster (one pull request, several fix commits), so the variance is wider than a
+    binomial's and the test errs towards discovery (Spiegelhalter, Stat Med 2005): the result orders and
+    annotates, it decides nothing. None when there is no rate to test against: no change table, a history
+    too short, or every change a fix or none."""
+    meta = report.get("meta") or {}
+    first, last = meta.get("first_date"), meta.get("last_date")
+    if first and last and _months_apart(first, last) < FIX_RATE_MIN_MONTHS:
+        return None
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or [] if keep(f["entity"])}
     changes = {r["entity"]: r["n-revs"] for r in report.get("revisions") or [] if keep(r["entity"])}
     if not changes:
@@ -517,10 +538,20 @@ def fix_prone(report: dict, keep, q: float = FIX_RATE_Q):
     total_fixes, total_changes = sum(k for k, _ in pool.values()), sum(n for _, n in pool.values())
     if not 0 < total_fixes < total_changes:
         return None
-    rate = total_fixes / total_changes
-    pvalues = {e: _binomial_tail(k, n, rate) for e, (k, n) in pool.items() if n}
+    stratum = _size_strata(pool, (report.get("size") or {}).get("files") or {})
+    sums = {}
+    for e, (k, n) in pool.items():
+        a, b = sums.get(stratum[e], (0, 0))
+        sums[stratum[e]] = (a + k, b + n)
+    rates = {s: k / n for s, (k, n) in sums.items() if n}
+
+    def tail(e, k, n):
+        p = rates.get(stratum[e], 0.0)
+        return 1.0 if p >= 1 or k == 0 else _binomial_tail(k, n, p)
+    pvalues = {e: tail(e, k, n) for e, (k, n) in pool.items() if n}
     return {"fixes": total_fixes, "changes": total_changes, "files": len(pvalues), "q": q,
-            "above": _benjamini_hochberg(pvalues, q), "p": pvalues, "counts": pool}
+            "above": _benjamini_hochberg(pvalues, q), "p": pvalues, "counts": pool,
+            "rate": {e: rates.get(stratum[e], 0.0) for e in pvalues}}
 
 
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
@@ -554,17 +585,19 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     first = " and ".join(label for _, _, label, _ in items[:2])
     clusters = [{"file": paths[0], "with": paths[1:], "fixes": history[paths[0]]["recent"]} for paths, _, _, _ in items if len(paths) > 1]
     fresh = [p for _, _, _, new in items for p in new]
-    rate = "" if prone is None else f", {len(above) or 'none'} beyond this repository's fix rate"
+    rate = "" if prone is None else f", {len(above) or 'none'} beyond files of their size"
     return [_f(sev, "Bug magnets",
                f"{len(hot)} file(s) were fixed {min_recent}+ times in six months{rate}: {listed}{more}.",
                f"Review {first} before the next release.",
                rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so",
                      "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing",
-                     "above_rate": {"test": "one-sided binomial, a file's fixes against its changes at the repository's fixes per change, whole history",
+                     "above_rate": {"test": "one-sided binomial, a file's fixes against its changes at the fixes per change of the files of its size, whole history",
+                                    "strata": f"{FIX_RATE_STRATA} by lines of code over the tested files", "min_history_months": FIX_RATE_MIN_MONTHS,
                                     "fdr": "Benjamini-Hochberg over every source file", "q": FIX_RATE_Q, "ref": "Benjamini and Hochberg, JRSS B 1995"}},
                evidence={"count": len(hot), "files": [{"file": f["entity"], "recent_fixes": f["recent-fixes"], "fixes": f["n-fixes"]} for f in hot[:10]],
                          **({"fix_rate": {"fixes": prone["fixes"], "changes": prone["changes"], "files": prone["files"],
-                                          "above_rate": [{"file": f["entity"], "fixes": prone["counts"][f["entity"]][0], "changes": prone["counts"][f["entity"]][1]}
+                                          "above_rate": [{"file": f["entity"], "fixes": prone["counts"][f["entity"]][0], "changes": prone["counts"][f["entity"]][1],
+                                                          "size_rate": round(prone["rate"][f["entity"]], 3)}
                                                          for f in above[:10]]}} if prone else {}),
                          **({"shared_fixes": clusters} if clusters else {}), **({"new_in_window": fresh} if fresh else {})})]
 

@@ -527,19 +527,47 @@ class BugMagnets(unittest.TestCase):
         self.assertEqual((prone["fixes"], prone["changes"], prone["files"]), (42, 408, 99))
         self.assertEqual(prone["above"], {"src/prone.py"}, "12 of 14 against 42 of 408; 30 of 200 is about the rate")
         f = findings.bug_magnets(r)[0]
-        self.assertIn("2 file(s) were fixed 3+ times in six months, 1 beyond this repository's fix rate: "
+        self.assertIn("2 file(s) were fixed 3+ times in six months, 1 beyond files of their size: "
                       "src/prone.py (4 recent, 12 total); src/busy.py (9 recent, 30 total).", f["detail"])
         self.assertIn("Review src/prone.py and src/busy.py before the next release.", f["advice"])
         self.assertEqual(f["severity"], "warning", "severity stays the window's: busy.py has 9 recent fixes")
         self.assertEqual([x["file"] for x in f["evidence"]["files"]], ["src/busy.py", "src/prone.py"], "the named files keep the window's order")
         self.assertEqual(f["evidence"]["fix_rate"], {"fixes": 42, "changes": 408, "files": 99,
-                                                     "above_rate": [{"file": "src/prone.py", "fixes": 12, "changes": 14}]})
+                                                     "above_rate": [{"file": "src/prone.py", "fixes": 12, "changes": 14, "size_rate": 0.103}]},
+                         "no sizes: one stratum, the repository's own rate")
 
     def test_says_so_when_none_is_fixed_beyond_the_rate(self):
         r = self.rated([("src/busy.py", 30, 9), ("src/lib.py", 20, 0)], {"src/busy.py": 300, "src/lib.py": 100})
         f = findings.bug_magnets(r)[0]   # 30 of 300 against 50 of 494
-        self.assertIn("1 file(s) were fixed 3+ times in six months, none beyond this repository's fix rate: src/busy.py", f["detail"])
+        self.assertIn("1 file(s) were fixed 3+ times in six months, none beyond files of their size: src/busy.py", f["detail"])
         self.assertEqual(f["evidence"]["fix_rate"]["above_rate"], [])
+
+    def test_a_large_file_is_tested_against_files_of_its_size(self):
+        """hindsight at 0.40.0: all 13 files the whole-repository rate named were in the top tenth by lines of code.
+        Ten big files fixed at 30% beside 90 small ones at 5%: against the pooled rate every big one stands out,
+        against the big ones' own rate none does, and a big file fixed far more often than its peers still does."""
+        big = {f"src/big{i}.py": 40 for i in range(9)}
+        small = {f"src/s{i}.py": 20 for i in range(90)}
+        fixes = [(e, 12, 4) for e in big] + [(e, 1, 0) for e in small] + [("src/worst.py", 30, 6)]
+        r = report(fixes=[{"entity": e, "n-fixes": k, "last-fix": "2026-09-01", "recent-fixes": x} for e, k, x in fixes],
+                   revisions=[{"entity": e, "n-revs": n} for e, n in {**big, **small, "src/worst.py": 40}.items()],
+                   size={"files": {**{e: {"code": 2000} for e in big}, **{e: {"code": 50} for e in small}, "src/worst.py": {"code": 2000}}})
+        prone = findings.fix_prone(r, lambda p: True)
+        self.assertEqual(prone["above"], {"src/worst.py"})
+        self.assertAlmostEqual(prone["rate"]["src/big0.py"], (9 * 12 + 30) / 400)
+        f = findings.bug_magnets(r)[0]
+        self.assertIn("10 file(s) were fixed 3+ times in six months, 1 beyond files of their size: src/worst.py", f["detail"])
+
+    def test_no_rate_test_on_a_history_barely_longer_than_the_window(self):
+        """hindsight: eleven months of history, the six-month window most of it."""
+        r = self.rated([("src/busy.py", 30, 9), ("src/prone.py", 12, 4)], {"src/busy.py": 200, "src/prone.py": 14})
+        r["meta"] = dict(r["meta"], first_date="2025-10-30", last_date="2026-09-30")
+        self.assertIsNone(findings.fix_prone(r, lambda p: True))
+        f = findings.bug_magnets(r)[0]
+        self.assertIn("2 file(s) were fixed 3+ times in six months: src/busy.py", f["detail"])
+        self.assertNotIn("fix_rate", f["evidence"])
+        r["meta"]["first_date"] = "2025-09-30"
+        self.assertIsNotNone(findings.fix_prone(r, lambda p: True), "twelve months: tested")
 
     def test_the_rate_is_over_the_files_the_rule_reads(self):
         """Tests change with every fix and are left out of the magnets, so they are left out of the rate too."""
@@ -974,7 +1002,8 @@ class Advice(unittest.TestCase):
                                                {"entity": "b.py", "n-fixes": 3, "last-fix": "2026-08-01", "recent-fixes": 3}]))[0]
         self.assertEqual(f["rule"], {"id": "bug_magnets", "min_recent": 3, "warn_at": 5, "window_months": 6, "fix": "the commit subject says so",
                                      "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing",
-                                     "above_rate": {"test": "one-sided binomial, a file's fixes against its changes at the repository's fixes per change, whole history",
+                                     "above_rate": {"test": "one-sided binomial, a file's fixes against its changes at the fixes per change of the files of its size, whole history",
+                                                    "strata": "10 by lines of code over the tested files", "min_history_months": 12,
                                                     "fdr": "Benjamini-Hochberg over every source file", "q": 0.05, "ref": "Benjamini and Hochberg, JRSS B 1995"}})
         self.assertEqual(f["evidence"], {"count": 2, "files": [{"file": "a.py", "recent_fixes": 5, "fixes": 9}, {"file": "b.py", "recent_fixes": 3, "fixes": 3}]},
                          "no change table for a.py or b.py: no rate to test against, so no fix_rate")
