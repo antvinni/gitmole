@@ -1051,6 +1051,15 @@ def _hygiene_confusion(h: dict, out: list) -> None:
                                                                     "registries": cf.get("registries") or {}, "pip_extra_index": cf.get("pip_extra_index") or []}))
 
 
+# how each package manager installs without running install scripts: the one the repository declares
+# (packageManager) or locks with, since `npm ci` does nothing for a pnpm or Yarn workspace
+_NO_SCRIPTS = {"npm": "Install with scripts disabled where the build allows it (npm ci --ignore-scripts)",
+               "pnpm": "Install with scripts disabled where the build allows it (pnpm install --frozen-lockfile --ignore-scripts)",
+               "yarn": "Install with scripts disabled where the build allows it (yarn install --frozen-lockfile --ignore-scripts)",
+               "yarn-berry": "Install with scripts disabled where the build allows it (enableScripts: false in .yarnrc.yml)",
+               "bun": "Install with scripts disabled where the build allows it (bun install --frozen-lockfile --ignore-scripts)"}
+
+
 def _hygiene_install(h: dict, out: list) -> None:
     ins = h.get("install") or {}
     if ins.get("lockfile") or ins.get("manifests") or ins.get("setup_py"):
@@ -1061,7 +1070,8 @@ def _hygiene_install(h: dict, out: list) -> None:
         parts += [f"{m['file']} declares {textfmt.join_and(m['scripts'])}" for m in (ins.get("manifests") or [])[:3]]
         parts += [f"{s_['file']} calls {textfmt.join_and(s_['calls'])}" for s_ in (ins.get("setup_py") or [])[:3]]
         # the advice of the ecosystem the finding names: npm's switch does nothing to a setup.py, which pip runs whenever it builds from source
-        npm = "Install with scripts disabled where the build allows it (npm ci --ignore-scripts) and review what the rest run."
+        manager = (ins.get("manager") or {}).get("name")
+        npm = f"{_NO_SCRIPTS.get(manager, _NO_SCRIPTS['npm'])} and review what the rest run."
         pip = (f"Review what {ins['setup_py'][0]['file']} runs: pip runs it on every install from source; "
                "a wheel install (pip install --only-binary :all:) does not.") if ins.get("setup_py") else ""
         advice = pip if not (ins.get("lockfile") or ins.get("manifests")) else f"{npm} {pip}".strip()

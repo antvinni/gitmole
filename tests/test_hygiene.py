@@ -281,6 +281,24 @@ class InstallScripts(unittest.TestCase):
         self.assertEqual(out["manifests"], [{"file": "package.json", "scripts": ["postinstall"]}], "node_modules is not tracked code")
         self.assertEqual(out["setup_py"], [{"file": "setup.py", "calls": ["subprocess.run"]}])
 
+    def test_the_package_manager_is_the_declared_one_else_the_lock_files(self):
+        # paperclip declares "packageManager": "pnpm@9.15.4" and was told `npm ci --ignore-scripts`
+        cases = [({"packageManager": "pnpm@9.15.4"}, {}, {"name": "pnpm", "from": "packageManager"}),
+                 ({"packageManager": "yarn@1.22.22"}, {"yarn.lock": "# yarn lockfile v1\n"}, {"name": "yarn", "from": "packageManager"}),
+                 ({"packageManager": "yarn@4.1.0"}, {}, {"name": "yarn-berry", "from": "packageManager"}),
+                 ({}, {"yarn.lock": "__metadata:\n  version: 8\n"}, {"name": "yarn-berry", "from": "yarn.lock"}),
+                 ({}, {"pnpm-lock.yaml": "lockfileVersion: '9.0'\n"}, {"name": "pnpm", "from": "pnpm-lock.yaml"}),
+                 ({"packageManager": "made-up"}, {"package-lock.json": "{}"}, {"name": "npm", "from": "package-lock.json"}),
+                 ({}, {}, None)]
+        for manifest, files, expected in cases:
+            with tempfile.TemporaryDirectory() as d:
+                r = Repo(d)
+                r.write("package.json", json.dumps({"name": "x", "scripts": {"postinstall": "node s.js"}, **manifest}))
+                for path, text in files.items():
+                    r.write(path, text)
+                r.commit()
+                self.assertEqual(hygiene.install_scripts(d).get("manager"), expected, (manifest, files))
+
     def test_a_setup_py_without_setup_is_a_script_pip_never_runs(self):
         # VoiceStudio's scripts/setup.py is `uv run python scripts/setup.py`: no setuptools, no setup()
         with tempfile.TemporaryDirectory() as d:

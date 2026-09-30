@@ -564,7 +564,36 @@ def install_scripts(repo: str) -> dict:
             calls = sorted(n for n in names if _RISKY_CALLS.match(n))
             if calls:
                 setups.append({"file": path, "calls": calls})
-    return {"lockfile": in_lock[:CAP], "lockfile_count": len(in_lock), "manifests": manifests[:CAP], "setup_py": setups[:CAP]}
+    out = {"lockfile": in_lock[:CAP], "lockfile_count": len(in_lock), "manifests": manifests[:CAP], "setup_py": setups[:CAP]}
+    manager = package_manager(repo) if (in_lock or manifests) else None
+    return {**out, **({"manager": manager} if manager else {})}
+
+
+_LOCK_MANAGER = (("pnpm-lock.yaml", "pnpm"), ("yarn.lock", "yarn"), ("bun.lock", "bun"), ("bun.lockb", "bun"), ("package-lock.json", "npm"),
+                 ("npm-shrinkwrap.json", "npm"))
+
+
+def package_manager(repo: str):
+    """The package manager the root installs with, as {"name", "from"}: what the root package.json
+    declares in `packageManager` (Corepack's `name@version`), else what the root's lock file is named
+    after. Yarn from 2 on ("berry", a lock with a `__metadata:` block) is `yarn-berry`: it turns install
+    scripts off in .yarnrc.yml, not with a flag. None when the root declares nothing and locks nothing."""
+    try:
+        declared = json.loads(_text(repo, "package.json") or "{}").get("packageManager")
+    except (ValueError, AttributeError):
+        declared = None
+    if isinstance(declared, str) and re.match(r"^(npm|pnpm|yarn|bun)@\d", declared):
+        name, version = declared.split("@", 1)
+        if name == "yarn" and not version.startswith("1."):
+            name = "yarn-berry"
+        return {"name": name, "from": "packageManager"}
+    for lock, name in _LOCK_MANAGER:
+        data = _read(repo, lock, 4096)
+        if data is not None:
+            if name == "yarn" and b"__metadata:" in data:
+                name = "yarn-berry"
+            return {"name": name, "from": lock}
+    return None
 
 
 # --- committed binaries -------------------------------------------------------------------------
