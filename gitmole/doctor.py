@@ -59,7 +59,7 @@ def main(console, rows_of=rows, structure_of=run.has_structure, db_of=None, comm
             say(f"{r['tool']:<{width}}  {found:<{column}}  pinned {r['pinned']}: {tools.RELEASES[r['tool']]}")
     say("structure step: " + ("available" if structure_of() else "skipped, the tree-sitter grammars do not import (they need Python 3.10 or newer)"))
     db_date = db_of()
-    say("vulnerability database: " + (db_date or f"none; inside a clone, run: {command_of()}"))
+    say("vulnerability database: " + (db_date or "none; fetch it with: gitmole --fetch-vuln-db CLONE"))
     off = [r["tool"] for r in listed if r["state"] != "ok"]
     if "lizard" in off:   # a Python package of this interpreter: neither --install-tools nor a separate formula moves it
         say(f"lizard: {shlex.quote(sys.executable)} -m pip install lizard=={tools.PINNED['lizard']}")

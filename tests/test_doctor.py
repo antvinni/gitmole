@@ -55,9 +55,9 @@ class Main(unittest.TestCase):
         self.assertIn("brew install gitmole", text)
         self.assertIn("gitmole --install-tools", text)   # the pip user's route to the same pinned set
         self.assertIn("Python 3.10", text)                 # why the structure step is skipped
-        self.assertIn("--download-offline-databases", text)  # how to get the database
-        command = next(l for l in text.splitlines() if "osv-scanner scan source" in l)
-        self.assertIn("--download-offline-databases .", command)   # soft_wrap: the command is one pasteable line
+        self.assertIn("gitmole --fetch-vuln-db", text)  # how to get the database
+        command = next(l for l in text.splitlines() if "gitmole --fetch-vuln-db" in l)
+        self.assertIn("gitmole --fetch-vuln-db CLONE", command)   # soft_wrap: the command is one pasteable line
 
     def test_a_lizard_mismatch_alone_names_pip_not_the_tool_download(self):
         """--install-tools never installs lizard; sending a lizard mismatch there re-downloads 80 MB for nothing."""

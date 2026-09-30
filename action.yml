@@ -153,12 +153,9 @@ runs:
         # the one step that fetches the database: it covers the ecosystems this workspace's lock files use.
         # osv-scanner exits 1 when it finds a vulnerability and 128 when there is no lock file; neither is a
         # failed download, and the scan reports on the database either way
-        rc=0
-        osv-scanner scan source -r --offline-vulnerabilities --download-offline-databases . > /dev/null || rc=$?
-        case "$rc" in
-          0|1|128) ;;
-          *) echo "::error::osv-scanner exited $rc downloading the offline database"; exit "$rc" ;;
-        esac
+        # gitmole --fetch-vuln-db runs the pinned osv-scanner's download and exits 0 for a fetch, a fetch that saw
+        # advisories, or a workspace with no lock file; anything else is a failed download
+        gitmole --fetch-vuln-db . || { rc=$?; echo "::error::gitmole --fetch-vuln-db exited $rc"; exit "$rc"; }
 
     - name: Restore the baseline
       # the default branch's last export: caches saved on the default branch are visible to every branch and

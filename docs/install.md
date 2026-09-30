@@ -134,13 +134,12 @@ that clone uses (npm, PyPI, Go, crates.io and so on); run it again to refresh
 it, or in a clone of another ecosystem:
 
 ```bash
-osv-scanner scan source -r --offline-vulnerabilities --download-offline-databases .
+gitmole --fetch-vuln-db path/to/clone      # runs the pinned osv-scanner's own download for that clone
 ```
 
-Until then the report footer says the dependencies were not scanned and
-prints that command. If `--install-tools` installed osv-scanner, your shell
-does not find it by that bare name: `gitmole --doctor` prints the same command
-with the full path of the osv-scanner gitmole runs. The copy lives in osv-scanner's cache directory
+It is the same as running `osv-scanner scan source -r --offline-vulnerabilities
+--download-offline-databases .` inside the clone, with the osv-scanner gitmole pins. Until then the
+report footer says the dependencies were not scanned and names that command. `gitmole --fetch-vuln-db` finds the osv-scanner that `--install-tools` placed, which your shell may not: `gitmole --doctor` names it when no database is there. The copy lives in osv-scanner's cache directory
 (`~/Library/Caches/osv-scalibr` on macOS, `~/.cache/osv-scalibr` on Linux, or
 `OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY`), and the report says how old it is.
 

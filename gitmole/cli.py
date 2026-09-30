@@ -7,6 +7,7 @@ import datetime as dt
 import os
 import shutil
 import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -104,6 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
     other = p.add_argument_group("tools and housekeeping")
     other.add_argument("--doctor", action="store_true", help="check the tools against their pinned versions")
     other.add_argument("--install-tools", action="store_true", help="download the three pinned tools, then exit")
+    other.add_argument("--fetch-vuln-db", action="store_true", help="download the vulnerability database a clone needs")
     other.add_argument("--list-file-types", action="store_true", help="list the file types and which count as code")
     other.add_argument("--clean", action="store_true", help="list what gitmole left behind; delete on a yes")
     other.add_argument("--yes", action="store_true", help="with --clean: delete without asking")
@@ -165,6 +167,8 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         return doctor.main(console)
     if args.install_tools:
         return _install_tools(console, installer)
+    if args.fetch_vuln_db:
+        return _fetch_vuln_db(args.target or ".", console)
     if args.clean:
         return _clean(args, console, ask)
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
@@ -223,12 +227,19 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
 def _check_args(args, err, kind=None) -> int | None:
     """The argument combinations that cannot work, in one place: 2 and a message, or None. Called
     once on the arguments alone, then again with the target's `kind` for the checks that need it."""
-    if args.doctor or args.install_tools:   # each exits before any analysis: a target is refused and every other option ignored
-        if args.doctor and args.install_tools:
-            err.print("[red]--doctor and --install-tools are two commands;[/red] run --install-tools, then --doctor")
+    commands = [name for name, on in (("--doctor", args.doctor), ("--install-tools", args.install_tools),
+                                       ("--fetch-vuln-db", args.fetch_vuln_db)) if on]
+    if commands:   # each exits before any analysis, and every other option is ignored
+        if len(commands) > 1:
+            err.print(f"[red]{' and '.join(commands)} are separate commands;[/red] run one, then the other")
             return 2
+        if args.fetch_vuln_db:   # the one command that takes a target: the local clone whose lock files decide what to fetch
+            if args.target is not None and not os.path.isdir(args.target):
+                err.print(f"[red]--fetch-vuln-db takes a local clone:[/red] {args.target} is not a directory")
+                return 2
+            return None
         if args.target is not None:
-            err.print(f"[red]{'--doctor' if args.doctor else '--install-tools'} takes no target[/red]")
+            err.print(f"[red]{commands[0]} takes no target[/red]")
             return 2
         return None
     if kind is None:
@@ -431,6 +442,35 @@ def _install_tools(console: Console, installer) -> int:
         return 1
     say(f"{len(done)} tools installed into {install.tools_dir()}")
     return 0
+
+
+def _fetch_vuln_db(target: str, console: Console, runner=subprocess.run) -> int:
+    """Handle --fetch-vuln-db: the pinned osv-scanner downloads the offline databases for the ecosystems whose
+    lock files the clone holds, and the scan itself stays offline. The only download of the database gitmole
+    makes, and only when asked: a database refreshed on its own would change a report between two runs of
+    the same commit, and every report names the date of the one it read. 0 when osv-scanner fetched (it exits
+    1 when the packages it just checked have advisories, which is a fetch that worked), 0 with a note when the
+    clone has no lock file, and osv-scanner's own code otherwise."""
+    from . import deps
+    say = lambda line: console.print(line, markup=False, highlight=False, soft_wrap=True)   # paths and commands stay pasteable
+    argv = deps.DOWNLOAD.split()[:-1] + [os.path.abspath(target)]
+    say(f"fetching the vulnerability database for the lock files in {os.path.abspath(target)}")
+    try:
+        done = runner(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                      env=dict(os.environ, PATH=run.env_path()))
+    except FileNotFoundError:
+        say(f"osv-scanner is not installed; run gitmole --install-tools, or see {INSTALL_URL}")
+        return 2
+    if done.returncode == deps.NO_SOURCES:
+        say("no lock files there: nothing to fetch, and a run there has no dependencies to check")
+        return 0
+    if done.returncode not in (0, 1):
+        tail = (done.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-3:]
+        say(f"osv-scanner exited {done.returncode}" + (": " + " / ".join(tail) if tail else ""))
+        return done.returncode
+    date = deps.database_date()
+    say(f"vulnerability database: {date or 'none found after the download'} in {deps.cache_dir()}")
+    return 0 if date else 1
 
 
 def _tools(args, ui: Console, err: Console, ask, installer, tool_check, isatty=None) -> int | None:

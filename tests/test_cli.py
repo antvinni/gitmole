@@ -1483,7 +1483,7 @@ class InstallTools(unittest.TestCase):
         c = console()
         rc = cli.main(["--install-tools", "--doctor"], console=c, installer=lambda *a, **kw: self.fail("must not download"))
         self.assertEqual(rc, 2)
-        self.assertIn("two commands", c.export_text())
+        self.assertIn("separate commands", c.export_text())
 
     def test_the_download_runs_under_the_default_sigint_handler_and_restores_the_runs(self):
         import signal
@@ -1653,3 +1653,50 @@ class FirstRunOffer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FetchVulnDb(unittest.TestCase):
+    """--fetch-vuln-db: the one database download gitmole makes, and only when asked."""
+
+    def run_it(self, returncode, date="2026-09-30", target=None, stderr=b""):
+        calls = []
+
+        def runner(argv, **kw):
+            calls.append((argv, kw))
+            return mock.Mock(returncode=returncode, stderr=stderr)
+        c = Console(record=True, width=200)
+        with tempfile.TemporaryDirectory() as clone, mock.patch("gitmole.deps.database_date", return_value=date):
+            rc = cli._fetch_vuln_db(target or clone, c, runner=runner)
+        return rc, calls, c.export_text()
+
+    def test_it_runs_the_pinned_osv_scanner_download_on_the_clone(self):
+        rc, calls, text = self.run_it(0)
+        self.assertEqual(rc, 0)
+        argv, kw = calls[0]
+        self.assertEqual(argv[:6], ["osv-scanner", "scan", "source", "-r", "--offline-vulnerabilities", "--download-offline-databases"])
+        self.assertTrue(os.path.isabs(argv[-1]), "the clone by absolute path")
+        self.assertEqual(kw["env"]["PATH"], run.env_path(), "the pinned tools first, as a run finds them")
+        self.assertIn("vulnerability database: 2026-09-30", text)
+
+    def test_advisories_found_while_fetching_is_a_fetch_that_worked(self):
+        self.assertEqual(self.run_it(1)[0], 0)
+
+    def test_a_clone_with_no_lock_file_has_nothing_to_fetch(self):
+        rc, _, text = self.run_it(128)
+        self.assertEqual(rc, 0)
+        self.assertIn("no lock files there", text)
+
+    def test_osv_scanner_failing_says_so_and_passes_its_code_on(self):
+        rc, _, text = self.run_it(2, stderr=b"network unreachable\n")
+        self.assertEqual(rc, 2)
+        self.assertIn("osv-scanner exited 2: network unreachable", text)
+
+    def test_the_target_must_be_a_local_directory(self):
+        c = console()
+        self.assertEqual(cli.main(["--fetch-vuln-db", "owner/repo"], console=c), 2)
+        self.assertIn("takes a local clone", c.export_text())
+
+    def test_it_is_a_command_of_its_own(self):
+        c = console()
+        self.assertEqual(cli.main(["--fetch-vuln-db", "--doctor"], console=c), 2)
+        self.assertIn("separate commands", c.export_text())

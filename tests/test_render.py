@@ -125,8 +125,7 @@ class Report(unittest.TestCase):
         self.assertNotIn("No known vulnerabilities", text, "nothing was checked")
         r["dependencies"] = {"status": "no-database", "download": "osv-scanner scan source -r --offline-vulnerabilities --download-offline-databases ."}
         text = rendered(r, [])
-        self.assertIn("Dependencies: not scanned, no offline vulnerability database; run once in the clone: osv-scanner scan source -r", text)
-        self.assertIn("--offline-vulnerabilities --download-offline-databases .", text)
+        self.assertIn("Dependencies: not scanned, no offline vulnerability database; fetch it once: gitmole --fetch-vuln-db", text)
         r["dependencies"] = {"status": "not-run"}
         text = rendered(r, [])
         self.assertNotIn("Dependencies:", text, "an output directory from before the step says nothing")

@@ -1035,8 +1035,7 @@ def dependencies_line(report: dict):
     if status == "no-sources":
         return "Dependencies: no lock files found", "dim"
     if status == "no-database":
-        from . import deps as _deps
-        return f"Dependencies: not scanned, no offline vulnerability database; run once in the clone: {deps.get('download') or _deps.DOWNLOAD}", "yellow"
+        return "Dependencies: not scanned, no offline vulnerability database; fetch it once: gitmole --fetch-vuln-db CLONE", "yellow"
     return None
 
 

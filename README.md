@@ -151,10 +151,11 @@ Working on gitmole:
 ## Safety
 
 - Everything is offline except the optional clone step (gh with your
-  existing login, else plain git), and the tool download you ask for with `--install-tools`
-  or a yes to the missing-tools question. None of the tools send data anywhere; osv-scanner runs
-  against a local copy of its database that you download once, and gitmole
-  never downloads it for you.
+  existing login, else plain git), the tool download you ask for with `--install-tools`
+  or a yes to the missing-tools question, and the vulnerability database you ask for with
+  `--fetch-vuln-db`. None of the tools send data anywhere; osv-scanner runs against that
+  local copy of its database, and gitmole never refreshes it on its own, so the same commit
+  gives the same report until you fetch again.
 - Remote targets are cloned into a fresh temp directory that is removed when
   the run ends. Local clones are only read. The secrets scan reads the whole
   history of the checked-out commit and the objects no branch reaches;
