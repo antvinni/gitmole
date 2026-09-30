@@ -253,7 +253,7 @@ class Report(unittest.TestCase):
         r["activity"]["sweeping"] = [{"hash": "a", "files": 40, "declared": False}, {"hash": "b", "files": 30, "declared": True}]
         r["activity"]["ignored_revs"] = 3
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("1 sweeping commit (a formatter run, a rename across the tree) and 3 declared in .git-blame-ignore-revs are left out of every count", caption,
+        self.assertIn("1 sweeping commit and 3 declared in .git-blame-ignore-revs are left out of every count", caption,
                       "a declared sweep is counted among the declared")
         r["activity"]["sweeping"], r["activity"]["ignored_revs"] = [], 0
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]

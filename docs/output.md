@@ -111,7 +111,10 @@ in plain words, and what to do first. This page is the reference.
      Benjamini-Hochberg false discovery rate of 5% over every source file.
      Fixes cluster within a pull request, which makes the test err towards
      finding, so it orders and annotates and decides nothing: which files
-     are magnets, and the severity, are the six months' counts;
+     are magnets, and the severity, are the six months' counts. With less
+     than twelve months of history the test does not run (it would test
+     the window's own counts again); the finding says so, and is a note
+     whatever the counts, since raw fix counts mostly follow file size;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
    - hotspots getting more complex, a warning when the top one did;
@@ -156,9 +159,11 @@ in plain words, and what to do first. This page is the reference.
    What the project declares about its dependencies and licence is read
    as declared, never detected. Declared dependencies nothing imports: a
    `package.json` runtime dependency no tracked file imports (a stylesheet's
-   `@import`, `@use` or `@forward` counts, `~` prefix and all), names in a
-   quoted string of a configuration file, or runs from the manifest's
-   scripts; a `go.mod` direct requirement no import path or `go:generate`
+   `@import`, `@use`, `@forward` or Tailwind's `@plugin` counts, `~` prefix
+   and all), names in a quoted string of a configuration file, runs from the
+   manifest's scripts, or that the lock file resolved as the peer of another
+   package the manifest declares (a `pnpm-lock.yaml` version's peer suffix,
+   the `peerDependencies` a `package-lock.json` or Yarn 2+ lock records); a `go.mod` direct requirement no import path or `go:generate`
    line falls under; a Cargo.toml dependency no `name::` path, `use` or
    `extern crate` names (a note). Python and Ruby are left out because a
    distribution's import name need not be its own, and gitmole keeps no
@@ -236,7 +241,13 @@ in plain words, and what to do first. This page is the reference.
      `__main__.py`, `index.*`, `main.*`, `*.config.*`, a dotfile, a file
      beside `package.json` or `go.mod`, `bin/`, `scripts/`, `migrations/`,
      file-routed `pages/` and `app/`), by declaration (`pyproject.toml`
-     scripts, `package.json` main, bin and exports) or by content (a
+     scripts, `package.json` main, bin and exports, a wildcard export
+     expanded, a path into a build output such as `dist/x.js` read as its
+     source `src/x.ts`), by being named by path in another tracked file (a
+     package script, a shell script, a CI step, `new URL('./x.mjs',
+     import.meta.url)`; relative to that file, its package or the root, or
+     as the one tracked path the name ends with; documentation does not
+     count) or by content (a
      `__main__` guard, a shebang, Go's `package main`); a basename that
      recurs across directories, and a directory the code itself barely
      imports, are loaded by name and left
@@ -342,9 +353,15 @@ in plain words, and what to do first. This page is the reference.
    workspace's, stays a warning at any score, and the finding says which
    lock's critical score it held back. Each package row in the evidence
    names what declared its lock (`deploys`). The rows are named critical
-   ones first (a malicious package leading), then those with a fixed
-   version before those without, then by score, so the advice starts where
-   a fix exists. A package pinned only by a lock file under tests,
+   ones first (a malicious package leading), then by reach: a version the
+   lock installs for running that the source imports, then one it installs
+   for running (or whose lock does not say), then one only development
+   dependencies reach (`runtime`: false, from a `pnpm-lock.yaml` importer's
+   dependencies walked through its snapshots, or a `package-lock.json`
+   `dev` mark; said as "development dependencies only"); then those with a
+   fixed version before those without, then by score, so the advice starts
+   where a fix exists. The reach orders the rows and never changes the
+   grade. A package pinned only by a lock file under tests,
    examples, docs or vendored code is a note. osv-scanner also reads pip's requirement
    files (`requirements*.txt`, `constraints*.txt`, `*.in` by those names),
    and for a range such as `mcp>=1.0.0` it reports the floor, 1.0.0, which
@@ -357,10 +374,15 @@ in plain words, and what to do first. This page is the reference.
    apply to your code is silenced in `osv-scanner.toml` at the repository
    root. Each row says whether any tracked source imports the package
    (`imported`: true, false, or unknown where the import name need not be
-   the package's, as in Python and Ruby); the finding names a package
+   the package's, as in Python and Ruby; where the lock records the
+   versions the workspaces depend on directly, an import of the name is
+   not an import of another version a tool brings along); the finding names a package
    nothing imports, and never lowers its severity for it, since an
    unimported package is still installed. This is not reachability, which
-   needs a buildable tree. The footer line says how many packages in how
+   needs a buildable tree. A package whose every advisory is informational
+   (RustSec's `unmaintained`, `unsound` and `notice`, which report no
+   vulnerability) is not counted as vulnerable; the footer names it. The
+   footer line says how many packages in how
    many lock files were checked and how old the database copy is; without
    lock files, or without the database, it says that instead.
 

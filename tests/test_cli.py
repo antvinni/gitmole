@@ -433,6 +433,15 @@ class Export(unittest.TestCase):
             self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical"], console=console()), 0)
             self.assertEqual(cli.main([out, "--no-run"], console=console()), 0)
 
+    def test_a_rule_not_labelled_yet_counts_and_the_tripping_line_says_it_was_one(self):
+        """paperclip: deep_nesting, folded into the report's "not labelled yet" line, tripped --fail-on warning unsaid."""
+        from gitmole import gate
+        deep = {"severity": "warning", "title": "Deeply nested code", "rule": {"id": "deep_nesting"}, "summary": True, "unjudged": True}
+        self.assertTrue(gate.tripped([deep], "warning"), "the gate fails closed: an unlabelled rule still counts")
+        self.assertEqual(gate.tripping([deep], "warning"),
+                         ["--fail-on warning: deep_nesting, 1 warning finding (Deeply nested code; not labelled yet, so the report folds it "
+                          "into its closing line, and it counts all the same) (exit 3)"])
+
     def test_a_tripped_gate_says_what_it_stopped_on(self):
         """--fail-on critical exited 3 with an empty stderr: a CI log said the job failed and not why."""
         ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
@@ -602,6 +611,59 @@ class Baseline(unittest.TestCase):
         found = [{"severity": "critical", "detail": "D", "rule": {"id": "vulnerable_dependencies"}, "evidence": {}}]
         counted = gate.against_baseline(report, found, before)
         self.assertEqual([p["name"] for p in counted[0]["evidence"]["packages"]], ["minimist"], "only the new package counts")
+
+    def test_a_new_unpinned_action_counts_though_the_rule_is_in_the_baseline(self):
+        # paperclip review: a baselined --fail-on warning never saw a new unpinned action, as the key was the rule id alone
+        from gitmole import findings, gate
+
+        def rep(rows):
+            return {"meta": {}, "hygiene": {"actions": {"unpinned": rows, "unpinned_count": len(rows), "pinned": 3}}}
+        old = [{"file": f".github/workflows/w{i}.yml", "uses": "actions/checkout@v4"} for i in range(12)]
+        before = {**rep(old), "findings": findings.unpinned_actions(rep(old))}
+        now = rep(old)
+        self.assertEqual(gate.against_baseline(now, findings.unpinned_actions(now), before), [],
+                         "the same twelve actions, though the evidence keeps ten")
+        now = rep(old + [{"file": ".github/workflows/w0.yml", "uses": "someone/new-action@v1"}])
+        found = findings.unpinned_actions(now)
+        counted = gate.against_baseline(now, found, before)
+        self.assertEqual([c["evidence"]["unpinned"] for c in counted], [[{"file": ".github/workflows/w0.yml", "uses": "someone/new-action@v1"}]])
+        self.assertEqual(found[0]["baseline"], "new")
+        legacy = {"findings": before["findings"]}   # an export without the hygiene rows: the rule id decides, as before
+        self.assertEqual(gate.against_baseline(now, findings.unpinned_actions(now), legacy), [])
+
+    def test_a_new_brain_method_deep_function_or_magnet_counts_at_its_own_severity(self):
+        from gitmole import findings, gate
+        fn = lambda name, file="core/a.py": {"file": file, "function": name, "ccn": 20, "nloc": 150, "params": 1, "start": 1, "end": 150}
+        old = [fn(f"f{i}") for i in range(11)]
+        before = {"meta": {}, "functions": old, "findings": findings.brain_methods({"meta": {}, "functions": old})}
+        now = {"meta": {}, "functions": old}
+        self.assertEqual(gate.against_baseline(now, findings.brain_methods(now), before), [])
+        now = {"meta": {}, "functions": old + [fn("f0", "core/b.py")]}
+        counted = gate.against_baseline(now, findings.brain_methods(now), before)
+        self.assertEqual([f["function"] for f in counted[0]["evidence"]["functions"]], ["f0"], "a function of the same name in another file is new")
+        deep = lambda name: {"file": "core/a.py", "name": name, "start": 1, "nesting": 6, "cognitive": 30, "bumps": 0}
+        s = lambda rows: {"status": "run", "files": {}, "functions": rows}
+        before = {"meta": {}, "structure": s([deep("g")]), "findings": findings.deep_nesting({"meta": {}, "structure": s([deep("g")])})}
+        now = {"meta": {}, "structure": s([deep("g"), deep("h")])}
+        self.assertEqual([f["name"] for f in gate.against_baseline(now, findings.deep_nesting(now), before)[0]["evidence"]["functions"]], ["h"])
+        fix = lambda e, n: {"entity": e, "n-fixes": n, "recent-fixes": n, "last-fix": "2026-09-01"}
+        before = {"meta": {}, "fixes": [fix("src/a.py", 9)], "findings": findings.bug_magnets({"meta": {}, "fixes": [fix("src/a.py", 9)]})}
+        now = {"meta": {}, "fixes": [fix("src/a.py", 9), fix("src/b.py", 3)]}
+        found = findings.bug_magnets(now)
+        self.assertEqual(found[0]["severity"], "warning")
+        counted = gate.against_baseline(now, found, before)
+        self.assertEqual([(c["severity"], [x["file"] for x in c["evidence"]["files"]]) for c in counted], [("info", ["src/b.py"])],
+                         "the new magnet is judged on its own: three fixes are a note, whatever the known one's nine made the finding")
+        self.assertFalse(gate.tripped(counted, "warning"))
+
+    def test_a_truck_factor_on_someone_new_counts(self):
+        from gitmole import gate
+        tf = lambda who, areas: {"severity": "warning", "title": "Truck factor", "detail": "D", "rule": {"id": "truck_factor"},
+                                 "evidence": {"truck_factor": 1, "removed": [who], "areas": [{"area": a, "author": who} for a in areas]}}
+        before = {"findings": [tf("Ann", ["src/"])]}
+        self.assertEqual(gate.against_baseline({"meta": {}}, [tf("Ann", ["src/"])], before), [])
+        self.assertEqual(len(gate.against_baseline({"meta": {}}, [tf("Ann", ["src/", "lib/"])], before)), 1, "a new area of one")
+        self.assertEqual(len(gate.against_baseline({"meta": {}}, [tf("Bob", ["src/"])], before)), 1, "hangs on someone else")
 
     def test_a_baseline_of_another_clone_or_no_export_is_refused(self):
         with tempfile.TemporaryDirectory() as out:

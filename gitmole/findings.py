@@ -553,6 +553,13 @@ def _size_strata(files, size: dict, n: int = FIX_RATE_STRATA) -> dict:
     return {e: bisect.bisect_right(cuts, c) for e, c in code.items()}
 
 
+def _history_months(report: dict):
+    """Whole months from the analysed history's first commit to its last, or None when the run has no dates."""
+    meta = report.get("meta") or {}
+    first, last = meta.get("first_date"), meta.get("last_date")
+    return _months_apart(first, last) if first and last else None
+
+
 def fix_prone(report: dict, keep, q: float = FIX_RATE_Q):
     """The files fixed more often than files of their size in this repository explain: the tested files are
     split into tenths by lines of code, and each file's fix commits are tested against its changes at its
@@ -566,9 +573,8 @@ def fix_prone(report: dict, keep, q: float = FIX_RATE_Q):
     binomial's and the test errs towards discovery (Spiegelhalter, Stat Med 2005): the result orders and
     annotates, it decides nothing. None when there is no rate to test against: no change table, a history
     too short, or every change a fix or none."""
-    meta = report.get("meta") or {}
-    first, last = meta.get("first_date"), meta.get("last_date")
-    if first and last and _months_apart(first, last) < FIX_RATE_MIN_MONTHS:
+    months = _history_months(report)
+    if months is not None and months < FIX_RATE_MIN_MONTHS:
         return None
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or [] if keep(f["entity"])}
     changes = {r["entity"]: r["n-revs"] for r in report.get("revisions") or [] if keep(r["entity"])}
@@ -594,6 +600,21 @@ def fix_prone(report: dict, keep, q: float = FIX_RATE_Q):
             "rate": {e: rates.get(stratum[e], 0.0) for e in pvalues}}
 
 
+def _magnet_keep(report: dict):
+    """Whether a path may be a bug magnet: not a test, not release plumbing, not generated, still in the tree."""
+    plumb, derived, tree = filetypes.plumbing_paths(report), _generated(report), report.get("tree") or _tree(report)
+
+    def keep(path):
+        return not (filetypes.is_test_path(path) or filetypes.is_release(path, plumb) or path in derived) and (not tree or path in tree)
+    return keep
+
+
+def magnet_rows(report: dict, min_recent: int = 3) -> list:
+    """The fix rows bug_magnets names, every one of them: what --baseline compares (gate.py)."""
+    keep = _magnet_keep(report)
+    return [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and keep(f["entity"])]
+
+
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     """Source files with a run of recent fix commits. Test files are left out: they change with every fix.
     So is release plumbing: a manifest touched by every fix release is not where the bug was.
@@ -603,17 +624,19 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     Most magnets are busy files in a repository that fixes a lot, so the finding names first the ones
     fixed more often than the repository's own fixes explain (see fix_prone), says how many of all
     there are, and says so when there are none. Which files are magnets, and the severity, stay the
-    window's counts: the test annotates and orders."""
+    window's counts: the test annotates and orders. When the history is too short for the test
+    (FIX_RATE_MIN_MONTHS), the finding says so and is a note: the counts are then raw, and raw fix counts
+    mostly rank files by size (paperclip, 7.5 months: 391 magnets, Spearman 0.56 with lines of code, the
+    top ten all among the largest files), which is not a warning's worth of evidence."""
     import datetime as _dt
-    plumb, derived, tree = filetypes.plumbing_paths(report), _generated(report), report.get("tree") or _tree(report)
-
-    def keep(path):
-        return not (filetypes.is_test_path(path) or filetypes.is_release(path, plumb) or path in derived) and (not tree or path in tree)
-    hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and keep(f["entity"])]
+    keep = _magnet_keep(report)
+    hot = magnet_rows(report, min_recent)
     if not hot:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
-    sev = "warning" if hot[0]["recent-fixes"] >= warn_at else "info"
+    months = _history_months(report)
+    short = months is not None and months < FIX_RATE_MIN_MONTHS
+    sev = "warning" if hot[0]["recent-fixes"] >= warn_at and not short else "info"
     prone = fix_prone(report, keep)
     above = [f for f in hot if f["entity"] in prone["above"]] if prone else []
     history = report.get("fix_history") or {}
@@ -626,8 +649,10 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     clusters = [{"file": paths[0], "with": paths[1:], "fixes": history[paths[0]]["recent"]} for paths, _, _, _ in items if len(paths) > 1]
     fresh = [p for _, _, _, new in items for p in new]
     rate = "" if prone is None else f", {len(above) or 'none'} beyond files of their size"
+    untested = (f" Raw counts: the test against files of their size needs {FIX_RATE_MIN_MONTHS} months of history, "
+                f"this has {months or 'less than one'}.") if short else ""
     return [_f(sev, "Bug magnets",
-               f"{len(hot)} file(s) were fixed {min_recent}+ times in six months{rate}: {listed}{more}.",
+               f"{len(hot)} file(s) were fixed {min_recent}+ times in six months{rate}: {listed}{more}.{untested}",
                f"Review {first} before the next release.",
                rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so",
                      "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing",
@@ -638,7 +663,8 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
                          **({"fix_rate": {"fixes": prone["fixes"], "changes": prone["changes"], "files": prone["files"],
                                           "above_rate": [{"file": f["entity"], "fixes": prone["counts"][f["entity"]][0], "changes": prone["counts"][f["entity"]][1],
                                                           "size_rate": round(prone["rate"][f["entity"]], 3)}
-                                                         for f in above[:10]]}} if prone else {}),
+                                                         for f in above[:10]]}} if prone else
+                            {"fix_rate": {"not_run": "history too short", "history_months": months}} if short else {}),
                          **({"shared_fixes": clusters} if clusters else {}), **({"new_in_window": fresh} if fresh else {})})]
 
 
@@ -685,16 +711,21 @@ def _partial_functions(report: dict) -> str:
     return _partial(report, "functions", "Function metrics")
 
 
+def brain_rows(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
+    """The function rows brain_methods names, every one of them: what --baseline compares (gate.py)."""
+    generated, vendored, inline, doubles = _generated(report), filetypes.vendor_dirs(report), _test_modules(report), _test_doubles(report)
+    return [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not f.get("suspect")
+            and not (filetypes.is_test_path(f["file"]) or f["file"] in doubles or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
+                     or f["file"] in generated or filetypes.is_migration_path(f["file"]) or filetypes.in_spans(f["start"], inline.get(f["file"])))]
+
+
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
     """Functions that are both long and complex, in this repository's own source files: test files,
     example code, vendored code, generated files (amalgamations included) and numbered schema
     migrations (written once and replayed as they stand, so nobody should split one) are left out, and
     so is a span the function step marked suspect, since a mis-parse that swallowed the next function is
     long and complex by construction. A warning when one sits in a hotspot."""
-    generated, vendored, inline, doubles = _generated(report), filetypes.vendor_dirs(report), _test_modules(report), _test_doubles(report)
-    big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not f.get("suspect")
-           and not (filetypes.is_test_path(f["file"]) or f["file"] in doubles or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
-                    or f["file"] in generated or filetypes.is_migration_path(f["file"]) or filetypes.in_spans(f["start"], inline.get(f["file"])))]
+    big = brain_rows(report, min_ccn, min_lines)
     if not big:
         return []
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
@@ -797,7 +828,8 @@ def _vuln_ref(r: dict) -> str:
         score = ", malicious"
     fixed = f", fixed in {r['fixed']}" if r.get("fixed") else ", no fix yet"
     loaded = ", imported by no tracked source" if r.get("imported") is False else ""
-    return f"{ref}{score}{fixed}{loaded}"
+    dev = ", development dependencies only" if r.get("runtime") is False else ""
+    return f"{ref}{score}{fixed}{loaded}{dev}"
 
 
 def _vuln_statement(rows: list) -> str:
@@ -832,7 +864,8 @@ def _vuln_evidence(r: dict) -> dict:
     out = {"name": r["name"], "version": r["version"], "source": r["source"], "score": r.get("score"),
            "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
            "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious")),
-           "imported": r.get("imported", "unknown"), "deploys": list(r.get("deploys") or [])[:3]}
+           "imported": r.get("imported", "unknown"), "deploys": list(r.get("deploys") or [])[:3],
+           **({"runtime": r["runtime"]} if isinstance(r.get("runtime"), bool) else {})}
     if _floating(r):   # the version is the range's floor, not an installed one
         out = {**{k: v for k, v in out.items() if k != "version"}, "floor": r["version"], "requirement": r.get("requirement")}
     return out
@@ -842,8 +875,10 @@ def _vuln_rows(report: dict) -> list:
     """(rule id, severity, title, rows) for each group of vulnerable rows: the source tree's, and the ones
     only under tests, examples, docs or vendored code. Each row carries `deploys`, what declares that its
     lock ships (deps.deploys), and the rows are in the order the finding names them: critical ones first,
-    a malicious package leading, then the ones with a fixed version before the ones without, then by score.
-    The finding and its SARIF results read the same rows."""
+    a malicious package leading, then by reach (_vuln_reach: a version the lock installs for running that
+    the source imports, then one it installs for running, then one only development dependencies reach),
+    then the ones with a fixed version before the ones without, then by score. The grade does not move
+    with the reach. The finding and its SARIF results read the same rows."""
     scan = report.get("dependencies") or {}
     rows = scan.get("vulnerable") or []
     if not rows:
@@ -867,10 +902,18 @@ def _vuln_rows(report: dict) -> list:
     for rid, group, title in (("vulnerable_dependencies", [r for r in rows if not aside(r)], "Vulnerable dependencies"),
                               ("vulnerable_dependencies_aside", [r for r in rows if aside(r)], "Vulnerable dependencies only in test, example or vendored lock files")):
         if group:
-            group.sort(key=lambda r: (not _vuln_critical(r), not r.get("malicious"), not r.get("fixed"),
+            group.sort(key=lambda r: (not _vuln_critical(r), not r.get("malicious"), _vuln_reach(r), not r.get("fixed"),
                                       -(r["score"] if r.get("score") is not None else -1), r["name"], r["source"]))
             out.append((rid, _vuln_severity(rid, group), title, group))
     return out
+
+
+def _vuln_reach(r: dict) -> int:
+    """0 for a row the lock installs for running (`runtime` not false) that the source imports, 1 for one
+    it installs for running, or whose lock does not say, 2 for one only development dependencies reach."""
+    if r.get("runtime") is False:
+        return 2
+    return 0 if r.get("imported") is True else 1
 
 
 def _vuln_critical(r: dict) -> bool:
@@ -947,8 +990,14 @@ def hygiene_findings(report: dict) -> list:
     return out
 
 
-def _hygiene_actions(h: dict, out: list) -> None:
+def unpinned_actions(report: dict) -> list:
+    """The unpinned_actions finding alone, which --baseline runs again over the rows its baseline lacked."""
+    out = []
+    _hygiene_actions(report.get("hygiene") or {}, out)
+    return out
 
+
+def _hygiene_actions(h: dict, out: list) -> None:
     a = h.get("actions") or {}
     if a.get("unpinned"):
         n, total = a.get("unpinned_count", len(a["unpinned"])), a.get("unpinned_count", len(a["unpinned"])) + (a.get("pinned") or 0)
@@ -961,7 +1010,8 @@ def _hygiene_actions(h: dict, out: list) -> None:
         out.append(_f("warning", "Actions pinned by tag or branch",
                       f"{n} of {total} workflow steps use an action by tag or branch: {listed}. Whoever controls the action can move the tag to other code.",
                       f"Pin {first} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
-                      rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0), "unpinned": a["unpinned"][:10]}))
+                      rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0),
+                                                                                                "unpinned": [{"file": u["file"], "uses": u["uses"]} for u in a["unpinned"][:10]]}))
 
 
 def _drift_past_sweeps(lf: dict, swept: list) -> dict:
@@ -1064,6 +1114,15 @@ def _hygiene_confusion(h: dict, out: list) -> None:
                                                                     "registries": cf.get("registries") or {}, "pip_extra_index": cf.get("pip_extra_index") or []}))
 
 
+# how each package manager installs without running install scripts: the one the repository declares
+# (packageManager) or locks with, since `npm ci` does nothing for a pnpm or Yarn workspace
+_NO_SCRIPTS = {"npm": "Install with scripts disabled where the build allows it (npm ci --ignore-scripts)",
+               "pnpm": "Install with scripts disabled where the build allows it (pnpm install --frozen-lockfile --ignore-scripts)",
+               "yarn": "Install with scripts disabled where the build allows it (yarn install --frozen-lockfile --ignore-scripts)",
+               "yarn-berry": "Install with scripts disabled where the build allows it (enableScripts: false in .yarnrc.yml)",
+               "bun": "Install with scripts disabled where the build allows it (bun install --frozen-lockfile --ignore-scripts)"}
+
+
 def _hygiene_install(h: dict, out: list) -> None:
     ins = h.get("install") or {}
     if ins.get("lockfile") or ins.get("manifests") or ins.get("setup_py"):
@@ -1074,7 +1133,8 @@ def _hygiene_install(h: dict, out: list) -> None:
         parts += [f"{m['file']} declares {textfmt.join_and(m['scripts'])}" for m in (ins.get("manifests") or [])[:3]]
         parts += [f"{s_['file']} calls {textfmt.join_and(s_['calls'])}" for s_ in (ins.get("setup_py") or [])[:3]]
         # the advice of the ecosystem the finding names: npm's switch does nothing to a setup.py, which pip runs whenever it builds from source
-        npm = "Install with scripts disabled where the build allows it (npm ci --ignore-scripts) and review what the rest run."
+        manager = (ins.get("manager") or {}).get("name")
+        npm = f"{_NO_SCRIPTS.get(manager, _NO_SCRIPTS['npm'])} and review what the rest run."
         pip = (f"Review what {ins['setup_py'][0]['file']} runs: pip runs it on every install from source; "
                "a wheel install (pip install --only-binary :all:) does not.") if ins.get("setup_py") else ""
         advice = pip if not (ins.get("lockfile") or ins.get("manifests")) else f"{npm} {pip}".strip()
@@ -1305,18 +1365,23 @@ def commented_out_code(report: dict, min_lines: int = 10) -> list:
                evidence={"files": [{"file": p, "start": sh["commented_sample"][0], "lines": sh["commented_code"]} for p, sh in rows[:10]]})]
 
 
+def deep_rows(report: dict, min_nesting: int = 5, min_bumps: int = 3) -> list:
+    """The structure step's function rows deep_nesting names, every one of them: what --baseline compares."""
+    s = _structure(report)
+    if not s:
+        return []
+    generated, vendored, inline, doubles = _generated(report), filetypes.vendor_dirs(report), _test_modules(report), _test_doubles(report)
+    return [f for f in s.get("functions") or [] if (f["nesting"] >= min_nesting or f["bumps"] >= min_bumps)
+            and not (filetypes.is_test_path(f["file"]) or f["file"] in doubles or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
+                     or f["file"] in generated or filetypes.in_spans(f["start"], inline.get(f["file"])))]
+
+
 def deep_nesting(report: dict, min_nesting: int = 5, min_bumps: int = 3, top_n: int = 10) -> list:
     """Functions nested five levels or more, or with three or more separate chunks of nested logic (a
     bumpy road), in this repository's own source: CodeScene's nesting and bumpy-road factors, measured
     by tree-sitter in every language it parses, with Sonar's cognitive complexity beside them. A
     warning when one sits in a top hotspot."""
-    s = _structure(report)
-    if not s:
-        return []
-    generated, vendored, inline, doubles = _generated(report), filetypes.vendor_dirs(report), _test_modules(report), _test_doubles(report)
-    deep = [f for f in s.get("functions") or [] if (f["nesting"] >= min_nesting or f["bumps"] >= min_bumps)
-            and not (filetypes.is_test_path(f["file"]) or f["file"] in doubles or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
-                     or f["file"] in generated or filetypes.in_spans(f["start"], inline.get(f["file"])))]
+    deep = deep_rows(report, min_nesting, min_bumps)
     if not deep:
         return []
     deep.sort(key=lambda f: (-f["cognitive"], -f["nesting"], f["file"], f["start"]))

@@ -601,9 +601,17 @@ class BugMagnets(unittest.TestCase):
         self.assertIsNone(findings.fix_prone(r, lambda p: True))
         f = findings.bug_magnets(r)[0]
         self.assertIn("2 file(s) were fixed 3+ times in six months: src/busy.py", f["detail"])
-        self.assertNotIn("fix_rate", f["evidence"])
+        # paperclip review (D6): the test that did not run was advertised and never mentioned, and 391 raw counts were a warning
+        self.assertIn("Raw counts: the test against files of their size needs 12 months of history, this has 11.", f["detail"])
+        self.assertEqual(f["evidence"]["fix_rate"], {"not_run": "history too short", "history_months": 11})
+        self.assertEqual(f["severity"], "info", "nine recent fixes, but raw counts on a short history are a note")
         r["meta"]["first_date"] = "2025-09-30"
         self.assertIsNotNone(findings.fix_prone(r, lambda p: True), "twelve months: tested")
+        f = findings.bug_magnets(r)[0]
+        self.assertEqual(f["severity"], "warning")
+        self.assertNotIn("Raw counts", f["detail"])
+        del r["meta"]["first_date"]
+        self.assertEqual(findings.bug_magnets(r)[0]["severity"], "warning", "no dates to judge by: the window's counts decide, as before")
 
     def test_the_rate_is_over_the_files_the_rule_reads(self):
         """Tests change with every fix and are left out of the magnets, so they are left out of the rate too."""
@@ -1191,6 +1199,15 @@ class Hygiene(unittest.TestCase):
         self.assertIn("1 locked package runs an install script (esbuild); package.json declares postinstall; setup.py calls subprocess.run", f["detail"])
         self.assertIn("npm ci --ignore-scripts", f["advice"])
         self.assertIn("pip install --only-binary", f["advice"], "both ecosystems named, both switches given")
+
+    def test_install_advice_is_the_declared_package_managers(self):
+        manifests = [{"file": "package.json", "scripts": ["postinstall"]}]
+        for manager, switch in (("pnpm", "pnpm install --frozen-lockfile --ignore-scripts"), ("yarn-berry", "enableScripts: false"),
+                                ("yarn", "yarn install --frozen-lockfile --ignore-scripts"), ("npm", "npm ci --ignore-scripts")):
+            f = self.by_id(self.h(install={"lockfile": [], "manifests": manifests, "setup_py": [], "manager": {"name": manager, "from": "packageManager"}}))["install_scripts"]
+            self.assertIn(switch, f["advice"], manager)
+            if manager != "npm":
+                self.assertNotIn("npm ci", f["advice"], manager)
 
     def test_a_setup_py_alone_gets_the_advice_of_its_own_ecosystem(self):
         # VoiceStudio's scripts/setup.py was told to run npm ci --ignore-scripts, which does nothing to a Python file

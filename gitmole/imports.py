@@ -4,7 +4,7 @@ buildable tree and a toolchain); a textual read of import statements, so it says
 `reachable`, and nothing is suppressed on it.
 
 Each ecosystem keys on its own import syntax: `import`/`require` specifiers in JavaScript and
-TypeScript and `@import`/`@use`/`@forward` in stylesheets, import paths in Go, `crate::` paths and `extern crate` in Rust, `import`/`from` in Python,
+TypeScript and `@import`/`@use`/`@forward`/`@plugin` in stylesheets, import paths in Go, `crate::` paths and `extern crate` in Rust, `import`/`from` in Python,
 `require` in Ruby. Where the import name is the package name by the ecosystem's rules (npm, Go
 modules, Rust crates with `-` read as `_`), an absent import is `false`. Where it need not be (a Python
 distribution's modules, a gem's files), a match is `true` and no match is `unknown`: gitmole keeps no
@@ -18,9 +18,10 @@ import os
 import re
 
 try:
-    from . import filetypes
+    from . import filetypes, locks
 except ImportError:  # run inside a script: the package directory is sys.path[0]
     import filetypes
+    import locks
 
 LIMIT = 1_000_000   # bytes read per file: a larger file is generated or data, not code that imports
 JS = (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".vue", ".svelte", ".astro")
@@ -29,8 +30,8 @@ EXTENSIONS = {"npm": JS + STYLES, "PyPI": (".py", ".pyi"), "Go": (".go",), "crat
 EXACT = {"npm", "Go", "crates.io"}   # the import name is the package name: an absent import is false
 
 _JS_SPEC = re.compile(r"""(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*|\brequire\.resolve\s*\(\s*|\bexport\s*\*\s*from\s*)['"]([^'"\s]+)['"]""")
-# @import, @use and @forward in Sass, Less and CSS; `~` is webpack's "from node_modules" prefix
-_STYLE_SPEC = re.compile(r"""@(?:import|use|forward)\s+(?:\([^)]*\)\s*)?(?:url\(\s*)?['"]~?([^'"\s]+)['"]""")
+# @import, @use and @forward in Sass, Less and CSS, and Tailwind 4's @plugin; `~` is webpack's "from node_modules" prefix
+_STYLE_SPEC = re.compile(r"""@(?:import|use|forward|plugin)\s+(?:\([^)]*\)\s*)?(?:url\(\s*)?['"]~?([^'"\s]+)['"]""")
 _PY_IMPORT = re.compile(r"^[ \t]*import[ \t]+([\w., \t]+)", re.M)
 _PY_FROM = re.compile(r"^[ \t]*from[ \t]+(\w[\w.]*)[ \t]+import\b", re.M)
 _GO_BLOCK = re.compile(r"^import\s*\((.*?)^\)", re.M | re.S)
@@ -265,10 +266,68 @@ def built_crates(repo: str, paths: list, manifests: list) -> set:
     return out
 
 
+NPM_LOCKS = ("pnpm-lock.yaml", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock")
+
+
+def _all_declared(text: str) -> set:
+    """Every package a package.json declares, in any dependency section."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return set()
+    out = set()
+    for section in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
+        deps = data.get(section) if isinstance(data, dict) else None
+        if isinstance(deps, dict):
+            out |= {n for n in deps if isinstance(n, str)}
+    return out
+
+
+def peer_pins(repo: str, manifest: str, tracked: set, cache: dict) -> set:
+    """The packages the lock file that pins this package.json resolved as a peer of another package the
+    manifest declares: a package declared only so that a dependency finds its peer is used by that
+    dependency, not by an import. From the nearest lock at or above the manifest that knows it: a
+    pnpm-lock.yaml importer's peer suffixes (locks.pnpm_importer_peers), the peerDependencies a
+    package-lock.json or a Yarn 2+ yarn.lock records for the manifest's declared packages."""
+    d = os.path.dirname(manifest)
+    while True:
+        for name in NPM_LOCKS:
+            lock = f"{d}/{name}" if d else name
+            if lock not in tracked:
+                continue
+            if lock not in cache:
+                text = _read_lock(repo, lock)
+                cache[lock] = (locks.pnpm(text) if name == "pnpm-lock.yaml" else locks.npm(text) if name.endswith(".json") else text) if text else None
+            parsed = cache[lock]
+            if parsed is None:
+                continue
+            rel = os.path.dirname(manifest)[len(d):].lstrip("/") if d else os.path.dirname(manifest)
+            if name == "pnpm-lock.yaml":
+                importer = rel or "."
+                if importer in parsed["importers"]:
+                    return locks.pnpm_importer_peers(parsed, importer)
+                continue
+            declared = _all_declared(_read(repo, manifest))
+            return locks.npm_peers(parsed, declared) if name.endswith(".json") else locks.yarn_peers(parsed, declared)
+        if not d:
+            return set()
+        d = os.path.dirname(d)
+
+
+def _read_lock(repo: str, path: str) -> str:
+    """A lock file's text, however large: a lock is data, and the LIMIT for source files does not fit it."""
+    try:
+        with open(os.path.join(repo, path), "rb") as fh:
+            return fh.read().decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
 def unused(repo: str, paths: list = None) -> dict:
     """Declared runtime dependencies that no tracked file imports: for npm, not imported, not named in
     a quoted string of any JavaScript, TypeScript, JSON or YAML file other than a manifest or lock file,
-    and not a word in the manifest's scripts; for Go, no import path or go:generate line under the module; for Rust, no `name::` path,
+    not a word in the manifest's scripts, and not a peer its lock file resolved for another declared
+    package (peer_pins); for Go, no import path or go:generate line under the module; for Rust, no `name::` path,
     `use name` or `extern crate name`, and not in a crate that includes code its build script generated
     (built_crates, listed under `built`: what that code imports cannot be read). Manifests under tests,
     examples, documentation and vendored code are left out."""
@@ -286,6 +345,7 @@ def unused(repo: str, paths: list = None) -> dict:
                 named |= _quoted_heads(_read(repo, p))
         imported["npm"] = imported["npm"] | named
     built = built_crates(repo, paths, manifests) if "crates.io" in wanted else set()
+    tracked, lock_cache = set(paths), {}
     out = []
     for m in sorted(manifests):
         if m in built:
@@ -295,8 +355,9 @@ def unused(repo: str, paths: list = None) -> dict:
         if base == "package.json":
             names, scripts = npm_declared(text)
             words = set(re.findall(r"[\w@./-]+", scripts))
-            out += [{"manifest": m, "ecosystem": "npm", "package": n} for n in names
-                    if n not in imported["npm"] and n not in words and n.rsplit("/", 1)[-1] not in words]
+            left = [n for n in names if n not in imported["npm"] and n not in words and n.rsplit("/", 1)[-1] not in words]
+            peers = peer_pins(repo, m, tracked, lock_cache) if left else set()
+            out += [{"manifest": m, "ecosystem": "npm", "package": n} for n in left if n not in peers]
         elif base == "go.mod":
             out += [{"manifest": m, "ecosystem": "Go", "package": n} for n in go_declared(text) if not _go_match(n, imported["Go"])]
         else:
