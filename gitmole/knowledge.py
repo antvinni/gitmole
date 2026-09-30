@@ -17,12 +17,38 @@ def in_area(entity: str, area: str, base: int = 0) -> bool:
     return entity.count("/") <= base if area == ROOT else entity.startswith(area)
 
 
+_INDEX = {}   # (id(tree), len(tree), base) -> (tree, the directory prefixes under which a tracked file sits, whether ROOT holds one)
+
+
+def _tree_index(tree, base: int):
+    """Every directory prefix ("a/", "a/b/") some tracked file sits under, and whether any file is a root
+    file below the base: built once per tree listing, so in_tree is a set lookup instead of a scan of the
+    whole listing for every row it is asked about (react's knowledge map asked 74,194 times). The key
+    carries the listing's length, so a listing that gained or lost a path is indexed again."""
+    key = (id(tree), len(tree), base)
+    hit = _INDEX.get(key)
+    if hit is not None and hit[0] is tree:
+        return hit[1], hit[2]
+    prefixes, root = set(), False
+    for path in tree:
+        parts = path.split("/")
+        if len(parts) - 1 <= base:
+            root = True
+        for i in range(1, len(parts)):
+            prefixes.add("/".join(parts[:i]) + "/")
+    if len(_INDEX) > 8:   # a process renders a handful of reports; keep the cache from growing with them
+        _INDEX.clear()
+    _INDEX[key] = (tree, prefixes, root)
+    return prefixes, root
+
+
 def in_tree(area: str, tree: dict, base: int = 0) -> bool:
     """Whether any tracked file sits under `area` (a directory prefix ending in "/", or ROOT). With
     no tree listing every area counts: there is nothing to judge by."""
     if not tree:
         return True
-    return any(in_area(path, area, base) for path in tree)
+    prefixes, root = _tree_index(tree, base)
+    return root if area == ROOT else area in prefixes
 
 
 def _area(entity: str, depth: int, base: int = 0) -> str:

@@ -94,3 +94,23 @@ class Islands(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InTreeIndex(unittest.TestCase):
+    """in_tree answers from an index of the listing's directories; it must say what the scan it replaced said."""
+
+    def scan(self, area, tree, base=0):
+        return any(knowledge.in_area(p, area, base) for p in tree)
+
+    def test_the_index_agrees_with_a_scan(self):
+        tree = {"a/b/c.py": {}, "a/d.py": {}, "top.md": {}, "x/y/z/w.go": {}}
+        for base in (0, 1):
+            for area in ("a/", "a/b/", "a/b/c/", "x/y/", "x/y/z/", "q/", "ab/", knowledge.ROOT):
+                with self.subTest(area=area, base=base):
+                    self.assertEqual(knowledge.in_tree(area, tree, base), self.scan(area, tree, base))
+
+    def test_a_listing_that_changes_is_indexed_again(self):
+        tree = {"src/a.py": {}}
+        self.assertFalse(knowledge.in_tree("tests/", tree))
+        tree["tests/test_a.py"] = {}
+        self.assertTrue(knowledge.in_tree("tests/", tree), "a file back in the tree brings its area back")

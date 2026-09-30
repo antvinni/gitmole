@@ -837,7 +837,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         # a directory the history knows but HEAD does not is a layout that no longer exists; the rows are
         # filtered before the areas are built so a vanished layout cannot hide that one directory now dominates
         areas = [a for a in loss.areas(knowledge.present_rows(rows_all, tree), gone, base) if knowledge.in_tree(a["area"], tree, base)]
-        hidden = len({knowledge.top_area(r["entity"], base) for r in rows_all if not knowledge.in_tree(knowledge.top_area(r["entity"], base), tree, base)})
+        hidden = sum(1 for top in {knowledge.top_area(r["entity"], base) for r in rows_all} if not knowledge.in_tree(top, tree, base))
         hidden_note = f"{hidden} historical area{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None
     limit = _limit("Knowledge map", full)
     # the lines Co-authored-by trailers credit to a coding tool are not anyone's to own: the owners' shares are
