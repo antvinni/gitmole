@@ -1550,11 +1550,13 @@ def mcp_literal_env(report: dict) -> list:
 def agent_instructions_drift(report: dict, min_months: int = 6, min_commits: int = 100) -> list:
     """Agent instruction files (AGENTS.md and the like) far behind the code they describe. A file that only
     points at another (`points_to`, provenance.pointer_targets) is dated by the newest file it points at, and
-    one under a vendored directory describes someone else's code, so it is left out."""
+    one under a vendored directory describes someone else's code, so it is left out. So is a skill or a
+    subagent (`kind`, provenance.instruction_kind): the inventory lists them, but an agent loads one for a task
+    it names, and a procedure that has not changed in six months is not thereby behind the tree."""
     last = (report.get("meta") or {}).get("last_date") or ""
     vendored = filetypes.vendor_dirs(report)
     stale = [r for r in _agents(report).get("instructions") or []
-             if last and _months_apart(r["last"], last) >= min_months and r["commits_behind"] >= min_commits
+             if not r.get("kind") and last and _months_apart(r["last"], last) >= min_months and r["commits_behind"] >= min_commits
              and not filetypes.is_vendored(r["file"], vendored)]
     if not stale:
         return []
@@ -1566,7 +1568,7 @@ def agent_instructions_drift(report: dict, min_months: int = 6, min_commits: int
     return [_f("info", "Agent instructions behind the code", f"{'; '.join(said(r) for r in stale)}.",
                f"Read {first} against the tree and update what moved; an agent follows it literally.",
                rule={"id": "agent_instructions_drift", "min_months": min_months, "min_commits": min_commits,
-                     "pointers": "dated by the files they point at", "vendored": "left out"},
+                     "pointers": "dated by the files they point at", "vendored": "left out", "skills and subagents": "left out"},
                evidence={"files": stale})]
 
 

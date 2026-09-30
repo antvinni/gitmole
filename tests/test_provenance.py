@@ -140,6 +140,19 @@ class Agents(unittest.TestCase):
                          "a ${VAR} reference is where a secret is read from; a short word is configuration; the values themselves are never written")
         self.assertNotIn("p4ss", json.dumps(out))
 
+    def test_skills_and_subagents_are_instructions_and_a_template_fixture_or_test_copy_is_not(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            for path in ("AGENTS.md", "pkg/AGENTS.md", ".claude/agents/reviewer.md", ".claude/skills/fix/SKILL.md", ".claude/skills/fix/notes.md",
+                         ".codex/agents/runner.toml", ".agents/skills/release/SKILL.md", "web/.claude/agents/ui.md",
+                         "plugin/templates/AGENTS.md", "plugin/fixtures/basic/AGENTS.md", "src/__fixtures__/CLAUDE.md",
+                         "examples/demo/AGENTS.md", "tests/e2e/fixtures/x/AGENTS.md", "test/AGENTS.md"):
+                r.commit(path, "rules\n", f"add {path}")
+            out = provenance.agents(d)
+        self.assertEqual({x["file"]: x.get("kind") for x in out["instructions"]},
+                         {".agents/skills/release/SKILL.md": "skill", ".claude/agents/reviewer.md": "subagent", ".claude/skills/fix/SKILL.md": "skill",
+                          ".codex/agents/runner.toml": "subagent", "AGENTS.md": None, "pkg/AGENTS.md": None, "web/.claude/agents/ui.md": "subagent"})
+
 
     def test_a_pointer_is_dated_by_the_file_it_points_at(self):
         # brew and prometheus: CLAUDE.md is "@AGENTS.md"; hindsight: AGENTS.md is "See [CLAUDE.md](./CLAUDE.md) for ..."

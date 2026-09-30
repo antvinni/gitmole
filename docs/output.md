@@ -294,7 +294,12 @@ in plain words, and what to do first. This page is the reference.
    a `${VAR}` reference is a warning that names the key and never the
    value; an instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`,
    `.github/copilot-instructions.md`) far behind the last commit, in time
-   and in commits, is a note. A `Signed-off-by` from an identity that
+   and in commits, is a note. The inventory in `provenance.json` also lists
+   the subagents and skills the tools load for a task (`.claude/agents/`,
+   `.claude/skills/*/SKILL.md`, `.codex/agents/`, `.agents/skills/*/SKILL.md`),
+   which the note leaves out, and none of these files under a template,
+   fixture, example or test directory, where they are a product's data or a
+   test's input. A `Signed-off-by` from an identity that
    co-authors commits but never authors one is a note: the Linux kernel's
    policy forbids an agent to add the Developer Certificate of Origin.
 

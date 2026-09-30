@@ -22,7 +22,8 @@ writes provenance.json:
 - shape: neutral descriptors (commits landing in bursts, conventional-commit subjects, how many hours
   of the day commits come in). Every one has a benign cause, and none is labelled.
 - agents: the agent instruction files by path convention (AGENTS.md, CLAUDE.md, GEMINI.md,
-  .github/copilot-instructions.md) and how far behind HEAD each is (a file that only points at another, by
+  .github/copilot-instructions.md, subagents and skills under .claude/, .codex/ and .agents/; none under a
+  template, fixture, example or test directory: is_instruction_file) and how far behind HEAD each is (a file that only points at another, by
   symlink, `@path` or a link, as far as the newest file it points at), the hook files that declare
   guardrails, tracked personal settings, settings that turn approval prompts off, and MCP server
   declarations whose environment carries literal values rather than references. Values are never
@@ -310,6 +311,30 @@ def shape(commits: list) -> dict:
 
 
 INSTRUCTIONS = ("AGENTS.md", "CLAUDE.md", "GEMINI.md", ".github/copilot-instructions.md")
+INSTRUCTION_NAMES = ("AGENTS.md", "CLAUDE.md", "GEMINI.md")   # read by the agents wherever they sit in the tree
+# the files the agents load as instructions by their place in the tree: Claude Code's subagents and skills, Codex's
+# agents, and the shared .agents/skills convention, in any directory a tool can be started from
+AGENT_FILES = re.compile(r"(^|/)(?:(?P<subagent>\.claude/agents/[^/]+\.md|\.codex/agents/[^/]+)|(?P<skill>\.claude/skills/[^/]+/SKILL\.md|\.agents/skills/[^/]+/SKILL\.md))$")
+
+
+def instruction_kind(path: str):
+    """"skill" or "subagent" for a file an agent loads when a task calls for it (AGENT_FILES), None for one it
+    reads at the start of every session (AGENTS.md and the like), which is what describes the tree."""
+    m = AGENT_FILES.search(path)
+    return None if not m else ("subagent" if m.group("subagent") else "skill")
+# where an instruction file is the product's data, not the repository's instructions: a template a generator
+# copies out, a fixture or example a test or a reader loads (filetypes' test and sample conventions)
+_SHIPPED = re.compile(r"(^|/)(templates?|__fixtures__)/")
+
+
+def is_instruction_file(path: str) -> bool:
+    """An agent instruction file the repository gives its own agents: AGENTS.md, CLAUDE.md or GEMINI.md anywhere,
+    .github/copilot-instructions.md, or a subagent or skill by the tools' layouts (AGENT_FILES); never one under
+    a template, fixture, example or test directory, which a product ships or a test loads (paperclip's nineteen
+    persona AGENTS.md)."""
+    if not (path.rsplit("/", 1)[-1] in INSTRUCTION_NAMES or path in INSTRUCTIONS or AGENT_FILES.search(path)):
+        return False
+    return not (_SHIPPED.search(path) or filetypes.is_test_path(path) or filetypes.is_sample_path(path))
 GUARDRAILS = (".claude/settings.json", ".cursor/hooks.json")
 MCP = (".mcp.json", ".cursor/mcp.json", ".vscode/mcp.json")
 LOCAL = (".claude/settings.local.json",)
@@ -388,7 +413,7 @@ def agents(repo: str) -> dict:
     tracked = set(filetypes.git_paths(repo, "ls-files"))
     head_count = int(subprocess.run(["git", "rev-list", "--count", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip() or 0)
     instructions = []
-    for path in sorted(p for p in tracked if p.rsplit("/", 1)[-1] in ("AGENTS.md", "CLAUDE.md", "GEMINI.md") or p in INSTRUCTIONS):
+    for path in sorted(p for p in tracked if is_instruction_file(p)):
         targets = pointer_targets(repo, path, tracked)
         # a pointer's instructions are its targets': it is as current as the newest of them
         dated = [c for c in (_last_change(repo, t) for t in (targets or [path])) if c]
@@ -396,7 +421,9 @@ def agents(repo: str) -> dict:
             continue
         sha, day, _ = max(dated, key=lambda c: c[2])
         behind = int(subprocess.run(["git", "rev-list", "--count", f"{sha}..HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip() or 0)
-        instructions.append(dict({"file": path, "last": day, "commits_behind": behind}, **({"points_to": targets} if targets else {})))
+        kind = instruction_kind(path)
+        instructions.append(dict({"file": path, "last": day, "commits_behind": behind}, **({"points_to": targets} if targets else {}),
+                                 **({"kind": kind} if kind else {})))
     guard, disabled = [], []
     for path in GUARDRAILS:
         data = _json(repo, path) if path in tracked else None

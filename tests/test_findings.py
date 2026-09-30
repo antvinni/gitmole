@@ -1506,6 +1506,12 @@ class AgentSurface(unittest.TestCase):
         self.assertEqual([r["file"] for r in f["evidence"]["files"]], ["CLAUDE.md"])
         self.assertTrue(f["advice"].startswith("Read AGENTS.md against the tree"))
 
+    def test_a_skill_or_subagent_is_listed_but_is_never_behind_the_tree(self):
+        found = self.by_id(self.rep(agents={"instructions": [
+            {"file": ".claude/skills/fix/SKILL.md", "last": "2025-01-01", "commits_behind": 640, "kind": "skill"},
+            {"file": ".codex/agents/runner.toml", "last": "2025-01-01", "commits_behind": 640, "kind": "subagent"}]}))
+        self.assertNotIn("agent_instructions_drift", found)
+
     def test_a_sign_off_by_an_identity_that_only_co_authors(self):
         f = self.by_id(self.rep(trailers={"never_author": [], "signoff_by_co_author": [{"name": "Ghost", "email": "ghost@x.com", "commits": 3}]}))["signoff_by_co_author"]
         self.assertEqual(f["severity"], "info")
