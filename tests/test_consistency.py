@@ -486,12 +486,22 @@ class FromThePaperclipExport(unittest.TestCase):
         self.assertEqual(consistency.harness_tools(report(meta={"identities": ids})), set(), "one person on their own no-reply mailbox")
 
     def test_a_people_row_with_negative_commits(self):
-        """paperclip: an alias of Dotta with one co-authored commit carried 348 merges, shown as -348 commits."""
+        """paperclip: an alias of Dotta with one co-authored commit carried 348 merges, shown as -348 commits.
+        The check reads the People table as gitmole draws it, so it is fed a drawn table with such a row."""
+        from unittest.mock import patch
+        table = {"columns": ["author", "commits", "merges", "share"], "rows": [["Bo", "90", "10", "90%"], ["Bo", "-10", "10", "-9%"]]}
+        with patch.object(consistency, "_render", return_value=table):
+            self.assertEqual(checks(report()), ["merge_total"])
+        table["rows"][1] = ["Bo", "0", "0", "0%"]
+        with patch.object(consistency, "_render", return_value=table):
+            self.assertEqual(checks(report()), [])
+
+    def test_merges_counted_by_name_no_longer_draw_a_negative_row(self):
+        """The same shape through gitmole's own table: since merges belong to an identity, not its display name,
+        the co-author-only alias no longer shows the other row's merges as negative commits."""
         ids = [{"name": "Bo", "email": "bo@x.org", "commits": 90, "authored": 90, "merges": 10},
                {"name": "Bo", "email": "bo@users.noreply.example", "commits": 1, "authored": 0, "merges": 10}]
-        self.assertEqual(checks(report(meta={"identities": ids})), ["merge_total"])
-        ids[1]["merges"] = 0
-        self.assertEqual(checks(report(meta={"identities": ids})), [])
+        self.assertNotIn("merge_total", checks(report(meta={"identities": ids})))
 
     def test_a_table_that_leads_with_a_suspect_span(self):
         """paperclip's Complex functions led with parseSkillFrontmatter, complexity 1036 over 4,232 lines: 19 real ones."""
