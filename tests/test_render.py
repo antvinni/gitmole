@@ -1739,7 +1739,7 @@ class PeopleMerges(unittest.TestCase):
         sec = render.people_section(rep, full=False)
         self.assertEqual([r[0] for r in sec["rows"]], ["Dee"])
         self.assertNotIn("co-authored", sec["columns"])
-        self.assertIn("2 coding tools (names sharing one no-reply address) left out", sec["caption"])
+        self.assertIn("2 coding tools (told by their no-reply address) left out", sec["caption"])
 
 
 class SummaryLine(unittest.TestCase):

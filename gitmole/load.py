@@ -455,7 +455,7 @@ def _authors_without(rows: list, tool_rows: list) -> list:
 
 def _tools_apart(meta: dict, ownership: list, authors: list, doa: list, surviving: dict) -> tuple:
     """The tables with the coding tools taken out (identity.tools: several names on one bare no-reply
-    address), and what the tools were credited with, kept apart: ownership, owners and authors, minor contributors, the degree of authorship the truck factor
+    address, or a name credited there by trailers), and what the tools were credited with, kept apart: ownership, owners and authors, minor contributors, the degree of authorship the truck factor
     reads, and the surviving code are about people. A tool that shares a commit knows none of it when
     the person leaves. Returns (ownership, authors, doa, surviving, tools), `tools` {} when there are none."""
     names = identity.tools(meta.get("identities") or [])

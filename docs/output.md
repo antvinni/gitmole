@@ -497,9 +497,13 @@ in plain words, and what to do first. This page is the reference.
    more differently named identities on one bare no-reply address
    (`noreply@`, `no-reply@`, `donotreply@`), as an assistant that signs each
    model version with its own name and the vendor's one address, are taken
-   for a coding tool by that shape alone; a per-account
-   `id+login@users.noreply…` address, one name alone on a no-reply address,
-   and a name a person's row also carries are people. Its lines are kept out of ownership, the knowledge map's
+   for a coding tool by that shape alone, and so is an identity whose only
+   addresses are bare no-reply mailboxes and that is credited by trailers
+   for at least nine of every ten of its commits (it authors at most one in
+   ten: an assistant is named by the person who commits). A per-account
+   `id+login@users.noreply…` address, one name alone on a no-reply address
+   that authors its own commits, and a name that a person carries who
+   authored commits under an address of their own are people. Its lines are kept out of ownership, the knowledge map's
    owners, the per-file author and minor-contributor counts, the degree of
    authorship the truck factor reads, the bus factor, the knowledge islands
    and the People rows, and a person's degree of authorship no longer
