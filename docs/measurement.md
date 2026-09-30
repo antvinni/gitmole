@@ -357,6 +357,17 @@ drift on a workspace member whose root keeps the lock), **unreferenced_named** (
 counts that include the author's own aliases) and **declared_critical** (a critical
 the repository declared allowed in a gitleaks or betterleaks config or inline).
 
+The 0.40.0 report of vectorize-io/hindsight, a many-package monorepo whose
+maintainer found seven of twenty-four findings false, added eight: **generated_owner**
+(an ownership finding's start area is mostly generator output the repository
+declares), **agent_pointer** (an agent file dated as stale that only points at
+another file), **start_area** (the truck factor's advice names an area other than
+the one with the most files at stake), **structure_skipped** (a source file the
+structure step never parsed, unnamed), **dependency_floor** (a range's floor reported
+as a version), **sarif_rows** (vulnerable rows that never reach SARIF), **doc_lock** (a
+requirements file set aside as documentation) and **tool_person** (a person grouped
+as a coding tool).
+
 As with claims, a complaint is a defect and the number to want is zero; the
 dashboard reads it as *contradictions between a finding and the report's own
 facts*, by check. `python -m gitmole.measure consistency` re-checks a round
