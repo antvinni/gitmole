@@ -82,6 +82,27 @@ class DeclaredUnused(unittest.TestCase):
         self.assertEqual([(x["manifest"], x["package"]) for x in out["unused"]], [("other/package.json", "idle"), ("package.json", "idle")],
                          "another manifest naming a package is not a use of it, and an example's manifest is left out")
 
+    def test_a_peer_the_lock_resolved_for_another_dependency_is_used(self):
+        # paperclip: nice-grpc and nice-grpc-common are declared for @photon-ai/advanced-imessage, which names them as peers
+        pnpm = ("lockfileVersion: '9.0'\n\nimporters:\n\n  server:\n    dependencies:\n      host:\n        specifier: ^2\n"
+                "        version: 2.1.0(peer-a@2.0.4)\n      peer-a:\n        specifier: ^2\n        version: 2.0.4\n"
+                "      idle:\n        specifier: ^1\n        version: 1.0.0\n")
+        npm = json.dumps({"lockfileVersion": 3, "packages": {"": {}, "node_modules/host": {"version": "1", "peerDependencies": {"peer-b": "1"}},
+                                                               "node_modules/peer-b": {"version": "1"}, "node_modules/idle": {"version": "1"}}})
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("pnpm-lock.yaml", pnpm)
+            r.write("server/package.json", json.dumps({"dependencies": {"host": "^2", "peer-a": "^2", "idle": "^1"}}))
+            r.write("server/a.ts", "import h from 'host'\n")
+            r.write("web/package-lock.json", npm)
+            r.write("web/package.json", json.dumps({"dependencies": {"host": "1", "peer-b": "1", "idle": "1"}}))
+            r.write("web/a.ts", "import h from 'host'\n")
+            r.commit()
+            out = imports.unused(d)
+        self.assertEqual([(x["manifest"], x["package"]) for x in out["unused"]], [("server/package.json", "idle"), ("web/package.json", "idle")])
+
+    def test_a_tailwind_plugin_line_is_a_use(self):
+        self.assertEqual(imports.scan_text("npm", '@import "tailwindcss";\n@plugin "@tailwindcss/typography";\n'), {"tailwindcss", "@tailwindcss/typography"})
 
     def test_a_crate_that_includes_generated_code_is_not_judged(self):
         with tempfile.TemporaryDirectory() as d:
