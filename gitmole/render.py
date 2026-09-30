@@ -401,13 +401,13 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
 
 
 def sweeps_note(report: dict):
-    """'2 sweeping commits (...) and 3 declared in .git-blame-ignore-revs are left out of every count', or
+    """'2 sweeping commits and 3 declared in .git-blame-ignore-revs are left out of every count', or
     None when the change analysis left nothing out (or predates the record)."""
     act = report.get("activity") or {}
     swept, declared = [c for c in act.get("sweeping") or [] if not c.get("declared")], act.get("ignored_revs") or 0
     parts = []
     if swept:
-        parts.append(f"{len(swept)} sweeping commit{'s' if len(swept) != 1 else ''} (a formatter run, a rename across the tree)")
+        parts.append(f"{len(swept)} sweeping commit{'s' if len(swept) != 1 else ''}")
     if declared:
         parts.append(f"{declared} declared in .git-blame-ignore-revs")
     if not parts:
