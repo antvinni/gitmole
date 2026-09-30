@@ -85,7 +85,8 @@ def same_person(a: dict, b: dict, shared: frozenset = frozenset()) -> bool:
     """Same email, unless it is a shared_mailbox; two shared name tokens; the same name spelled identically (a handle such as KaKa
     under three emails), unless that name is one word that two full names here share or that is written
     as a given name; or a one-word handle that is one distinctive word of the other's fuller name
-    (junegunn and Junegunn Choi), a given name excepted. `shared` is shared_words over the whole history,
+    (junegunn and Junegunn Choi), a given name excepted, and a handle that is the fuller name's first word only
+    when an address ties them too (_linked). `shared` is shared_words over the whole history,
     which merge passes. A bare first name under another email is left apart: flink's three Jacks are
     three people, and nothing in the name says which of them a fuller name is."""
     if a["email"].lower() == b["email"].lower() and not shared_mailbox(a["email"]):
@@ -96,8 +97,9 @@ def same_person(a: dict, b: dict, shared: frozenset = frozenset()) -> bool:
     na, nb = _plain(a["name"]), _plain(b["name"])
     if na and na == nb and (len(_words(na)) >= 2 or (na not in shared and not _given(a["name"]) and not _given(b["name"]))):
         return True
-    for x, handle, full in ((a, na, tb), (b, nb, ta)):
-        if " " not in handle and handle in full and len(full) >= 2 and _distinctive(handle, shared) and not _given(x["name"]):
+    for x, y, handle, full in ((a, b, na, tb), (b, a, nb, ta)):
+        if (" " not in handle and handle in full and len(full) >= 2 and _distinctive(handle, shared) and not _given(x["name"])
+                and (_words(y["name"])[0] != handle or _linked(x, y, handle))):
             return True
     # RobinMalfait and Robin Malfait: the full name run together, six letters or more so it is not anyone
     sa, sb = _squash(a["name"]), _squash(b["name"])
@@ -109,6 +111,20 @@ def same_person(a: dict, b: dict, shared: frozenset = frozenset()) -> bool:
         if " " not in handle and len(words) >= 2 and handle == words[0][0] + words[-1] and _distinctive(words[-1], shared):
             return True
     return False
+
+
+def _local_words(email: str) -> set:
+    return {w for w in _words(email.rpartition("@")[0]) if len(w) >= 3} if not shared_mailbox(email) else set()
+
+
+def _linked(handle_id: dict, full_id: dict, handle: str) -> bool:
+    """An address ties a one-word handle to the fuller name whose first word it is: the fuller name's own
+    mailbox is the handle (junegunn and Junegunn Choi <junegunn.c@…>), or the handle's mailbox holds another
+    word of the fuller name. A first name however it is written, lower case included, is anyone's: hindsight's
+    co-author "andrew <andrew.neeser@…>" had been merged into Andrew Barnes <bortstheboat@…> on it alone."""
+    if handle in _local_words(full_id["email"]):
+        return True
+    return bool((_tokens(full_id["name"]) - {handle}) & _local_words(handle_id["email"]))
 
 
 def _squash(name: str) -> str:
@@ -201,7 +217,13 @@ def tools(identities: list) -> set:
     are (django's 71, redis's 63). A name that any other row carries is not a tool either, since the
     report's tables key people by name. `identities` are the run's merged rows (meta.json). The
     measurement harness's consistency check reads this same definition, so its agent_owner and the
-    report agree."""
+    report agree.
+
+    Tool-ness belongs to an address, not to a merged row: a row that authored commits and holds an address
+    of its own (neither empty nor a bare no-reply mailbox) is a person, whatever else was merged into it.
+    hindsight's TuftyBruno authored a commit under his own per-account address and credited himself in a
+    trailer under the vendor's shared mailbox; the same spelled name merged the two, and the one shared
+    alias made the whole row a tool."""
     shared = {}
     for i in identities:
         for email in {i.get("email") or ""} | {a.get("email") or "" for a in i.get("aliases") or []}:
@@ -210,5 +232,6 @@ def tools(identities: list) -> set:
     tool, person = set(), set()
     for i in identities:
         emails = {(i.get("email") or "").lower()} | {(a.get("email") or "").lower() for a in i.get("aliases") or []}
-        (tool if any(len(shared.get(e, ())) >= 2 for e in emails) else person).add(i.get("name"))
+        own = bool(i.get("authored")) and any(not shared_mailbox(e) for e in emails)
+        (tool if not own and any(len(shared.get(e, ())) >= 2 for e in emails) else person).add(i.get("name"))
     return tool - person

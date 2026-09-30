@@ -946,7 +946,7 @@ def sections(report: dict, full: bool = True, width=None) -> list:
     return out
 
 
-SECRET_FINDINGS = ("secrets_in_source", "secrets_possible", "secrets_declared")
+SECRET_FINDINGS = ("secrets_in_source", "secrets_possible", "secrets_declared", "secrets_local")
 
 
 def secrets_line(report: dict) -> str:
@@ -1091,10 +1091,12 @@ def header(report: dict, findings: list = (), full: bool = False, width=None) ->
 
 
 def unjudged_line(findings: list) -> str:
-    """'4 more from the structure step, not labelled yet: Deep nesting and Debt in hotspots; --full lists them':
-    the rules whose worth nobody has judged (findings.UNJUDGED), kept out of the default report's entries."""
+    """'4 more from the structure step, not labelled yet (1 warning, 3 notes): Deep nesting and Debt in hotspots;
+    --full lists them': the rules whose worth nobody has judged (findings.UNJUDGED), kept out of the default
+    report's entries. Their severities are said, since the header's tally, the JSON and the gate count them."""
     names = [g["title"] for g in textfmt.group_findings(findings)]
-    return f"{len(findings)} more from the structure step, not labelled yet: {textfmt.join_and(names)}; --full lists them"
+    return (f"{len(findings)} more from the structure step, not labelled yet ({textfmt.tally(findings)}): "
+            f"{textfmt.join_and(names)}; --full lists them")
 
 
 def findings_panel(findings: list, report: dict = None, full: bool = True) -> Panel:

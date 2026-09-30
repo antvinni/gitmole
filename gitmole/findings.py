@@ -54,8 +54,14 @@ def _plural(n: int, word: str) -> str:
     return f"{n} {word}es" if _SIBILANT.search(word) else f"{n} {word}s"
 
 
-def _secret_statement(groups: list, declared: bool = False) -> str:
-    """'N distinct values in M places: rule in file (commits), ...' with at most three values named.
+SECRETS_NAMED = 3       # values a secrets finding names, past which it says "and N more"
+SECRETS_NAMED_ALL = 5   # up to this many, a critical finding names every value: hindsight's hosted-database password was the fifth
+
+
+def _secret_statement(groups: list, declared: bool = False, every: int = SECRETS_NAMED) -> str:
+    """'N distinct values in M places: rule in file (commits), ...' with at most three values named, or every
+    value when there are no more than `every`: the critical finding names up to five, since "and 2 more" is
+    where a reader stops, and on hindsight one of the two was the real one.
 
     A value found in an unreachable blob belongs to no commit, so its commit is the empty string. Those
     are dropped rather than joined, and a value with no commit left names no parenthesis at all: react's
@@ -72,11 +78,12 @@ def _secret_statement(groups: list, declared: bool = False) -> str:
         told = f", declared allowed in {said['file']} at {said['commit']}" if said else ""
         return f"{g['rule']} in {where}" + (f" ({commits}{told})" if commits else f" ({told[2:]})" if told else "")
     places = sum(g["places"] for g in groups)
-    counts = {}                                    # insertion order, so the first three stay in their order
-    for text in (one(g) for g in groups[:3]):
+    named = len(groups) if len(groups) <= every else SECRETS_NAMED
+    counts = {}                                    # insertion order, so the first named stay in their order
+    for text in (one(g) for g in groups[:named]):
         counts[text] = counts.get(text, 0) + 1
     sample = "; ".join(f"{n} values of {text}" if n > 1 else text for text, n in counts.items())
-    more = f" and {len(groups) - 3} more" if len(groups) > 3 else ""
+    more = f" and {len(groups) - named} more" if len(groups) > named else ""
     return f"{_plural(len(groups), 'distinct value')} in {_plural(places, 'place')}: {sample}{more}."
 
 
@@ -85,6 +92,11 @@ def _secret_evidence(groups: list, declared: bool = False) -> dict:
     if declared:
         out["declared"] = [dict(g["declared"], rule=g["rule"]) for g in groups][:10]
     return out
+
+
+# A file named as a template of another (.env.example, config.yml.sample, settings.template): what it holds is
+# the shape a reader copies and fills in, by the ecosystem's own naming. A value only ever there is a specimen.
+_TEMPLATE_FILE = re.compile(r"\.(example|sample|template)$", re.I)
 
 
 def secrets_found(report: dict) -> list:
@@ -98,7 +110,19 @@ def secrets_found(report: dict) -> list:
     A value in source the repository declared allowed at some commit (an allowlist of its gitleaks or
     betterleaks config, its ignore file, `gitleaks:allow` on the value's line: leaks.annotate) is not
     critical: betterleaks reads today's config only, so a public key the repository allowlisted and later
-    replaced was graded critical and told to be rotated. It is info, naming where the declaration is."""
+    replaced was graded critical and told to be rotated. It is info, naming where the declaration is.
+
+    A value only ever in files named as templates of others (.env.example, *.sample, *.template) is a
+    specimen like one in an examples directory. A value every sighting of which is the password of a
+    connection string to loopback or to a service the repository's compose file declares (leaks.mark_local)
+    is a development default: info (secrets_local), not critical. hindsight's critical held six such values
+    in 58 of its 65 places, and its two real ones were the first and the fifth named."""
+    return _secrets_by_rule(report)[0]
+
+
+def _secrets_by_rule(report: dict) -> tuple:
+    """(the secrets findings, {rule id: the value groups it holds}): the groups for SARIF, which places each
+    value of a finding and no other."""
     groups = leaks.group(report.get("secrets") or [])
 
     vendored, generated = filetypes.vendor_dirs(report), _generated(report)
@@ -106,18 +130,19 @@ def secrets_found(report: dict) -> list:
     def in_source(g):   # a copy in an unreachable blob has no path: the value's located copies say where it lives
         located = [f for f in g["files"] if not f.startswith(leaks.UNREACHABLE)] or g["files"]
         return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f) or filetypes.is_vendored(f, vendored)
-                        or filetypes.is_mock_path(f) or filetypes.is_tooling_path(f) or f in generated)
+                        or filetypes.is_mock_path(f) or filetypes.is_tooling_path(f) or f in generated or _TEMPLATE_FILE.search(f))
                    for f in located)
 
     def possible(g):   # only the scanner's generic rules found it, and it graded every sighting low
         return g["rule"].startswith("generic-") and g.get("confidence") == "low"
     declared = [g for g in groups if in_source(g) and g.get("declared")]
-    source = [g for g in groups if in_source(g) and not possible(g) and not g.get("declared")]
-    maybe = [g for g in groups if in_source(g) and possible(g) and not g.get("declared")]
+    local = [g for g in groups if in_source(g) and g.get("local") and not g.get("declared")]
+    source = [g for g in groups if in_source(g) and not possible(g) and not g.get("declared") and not g.get("local")]
+    maybe = [g for g in groups if in_source(g) and possible(g) and not g.get("declared") and not g.get("local")]
     ignore = "Add the fingerprint of any false positive from secrets.json to .betterleaksignore in the repository."
     out = []
     if source:
-        out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source),
+        out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source, every=SECRETS_NAMED_ALL),
                       f"Rotate them; deleting the file does not remove them from git. {ignore}",
                       rule={"id": "secrets_in_source", "scanner": "betterleaks", "placeholders": "left out"}, evidence=_secret_evidence(source)))
     if maybe:
@@ -131,7 +156,19 @@ def secrets_found(report: dict) -> list:
                       "Withdrawing the declaration makes the value a finding again.",
                       rule={"id": "secrets_declared", "scanner": "betterleaks", "declared_by": "config, ignore file or gitleaks:allow at any commit"},
                       evidence=_secret_evidence(declared, declared=True)))
-    return out
+    if local:
+        out.append(_f("info", f"{len(local)} password(s) to a local service", _secret_statement(local),
+                      "Each is the password of a connection string to this machine or to a service the repository's own compose file "
+                      "runs: a development default. Make sure no deployed service shares it.",
+                      rule={"id": "secrets_local", "scanner": "betterleaks", "hosts": "loopback, or a service a compose file declares"},
+                      evidence=_secret_evidence(local)))
+    return out, {"secrets_in_source": source, "secrets_possible": maybe, "secrets_declared": declared, "secrets_local": local}
+
+
+def secret_groups(report: dict) -> dict:
+    """{secrets rule id: the value groups (leaks.group) its finding holds}, for SARIF, which places each value
+    under the finding that holds it and under no other."""
+    return _secrets_by_rule(report)[1]
 
 
 def credential_files(report: dict) -> list:
@@ -181,11 +218,13 @@ def placeholder_identity(report: dict, min_share: float = 0.01) -> list:
 
 
 def _source_ownership(report: dict) -> list:
-    """Ownership rows for source files. Test files and vendored trees are left out of every rule that
-    names a next step: owning the tests is not the knowledge risk, and whoever imported vendor/ did
-    not write it. The default tables leave test files out too."""
-    vendored = filetypes.vendor_dirs(report)
-    return [r for r in report.get("ownership") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_vendored(r["entity"], vendored))]
+    """Ownership rows for source files. Test files, vendored trees and generated files are left out of every
+    rule that names a next step: owning the tests is not the knowledge risk, whoever imported vendor/ did
+    not write it, and whoever last ran a generator did not write its output (pairing someone on a generated
+    client is advice about who runs the generator). The default tables leave test files out too."""
+    vendored, generated = filetypes.vendor_dirs(report), _generated(report)
+    return [r for r in report.get("ownership") or []
+            if not (filetypes.is_test_path(r["entity"]) or filetypes.is_vendored(r["entity"], vendored) or r["entity"] in generated)]
 
 
 def _present_areas(report: dict, rows: list, build=knowledge.areas) -> list:
@@ -629,7 +668,7 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                f"That is {_pct(covered, total)} of all lines added.",
                advice,
                rule={"id": "knowledge_islands", "min_lines": min_lines, "min_share": min_share, "min_fraction": min_fraction},
-               evidence={"covered_lines": covered, "total_lines": total,
+               evidence={"count": len(islands), "covered_lines": covered, "total_lines": total, "owners": sorted({i["owner"] for i in islands}),
                          "islands": [{"area": i["area"], "owner": i["owner"], "gone": i["owner"] in gone, "share_pct": i["share"], "lines": i["lines"]}
                                      for i in islands[:10]]})]
 
@@ -1458,9 +1497,15 @@ def unreferenced_files(report: dict) -> list:
     if not paths:
         return []
     n = s.get("unreferenced_count", len(paths))
-    return [_f("info", "Possibly unreferenced files", f"{_plural(n, 'file')} {'is' if n == 1 else 'are'} imported by nothing in the tree and {'is' if n == 1 else 'are'} no entry point: {_files_list(paths, 5)}.",
+    # a file too big to parse imports what it imports unseen: say so, in a language the list judges
+    judged = {info.get("language") for p, info in (s.get("files") or {}).items() if p in set(paths)}
+    unseen = [r for r in s.get("skipped") or [] if (structure.GRAMMARS.get(os.path.splitext(r.get("file") or "")[1].lower()) or ("",))[0] in judged]
+    blind = (f" {_files_list([r['file'] for r in unseen], 2)} {'was' if len(unseen) == 1 else 'were'} too big to parse ({unseen[0]['reason']}), "
+             f"so what {'it imports' if len(unseen) == 1 else 'they import'} is not seen.") if unseen else ""
+    return [_f("info", "Possibly unreferenced files", f"{_plural(n, 'file')} {'is' if n == 1 else 'are'} imported by nothing in the tree and {'is' if n == 1 else 'are'} no entry point: {_files_list(paths, 5)}.{blind}",
                f"Check {paths[0]} before anything else; dynamic imports, plugins loaded by name and framework routing do not show in an import graph.",
-               rule={"id": "unreferenced_files", "ref": "Romano et al., TSE 2020"}, evidence={"count": n, "files": paths[:10]})]
+               rule={"id": "unreferenced_files", "ref": "Romano et al., TSE 2020"},
+               evidence={"count": n, "files": paths[:10], **({"skipped": unseen[:10]} if unseen else {})})]
 
 
 def _agents(report: dict) -> dict:
@@ -1583,6 +1628,9 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
             n, who, orphaned_share = knowledge.truck_factor({f: authored[f] for f in fs})
             if n == 1:   # the area's size and what one departure orphans, so a reader can tell ten files from ten thousand
                 lone.append((area, who[0], len(fs), round(orphaned_share * len(fs))))
+    # most files at stake first: the list, the evidence's first ten and the advice's start area all begin where
+    # one departure orphans the most, not where the alphabet does (hindsight's docker/, 9 files, over 267)
+    lone.sort(key=lambda t: (-t[3], t[0]))
     if tf > 2 and not lone:
         return []
     orphans = round(share * len(files))
@@ -1622,7 +1670,7 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
                 if p not in gone:
                     counts[p] = counts.get(p, 0) + 1
         ask = min(counts, key=lambda p: (-counts[p], p)) if counts else None
-    first_area = next((a for a, w, _, _ in lone if w == ask), None)
+    first_area = next((a for a, w, _, _ in lone if w == ask), None)   # lone is ordered by files at stake
     if ask is None:
         advice = "Everyone who authors these files has stopped committing; give the files owners, starting with the ones changed most."
     else:
@@ -1634,7 +1682,7 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
                rule={"id": "truck_factor", "doa_author_share": 0.75, "doa_floor": 3.293, "orphan_share": 0.5, "decay_months": 5,
                      "ref": "Avelino et al., ICPC 2016"},
                evidence={"truck_factor": tf, "removed": removed, "truck_factor_decayed": tf_d, "removed_decayed": removed_d,
-                         "files": len(files), "orphaned": orphans,
+                         "files": len(files), "orphaned": orphans, "area_authors": sorted({w for _, w, _, _ in lone}),
                          "areas": [{"area": a, "author": w, "files": n, "orphaned": o} for a, w, n, o in lone[:10]]})]
 
 
@@ -1661,10 +1709,71 @@ UNJUDGED = frozenset({"commented_out_code", "debt_in_hotspots", "deep_nesting", 
                       "hidden_coupling", "import_cycles", "swallowed_errors", "unreferenced_files"})
 
 
+OWNERSHIP = ("bus_factor", "truck_factor", "knowledge_islands")   # in the order the merged finding takes its lead from
+
+
+def _sole_person(f: dict):
+    """The one person an ownership finding is about, or None when it names several: the bus factor's author, a
+    truck factor of one whose areas of one are all theirs, islands that all have the same owner."""
+    rid, ev = f["rule"]["id"], f["evidence"]
+    if rid == "bus_factor":
+        return ev.get("author")
+    if rid == "truck_factor":
+        who = ev.get("removed") or []
+        return who[0] if ev.get("truck_factor") == 1 and len(who) == 1 and set(ev.get("area_authors") or who) <= set(who) else None
+    owners = ev.get("owners") or []
+    return owners[0] if len(owners) == 1 else None
+
+
+def one_owner(found: list, gone: set) -> list:
+    """The bus factor, the truck factor and the knowledge islands, when two or more of them name the same single
+    person, as one finding: they are one fact measured three ways (surviving lines, files that would lose their
+    author, areas one person wrote), and hindsight's report said it three times with three start areas. The lead
+    is the first of OWNERSHIP present; the others' rules and evidence ride along under `measures`, and a second
+    sentence gives their numbers, so which measures fired stays visible. The start area is the truck factor's,
+    the person's area with the most files at stake, when it counted one; otherwise the lead's advice stands."""
+    by = {f["rule"]["id"]: f for f in found if f["rule"]["id"] in OWNERSHIP}
+    people = {rid: _sole_person(f) for rid, f in by.items()}
+    for who in {p for p in people.values() if p}:
+        same = [rid for rid in OWNERSHIP if people.get(rid) == who]
+        if len(same) < 2:
+            continue
+        lead, rest = by[same[0]], [by[rid] for rid in same[1:]]
+        parts = []
+        bus, truck, isl = (by[rid] if rid in same else None for rid in OWNERSHIP)
+        name = _who(who, gone)
+        if truck:
+            ev = truck["evidence"]
+            parts.append(f"without {'them' if bus else name}, {ev['orphaned']} of the {ev['files']} source files "
+                         f"({_pct(ev['orphaned'], ev['files'])}) have no author left (truck factor 1)")
+        if isl:
+            ev = isl["evidence"]
+            parts.append(f"{ev['count']} area(s) of at least {isl['rule']['min_lines']} lines are almost entirely theirs, "
+                         f"{_pct(ev['covered_lines'], ev['total_lines'])} of all lines added (knowledge islands)")
+        said = ", and ".join(parts)
+        said = said[0].upper() + said[1:] + "."
+        if bus:
+            ev = bus["evidence"]
+            statement = f"{name} wrote {_pct(ev['lines'], ev['total_lines'])} of the code that survives today. {said}"
+        else:
+            statement = said
+        advice = lead["advice"]
+        mine = [a for a in (truck["evidence"]["areas"] if truck else []) if a["author"] == who]
+        if truck and mine and who not in gone:
+            a = mine[0]   # ordered by files at stake
+            advice = f"Pair someone with {who} on {a['area']} first; {a['orphaned']} of its {a['files']} files would have no author left without them."
+        merged = _f(max((lead, *rest), key=lambda f: -SEVERITIES.index(f["severity"]))["severity"], lead["title"], statement, advice,
+                    rule={**lead["rule"], "measures": {f["rule"]["id"]: f["rule"] for f in rest}},
+                    evidence={**lead["evidence"], "measures": {f["rule"]["id"]: f["evidence"] for f in rest}})
+        found = [merged if f is lead else f for f in found if not any(f is r for r in rest)]
+    return found
+
+
 def evaluate(report: dict) -> list:
     found = []
     for rule in RULES:
         found.extend(rule(report))
+    found = one_owner(found, _gone(report))
     for f in found:
         if f["rule"]["id"] in UNJUDGED:
             f["summary"] = True

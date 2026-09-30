@@ -110,11 +110,40 @@ class SecretsFound(unittest.TestCase):
         r = report(secrets=[self.row("h4", "web/package.json", placeholder=True)])
         self.assertEqual(findings.secrets_found(r), [])
 
-    def test_examples_name_at_most_three_values(self):
+    def test_examples_name_at_most_three_values_past_five(self):
+        r = report(secrets=[self.row(f"h{i}", f"app/f{i}.py", f"c{i}") for i in range(6)])
+        crit = findings.secrets_found(r)[0]
+        self.assertIn("and 3 more", crit["detail"])
+        self.assertEqual(crit["title"], "6 secret(s) in history")
+
+    def test_up_to_five_values_every_one_is_named(self):
+        """hindsight's hosted-database password was the fifth value and read as "and 5 more"."""
         r = report(secrets=[self.row(f"h{i}", f"app/f{i}.py", f"c{i}") for i in range(5)])
         crit = findings.secrets_found(r)[0]
-        self.assertIn("and 2 more", crit["detail"])
-        self.assertEqual(crit["title"], "5 secret(s) in history")
+        self.assertNotIn("more", crit["detail"])
+        self.assertIn("generic-api-key in app/f4.py (c4).", crit["detail"])
+
+    def test_a_value_only_in_template_files_is_no_finding(self):
+        r = report(secrets=[self.row("h1", "docker/timescale/.env.example", rule="generic-password"),
+                            self.row("h2", "config/settings.yml.sample"), self.row("h3", "deploy/values.template")])
+        self.assertEqual(findings.secrets_found(r), [])
+        r = report(secrets=[self.row("h1", ".env.example"), self.row("h1", ".env.dev", "c2")])
+        self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in a real file is a leak")
+
+    def test_a_password_to_a_local_service_is_info_and_the_hosted_one_stays_critical(self):
+        rows = [dict(self.row("hl", f"docker/f{i}.yml", f"c{i}", rule="generic-credential-uri"), local=True, confidence="medium") for i in range(4)]
+        rows += [dict(self.row("hr", ".env.dev", "c9", rule="generic-credential-uri"), confidence="medium"),
+                 dict(self.row("hm", "app/db.py", "c8", rule="generic-credential-uri"), confidence="medium", local=True),
+                 dict(self.row("hm", "app/prod.py", "c8", rule="generic-credential-uri"), confidence="medium", local=False),
+                 dict(self.row("hl", "docker/docker-compose.yml", "c1", rule="generic-password"), confidence="medium")]
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
+        self.assertEqual(set(f), {"secrets_in_source", "secrets_local"})
+        self.assertEqual(f["secrets_local"]["severity"], "info")
+        self.assertIn("1 password(s) to a local service", f["secrets_local"]["title"])
+        self.assertEqual(f["secrets_local"]["evidence"]["files"], ["docker/docker-compose.yml"] + [f"docker/f{i}.yml" for i in range(4)],
+                         "the evidence names the files; the compose file's own setting of the password is the same default")
+        self.assertIn("2 secret(s) in history", f["secrets_in_source"]["title"], "a value also sent to another host is not a local default")
+        self.assertIn(".env.dev", f["secrets_in_source"]["detail"])
 
 
 class CredentialFiles(unittest.TestCase):
@@ -910,6 +939,17 @@ class KnowledgeIslands(unittest.TestCase):
         self.assertNotIn("web/", f[0]["detail"])
         self.assertIn("100% of all lines added", f[0]["detail"], "vendored lines are not in the denominator either")
 
+    def test_generated_files_are_not_islands(self):
+        # hindsight's OpenAPI client: the person who last ran the generator "owns" thousands of lines they did not write
+        own = [{"entity": "clients/python/api/a_api.py", "author": "Ann", "added": 500000, "deleted": 0},
+               {"entity": "core/a.py", "author": "Bob", "added": 300, "deleted": 0}]
+        r = report(ownership=own)
+        r["meta"]["generated"] = ["clients/python/api/a_api.py"]
+        f = findings.knowledge_islands(r)
+        self.assertEqual(f[0]["advice"], "Pair someone with Bob on core/ first; it is the largest at 300 lines.")
+        self.assertNotIn("clients/", f[0]["detail"])
+        self.assertEqual(findings.bus_factor(r), findings.bus_factor(report(ownership=own[1:])), "the bus factor reads the same rows")
+
     def test_an_island_that_is_a_sliver_of_the_code_is_not_named(self):
         # laravel: 216 root-file lines by one person against 900,000 lines of src/; prettier's benchmarks/
         own = [{"entity": "composer.json", "author": "Ann", "added": 216, "deleted": 0},
@@ -977,7 +1017,8 @@ class Advice(unittest.TestCase):
                                  "vulnerable": [{"name": "x", "version": "1", "ecosystem": "PyPI", "source": "uv.lock", "ids": ["GHSA-1"], "aliases": [],
                                                  "advisories": 1, "score": 8.0, "severity": "high", "summary": "", "fixed": "2"}]},
                    age=[{"entity": "a.py", "age-months": 30}, {"entity": "b.py", "age-months": 0}],
-                   ownership=[{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0}])
+                   ownership=[{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0},
+                              {"entity": "web/b.py", "author": "Bob", "added": 900, "deleted": 0}])   # islands of two people: not merged into the bus factor
         r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 5, "aliases": [{"name": "root", "email": "root@localhost", "commits": 1}]}]
         found = findings.evaluate(r)
         self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Bug magnets", "Brain methods",
@@ -1407,6 +1448,17 @@ class Structure(unittest.TestCase):
         self.assertIn("src/f11.py", f["detail"])
         self.assertIn("dynamic imports, plugins loaded by name and framework routing do not show", f["advice"])
 
+    def test_a_skipped_file_in_a_judged_language_is_named(self):
+        """hindsight's busiest file was over the size limit, its imports vanished, and a file it imports read as
+        unreferenced with nothing saying so."""
+        skipped = [{"file": "src/huge.py", "bytes": 5_000_000, "reason": "over 4 MB"}, {"file": "web/app.min.js", "bytes": 2_000_000, "reason": "minified"}]
+        f = self.by_id(self.base(unreferenced=["src/f11.py"], unreferenced_count=1, skipped=skipped))["unreferenced_files"]
+        self.assertIn("src/huge.py was too big to parse (over 4 MB), so what it imports is not seen.", f["detail"])
+        self.assertNotIn("app.min.js", f["detail"], "a language the list does not judge says nothing about it")
+        self.assertEqual(f["evidence"]["skipped"], skipped[:1])
+        f = self.by_id(self.base(unreferenced=["src/f11.py"], unreferenced_count=1, skipped=skipped[1:]))["unreferenced_files"]
+        self.assertNotIn("skipped", f["evidence"])
+
     def test_nothing_without_the_step(self):
         r = self.base()
         r["structure"] = {"status": "not-installed"}
@@ -1528,6 +1580,14 @@ class TruckFactor(unittest.TestCase):
         self.assertEqual(f["advice"], "Pair someone with Ann first; they author most of what would be left without an author.",
                          "core/ is Bob's: it is not where to pair someone with Ann")
 
+    def test_the_start_area_is_where_most_files_are_at_stake(self):
+        # hindsight named docker/ (9 files at stake) over hindsight-api-slim/ (267): the first area in the alphabet
+        doa = [self.row(f"server/a{i}.py", "Ann") for i in range(30)] + [self.row(f"docker/d{i}.py", "Ann") for i in range(10)]
+        doa += [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa, theseus_authors={"Ann": 50, "Bob": 50}))}["truck_factor"]
+        self.assertEqual(f["advice"], "Pair someone with Ann on server/ first; they author most of what would be left without an author.")
+        self.assertEqual([a["area"] for a in f["evidence"]["areas"]], ["server/", "docker/"], "most at stake first")
+
     def test_an_even_split_of_the_surviving_code_is_explained(self):
         doa = [self.row(f"core/a{i}.py", "Ann") for i in range(20)] + [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
         f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa, theseus_authors={"Ann": 50, "Bob": 50}))}["truck_factor"]
@@ -1553,6 +1613,53 @@ class TruckFactor(unittest.TestCase):
         self.assertNotIn("()", f["detail"])
         self.assertIn("With knowledge halving every five months, more than half the files already have no author", f["detail"])
         self.assertEqual(f["evidence"]["truck_factor_decayed"], 0)
+
+
+class OneOwner(unittest.TestCase):
+    """The bus factor, the truck factor and the knowledge islands naming one person are one finding: hindsight's
+    report said the same fact three times, each with its own start area."""
+    rep, row = TruckFactor.rep, TruckFactor.row
+
+    def doa(self):
+        return ([self.row(f"core/a{i}.py", "Ann") for i in range(20)] + [self.row(f"docs/d{i}.py", "Ann") for i in range(10)]
+                + [self.row(f"web/b{i}.py", "Bob") for i in range(8)])
+
+    def own(self):
+        return [{"entity": "core/a0.py", "author": "Ann", "added": 900, "deleted": 0}, {"entity": "web/b0.py", "author": "Bob", "added": 50, "deleted": 0},
+                {"entity": "docs/d0.py", "author": "Ann", "added": 300, "deleted": 0}]
+
+    def test_one_person_three_measures_is_one_finding(self):
+        found = findings.evaluate(self.rep(self.doa(), theseus_authors={"Ann": 90, "Bob": 10}, ownership=self.own()))
+        ids = [f["rule"]["id"] for f in found]
+        self.assertEqual([i for i in ids if i in findings.OWNERSHIP], ["bus_factor"])
+        [f] = [f for f in found if f["rule"]["id"] == "bus_factor"]
+        self.assertEqual(f["severity"], "warning")
+        self.assertEqual(set(f["rule"]["measures"]), {"truck_factor", "knowledge_islands"}, "which measures fired stays in the rule")
+        self.assertEqual(f["evidence"]["measures"]["truck_factor"]["truck_factor"], 1)
+        self.assertEqual(f["evidence"]["measures"]["knowledge_islands"]["owners"], ["Ann"])
+        self.assertIn("Ann wrote 90% of the code that survives today. Without them, 30 of the 38 source files (79%) have no author left (truck factor 1)", f["detail"])
+        self.assertIn("2 area(s) of at least 200 lines are almost entirely theirs", f["detail"])
+        self.assertIn("(knowledge islands)", f["detail"])
+        self.assertEqual(f["advice"], "Pair someone with Ann on core/ first; 20 of its 20 files would have no author left without them.",
+                         "the start area is the one with the most files at stake")
+
+    def test_different_people_stay_apart(self):
+        found = findings.evaluate(self.rep(self.doa(), theseus_authors={"Bob": 90, "Ann": 10}))
+        ids = {f["rule"]["id"] for f in found}
+        self.assertLessEqual({"bus_factor", "truck_factor"}, ids)
+        self.assertNotIn("measures", next(f for f in found if f["rule"]["id"] == "bus_factor")["rule"])
+
+    def test_a_truck_factor_with_someone_elses_area_of_one_stays_apart(self):
+        doa = self.doa() + [self.row(f"web/c{i}.py", "Bob") for i in range(4)]   # web/ now has 12 files, all Bob's
+        found = findings.evaluate(self.rep(doa, theseus_authors={"Ann": 90, "Bob": 10}))
+        self.assertLessEqual({"bus_factor", "truck_factor"}, {f["rule"]["id"] for f in found})
+
+    def test_two_of_three_merge_and_keep_the_leads_title(self):
+        found = findings.evaluate(self.rep(self.doa(), theseus_authors={"Ann": 60, "Bob": 40}, ownership=self.own()))
+        [f] = [f for f in found if f["rule"]["id"] in findings.OWNERSHIP]
+        self.assertEqual((f["rule"]["id"], f["title"]), ("truck_factor", "Truck factor"))
+        self.assertEqual(list(f["rule"]["measures"]), ["knowledge_islands"])
+        self.assertTrue(f["detail"].startswith("Without Ann, 30 of the 38 source files"), f["detail"])
 
 
 class ImportCommits(unittest.TestCase):

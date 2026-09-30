@@ -83,11 +83,38 @@ class Document(unittest.TestCase):
         self.assertNotIn("locations", by["dormant"], "a repository-wide finding has no file to point at")
 
     def test_every_finding_the_gate_stops_on_has_an_error_result_under_head_scope(self):
+        """A critical secret only in a file deleted since is placed where it was committed, not left without a
+        location: GitHub does not display a location-less result, and hindsight's two real keys were exactly these."""
         rows = [{"rule": "github-pat", "file": "old/gone.js", "commit": "d2d2d2d", "line": 3, "fingerprint": "y", "value": "h2", "placeholder": False}]
         found = [finding("secrets_in_source", "critical", evidence={"files": ["old/gone.js"]})]
         results = sarif.build(report(secrets=rows), found)["runs"][0]["results"]
         self.assertEqual([(r["ruleId"], r["level"]) for r in results], [("secrets_in_source", "error")])
-        self.assertNotIn("locations", results[0])
+        self.assertEqual(results[0]["locations"][0]["physicalLocation"], {"artifactLocation": {"uri": "old/gone.js", "uriBaseId": "%SRCROOT%"},
+                                                                          "region": {"startLine": 3}})
+        self.assertEqual((results[0]["properties"]["commit"], results[0]["properties"]["inTree"]), ("d2d2d2d", False))
+        self.assertIn("no longer in the tree at HEAD", results[0]["message"]["text"])
+        history = sarif.build(report(secrets=rows), found, scope="history")["runs"][0]["results"]
+        self.assertEqual(history[0]["partialFingerprints"], results[0]["partialFingerprints"], "the same alert under either scope")
+
+    def test_a_removed_critical_value_is_placed_once_where_it_was_first_committed(self):
+        def row(value, file, commit, line, date, **extra):
+            return {"rule": "groq-api-key", "file": file, "commit": commit, "line": line, "fingerprint": f"{commit}:{file}:{line}", "value": value,
+                    "placeholder": False, "confidence": "high", "at_head": False, "date": date, **extra}
+        rows = [row("h1", ".env.dev", "b2b2b2b", 7, "2025-03-02T00:00:00Z"), row("h1", ".env.dev", "a1a1a1a", 4, "2025-03-01T00:00:00Z"),
+                row("h2", "app/k.py", "c3c3c3c", 1, "2025-01-01T00:00:00Z", at_head=True, head_line=2),
+                row("h3", "README.md", "d4d4d4d", 88, "2025-01-01T00:00:00Z", at_head=True, rule="generic-password", confidence="low")]
+        from gitmole import findings
+        found = findings.secrets_found(report(secrets=rows))
+        results = [r for r in sarif.build(report(secrets=rows), found)["runs"][0]["results"] if r["ruleId"] == "secrets_in_source"]
+        self.assertEqual(sorted((r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"], r["properties"]["commit"], r["properties"].get("inTree", True))
+                                for r in results), [(".env.dev", "a1a1a1a", False), ("app/k.py", "c3c3c3c", True)],
+                         "one result for the removed value, at its first commit; the value at HEAD where it is; the documentation-only "
+                         "value in another file is no part of the critical")
+        low = [dict(x, rule="generic-api-key", confidence="low") for x in rows[:2]]
+        info = findings.secrets_found(report(secrets=low))
+        self.assertEqual([f["rule"]["id"] for f in info], ["secrets_possible"])
+        self.assertFalse([r for r in sarif.build(report(secrets=low), info)["runs"][0]["results"] if r.get("locations")],
+                         "only a critical value is placed out of the tree")
 
     def test_workflow_and_manifest_findings_point_at_their_files(self):
         """unpinned_actions and lockfile_drift name files, under keys of their own; without a location code scanning
@@ -142,7 +169,9 @@ class Document(unittest.TestCase):
         found = [finding("secrets_in_source", "critical", title="2 secret(s) in history", evidence={"files": ["src/a.py", "old/gone.py"]})]
         head = sarif.build(report(secrets=rows), found, scope="head")
         results = head["runs"][0]["results"]
-        self.assertEqual(len(results), 1, "one place at HEAD; the duplicate row is one place, the placeholder is not a secret, the gone file is history")
+        self.assertEqual(len(results), 2, "one place at HEAD; the duplicate row is one place, the placeholder is not a secret; the value "
+                                          "only in the gone file is placed where it was committed")
+        self.assertEqual(results[1]["properties"]["inTree"], False)
         r = results[0]
         self.assertEqual(r["message"]["text"], "aws-access-token in src/a.py at commit c1c1c1c, line 9 of that commit's version")
         self.assertNotIn("region", r["locations"][0]["physicalLocation"], "the line is the commit's, not HEAD's")
@@ -161,12 +190,14 @@ class Document(unittest.TestCase):
                 {"rule": "github-pat", "file": "src/a.py", "commit": "d2d2d2d", "line": 3, "fingerprint": "y", "value": "h2", "placeholder": False,
                  "at_head": True, "head_line": 12}]
         found = [finding("secrets_in_source", "critical", evidence={"files": ["src/a.py"]})]
-        [r] = sarif.build(report(secrets=rows), found, scope="head")["runs"][0]["results"]
-        self.assertEqual(r["properties"]["commit"], "d2d2d2d", "the replaced value is history only, though its file is in the tree")
+        replaced, r = sarif.build(report(secrets=rows), found, scope="head")["runs"][0]["results"]
+        self.assertEqual(r["properties"]["commit"], "d2d2d2d")
         self.assertEqual(r["locations"][0]["physicalLocation"]["region"], {"startLine": 12}, "HEAD's line, where the value is now")
         self.assertEqual(r["message"]["text"], "github-pat in src/a.py at commit d2d2d2d, line 3 of that commit's version; at HEAD, line 12")
+        self.assertEqual((replaced["properties"]["commit"], replaced["properties"]["inTree"]), ("c1c1c1c", False),
+                         "the replaced value is history only, though its file is in the tree: placed at its commit's line, not HEAD's")
+        self.assertEqual(replaced["locations"][0]["physicalLocation"]["region"], {"startLine": 57})
         [only] = sarif.build(report(secrets=rows[:1]), found, scope="head")["runs"][0]["results"]
-        self.assertNotIn("locations", only, "a gated finding with nothing at HEAD keeps one result, without a location")
         self.assertEqual(only["level"], "error")
         self.assertEqual(len(sarif.build(report(secrets=rows), found, scope="history")["runs"][0]["results"]), 2)
 

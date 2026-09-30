@@ -61,6 +61,15 @@ class Merge(unittest.TestCase):
         self.assertEqual(merged, {"Junegunn Choi": 3047, "Sam Altman": 5, "sam": 2, "Kevin Brown": 76, "Kevin": 21},
                          "a short or common first name is not distinctive enough")
 
+    def test_a_first_name_handle_joins_a_full_name_only_when_an_address_ties_them(self):
+        # hindsight: co-author "andrew <andrew.neeser@…>" was merged into Andrew Barnes <bortstheboat@…> on the first name alone
+        ids = [{"name": "Andrew Barnes", "email": "bortstheboat@a.com", "commits": 2}, {"name": "andrew", "email": "andrew.neeser@b.com", "commits": 1},
+               {"name": "Marcus Holloway", "email": "mh@a.com", "commits": 9}, {"name": "marcus", "email": "marcus.holloway@b.com", "commits": 3},
+               {"name": "Bartholomew Chen", "email": "bartholomew@a.com", "commits": 7}, {"name": "bartholomew", "email": "b@c.com", "commits": 2}]
+        merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
+        self.assertEqual(merged, {"Andrew Barnes": 2, "andrew": 1, "Marcus Holloway": 12, "Bartholomew Chen": 9},
+                         "the handle's mailbox names the surname, or the full name's mailbox is the handle")
+
     def test_a_handle_that_is_the_full_name_run_together_is_the_same_person(self):
         ids = [{"name": "Robin Malfait", "email": "malfait.robin@a.com", "commits": 1271}, {"name": "RobinMalfait", "email": "1834413+RobinMalfait@users.noreply.github.com", "commits": 4},
                {"name": "Jo Li", "email": "jo@a.com", "commits": 3}, {"name": "joli", "email": "x@b.com", "commits": 1}]
@@ -249,6 +258,20 @@ class Tools(unittest.TestCase):
                {"name": "pukkandan", "email": "noreply@v.example", "commits": 1, "authored": 0},
                {"name": "Model A", "email": "noreply@v.example", "commits": 9, "authored": 0}]
         self.assertEqual(identity.tools(ids), {"Model A"})
+
+    def test_a_person_whose_own_trailer_used_the_tools_mailbox_is_a_person(self):
+        # hindsight: TuftyBruno authored under his per-account address; his trailer credited him under the vendor's
+        ids = [{"name": "TuftyBruno", "email": "7+TuftyBruno@users.noreply.github.com", "commits": 1, "authored": 1,
+                "aliases": [{"name": "TuftyBruno", "email": "noreply@v.example", "commits": 0}]},
+               {"name": "Model A", "email": "noreply@v.example", "commits": 9, "authored": 0},
+               {"name": "Model B", "email": "noreply@v.example", "commits": 4, "authored": 0,
+                "aliases": [{"name": "Model B2", "email": "", "commits": 1}]}]
+        self.assertEqual(identity.tools(ids), {"Model A", "Model B"})
+
+    def test_a_tool_that_authored_under_the_shared_mailbox_is_still_a_tool(self):
+        ids = [{"name": "Model A", "email": "noreply@v.example", "commits": 9, "authored": 3},
+               {"name": "Model B", "email": "noreply@v.example", "commits": 4, "authored": 1, "aliases": [{"name": "Model B", "email": "", "commits": 1}]}]
+        self.assertEqual(identity.tools(ids), {"Model A", "Model B"}, "an empty address names no one either")
 
     def test_the_harness_reads_the_same_definition(self):
         from gitmole.measure import consistency

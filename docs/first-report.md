@@ -11,8 +11,8 @@ named here too. When people commit (the busiest weekday and hour) is in `--full`
 **Findings.** What the rules flagged, worst first. `✖` is critical, `▲` a warning, `●` a note. Each
 finding states the facts, and the line starting `↳` names the file, area or person to start with.
 
-- *"N more from the structure step, not labelled yet"*: newer rules nobody has checked against real
-  repositories yet. Treat them as leads, not verdicts.
+- *"N more from the structure step, not labelled yet (2 warnings, 3 notes)"*: newer rules nobody has checked
+  against real repositories yet. Treat them as leads, not verdicts; the header's count includes them.
 
 **Watch list.** The five source files where a change is most likely to need a fix: ranked by how often
 each changed times how big it is. The reasons say what to look at there; they do not change the rank.

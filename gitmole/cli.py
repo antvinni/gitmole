@@ -770,6 +770,9 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
         return 0
     from . import gate
     if args.fail_on and gate.tripped([f for _, _, found in reports for f in found], args.fail_on):
+        for name, _, found in reports:
+            for line in gate.tripping(found, args.fail_on, name):
+                ui.print(line, soft_wrap=True, markup=False, highlight=False)
         return gate.EXIT_FOUND
     blind = [name for name, report, _ in reports if gate.no_database(report)]
     if blind:
@@ -928,11 +931,15 @@ def _gate_exit(report: dict, found: list, risk, args, err: Console) -> int:
         missing, flags = gate.unfinished(report), ["--fail-on"]
         if gate.tripped(found, args.fail_on):
             code = gate.EXIT_FOUND
+            for line in gate.tripping(found, args.fail_on):   # what it stopped on, so the log says why it failed
+                err.print(line, soft_wrap=True, markup=False, highlight=False)
     if risk is not None and args.risk_threshold is not None:
         short = gate.unfinished(report, gate.RISK_STEPS)
         missing, flags = sorted(set(missing) | set(short)), flags + (["--risk-threshold"] if short else [])
         if risk["total"] > args.risk_threshold:
             code = gate.EXIT_FOUND
+            err.print(f"--risk-threshold {args.risk_threshold:g}: the change against {args.risk} scores {risk['total']:g} (exit {gate.EXIT_FOUND})",
+                      soft_wrap=True, markup=False, highlight=False)
     if gate.no_database(report) and (args.fail_on or args.require_vuln_db):
         err.print(gate.NO_DATABASE_NOTE + ("" if code or not args.require_vuln_db else f" (exit {gate.EXIT_INCOMPLETE}: --require-vuln-db)"),
                   soft_wrap=True, markup=False, highlight=False)

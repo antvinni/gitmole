@@ -391,6 +391,7 @@ NOT_OBSERVABLE = {
                         ".betterleaksignore, is not in the evidence, which names files only",
     "reverts": "the advice is a check before merge, and a later tree does not show one as such",
     "secrets_declared": "the advice is to confirm a declaration the repository already made, which no tree shows",
+    "secrets_local": "the advice is to check that no deployed service shares a development default, which no tree shows",
 }
 
 # Rules that name their subjects only as totals. Extending the evidence to list them is what makes
