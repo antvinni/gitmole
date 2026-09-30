@@ -37,7 +37,27 @@ agent (debpalash/VoiceStudio), where five of seventeen findings were false:
 - declared_critical: a critical secret the repository declared allowed at some commit (a gitleaks or
   betterleaks config or ignore file, or `gitleaks:allow` on its line).
 
-tree_claim, sweeping_evidence and the second set but agent_owner need the clone, read at the commit the
+A fourth set came from the 0.41.0 report of paperclipai/paperclip, a product built largely by its own coding
+agent. Each decides by its own reading of the export or the clone, never by asking the gitmole function it judges:
+
+- tool_owner: a coding tool (harness_tools: a bare no-reply mailbox two or more names use, or an identity there
+  credited mostly by trailer) as an owner or second in the knowledge map, an ownership finding's owner, or a
+  People row with surviving code.
+- merge_total: the People caption's merge total against git's merges, or a People row with negative commits.
+- suspect_lead: Complex functions, or a lizard-measured finding, leads with a span lizard marked suspect or one
+  the structure step measures more than twice or half as long.
+- test_double_lead: a finding's first file is a Cargo binary only tests/ start (`CARGO_BIN_EXE_<name>`).
+- test_path_secret: a secret in a smoke/, e2e/ or __fixtures__ path, a `*-e2e.*` name, or below `#[cfg(test)]`.
+- peer_unused: an unused dependency the lock records as a peer, or a stylesheet loads by @plugin/@import.
+- declared_reference: an unreferenced file a package.json runs or publishes, or `new URL(…, import.meta.url)` loads.
+- lock_without_require: a go.mod with no `require` named as a manifest without a lock file.
+- dev_only_vuln_lead: the vulnerable lead only devDependencies reach while a runtime-reached row waits behind it.
+- silent_precondition: a rule advertises a test with a history precondition, and neither evidence nor text
+  says what became of it.
+- trailer_case: trailer keys split by case, or an issue id read as a key.
+
+tree_claim, sweeping_evidence, the second set but agent_owner, merge_total and the paperclip checks named above
+that read files need the clone, read at the commit the
 run recorded and never checked out; the rest need nothing but the JSON export. A complaint is a defect, not a score - the number to
 want is zero.
 
@@ -659,10 +679,606 @@ def tool_person(report: dict, found: list) -> list:
     return out
 
 
+# --- the checks the 0.41.0 review of an agent-driven product repository added (paperclipai/paperclip) -------
+#
+# Each decides by its own reading of the export or the clone, never by calling the gitmole function it judges:
+# agent_owner asked identity.tools who the tools are, so when identity.tools was wrong it agreed with it.
+
+_BARE_MAILBOX = re.compile(r"^no-?reply@", re.I)   # the local part is the whole of `noreply`/`no-reply`, never NNN+name@
+_OWNERSHIP_RULES = frozenset({"truck_factor", "knowledge_islands", "bus_factor", "knowledge_loss"})
+
+
+def _addresses(i: dict) -> list:
+    return [(i.get("name"), (i.get("email") or "").lower())] + [(a.get("name"), (a.get("email") or "").lower()) for a in i.get("aliases") or []]
+
+
+def harness_tools(report: dict) -> set:
+    """The identities that are a coding tool, read here and not from identity.tools: an identity whose own
+    address is a bare no-reply mailbox (`noreply@vendor`, not a forge's per-account `NNN+name@users.noreply…`)
+    that two or more distinct names use anywhere in the history (identities, their aliases, trailer-only
+    credits), or whose commits are mostly credit from trailers rather than commits it authored."""
+    meta = report.get("meta") or {}
+    ids = meta.get("identities") or []
+    names_on = {}
+    for i in ids:
+        for name, email in _addresses(i):
+            names_on.setdefault(email, set()).add(name)
+    for t in ((report.get("provenance") or {}).get("trailers") or {}).get("never_author") or []:
+        names_on.setdefault((t.get("email") or "").lower(), set()).add(t.get("name"))
+    out = set()
+    for i in ids:
+        email = (i.get("email") or "").lower()
+        if not _BARE_MAILBOX.match(email):
+            continue
+        commits, authored = i.get("commits") or 0, i.get("authored")
+        credited = authored is not None and commits - authored > commits / 2
+        if len(names_on.get(email, ())) >= 2 or credited:
+            out.add(i.get("name"))
+    return out
+
+
+def _render(report: dict, section: str, full=True):
+    from .. import render
+    try:
+        return getattr(render, section)(report, full=full)
+    except Exception:   # an export the renderer cannot read is not these checks' to judge
+        return None
+
+
+def _column(sec: dict, name: str):
+    cols = sec.get("columns") or []
+    return cols.index(name) if name in cols else None
+
+
+def tool_owner(report: dict, found: list) -> list:
+    """A coding tool shown as a person who owns code: an owner or second owner in the knowledge map, an owner
+    an ownership finding names, or a People row holding surviving code. paperclip's product agent, credited by
+    trailer on 2,052 commits at a mailbox nine names share, was second owner of every area. Unlike agent_owner,
+    which asks identity.tools who the tools are, the tools here are harness_tools' own reading."""
+    tools = harness_tools(report)
+    if not tools:
+        return []
+    out = []
+    km = _render(report, "knowledge_section")
+    if km:
+        for role in ("main owner", "second"):
+            at = _column(km, role)
+            held = {}
+            for row in km.get("rows") or [] if at is not None else []:
+                name = re.sub(r"(?: \(gone\))? \(\d+%\)$", "", row[at])
+                if name in tools:
+                    held.setdefault(name, []).append(row[0])
+            for name, areas in sorted(held.items()):
+                out.append(_complaint("tool_owner", None, f"knowledge map: {name} is {role} of {len(areas)} area(s), e.g. {areas[0]}"))
+    for f in found:
+        if (f.get("rule") or {}).get("id") in _OWNERSHIP_RULES:
+            for name in sorted((_people(f.get("evidence")) | set((f.get("evidence") or {}).get("area_authors") or [])) & tools):
+                out.append(_complaint("tool_owner", f, f"names {name} as an owner"))
+    people = _render(report, "people_section")
+    at = _column(people, "surviving code") if people else None
+    if at is not None:
+        for name in sorted({row[0] for row in people["rows"] if row[0] in tools and row[at] not in ("0%", "-")}):
+            share = next(row[at] for row in people["rows"] if row[0] == name and row[at] not in ("0%", "-"))
+            out.append(_complaint("tool_owner", None, f"People: {name} holds {share} of the surviving code"))
+    return out
+
+
+def merge_rows(report: dict, found: list) -> list:
+    """merge_total, from the export: a People row with negative commits or share, which only a merge count
+    subtracted from the wrong row can give (paperclip's second "Dotta" row, -348)."""
+    people = _render(report, "people_section")
+    if not people:
+        return []
+    c, s = _column(people, "commits"), _column(people, "share")
+    out = []
+    for row in people["rows"]:
+        if (c is not None and row[c].lstrip().startswith("-") and row[c].strip() != "-") or (s is not None and row[s].startswith("-") and row[s] != "-"):
+            out.append(_complaint("merge_total", None, f"People: {row[0]} has {row[c] if c is not None else '?'} commits, {row[s] if s is not None else '?'} share"))
+    return out
+
+
+def merge_total(report: dict, found: list, clone: str, commit: str) -> list:
+    """The People caption's merge total against the merges git has at the analysed commit, bots' merges left
+    out as the table leaves bots out (paperclip: "725 in all" against 376)."""
+    people = _render(report, "people_section")
+    m = re.search(r"counted apart \(([\d,]+) in all\)", (people or {}).get("caption") or "")
+    meta = report.get("meta") or {}
+    if not m or (meta.get("paths") or meta.get("path")):
+        return []
+    bots = {b.get("name") for b in meta.get("bots") or []}
+    args = ["log", "--merges", "--format=%an%x00%aN"] + ([f"--since={meta['since']}"] if meta.get("since") else []) + [commit]
+    done = _git(clone, *args)
+    if done.returncode != 0:
+        return []
+    real = sum(1 for l in done.stdout.splitlines() if l and not (set(l.split("\0")) & bots or l.split("\0")[0].endswith("[bot]")))
+    shown = int(m.group(1).replace(",", ""))
+    return [_complaint("merge_total", None, f"People says {shown:,} merges in all; git has {real:,} not by a bot")] if shown != real else []
+
+
+def _span(f: dict) -> int:
+    return (f.get("end") or 0) - (f.get("start") or 0) + 1
+
+
+def _lead_problems(report: dict, rec: dict) -> list:
+    """Why a function record should not lead: lizard marked its span suspect, or the structure step's span of
+    the function starting on the same line of the same file disagrees by more than twice."""
+    out = []
+    if rec.get("suspect"):
+        out.append("lizard marks its span suspect")
+    for s in (report.get("structure") or {}).get("functions") or []:
+        if s.get("file") == rec.get("file") and s.get("start") == rec.get("start") and s.get("end"):
+            a, b = _span(rec), _span(s)
+            if min(a, b) > 0 and max(a, b) > 2 * min(a, b):
+                out.append(f"its span is {a} lines to lizard and {b} to the structure step")
+            break
+    return out
+
+
+def suspect_lead(report: dict, found: list) -> list:
+    """The function a list leads with is one lizard may have mis-parsed: the first row of Complex functions, or
+    the first function a finding measured by lizard names ("Split run in … first"). paperclip's table led with six
+    "?" rows, parseSkillFrontmatter at complexity 1036 over 4,232 lines, 19 real lines."""
+    funcs = report.get("functions") or []
+    out = []
+    table = _render(report, "functions_section", full=False)   # the table a reader sees, tests and vendored code hidden
+    if table and table.get("rows"):
+        name, where, ccn = table["rows"][0][0], table["rows"][0][1], table["rows"][0][2]
+        file, _, line = where.rpartition(":") if re.search(r":\d+$", where) else (where, "", "")
+        recs = [f for f in funcs if f.get("file") == file and str(f.get("ccn")) == ccn.rstrip("?")
+                and (str(f.get("start")) == line if line else f.get("function") == name)]
+        why = _lead_problems(report, recs[0]) if recs else (["lizard marks its span suspect"] if ccn.endswith("?") else [])
+        if why:
+            out.append(_complaint("suspect_lead", None, f"Complex functions leads with {name} in {where}: {'; '.join(why)}"))
+    for f in found:
+        rows = (f.get("evidence") or {}).get("functions") or []
+        if not rows or not isinstance(rows[0], dict) or "ccn" not in rows[0]:
+            continue
+        head = rows[0]
+        rec = next((r for r in funcs if r.get("file") == head.get("file") and r.get("start") == head.get("start")), None)
+        why = _lead_problems(report, rec) if rec else []
+        if why:
+            out.append(_complaint("suspect_lead", f, f"leads with {head.get('function')} in {head.get('file')}: {'; '.join(why)}"))
+    return out
+
+
+def _first_file(f: dict):
+    ev = f.get("evidence") or {}
+    for key in ("functions", "files", "islands"):
+        rows = ev.get(key)
+        if isinstance(rows, list) and rows:
+            row = rows[0]
+            return row.get("file") if isinstance(row, dict) else row if isinstance(row, str) else None
+    return None
+
+
+def _cargo_bin(clone: str, commit: str, path: str, head: set):
+    """The Cargo binary target `path` is, by the nearest Cargo.toml above it: a `[[bin]]` whose `path` is it, or
+    Cargo's convention src/bin/NAME.rs and src/bin/NAME/main.rs. None when it is not one."""
+    parts = path.split("/")
+    for depth in range(len(parts) - 1, -1, -1):
+        root = "/".join(parts[:depth])
+        manifest = (root + "/" if root else "") + "Cargo.toml"
+        if manifest not in head:
+            continue
+        rel = "/".join(parts[depth:])
+        for block in re.split(r"(?m)^\s*\[", _blob(clone, commit, manifest)):
+            if block.startswith("[bin]]"):
+                p = re.search(r'(?m)^\s*path\s*=\s*"([^"]+)"', block)
+                n = re.search(r'(?m)^\s*name\s*=\s*"([^"]+)"', block)
+                if p and n and os.path.normpath(p.group(1)) == rel:
+                    return n.group(1)
+        m = re.fullmatch(r"src/bin/([^/]+)\.rs|src/bin/([^/]+)/main\.rs", rel)
+        return (m.group(1) or m.group(2)) if m else None
+    return None
+
+
+def test_double_lead(report: dict, found: list, clone: str, commit: str) -> list:
+    """A finding whose first-named file is a Cargo binary only the crate's tests run: its name appears as
+    `CARGO_BIN_EXE_<name>`, the variable Cargo sets for integration tests, and only under a tests/ directory.
+    paperclip's brain methods led with fake-codex-app-server.rs, a test double."""
+    head, out = None, []
+    for f in found:
+        path = _first_file(f)
+        if not path or not path.endswith(".rs"):
+            continue
+        head = head if head is not None else _in_head(clone, commit)
+        name = _cargo_bin(clone, commit, path, head)
+        if not name:
+            continue
+        hits = {l.split(":", 2)[1] for l in _git(clone, "grep", "-l", "-F", "-e", f"CARGO_BIN_EXE_{name}", commit, "--").stdout.splitlines() if l.count(":") >= 1}
+        if hits and all("tests" in h.split("/")[:-1] for h in hits):
+            out.append(_complaint("test_double_lead", f, f"{path}: binary {name}, run only by {len(hits)} file(s) under tests/"))
+    return out
+
+
+_TEST_SEGMENTS = frozenset({"smoke", "e2e", "__fixtures__"})
+_E2E_NAME = re.compile(r"[-_]e2e\.", re.I)
+
+
+def test_path_secret(report: dict, found: list, clone: str, commit: str) -> list:
+    """A secret the secrets findings count that sits in test code by the path's convention (a `smoke`, `e2e` or
+    `__fixtures__` directory, a `*-e2e.*` or `*_e2e.*` name) or, in Rust, below the file's `#[cfg(test)]` line.
+    paperclip's one critical was a deliberately wrong key in a negative test, scripts/smoke/hermes-gateway-e2e.sh.
+    The value is never read into the complaint: rule, path and commit only."""
+    rows = [s for s in report.get("secrets") or [] if not s.get("placeholder")]
+    out = []
+    for f in found:
+        if not ((f.get("rule") or {}).get("id") or "").startswith("secrets"):
+            continue
+        files = set((f.get("evidence") or {}).get("files") or [])
+        seen = set()
+        for s in rows:
+            path = s.get("file") or ""
+            if path not in files or path in seen:
+                continue
+            why = None
+            if _TEST_SEGMENTS & set(path.split("/")[:-1]) or _E2E_NAME.search(os.path.basename(path)):
+                why = "a test path"
+            elif path.endswith(".rs"):
+                at, line = (commit, s.get("head_line")) if s.get("at_head") and s.get("head_line") else (s.get("commit"), s.get("line"))
+                if at and line:
+                    text = _blob(clone, at, path).splitlines()[: int(line) - 1]
+                    if any(re.match(r"\s*#\[cfg\(test\)\]", l) for l in text):
+                        why = "below #[cfg(test)]"
+            if why:
+                seen.add(path)
+                out.append(_complaint("test_path_secret", f, f"{s.get('rule')} in {path} ({str(s.get('commit'))[:8]}): {why}"))
+    return out
+
+
+def _lock_above(head: set, manifest: str, names=("pnpm-lock.yaml", "package-lock.json")):
+    parts = os.path.dirname(manifest).split("/") if os.path.dirname(manifest) else []
+    for depth in range(len(parts), -1, -1):
+        root = "/".join(parts[:depth])
+        for n in names:
+            lock = (root + "/" if root else "") + n
+            if lock in head:
+                return lock, root
+    return None, None
+
+
+def _unquote(s: str) -> str:
+    s = s.strip()
+    return s[1:-1] if len(s) >= 2 and s[0] == s[-1] and s[0] in "'\"" else s
+
+
+def _yaml_key(s: str):
+    """(key, value) of one `key: value` line of a pnpm lock, the key quoted or not."""
+    s = s.strip()
+    if s[:1] in "'\"":
+        end = s.find(s[0], 1)
+        return s[1:end], s[end + 1:].lstrip(":").strip()
+    key, _, value = s.partition(": ") if ": " in s else (s.rstrip(":"), "", "")
+    return key, value.strip()
+
+
+def _pnpm(text: str) -> tuple:
+    """A pnpm lock's importers {id: {group: [(name, version)]}} and its package graph {key: [(name, version)]},
+    read by indentation (lock files v6 and v9): enough to walk, not a YAML parser."""
+    importers, graph = {}, {}
+    section = cur = group = dep = None
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        ind = len(line) - len(line.lstrip(" "))
+        if ind == 0:
+            section = s.rstrip(":")
+            continue
+        if section == "importers":
+            if ind == 2:
+                cur = _yaml_key(s)[0]
+                importers[cur] = {}
+            elif ind == 4 and cur is not None:
+                group = s.rstrip(":")
+                importers[cur].setdefault(group, [])
+            elif ind == 6 and cur is not None:
+                dep, value = _yaml_key(s)
+                if value:   # the v5 shape, `name: version`
+                    importers[cur][group].append((dep, _unquote(value)))
+            elif ind == 8 and s.startswith("version:") and cur is not None:
+                importers[cur][group].append((dep, _unquote(s.split(":", 1)[1])))
+        elif section in ("snapshots", "packages"):
+            if ind == 2:
+                cur = _yaml_key(s)[0].lstrip("/")
+                graph.setdefault(cur, [])
+            elif ind == 4:
+                group = s.rstrip(":")
+            elif ind == 6 and group in ("dependencies", "optionalDependencies") and cur is not None:
+                name, value = _yaml_key(s)
+                graph[cur].append((name, _unquote(value)))
+    return importers, graph
+
+
+def _reach(importers: dict, graph: dict, groups: tuple) -> set:
+    """The name@version (peer suffixes dropped) every importer reaches from its `groups`; a workspace link is
+    followed into that importer's runtime dependencies."""
+    seen, todo, out = set(), [], set()
+    for imp, g in importers.items():
+        for group in groups:
+            todo += [(imp, n, v) for n, v in g.get(group) or []]
+    while todo:
+        imp, name, ver = todo.pop()
+        if ver.startswith("link:"):
+            target = os.path.normpath(os.path.join(imp, ver[5:])).replace(os.sep, "/")
+            target = "." if target in ("", ".") else target
+            if ("link", target) not in seen:
+                seen.add(("link", target))
+                todo += [(target, n, v) for grp in ("dependencies", "optionalDependencies") for n, v in (importers.get(target) or {}).get(grp) or []]
+            continue
+        key = ver if ver.startswith(name + "@") else f"{name}@{ver}"
+        if key in seen:
+            continue
+        seen.add(key)
+        out.add(key.split("(", 1)[0])
+        todo += [(imp, n, v) for n, v in graph.get(key) or graph.get(key.split("(", 1)[0]) or []]
+    return out
+
+
+def dev_only_vuln_lead(report: dict, found: list, clone: str, commit: str) -> list:
+    """The vulnerable-dependencies finding leads with a package of a pnpm lock that only devDependencies reach,
+    while another row it counts is reached from runtime dependencies. paperclip led with form-data, there only
+    through a test library, and buried multer, which the server imports."""
+    out, cache = [], {}
+    rows_all = (report.get("dependencies") or {}).get("vulnerable") or []
+    for f in found:
+        if (f.get("rule") or {}).get("id") != "vulnerable_dependencies":
+            continue
+        rows = (f.get("evidence") or {}).get("packages") or []
+        if not rows or not (rows[0].get("source") or "").endswith("pnpm-lock.yaml"):
+            continue
+        lock = rows[0]["source"]
+        if lock not in cache:
+            imps, graph = _pnpm(_blob(clone, commit, lock))
+            cache[lock] = (_reach(imps, graph, ("dependencies", "optionalDependencies")), _reach(imps, graph, ("devDependencies",)))
+        runtime, dev = cache[lock]
+        lead = f"{rows[0].get('name')}@{rows[0].get('version')}"
+        if lead in runtime or lead not in dev:
+            continue
+        other = next((r for r in list(rows[1:]) + list(rows_all) if r.get("source") == lock and f"{r.get('name')}@{r.get('version')}" in runtime), None)
+        if other:
+            out.append(_complaint("dev_only_vuln_lead", f, f"leads with {rows[0]['name']} {rows[0].get('version')}, reached only through "
+                                                         f"devDependencies; {other['name']} {other.get('version')} is reached from dependencies"))
+    return out
+
+
+def _peer_in_lock(clone: str, commit: str, lock: str, lock_root: str, manifest: str, package: str) -> bool:
+    text = _blob(clone, commit, lock)
+    if not text:
+        return False
+    member = os.path.relpath(os.path.dirname(manifest) or ".", lock_root or ".").replace(os.sep, "/")
+    if lock.endswith("pnpm-lock.yaml"):
+        importers, _ = _pnpm(text)
+        mine = importers.get(member) or {}
+        suffix = "(" + package + "@"
+        if any(suffix in v for grp in mine.values() for _, v in grp):
+            return True
+        # a `peerDependencies:` block of a package the manifest depends on directly
+        direct = {n for grp in mine.values() for n, _ in grp}
+        cur, peers = None, False
+        for line in text.splitlines():
+            ind = len(line) - len(line.lstrip(" "))
+            s = line.strip()
+            if ind == 2 and s:
+                cur = _yaml_key(s)[0].lstrip("/").split("(", 1)[0]
+                cur = cur.rsplit("@", 1)[0] if cur.count("@") > (1 if cur.startswith("@") else 0) else cur
+            elif ind == 4:
+                peers = s == "peerDependencies:"
+            elif ind == 6 and peers and cur in direct and _yaml_key(s)[0] == package:
+                return True
+        return False
+    try:
+        packages = json.loads(text).get("packages") or {}
+    except ValueError:
+        return False
+    if (packages.get(f"node_modules/{package}") or {}).get("peer"):
+        return True
+    try:
+        declared = json.loads(_blob(clone, commit, manifest) or "{}")
+    except ValueError:
+        declared = {}
+    direct = set(declared.get("dependencies") or {}) | set(declared.get("devDependencies") or {})
+    return any(package in ((packages.get(f"node_modules/{d}") or {}).get("peerDependencies") or {}) for d in direct)
+
+
+def peer_unused(report: dict, found: list, clone: str, commit: str) -> list:
+    """An "unused dependency" that is used: the lock file records it as a peer another dependency of the same
+    manifest needs (pnpm's `(name@version)` suffix or a `peerDependencies` block, npm's `peer: true`), or a
+    stylesheet under the manifest loads it by `@plugin` or `@import`. paperclip: @anthropic-ai/sdk, nice-grpc,
+    nice-grpc-common (peers) and @tailwindcss/typography (a Tailwind @plugin)."""
+    head, out = None, []
+    for f in found:
+        if (f.get("rule") or {}).get("id") != "unused_dependencies":
+            continue
+        for row in (f.get("evidence") or {}).get("unused") or []:
+            manifest, package = row.get("manifest") or "", row.get("package") or ""
+            if row.get("ecosystem") != "npm" or not manifest.endswith("package.json") or not package:
+                continue
+            head = head if head is not None else _in_head(clone, commit)
+            lock, root = _lock_above(head, manifest)
+            if lock and _peer_in_lock(clone, commit, lock, root, manifest, package):
+                out.append(_complaint("peer_unused", f, f"{package} in {manifest}: a peer dependency in {lock}"))
+                continue
+            where = os.path.dirname(manifest)
+            done = _git(clone, "grep", "-l", "-E", "-e", r"@(plugin|import)[[:space:]]+['\"]" + re.escape(package) + r"['\"/]", commit, "--",
+                        *([f"{where}/*.css", f"{where}/**/*.css"] if where else ["*.css"]))
+            hits = [l.split(":", 1)[1] for l in done.stdout.splitlines() if ":" in l]
+            if hits:
+                out.append(_complaint("peer_unused", f, f"{package} in {manifest}: loaded by {hits[0]}"))
+    return out
+
+
+_BUILD_DIRS = ("dist/", "build/", "lib/", "out/")
+_EXTS = re.compile(r"(\.d)?\.(?:[cm]?[jt]sx?|json|node)$")
+
+
+def _stem(path: str) -> str:
+    path = path.strip().strip("'\"")
+    while path.startswith("./"):
+        path = path[2:]
+    return _EXTS.sub("", os.path.normpath(path).replace(os.sep, "/")) if path else ""
+
+
+def _strings(value) -> list:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for v in value.values() for s in _strings(v)]
+    if isinstance(value, list):
+        return [s for v in value for s in _strings(v)]
+    return []
+
+
+def _declares(declared: dict, rel: str):
+    """Which field of one package.json names the file at `rel` (relative to it): a `scripts` command's literal
+    word (a glob there is a formatter's or linter's input, not a load), or an `exports`, `bin`, `main` or
+    `module` target, a `*` in a target matching any run, and a built
+    dist/, build/, lib/ or out/ target mapped back to the src/ it is built from."""
+    want = _stem(rel)
+    if not want:
+        return None
+    alts = {want} | ({"src/" + want[len(d):] for d in _BUILD_DIRS if want.startswith(d)})
+
+    def names(target: str, wildcard: bool = True) -> bool:
+        t = _stem(target)
+        if "*" in t and not wildcard:
+            return False
+        cands = {t} | {"src/" + t[len(d):] for d in _BUILD_DIRS if t.startswith(d)}
+        for c in cands:
+            if "*" in c:
+                rx = re.compile("^" + re.escape(c).replace(r"\*", ".+") + "$")
+                if any(rx.match(a) for a in alts):
+                    return True
+            elif c in alts:
+                return True
+        return False
+    for name, command in (declared.get("scripts") or {}).items():
+        if isinstance(command, str) and any(names(w, wildcard=False) for w in re.split(r"[\s;&|()=]+", command) if "/" in w or "." in w):
+            return f"scripts.{name}"
+    for field in ("exports", "bin", "main", "module"):
+        if any(names(t) for t in _strings(declared.get(field))):
+            return field
+    return None
+
+
+_URL_LOAD = re.compile(r"""new URL\(\s*(['"`])([^'"`]+)\1\s*,\s*import\.meta\.url""")
+
+
+def declared_reference(report: dict, found: list, clone: str, commit: str) -> list:
+    """A "possibly unreferenced" file the repository declares it uses, by a mechanism that loads it: a
+    package.json above it runs it from `scripts` or publishes it through `exports`, `bin`, `main` or `module`
+    (wildcards and a dist/ target mapped back to src/), or a module loads it with
+    `new URL('…', import.meta.url)`. paperclip's first ten held nine such files. unreferenced_named is the
+    wider and weaker net - any mention of the file's last two path segments in a non-prose file - and says only
+    that a name appears; this says the repository's own declarations reach the file."""
+    head, urls, out = None, None, []
+    for f in found:
+        if (f.get("rule") or {}).get("id") != "unreferenced_files":
+            continue
+        head = head if head is not None else _in_head(clone, commit)
+        if urls is None:
+            urls = {}
+            done = _git(clone, "grep", "-n", "-E", "-e", r"new URL\([[:space:]]*['\"`]", commit, "--")
+            for line in done.stdout.splitlines():
+                parts = line.split(":", 3)
+                if len(parts) < 4:
+                    continue
+                for m in _URL_LOAD.finditer(parts[3]):
+                    target = os.path.normpath(os.path.join(os.path.dirname(parts[1]), m.group(2))).replace(os.sep, "/")
+                    urls.setdefault(target, parts[1])
+        for path in (f.get("evidence") or {}).get("files") or []:
+            path = path.get("file") if isinstance(path, dict) else path
+            if not path:
+                continue
+            why = f"loaded by new URL in {urls[path]}" if path in urls else None
+            parts = path.split("/")
+            for depth in range(len(parts) - 1, -1, -1) if not why else ():
+                root = "/".join(parts[:depth])
+                pkg = (root + "/" if root else "") + "package.json"
+                if pkg not in head:
+                    continue
+                try:
+                    declared = json.loads(_blob(clone, commit, pkg) or "{}")
+                except ValueError:
+                    continue
+                field = _declares(declared, "/".join(parts[depth:])) if isinstance(declared, dict) else None
+                if field:
+                    why = f"{field} in {pkg}"
+                    break
+            if why:
+                out.append(_complaint("declared_reference", f, f"{path}: {why}"))
+    return out
+
+
+def lock_without_require(report: dict, found: list, clone: str, commit: str) -> list:
+    """"Manifest without a lock file" on a go.mod that requires nothing: Go writes no go.sum for a module with
+    no `require`, so there is no lock to commit (paperclip's tools/agent-shim/go.mod)."""
+    out = []
+    for f in found:
+        if (f.get("rule") or {}).get("id") != "lockfile_missing":
+            continue
+        for row in (f.get("evidence") or {}).get("missing") or []:
+            manifest = row.get("manifest") if isinstance(row, dict) else row
+            if manifest and os.path.basename(manifest) == "go.mod":
+                text = _blob(clone, commit, manifest)
+                if text and not re.search(r"(?m)^\s*require\b", text):
+                    out.append(_complaint("lock_without_require", f, f"{manifest} has no require line"))
+    return out
+
+
+_NOT_RUN = re.compile(r"(?i)\bnot (?:run|tested)\b|\btoo (?:short|little)\b|\bnot enough history\b|\bneeds? \d+ months\b|\bwithout the (?:size )?test\b")
+
+
+def _has_key(value, key: str) -> bool:
+    if isinstance(value, dict):
+        return key in value or any(_has_key(v, key) for v in value.values())
+    if isinstance(value, list):
+        return any(_has_key(v, key) for v in value)
+    return False
+
+
+def silent_precondition(report: dict, found: list) -> list:
+    """A finding whose rule advertises a test with a history precondition (a rule entry holding
+    `min_history_months`) while its evidence carries no result of that test and its text does not say the test
+    did not run. paperclip's bug magnets advertised `above_rate` over 7 months of a 12-month precondition: the 391
+    magnets were raw counts, and nothing said so."""
+    months = _history_months(report)
+    out = []
+    for f in found:
+        rule = f.get("rule") or {}
+        for key, spec in rule.items():
+            if not isinstance(spec, dict) or "min_history_months" not in spec:
+                continue
+            if _has_key(f.get("evidence"), key) or _NOT_RUN.search(f"{f.get('detail') or ''} {f.get('advice') or ''}"):
+                continue
+            history = f"{months} months of history, " if months is not None else ""
+            out.append(_complaint("silent_precondition", f, f"{key}: no result and no word why ({history}needs {spec['min_history_months']})"))
+    return out
+
+
+_TICKET = re.compile(r"^[A-Za-z]+-\d+$")
+
+
+def trailer_case(report: dict, found: list) -> list:
+    """The trailers table splits one key by case (`Co-authored-by` and `Co-Authored-By`: git reads trailer keys
+    case-insensitively) or lists an issue id (`PAP-10182`, letters, a hyphen, digits) as a trailer key."""
+    keys = list((((report.get("provenance") or {}).get("trailers") or {}).get("keys") or {}).keys())
+    folded, out = {}, []
+    for k in keys:
+        folded.setdefault(k.casefold(), []).append(k)
+    for group in folded.values():
+        if len(group) > 1:
+            out.append(_complaint("trailer_case", None, f"{' and '.join(sorted(group))} counted apart"))
+    out += [_complaint("trailer_case", None, f"{k} is an issue id, not a trailer key") for k in keys if _TICKET.match(k)]
+    return out
+
+
 FINDING_CHECKS = (gone_people, wrong_area, growth_window, secrets_headline, sarif_gate, trailer_author, agent_owner,
-                  start_area, sarif_rows, doc_lock, tool_person)
+                  start_area, sarif_rows, doc_lock, tool_person,
+                  tool_owner, merge_rows, suspect_lead, silent_precondition, trailer_case)
 CLONE_CHECKS = (tree_claim, sweeping_evidence, magnet_gone, hygiene_misread, lock_workspace, unreferenced_named, self_credit, declared_critical,
-                generated_owner, agent_pointer, structure_skipped, dependency_floor)
+                generated_owner, agent_pointer, structure_skipped, dependency_floor,
+                merge_total, test_double_lead, test_path_secret, peer_unused, declared_reference, lock_without_require, dev_only_vuln_lead)
 
 
 def over(report: dict, clone: str = None) -> dict:

@@ -453,6 +453,211 @@ class WithARepositoryAgain(unittest.TestCase):
         f = finding("vulnerable_dependencies", evidence={"packages": rows})
         self.assertEqual(self.over(findings=[f]), ["dependency_floor"], "only the unpinned one")
 
+class FromThePaperclipExport(unittest.TestCase):
+    """The paperclip review's checks that need nothing but the export."""
+
+    IDS = [{"name": "Ann", "email": "ann@x.org", "commits": 50, "authored": 50},
+           {"name": "Tool", "email": "noreply@vendor.example", "commits": 40, "authored": 1},
+           {"name": "Helper", "email": "noreply@vendor.example", "commits": 2, "authored": 0}]
+    OWN = [{"entity": "src/a.py", "author": "Ann", "added": 100, "deleted": 0, "commits": 3},
+           {"entity": "src/a.py", "author": "Tool", "added": 60, "deleted": 0, "commits": 3}]
+
+    def test_a_tool_shown_as_an_owner(self):
+        """paperclip's product agent, a trailer on 2,052 commits at a mailbox nine names share, was second owner everywhere."""
+        r = report(meta={"identities": self.IDS}, ownership=self.OWN, theseus_authors={"Ann": 100, "Tool": 80})
+        subjects = [c["subject"] for c in consistency.over(r)["complaints"] if c["check"] == "tool_owner"]
+        self.assertEqual(len(subjects), 2, subjects)
+        self.assertTrue(any("second" in s for s in subjects) and any("surviving" in s for s in subjects))
+
+    def test_a_tool_kept_out_of_the_tables(self):
+        r = report(meta={"identities": self.IDS}, ownership=self.OWN[:1], theseus_authors={"Ann": 100},
+                   tools={"names": ["Tool", "Helper"]})
+        self.assertNotIn("tool_owner", checks(r))
+
+    def test_a_per_account_no_reply_address_is_a_person(self):
+        ids = [{"name": "Ann", "email": "12+ann@users.noreply.example", "commits": 50, "authored": 50},
+               {"name": "Ann B", "email": "12+ann@users.noreply.example", "commits": 5, "authored": 5}]
+        self.assertEqual(consistency.harness_tools(report(meta={"identities": ids})), set())
+
+    def test_one_name_credited_mostly_by_trailer_is_a_tool(self):
+        ids = [{"name": "Agent", "email": "noreply@agent.example", "commits": 30, "authored": 2}]
+        self.assertEqual(consistency.harness_tools(report(meta={"identities": ids})), {"Agent"})
+        ids[0]["authored"] = 30
+        self.assertEqual(consistency.harness_tools(report(meta={"identities": ids})), set(), "one person on their own no-reply mailbox")
+
+    def test_a_people_row_with_negative_commits(self):
+        """paperclip: an alias of Dotta with one co-authored commit carried 348 merges, shown as -348 commits.
+        The check reads the People table as gitmole draws it, so it is fed a drawn table with such a row."""
+        from unittest.mock import patch
+        table = {"columns": ["author", "commits", "merges", "share"], "rows": [["Bo", "90", "10", "90%"], ["Bo", "-10", "10", "-9%"]]}
+        with patch.object(consistency, "_render", return_value=table):
+            self.assertEqual(checks(report()), ["merge_total"])
+        table["rows"][1] = ["Bo", "0", "0", "0%"]
+        with patch.object(consistency, "_render", return_value=table):
+            self.assertEqual(checks(report()), [])
+
+    def test_merges_counted_by_name_no_longer_draw_a_negative_row(self):
+        """The same shape through gitmole's own table: since merges belong to an identity, not its display name,
+        the co-author-only alias no longer shows the other row's merges as negative commits."""
+        ids = [{"name": "Bo", "email": "bo@x.org", "commits": 90, "authored": 90, "merges": 10},
+               {"name": "Bo", "email": "bo@users.noreply.example", "commits": 1, "authored": 0, "merges": 10}]
+        self.assertNotIn("merge_total", checks(report(meta={"identities": ids})))
+
+    def test_a_table_that_leads_with_a_suspect_span(self):
+        """paperclip's Complex functions led with parseSkillFrontmatter, complexity 1036 over 4,232 lines: 19 real ones."""
+        funcs = [{"file": "a.ts", "function": "parse", "ccn": 900, "nloc": 4000, "params": 1, "start": 10, "end": 4500, "suspect": "opens a block"},
+                 {"file": "b.ts", "function": "run", "ccn": 80, "nloc": 300, "params": 0, "start": 5, "end": 320}]
+        self.assertEqual(checks(report(functions=funcs)), ["suspect_lead"])
+        del funcs[0]["suspect"]
+        self.assertEqual(checks(report(functions=funcs)), [])
+
+    def test_a_lead_whose_span_the_structure_step_disputes(self):
+        funcs = [{"file": "b.ts", "function": "run", "ccn": 80, "nloc": 300, "params": 0, "start": 5, "end": 320}]
+        f = finding("brain_methods", evidence={"functions": [{"file": "b.ts", "function": "run", "ccn": 80, "lines": 300, "start": 5}]})
+        far = {"functions": [{"file": "b.ts", "name": "run", "start": 5, "end": 6000}]}
+        near = {"functions": [{"file": "b.ts", "name": "run", "start": 5, "end": 330}]}
+        self.assertEqual(checks(report(functions=funcs, findings=[f], structure=far)), ["suspect_lead", "suspect_lead"])
+        self.assertEqual(checks(report(functions=funcs, findings=[f], structure=near)), [])
+
+    def test_a_test_that_did_not_run_and_says_nothing(self):
+        """paperclip: 7.5 months of history, the size-matched test needs 12, the rule still advertised it."""
+        rule = {"id": "bug_magnets", "above_rate": {"test": "binomial", "min_history_months": 12}}
+        f = {**finding("bug_magnets", "391 file(s) were fixed 3+ times in six months: a.py.", evidence={"count": 1}), "rule": rule}
+        r = report(meta={"first_date": "2026-02-16", "last_date": "2026-09-30"}, findings=[f])
+        self.assertEqual(checks(r), ["silent_precondition"])
+        f["evidence"]["fix_rate"] = {"above_rate": []}
+        self.assertEqual(checks(r), [], "the result is there, even an empty one")
+        del f["evidence"]["fix_rate"]
+        f["detail"] += " The size test did not run: too little history."
+        self.assertEqual(checks(r), [], "the text says so")
+
+    def test_trailer_keys_split_by_case_or_an_issue_id(self):
+        r = report(provenance={"trailers": {"keys": {"Co-authored-by": 9, "Co-Authored-By": 4, "PAP-10182": 1}}})
+        self.assertEqual(checks(r), ["trailer_case", "trailer_case"])
+        r = report(provenance={"trailers": {"keys": {"Co-authored-by": 9, "Signed-off-by": 4}}})
+        self.assertEqual(checks(r), [])
+
+
+class WithThePaperclipRepository(unittest.TestCase):
+    """The paperclip review's checks that read the clone."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = self.tmp.name
+        self.env = {**os.environ, "GIT_AUTHOR_NAME": "Ann", "GIT_AUTHOR_EMAIL": "ann@example.org", "GIT_COMMITTER_NAME": "Ann",
+                    "GIT_COMMITTER_EMAIL": "ann@example.org", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+        git(self.repo, "init", "-q", "-b", "main", env=self.env)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write(self, path, text):
+        full = os.path.join(self.repo, path)
+        os.makedirs(os.path.dirname(full) or self.repo, exist_ok=True)
+        with open(full, "w") as fh:
+            fh.write(text)
+
+    def commit(self, message="c"):
+        git(self.repo, "add", "-A", env=self.env)
+        git(self.repo, "commit", "-q", "--allow-empty", "-m", message, env=self.env)
+        return git(self.repo, "rev-parse", "HEAD")
+
+    def over(self, **r):
+        head = self.commit()
+        meta = {"run": {"commit": head}, **(r.pop("meta", {}))}
+        return sorted(c["check"] for c in consistency.over(report(meta=meta, **r), self.repo)["complaints"])
+
+    def test_the_merge_total_against_git(self):
+        """paperclip: "725 in all" against 376 merges git has."""
+        self.commit("one")
+        git(self.repo, "checkout", "-q", "-b", "side", env=self.env)
+        self.write("x", "1\n")
+        self.commit("side")
+        git(self.repo, "checkout", "-q", "main", env=self.env)
+        git(self.repo, "merge", "-q", "--no-ff", "-m", "merge", "side", env=self.env)
+        ids = [{"name": "Ann", "email": "ann@example.org", "commits": 5, "authored": 5, "merges": 2}]
+        self.assertEqual(self.over(meta={"identities": ids}), ["merge_total"])
+        ids[0]["merges"] = 1
+        self.assertEqual(self.over(meta={"identities": ids}), [])
+
+    def test_a_cargo_binary_only_the_tests_run(self):
+        """paperclip's brain methods led with fake-codex-app-server.rs, which tests/ start through CARGO_BIN_EXE_."""
+        self.write("crate/Cargo.toml", '[package]\nname = "core"\n\n[[bin]]\nname = "fake-server"\npath = "src/bin/fake-server.rs"\n')
+        self.write("crate/src/bin/fake-server.rs", "fn main() {}\n")
+        self.write("crate/src/bin/daemon.rs", "fn main() {}\n")
+        self.write("crate/tests/it.rs", 'const B: &str = env!("CARGO_BIN_EXE_fake-server");\nconst D: &str = env!("CARGO_BIN_EXE_daemon");\n')
+        self.write("crate/src/launch.rs", 'const D: &str = env!("CARGO_BIN_EXE_daemon");\n')
+        fake = finding("brain_methods", evidence={"functions": [{"file": "crate/src/bin/fake-server.rs", "function": "main", "start": 1}]})
+        daemon = finding("brain_methods", evidence={"functions": [{"file": "crate/src/bin/daemon.rs", "function": "main", "start": 1}]})
+        self.assertEqual(self.over(findings=[fake]), ["test_double_lead"])
+        self.assertEqual(self.over(findings=[daemon]), [], "named outside tests/ too")
+
+    def test_a_secret_in_test_code(self):
+        """paperclip's critical sat in scripts/smoke/…-e2e.sh; its two possible secrets below #[cfg(test)]."""
+        self.write("scripts/smoke/gateway-e2e.sh", "curl -H 'Authorization: Bearer x'\n")
+        self.write("src/state.rs", "fn a() {}\n\n#[cfg(test)]\nmod tests {\n    const P: &str = \"x\";\n}\n")
+        self.write("src/live.rs", "const P: &str = \"x\";\n\n#[cfg(test)]\nmod tests {}\n")
+        head = self.commit()
+        rows = [{"rule": "curl-auth-header", "file": "scripts/smoke/gateway-e2e.sh", "line": 1, "commit": head, "confidence": "high"},
+                {"rule": "generic-password", "file": "src/state.rs", "line": 5, "commit": head, "at_head": True, "head_line": 5},
+                {"rule": "generic-password", "file": "src/live.rs", "line": 1, "commit": head, "at_head": True, "head_line": 1}]
+        crit = finding("secrets_in_source", severity="critical", evidence={"files": ["scripts/smoke/gateway-e2e.sh"]})
+        possible = finding("secrets_possible", evidence={"files": ["src/state.rs", "src/live.rs"]})
+        self.assertEqual(self.over(findings=[crit, possible], secrets=rows), ["test_path_secret", "test_path_secret"])
+        crit["evidence"]["files"] = []
+        possible["evidence"]["files"] = ["src/live.rs"]
+        self.assertEqual(self.over(findings=[crit, possible], secrets=rows), [], "above #[cfg(test)] is the code itself")
+
+    def test_an_unused_dependency_the_lock_records_as_a_peer(self):
+        """paperclip: @anthropic-ai/sdk and nice-grpc were peers of packages the manifests depend on;
+        @tailwindcss/typography a Tailwind @plugin."""
+        self.write("pnpm-lock.yaml", "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n\n  server:\n    dependencies:\n"
+                   "      acp:\n        specifier: ^1\n        version: 1.0.0(sdk@2.0.0)\n      sdk:\n        specifier: ^2\n        version: 2.0.0\n"
+                   "      lonely:\n        specifier: ^1\n        version: 1.0.0\n\npackages:\n\n  acp@1.0.0:\n    peerDependencies:\n      sdk: '>=2'\n")
+        self.write("server/package.json", '{"dependencies": {"acp": "^1", "sdk": "^2", "lonely": "^1"}}')
+        self.write("ui/package.json", '{"dependencies": {"typo": "^1"}}')
+        self.write("ui/src/index.css", '@import "tailwindcss";\n@plugin "typo";\n')
+        rows = [{"ecosystem": "npm", "manifest": "server/package.json", "package": "sdk"},
+                {"ecosystem": "npm", "manifest": "ui/package.json", "package": "typo"},
+                {"ecosystem": "npm", "manifest": "server/package.json", "package": "lonely"}]
+        f = finding("unused_dependencies", evidence={"unused": rows})
+        self.assertEqual(self.over(findings=[f]), ["peer_unused", "peer_unused"], "lonely is unused indeed")
+
+    def test_an_unreferenced_file_a_package_declares(self):
+        """paperclip's first ten "unreferenced" files: run by scripts, published through exports, loaded by new URL."""
+        self.write("pkg/package.json", '{"scripts": {"replay": "tsx src/cli/replay.ts", "fmt": "prettier --write \'src/**/*.ts\'"}, '
+                   '"exports": {".": "./dist/index.js", "./testing": "./dist/testing.js", "./tools/*": "./dist/tools/*.js"}}')
+        for p in ("src/cli/replay.ts", "src/testing.ts", "src/tools/hash.ts", "src/orphan.ts", "src/fixtures/data.mjs"):
+            self.write("pkg/" + p, "export {}\n")
+        self.write("pkg/src/loader.test.ts", "const u = new URL('./fixtures/data.mjs', import.meta.url);\n")
+        files = ["pkg/src/cli/replay.ts", "pkg/src/testing.ts", "pkg/src/tools/hash.ts", "pkg/src/fixtures/data.mjs"]
+        f = finding("unreferenced_files", evidence={"files": files})
+        self.assertEqual(self.over(findings=[f]).count("declared_reference"), 4)
+        g = finding("unreferenced_files", evidence={"files": ["pkg/src/orphan.ts"]})
+        self.assertNotIn("declared_reference", self.over(findings=[g]), "a formatter's glob does not load it")
+
+    def test_a_go_module_that_requires_nothing(self):
+        self.write("tools/shim/go.mod", "module example.org/shim\n\ngo 1.22\n")
+        self.write("svc/go.mod", "module example.org/svc\n\ngo 1.22\n\nrequire example.org/x v1.0.0\n")
+        empty = finding("lockfile_missing", evidence={"missing": [{"manifest": "tools/shim/go.mod", "expected": ["go.sum"]}]})
+        real = finding("lockfile_missing", evidence={"missing": [{"manifest": "svc/go.mod", "expected": ["go.sum"]}]})
+        self.assertEqual(self.over(findings=[empty]), ["lock_without_require"])
+        self.assertEqual(self.over(findings=[real]), [])
+
+    def test_a_vulnerable_lead_only_dev_dependencies_reach(self):
+        """paperclip led with form-data, reached only through supertest, and buried multer, which the server imports."""
+        self.write("pnpm-lock.yaml", "lockfileVersion: '9.0'\n\nimporters:\n\n  server:\n    dependencies:\n"
+                   "      multer:\n        specifier: ^2\n        version: 2.2.0\n    devDependencies:\n"
+                   "      supertest:\n        specifier: ^7\n        version: 7.2.2\n\npackages:\n\n  form-data@4.0.5:\n    resolution: {}\n\n"
+                   "snapshots:\n\n  form-data@4.0.5: {}\n\n  multer@2.2.0: {}\n\n  supertest@7.2.2:\n    dependencies:\n      form-data: 4.0.5\n")
+        dev = {"name": "form-data", "version": "4.0.5", "source": "pnpm-lock.yaml", "score": 8.7}
+        run = {"name": "multer", "version": "2.2.0", "source": "pnpm-lock.yaml", "score": 7.5}
+        f = finding("vulnerable_dependencies", evidence={"packages": [dev, run]})
+        self.assertEqual(self.over(findings=[f]), ["dev_only_vuln_lead"])
+        f = finding("vulnerable_dependencies", evidence={"packages": [run, dev]})
+        self.assertEqual(self.over(findings=[f]), [])
+
+
 class Totals(unittest.TestCase):
     def test_clean_counts_findings_and_tables_are_apart(self):
         f = finding("minor_contributors", "x.py.", "Have Ann review it.", {"files": [{"owner": "Ann"}]})

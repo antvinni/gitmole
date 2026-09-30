@@ -22,10 +22,11 @@ import sys
 import tempfile
 
 try:
-    from . import imports, licences
+    from . import imports, licences, locks
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import imports
     import licences
+    import locks
 
 ARGV = ["osv-scanner", "scan", "source", "-r", "--offline", "--format", "json", "--all-packages", "."]
 NO_SOURCES = 128           # osv-scanner: no lock file found
@@ -210,8 +211,21 @@ def files_phrase(paths) -> str:
     return " and ".join(out) or "0 lock files"
 
 
+def informational(v: dict) -> str | None:
+    """The kind of an advisory that reports no vulnerability: RustSec's informational advisories
+    (`unmaintained`, `unsound`, `notice`), which OSV carries in affected[].database_specific.informational
+    and cargo-audit reports as warnings, not vulnerabilities. None for any other advisory."""
+    for a in v.get("affected") or []:
+        kind = (a.get("database_specific") or {}).get("informational")
+        if isinstance(kind, str) and kind:
+            return kind
+    return None
+
+
 def summarise(data: dict, cwd: str) -> dict:
-    sources, vulnerable, packages, texts = [], [], 0, {}
+    """One row per vulnerable package; a package whose every advisory is informational (informational())
+    goes to `informational` instead: it is a note about the package, not a vulnerability in it."""
+    sources, vulnerable, notes, packages, texts = [], [], [], 0, {}
     for r in data.get("results") or []:
         path = _relative((r.get("source") or {}).get("path") or "", cwd)
         pkgs = r.get("packages") or []
@@ -222,6 +236,12 @@ def summarise(data: dict, cwd: str) -> dict:
             if not vulns:
                 continue
             info = p.get("package") or {}
+            kinds = [informational(v) for v in vulns]
+            if all(kinds):
+                notes.append({"name": info.get("name", ""), "version": info.get("version", ""), "ecosystem": info.get("ecosystem", ""),
+                              "source": path, "ids": [v.get("id", "") for v in vulns], "kinds": sorted(set(kinds)),
+                              "summary": next((v.get("summary") for v in vulns if v.get("summary")), "")})
+                continue
             groups = p.get("groups") or []
             score = _score(groups, vulns)
             aliases = sorted({a for v in vulns for a in v.get("aliases") or [] if a.startswith("CVE-")})
@@ -234,7 +254,43 @@ def summarise(data: dict, cwd: str) -> dict:
             if is_requirement_file(path):
                 _pin(vulnerable[-1], cwd, texts)
     vulnerable.sort(key=lambda r: (not r["malicious"], -(r["score"] if r["score"] is not None else -1), r["name"], r["source"]))
-    return {"status": "scanned", "sources": sources, "packages": packages, "vulnerable": vulnerable}
+    notes.sort(key=lambda r: (r["name"], r["version"], r["source"]))
+    return {"status": "scanned", "sources": sources, "packages": packages, "vulnerable": vulnerable, **({"informational": notes} if notes else {})}
+
+
+# --- what the lock says about each vulnerable row ---------------------------------------------------
+
+def lock_context(rows: list, cwd: str) -> None:
+    """Set `runtime` on each row from a pnpm-lock.yaml or package-lock.json: true when an install without
+    development dependencies puts that version on disk (locks.pnpm_runtime, locks.npm_runtime), false
+    when only development dependencies reach it; left out for a lock that does not say. And where the
+    lock records which versions the workspaces depend on directly, an `imported` true for a version no
+    workspace depends on becomes false: the import loads the version its workspace resolves, not this
+    one (esbuild imported at 0.28.2 says nothing about a 0.18.20 a build tool brings)."""
+    parsed = {}
+    for r in rows:
+        src = r.get("source") or ""
+        name = src.rsplit("/", 1)[-1]
+        if r.get("ecosystem") != "npm" or name not in ("pnpm-lock.yaml", "package-lock.json", "npm-shrinkwrap.json"):
+            continue
+        if src not in parsed:
+            try:   # the whole lock: a large workspace's is well past _file's cap
+                with open(os.path.join(cwd, src), encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
+            except OSError:
+                text = ""
+            if name == "pnpm-lock.yaml":
+                lock = locks.pnpm(text) if text else None
+                parsed[src] = (locks.pnpm_runtime(lock), locks.pnpm_direct(lock)) if lock and lock["importers"] else None
+            else:
+                lock = locks.npm(text) if text else None
+                parsed[src] = (locks.npm_runtime(lock), locks.npm_direct(lock)) if lock else None
+        if not parsed[src]:
+            continue
+        runtime, direct = parsed[src]
+        r["runtime"] = (r.get("name"), r.get("version")) in runtime
+        if r.get("imported") is True and r.get("name") in direct and r.get("version") not in direct[r["name"]]:
+            r["imported"] = False
 
 
 # --- what a lock's directory declares about how it ships ---------------------------------------------
@@ -527,6 +583,7 @@ def main(argv=None) -> int:
             imports.annotate(result["vulnerable"], os.getcwd())
         except OSError as e:   # the rows stand without it
             print(f"deps.py: imports: {e}", file=sys.stderr)
+        lock_context(result["vulnerable"], os.getcwd())
         write_packages(packages(data, os.getcwd()), os.path.join(os.path.dirname(os.path.abspath(target)), PACKAGES))
     else:
         print(f"deps.py: osv-scanner exited {proc.returncode}; no report written", file=sys.stderr)

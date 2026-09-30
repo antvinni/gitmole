@@ -29,6 +29,7 @@ class Classifier:
         self.types = filetypes.parse(meta["file_types"]) if "file_types" in meta else None
         self.tree = (report.get("size") or {}).get("files") or {}
         self.generated = set(meta.get("generated") or [])
+        self.test_doubles = set(meta.get("test_doubles") or [])   # Cargo bins only the tests start (filetypes.test_doubles)
         self.vendored = filetypes.vendor_dirs(report)
         self.amalgamations = hotspots.amalgamations(report)
         self.plumbing = filetypes.plumbing_paths(report)
@@ -45,7 +46,7 @@ class Classifier:
             out.append("generated")
         if filetypes.is_vendored(path, self.vendored):
             out.append("vendored")
-        if filetypes.is_test_path(path):
+        if filetypes.is_test_path(path) or path in self.test_doubles:
             out.append("test file")
         if filetypes.is_sample_path(path):
             out.append("example code")

@@ -253,7 +253,7 @@ class Report(unittest.TestCase):
         r["activity"]["sweeping"] = [{"hash": "a", "files": 40, "declared": False}, {"hash": "b", "files": 30, "declared": True}]
         r["activity"]["ignored_revs"] = 3
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("1 sweeping commit (a formatter run, a rename across the tree) and 3 declared in .git-blame-ignore-revs are left out of every count", caption,
+        self.assertIn("1 sweeping commit and 3 declared in .git-blame-ignore-revs are left out of every count", caption,
                       "a declared sweep is counted among the declared")
         r["activity"]["sweeping"], r["activity"]["ignored_revs"] = [], 0
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
@@ -279,7 +279,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["provenance"] = {"trailers": {"commits": 363, "keys": {"Co-authored-by": 40, "Signed-off-by": 12, "Assisted-by": 5}, "with_any": 50,
                                         "never_author": [{"name": "Helper", "email": "h@x", "commits": 30}], "signoff_by_co_author": []},
-                           "cohort": {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here", "share": 0.096,
+                           "cohort": {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool", "share": 0.096,
                                       "cohort": {"commits": 35, "reverted": 2, "fixes": 4, "retouched": 20},
                                       "rest": {"commits": 328, "reverted": 3, "fixes": 60, "retouched": 150}},
                            "shape": {"burst_share": 0.12, "conventional_share": 0.8, "hours_used": 20}, "agents": {}}
@@ -287,7 +287,7 @@ class Report(unittest.TestCase):
         block = _section_text(rendered(r, [], width=200, full=True), "Trailers")
         self.assertRegex(block, r"Co-authored-by\s+40\s+11%")
         caption = render.trailers_section(r)["caption"]
-        self.assertIn("marked commits (an Assisted-by trailer, or a co-author who never authors a commit here): 35, 10% of the history; "
+        self.assertIn("marked commits (an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool): 35, 10% of the history; "
                       "reverted 6% against 1% for the rest, fixes 11% against 18%, a file changed again within two weeks 57% against 46%", caption)
         self.assertIn("12% of commits land in bursts of five or more within ten minutes; 80% have conventional-commit subjects; commits come in 20 hours of the day", caption)
         self.assertIn("## Trailers", render.markdown(r, []))
@@ -1759,7 +1759,18 @@ class PeopleMerges(unittest.TestCase):
         sec = render.people_section(rep, full=False)
         self.assertEqual([r[0] for r in sec["rows"]], ["Dee"])
         self.assertNotIn("co-authored", sec["columns"])
-        self.assertIn("2 coding tools (names sharing one no-reply address) left out", sec["caption"])
+        self.assertIn("2 coding tools (told by their no-reply address) left out", sec["caption"])
+
+    def test_rows_sharing_a_name_keep_their_own_surviving_code_and_no_row_goes_negative(self):
+        rep = {"meta": {"identities": [{"name": "Dev", "email": "dev@home.example", "commits": 30, "authored": 30, "merges": 4},
+                                       {"name": "Dev", "email": "7+dev@users.noreply.example", "commits": 1, "authored": 0, "merges": 4}]},
+               "theseus_authors": {"Dev": 100}, "surviving_by_identity": {"Dev <dev@home.example>": 100}}
+        sec = render.people_section(rep, full=True)
+        rows = {r[1]: r for r in sec["rows"]}
+        self.assertEqual(rows["dev@home.example"][2], "26")
+        self.assertEqual(rows["dev@home.example"][-1], "100%")
+        self.assertEqual(rows["7+dev@users.noreply.example"][2], "0", "an old run's merges on a row that authored nothing never go below zero")
+        self.assertEqual(rows["7+dev@users.noreply.example"][-1], "0%", "the name's lines are the other row's")
 
 
 class SummaryLine(unittest.TestCase):

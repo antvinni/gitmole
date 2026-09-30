@@ -15,7 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import classify, coupling, deps, filetypes, hotspots, identity, knowledge, leaks, loss, scope, textfmt, trend, watch
+from . import classify, coupling, deps, filetypes, hotspots, identity, knowledge, leaks, loss, provenance, scope, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -401,13 +401,13 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
 
 
 def sweeps_note(report: dict):
-    """'2 sweeping commits (...) and 3 declared in .git-blame-ignore-revs are left out of every count', or
+    """'2 sweeping commits and 3 declared in .git-blame-ignore-revs are left out of every count', or
     None when the change analysis left nothing out (or predates the record)."""
     act = report.get("activity") or {}
     swept, declared = [c for c in act.get("sweeping") or [] if not c.get("declared")], act.get("ignored_revs") or 0
     parts = []
     if swept:
-        parts.append(f"{len(swept)} sweeping commit{'s' if len(swept) != 1 else ''} (a formatter run, a rename across the tree)")
+        parts.append(f"{len(swept)} sweeping commit{'s' if len(swept) != 1 else ''}")
     if declared:
         parts.append(f"{declared} declared in .git-blame-ignore-revs")
     if not parts:
@@ -471,7 +471,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     merges = any(i.get("merges") for i in ids)   # merges apart: merging every pull request is not writing the code
 
     def own(i):   # the commits they authored: a Co-authored-by credit is shown apart, not as a commit of theirs
-        return i.get("authored", i["commits"]) - i.get("merges", 0)
+        return max(0, i.get("authored", i["commits"]) - i.get("merges", 0))
 
     def credit(i):
         return i["commits"] - i.get("authored", i["commits"])
@@ -479,10 +479,13 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     total_commits = sum(own(i) for i in ids)
     surviving = report.get("theseus_authors") or {}
     total_lines = sum(surviving.values())
+    # each row's own lines, by its name and address; a report built without them reads by name
+    mine = report.get("surviving_by_identity")
+    lines_of = (lambda i: mine.get(identity.row_label(i), 0)) if mine is not None else (lambda i: surviving.get(i["name"], 0))
     limit = _limit("People", full)
     credited = any(credit(i) for i in ids[:limit])   # a column only when a row shown has any
     rows = [(i["name"], i["email"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
-             _pct(own(i), total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
+             _pct(own(i), total_commits), _pct(lines_of(i), total_lines)) for i in ids[:limit]]
     columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold", "spare": True}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
                *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving code", RIGHT)]
     if full is not True:
@@ -493,7 +496,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if merges:
         notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
     more = _more(len(ids), limit)
-    left = f"{apart} coding tool{'s' if apart != 1 else ''} (names sharing one no-reply address) left out" if apart else None
+    left = f"{apart} coding tool{'s' if apart != 1 else ''} (told by their no-reply address) left out" if apart else None
     if more or left:
         notes.append("; ".join(x for x in (more, left) if x))
     bots = report["meta"].get("bots") or []
@@ -625,7 +628,7 @@ def trailers_section(report: dict, full: bool = True, width=None) -> dict:
     tr, co, sh = prov.get("trailers") or {}, prov.get("cohort") or {}, prov.get("shape") or {}
     columns = [("trailer", {}), ("commits", RIGHT), ("share", RIGHT)]
     total = tr.get("commits") or 0
-    rows = [(k, n, _pct(n, total)) for k, n in (tr.get("keys") or {}).items()]
+    rows = [(k, min(n, total) if total else n, _pct(min(n, total), total)) for k, n in provenance.fold_keys(tr.get("keys") or {}).items()]
     notes = []
     marked, rest = co.get("cohort") or {}, co.get("rest") or {}
     if marked.get("commits"):
@@ -874,7 +877,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         columns, rows = _keep(columns, rows, [c[0] for c in columns[:-1]])
     notes = [c for c in (_more(len(areas), limit), hidden_note) if c]
     if shown:
-        notes.append("agents: the lines trailers credit to coding tools, several names sharing one no-reply address")
+        notes.append("agents: the lines trailers credit to coding tools, told by their no-reply address (identity.tools)")
     if gone:
         notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
                      + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))
@@ -1066,6 +1069,11 @@ def dependencies_line(report: dict):
         bad = len({r.get("name") for r in rows})
         line = f"Dependencies: {deps.get('packages', 0):,} packages in {_dependency_files(deps)}, "
         line += (f"{bad} vulnerable" + (f" in {len(rows)} places" if len(rows) != bad else "")) if bad else "none vulnerable"
+        notes = deps.get("informational") or []
+        if notes:   # RustSec's unmaintained, unsound and notice advisories: said, not counted as vulnerable
+            first = notes[0]
+            line += (f"; {len(notes)} with an informational advisory ({first.get('name')} {first.get('version')}, "
+                     f"{' and '.join(first.get('kinds') or [])}" + (f", and {len(notes) - 1} more" if len(notes) > 1 else "") + ")")
         if deps.get("database_date"):
             line += f" (database from {deps['database_date']})"
         return line, ("red" if bad else "green")

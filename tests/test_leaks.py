@@ -357,6 +357,15 @@ class Group(unittest.TestCase):
         groups = leaks.group([self.row("h1", "tests/t.py", "c1"), self.row("h1", "app/a.py", "c2")])
         self.assertFalse(groups[0]["test"])
 
+    def test_a_value_only_inside_a_rust_test_module_counts_as_test(self):
+        inline = dict(self.row("h1", "src/state.rs", "c1", 3471), test_code=True)
+        groups = leaks.group([inline])
+        self.assertTrue(groups[0]["test"])
+        self.assertEqual(groups[0]["test_code_files"], ["src/state.rs"])
+        groups = leaks.group([inline, self.row("h1", "src/state.rs", "c2", 12)])
+        self.assertFalse(groups[0]["test"], "the same value outside the module is source")
+        self.assertNotIn("test_code_files", groups[0])
+
     def test_rows_without_a_value_are_their_own_group(self):
         groups = leaks.group([{"rule": "aws", "file": "a.env", "commit": "abc1234"}, {"rule": "aws", "file": "b.env", "commit": "abc1234"}])
         self.assertEqual(len(groups), 2)
@@ -462,6 +471,16 @@ class ContextAndForms(unittest.TestCase):
         self.assertFalse(leaks.is_placeholder(value, f"fake_clock = Clock()\napi_key = '{value}'"))
         self.assertTrue(leaks.is_placeholder(value, f"# Example:\napi_key = '{value}'"), "a word of its own still calls it an example")
         self.assertTrue(leaks.is_placeholder(value, f"sampleApiKey = '{value}'"), "the value's own key calls it a sample")
+
+    def test_lowercase_words_joined_by_hyphens_are_a_phrase_not_an_issued_credential(self):
+        """paperclip's only critical: `curl -H "Authorization: Bearer <three lowercase words>"` in a negative auth test."""
+        slug = "-".join(("wrong", "bearer", "key"))
+        for rule in ("curl-auth-header", "generic-api-key", "github-pat"):
+            self.assertTrue(leaks.is_placeholder(slug, "", "scripts/smoke/e2e.sh", rule), rule)
+        self.assertFalse(leaks.is_placeholder(slug, "", "app/settings.py", "generic-password"),
+                         "a password a person chose can be a hyphenated passphrase")
+        for value in ("wrong-k3y-value", "Wrong-bearer-key", "wrongbearerkey", "a-b-c", "wrong_bearer_key", "wrong-bearer-", self.KEY_ID, self.PAT):
+            self.assertFalse(leaks._SLUG.match(value) and True, value)
 
     def test_a_provider_key_next_to_an_example_comment_is_still_a_key(self):
         """A gate fixture: a committed key under a comment that says "example" or "sample" must be caught."""
@@ -714,3 +733,22 @@ class AtHead(unittest.TestCase):
             row = {"RuleID": "x", "File": "a.py", "Commit": "abc", "StartLine": 1, "Secret": FAKE}
             leaks.annotate(d, [row])
         self.assertNotIn("AtHead", row)
+
+
+class TestCode(unittest.TestCase):
+    def test_a_row_inside_a_rust_test_module_at_its_commit_is_test_code(self):
+        """paperclip's two possible secrets sat in #[cfg(test)] modules of state.rs and provider_backend.rs."""
+        from tests.test_hygiene import Repo
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/state.rs", "fn open() {}\n\n#[cfg(test)]\nmod tests {\n    const P: &str = \"x\";\n}\nfn after() {}\n")
+            r.write("src/lib.py", "#[cfg(test)]\nmod tests {\n    P = 1\n}\n")
+            r.commit(date="2026-01-01T00:00:00")
+            c = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            rows = [{"RuleID": "x", "File": "src/state.rs", "Commit": c, "StartLine": 5},
+                    {"RuleID": "x", "File": "src/state.rs", "Commit": c, "StartLine": 7},
+                    {"RuleID": "x", "File": "src/lib.py", "Commit": c, "StartLine": 3},
+                    {"RuleID": "x", "File": "(unreachable blob 0123456789ab)", "Commit": "", "StartLine": 5}]
+            leaks.mark_test_code(d, rows)
+        self.assertEqual([x.get("TestCode") for x in rows], [True, None, None, None])
+        self.assertTrue(leaks.sanitise(rows[:1])[0]["TestCode"], "kept through sanitising: it says nothing about the value")

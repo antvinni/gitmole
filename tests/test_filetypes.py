@@ -98,9 +98,12 @@ class TestPaths(unittest.TestCase):
     def test_test_files_and_directories(self):
         for path in ("tests/test_a.py", "a/spec/b.rb", "src/__tests__/x.js", "x/y_test.go", "app.spec.ts", "app.test.tsx", "test_x.py",
                      "pending_tests/main.py", "e2e-tests/login.ts", "src/test_utils/helpers.py", "crates/x/snapshots/rule__S105.py.snap",
-                     "src/__snapshots__/a.js.snap", "lib/render.snap"):
+                     "src/__snapshots__/a.js.snap", "lib/render.snap", "scripts/smoke/check.sh", "smoke/run.py", "e2e/login.spec.js",
+                     "apps/web/e2e/fixtures.ts", "scripts/smoke/gateway-e2e.sh", "src/login_e2e.go", "ui/login.e2e.ts",
+                     "packages/db/src/__fixtures__/recovery.mjs"):
             self.assertTrue(filetypes.is_test_path(path), path)
-        for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md", "src/testimony.py", "snapshot.py"):
+        for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md", "src/testimony.py", "snapshot.py",
+                     "src/smoke_detector.py", "src/smokescreen/x.go", "lib/e2ee/cipher.rs", "src/e2e.go", "src/e2e_crypto/x.rs"):
             self.assertFalse(filetypes.is_test_path(path), path)
 
     def test_suffix_conventions_of_test_frameworks(self):
@@ -111,6 +114,54 @@ class TestPaths(unittest.TestCase):
         for path in ("com/example/Contest.java", "src/requests/client.py", "src/TestHelper.sol", "src/Latest.kt", "rtl/tbench.v",
                      "rtl/outbound.v", "src/spec_writer.rb", "lib/Spec.hs"):   # case-sensitive: contest is not a Test, requests/ is not a Tests/ dir
             self.assertFalse(filetypes.is_test_path(path), path)
+
+    def test_rust_test_modules_are_spans_from_the_attribute_to_the_closing_brace(self):
+        text = "\n".join(["fn run() {", "}", "", "#[cfg(test)]", "#[allow(unused)]", "mod tests {", "    use super::*;", "    #[test]",
+                          "    fn a() {", "    }", "}", "", "fn after() {}", "#[cfg(test)]", "pub(crate) mod support {", "}"])
+        self.assertEqual(filetypes.rust_test_spans(text), [(4, 11), (14, 16)])
+        self.assertTrue(filetypes.in_spans(7, [(4, 11)]))
+        self.assertFalse(filetypes.in_spans(13, [(4, 11), (14, 16)]), "code after the module is the file's own again")
+
+    def test_only_the_top_level_rustfmt_shape_is_a_test_module(self):
+        for text in ("#[cfg(test)]\nfn helper() {\n}\n",                     # a test-only function, not a module
+                     "    #[cfg(test)]\n    mod tests {\n    }\n",          # nested: its closing brace is not at column 0
+                     "#[cfg(test)]\nmod tests;\n",                            # tests in another file, which its own path judges
+                     "#[cfg(test)]\nmod tests {\n    fn a() {}\n",           # never closed: not the rest of the file
+                     "#[cfg(all(test, feature = \"x\"))]\nmod tests {\n}\n"):
+            self.assertEqual(filetypes.rust_test_spans(text), [], text)
+
+    def test_rust_test_modules_reads_rs_files_only(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "src"))
+            with open(os.path.join(d, "src", "lib.rs"), "w") as fh:
+                fh.write("fn a() {}\n#[cfg(test)]\nmod tests {\n}\n")
+            with open(os.path.join(d, "src", "notes.md"), "w") as fh:
+                fh.write("#[cfg(test)]\nmod tests {\n}\n")
+            self.assertEqual(filetypes.rust_test_modules(d, ["src/lib.rs", "src/notes.md", "src/gone.rs"]), {"src/lib.rs": [[2, 4]]})
+
+    def test_a_cargo_bin_only_the_tests_start_is_a_test_double(self):
+        """paperclip's brain methods led with `run` in runner-core/src/bin/fake-codex-app-server.rs, a [[bin]] its
+        integration tests start through CARGO_BIN_EXE_fake-codex-app-server and nothing else ships."""
+        from tests.test_hygiene import Repo
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("crates/core/Cargo.toml", '[package]\nname = "core"\n\n[[bin]]\nname = "fake-server"\npath = "src/bin/fake-server.rs"\n\n'
+                                              '[[bin]]\nname = "daemon"\npath = "src/bin/daemon.rs"\n\n[dependencies]\nname = "x"\n')
+            for name in ("fake-server", "daemon", "tracer"):
+                r.write(f"crates/core/src/bin/{name}.rs", f'fn main() {{ eprintln!("{name}"); }}\n')
+            r.write("crates/core/src/bin/stub/main.rs", "fn main() {}\n")
+            r.write("crates/core/src/bin/stub/io.rs", "pub fn io() {}\n")
+            r.write("crates/core/tests/e2e.rs", 'const A: &str = env!("CARGO_BIN_EXE_fake-server");\nconst B: &str = env!("CARGO_BIN_EXE_daemon");\n'
+                                                'const C: &str = env!("CARGO_BIN_EXE_stub");\n')
+            r.write("docs/debugging.md", "cargo build --bin fake-server\n")
+            r.write("Dockerfile", "COPY target/release/daemon /usr/bin/daemon\n")
+            r.write("scripts/release.sh", "cargo build --bin tracer\n")
+            r.commit()
+            paths = subprocess.run(["git", "-C", d, "ls-files"], capture_output=True, text=True).stdout.split()
+            self.assertEqual(filetypes.test_doubles(d, paths),
+                             ["crates/core/src/bin/fake-server.rs", "crates/core/src/bin/stub/io.rs", "crates/core/src/bin/stub/main.rs"],
+                             "daemon ships (the Dockerfile names it); tracer no test starts")
+            self.assertEqual(filetypes.test_doubles(d, [p for p in paths if not p.endswith("Cargo.toml")]), [], "no manifest, no bin")
 
     def test_documentation_files_and_directories(self):
         for path in ("README.md", "docs/GA4-API-INTEGRATION.md", "doc/guide.rst", "NOTES.txt", "a/b/CHANGELOG.markdown", "docs/conf.py", "x.adoc",

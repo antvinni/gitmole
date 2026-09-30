@@ -7,7 +7,8 @@ writes provenance.json:
 - trailers: every trailer key and how many commits carry it; the co-authors who never author a commit
   here (a structural fact about the repository, no list of products); sign-offs by such identities,
   which the Linux kernel's policy on coding assistants forbids an agent to add.
-- cohort: commits with an `Assisted-by` trailer or a never-authoring co-author, against the rest: how
+- cohort: commits with an `Assisted-by` trailer, a never-authoring co-author or a coding tool (identity.tools
+  over meta.json) as co-author, against the rest: how
   many were reverted (by git's own `Revert "subject"`), how many are fixes, and how many had a file
   changed again by another commit within two weeks. This repository against itself, with the share
   of commits the cohort covers beside it; no prior from elsewhere, since the best-controlled study
@@ -21,7 +22,8 @@ writes provenance.json:
 - shape: neutral descriptors (commits landing in bursts, conventional-commit subjects, how many hours
   of the day commits come in). Every one has a benign cause, and none is labelled.
 - agents: the agent instruction files by path convention (AGENTS.md, CLAUDE.md, GEMINI.md,
-  .github/copilot-instructions.md) and how far behind HEAD each is (a file that only points at another, by
+  .github/copilot-instructions.md, subagents and skills under .claude/, .codex/ and .agents/; none under a
+  template, fixture, example or test directory: is_instruction_file) and how far behind HEAD each is (a file that only points at another, by
   symlink, `@path` or a link, as far as the newest file it points at), the hook files that declare
   guardrails, tracked personal settings, settings that turn approval prompts off, and MCP server
   declarations whose environment carries literal values rather than references. Values are never
@@ -38,15 +40,20 @@ import sys
 from collections import Counter, deque
 
 try:
-    from . import filetypes, leaks
+    from . import filetypes, identity, leaks
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
+    import identity
     import leaks
 
 SEP, END = "\x1f", "\x1e"
 # a trailer key is hyphenated by convention (Co-authored-by, Signed-off-by, Change-Id); git's parser also
 # accepts a URL or a line of prose that happens to end the message, and those are not trailers
 _TRAILER_LINE = re.compile(r"^([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+):\s*(?!//)(.+)$")
+# an issue reference that happens to end a message ("PAP-10182: fixed the retry"): a project key in capitals, a
+# hyphen and a number, Jira's shape and GitHub's autolink references'. git reads it as a trailer; a trailer key
+# names a field (Signed-off-by, Change-Id), and no field's name ends in a bare number
+_TICKET_KEY = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
 _IDENT = re.compile(r"^\s*(?P<name>[^<]*?)\s*<(?P<email>[^>]*)>\s*$")
 _CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]*\))?!?: \S")
 BURST_SIZE, BURST_SECONDS = 5, 600
@@ -75,7 +82,8 @@ def read_commits(repo: str) -> list:
         if len(parts) < 7:
             continue
         h, at, name, email, subject, trailer_text, files = parts[:7]
-        trailers = [(m.group(1), m.group(2).strip()) for m in (_TRAILER_LINE.match(l) for l in trailer_text.split("\n")) if m]
+        trailers = [(m.group(1), m.group(2).strip()) for m in (_TRAILER_LINE.match(l) for l in trailer_text.split("\n"))
+                    if m and not _TICKET_KEY.match(m.group(1))]
         commits.append({"hash": h, "time": int(at), "author": name, "email": email.lower(), "subject": subject,
                         "trailers": trailers, "files": [f for f in files.split("\n") if f.strip()]})
     commits.reverse()
@@ -87,14 +95,28 @@ def _ident(value: str):
     return (m.group("name"), m.group("email").lower()) if m else None
 
 
+def fold_keys(keys: dict) -> dict:
+    """Trailer keys counted without regard to case, as git's own trailer matching is (Co-authored-by and
+    Co-Authored-By are one trailer), each under its most common spelling, most used first; an issue reference
+    (_TICKET_KEY) is not a trailer. Counts per spelling of one key are summed, which for an older run that
+    counted spellings apart can count a commit carrying both twice."""
+    groups = {}
+    for k, n in keys.items():
+        if not _TICKET_KEY.match(k):
+            groups.setdefault(k.lower(), []).append((k, n))
+    folded = [(min(g, key=lambda kv: (-kv[1], kv[0]))[0], sum(n for _, n in g)) for g in groups.values()]
+    return dict(sorted(folded, key=lambda kv: (-kv[1], kv[0])))
+
+
 def trailers(commits: list) -> dict:
-    keys = Counter()
+    keys, spellings = Counter(), Counter()
     authors = {c["email"] for c in commits} | {c["author"] for c in commits}
     co, signed = Counter(), Counter()
     names = {}
     for c in commits:
-        for k in {k for k, _ in c["trailers"]}:
+        for k in {k.lower() for k, _ in c["trailers"]}:
             keys[k] += 1
+        spellings.update(k for k, _ in c["trailers"])
         for k, v in c["trailers"]:
             ident = _ident(v)
             if not ident:
@@ -107,12 +129,24 @@ def trailers(commits: list) -> dict:
     never = {e for e in co if e not in authors and names[e] not in authors}
     listing = sorted(({"name": names[e], "email": e, "commits": co[e]} for e in never), key=lambda x: (-x["commits"], x["name"]))
     signoff = sorted(({"name": names[e], "email": e, "commits": signed[e]} for e in never if signed.get(e)), key=lambda x: (-x["commits"], x["name"]))
-    return {"commits": len(commits), "keys": dict(sorted(keys.items(), key=lambda kv: (-kv[1], kv[0]))[:25]),
+    spelled = {}
+    for k, n in sorted(spellings.items(), key=lambda kv: (-kv[1], kv[0])):
+        spelled.setdefault(k.lower(), k)   # the most common spelling of each key names it
+    return {"commits": len(commits), "keys": dict(sorted(((spelled[k], n) for k, n in keys.items()), key=lambda kv: (-kv[1], kv[0]))[:25]),
             "with_any": sum(1 for c in commits if c["trailers"]), "never_author": listing[:50], "signoff_by_co_author": signoff[:50]}
 
 
-def marker(inventory: dict):
-    """The predicate that marks a commit: an `Assisted-by` trailer, or a co-author who never authors."""
+def tool_names(meta: dict) -> frozenset:
+    """The coding tools of the run (identity.tools over meta.json's rows), and every name that merged into one."""
+    names = identity.tools(meta.get("identities") or [])
+    aliases = meta.get("aliases") or {}
+    return frozenset(names | {a for a, to in aliases.items() if to in names})
+
+
+def marker(inventory: dict, tools=frozenset()):
+    """The predicate that marks a commit: an `Assisted-by` trailer, or a co-author who never authors or who is a
+    coding tool (`tools`, tool_names). A tool that authored a commit or two is still one: paperclip's agent,
+    credited on 2,052 commits, authored 2, and the never-authoring test alone left all of them unmarked."""
     marked_emails = {x["email"] for x in inventory["never_author"]}
 
     def marked(c):
@@ -120,16 +154,16 @@ def marker(inventory: dict):
             if k.lower() == "assisted-by":
                 return True
             ident = _ident(v)
-            if k.lower() == "co-authored-by" and ident and ident[1] in marked_emails:
+            if k.lower() == "co-authored-by" and ident and (ident[1] in marked_emails or ident[0] in tools):
                 return True
         return False
     return marked
 
 
-def cohort(commits: list, inventory: dict, watch_files=None) -> dict:
-    """The commits an `Assisted-by` trailer or a never-authoring co-author marks, against the rest; with
-    `watch_files`, how many of each touched a file on the watch list."""
-    marked = marker(inventory)
+def cohort(commits: list, inventory: dict, watch_files=None, tools=frozenset()) -> dict:
+    """The commits an `Assisted-by` trailer, a never-authoring co-author or a coding tool marks (marker), against
+    the rest; with `watch_files`, how many of each touched a file on the watch list."""
+    marked = marker(inventory, tools)
 
     reverted = {c["subject"][len('Revert "'):-1] for c in commits if c["subject"].startswith('Revert "') and c["subject"].endswith('"')}
     by_file = {}
@@ -152,7 +186,7 @@ def cohort(commits: list, inventory: dict, watch_files=None) -> dict:
         if watch_files:
             s["watch"] += any(f in watch_files for f in c["files"])
     total = len(commits)
-    return {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here",
+    return {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool",
             "share": round(stats[True]["commits"] / total, 3) if total else 0.0,
             "cohort": dict(stats[True]) or {"commits": 0}, "rest": dict(stats[False]) or {"commits": 0}}
 
@@ -277,6 +311,30 @@ def shape(commits: list) -> dict:
 
 
 INSTRUCTIONS = ("AGENTS.md", "CLAUDE.md", "GEMINI.md", ".github/copilot-instructions.md")
+INSTRUCTION_NAMES = ("AGENTS.md", "CLAUDE.md", "GEMINI.md")   # read by the agents wherever they sit in the tree
+# the files the agents load as instructions by their place in the tree: Claude Code's subagents and skills, Codex's
+# agents, and the shared .agents/skills convention, in any directory a tool can be started from
+AGENT_FILES = re.compile(r"(^|/)(?:(?P<subagent>\.claude/agents/[^/]+\.md|\.codex/agents/[^/]+)|(?P<skill>\.claude/skills/[^/]+/SKILL\.md|\.agents/skills/[^/]+/SKILL\.md))$")
+
+
+def instruction_kind(path: str):
+    """"skill" or "subagent" for a file an agent loads when a task calls for it (AGENT_FILES), None for one it
+    reads at the start of every session (AGENTS.md and the like), which is what describes the tree."""
+    m = AGENT_FILES.search(path)
+    return None if not m else ("subagent" if m.group("subagent") else "skill")
+# where an instruction file is the product's data, not the repository's instructions: a template a generator
+# copies out, a fixture or example a test or a reader loads (filetypes' test and sample conventions)
+_SHIPPED = re.compile(r"(^|/)(templates?|__fixtures__)/")
+
+
+def is_instruction_file(path: str) -> bool:
+    """An agent instruction file the repository gives its own agents: AGENTS.md, CLAUDE.md or GEMINI.md anywhere,
+    .github/copilot-instructions.md, or a subagent or skill by the tools' layouts (AGENT_FILES); never one under
+    a template, fixture, example or test directory, which a product ships or a test loads (paperclip's nineteen
+    persona AGENTS.md)."""
+    if not (path.rsplit("/", 1)[-1] in INSTRUCTION_NAMES or path in INSTRUCTIONS or AGENT_FILES.search(path)):
+        return False
+    return not (_SHIPPED.search(path) or filetypes.is_test_path(path) or filetypes.is_sample_path(path))
 GUARDRAILS = (".claude/settings.json", ".cursor/hooks.json")
 MCP = (".mcp.json", ".cursor/mcp.json", ".vscode/mcp.json")
 LOCAL = (".claude/settings.local.json",)
@@ -355,7 +413,7 @@ def agents(repo: str) -> dict:
     tracked = set(filetypes.git_paths(repo, "ls-files"))
     head_count = int(subprocess.run(["git", "rev-list", "--count", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip() or 0)
     instructions = []
-    for path in sorted(p for p in tracked if p.rsplit("/", 1)[-1] in ("AGENTS.md", "CLAUDE.md", "GEMINI.md") or p in INSTRUCTIONS):
+    for path in sorted(p for p in tracked if is_instruction_file(p)):
         targets = pointer_targets(repo, path, tracked)
         # a pointer's instructions are its targets': it is as current as the newest of them
         dated = [c for c in (_last_change(repo, t) for t in (targets or [path])) if c]
@@ -363,7 +421,9 @@ def agents(repo: str) -> dict:
             continue
         sha, day, _ = max(dated, key=lambda c: c[2])
         behind = int(subprocess.run(["git", "rev-list", "--count", f"{sha}..HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip() or 0)
-        instructions.append(dict({"file": path, "last": day, "commits_behind": behind}, **({"points_to": targets} if targets else {})))
+        kind = instruction_kind(path)
+        instructions.append(dict({"file": path, "last": day, "commits_behind": behind}, **({"points_to": targets} if targets else {}),
+                                 **({"kind": kind} if kind else {})))
     guard, disabled = [], []
     for path in GUARDRAILS:
         data = _json(repo, path) if path in tracked else None
@@ -410,8 +470,9 @@ def main(argv=None) -> int:
             meta = json.load(fh)
     except (OSError, ValueError):
         pass
-    marked = marker(inventory)
-    result = {"trailers": inventory, "cohort": cohort(commits, inventory, watch_files), "shape": shape(commits), "agents": agents(repo)}
+    tools = tool_names(meta)
+    marked = marker(inventory, tools)
+    result = {"trailers": inventory, "cohort": cohort(commits, inventory, watch_files, tools), "shape": shape(commits), "agents": agents(repo)}
     if watch_files is not None:
         result["cohort"]["watch_top"] = WATCH_TOP
     if commits:

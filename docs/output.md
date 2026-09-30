@@ -50,8 +50,12 @@ in plain words, and what to do first. This page is the reference.
    apart: `12% of commits signed by their authors (gpg 12%), 0% of the
    last year's; 50% signed by the forge on merge`. `--full` and Markdown add a Signing by year table with humans
    against bots and the busiest identities. `--full` and Markdown add a Trailers table: every hyphenated
-   trailer key and how many commits carry it, then the commits an
-   `Assisted-by` trailer or a co-author who never authors a commit marks,
+   trailer key and how many commits carry it, counted without regard to
+   case as git matches them (`Co-authored-by` and `Co-Authored-By` are one
+   row, under the more common spelling), and never an issue reference
+   such as `PAP-10182:` (capitals, a hyphen and a number) that happens to
+   end a message; then the commits an `Assisted-by` trailer, a co-author
+   who never authors a commit or a coding tool marks,
    against the rest (reverted, fixes, a file changed again within two
    weeks), with the share of the history they cover, and three neutral
    descriptors of how commits arrive (bursts of commits minutes apart,
@@ -111,7 +115,10 @@ in plain words, and what to do first. This page is the reference.
      Benjamini-Hochberg false discovery rate of 5% over every source file.
      Fixes cluster within a pull request, which makes the test err towards
      finding, so it orders and annotates and decides nothing: which files
-     are magnets, and the severity, are the six months' counts;
+     are magnets, and the severity, are the six months' counts. With less
+     than twelve months of history the test does not run (it would test
+     the window's own counts again); the finding says so, and is a note
+     whatever the counts, since raw fix counts mostly follow file size;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
    - hotspots getting more complex, a warning when the top one did;
@@ -156,9 +163,11 @@ in plain words, and what to do first. This page is the reference.
    What the project declares about its dependencies and licence is read
    as declared, never detected. Declared dependencies nothing imports: a
    `package.json` runtime dependency no tracked file imports (a stylesheet's
-   `@import`, `@use` or `@forward` counts, `~` prefix and all), names in a
-   quoted string of a configuration file, or runs from the manifest's
-   scripts; a `go.mod` direct requirement no import path or `go:generate`
+   `@import`, `@use`, `@forward` or Tailwind's `@plugin` counts, `~` prefix
+   and all), names in a quoted string of a configuration file, runs from the
+   manifest's scripts, or that the lock file resolved as the peer of another
+   package the manifest declares (a `pnpm-lock.yaml` version's peer suffix,
+   the `peerDependencies` a `package-lock.json` or Yarn 2+ lock records); a `go.mod` direct requirement no import path or `go:generate`
    line falls under; a Cargo.toml dependency no `name::` path, `use` or
    `extern crate` names (a note). Python and Ruby are left out because a
    distribution's import name need not be its own, and gitmole keeps no
@@ -236,7 +245,13 @@ in plain words, and what to do first. This page is the reference.
      `__main__.py`, `index.*`, `main.*`, `*.config.*`, a dotfile, a file
      beside `package.json` or `go.mod`, `bin/`, `scripts/`, `migrations/`,
      file-routed `pages/` and `app/`), by declaration (`pyproject.toml`
-     scripts, `package.json` main, bin and exports) or by content (a
+     scripts, `package.json` main, bin and exports, a wildcard export
+     expanded, a path into a build output such as `dist/x.js` read as its
+     source `src/x.ts`), by being named by path in another tracked file (a
+     package script, a shell script, a CI step, `new URL('./x.mjs',
+     import.meta.url)`; relative to that file, its package or the root, or
+     as the one tracked path the name ends with; documentation does not
+     count) or by content (a
      `__main__` guard, a shebang, Go's `package main`); a basename that
      recurs across directories, and a directory the code itself barely
      imports, are loaded by name and left
@@ -290,7 +305,12 @@ in plain words, and what to do first. This page is the reference.
    a `${VAR}` reference is a warning that names the key and never the
    value; an instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`,
    `.github/copilot-instructions.md`) far behind the last commit, in time
-   and in commits, is a note. A `Signed-off-by` from an identity that
+   and in commits, is a note. The inventory in `provenance.json` also lists
+   the subagents and skills the tools load for a task (`.claude/agents/`,
+   `.claude/skills/*/SKILL.md`, `.codex/agents/`, `.agents/skills/*/SKILL.md`),
+   which the note leaves out, and none of these files under a template,
+   fixture, example or test directory, where they are a product's data or a
+   test's input. A `Signed-off-by` from an identity that
    co-authors commits but never authors one is a note: the Linux kernel's
    policy forbids an agent to add the Developer Certificate of Origin.
 
@@ -342,9 +362,15 @@ in plain words, and what to do first. This page is the reference.
    workspace's, stays a warning at any score, and the finding says which
    lock's critical score it held back. Each package row in the evidence
    names what declared its lock (`deploys`). The rows are named critical
-   ones first (a malicious package leading), then those with a fixed
-   version before those without, then by score, so the advice starts where
-   a fix exists. A package pinned only by a lock file under tests,
+   ones first (a malicious package leading), then by reach: a version the
+   lock installs for running that the source imports, then one it installs
+   for running (or whose lock does not say), then one only development
+   dependencies reach (`runtime`: false, from a `pnpm-lock.yaml` importer's
+   dependencies walked through its snapshots, or a `package-lock.json`
+   `dev` mark; said as "development dependencies only"); then those with a
+   fixed version before those without, then by score, so the advice starts
+   where a fix exists. The reach orders the rows and never changes the
+   grade. A package pinned only by a lock file under tests,
    examples, docs or vendored code is a note. osv-scanner also reads pip's requirement
    files (`requirements*.txt`, `constraints*.txt`, `*.in` by those names),
    and for a range such as `mcp>=1.0.0` it reports the floor, 1.0.0, which
@@ -357,10 +383,15 @@ in plain words, and what to do first. This page is the reference.
    apply to your code is silenced in `osv-scanner.toml` at the repository
    root. Each row says whether any tracked source imports the package
    (`imported`: true, false, or unknown where the import name need not be
-   the package's, as in Python and Ruby); the finding names a package
+   the package's, as in Python and Ruby; where the lock records the
+   versions the workspaces depend on directly, an import of the name is
+   not an import of another version a tool brings along); the finding names a package
    nothing imports, and never lowers its severity for it, since an
    unimported package is still installed. This is not reachability, which
-   needs a buildable tree. The footer line says how many packages in how
+   needs a buildable tree. A package whose every advisory is informational
+   (RustSec's `unmaintained`, `unsound` and `notice`, which report no
+   vulnerability) is not counted as vulnerable; the footer names it. The
+   footer line says how many packages in how
    many lock files were checked and how old the database copy is; without
    lock files, or without the database, it says that instead.
 
@@ -497,9 +528,13 @@ in plain words, and what to do first. This page is the reference.
    more differently named identities on one bare no-reply address
    (`noreply@`, `no-reply@`, `donotreply@`), as an assistant that signs each
    model version with its own name and the vendor's one address, are taken
-   for a coding tool by that shape alone; a per-account
-   `id+login@users.noreply…` address, one name alone on a no-reply address,
-   and a name a person's row also carries are people. Its lines are kept out of ownership, the knowledge map's
+   for a coding tool by that shape alone, and so is an identity whose only
+   addresses are bare no-reply mailboxes and that is credited by trailers
+   for at least nine of every ten of its commits (it authors at most one in
+   ten: an assistant is named by the person who commits). A per-account
+   `id+login@users.noreply…` address, one name alone on a no-reply address
+   that authors its own commits, and a name that a person carries who
+   authored commits under an address of their own are people. Its lines are kept out of ownership, the knowledge map's
    owners, the per-file author and minor-contributor counts, the degree of
    authorship the truck factor reads, the bus factor, the knowledge islands
    and the People rows, and a person's degree of authorship no longer
@@ -619,7 +654,10 @@ in plain words, and what to do first. This page is the reference.
    that is a distinctive word of the fuller name, the fuller name run together
    (RobinMalfait), or an initial plus the surname (nlohmann); the caption says whose; merges
    counted in a column of their own and left out of the commit count and
-   share, since merging every pull request is not writing the code; bots,
+   share, since merging every pull request is not writing the code; a row's
+   merges and its surviving code are its own, by the name and address git
+   shows, so two rows that share a display name do not each take the
+   name's whole count; bots,
    which are any author named `*[bot]`, any identity that merges with
    one (`github-actions` beside `github-actions[bot]` is one account),
    and any author whose name says bot, CI, deploy or automation, no

@@ -10,6 +10,12 @@ With the change log, a line from a commit with Co-authored-by trailers is
 shared equally between its author and the people the trailers name, so a
 squash-merged repository does not attribute every line to whoever pressed
 the button.
+
+Each author label is `Name <email>` (label()), the identity git shows through
+.mailmap, not a display name: two people who share a name, or a person and a
+trailer-only alias of the same spelling, are two rows of the People table, and
+each keeps its own lines. The loader canonicalises the name for every table
+that keys people by name, and matches the pair to its identity row.
 """
 from __future__ import annotations
 
@@ -47,7 +53,7 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
     import maat
 
-_CO_AUTHORS = {}       # abbreviated commit hash -> the co-authors' names; set in every worker by the pool initializer
+_CO_AUTHORS = {}       # abbreviated commit hash -> the co-authors' labels (label()); set in every worker by the pool initializer
 _HASH_LENGTHS = ()     # the abbreviation lengths the log used, so a blame's full hash can be looked up by prefix
 _IMPORTED = ()         # abbreviated hashes of the import commits (maat.importing): their lines are nobody's
 
@@ -61,9 +67,29 @@ def _is_imported(full_hash: str) -> bool:
     return any(full_hash.startswith(h) for h in _IMPORTED)
 
 
+def label(name: str, email: str) -> str:
+    """An identity as authors.json names it: `Name <email>`, git's own spelling."""
+    return f"{name} <{email}>"
+
+
 def co_authors_by_commit(log_text: str, aliases: dict = None) -> dict:
-    """From the change log, the commits that name co-authors: {hash: [names]}."""
-    return {c["hash"]: c["co_authors"] for c in maat.parse_log(log_text, aliases, types=None) if c["co_authors"]}
+    """From the change log, the commits that name co-authors: {hash: [label(name, email)]}, the trailer's own
+    name and address, and the same people maat's parse_log counts (canonicalised through `aliases` to leave
+    out the author and to name each person once)."""
+    aliases = aliases or {}
+    out = {}
+    for line in log_text.split("\n"):
+        if not line.startswith("--"):
+            continue
+        parts = line.split("--", 4)
+        if len(parts) < 4:
+            continue
+        h, author = parts[1], aliases.get(parts[3], parts[3])
+        trailers = (parts[4] if len(parts) > 4 else "").partition(maat.TRAILER_SEP)[2]
+        crew = [label(n, e) for n, e in maat.co_author_idents(trailers, author, aliases, set())]
+        if crew:
+            out[h] = crew
+    return out
 
 
 def imports_in(log_text: str, types=filetypes.DEFAULT) -> list:
@@ -105,17 +131,19 @@ _HEADER = re.compile(r"^[0-9a-f]{40,64} \d+ \d+")
 
 
 def blame_file(repo: str, path: str) -> dict:
-    """{(year, author): lines} for one file at HEAD. A line from a commit with co-authors (see
+    """{(year, label(name, email)): lines} for one file at HEAD. A line from a commit with co-authors (see
     set_co_authors) is split equally between everyone it credits, so the values are fractional
     then; whole lines are rounded once, when the totals are written. A line an import commit wrote
     (set_imported) counts for its year under the author None: it survives, but nobody here wrote it."""
     proc = subprocess.run(["git", "blame", "--line-porcelain", "HEAD", "--", path], cwd=repo, capture_output=True, text=True, errors="replace")
     if proc.returncode != 0:
         return {}
-    counts, author, year, crew, imported = Counter(), None, None, [], False
+    counts, author, name, year, crew, imported = Counter(), None, None, None, [], False
     for line in proc.stdout.split("\n"):
         if line.startswith("author "):
-            author = line[7:]
+            name = line[7:]
+        elif line.startswith("author-mail "):
+            author = label(name, line[12:].strip().strip("<>"))
         elif line.startswith("author-time "):
             year = str(dt.datetime.fromtimestamp(int(line[12:]), dt.timezone.utc).year)
         elif line.startswith("\t"):
@@ -193,7 +221,7 @@ def write_all(repo: str, out_dir: str, ignore=(), aliases_path: str = None, proc
             for (year, author), n in counts.items():
                 years[year] += n
                 if author is not None:   # an import's lines count for their year and for nobody
-                    authors[aliases.get(author, author)] += n
+                    authors[author] += n
     years = Counter({k: int(round(v)) for k, v in years.items()})
     authors = Counter({k: int(round(v)) for k, v in authors.items() if round(v)})
     os.makedirs(os.path.join(out_dir, "theseus"), exist_ok=True)

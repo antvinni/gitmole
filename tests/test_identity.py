@@ -259,6 +259,28 @@ class Tools(unittest.TestCase):
                {"name": "Model A", "email": "noreply@v.example", "commits": 9, "authored": 0}]
         self.assertEqual(identity.tools(ids), {"Model A"})
 
+    def test_same_name_rows_that_authored_nothing_of_their_own_do_not_veto_a_tool(self):
+        # paperclip: the product's agent on its shared mailbox, and two stray trailer-only rows of the same name
+        ids = [{"name": "Dev", "email": "dev@x.org", "commits": 2900, "authored": 2900},
+               {"name": "Agent", "email": "noreply@product.example", "commits": 2052, "authored": 2},
+               {"name": "Agent CTO", "email": "noreply@product.example", "commits": 2, "authored": 0},
+               {"name": "Agent", "email": "agent@product.example", "commits": 2, "authored": 0},
+               {"name": "Agent", "email": "agent@users.noreply.example", "commits": 1, "authored": 0}]
+        self.assertEqual(identity.tools(ids), {"Agent", "Agent CTO"})
+
+    def test_one_name_on_a_bare_no_reply_mailbox_credited_by_trailers_is_a_tool(self):
+        self.assertEqual(identity.tools([{"name": "Model", "email": "noreply@vendor.example", "commits": 20, "authored": 2},
+                                         {"name": "Ann", "email": "a@x.org", "commits": 40, "authored": 40}]), {"Model"})
+        self.assertEqual(identity.tools([{"name": "Model", "email": "noreply@vendor.example", "commits": 20, "authored": 3}]), set(),
+                         "authoring more than one commit in ten is committing one's own work")
+
+    def test_trailer_credits_on_an_address_naming_someone_are_a_person(self):
+        # django's 71: credited only by trailers, on personal or per-account addresses
+        ids = [{"name": "Helper", "email": "h@x.org", "commits": 9, "authored": 0},
+               {"name": "Other", "email": "7+other@users.noreply.github.com", "commits": 3, "authored": 0},
+               {"name": "Third", "email": "t@x.org", "commits": 2, "authored": 0, "aliases": [{"name": "Third", "email": "noreply@t.example", "commits": 1}]}]
+        self.assertEqual(identity.tools(ids), set())
+
     def test_a_person_whose_own_trailer_used_the_tools_mailbox_is_a_person(self):
         # hindsight: TuftyBruno authored under his per-account address; his trailer credited him under the vendor's
         ids = [{"name": "TuftyBruno", "email": "7+TuftyBruno@users.noreply.github.com", "commits": 1, "authored": 1,

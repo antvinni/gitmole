@@ -621,13 +621,15 @@ def collect_meta(repo_dir: str, since: str = None, scope=()) -> dict:
     if scope:
         meta["scope"] = list(scope)   # absent for the whole repository, so its meta.json is the one it always was
     # merges per person, through .mailmap and the same alias merge: the People table shows them apart, since
-    # a maintainer who merges every pull request would otherwise lead it on merges alone
-    by_name = Counter(n for d, n, _ in merge_rows if not since or d >= since)
+    # a maintainer who merges every pull request would otherwise lead it on merges alone. Keyed by the name and
+    # address git shows, as the rows are: by name alone, every row carrying a name got the name's whole count
+    # (a trailer-only alias of the maintainer showed -348 commits), and the rows summed to twice git's count
+    by_ident = Counter((n, e.lower()) for d, n, e in merge_rows if not since or d >= since)
     for i in meta["identities"]:
-        names = {i["name"]} | {a["name"] for a in i.get("aliases") or []}
-        n = sum(by_name[x] for x in names)
+        n = sum(by_ident[(v["name"], (v.get("email") or "").lower())] for v in [i, *(i.get("aliases") or [])])
         if n:
             i["merges"] = n
+    meta["merges_by"] = "identity"   # load._merges_once repairs a run from before this
     return meta
 
 

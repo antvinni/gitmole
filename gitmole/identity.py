@@ -195,6 +195,12 @@ def merge(identities: list) -> list:
     return merged
 
 
+def row_label(row: dict) -> str:
+    """An identity row as `Name <email>`, the way the code-age pass labels the lines it blames (blame.label):
+    the key of whatever is counted per identity rather than per display name."""
+    return f"{row['name']} <{row.get('email') or ''}>"
+
+
 def canonical_names(merged: list) -> dict:
     """alias name -> merged name, including the merged names themselves."""
     out = {}
@@ -208,22 +214,36 @@ def canonical_names(merged: list) -> dict:
 NO_REPLY_MAILBOX = re.compile(r"^(?:no-?reply|donotreply|do-not-reply)@", re.I)   # a bare no-reply mailbox; a per-user `id+login@users.noreply…` is not one
 
 
+TRAILER_SHARE = 0.9   # a row at a bare no-reply mailbox credited by trailers for at least nine commits in ten is a tool
+
+
 def tools(identities: list) -> set:
-    """The names of the identities that are a coding tool rather than a person, by shape alone: two or
-    more differently named identities on one bare no-reply mailbox (noreply@, no-reply@, donotreply@),
-    as an assistant that signs each model version with its own name and the vendor's one address does.
-    A per-account `id+login@users.noreply…` is a person's address, and one name alone on a no-reply
-    address is a person. Someone credited only by Co-authored-by trailers is a person too: most of them
-    are (django's 71, redis's 63). A name that any other row carries is not a tool either, since the
-    report's tables key people by name. `identities` are the run's merged rows (meta.json). The
-    measurement harness's consistency check reads this same definition, so its agent_owner and the
-    report agree.
+    """The names of the identities that are a coding tool rather than a person, by shape alone. Two shapes:
+
+    - one of two or more differently named identities on one bare no-reply mailbox (noreply@, no-reply@,
+      donotreply@), as an assistant that signs each model version with its own name and the vendor's one
+      address does, or a product whose agents all commit under the product's one address;
+    - an identity whose only addresses are bare no-reply mailboxes (or empty) and that is credited by
+      Co-authored-by trailers for at least TRAILER_SHARE of its commits: a person commits their own work, and
+      an assistant is named in the trailer of the person who commits. The cut is one order of magnitude,
+      authored at most one commit in ten, fixed before looking at any repository's rows, not swept: it
+      separates "never or almost never authors" from "authors", and nothing between the two is a shape.
+
+    A per-account `id+login@users.noreply…` is a person's address, and so is any address naming someone:
+    someone credited only by Co-authored-by trailers on such an address is a person, as most of them are
+    (django's 71, redis's 63). One name alone on a bare no-reply address that authors its commits is a
+    person too. `identities` are the run's merged rows (meta.json). The measurement harness's consistency
+    check reads this same definition, so its agent_owner and the report agree.
 
     Tool-ness belongs to an address, not to a merged row: a row that authored commits and holds an address
     of its own (neither empty nor a bare no-reply mailbox) is a person, whatever else was merged into it.
     hindsight's TuftyBruno authored a commit under his own per-account address and credited himself in a
     trailer under the vendor's shared mailbox; the same spelled name merged the two, and the one shared
-    alias made the whole row a tool."""
+    alias made the whole row a tool. The report's tables key people by name, so such a person also keeps
+    every row carrying their name out of the tools. Only such a person does: a row that authored nothing
+    under an address of its own says nothing about who the name is. paperclip's product agent,
+    "Paperclip <noreply@…>", credited on 2,052 commits, was vetoed in 0.41.0 by two stray trailer-only
+    rows of the same name on other addresses."""
     shared = {}
     for i in identities:
         for email in {i.get("email") or ""} | {a.get("email") or "" for a in i.get("aliases") or []}:
@@ -232,6 +252,13 @@ def tools(identities: list) -> set:
     tool, person = set(), set()
     for i in identities:
         emails = {(i.get("email") or "").lower()} | {(a.get("email") or "").lower() for a in i.get("aliases") or []}
-        own = bool(i.get("authored")) and any(not shared_mailbox(e) for e in emails)
-        (tool if not own and any(len(shared.get(e, ())) >= 2 for e in emails) else person).add(i.get("name"))
+        if bool(i.get("authored")) and any(not shared_mailbox(e) for e in emails):
+            person.add(i.get("name"))
+            continue
+        commits = i.get("commits") or 0
+        credited = commits - i.get("authored", commits)
+        by_trailer = (commits and credited >= TRAILER_SHARE * commits and any(NO_REPLY_MAILBOX.match(e) for e in emails)
+                      and all(shared_mailbox(e) for e in emails))
+        if by_trailer or any(len(shared.get(e, ())) >= 2 for e in emails):
+            tool.add(i.get("name"))
     return tool - person

@@ -368,6 +368,24 @@ as a version), **sarif_rows** (vulnerable rows that never reach SARIF), **doc_lo
 requirements file set aside as documentation) and **tool_person** (a person grouped
 as a coding tool).
 
+The 0.41.0 report of paperclipai/paperclip, a product built largely by its own
+coding agent, added eleven, each deciding by its own reading of the export or the
+clone rather than by calling the function it judges (agent_owner asked
+`identity.tools`, so it agreed with it when it was wrong): **tool_owner** (a tool —
+a bare no-reply mailbox two or more names use, or one credited mostly by trailer —
+as an owner, second owner or holder of surviving code), **merge_total** (the People
+merge total against git's, or a row with negative commits), **suspect_lead** (a
+function list led by a span lizard marked suspect or the structure step measures
+over twice as long or short), **test_double_lead** (a finding led by a Cargo binary
+only tests/ start), **test_path_secret** (a secret in a smoke, e2e or fixtures path
+or below `#[cfg(test)]`), **peer_unused** (an unused dependency the lock records as
+a peer, or a stylesheet loads), **declared_reference** (an unreferenced file a
+package.json runs or publishes, or `new URL(…, import.meta.url)` loads),
+**lock_without_require** (a go.mod with nothing to lock), **dev_only_vuln_lead** (a
+vulnerable lead only devDependencies reach while a runtime row waits),
+**silent_precondition** (a rule advertising a test that did not run, silently) and
+**trailer_case** (trailer keys split by case, or an issue id read as one).
+
 As with claims, a complaint is a defect and the number to want is zero; the
 dashboard reads it as *contradictions between a finding and the report's own
 facts*, by check. `python -m gitmole.measure consistency` re-checks a round

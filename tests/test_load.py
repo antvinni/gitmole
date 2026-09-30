@@ -409,6 +409,36 @@ class LoadReport(unittest.TestCase):
             r = load.load_report(out)
         self.assertEqual(r["theseus_authors"], {"Bob": 90, "Ann": 10})
 
+    def test_surviving_lines_belong_to_the_identity_row_that_holds_the_name_and_address(self):
+        import os, tempfile
+        ids = [{"name": "Dev", "email": "dev@home.example", "commits": 30, "authored": 30, "aliases": []},
+               {"name": "Bob", "email": "b@x", "commits": 3, "authored": 3, "aliases": [{"name": "Robert", "email": "r@x", "commits": 1}]},
+               {"name": "Dev", "email": "7+dev@users.noreply.example", "commits": 1, "authored": 0, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "theseus"))
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "demo", "commits": 33, "identities": ids}, fh)
+            with open(os.path.join(out, "theseus/authors.json"), "w") as fh:
+                json.dump({"labels": ["Dev <dev@home.example>", "Robert <r@x>", "Dev <7+dev@users.noreply.example>", "Ann <a@x>"],
+                           "ts": ["t"], "y": [[60], [20], [5], [10]]}, fh)
+            r = load.load_report(out)
+        self.assertEqual(r["theseus_authors"], {"Dev": 65, "Bob": 20, "Ann": 10}, "the tables keyed by name still read by name")
+        self.assertEqual(r["surviving_by_identity"], {"Bob <b@x>": 20, "Dev <7+dev@users.noreply.example>": 5, "Dev <dev@home.example>": 60})
+
+    def test_an_older_runs_name_keyed_lines_and_merges_go_to_the_first_row_of_the_name_once(self):
+        import os, tempfile
+        ids = [{"name": "Dev", "email": "dev@home.example", "commits": 30, "authored": 30, "merges": 3, "aliases": []},
+               {"name": "Dev", "email": "7+dev@users.noreply.example", "commits": 1, "authored": 0, "merges": 3, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            os.makedirs(os.path.join(out, "theseus"))
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"name": "demo", "commits": 31, "merges": 3, "identities": ids}, fh)
+            with open(os.path.join(out, "theseus/authors.json"), "w") as fh:
+                json.dump({"labels": ["Dev"], "ts": ["t"], "y": [[60]]}, fh)
+            r = load.load_report(out)
+        self.assertEqual(r["surviving_by_identity"], {"Dev <dev@home.example>": 60})
+        self.assertEqual([i.get("merges") for i in r["meta"]["identities"]], [3, None], "counted once, not once per row of the name")
+
     def test_function_rows_come_back_in_file_and_line_order_whatever_the_step_wrote(self):
         text = ('3,2,20,1,3,"g@9-11@b.py","b.py","g","g( x )",9,11\n'
                 '3,2,20,1,3,"f@1-3@b.py","b.py","f","f( x )",1,3\n'

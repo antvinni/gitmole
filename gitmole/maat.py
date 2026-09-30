@@ -42,10 +42,9 @@ TRAILER_SEP = "\x1f"   # the unit separator between the subject and each Co-auth
 _TRAILER = re.compile(r"^\s*(?P<name>[^<]*?)\s*(?:<(?P<email>[^>]*)>)?\s*$")
 
 
-def _co_authors(field: str, author: str, aliases: dict, bots: set) -> list:
-    """The people a commit's Co-authored-by trailers name, canonicalised, each once, without the
-    author (GitHub adds the trailer to a squash merge for its own author too) and without bots."""
-    out = []
+def co_author_idents(field: str, author: str, aliases: dict, bots: set) -> list:
+    """[(name, email)] as the trailers write them, for the people _co_authors names: one per canonical name."""
+    out, seen = [], set()
     for value in field.split(TRAILER_SEP):
         m = _TRAILER.match(value)
         if not m or not m.group("name"):
@@ -53,10 +52,17 @@ def _co_authors(field: str, author: str, aliases: dict, bots: set) -> list:
         name, email = m.group("name"), m.group("email") or ""
         if name in bots or identity.is_bot(name, email):
             continue
-        name = aliases.get(name, name)
-        if name != author and name not in out:
-            out.append(name)
+        canonical = aliases.get(name, name)
+        if canonical != author and canonical not in seen:
+            seen.add(canonical)
+            out.append((name, email))
     return out
+
+
+def _co_authors(field: str, author: str, aliases: dict, bots: set) -> list:
+    """The people a commit's Co-authored-by trailers name, canonicalised, each once, without the
+    author (GitHub adds the trailer to a squash merge for its own author too) and without bots."""
+    return [aliases.get(n, n) for n, _ in co_author_idents(field, author, aliases, bots)]
 
 
 def parse_log(text: str, aliases: dict = None, types=None, bots: set = None) -> list:

@@ -35,6 +35,11 @@ class Reasons(unittest.TestCase):
         self.assertEqual(classify.REASONS, ("generated", "vendored", "test file", "example code", "release file", "amalgamation",
                                             "not a source type", "not in the tree"))
 
+    def test_a_cargo_test_double_is_a_test_file(self):
+        meta = dict(report()["meta"], test_doubles=["crates/core/src/bin/fake-server.rs"])
+        c = classify.Classifier(report(meta=meta))
+        self.assertEqual(c.reasons("crates/core/src/bin/fake-server.rs"), ("test file", "not in the tree"))
+
     def test_amalgamations_come_from_the_function_metrics(self):
         funcs = [{"file": "big/all.hpp", "function": f"f{i}", "ccn": 2, "nloc": 5, "params": 1} for i in range(20)]
         funcs += [{"file": f"src/p{i % 3}.hpp", "function": f"f{i}", "ccn": 2, "nloc": 5, "params": 1} for i in range(20)]

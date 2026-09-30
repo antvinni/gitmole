@@ -42,7 +42,8 @@ class ActionsPinning(unittest.TestCase):
             r.write(".github/workflows/release.yaml", "jobs:\n  r:\n    steps:\n      - uses: softprops/action-gh-release@" + "b" * 64 + "\n")
             r.commit()
             out = hygiene.actions_pinning(d)
-        self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4"}, {"file": ".github/workflows/ci.yml", "uses": "org/repo@main"}])
+        self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4", "line": 4},
+                                           {"file": ".github/workflows/ci.yml", "uses": "org/repo@main", "line": 8}], "each at the line of its uses:")
         self.assertEqual(out["pinned"], 2)
         self.assertEqual(out["local"], 3, "a local action, a docker image and a path without @ref (curl writes $/.github/...) are neither")
         self.assertIsNone(out["origin"], "no origin remote")
@@ -79,6 +80,17 @@ class Lockfiles(unittest.TestCase):
                                          "changes": [{"commit": bump, "date": "2026-03-01"}]}])
         self.assertEqual(out["missing"], [{"manifest": "lib/Cargo.toml", "expected": ["Cargo.lock"]}])
         self.assertEqual(out["pairs"], 3, "root npm, api uv and the workspace member through the root lockfile")
+
+    def test_a_go_mod_that_requires_nothing_needs_no_go_sum(self):
+        # paperclip's tools/agent-shim/go.mod: a module line and a go line, stdlib only
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("shim/go.mod", "module example.com/x/shim\n\ngo 1.22\n// require nothing yet\n")
+            r.write("tool/go.mod", "module example.com/x/tool\n\ngo 1.22\n\nrequire (\n\tgolang.org/x/text v0.3.0\n)\n")
+            r.write("one/go.mod", "module example.com/x/one\n\nrequire golang.org/x/text v0.3.0\n")
+            r.commit()
+            out = hygiene.lockfiles(d)
+        self.assertEqual([m["manifest"] for m in out["missing"]], ["one/go.mod", "tool/go.mod"])
 
     def test_a_change_the_lock_does_not_record_is_not_drift(self):
         # devlake's backend/go.mod "changed on 2026-09-02, after go.sum": the module rename, one line
@@ -269,6 +281,24 @@ class InstallScripts(unittest.TestCase):
         self.assertEqual(out["lockfile"], [{"lockfile": "package-lock.json", "package": "esbuild"}])
         self.assertEqual(out["manifests"], [{"file": "package.json", "scripts": ["postinstall"]}], "node_modules is not tracked code")
         self.assertEqual(out["setup_py"], [{"file": "setup.py", "calls": ["subprocess.run"]}])
+
+    def test_the_package_manager_is_the_declared_one_else_the_lock_files(self):
+        # paperclip declares "packageManager": "pnpm@9.15.4" and was told `npm ci --ignore-scripts`
+        cases = [({"packageManager": "pnpm@9.15.4"}, {}, {"name": "pnpm", "from": "packageManager"}),
+                 ({"packageManager": "yarn@1.22.22"}, {"yarn.lock": "# yarn lockfile v1\n"}, {"name": "yarn", "from": "packageManager"}),
+                 ({"packageManager": "yarn@4.1.0"}, {}, {"name": "yarn-berry", "from": "packageManager"}),
+                 ({}, {"yarn.lock": "__metadata:\n  version: 8\n"}, {"name": "yarn-berry", "from": "yarn.lock"}),
+                 ({}, {"pnpm-lock.yaml": "lockfileVersion: '9.0'\n"}, {"name": "pnpm", "from": "pnpm-lock.yaml"}),
+                 ({"packageManager": "made-up"}, {"package-lock.json": "{}"}, {"name": "npm", "from": "package-lock.json"}),
+                 ({}, {}, None)]
+        for manifest, files, expected in cases:
+            with tempfile.TemporaryDirectory() as d:
+                r = Repo(d)
+                r.write("package.json", json.dumps({"name": "x", "scripts": {"postinstall": "node s.js"}, **manifest}))
+                for path, text in files.items():
+                    r.write(path, text)
+                r.commit()
+                self.assertEqual(hygiene.install_scripts(d).get("manager"), expected, (manifest, files))
 
     def test_a_setup_py_without_setup_is_a_script_pip_never_runs(self):
         # VoiceStudio's scripts/setup.py is `uv run python scripts/setup.py`: no setuptools, no setup()

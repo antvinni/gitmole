@@ -142,6 +142,12 @@ def _is_label(value: str) -> bool:
     """A name built on the keyword, in one case as names are written (resetpassword, CURLOPT_PASSWD,
     password_missing, my-db-password); a mixed-case word such as MyCompanySecret is more likely a chosen password."""
     return bool(_LABEL.match(value)) and (value == value.lower() or value == value.upper())
+# Lowercase words of letters joined by hyphens (`wrong-api-key`, `not-a-real-token`): a phrase standing in for a
+# value, the way a negative test or a README writes one. An issued credential (a provider's key, a bearer token)
+# is generated: it carries digits, capitals or no separators. A password a person chose can be such a phrase
+# (a diceware passphrase is written word-word-word), so generic-password's values are not judged by it.
+_SLUG = re.compile(r"^[a-z]{2,}(?:-[a-z]{2,})+$")
+_CHOSEN = ("generic-password",)
 _HEADER_WRITTEN = re.compile(r"^-----BEGIN[ A-Z]*KEY-----(?:\\n)?[\"'`]")   # print("-----BEGIN ... KEY-----\n"): code writing a PEM file
 _UUID = re.compile(r"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b")
 
@@ -236,6 +242,8 @@ def is_placeholder(value: str, line: str = "", path: str = "", rule: str = "") -
         line = ""
     if _HEADER_WRITTEN.match(value) or _MASKED.match(value) or (_FILE_REF.search(value) and not any(ch.isspace() for ch in value)) or _is_label(value):
         return True
+    if _SLUG.match(value) and rule not in _CHOSEN:
+        return True
     if (_HINT.search(value) or _MASK_ONLY.match(value) or (_WORDS.match(value) and _CREDENTIAL_WORD.search(value))
             or (_SAYS_EXAMPLE.search(value) and "-----BEGIN" not in value)):
         return True
@@ -301,6 +309,22 @@ def read_lines(repo: str, rows: list) -> None:
         if i >= LINE_LOOKUPS and str(r.get("RuleID") or "").startswith("generic-"):
             continue
         r["Line"] = line_of(repo, r.get("Commit") or "", r.get("File") or "", int(r.get("StartLine") or 0), above=2, files=files)
+
+
+def mark_test_code(repo: str, rows: list) -> None:
+    """`TestCode` on each row of a Rust file whose line sits inside a top-level `#[cfg(test)]` module of that file
+    as it was at the row's commit (filetypes.rust_test_spans): a value a unit test uses, however the file is
+    named. One read per (commit, file), and only of .rs files."""
+    spans = {}
+    for r in rows:
+        path, commit = r.get("File") or "", r.get("Commit") or ""
+        if not (path.endswith(".rs") and commit and r.get("StartLine")):
+            continue
+        if (commit, path) not in spans:
+            lines = _file_at(repo, commit, path)
+            spans[(commit, path)] = filetypes.rust_test_spans("\n".join(lines)) if lines else []
+        if filetypes.in_spans(r.get("StartLine"), spans[(commit, path)]):
+            r["TestCode"] = True
 
 
 # What the repository says about its own findings. betterleaks reads the allowlist of the config in the
@@ -590,7 +614,8 @@ _ONE_WORD = re.compile(r"[a-z]{3,20}|[A-Z]{3,20}")
 def group(rows: list) -> list:
     """One entry per distinct secret value (placeholders left out): its rule, the files and commits it
     appears in, the number of distinct places (commit, file, line), whether every place is a test
-    file, whether every place is a documentation file, and the repository's declaration of it, if any. The strongest come first, since a finding
+    file or inline test code (and `test_code_files`, the files where every sighting is inside a Rust test
+    module), whether every place is a documentation file, and the repository's declaration of it, if any. The strongest come first, since a finding
     names the first three: the scanner's highest grade, then a provider's rule before a generic one,
     then values that appear in source, then the most widespread (devlake's critical led with a form
     label's `password: 'Enter Password'` and never named the GitHub token graded high)."""
@@ -601,7 +626,7 @@ def group(rows: list) -> list:
         key = r.get("value") or ("row", i)
         if key not in groups:
             groups[key] = {"value": r.get("value"), "rule": r["rule"], "files": [], "commits": [], "_places": set(), "test": True, "docs": True,
-                           "confidence": None, "declared": None, "local": False, "_remote": False}
+                           "confidence": None, "declared": None, "local": False, "_remote": False, "_inline": set(), "_outside": set()}
             order.append(key)
         g = groups[key]
         if r["file"] not in g["files"]:
@@ -617,13 +642,17 @@ def group(rows: list) -> list:
         # the same default where it is set (POSTGRES_PASSWORD in the compose file itself)
         g["local"] = g["local"] or r.get("local") is True
         g["_remote"] = g["_remote"] or r.get("local") is False
-        g["test"] = g["test"] and filetypes.is_test_path(r["file"])
+        g["test"] = g["test"] and (filetypes.is_test_path(r["file"]) or bool(r.get("test_code")))
         g["docs"] = g["docs"] and filetypes.is_doc_path(r["file"])
+        g["_inline" if r.get("test_code") else "_outside"].add(r["file"])
     out = []
     for key in order:
         g = groups[key]
         places = g.pop("_places")
         remote = g.pop("_remote")
+        inline, outside = g.pop("_inline"), g.pop("_outside")
+        if inline - outside:   # files where every sighting of the value is inside a Rust test module
+            g["test_code_files"] = sorted(inline - outside)
         g["local"] = g["local"] and not remote
         out.append({**g, "places": len(places)})
     out.sort(key=lambda g: (-CONFIDENCE.get(g["confidence"], -1), str(g["rule"]).startswith("generic-"), g["test"], -g["places"]))   # stable: first-seen order breaks ties
@@ -711,6 +740,7 @@ def main(argv=None) -> int:
     text = proc.stdout.decode("utf-8", "surrogateescape").strip()
     raw = (json.loads(text) if text else None) or []   # a clean repository is reported as null
     read_lines(os.getcwd(), raw)   # betterleaks does not report the line; the clone in the current directory has it
+    mark_test_code(os.getcwd(), raw)
     found = unreachable(os.getcwd())
     extra = scan_unreachable(os.getcwd(), os.path.dirname(os.path.abspath(target)), found) if found else []
     annotate(os.getcwd(), raw + extra)   # before sanitise drops the values

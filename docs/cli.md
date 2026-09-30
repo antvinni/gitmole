@@ -83,7 +83,7 @@ Exit codes for CI and for coding agents.
 
 | Option | What it does |
 |---|---|
-| `--fail-on LEVEL` | Exit 3 if any finding is at LEVEL or worse, LEVEL being `critical`, `warning` or `info`; exit 4 when none is and a step the findings read did not complete. See [Exit codes](#exit-codes). |
+| `--fail-on LEVEL` | Exit 3 if any finding is at LEVEL or worse, LEVEL being `critical`, `warning` or `info`; exit 4 when none is and a step the findings read did not complete. The rules nobody has labelled yet, which the default report folds into its closing "not labelled yet" line, count like any other; the line on stderr naming what tripped the gate says when it was one of them. See [Exit codes](#exit-codes). |
 | `--require-vuln-db` | Exit 4 when the dependency scan ran with no vulnerability database, so no package was checked. Without it that run is said on stderr under a gate and in the SARIF, and passes. See [No vulnerability database](#no-vulnerability-database). |
 | `--baseline BEFORE.json` | With an earlier `--json` export of the same clone: the findings it already had are still reported, their statement opening "In the baseline:", and do not count toward `--fail-on`. See [Baseline](#baseline). Not with `owner/*`. |
 | `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
@@ -254,14 +254,26 @@ Commit the baseline, or keep it as a CI artifact, and write it again when
 the findings in it have been dealt with. A finding counts as in the
 baseline when the export has one with the same rule id (and, for the rules
 that report several, the same metric or email) at the same severity or
-worse; a finding that was a warning and is now critical is new. Secrets and
-vulnerable dependencies are compared by their rows, because one finding
-holds every value or package: a secret's place by betterleaks'
-fingerprint (`commit:file:rule:line`, the same one `.betterleaksignore`
-takes), a package by name, version, lock file and advisory ids. The rows the
-baseline did not have go through the same rule on their own, and what that
-finds is what counts, so a new secret fails the gate while the old ones
-stay reported. A known value committed again is a new place, and counts.
+worse; a finding that was a warning and is now critical is new. The rules
+whose one finding holds many subjects are compared by their subjects
+instead: a secret's place by betterleaks' fingerprint
+(`commit:file:rule:line`, the same one `.betterleaksignore` takes), a
+vulnerable package by name, version, lock file and advisory ids, an unpinned
+action by workflow file and `uses:` ref, a brain method or deeply nested
+function by file and name, a bug magnet by file. The subjects the
+baseline's finding did not hold go through the same rule on their own, and
+what that finds, at the severity it finds it, is what counts: a new secret
+or a new unpinned action fails the gate while the old ones stay reported,
+and a new magnet with three fixes is a note even when the finding is a
+warning because of an old one. A known value committed again is a new
+place, and counts. A truck factor counts when it hangs on a person, or
+names an area of one, the baseline's did not. The subjects are read from
+the rows every `--json` export carries, so an older baseline works as it
+is; one that lacks a rule's rows (written before the structure step ran,
+say) is judged for that rule by its rule id alone, as every rule but
+secrets and vulnerable dependencies was until 0.42.0.
+The hygiene step keeps 50 unpinned actions per run, so one past the
+fiftieth is not seen.
 Findings in the baseline carry `"baseline": "in the baseline"` in the JSON
 (`"new"` otherwise) and `baselineState` `unchanged` or `new` in the SARIF;
 stderr names the ones that did not count. `--baseline` does not change the
@@ -314,12 +326,20 @@ changed this month; the files have 130 prior changes by 3 people; Bob has
 `gitmole . --sarif gitmole.sarif` writes the findings in the format GitHub
 code scanning and GitLab read: one run with gitmole as the driver, a rule
 per finding id with its title, detail and advice, a result per place the
-evidence names (a finding about a whole file, such as `unpinned_actions`'
-workflows or `lockfile_drift`'s manifests, points at line 1 of each), `level` from the severity (critical is `error`, warning is
-`warning`, info is `note`) and `properties["security-severity"]`, which is
-what GitHub ranks alerts by (9.0 critical, 5.0 warning, 2.0 info; a
-vulnerable dependency carries its advisory's own score, a malicious one
-10.0). Every result has a `partialFingerprints` entry hashed from rule,
+evidence names (a finding about a whole file, such as `lockfile_drift`'s
+manifests, points at line 1 of each; `unpinned_actions` has a result per
+`uses:` the hygiene step recorded, up to 50, at its line), `level` from the severity (critical is `error`, warning is
+`warning`, info is `note`). The security rules alone (secrets, credential
+files, vulnerable dependencies, Trojan Source characters, unpinned actions,
+install scripts, dependency confusion, committed binaries, submodule URLs,
+symlinks out of the tree, agent settings that turn approval off, literal
+MCP secrets; `SECURITY` in `gitmole/sarif.py`) carry
+`properties["security-severity"]`, which is what GitHub ranks security
+alerts by (9.0 critical, 5.0 warning, 2.0 info; a vulnerable dependency
+carries its advisory's own score, a malicious one 10.0), and the tag
+`security`. The rest carry no security-severity, so code scanning files a
+bug magnet or a brain method as code quality rather than as a Medium
+vulnerability, and their tag is `maintainability`. Every result has a `partialFingerprints` entry hashed from rule,
 path, commit and line, so a second upload updates alerts instead of
 duplicating them; for a secret that hash comes from where it was found,
 never from the value, so two runs agree although the keyed value hashes

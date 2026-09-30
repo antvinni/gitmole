@@ -59,6 +59,19 @@ class Trailers(unittest.TestCase):
         self.assertEqual(out["signoff_by_co_author"], [{"name": "Ghost", "email": "ghost@x.com", "commits": 1}],
                          "a sign-off by an identity that only ever co-authors: what the kernel's policy forbids agents")
 
+    def test_keys_count_without_case_under_their_most_common_spelling_and_an_issue_id_is_no_key(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.commit("a.py", "1\n", "one\n\nCo-authored-by: Bob <bob@x.com>")
+            r.commit("a.py", "2\n", "two\n\nCo-authored-by: Bob <bob@x.com>")
+            r.commit("a.py", "3\n", "three\n\nCo-Authored-By: Bob <bob@x.com>\nco-authored-by: Cat <cat@x.com>")
+            r.commit("a.py", "4\n", "four\n\nPAP-10182: follow-up to the retry fix")
+            out = provenance.trailers(provenance.read_commits(d))
+        self.assertEqual(out["keys"], {"Co-authored-by": 3}, "one trailer, one count per commit, git's matching ignores case")
+        self.assertEqual(out["with_any"], 3)
+        self.assertEqual(provenance.fold_keys({"Co-authored-by": 5, "Co-Authored-By": 2, "PAP-10182": 1, "Signed-off-by": 1}),
+                         {"Co-authored-by": 7, "Signed-off-by": 1}, "an older run's keys, folded when the table is drawn")
+
 
 class Cohorts(unittest.TestCase):
     def test_trailer_cohort_against_the_rest(self):
@@ -66,7 +79,7 @@ class Cohorts(unittest.TestCase):
             history(d)
             commits = provenance.read_commits(d)
             out = provenance.cohort(commits, provenance.trailers(commits))
-        self.assertEqual(out["definition"], "an Assisted-by trailer, or a co-author who never authors a commit here")
+        self.assertEqual(out["definition"], "an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool")
         self.assertEqual((out["cohort"]["commits"], out["rest"]["commits"]), (3, 6))
         self.assertEqual(out["cohort"]["reverted"], 1, "the helper commit was reverted by subject")
         self.assertEqual(out["rest"]["reverted"], 0)
@@ -74,6 +87,24 @@ class Cohorts(unittest.TestCase):
         self.assertEqual(out["rest"]["fixes"], 1)
         self.assertEqual(out["cohort"]["retouched"], 1, "a.py changed again two minutes after the helper commit")
         self.assertEqual(out["share"], 0.333)
+
+    def test_a_coding_tool_that_authored_a_commit_still_marks_the_commits_it_is_credited_on(self):
+        # paperclip: the product agent authored 2 of its 2,054 commits, so the never-authoring test left all of them out
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.commit("a.py", "1\n", "own", name="Agent", email="noreply@product.example")
+            r.commit("a.py", "2\n", "work\n\nCo-authored-by: Agent <noreply@product.example>")
+            r.commit("a.py", "3\n", "more\n\nCo-authored-by: Agent CTO <noreply@product.example>")
+            r.commit("b.py", "4\n", "solo")
+            commits = provenance.read_commits(d)
+            inventory = provenance.trailers(commits)
+            meta = {"identities": [{"name": "Ann", "email": "ann@x.com", "commits": 3, "authored": 3},
+                                   {"name": "Agent", "email": "noreply@product.example", "commits": 2, "authored": 1},
+                                   {"name": "Agent CTO", "email": "noreply@product.example", "commits": 1, "authored": 0}], "aliases": {}}
+            without = provenance.cohort(commits, inventory)
+            out = provenance.cohort(commits, inventory, tools=provenance.tool_names(meta))
+        self.assertEqual(without["cohort"]["commits"], 0, "a commit authored under the shared mailbox makes every name on it an author")
+        self.assertEqual((out["cohort"]["commits"], out["rest"]["commits"]), (2, 2))
 
 
 class Shape(unittest.TestCase):
@@ -108,6 +139,19 @@ class Agents(unittest.TestCase):
         self.assertEqual(out["mcp"], [{"file": ".mcp.json", "servers": 2, "literal_env": [{"server": "db", "key": "DB_URL"}]}],
                          "a ${VAR} reference is where a secret is read from; a short word is configuration; the values themselves are never written")
         self.assertNotIn("p4ss", json.dumps(out))
+
+    def test_skills_and_subagents_are_instructions_and_a_template_fixture_or_test_copy_is_not(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            for path in ("AGENTS.md", "pkg/AGENTS.md", ".claude/agents/reviewer.md", ".claude/skills/fix/SKILL.md", ".claude/skills/fix/notes.md",
+                         ".codex/agents/runner.toml", ".agents/skills/release/SKILL.md", "web/.claude/agents/ui.md",
+                         "plugin/templates/AGENTS.md", "plugin/fixtures/basic/AGENTS.md", "src/__fixtures__/CLAUDE.md",
+                         "examples/demo/AGENTS.md", "tests/e2e/fixtures/x/AGENTS.md", "test/AGENTS.md"):
+                r.commit(path, "rules\n", f"add {path}")
+            out = provenance.agents(d)
+        self.assertEqual({x["file"]: x.get("kind") for x in out["instructions"]},
+                         {".agents/skills/release/SKILL.md": "skill", ".claude/agents/reviewer.md": "subagent", ".claude/skills/fix/SKILL.md": "skill",
+                          ".codex/agents/runner.toml": "subagent", "AGENTS.md": None, "pkg/AGENTS.md": None, "web/.claude/agents/ui.md": "subagent"})
 
 
     def test_a_pointer_is_dated_by_the_file_it_points_at(self):
