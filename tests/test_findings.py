@@ -821,6 +821,17 @@ class KnowledgeIslands(unittest.TestCase):
         self.assertNotIn("web/", f[0]["detail"])
         self.assertIn("100% of all lines added", f[0]["detail"], "vendored lines are not in the denominator either")
 
+    def test_generated_files_are_not_islands(self):
+        # hindsight's OpenAPI client: the person who last ran the generator "owns" thousands of lines they did not write
+        own = [{"entity": "clients/python/api/a_api.py", "author": "Ann", "added": 500000, "deleted": 0},
+               {"entity": "core/a.py", "author": "Bob", "added": 300, "deleted": 0}]
+        r = report(ownership=own)
+        r["meta"]["generated"] = ["clients/python/api/a_api.py"]
+        f = findings.knowledge_islands(r)
+        self.assertEqual(f[0]["advice"], "Pair someone with Bob on core/ first; it is the largest at 300 lines.")
+        self.assertNotIn("clients/", f[0]["detail"])
+        self.assertEqual(findings.bus_factor(r), findings.bus_factor(report(ownership=own[1:])), "the bus factor reads the same rows")
+
     def test_an_island_that_is_a_sliver_of_the_code_is_not_named(self):
         # laravel: 216 root-file lines by one person against 900,000 lines of src/; prettier's benchmarks/
         own = [{"entity": "composer.json", "author": "Ann", "added": 216, "deleted": 0},

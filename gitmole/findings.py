@@ -180,11 +180,13 @@ def placeholder_identity(report: dict, min_share: float = 0.01) -> list:
 
 
 def _source_ownership(report: dict) -> list:
-    """Ownership rows for source files. Test files and vendored trees are left out of every rule that
-    names a next step: owning the tests is not the knowledge risk, and whoever imported vendor/ did
-    not write it. The default tables leave test files out too."""
-    vendored = filetypes.vendor_dirs(report)
-    return [r for r in report.get("ownership") or [] if not (filetypes.is_test_path(r["entity"]) or filetypes.is_vendored(r["entity"], vendored))]
+    """Ownership rows for source files. Test files, vendored trees and generated files are left out of every
+    rule that names a next step: owning the tests is not the knowledge risk, whoever imported vendor/ did
+    not write it, and whoever last ran a generator did not write its output (pairing someone on a generated
+    client is advice about who runs the generator). The default tables leave test files out too."""
+    vendored, generated = filetypes.vendor_dirs(report), _generated(report)
+    return [r for r in report.get("ownership") or []
+            if not (filetypes.is_test_path(r["entity"]) or filetypes.is_vendored(r["entity"], vendored) or r["entity"] in generated)]
 
 
 def _present_areas(report: dict, rows: list, build=knowledge.areas) -> list:
