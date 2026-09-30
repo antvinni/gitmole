@@ -8,7 +8,8 @@ ELLIPSIS = "…"
 
 def shorten_path(path: str, max_len: int) -> str:
     """Elide middle directories so the path fits, keeping the file name whole:
-    a/b/c/d/e.py -> a/…/d/e.py -> a/…/e.py -> …/d/e.py -> …/e.py. A directory (`a/b/c/`) keeps its own
+    a/b/c/d/e.py -> a/…/d/e.py -> …/d/e.py -> a/…/e.py -> …/e.py: the parent directory says
+    more about a file than the top one does (`…/BlogListPage/index.tsx`). A directory (`a/b/c/`) keeps its own
     name the same way (`…/c/`), never the empty name after its last slash; a name that alone is too
     long is returned whole, for the caller to cut (cut_path)."""
     if len(path) <= max_len:
@@ -20,7 +21,7 @@ def shorten_path(path: str, max_len: int) -> str:
     parts[-1] += slash
     candidates = [f"{parts[0]}/{ELLIPSIS}/" + "/".join(parts[-2:])] if len(parts) > 3 else []
     if len(parts) > 2:
-        candidates += [f"{parts[0]}/{ELLIPSIS}/{parts[-1]}", f"{ELLIPSIS}/" + "/".join(parts[-2:])]
+        candidates += [f"{ELLIPSIS}/" + "/".join(parts[-2:]), f"{parts[0]}/{ELLIPSIS}/{parts[-1]}"]
     candidates.append(f"{ELLIPSIS}/{parts[-1]}")
     for c in candidates:
         if len(c) <= max_len:
