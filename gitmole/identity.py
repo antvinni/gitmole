@@ -193,32 +193,22 @@ NO_REPLY_MAILBOX = re.compile(r"^(?:no-?reply|donotreply|do-not-reply)@", re.I) 
 
 
 def tools(identities: list) -> set:
-    """The names of the identities that are a tool rather than a person, by shape: one that authored no
-    commit and only ever appears in Co-authored-by trailers, or one whose address is a bare no-reply
-    mailbox that several differently named identities share (one per model version of the same
-    assistant). `identities` are the run's merged rows (meta.json), each with `authored` where the run
-    recorded it; a row without it is judged on the address alone. The measurement harness's
-    consistency check reads the same definition."""
-    return {i.get("name") for i, tool in zip(identities, _tool_rows(identities)) if tool}
-
-
-def _tool_rows(identities: list) -> list:
-    """Whether each identity row has a tool's shape."""
+    """The names of the identities that are a coding tool rather than a person, by shape alone: two or
+    more differently named identities on one bare no-reply mailbox (noreply@, no-reply@, donotreply@),
+    as an assistant that signs each model version with its own name and the vendor's one address does.
+    A per-account `id+login@users.noreply…` is a person's address, and one name alone on a no-reply
+    address is a person. Someone credited only by Co-authored-by trailers is a person too: most of them
+    are (django's 71, redis's 63). A name that any other row carries is not a tool either, since the
+    report's tables key people by name. `identities` are the run's merged rows (meta.json). The
+    measurement harness's consistency check reads this same definition, so its agent_owner and the
+    report agree."""
     shared = {}
     for i in identities:
         for email in {i.get("email") or ""} | {a.get("email") or "" for a in i.get("aliases") or []}:
             if NO_REPLY_MAILBOX.match(email):
                 shared.setdefault(email.lower(), set()).add(i.get("name"))
-    out = []
+    tool, person = set(), set()
     for i in identities:
         emails = {(i.get("email") or "").lower()} | {(a.get("email") or "").lower() for a in i.get("aliases") or []}
-        out.append((i.get("authored") == 0 and (i.get("commits") or 0) > 0) or any(len(shared.get(e, ())) >= 2 for e in emails))
-    return out
-
-
-def tool_names(identities: list) -> set:
-    """tools(), less any name a person's row also carries. The report's tables key people by name, and
-    identities the merge leaves apart can share one: yt-dlp's `pukkandan` with no address, named only in
-    trailers, is a tool by shape, and the pukkandan who authored 1,616 commits is not."""
-    rows = _tool_rows(identities)
-    return {i.get("name") for i, t in zip(identities, rows) if t} - {i.get("name") for i, t in zip(identities, rows) if not t}
+        (tool if any(len(shared.get(e, ())) >= 2 for e in emails) else person).add(i.get("name"))
+    return tool - person

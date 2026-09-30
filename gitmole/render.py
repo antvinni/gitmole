@@ -523,7 +523,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if merges:
         notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
     more = _more(len(ids), limit)
-    left = f"{apart} coding tool{'s' if apart != 1 else ''} left out" if apart else None   # the knowledge map's caption says what one is
+    left = f"{apart} coding tool{'s' if apart != 1 else ''} (names sharing one no-reply address) left out" if apart else None
     if more or left:
         notes.append("; ".join(x for x in (more, left) if x))
     bots = report["meta"].get("bots") or []
@@ -892,7 +892,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         columns, rows = _keep(columns, rows, [c[0] for c in columns[:-1]])
     notes = [c for c in (_more(len(areas), limit), hidden_note) if c]
     if shown:
-        notes.append("agents: the lines trailers credit to coding tools, which only co-author or share a no-reply address")
+        notes.append("agents: the lines trailers credit to coding tools, several names sharing one no-reply address")
     if gone:
         notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
                      + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))

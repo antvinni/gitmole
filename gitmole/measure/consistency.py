@@ -26,8 +26,8 @@ wrong whatever its own numbers say, and none of it needs a label to see. Ten rev
 A second set came from reading the 0.39.0 report of a one-developer repository built with a coding
 agent (debpalash/VoiceStudio), where five of seventeen findings were false:
 
-- agent_owner: the knowledge map names a tool (an identity that only appears in trailers, or one of
-  several names on one shared no-reply address) as an area's owner or second.
+- agent_owner: the knowledge map names a tool (one of several names on one shared bare no-reply
+  address, identity.tools) as an area's owner or second.
 - magnet_gone: a bug magnet the tree no longer holds (132 of VoiceStudio's 296 were a retired frontend/).
 - hygiene_misread: an extra index named only on comment lines, install code in a setup.py with no setup().
 - lock_workspace: lock drift on a workspace member whose declared root keeps the lock.
@@ -228,9 +228,8 @@ def trailer_author(report: dict, found: list) -> list:
 # --- the checks the 0.39.0 review of a one-developer, agent-assisted repository added ---------------------
 
 def agents(report: dict) -> set:
-    """The identities that are a tool rather than a person, by shape (identity.tools, which the report's
-    own tables read too): one that authored no commit and only ever appears in Co-authored-by trailers,
-    or one whose address is a bare no-reply mailbox that several differently named identities share."""
+    """The identities that are a coding tool rather than a person: identity.tools, the definition the
+    report's own tables read (several names on one bare no-reply address), so this check and the report agree."""
     return identity.tools((report.get("meta") or {}).get("identities") or [])
 
 

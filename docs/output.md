@@ -456,19 +456,22 @@ in plain words, and what to do first. This page is the reference.
    where a commit's lines are shared equally between everyone it credits;
    and in the code-age pass, where a blamed line is shared the same way,
    so a squash-merged repository does not attribute every line to whoever
-   pressed the button. A coding tool is not one of those people. An
-   identity that only ever co-authors, or one of several names on one bare
-   no-reply address (`noreply@`, `no-reply@`, `donotreply@`; a per-account
-   `id+login@users.noreply…` is a person), is taken for a tool by that
-   shape alone: its lines are kept out of ownership, the knowledge map's
+   pressed the button. A coding tool is not one of those people. Two or
+   more differently named identities on one bare no-reply address
+   (`noreply@`, `no-reply@`, `donotreply@`), as an assistant that signs each
+   model version with its own name and the vendor's one address, are taken
+   for a coding tool by that shape alone; a per-account
+   `id+login@users.noreply…` address, one name alone on a no-reply address,
+   and a name a person's row also carries are people. Its lines are kept out of ownership, the knowledge map's
    owners, the per-file author and minor-contributor counts, the degree of
    authorship the truck factor reads, the bus factor, the knowledge islands
    and the People rows, and a person's degree of authorship no longer
    counts its changes as someone else's. The knowledge map shows the tools'
    part of each area in an `agents` column when a shown area has a whole
-   percent of it, and the People caption says how many were left out. The
-   shape also takes in a person who is only ever credited by trailer and
-   never commits.
+   percent of it (the default report: where they hold as much as the
+   second owner), and the People caption says how many were left out.
+   Someone credited only by trailers, who never commits, is a person and
+   counts as one.
 3. **Since last report**: with `--compare BEFORE.json`, what changed
    against an earlier `--json` export of the same clone. Findings are
    matched by their rule id, and for a rule that emits one finding per row
