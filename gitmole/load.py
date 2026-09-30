@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import math
 import io
 import sys
 import json
@@ -88,7 +89,7 @@ def parse_scc(text: str, types=None, scope=()) -> dict:
 NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs",
                    "minor", "soc", "partners", "n-sets", "with-tests", "periods", "fa", "dl", "ac", "is_author", "is_author_decayed", "late",
                    "depth", "shared", "confidence", "commits"}
-FLOAT_COLUMNS = {"doa", "doa_decayed", "hcm"}
+FLOAT_COLUMNS = {"doa", "doa_decayed", "dl_decayed", "ac_decayed", "hcm"}
 
 
 def parse_maat_csv(text: str) -> list:
@@ -336,6 +337,130 @@ def _authored(meta: dict, activity: dict, provenance: dict) -> None:
                 a["authored"] = max(0, (a.get("commits") or 0) - credited[name])
 
 
+DECAYED = ("dl_decayed", "ac_decayed")   # maat-doa.csv's decayed changes, written from 0.40; read here and not exported
+
+
+def _solve(target: float, total: float) -> float:
+    """The decayed changes w in [0, total] at which 0.164 w - 0.321 ln(1 + total - w) is `target`: the part
+    of maat._doa that is not the creator's bonus. It rises with w, so bisection finds it."""
+    def f(w):
+        return 0.164 * w - 0.321 * math.log(1 + total - w) - target
+    if f(0.0) >= 0:
+        return 0.0
+    if f(total) <= 0:
+        return total
+    lo, hi = 0.0, total
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if f(mid) < 0 else (lo, mid)
+    return (lo + hi) / 2
+
+
+def _decayed(rows: list) -> dict:
+    """{author: (their decayed changes, everyone else's)} for one file. From the csv's own columns when the
+    run wrote them. An older run kept only the decayed scores: each score fixes its row's changes once the
+    file's total T is known, and T is where those add up to T, found on a grid up to the undecayed total
+    (no weight is over 1) and narrowed by bisection, or the grid point closest to it. The scores are
+    rounded, so a person at the degree-of-authorship floor can land either side of it (yt-dlp's
+    0.39.0 run: the same decayed truck factor as a recount from the log, 461 of 14,432 author flags
+    otherwise)."""
+    if all(k in r for r in rows for k in DECAYED):
+        return {r["author"]: (r["dl_decayed"], r["ac_decayed"]) for r in rows}
+    targets = [r.get("doa_decayed", 0.0) - 3.293 - 1.098 * (r.get("fa") or 0) for r in rows]
+
+    def excess(total):
+        return sum(_solve(t, total) for t in targets) - total
+    top = float(sum(r.get("dl") or 0 for r in rows))
+    steps = 256
+    grid = [top * k / steps for k in range(1, steps + 1)]
+    values = [excess(t) for t in grid]
+    total = None
+    for k in range(1, steps):
+        if (values[k] >= 0) != (values[k - 1] >= 0):
+            lo, hi, rising = grid[k - 1], grid[k], values[k] >= 0
+            for _ in range(60):
+                mid = (lo + hi) / 2
+                if (excess(mid) >= 0) == rising:
+                    hi = mid
+                else:
+                    lo = mid
+            total = (lo + hi) / 2
+    if total is None:
+        total = grid[min(range(steps), key=lambda k: abs(values[k]))] if grid else 0.0
+    return {r["author"]: (w, total - w) for r, w in zip(rows, (_solve(t, total) for t in targets))}
+
+
+def _doa_without(rows: list, tools: set) -> list:
+    """maat-doa.csv's rows as the degree of authorship reads with the tools taken out of every file: a
+    person's score counts the other people's changes only, and who is an author is decided among the
+    people. Recomputed from the csv's changes, undecayed and decayed (_decayed)."""
+    by_file = {}
+    for r in rows:
+        by_file.setdefault(r["entity"], []).append(r)
+    out = []
+    for entity, rs in by_file.items():
+        people = [r for r in rs if r["author"] not in tools]
+        if len(people) == len(rs):
+            out.extend(rs)
+            continue
+        if not people:
+            continue
+        theirs = sum(r.get("dl") or 0 for r in rs if r["author"] in tools)
+        decayed = _decayed(rs)
+        theirs_d = sum(decayed[r["author"]][0] for r in rs if r["author"] in tools)
+        changed, scores = [], []
+        for r in people:
+            fa, (dl_d, ac_d) = r.get("fa") or 0, decayed[r["author"]]
+            ac = max(0, (r.get("ac") or 0) - theirs)
+            value, value_d = maat._doa(fa, r.get("dl") or 0, ac), maat._doa(fa, dl_d, max(0.0, ac_d - theirs_d))
+            row = {**r, "ac": ac, "doa": round(value, 4), "doa_decayed": round(value_d, 4)}
+            if all(k in r for k in DECAYED):
+                row["ac_decayed"] = round(max(0.0, ac_d - theirs_d), 6)
+            changed.append(row)
+            scores.append((value, value_d))
+        top, top_d = max(v for v, _ in scores), max(v for _, v in scores)
+        for r, (value, value_d) in zip(changed, scores):   # judged unrounded, as maat.doa judges them
+            r["is_author"] = int(value >= maat.DOA_FLOOR and value >= maat.DOA_AUTHOR_SHARE * top)
+            r["is_author_decayed"] = int(value_d >= maat.DOA_FLOOR and value_d >= maat.DOA_AUTHOR_SHARE * top_d)
+        out.extend(changed)
+    return out
+
+
+def _authors_without(rows: list, tool_rows: list) -> list:
+    """maat-authors.csv's rows without the tools: each file's author count less the tools that touched it,
+    and its minor contributors less the tools among them (under maat.MINOR_SHARE of the file's commits,
+    from the ownership table's commits column; an export without that column keeps its minor count)."""
+    revs = {r["entity"]: r.get("n-revs") or 0 for r in rows}
+    count, minor = Counter(), Counter()
+    for r in tool_rows:
+        count[r["entity"]] += 1
+        if "commits" in r and revs.get(r["entity"]) and (r.get("commits") or 0) / revs[r["entity"]] < maat.MINOR_SHARE:
+            minor[r["entity"]] += 1
+    return [{**r, "n-authors": max(0, r["n-authors"] - count[r["entity"]]), **({"minor": max(0, r["minor"] - minor[r["entity"]])} if "minor" in r else {})}
+            if count[r["entity"]] else r for r in rows]
+
+
+def _tools_apart(meta: dict, ownership: list, authors: list, doa: list, surviving: dict) -> tuple:
+    """The tables with the coding tools taken out (identity.tool_names: an identity that only co-authors, or
+    one of several names on one bare no-reply address), and what the tools were credited with, kept
+    apart: ownership, owners and authors, minor contributors, the degree of authorship the truck factor
+    reads, and the surviving code are about people. A tool that shares a commit knows none of it when
+    the person leaves. Returns (ownership, authors, doa, surviving, tools), `tools` {} when there are none."""
+    names = identity.tool_names(meta.get("identities") or [])
+    if not names:
+        return ownership, authors, doa, surviving, {}
+    theirs = [r for r in ownership if r.get("author") in names]
+    added = Counter()
+    for r in theirs:
+        added[r["entity"]] += r.get("added") or 0
+    ids = [i for i in meta.get("identities") or [] if i.get("name") in names]
+    tools = {"names": sorted(names), "commits": sum(i.get("commits") or 0 for i in ids),
+             "added": dict(sorted((e, n) for e, n in added.items() if n)),
+             "surviving": sum(n for name, n in surviving.items() if name in names)}
+    return ([r for r in ownership if r.get("author") not in names], _authors_without(authors, theirs), _doa_without(doa, names),
+            OrderedDict((k, v) for k, v in surviving.items() if k not in names), tools)
+
+
 def load_report(out_dir: str, nested: bool = True) -> dict:
     """Read every output file gitmole writes. Missing optional files become empty values.
 
@@ -361,6 +486,9 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
     activity = _read_json(out_dir, "activity.json", {})
     provenance = _read_json(out_dir, "provenance.json", {}) or {}
     _authored(meta, activity if isinstance(activity, dict) else {}, provenance if isinstance(provenance, dict) else {})
+    ownership, authors_rows, doa, surviving, tools = _tools_apart(meta, ownership, parse_maat_csv(_read(out_dir, "maat-authors.csv")),
+                                                                  parse_maat_csv(_read(out_dir, "maat-doa.csv")), surviving)
+    doa = [{k: v for k, v in r.items() if k not in DECAYED} for r in doa]   # read for the recount above; the tables never showed them
     return {
         "out_dir": out_dir,
         "meta": meta,
@@ -375,12 +503,13 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "soc": parse_maat_csv(_read(out_dir, "maat-soc.csv")),   # sum of coupling; empty for an output directory from before 0.11
         "tests": parse_maat_csv(_read(out_dir, "maat-tests.csv")),   # test co-change per production file; empty before 0.12
         "entropy": parse_maat_csv(_read(out_dir, "maat-entropy.csv")),   # Hassan's change entropy per file; empty before 0.13
-        "doa": parse_maat_csv(_read(out_dir, "maat-doa.csv")),   # degree of authorship per file and person; empty before 0.19
+        "doa": doa,   # degree of authorship per file and person; empty before 0.19
         "latenight": parse_maat_csv(_read(out_dir, "maat-latenight.csv")),
         "components": parse_maat_csv(_read(out_dir, "maat-components.csv")),
-        "authors": parse_maat_csv(_read(out_dir, "maat-authors.csv")),
+        "authors": authors_rows,
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),
         "ownership": ownership,
+        "tools": tools,   # what the coding tools were credited with, kept out of the tables about people; {} when there are none
         "fixes": fixes,
         "fix_history": _fix_history(out_dir, fixes, meta, activity),   # which commits the recent fixes were, and when each file began
         "cohorts": parse_theseus(cohorts) if cohorts else {},

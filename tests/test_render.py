@@ -1136,6 +1136,23 @@ class KnowledgeMap(unittest.TestCase):
         self.assertNotIn("historical", km)
 
 
+    def test_the_tools_part_of_an_area_is_its_own_column_and_nobody_s_ownership(self):
+        r = sample_report()   # load.py has already taken the tools' rows out of the ownership table
+        r["tools"] = {"names": ["Model A"], "commits": 5, "added": {"static/a.html": 250, "tests/t.py": 1}, "surviving": 0}
+        km = render.knowledge_section(r, full=False)
+        self.assertEqual(km["columns"], ["area", "lines added", "main owner", "second", "agents"])
+        self.assertEqual(km["rows"][0], ["static/", "1,000", "Ann (90%)", "Bob (10%)", "20%"], "250 of the 1,250 lines static/ was given")
+        self.assertIn("agents: the lines trailers credit to coding tools", km["caption"])
+        r["tools"]["added"] = {"static/a.html": 50}
+        self.assertNotIn("agents", render.knowledge_section(r, full=False)["columns"],
+                         "the default map shows them only where they hold as much as the second owner")
+        self.assertEqual(render.knowledge_section(r, full=True)["columns"][-1], "agents")
+        r["tools"]["added"] = {"static/a.html": 4}
+        self.assertEqual(render.knowledge_section(r, full=False)["columns"], ["area", "lines added", "main owner", "second"],
+                         "no column for less than a whole percent")
+        self.assertEqual(render.knowledge_section(r, full=True)["columns"][-1], "second")
+
+
 class Timeline(unittest.TestCase):
     def test_last_twelve_months_per_author_with_dots_for_zero(self):
         text = rendered(sample_report(), [], width=120)
@@ -1691,6 +1708,17 @@ class PeopleMerges(unittest.TestCase):
                          "commits and share count the commits each authored; the credit is its own column")
         plain = render.people_section({"meta": {"identities": [{"name": "Dee", "email": "d@x", "commits": 30, "authored": 30}]}})
         self.assertNotIn("co-authored", plain["columns"])
+
+
+    def test_coding_tools_are_left_out_of_the_rows_and_counted_in_the_caption(self):
+        rep = {"meta": {"identities": [{"name": "Model A", "email": "noreply@v.example", "commits": 60, "authored": 0},
+                                       {"name": "Model B", "email": "noreply@v.example", "commits": 6, "authored": 0},
+                                       {"name": "Dee", "email": "d@x", "commits": 30, "authored": 30}]},
+               "tools": {"names": ["Model A", "Model B"], "commits": 66, "added": {}, "surviving": 0}}
+        sec = render.people_section(rep, full=False)
+        self.assertEqual([r[0] for r in sec["rows"]], ["Dee"])
+        self.assertNotIn("co-authored", sec["columns"])
+        self.assertIn("2 coding tools left out", sec["caption"])
 
 
 class SummaryLine(unittest.TestCase):

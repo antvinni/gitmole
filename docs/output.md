@@ -456,7 +456,19 @@ in plain words, and what to do first. This page is the reference.
    where a commit's lines are shared equally between everyone it credits;
    and in the code-age pass, where a blamed line is shared the same way,
    so a squash-merged repository does not attribute every line to whoever
-   pressed the button.
+   pressed the button. A coding tool is not one of those people. An
+   identity that only ever co-authors, or one of several names on one bare
+   no-reply address (`noreply@`, `no-reply@`, `donotreply@`; a per-account
+   `id+login@users.noreply…` is a person), is taken for a tool by that
+   shape alone: its lines are kept out of ownership, the knowledge map's
+   owners, the per-file author and minor-contributor counts, the degree of
+   authorship the truck factor reads, the bus factor, the knowledge islands
+   and the People rows, and a person's degree of authorship no longer
+   counts its changes as someone else's. The knowledge map shows the tools'
+   part of each area in an `agents` column when a shown area has a whole
+   percent of it, and the People caption says how many were left out. The
+   shape also takes in a person who is only ever credited by trailer and
+   never commits.
 3. **Since last report**: with `--compare BEFORE.json`, what changed
    against an earlier `--json` export of the same clone. Findings are
    matched by their rule id, and for a rule that emits one finding per row
@@ -703,7 +715,7 @@ directory for a remote target:
 | `maat-coupling.csv` | change analysis | files that change together, over logical changes (a ticket's commits, or one author's day) |
 | `maat-soc.csv` | change analysis | sum of coupling per file: its co-changes with any other file, and how many files it often changes with, over logical changes |
 | `maat-tests.csv` | change analysis | per production file, how many logical changes touched it and how many of those also touched a test file |
-| `maat-doa.csv` | change analysis | degree of authorship per file and person: created it, own changes, others' changes, the degree undecayed and decayed, and whether each counts as an author |
+| `maat-doa.csv` | change analysis | degree of authorship per file and person: created it, own changes, others' changes, the degree undecayed and decayed, whether each counts as an author, and the decayed own and others' changes, from which the report recounts the degree without the coding tools |
 | `maat-latenight.csv` | change analysis | per file, its revisions and how many were committed between midnight and 4 am in the author's own time zone |
 | `maat-components.csv` | change analysis | coupling between components at one and two directory levels, over logical changes: shared changes, degree, average revisions; read by nothing since the component-coupling rule was retired at 0.39.0 |
 | `maat-entropy.csv` | change analysis | Hassan's change entropy per file: the months it changed in, and its decayed history complexity (its share of each month's changes times that month's entropy over files, halved per month back) |

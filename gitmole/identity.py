@@ -199,14 +199,26 @@ def tools(identities: list) -> set:
     assistant). `identities` are the run's merged rows (meta.json), each with `authored` where the run
     recorded it; a row without it is judged on the address alone. The measurement harness's
     consistency check reads the same definition."""
+    return {i.get("name") for i, tool in zip(identities, _tool_rows(identities)) if tool}
+
+
+def _tool_rows(identities: list) -> list:
+    """Whether each identity row has a tool's shape."""
     shared = {}
     for i in identities:
         for email in {i.get("email") or ""} | {a.get("email") or "" for a in i.get("aliases") or []}:
             if NO_REPLY_MAILBOX.match(email):
                 shared.setdefault(email.lower(), set()).add(i.get("name"))
-    out = set()
+    out = []
     for i in identities:
         emails = {(i.get("email") or "").lower()} | {(a.get("email") or "").lower() for a in i.get("aliases") or []}
-        if (i.get("authored") == 0 and (i.get("commits") or 0) > 0) or any(len(shared.get(e, ())) >= 2 for e in emails):
-            out.add(i.get("name"))
+        out.append((i.get("authored") == 0 and (i.get("commits") or 0) > 0) or any(len(shared.get(e, ())) >= 2 for e in emails))
     return out
+
+
+def tool_names(identities: list) -> set:
+    """tools(), less any name a person's row also carries. The report's tables key people by name, and
+    identities the merge leaves apart can share one: yt-dlp's `pukkandan` with no address, named only in
+    trailers, is a tool by shape, and the pukkandan who authored 1,616 commits is not."""
+    rows = _tool_rows(identities)
+    return {i.get("name") for i, t in zip(identities, rows) if t} - {i.get("name") for i, t in zip(identities, rows) if not t}

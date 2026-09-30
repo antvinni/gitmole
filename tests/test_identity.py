@@ -251,3 +251,10 @@ class Tools(unittest.TestCase):
                {"name": "Model B", "email": "noreply@v.example", "commits": 2, "authored": 2},
                {"name": "Ann", "email": "a@x.org", "commits": 5, "authored": 5}]
         self.assertEqual(consistency.agents({"meta": {"identities": ids}}), identity.tools(ids))
+
+    def test_a_name_a_person_also_carries_is_not_taken_out_of_the_tables(self):
+        ids = [{"name": "pukkandan", "email": "p@x.org", "commits": 1629, "authored": 1616},
+               {"name": "pukkandan", "email": "", "commits": 1, "authored": 0},
+               {"name": "Helper", "email": "h@x.org", "commits": 9, "authored": 0}]
+        self.assertEqual(identity.tools(ids), {"pukkandan", "Helper"}, "the harness judges rows")
+        self.assertEqual(identity.tool_names(ids), {"Helper"})

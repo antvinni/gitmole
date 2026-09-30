@@ -25,7 +25,8 @@ are merged.
 
 **Knowledge map.** Each top-level area, how many lines were added there, and who wrote most of them.
 `(gone)` marks an owner with no commits in the twelve months before the last commit (`--gone` changes
-the twelve).
+the twelve). Lines a `Co-authored-by` trailer credits to a coding tool are not anyone's to own: an
+`agents` column shows their share of the area instead.
 
 **Timeline.** Commits per person per month over the last year: who is active now.
 

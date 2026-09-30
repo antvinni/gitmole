@@ -511,3 +511,70 @@ class LoadReport(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ToolsApart(unittest.TestCase):
+    """VoiceStudio: one developer, and an assistant co-authoring 43% of the commits under a name per model
+    version. The tools are kept out of every table about people; what they were credited with is kept apart."""
+
+    META = {"identities": [{"name": "Dev", "email": "dev@x.org", "commits": 10, "authored": 10},
+                           {"name": "Pal", "email": "pal@x.org", "commits": 2, "authored": 2},
+                           {"name": "Model A", "email": "noreply@vendor.example", "commits": 6, "authored": 0},
+                           {"name": "Model B", "email": "noreply@vendor.example", "commits": 2, "authored": 0}]}
+
+    def commits(self):
+        return [{"hash": f"c{k}", "date": f"2026-0{1 + k // 4}-1{k % 4}", "time": "", "author": author, "subject": "s",
+                 "co_authors": co, "files": [(path, 10, 0)]}
+                for k, (author, co, path) in enumerate([
+                    ("Dev", [], "a.py"), ("Dev", ["Model A"], "a.py"), ("Dev", ["Model A"], "a.py"), ("Pal", ["Model B"], "a.py"),
+                    ("Dev", ["Model A", "Model B"], "b.py"), ("Pal", [], "b.py"), ("Dev", ["Model A"], "b.py"), ("Dev", [], "c.py"),
+                    ("Dev", ["Model A"], "c.py")])]
+
+    def test_the_tables_read_as_a_recount_without_the_tools(self):
+        from gitmole import maat
+        tools = {"Model A", "Model B"}
+        commits = self.commits()
+        ownership = maat.entity_ownership(commits)
+        surviving = {"Dev": 50, "Model A": 30, "Pal": 10}
+        own, authors, doa, surv, apart = load._tools_apart(self.META, ownership, maat.authors(commits), maat.doa(commits, now="2026-09-28"), surviving)
+        people = [dict(c, co_authors=[x for x in c["co_authors"] if x not in tools]) for c in commits]
+        self.assertEqual([r for r in own], [r for r in ownership if r["author"] not in tools], "the tools' ownership rows are dropped")
+        self.assertEqual(sorted(authors, key=lambda r: r["entity"]), sorted(maat.authors(people), key=lambda r: r["entity"]),
+                         "author and minor-contributor counts are what a log without the tools gives")
+        exact = {(r["entity"], r["author"]): r for r in maat.doa(people, now="2026-09-28")}
+        mine = {(r["entity"], r["author"]): r for r in doa}
+        self.assertEqual(set(mine), set(exact))
+        for k, r in exact.items():
+            self.assertEqual({c: mine[k][c] for c in ("ac", "doa", "doa_decayed", "is_author", "is_author_decayed")},
+                             {c: r[c] for c in ("ac", "doa", "doa_decayed", "is_author", "is_author_decayed")}, k)
+            self.assertAlmostEqual(mine[k]["ac_decayed"], r["ac_decayed"], places=5)
+        self.assertEqual(surv, {"Dev": 50, "Pal": 10})
+        self.assertEqual(apart["names"], ["Model A", "Model B"])
+        self.assertEqual(apart["commits"], 8)
+        self.assertEqual(apart["surviving"], 30)
+        self.assertEqual(apart["added"], {"a.py": 15, "b.py": 11, "c.py": 5}, "their share of each co-authored commit's lines, per file")
+
+    def test_a_file_only_tools_authored_leaves_the_people_to_decide_among_themselves(self):
+        rows = [{"entity": "x.py", "author": "Dev", "fa": 0, "dl": 1, "ac": 8, "doa": 2.588, "doa_decayed": 2.5, "is_author": 0, "is_author_decayed": 0,
+                 "dl_decayed": 0.5, "ac_decayed": 6.0},
+                {"entity": "x.py", "author": "Model A", "fa": 0, "dl": 8, "ac": 1, "doa": 4.382, "doa_decayed": 4.1, "is_author": 1, "is_author_decayed": 1,
+                 "dl_decayed": 6.0, "ac_decayed": 0.5}]
+        out = load._doa_without(rows, {"Model A"})
+        self.assertEqual([(r["author"], r["ac"], r["doa"], r["doa_decayed"], r["is_author"], r["is_author_decayed"]) for r in out],
+                         [("Dev", 0, 3.457, 3.375, 1, 1)], "the person is its author once the tool's changes no longer dilute theirs")
+
+    def test_an_older_run_without_the_decayed_changes_reads_them_back_from_the_scores(self):
+        """Approximately: the scores are rounded and the total is solved for, so the flags are what is held to."""
+        from gitmole import maat
+        commits = self.commits()
+        rows = maat.doa(commits, now="2026-09-28")
+        old = [{k: v for k, v in r.items() if k not in load.DECAYED} for r in rows]
+        new, older = load._doa_without(rows, {"Model A", "Model B"}), load._doa_without(old, {"Model A", "Model B"})
+        self.assertEqual([(r["entity"], r["author"], r["is_author"], r["is_author_decayed"]) for r in older],
+                         [(r["entity"], r["author"], r["is_author"], r["is_author_decayed"]) for r in new])
+
+    def test_no_tools_changes_nothing(self):
+        meta = {"identities": [{"name": "Dev", "email": "dev@x.org", "commits": 3, "authored": 3}]}
+        rows = [{"entity": "a.py", "author": "Dev", "added": 3, "deleted": 0, "commits": 3}]
+        self.assertEqual(load._tools_apart(meta, rows, [{"entity": "a.py", "n-authors": 1, "n-revs": 3, "minor": 0}], [], {"Dev": 3}),
+                         (rows, [{"entity": "a.py", "n-authors": 1, "n-revs": 3, "minor": 0}], [], {"Dev": 3}, {}))

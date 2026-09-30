@@ -537,7 +537,8 @@ def doa(commits: list, now: str = None, imported=frozenset()) -> list:
     author of it (DOA at least three quarters of the file's highest and at least 3.293), undecayed and
     with knowledge halving every five months. Changes, not lines, so a reformat transfers nothing. A file
     in `imported` came in with an import commit, which is left out; nobody gets the bonus for creating
-    it, rather than whoever changed it first afterwards."""
+    it, rather than whoever changed it first afterwards. The decayed changes, own and others', are kept
+    too, so the report can recount the degree without the coding tools (load._doa_without)."""
     now = dt.date.fromisoformat(now or dt.date.today().isoformat())
     changes, decayed, first = defaultdict(Counter), defaultdict(Counter), {}
     for c in commits:
@@ -559,6 +560,7 @@ def doa(commits: list, now: str = None, imported=frozenset()) -> list:
         top, top_d = max(s[3] for s in scores.values()), max(s[4] for s in scores.values())
         for who, (fa, n, others, value, value_d) in sorted(scores.items()):
             rows.append({"entity": p, "author": who, "fa": fa, "dl": n, "ac": others, "doa": round(value, 4), "doa_decayed": round(value_d, 4),
+                         "dl_decayed": round(decayed[p][who], 6), "ac_decayed": round(total_d - decayed[p][who], 6),
                          "is_author": int(value >= DOA_FLOOR and value >= DOA_AUTHOR_SHARE * top),
                          "is_author_decayed": int(value_d >= DOA_FLOOR and value_d >= DOA_AUTHOR_SHARE * top_d)})
     rows.sort(key=lambda r: (r["entity"], r["author"]))
@@ -818,7 +820,7 @@ ANALYSES = {
     "entity-ownership": (entity_ownership, ["entity", "author", "added", "deleted", "commits"]),
     "fixes": (fixes, ["entity", "n-fixes", "last-fix", "recent-fixes"]),
     "entropy": (entropy, ["entity", "periods", "hcm"]),
-    "doa": (doa, ["entity", "author", "fa", "dl", "ac", "doa", "doa_decayed", "is_author", "is_author_decayed"]),
+    "doa": (doa, ["entity", "author", "fa", "dl", "ac", "doa", "doa_decayed", "is_author", "is_author_decayed", "dl_decayed", "ac_decayed"]),
     "latenight": (latenight, ["entity", "n-revs", "late"]),
     "components": (components, ["depth", "entity", "coupled", "degree", "shared", "average-revs"]),
 }
