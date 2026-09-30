@@ -83,6 +83,23 @@ class DeclaredUnused(unittest.TestCase):
                          "another manifest naming a package is not a use of it, and an example's manifest is left out")
 
 
+    def test_a_crate_that_includes_generated_code_is_not_judged(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            cargo = '[package]\nname = "{}"\n[dependencies]\nreqwest = "0.12"\nserde = "1"\n[build-dependencies]\nprogenitor = "0.9"\n'
+            r.write("client/Cargo.toml", cargo.format("client"))
+            r.write("client/build.rs", "fn main() { progenitor::generate(); }\n")
+            r.write("client/src/lib.rs", 'include!(concat!(env!("OUT_DIR"), "/client_generated.rs"));\n')
+            r.write("cli/Cargo.toml", cargo.format("cli"))
+            r.write("cli/src/main.rs", "use serde::Deserialize;\nfn main() {}\n")
+            r.commit()
+            out = imports.unused(d)
+        self.assertEqual([(x["manifest"], x["package"]) for x in out["unused"]], [("cli/Cargo.toml", "reqwest")],
+                         "what the build script's output uses is in no tracked file, so the crate is not judged")
+        self.assertEqual(out["built"], ["client/Cargo.toml"])
+        self.assertEqual(imports._crate_of("a/b/src/x.rs", ["", "a", "a/b"]), "a/b")
+
+
 class LicenceExpressions(unittest.TestCase):
     def test_or_takes_the_choice_and_and_takes_every_term(self):
         self.assertEqual(licences.classify("MIT OR GPL-3.0-only"), licences.PERMISSIVE)
