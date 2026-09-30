@@ -472,6 +472,16 @@ class ContextAndForms(unittest.TestCase):
         self.assertTrue(leaks.is_placeholder(value, f"# Example:\napi_key = '{value}'"), "a word of its own still calls it an example")
         self.assertTrue(leaks.is_placeholder(value, f"sampleApiKey = '{value}'"), "the value's own key calls it a sample")
 
+    def test_lowercase_words_joined_by_hyphens_are_a_phrase_not_an_issued_credential(self):
+        """paperclip's only critical: `curl -H "Authorization: Bearer <three lowercase words>"` in a negative auth test."""
+        slug = "-".join(("wrong", "bearer", "key"))
+        for rule in ("curl-auth-header", "generic-api-key", "github-pat"):
+            self.assertTrue(leaks.is_placeholder(slug, "", "scripts/smoke/e2e.sh", rule), rule)
+        self.assertFalse(leaks.is_placeholder(slug, "", "app/settings.py", "generic-password"),
+                         "a password a person chose can be a hyphenated passphrase")
+        for value in ("wrong-k3y-value", "Wrong-bearer-key", "wrongbearerkey", "a-b-c", "wrong_bearer_key", "wrong-bearer-", self.KEY_ID, self.PAT):
+            self.assertFalse(leaks._SLUG.match(value) and True, value)
+
     def test_a_provider_key_next_to_an_example_comment_is_still_a_key(self):
         """A gate fixture: a committed key under a comment that says "example" or "sample" must be caught."""
         for line in (f"# example config\nAWS_ACCESS_KEY_ID={self.KEY_ID}", f"sample_rate = 0.1\naws_key = '{self.KEY_ID}'",

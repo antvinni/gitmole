@@ -142,6 +142,12 @@ def _is_label(value: str) -> bool:
     """A name built on the keyword, in one case as names are written (resetpassword, CURLOPT_PASSWD,
     password_missing, my-db-password); a mixed-case word such as MyCompanySecret is more likely a chosen password."""
     return bool(_LABEL.match(value)) and (value == value.lower() or value == value.upper())
+# Lowercase words of letters joined by hyphens (`wrong-api-key`, `not-a-real-token`): a phrase standing in for a
+# value, the way a negative test or a README writes one. An issued credential (a provider's key, a bearer token)
+# is generated: it carries digits, capitals or no separators. A password a person chose can be such a phrase
+# (a diceware passphrase is written word-word-word), so generic-password's values are not judged by it.
+_SLUG = re.compile(r"^[a-z]{2,}(?:-[a-z]{2,})+$")
+_CHOSEN = ("generic-password",)
 _HEADER_WRITTEN = re.compile(r"^-----BEGIN[ A-Z]*KEY-----(?:\\n)?[\"'`]")   # print("-----BEGIN ... KEY-----\n"): code writing a PEM file
 _UUID = re.compile(r"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b")
 
@@ -235,6 +241,8 @@ def is_placeholder(value: str, line: str = "", path: str = "", rule: str = "") -
     if rule and not rule.startswith("generic-"):
         line = ""
     if _HEADER_WRITTEN.match(value) or _MASKED.match(value) or (_FILE_REF.search(value) and not any(ch.isspace() for ch in value)) or _is_label(value):
+        return True
+    if _SLUG.match(value) and rule not in _CHOSEN:
         return True
     if (_HINT.search(value) or _MASK_ONLY.match(value) or (_WORDS.match(value) and _CREDENTIAL_WORD.search(value))
             or (_SAYS_EXAMPLE.search(value) and "-----BEGIN" not in value)):
