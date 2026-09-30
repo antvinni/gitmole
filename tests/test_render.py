@@ -1839,6 +1839,31 @@ class Fit(unittest.TestCase):
         self.assertIn("…", fitted["rows"][0][0])
         self.assertTrue(fitted["rows"][0][0].startswith("hind"))
 
+    def test_a_cut_path_is_not_left_reading_as_another_file(self):
+        real, reexport = "ui/src/components/issue-properties/IssueProperties.tsx", "ui/src/components/IssueProperties.tsx"
+        cols = [("function", {"overflow": "fold"}), ("file", render.PATH), ("ccn", render.RIGHT)]
+        rows = [("TruncatedCopyable", real, "861"), ("renderAVeryLongFunctionNameThatTakesRoom", "server/src/a/b/c/routes.ts", "40")]
+        plain = render.fit(render._section("Complex functions", cols, rows), 82)
+        self.assertEqual(plain["rows"][0][1], "ui/…/IssueProperties.tsx", "nothing else of that name is known")
+        sec = dict(render._section("Complex functions", cols, rows), homes={"IssueProperties.tsx": [reexport, real]})
+        told = render.fit(sec, 82)
+        self.assertEqual([o["width"] for o in told["col_opts"]], [o["width"] for o in plain["col_opts"]], "no column gives up room for it")
+        self.assertRegex(told["rows"][0][1], r"^…/issue-p[a-z-]*…/IssueProperties.tsx$", "the directory is cut, not the name")
+        self.assertEqual(render.fit(sec, 100)["rows"][0][1], "ui/…/issue-properties/IssueProperties.tsx")
+        both = render.fit(render._section("Complex functions", cols, [("a", real, "1"), ("b", "ui/src/pages/IssueProperties.tsx", "1"),
+                                                                     ("c", reexport, "1"), rows[1]]), 82)
+        shown = [r[1] for r in both["rows"][:3]]
+        self.assertEqual(len(set(shown)), 3, f"rows of one table never shorten to the same text: {shown}")
+
+    def test_sections_know_the_tracked_files_that_share_a_shown_name(self):
+        r = sample_report()
+        r["tree"] = frozenset({"lib/a/index.js", "lib/b/index.js", "README.md"})
+        r["functions"].append({"file": "lib/a/index.js", "function": "f", "anonymous": False, "ccn": 30, "nloc": 9, "params": 1, "start": 1, "end": 9, "suspect": ""})
+        secs = render.sections(r, full=False, width=80)
+        self.assertEqual(sorted(secs[0]["homes"]["index.js"]), ["lib/a/index.js", "lib/b/index.js"])
+        self.assertNotIn("README.md", secs[0]["homes"], "only names two tracked paths share")
+        self.assertNotIn("homes", render.sections(r, full=False, width=None)[0], "Markdown shows whole paths")
+
     def test_a_table_that_fits_is_left_alone(self):
         sec = render._section("T", [("file", render.PATH), ("n", render.RIGHT)], [("a/b.py", 1)])
         self.assertIs(render.fit(sec, 80), sec)

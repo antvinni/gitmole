@@ -39,6 +39,33 @@ class ShortenPath(unittest.TestCase):
         self.assertTrue(cut.startswith("hindsi") and cut.endswith("-slim/") and "…" in cut, cut)
         self.assertEqual(textfmt.cut_path("a/b/memory_engine.py", 12), textfmt.cut_middle("…/memory_engine.py", 12))
 
+    def test_a_form_that_also_reads_as_another_path_is_passed_over(self):
+        # paperclip: ui/…/IssueProperties.tsx is the component and a one-line re-export beside it
+        real, reexport = "ui/src/components/issue-properties/IssueProperties.tsx", "ui/src/components/IssueProperties.tsx"
+        self.assertEqual(textfmt.shorten_path(real, 26), "ui/…/IssueProperties.tsx")
+        self.assertEqual(textfmt.shorten_path(real, 26, [real, reexport]), "…/issue-properties/IssueProperties.tsx")
+        self.assertEqual(textfmt.shorten_path(reexport, 33, [real, reexport]), "…/components/IssueProperties.tsx")
+        self.assertEqual(textfmt.shorten_path(real, 40, [real, reexport]), "…/issue-properties/IssueProperties.tsx")
+
+    def test_more_directories_are_kept_until_the_form_names_one_path(self):
+        a, b = "x/a/core/src/index.ts", "x/b/core/src/index.ts"
+        self.assertEqual(textfmt.shorten_path(a, 0, [a, b]), "…/a/core/src/index.ts")
+        self.assertEqual(textfmt.shorten_path("x/y/index.ts", 0, ["x/y/index.ts", "x/index.ts"]), "…/y/index.ts")
+        self.assertEqual(textfmt.shorten_path("a/b.ts", 0, ["a/b.ts", "c/a/b.ts"]), "a/b.ts", "no shorter form names it alone")
+
+    def test_a_line_after_the_path_is_not_part_of_it(self):
+        real = "ui/src/components/issue-properties/IssueProperties.tsx:12"
+        self.assertEqual(textfmt.shorten_path(real, 0, ["ui/src/components/IssueProperties.tsx"]), "…/issue-properties/IssueProperties.tsx:12")
+
+    def test_cut_path_keeps_the_usual_form_when_the_one_that_tells_them_apart_does_not_fit(self):
+        real, reexport = "ui/src/components/issue-properties/IssueProperties.tsx", "ui/src/components/IssueProperties.tsx"
+        self.assertEqual(textfmt.cut_path(real, 40, [reexport]), "…/issue-properties/IssueProperties.tsx")
+        self.assertEqual(textfmt.cut_path(real, 26, [reexport]), "…/iss…/IssueProperties.tsx", "the parent directory is cut, not the name")
+        # the same parent on both sides: no start of it tells them apart, and the name is never cut for it
+        a, b = "server/wake-queue/application/use-cases.ts", "server/other/application/use-cases.ts"
+        self.assertEqual(textfmt.cut_path(a, 34, [b]), "server/…/application/use-cases.ts")
+        self.assertEqual(textfmt.cut_path(real + ":12", 29, [reexport]), "…/iss…/IssueProperties.tsx:12")
+
     def test_root_files(self):
         self.assertEqual(textfmt.shorten_path("Makefile", 5), "Makefile")
 
