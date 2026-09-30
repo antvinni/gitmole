@@ -412,7 +412,12 @@ def annotate(repo: str, rows: list) -> None:
     `Declared`, when the repository declared the value allowed at some commit of HEAD's history: an
     allowlist regex or stopword of a .gitleaks.toml or .betterleaks.toml matches it, it stands on its own
     in a .gitleaksignore or .betterleaksignore (or the row's fingerprint is listed there), or a version of
-    its file carries it on a line marked gitleaks:allow. {File, Commit, How}: the first declaration."""
+    its file carries it on a line marked gitleaks:allow. {File, Commit, How}: the first declaration.
+
+    `AtHead`, whether HEAD's version of the file still holds the value, and `HeadLine`, the row's own line
+    when HEAD holds it there, else the first that does: a value removed years ago is not at a HEAD location because its file still exists (a
+    SARIF result pinned there points at a line that holds nothing). Left out when HEAD cannot be read,
+    and a reader then judges by the file alone, as before."""
     if not rows:
         return
     versions = _history(repo, list(CONFIGS))
@@ -432,10 +437,19 @@ def annotate(repo: str, rows: list) -> None:
         for l in (text or "").split("\n"):
             if any(m in l for m in ALLOW_MARKERS):
                 marker_lines.setdefault(path, []).append((commit, l))
+    head_readable = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "-q", "HEAD^{commit}"], capture_output=True).returncode == 0
+    head = dict(_blobs(repo, [f"HEAD:{p}" for p in located])) if head_readable else {}
     for r in rows:
         value, path = r.get("Secret") or "", r.get("File") or ""
         if not value:
             continue
+        if head_readable:
+            text = head.get(f"HEAD:{path}") if r.get("Commit") else None   # an unreachable blob is in no commit, HEAD's least of all
+            holding = [i + 1 for i, l in enumerate(text.split("\n")) if value in l] if text is not None else []
+            at = int(r.get("StartLine") or 0) if int(r.get("StartLine") or 0) in holding else (holding[0] if holding else None)
+            r["AtHead"] = at is not None
+            if at:
+                r["HeadLine"] = at
         declared = None
         for commit, cfg, lists, text in configs:
             if lists is not None:

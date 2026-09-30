@@ -135,6 +135,22 @@ class Document(unittest.TestCase):
         gone = next(x for x in history["runs"][0]["results"] if x["properties"]["commit"] == "d2d2d2d")
         self.assertEqual(gone["locations"][0]["physicalLocation"]["region"], {"startLine": 3})
 
+    def test_head_scope_keeps_a_secret_only_where_heads_file_still_holds_the_value(self):
+        """VoiceStudio: a key replaced in a file still in the tree was pinned to that file at HEAD, where it no longer is."""
+        rows = [{"rule": "posthog", "file": "src/a.py", "commit": "c1c1c1c", "line": 57, "fingerprint": "x", "value": "h1", "placeholder": False,
+                 "at_head": False},
+                {"rule": "github-pat", "file": "src/a.py", "commit": "d2d2d2d", "line": 3, "fingerprint": "y", "value": "h2", "placeholder": False,
+                 "at_head": True, "head_line": 12}]
+        found = [finding("secrets_in_source", "critical", evidence={"files": ["src/a.py"]})]
+        [r] = sarif.build(report(secrets=rows), found, scope="head")["runs"][0]["results"]
+        self.assertEqual(r["properties"]["commit"], "d2d2d2d", "the replaced value is history only, though its file is in the tree")
+        self.assertEqual(r["locations"][0]["physicalLocation"]["region"], {"startLine": 12}, "HEAD's line, where the value is now")
+        self.assertEqual(r["message"]["text"], "github-pat in src/a.py at commit d2d2d2d, line 3 of that commit's version; at HEAD, line 12")
+        [only] = sarif.build(report(secrets=rows[:1]), found, scope="head")["runs"][0]["results"]
+        self.assertNotIn("locations", only, "a gated finding with nothing at HEAD keeps one result, without a location")
+        self.assertEqual(only["level"], "error")
+        self.assertEqual(len(sarif.build(report(secrets=rows), found, scope="history")["runs"][0]["results"]), 2)
+
     def test_a_declared_value_is_the_declared_findings_and_not_the_criticals(self):
         said = {"file": ".gitleaks.toml", "commit": "e3ed952", "how": "allowlist regex"}
         rows = [{"rule": "posthog-project-api-key", "file": "src/a.py", "commit": "c1c1c1c", "line": 9, "fingerprint": "x", "value": "h1", "placeholder": False,

@@ -176,6 +176,10 @@ def parse_secrets(text: str) -> list:
             value, placeholder = None, False
         out.append({"rule": r.get("RuleID", ""), "file": r.get("File", ""), "commit": r.get("Commit", "")[:7], "line": r.get("StartLine"),
                     "fingerprint": r.get("Fingerprint", ""), "value": value, "placeholder": placeholder, "confidence": r.get("Confidence")})
+        if isinstance(r.get("AtHead"), bool):   # whether HEAD's version of the file still holds the value (leaks.annotate)
+            out[-1]["at_head"] = r["AtHead"]
+            if r["AtHead"] and r.get("HeadLine"):
+                out[-1]["head_line"] = r["HeadLine"]
         declared = r.get("Declared")
         if isinstance(declared, dict) and declared.get("File"):   # the repository declared the value allowed (leaks.annotate)
             out[-1]["declared"] = {"file": declared["File"], "commit": str(declared.get("Commit") or "")[:7], "how": declared.get("How", "")}

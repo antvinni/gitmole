@@ -619,3 +619,34 @@ class DeclaredToml(unittest.TestCase):
         self.assertEqual([(a["regexes"], a["stopwords"], a["paths"], a["commits"], a["target"], a["condition"]) for a in lists],
                          [(["^a$", "b\\.c"], ["s1"], [], [], "secret", "or"), (["q\\d"], [], [], [], "line", "or"), ([], [], ["^t/"], ["abc"], "secret", "and")],
                          "a basic string's escapes are TOML's; a literal string's are the regex's; a rule's detection regex is not read")
+
+
+class AtHead(unittest.TestCase):
+    def test_whether_heads_version_of_the_file_still_holds_the_value_and_where(self):
+        from tests.test_hygiene import Repo
+        gone, kept = "sk_" + FAKE, "sk_" + FAKE[::-1]
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("app/k.py", f'A = "{gone}"\nB = "{kept}"\n')
+            r.commit(date="2026-01-01T00:00:00")
+            first = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            r.write("app/k.py", f'# moved down\nA = "none"\n\nB = "{kept}"\nC = "{kept}"\n')
+            r.commit(date="2026-01-02T00:00:00")
+            rows = [{"RuleID": "x", "File": "app/k.py", "Commit": first, "StartLine": 1, "Secret": gone},
+                    {"RuleID": "x", "File": "app/k.py", "Commit": first, "StartLine": 2, "Secret": kept},
+                    {"RuleID": "x", "File": "app/k.py", "Commit": first, "StartLine": 5, "Secret": kept},
+                    {"RuleID": "x", "File": "old/deleted.py", "Commit": first, "StartLine": 2, "Secret": kept},
+                    {"RuleID": "x", "File": "(unreachable blob 0123456789ab)", "Commit": "", "StartLine": 2, "Secret": kept}]
+            leaks.annotate(d, rows)
+        self.assertEqual([(x["AtHead"], x.get("HeadLine")) for x in rows], [(False, None), (True, 4), (True, 5), (False, None), (False, None)],
+                         "the file is in the tree for the first row, but the value is not; the second moved to line 4; "
+                         "a row whose own line holds the value at HEAD keeps it")
+        clean = leaks.sanitise(rows)
+        self.assertNotIn(FAKE[::-1], json.dumps(clean))
+        self.assertEqual(clean[1]["HeadLine"], 4)
+
+    def test_outside_a_repository_it_is_left_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            row = {"RuleID": "x", "File": "a.py", "Commit": "abc", "StartLine": 1, "Secret": FAKE}
+            leaks.annotate(d, [row])
+        self.assertNotIn("AtHead", row)
