@@ -503,12 +503,21 @@ class FromThePaperclipExport(unittest.TestCase):
                {"name": "Bo", "email": "bo@users.noreply.example", "commits": 1, "authored": 0, "merges": 10}]
         self.assertNotIn("merge_total", checks(report(meta={"identities": ids})))
 
-    def test_a_table_that_leads_with_a_suspect_span(self):
-        """paperclip's Complex functions led with parseSkillFrontmatter, complexity 1036 over 4,232 lines: 19 real ones."""
+    def test_a_list_that_leads_with_a_suspect_span(self):
+        """paperclip's Complex functions led with parseSkillFrontmatter, complexity 1036 over 4,232 lines: 19 real ones.
+        A finding whose first function is that span is the same complaint, whatever order the table draws."""
         funcs = [{"file": "a.ts", "function": "parse", "ccn": 900, "nloc": 4000, "params": 1, "start": 10, "end": 4500, "suspect": "opens a block"},
                  {"file": "b.ts", "function": "run", "ccn": 80, "nloc": 300, "params": 0, "start": 5, "end": 320}]
-        self.assertEqual(checks(report(functions=funcs)), ["suspect_lead"])
+        f = finding("brain_methods", evidence={"functions": [dict(funcs[0]), dict(funcs[1])]})
+        self.assertEqual(checks(report(functions=funcs, findings=[f])), ["suspect_lead"])
         del funcs[0]["suspect"]
+        self.assertEqual(checks(report(functions=funcs, findings=[f])), [])
+
+    def test_the_table_no_longer_leads_with_a_suspect_span(self):
+        """The same rows through gitmole's own table: suspect spans sort after every trusted row, so the table a
+        reader sees leads with a function lizard measured cleanly."""
+        funcs = [{"file": "a.ts", "function": "parse", "ccn": 900, "nloc": 4000, "params": 1, "start": 10, "end": 4500, "suspect": "opens a block"},
+                 {"file": "b.ts", "function": "run", "ccn": 80, "nloc": 300, "params": 0, "start": 5, "end": 320}]
         self.assertEqual(checks(report(functions=funcs)), [])
 
     def test_a_lead_whose_span_the_structure_step_disputes(self):
