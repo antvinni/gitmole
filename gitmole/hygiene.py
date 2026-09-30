@@ -390,9 +390,26 @@ def dependency_confusion(repo: str) -> dict:
                 scoped.append({"lockfile": path, "package": name, "registry": host, "declared": scopes[scope]})
         if len(hosts) > 1:
             registries[path] = sorted(hosts)
-    pip = [p for p in tracked if (p.rsplit("/", 1)[-1] in ("pip.conf", "pip.ini") or re.search(r"(^|/)requirements[\w.-]*\.(txt|in)$", p))
-           and not _aside(p) and re.search(r"extra[-_]index[-_]url", _text(repo, p), re.I)]
+    pip = []
+    for p in tracked:
+        ini = p.rsplit("/", 1)[-1] in ("pip.conf", "pip.ini")
+        if (ini or re.search(r"(^|/)requirements[\w.-]*\.(txt|in)$", p)) and not _aside(p) \
+                and re.search(r"extra[-_]index[-_]url", _pip_settings(_text(repo, p), ini), re.I):
+            pip.append(p)
     return {"scoped_public": scoped[:CAP], "scoped_public_count": len(scoped), "registries": registries, "pip_extra_index": pip}
+
+
+def _pip_settings(text: str, ini: bool) -> str:
+    """The text pip reads as settings, comments left out: in a requirements file a line starting with #
+    and anything after whitespace and a # (pip's requirements file format); in pip.conf or pip.ini a
+    line starting with # or ; (an INI comment). `# No --extra-index-url lines` says there is none."""
+    kept = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or (ini and s.startswith(";")):
+            continue
+        kept.append(s if ini else re.split(r"\s#", s, 1)[0])
+    return "\n".join(kept)
 
 
 # --- install-time code --------------------------------------------------------------------------

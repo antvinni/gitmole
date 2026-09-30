@@ -184,6 +184,18 @@ class DependencyConfusion(unittest.TestCase):
         self.assertEqual(out["registries"], {"package-lock.json": ["npm.acme.internal", "registry.npmjs.org"]})
         self.assertEqual(out["pip_extra_index"], ["pip.conf"], "extra-index-url is the setting the confusion attack needs")
 
+    def test_an_extra_index_named_only_in_a_comment_is_not_one(self):
+        # VoiceStudio's cosyvoice requirements.txt: "# No --extra-index-url lines"
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("a/requirements.txt", "# No --extra-index-url lines\ntorch==2.5  # not via --extra-index-url either\n")
+            r.write("b/pip.conf", "[global]\n; extra-index-url = https://old.example/simple\n# extra-index-url = x\n")
+            r.write("c/requirements.txt", "--extra-index-url https://pypi.acme.internal/simple  # the private one\nacme-auth\n")
+            r.write("d/pip.ini", "[global]\nextra-index-url = https://pypi.acme.internal/simple\n")
+            r.commit()
+            out = hygiene.dependency_confusion(d)
+        self.assertEqual(out["pip_extra_index"], ["c/requirements.txt", "d/pip.ini"])
+
 
 class InstallScripts(unittest.TestCase):
     def test_lifecycle_scripts_in_the_lockfile_and_manifests_and_import_time_calls_in_setup_py(self):
