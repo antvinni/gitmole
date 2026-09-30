@@ -487,6 +487,17 @@ class BugMagnets(unittest.TestCase):
         self.assertNotIn("shared_fixes", f["evidence"])
         self.assertNotIn("new in the window", f["detail"])
 
+    def test_a_file_no_longer_in_the_tree_is_not_a_magnet(self):
+        """VoiceStudio's finding named 296 files, 132 of them in a frontend/ retired the week before."""
+        gone = {"entity": "frontend/app.js", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 9}
+        f = findings.bug_magnets(report(fixes=[gone, *self.FIXES], tree=frozenset({"core/parser.py", "core/util.py"})))[0]
+        self.assertNotIn("frontend/app.js", f["detail"])
+        self.assertEqual([x["file"] for x in f["evidence"]["files"]], ["core/parser.py", "core/util.py"])
+        self.assertEqual(f["evidence"]["count"], 2)
+        by_scc = report(fixes=[gone, *self.FIXES], size={"files": {"core/parser.py": {"code": 9}, "core/util.py": {"code": 3}}})
+        self.assertNotIn("frontend/app.js", findings.bug_magnets(by_scc)[0]["detail"], "an output directory from before tree.txt: scc's list")
+        self.assertIn("frontend/app.js", findings.bug_magnets(report(fixes=[gone, *self.FIXES]))[0]["detail"], "nothing to judge by: kept")
+
     def test_nothing_without_recent_fixes(self):
         self.assertEqual(findings.bug_magnets(report(fixes=self.FIXES[3:])), [])
         self.assertEqual(findings.bug_magnets(report()), [])

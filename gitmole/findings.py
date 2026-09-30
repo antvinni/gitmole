@@ -447,11 +447,14 @@ def _magnet_items(hot: list, history: dict, now: str) -> list:
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     """Source files with a run of recent fix commits. Test files are left out: they change with every fix.
     So is release plumbing: a manifest touched by every fix release is not where the bug was.
+    So is a file no longer in the tree: the finding names files to review before the next release, and
+    a file a later commit deleted is history (from the run's listing of HEAD, else scc's file list).
     A file whose recent fixes all fixed a file above it too is listed with that file (see _magnet_items)."""
     import datetime as _dt
-    plumb, derived = filetypes.plumbing_paths(report), _generated(report)
+    plumb, derived, tree = filetypes.plumbing_paths(report), _generated(report), report.get("tree") or _tree(report)
     hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent
-           and not (filetypes.is_test_path(f["entity"]) or filetypes.is_release(f["entity"], plumb) or f["entity"] in derived)]
+           and not (filetypes.is_test_path(f["entity"]) or filetypes.is_release(f["entity"], plumb) or f["entity"] in derived)
+           and (not tree or f["entity"] in tree)]
     if not hot:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
