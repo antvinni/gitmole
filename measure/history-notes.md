@@ -433,6 +433,39 @@
   (#201); `--help` in groups and a first-report page (#187); the usefulness graph says its labels are one
   agent's (#193).
 
+- **0.41.0 is the hindsight release: every change answers a finding ten reviewers checked in 0.40.0's report
+  on vectorize-io/hindsight** (a many-package monorepo with one dominant author; its maintainer's tally 8 act,
+  9 ignore, 7 false of 24). The harness gained eight checks first (#218): the 0.40.0 analyses read 67
+  contradictions under them. This round reads 53, the 0.40.0 residual (self_credit 51, unreferenced_named 1,
+  secrets_headline 1): start_area 2 → 0, agent_pointer 2 → 0, dependency_floor and doc_lock gone. On
+  hindsight itself, run again at 0.41.0: 16 complaints → 5, 24 findings → 20, 289 report lines → 257 (that
+  run had no vulnerability database, the first one had, so its dependency findings are not comparable).
+  Every effectiveness number is 0.40.0's; no change touched the ranking.
+- **Fewer findings, shorter to read.** Findings median 11 → 10 (one person holding the bus factor, the truck
+  factor and the knowledge islands is one finding, #222: brew, gitmole and jadx), 90th percentile 16.9, spelled
+  out 8.5 → 7.5; report lines 204 → 199. The development set 330 → 322 s.
+- **Two ceilings rise, decided by the maintainer on 30 September.** The large set's time 405 → 486 s: django's
+  code-age step ran (83 s at load 2.7, twice), where 0.39.0 and 0.40.0 recorded runs that projected it past
+  its 60 s budget and skipped it (0.38.0 ran it: 118 s); the ceiling had been set on the skip. The development
+  set's peak 1,004 → 1,014 MB (brew, 1,017 and 1,014 on two runs; no step's own peak moved, so the extra is in
+  gitmole's own process, where the merged findings and the full dependency rows are built). The large set's
+  peak fell 1,135 → 1,131 MB. brew, django and ghidra were run again alone into the record (`--only …
+  --merge`) after a first pass at load 11.
+- **The round ran without a vulnerability database**, as every earlier record did:
+  `OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY` pointed at an empty directory, because a database fetched on this
+  machine on 30 September (after the 0.40.0 record) would have added dependency findings for a reason that
+  is not the release. The example pages were made the same way.
+- **Since 0.40.0, besides the measurement:** `gitmole --fetch-vuln-db CLONE` downloads the database (#217);
+  dependency floors (`>=`) are recorded as requirements, never versions, a lock's severity follows whether its
+  directory declares a deploy, and packages are counted once (#219); `.txt` manifests are not documentation,
+  generator output declared by a manifest or a header has no owner, `include!` crates are used, and files over
+  the size limit are parsed unless their lines are a minified file's, with the skips named (#220); loopback
+  and compose-service database URIs are a note (`secrets_local`), hyphenated placeholders and media-URL tokens
+  are not secrets, the default SARIF places a removed critical at its commit, and a tripped gate names its
+  rules on stderr (#221); the truck factor starts where most files are at stake, tools and handles are merged
+  only on an address, and folded findings carry their severities (#222); area names survive table fitting,
+  an agent file that only points elsewhere is dated by its target, and the fix-rate annotation compares a
+  file with files of its size, only on a year of history or more (#223).
 - **0.40.0 is the VoiceStudio release: every change answers a finding a maintainer checked and found wrong.**
   Ten reviewers read 0.39.0's report on debpalash/VoiceStudio, one developer with 43% of commits co-authored
   by a coding agent, and its maintainer rated five of seventeen findings false. The consistency harness
