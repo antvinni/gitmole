@@ -102,7 +102,7 @@ in plain words, and what to do first. This page is the reference.
      again in recent months; a file whose recent fixes were all commits that
      also fixed a file listed above it is counted with that file ("fixed in
      the same commits"), and a file that first appeared inside the six months
-     says it is new in the window;
+     says it is new in the window, when the history reaches back past them;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
    - hotspots getting more complex, a warning when the top one did;

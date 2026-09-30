@@ -475,12 +475,25 @@ class BugMagnets(unittest.TestCase):
     def test_a_file_younger_than_the_window_says_so(self):
         r = report(fixes=[{**self.FIXES[0], "n-fixes": 5}, self.FIXES[1]], fix_history={"core/parser.py": {"first": "2026-05-01", "recent": ["a", "b", "c", "d", "e"]},
                                                        "core/util.py": {"first": "2026-01-01", "recent": ["f", "g", "h"]}})
-        r["meta"]["now"] = "2026-09-17"
+        r["meta"].update({"now": "2026-09-17", "first_date": "2020-01-01"})
         f = findings.bug_magnets(r)[0]
         self.assertIn("core/parser.py (5 recent, new in the window); core/util.py (3 recent, 4 total).", f["detail"])
         self.assertEqual(f["evidence"]["new_in_window"], ["core/parser.py"])
         r["fixes"][0]["n-fixes"] = 6   # a count the window does not hold all of: both numbers stay
         self.assertIn("core/parser.py (5 recent, 6 total, new in the window)", findings.bug_magnets(r)[0]["detail"])
+        del r["meta"]["first_date"]
+        self.assertNotIn("new in the window", findings.bug_magnets(r)[0]["detail"], "without the history's start, no claim")
+
+    def test_a_history_younger_than_the_window_says_nothing_of_it(self):
+        """VoiceStudio's history is five months long: every file is new in the six-month window, so the
+        words, printed on each of the five, said nothing, and every total repeated its recent count."""
+        r = report(fixes=[{**self.FIXES[0], "n-fixes": 5}, {**self.FIXES[1], "n-fixes": 3}],
+                   fix_history={"core/parser.py": {"first": "2026-05-01", "recent": ["a", "b", "c", "d", "e"]},
+                                "core/util.py": {"first": "2026-04-10", "recent": ["f", "g", "h"]}})
+        r["meta"].update({"now": "2026-09-17", "first_date": "2026-04-10"})
+        f = findings.bug_magnets(r)[0]
+        self.assertIn("fixed 3+ times in the last six months: core/parser.py (5 recent); core/util.py (3 recent).", f["detail"])
+        self.assertNotIn("new_in_window", f["evidence"])
 
     def test_without_the_commits_every_file_stands_alone(self):
         f = findings.bug_magnets(report(fixes=self.FIXES))[0]

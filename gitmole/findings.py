@@ -412,17 +412,23 @@ def dormant(report: dict, months: int = 12) -> list:
                rule={"id": "dormant", "months": months}, evidence={"last_date": report["meta"]["last_date"], "idle_months": idle})]
 
 
-def _magnet_items(hot: list, history: dict, now: str) -> list:
+def _magnet_items(hot: list, history: dict, now: str, since: str = None) -> list:
     """The hot files as the finding lists them, as (files, text, label, new files), label being what the
     advice calls the item. A hot file whose recent fixes were all commits that also fixed a file listed
     before it is listed with that file, not on its own: it has no fix of its own in the window, so
     counting it again counts the same commits twice (one fix touching four sibling files was once four
     magnets). No threshold: a file joins only when every one of its recent fix commits is the other's.
     A file is "new in the window" when it first appeared less than the six months ago the window
-    reaches back to, so its fix count is the whole of its life."""
+    reaches back to, so its fix count is the whole of its life. That is said only when the history
+    (`since`, its first commit) reaches past the window: in a younger repository every file is new in
+    it, and the words would tell the reader nothing (VoiceStudio's five were all "new in the window").
+    There every fix is recent, so the total, which only repeats the recent count, is left out too.
+    Without the history's first date neither is said."""
+    whole = bool(since) and maat._months_between(since, now) < maat.RECENT_MONTHS
+
     def new(f):
         first = (history.get(f["entity"]) or {}).get("first")
-        return bool(first) and maat._months_between(first, now) < maat.RECENT_MONTHS
+        return bool(since) and not whole and bool(first) and maat._months_between(first, now) < maat.RECENT_MONTHS
     commits = {f["entity"]: set((history.get(f["entity"]) or {}).get("recent") or ()) for f in hot}
     items, done = [], set()
     for f in hot:
@@ -435,7 +441,7 @@ def _magnet_items(hot: list, history: dict, now: str) -> list:
         done.update(g["entity"] for g in members)
         fresh = [m["entity"] for m in (f, *members) if new(m)]
         # a file new in the window has had every fix inside it, so its total would only repeat the recent count
-        counts = [f"{f['recent-fixes']} recent"] + ([] if new(f) and f["n-fixes"] == f["recent-fixes"] else [f"{f['n-fixes']} total"])
+        counts = [f"{f['recent-fixes']} recent"] + ([] if (whole or new(f)) and f["n-fixes"] == f["recent-fixes"] else [f"{f['n-fixes']} total"])
         text = f"{lead} ({', '.join(counts + (['new in the window'] if new(f) else []))})"
         if members:
             beside = all(g["entity"].rpartition("/")[0] == lead.rpartition("/")[0] for g in members)
@@ -460,7 +466,7 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
     sev = "warning" if hot[0]["recent-fixes"] >= warn_at else "info"
     history = report.get("fix_history") or {}
-    items = _magnet_items(hot, history, report["meta"].get("now") or _dt.date.today().isoformat())
+    items = _magnet_items(hot, history, report["meta"].get("now") or _dt.date.today().isoformat(), report["meta"].get("first_date"))
     listed = "; ".join(text for _, text, _, _ in items[:5])
     more = len(hot) - sum(len(paths) for paths, _, _, _ in items[:5])
     more = f" and {more} more" if more > 0 else ""
