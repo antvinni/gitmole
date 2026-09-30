@@ -552,6 +552,13 @@ def _size_strata(files, size: dict, n: int = FIX_RATE_STRATA) -> dict:
     return {e: bisect.bisect_right(cuts, c) for e, c in code.items()}
 
 
+def _history_months(report: dict):
+    """Whole months from the analysed history's first commit to its last, or None when the run has no dates."""
+    meta = report.get("meta") or {}
+    first, last = meta.get("first_date"), meta.get("last_date")
+    return _months_apart(first, last) if first and last else None
+
+
 def fix_prone(report: dict, keep, q: float = FIX_RATE_Q):
     """The files fixed more often than files of their size in this repository explain: the tested files are
     split into tenths by lines of code, and each file's fix commits are tested against its changes at its
@@ -565,9 +572,8 @@ def fix_prone(report: dict, keep, q: float = FIX_RATE_Q):
     binomial's and the test errs towards discovery (Spiegelhalter, Stat Med 2005): the result orders and
     annotates, it decides nothing. None when there is no rate to test against: no change table, a history
     too short, or every change a fix or none."""
-    meta = report.get("meta") or {}
-    first, last = meta.get("first_date"), meta.get("last_date")
-    if first and last and _months_apart(first, last) < FIX_RATE_MIN_MONTHS:
+    months = _history_months(report)
+    if months is not None and months < FIX_RATE_MIN_MONTHS:
         return None
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or [] if keep(f["entity"])}
     changes = {r["entity"]: r["n-revs"] for r in report.get("revisions") or [] if keep(r["entity"])}
@@ -617,14 +623,19 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     Most magnets are busy files in a repository that fixes a lot, so the finding names first the ones
     fixed more often than the repository's own fixes explain (see fix_prone), says how many of all
     there are, and says so when there are none. Which files are magnets, and the severity, stay the
-    window's counts: the test annotates and orders."""
+    window's counts: the test annotates and orders. When the history is too short for the test
+    (FIX_RATE_MIN_MONTHS), the finding says so and is a note: the counts are then raw, and raw fix counts
+    mostly rank files by size (paperclip, 7.5 months: 391 magnets, Spearman 0.56 with lines of code, the
+    top ten all among the largest files), which is not a warning's worth of evidence."""
     import datetime as _dt
     keep = _magnet_keep(report)
     hot = magnet_rows(report, min_recent)
     if not hot:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
-    sev = "warning" if hot[0]["recent-fixes"] >= warn_at else "info"
+    months = _history_months(report)
+    short = months is not None and months < FIX_RATE_MIN_MONTHS
+    sev = "warning" if hot[0]["recent-fixes"] >= warn_at and not short else "info"
     prone = fix_prone(report, keep)
     above = [f for f in hot if f["entity"] in prone["above"]] if prone else []
     history = report.get("fix_history") or {}
@@ -637,8 +648,10 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     clusters = [{"file": paths[0], "with": paths[1:], "fixes": history[paths[0]]["recent"]} for paths, _, _, _ in items if len(paths) > 1]
     fresh = [p for _, _, _, new in items for p in new]
     rate = "" if prone is None else f", {len(above) or 'none'} beyond files of their size"
+    untested = (f" Raw counts: the test against files of their size needs {FIX_RATE_MIN_MONTHS} months of history, "
+                f"this has {months or 'less than one'}.") if short else ""
     return [_f(sev, "Bug magnets",
-               f"{len(hot)} file(s) were fixed {min_recent}+ times in six months{rate}: {listed}{more}.",
+               f"{len(hot)} file(s) were fixed {min_recent}+ times in six months{rate}: {listed}{more}.{untested}",
                f"Review {first} before the next release.",
                rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so",
                      "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing",
@@ -649,7 +662,8 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
                          **({"fix_rate": {"fixes": prone["fixes"], "changes": prone["changes"], "files": prone["files"],
                                           "above_rate": [{"file": f["entity"], "fixes": prone["counts"][f["entity"]][0], "changes": prone["counts"][f["entity"]][1],
                                                           "size_rate": round(prone["rate"][f["entity"]], 3)}
-                                                         for f in above[:10]]}} if prone else {}),
+                                                         for f in above[:10]]}} if prone else
+                            {"fix_rate": {"not_run": "history too short", "history_months": months}} if short else {}),
                          **({"shared_fixes": clusters} if clusters else {}), **({"new_in_window": fresh} if fresh else {})})]
 
 

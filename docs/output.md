@@ -111,7 +111,10 @@ in plain words, and what to do first. This page is the reference.
      Benjamini-Hochberg false discovery rate of 5% over every source file.
      Fixes cluster within a pull request, which makes the test err towards
      finding, so it orders and annotates and decides nothing: which files
-     are magnets, and the severity, are the six months' counts;
+     are magnets, and the severity, are the six months' counts. With less
+     than twelve months of history the test does not run (it would test
+     the window's own counts again); the finding says so, and is a note
+     whatever the counts, since raw fix counts mostly follow file size;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
    - hotspots getting more complex, a warning when the top one did;

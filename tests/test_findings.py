@@ -594,9 +594,17 @@ class BugMagnets(unittest.TestCase):
         self.assertIsNone(findings.fix_prone(r, lambda p: True))
         f = findings.bug_magnets(r)[0]
         self.assertIn("2 file(s) were fixed 3+ times in six months: src/busy.py", f["detail"])
-        self.assertNotIn("fix_rate", f["evidence"])
+        # paperclip review (D6): the test that did not run was advertised and never mentioned, and 391 raw counts were a warning
+        self.assertIn("Raw counts: the test against files of their size needs 12 months of history, this has 11.", f["detail"])
+        self.assertEqual(f["evidence"]["fix_rate"], {"not_run": "history too short", "history_months": 11})
+        self.assertEqual(f["severity"], "info", "nine recent fixes, but raw counts on a short history are a note")
         r["meta"]["first_date"] = "2025-09-30"
         self.assertIsNotNone(findings.fix_prone(r, lambda p: True), "twelve months: tested")
+        f = findings.bug_magnets(r)[0]
+        self.assertEqual(f["severity"], "warning")
+        self.assertNotIn("Raw counts", f["detail"])
+        del r["meta"]["first_date"]
+        self.assertEqual(findings.bug_magnets(r)[0]["severity"], "warning", "no dates to judge by: the window's counts decide, as before")
 
     def test_the_rate_is_over_the_files_the_rule_reads(self):
         """Tests change with every fix and are left out of the magnets, so they are left out of the rate too."""
