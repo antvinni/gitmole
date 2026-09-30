@@ -347,6 +347,16 @@ needs no label and has no threshold:
   commit) — a path called gone that git has, and a finding resting on a commit
   the report says it left out as sweeping.
 
+The 0.39.0 report of debpalash/VoiceStudio, one developer and a coding agent,
+added seven more, each from a finding its maintainer checked and found false or
+misleading: **agent_owner** (the knowledge map names a tool as an owner),
+**magnet_gone** (a bug magnet the tree no longer holds), **hygiene_misread** (an
+extra index only in comments, a setup.py with no setup()), **lock_workspace** (lock
+drift on a workspace member whose root keeps the lock), **unreferenced_named** (an
+"unreferenced" file a build or deploy config names), **self_credit** (co-authored
+counts that include the author's own aliases) and **declared_critical** (a critical
+the repository declared allowed in a gitleaks or betterleaks config or inline).
+
 As with claims, a complaint is a defect and the number to want is zero; the
 dashboard reads it as *contradictions between a finding and the report's own
 facts*, by check. `python -m gitmole.measure consistency` re-checks a round

@@ -204,6 +204,138 @@ class WithTheClone(unittest.TestCase):
         self.assertEqual(one["complaints"], [])
 
 
+class Agents(unittest.TestCase):
+    """VoiceStudio: every model version of one assistant was its own identity on one shared no-reply address."""
+
+    def ids(self, *rows):
+        return report(meta={"identities": [dict(r) for r in rows]})
+
+    def test_a_trailer_only_identity_is_a_tool(self):
+        r = self.ids({"name": "Helper", "email": "h@x.org", "commits": 9, "authored": 0})
+        self.assertEqual(consistency.agents(r), {"Helper"})
+
+    def test_names_sharing_a_bare_no_reply_address_are_a_tool(self):
+        r = self.ids({"name": "Model A", "email": "noreply@vendor.example", "commits": 9, "authored": 1},
+                     {"name": "Model B", "email": "noreply@vendor.example", "commits": 3, "authored": 0},
+                     {"name": "Ann", "email": "12+ann@users.noreply.example", "commits": 40, "authored": 40},
+                     {"name": "Bo", "email": "12+bo@users.noreply.example", "commits": 5, "authored": 5})
+        self.assertEqual(consistency.agents(r), {"Model A", "Model B"}, "a per-user noreply address is a person")
+
+    def test_one_person_on_a_no_reply_address_is_a_person(self):
+        r = self.ids({"name": "Ann", "email": "noreply@ann.example", "commits": 40, "authored": 40})
+        self.assertEqual(consistency.agents(r), set())
+
+
+class WithARepository(unittest.TestCase):
+    """The checks the VoiceStudio review added, each on the smallest tree that shows it."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = self.tmp.name
+        self.env = {**os.environ, "GIT_AUTHOR_NAME": "Ann", "GIT_AUTHOR_EMAIL": "ann@example.org", "GIT_COMMITTER_NAME": "Ann",
+                    "GIT_COMMITTER_EMAIL": "ann@example.org", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+        git(self.repo, "init", "-q", "-b", "main", env=self.env)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write(self, path, text):
+        full = os.path.join(self.repo, path)
+        os.makedirs(os.path.dirname(full) or self.repo, exist_ok=True)
+        with open(full, "w") as fh:
+            fh.write(text)
+
+    def commit(self, message="c", **env):
+        git(self.repo, "add", "-A", env=self.env)
+        git(self.repo, "commit", "-q", "-m", message, env={**self.env, **env})
+        return git(self.repo, "rev-parse", "HEAD")
+
+    def over(self, **r):
+        head = git(self.repo, "rev-parse", "HEAD")
+        meta = {"run": {"commit": head}, **(r.pop("meta", {}))}
+        return sorted(c["check"] for c in consistency.over(report(meta=meta, **r), self.repo)["complaints"])
+
+    def test_a_bug_magnet_deleted_since(self):
+        self.write("app/live.py", "x = 1\n")
+        self.write("old/gone.py", "y = 1\n")
+        self.commit()
+        git(self.repo, "rm", "-q", "old/gone.py", env=self.env)
+        self.commit("retire old/")
+        f = finding("bug_magnets", evidence={"files": [{"file": "app/live.py"}], "new_in_window": ["app/live.py", "old/gone.py"]})
+        self.assertEqual(self.over(findings=[f]), ["magnet_gone"])
+        f = finding("bug_magnets", evidence={"files": [{"file": "app/live.py"}], "new_in_window": ["app/live.py"]})
+        self.assertEqual(self.over(findings=[f]), [])
+
+    def test_an_extra_index_named_only_in_a_comment(self):
+        """VoiceStudio's requirements.txt: `# No --extra-index-url lines` matched as one."""
+        self.write("req/requirements.txt", "# No --extra-index-url lines: one index\ntorch==2.0\n")
+        self.write("real/requirements.txt", "--extra-index-url https://example.org/simple\ntorch==2.0\n")
+        self.commit()
+        comment = finding("dependency_confusion", evidence={"pip_extra_index": ["req/requirements.txt"]})
+        real = finding("dependency_confusion", evidence={"pip_extra_index": ["real/requirements.txt"]})
+        self.assertEqual(self.over(findings=[comment]), ["hygiene_misread"])
+        self.assertEqual(self.over(findings=[real]), [])
+
+    def test_a_setup_py_that_calls_no_setup(self):
+        self.write("scripts/setup.py", "import subprocess\nsubprocess.run(['make'])\n")
+        self.write("pkg/setup.py", "from setuptools import setup\nsetup(name='p')\n")
+        self.commit()
+        helper = finding("install_scripts", evidence={"setup_py": [{"file": "scripts/setup.py", "calls": ["subprocess.run"]}]})
+        real = finding("install_scripts", evidence={"setup_py": [{"file": "pkg/setup.py", "calls": []}]})
+        self.assertEqual(self.over(findings=[helper]), ["hygiene_misread"])
+        self.assertEqual(self.over(findings=[real]), [])
+
+    def test_drift_in_a_workspace_member_whose_root_keeps_the_lock(self):
+        self.write("package.json", '{"workspaces": ["app"]}')
+        self.write("bun.lock", "{}")
+        self.write("app/package.json", '{"dependencies": {"a": "1"}}')
+        self.write("app/bun.lock", "{}")
+        self.commit()
+        f = finding("lockfile_drift", evidence={"drift": [{"manifest": "app/package.json", "lockfile": "app/bun.lock"}]})
+        self.assertEqual(self.over(findings=[f]), ["lock_workspace"])
+        g = finding("lockfile_drift", evidence={"drift": [{"manifest": "tool/package.json", "lockfile": "tool/bun.lock"}]})
+        self.assertEqual(self.over(findings=[g]), [], "not a declared member")
+
+    def test_an_unreferenced_file_a_build_config_names(self):
+        self.write("hooks/rth_compat.py", "x = 1\n")
+        self.write("app.spec", "runtime_hooks=['hooks/rth_compat.py']\n")
+        self.write("lone/dead.py", "y = 1\n")
+        self.write("docs/ROADMAP.md", "retire lone/dead.py\n")
+        self.commit()
+        named = finding("unreferenced_files", evidence={"files": ["hooks/rth_compat.py"]})
+        prose = finding("unreferenced_files", evidence={"files": ["lone/dead.py"]})
+        self.assertEqual(self.over(findings=[named]), ["unreferenced_named"])
+        self.assertEqual(self.over(findings=[prose]), [], "a roadmap naming a file does not load it")
+
+    def test_co_authored_counts_the_author_crediting_an_alias(self):
+        """VoiceStudio: 430 of the owner's 454 co-authored commits were his own, through a second name."""
+        self.write("a.py", "1\n")
+        self.commit("mine\n\nCo-authored-by: Ann Old <ann@old.example>")
+        self.write("b.py", "1\n")
+        self.commit("theirs\n\nCo-authored-by: Ann <ann@example.org>", GIT_AUTHOR_NAME="Bo", GIT_AUTHOR_EMAIL="bo@example.org")
+        ids = [{"name": "Ann", "email": "ann@example.org", "commits": 3, "authored": 1,
+                "aliases": [{"name": "Ann Old", "email": "ann@old.example"}]},
+               {"name": "Bo", "email": "bo@example.org", "commits": 1, "authored": 1}]
+        self.assertEqual(self.over(meta={"identities": ids}), ["self_credit"], "two credited, one is someone else's")
+        ids[0]["commits"] = 2
+        self.assertEqual(self.over(meta={"identities": ids}), [])
+
+    def test_a_critical_the_repository_declared_allowed(self):
+        """VoiceStudio's publishable analytics key: allowlisted in .gitleaks.toml, then replaced."""
+        value = "phc_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4"
+        self.write("app/analytics.py", "KEY = '" + value + "'\n")
+        first = self.commit("add analytics")
+        self.write(".gitleaks.toml", '[allowlist]\nregexes = ["' + value + '"]\n')
+        self.commit("the key is publishable")
+        self.write(".gitleaks.toml", "[allowlist]\nregexes = []\n")
+        self.write("app/analytics.py", "KEY = 'rotated'\n")
+        self.commit("replace the key")
+        f = finding("secrets_in_source", severity="critical", evidence={"files": ["app/analytics.py"]})
+        rows = [{"rule": "posthog-project-api-key", "file": "app/analytics.py", "line": 1, "commit": first, "confidence": "high"}]
+        self.assertIn("declared_critical", self.over(findings=[f], secrets=rows))
+        f["severity"] = "warning"
+        self.assertNotIn("declared_critical", self.over(findings=[f], secrets=rows), "only a critical is held to it")
+
 class Totals(unittest.TestCase):
     def test_clean_counts_findings_and_tables_are_apart(self):
         f = finding("minor_contributors", "x.py.", "Have Ann review it.", {"files": [{"owner": "Ann"}]})
