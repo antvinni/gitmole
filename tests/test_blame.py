@@ -67,7 +67,7 @@ class BlameFile(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             make_repo(d)
             counts = blame.blame_file(d, "a.py")
-        self.assertEqual(counts, {("2024", "Ann"): 3, ("2026", "Bobby"): 1})
+        self.assertEqual(counts, {("2024", "Ann <a@x>"): 3, ("2026", "Bobby <b@x>"): 1}, "keyed by name and address, as the identity rows are")
 
 
 class Estimate(unittest.TestCase):
@@ -118,7 +118,8 @@ class WriteAll(unittest.TestCase):
         self.assertEqual(cohorts["labels"], ["Code added in 2024", "Code added in 2026"])
         self.assertEqual(cohorts["y"], [[3], [3]])
         self.assertEqual(len(cohorts["ts"]), 1)
-        self.assertEqual(dict(zip(authors["labels"], [y[0] for y in authors["y"]])), {"Ann": 3, "Bob": 3})
+        self.assertEqual(dict(zip(authors["labels"], [y[0] for y in authors["y"]])), {"Ann <a@x>": 3, "Bobby <b@x>": 3},
+                         "git's own spelling; the loader canonicalises the name")
 
 
 class CoAuthors(unittest.TestCase):
@@ -138,11 +139,11 @@ class CoAuthors(unittest.TestCase):
                                   "--pretty=format:--%h--%ad--%aN--%s%x1f%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x1f)"],
                                  cwd=d, capture_output=True, text=True, check=True).stdout
             shared = blame.co_authors_by_commit(log)
-            self.assertEqual(list(shared.values()), [["Cat"]])
+            self.assertEqual(list(shared.values()), [["Cat <c@x>"]])
             blame.set_co_authors(shared)
             try:
-                self.assertEqual(blame.blame_file(d, "c.py"), {("2026", "Ann"): 2, ("2026", "Cat"): 2}, "four lines, two people")
-                self.assertEqual(blame.blame_file(d, "a.py"), {("2024", "Ann"): 3, ("2026", "Bobby"): 1}, "a commit without trailers is its author's")
+                self.assertEqual(blame.blame_file(d, "c.py"), {("2026", "Ann <a@x>"): 2, ("2026", "Cat <c@x>"): 2}, "four lines, two people")
+                self.assertEqual(blame.blame_file(d, "a.py"), {("2024", "Ann <a@x>"): 3, ("2026", "Bobby <b@x>"): 1}, "a commit without trailers is its author's")
             finally:
                 blame.set_co_authors({})
             out = os.path.join(d, "out")
@@ -152,7 +153,7 @@ class CoAuthors(unittest.TestCase):
             blame.write_all(d, out, procs=2, log_path=os.path.join(out, "log.txt"))
             with open(os.path.join(out, "theseus", "authors.json")) as fh:
                 authors = json.load(fh)
-        self.assertEqual(dict(zip(authors["labels"], [y[0] for y in authors["y"]])), {"Ann": 5, "Bobby": 3, "Cat": 2},
+        self.assertEqual(dict(zip(authors["labels"], [y[0] for y in authors["y"]])), {"Ann <a@x>": 5, "Bobby <b@x>": 3, "Cat <c@x>": 2},
                          "whole lines: the shares are rounded once, at the end")
 
 
@@ -168,6 +169,6 @@ class Imported(unittest.TestCase):
             head = subprocess.run(["git", "rev-list", "--max-parents=0", "HEAD"], cwd=d, capture_output=True, text=True, check=True).stdout.strip()
             blame.set_imported([head[:9]])
             try:
-                self.assertEqual(blame.blame_file(d, "a.py"), {("2024", None): 3, ("2026", "Bobby"): 1})
+                self.assertEqual(blame.blame_file(d, "a.py"), {("2024", None): 3, ("2026", "Bobby <b@x>"): 1})
             finally:
                 blame.set_imported(())

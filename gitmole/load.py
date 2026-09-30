@@ -473,6 +473,57 @@ def _tools_apart(meta: dict, ownership: list, authors: list, doa: list, survivin
             OrderedDict((k, v) for k, v in surviving.items() if k not in names), tools)
 
 
+_LABEL = re.compile(r"^(?P<name>.*) <(?P<email>[^<>]*)>$")
+
+
+def split_label(label: str) -> tuple:
+    """(name, email) from an authors.json label: `Name <email>` since 0.42 (blame.label), a bare name from an
+    older run or from git-of-theseus, whose email is then None."""
+    m = _LABEL.match(label)
+    return (m.group("name"), m.group("email")) if m else (label, None)
+
+
+def _surviving_by_identity(meta: dict, lines_by_label: dict, canonical: dict, is_bot) -> dict:
+    """{"name <email>" of an identity row in meta (identity.row_label): surviving lines}. A label's name and address pick the row
+    holding that variant, so two rows that share a display name (a person and a trailer-only alias of the
+    same spelling, three product agents called one thing) each keep their own lines. A label without an
+    address (an older run, git-of-theseus) or one no row holds goes to the first row, the most committed,
+    that carries its name: once, where the name-keyed table gave every such row all of it."""
+    ids = meta.get("identities") or []
+    by_variant, by_name = {}, {}
+    for n, i in enumerate(ids):
+        for v in [i, *(i.get("aliases") or [])]:
+            by_variant.setdefault((v.get("name"), (v.get("email") or "").lower()), n)
+            by_name.setdefault(v.get("name"), n)
+    out = Counter()
+    for lbl, lines in lines_by_label.items():
+        name, email = split_label(lbl)
+        if is_bot(canonical.get(name, name)):
+            continue
+        n = by_variant.get((name, email.lower())) if email is not None else None
+        if n is None:
+            n = by_name.get(name, by_name.get(canonical.get(name, name)))
+        if n is not None:
+            out[identity.row_label(ids[n])] += lines
+    return {k: int(v) for k, v in sorted(out.items())}
+
+
+def _merges_once(meta: dict) -> None:
+    """An older run counted merges per display name and gave each identity row carrying the name the whole
+    count (paperclip: a trailer-only alias of the maintainer showed -348 commits, and 725 merges in all
+    against git's 376). Such a run keeps the count once, on the first row of the name, the most committed;
+    a run that counted them per identity says so (merges_by)."""
+    if meta.get("merges_by") == "identity":
+        return
+    seen = set()
+    for i in meta.get("identities") or []:
+        if i.get("merges"):
+            names = frozenset([i["name"], *(a["name"] for a in i.get("aliases") or [])])
+            if names & seen:
+                i.pop("merges")
+            seen |= names
+
+
 def load_report(out_dir: str, nested: bool = True) -> dict:
     """Read every output file gitmole writes. Missing optional files become empty values.
 
@@ -488,7 +539,11 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
     def is_bot(name):
         return name in bots or identity.is_bot(name)
     surviving = OrderedDict()
-    for name, lines in (parse_theseus(authors) if authors else {}).items():
+    lines_by_label = parse_theseus(authors) if authors else {}
+    _merges_once(meta)
+    by_identity = _surviving_by_identity(meta, lines_by_label, canonical, is_bot)
+    for lbl, lines in lines_by_label.items():
+        name = split_label(lbl)[0]
         key = canonical.get(name, name)
         if is_bot(key):   # a deploy job that committed a built site owns nothing anyone needs to know
             continue
@@ -525,7 +580,8 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "fixes": fixes,
         "fix_history": _fix_history(out_dir, fixes, meta, activity),   # which commits the recent fixes were, and when each file began
         "cohorts": parse_theseus(cohorts) if cohorts else {},
-        "theseus_authors": surviving,
+        "theseus_authors": surviving,   # by canonical name, as every table about people keys them
+        "surviving_by_identity": by_identity,   # by "name <email>" of meta's identity rows: the People table's column
         "secrets": parse_secrets(_read(out_dir, "secrets.json")),
         # the wrapper writes the file only when the scan finished, so a killed step or an old output
         # directory leaves it missing, and the report must not claim a clean scan

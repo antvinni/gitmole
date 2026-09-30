@@ -623,7 +623,10 @@ in plain words, and what to do first. This page is the reference.
    that is a distinctive word of the fuller name, the fuller name run together
    (RobinMalfait), or an initial plus the surname (nlohmann); the caption says whose; merges
    counted in a column of their own and left out of the commit count and
-   share, since merging every pull request is not writing the code; bots,
+   share, since merging every pull request is not writing the code; a row's
+   merges and its surviving code are its own, by the name and address git
+   shows, so two rows that share a display name do not each take the
+   name's whole count; bots,
    which are any author named `*[bot]`, any identity that merges with
    one (`github-actions` beside `github-actions[bot]` is one account),
    and any author whose name says bot, CI, deploy or automation, no

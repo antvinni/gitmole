@@ -471,7 +471,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     merges = any(i.get("merges") for i in ids)   # merges apart: merging every pull request is not writing the code
 
     def own(i):   # the commits they authored: a Co-authored-by credit is shown apart, not as a commit of theirs
-        return i.get("authored", i["commits"]) - i.get("merges", 0)
+        return max(0, i.get("authored", i["commits"]) - i.get("merges", 0))
 
     def credit(i):
         return i["commits"] - i.get("authored", i["commits"])
@@ -479,10 +479,13 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     total_commits = sum(own(i) for i in ids)
     surviving = report.get("theseus_authors") or {}
     total_lines = sum(surviving.values())
+    # each row's own lines, by its name and address; a report built without them reads by name
+    mine = report.get("surviving_by_identity")
+    lines_of = (lambda i: mine.get(identity.row_label(i), 0)) if mine is not None else (lambda i: surviving.get(i["name"], 0))
     limit = _limit("People", full)
     credited = any(credit(i) for i in ids[:limit])   # a column only when a row shown has any
     rows = [(i["name"], i["email"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
-             _pct(own(i), total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
+             _pct(own(i), total_commits), _pct(lines_of(i), total_lines)) for i in ids[:limit]]
     columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold", "spare": True}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
                *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving code", RIGHT)]
     if full is not True:

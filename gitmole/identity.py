@@ -195,6 +195,12 @@ def merge(identities: list) -> list:
     return merged
 
 
+def row_label(row: dict) -> str:
+    """An identity row as `Name <email>`, the way the code-age pass labels the lines it blames (blame.label):
+    the key of whatever is counted per identity rather than per display name."""
+    return f"{row['name']} <{row.get('email') or ''}>"
+
+
 def canonical_names(merged: list) -> dict:
     """alias name -> merged name, including the merged names themselves."""
     out = {}

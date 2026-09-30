@@ -681,6 +681,27 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(variants, {"ann@work.example": 3, "ann@home.example": 1}, "the home address keeps only its credit on Bob's commit")
         self.assertEqual((rows["Bob Lee"]["commits"], rows["Bob Lee"]["authored"]), (1, 1))
 
+    def test_merges_are_counted_per_identity_not_per_display_name(self):
+        # paperclip: a trailer-only "Dotta <…users.noreply…>" row took the maintainer's 348 merges and showed -348 commits
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q", "-b", "main")
+            dev = dict(GIT_COMMITTER_NAME="x", GIT_COMMITTER_EMAIL="x@x", GIT_AUTHOR_NAME="Dev", GIT_AUTHOR_EMAIL="dev@home.example")
+            git("commit", "-q", "--allow-empty", "-m", "base\n\nCo-authored-by: Dev <7+dev@users.noreply.example>", **dict(dev, GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.example"))
+            for n in range(2):
+                git("switch", "-q", "-c", f"b{n}")
+                git("commit", "-q", "--allow-empty", "-m", f"work {n}", **dev)
+                git("switch", "-q", "main")
+                git("merge", "-q", "--no-ff", "-m", f"merge {n}", f"b{n}", **dev)
+            meta = run.collect_meta(d)
+        rows = {(i["name"], i["email"]): i for i in meta["identities"]}
+        self.assertEqual(rows[("Dev", "dev@home.example")].get("merges"), 2)
+        self.assertNotIn("merges", rows[("Dev", "7+dev@users.noreply.example")], "the trailer-only row merged nothing")
+        self.assertEqual(sum(i.get("merges", 0) for i in meta["identities"]), meta["merges"], "the rows add up to git's count")
+        self.assertEqual(meta["merges_by"], "identity")
+
     def test_an_alias_of_a_declared_bot_is_a_bot_too(self):
         # fastapi: "github-actions <github-actions@github.com>" beside github-actions[bot]; same account, one declaration
         with tempfile.TemporaryDirectory() as d:

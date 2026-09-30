@@ -1741,6 +1741,17 @@ class PeopleMerges(unittest.TestCase):
         self.assertNotIn("co-authored", sec["columns"])
         self.assertIn("2 coding tools (told by their no-reply address) left out", sec["caption"])
 
+    def test_rows_sharing_a_name_keep_their_own_surviving_code_and_no_row_goes_negative(self):
+        rep = {"meta": {"identities": [{"name": "Dev", "email": "dev@home.example", "commits": 30, "authored": 30, "merges": 4},
+                                       {"name": "Dev", "email": "7+dev@users.noreply.example", "commits": 1, "authored": 0, "merges": 4}]},
+               "theseus_authors": {"Dev": 100}, "surviving_by_identity": {"Dev <dev@home.example>": 100}}
+        sec = render.people_section(rep, full=True)
+        rows = {r[1]: r for r in sec["rows"]}
+        self.assertEqual(rows["dev@home.example"][2], "26")
+        self.assertEqual(rows["dev@home.example"][-1], "100%")
+        self.assertEqual(rows["7+dev@users.noreply.example"][2], "0", "an old run's merges on a row that authored nothing never go below zero")
+        self.assertEqual(rows["7+dev@users.noreply.example"][-1], "0%", "the name's lines are the other row's")
+
 
 class SummaryLine(unittest.TestCase):
     def _findings(self):
