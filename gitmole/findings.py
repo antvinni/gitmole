@@ -53,8 +53,14 @@ def _plural(n: int, word: str) -> str:
     return f"{n} {word}es" if _SIBILANT.search(word) else f"{n} {word}s"
 
 
-def _secret_statement(groups: list, declared: bool = False) -> str:
-    """'N distinct values in M places: rule in file (commits), ...' with at most three values named.
+SECRETS_NAMED = 3       # values a secrets finding names, past which it says "and N more"
+SECRETS_NAMED_ALL = 5   # up to this many, a critical finding names every value: hindsight's hosted-database password was the fifth
+
+
+def _secret_statement(groups: list, declared: bool = False, every: int = SECRETS_NAMED) -> str:
+    """'N distinct values in M places: rule in file (commits), ...' with at most three values named, or every
+    value when there are no more than `every`: the critical finding names up to five, since "and 2 more" is
+    where a reader stops, and on hindsight one of the two was the real one.
 
     A value found in an unreachable blob belongs to no commit, so its commit is the empty string. Those
     are dropped rather than joined, and a value with no commit left names no parenthesis at all: react's
@@ -71,11 +77,12 @@ def _secret_statement(groups: list, declared: bool = False) -> str:
         told = f", declared allowed in {said['file']} at {said['commit']}" if said else ""
         return f"{g['rule']} in {where}" + (f" ({commits}{told})" if commits else f" ({told[2:]})" if told else "")
     places = sum(g["places"] for g in groups)
-    counts = {}                                    # insertion order, so the first three stay in their order
-    for text in (one(g) for g in groups[:3]):
+    named = len(groups) if len(groups) <= every else SECRETS_NAMED
+    counts = {}                                    # insertion order, so the first named stay in their order
+    for text in (one(g) for g in groups[:named]):
         counts[text] = counts.get(text, 0) + 1
     sample = "; ".join(f"{n} values of {text}" if n > 1 else text for text, n in counts.items())
-    more = f" and {len(groups) - 3} more" if len(groups) > 3 else ""
+    more = f" and {len(groups) - named} more" if len(groups) > named else ""
     return f"{_plural(len(groups), 'distinct value')} in {_plural(places, 'place')}: {sample}{more}."
 
 
@@ -84,6 +91,11 @@ def _secret_evidence(groups: list, declared: bool = False) -> dict:
     if declared:
         out["declared"] = [dict(g["declared"], rule=g["rule"]) for g in groups][:10]
     return out
+
+
+# A file named as a template of another (.env.example, config.yml.sample, settings.template): what it holds is
+# the shape a reader copies and fills in, by the ecosystem's own naming. A value only ever there is a specimen.
+_TEMPLATE_FILE = re.compile(r"\.(example|sample|template)$", re.I)
 
 
 def secrets_found(report: dict) -> list:
@@ -97,7 +109,19 @@ def secrets_found(report: dict) -> list:
     A value in source the repository declared allowed at some commit (an allowlist of its gitleaks or
     betterleaks config, its ignore file, `gitleaks:allow` on the value's line: leaks.annotate) is not
     critical: betterleaks reads today's config only, so a public key the repository allowlisted and later
-    replaced was graded critical and told to be rotated. It is info, naming where the declaration is."""
+    replaced was graded critical and told to be rotated. It is info, naming where the declaration is.
+
+    A value only ever in files named as templates of others (.env.example, *.sample, *.template) is a
+    specimen like one in an examples directory. A value every sighting of which is the password of a
+    connection string to loopback or to a service the repository's compose file declares (leaks.mark_local)
+    is a development default: info (secrets_local), not critical. hindsight's critical held six such values
+    in 58 of its 65 places, and its two real ones were the first and the fifth named."""
+    return _secrets_by_rule(report)[0]
+
+
+def _secrets_by_rule(report: dict) -> tuple:
+    """(the secrets findings, {rule id: the value groups it holds}): the groups for SARIF, which places each
+    value of a finding and no other."""
     groups = leaks.group(report.get("secrets") or [])
 
     vendored, generated = filetypes.vendor_dirs(report), _generated(report)
@@ -105,18 +129,19 @@ def secrets_found(report: dict) -> list:
     def in_source(g):   # a copy in an unreachable blob has no path: the value's located copies say where it lives
         located = [f for f in g["files"] if not f.startswith(leaks.UNREACHABLE)] or g["files"]
         return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f) or filetypes.is_vendored(f, vendored)
-                        or filetypes.is_mock_path(f) or filetypes.is_tooling_path(f) or f in generated)
+                        or filetypes.is_mock_path(f) or filetypes.is_tooling_path(f) or f in generated or _TEMPLATE_FILE.search(f))
                    for f in located)
 
     def possible(g):   # only the scanner's generic rules found it, and it graded every sighting low
         return g["rule"].startswith("generic-") and g.get("confidence") == "low"
     declared = [g for g in groups if in_source(g) and g.get("declared")]
-    source = [g for g in groups if in_source(g) and not possible(g) and not g.get("declared")]
-    maybe = [g for g in groups if in_source(g) and possible(g) and not g.get("declared")]
+    local = [g for g in groups if in_source(g) and g.get("local") and not g.get("declared")]
+    source = [g for g in groups if in_source(g) and not possible(g) and not g.get("declared") and not g.get("local")]
+    maybe = [g for g in groups if in_source(g) and possible(g) and not g.get("declared") and not g.get("local")]
     ignore = "Add the fingerprint of any false positive from secrets.json to .betterleaksignore in the repository."
     out = []
     if source:
-        out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source),
+        out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source, every=SECRETS_NAMED_ALL),
                       f"Rotate them; deleting the file does not remove them from git. {ignore}",
                       rule={"id": "secrets_in_source", "scanner": "betterleaks", "placeholders": "left out"}, evidence=_secret_evidence(source)))
     if maybe:
@@ -130,7 +155,19 @@ def secrets_found(report: dict) -> list:
                       "Withdrawing the declaration makes the value a finding again.",
                       rule={"id": "secrets_declared", "scanner": "betterleaks", "declared_by": "config, ignore file or gitleaks:allow at any commit"},
                       evidence=_secret_evidence(declared, declared=True)))
-    return out
+    if local:
+        out.append(_f("info", f"{len(local)} password(s) to a local service", _secret_statement(local),
+                      "Each is the password of a connection string to this machine or to a service the repository's own compose file "
+                      "runs: a development default. Make sure no deployed service shares it.",
+                      rule={"id": "secrets_local", "scanner": "betterleaks", "hosts": "loopback, or a service a compose file declares"},
+                      evidence=_secret_evidence(local)))
+    return out, {"secrets_in_source": source, "secrets_possible": maybe, "secrets_declared": declared, "secrets_local": local}
+
+
+def secret_groups(report: dict) -> dict:
+    """{secrets rule id: the value groups (leaks.group) its finding holds}, for SARIF, which places each value
+    under the finding that holds it and under no other."""
+    return _secrets_by_rule(report)[1]
 
 
 def credential_files(report: dict) -> list:

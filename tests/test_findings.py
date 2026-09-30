@@ -110,11 +110,40 @@ class SecretsFound(unittest.TestCase):
         r = report(secrets=[self.row("h4", "web/package.json", placeholder=True)])
         self.assertEqual(findings.secrets_found(r), [])
 
-    def test_examples_name_at_most_three_values(self):
+    def test_examples_name_at_most_three_values_past_five(self):
+        r = report(secrets=[self.row(f"h{i}", f"app/f{i}.py", f"c{i}") for i in range(6)])
+        crit = findings.secrets_found(r)[0]
+        self.assertIn("and 3 more", crit["detail"])
+        self.assertEqual(crit["title"], "6 secret(s) in history")
+
+    def test_up_to_five_values_every_one_is_named(self):
+        """hindsight's hosted-database password was the fifth value and read as "and 5 more"."""
         r = report(secrets=[self.row(f"h{i}", f"app/f{i}.py", f"c{i}") for i in range(5)])
         crit = findings.secrets_found(r)[0]
-        self.assertIn("and 2 more", crit["detail"])
-        self.assertEqual(crit["title"], "5 secret(s) in history")
+        self.assertNotIn("more", crit["detail"])
+        self.assertIn("generic-api-key in app/f4.py (c4).", crit["detail"])
+
+    def test_a_value_only_in_template_files_is_no_finding(self):
+        r = report(secrets=[self.row("h1", "docker/timescale/.env.example", rule="generic-password"),
+                            self.row("h2", "config/settings.yml.sample"), self.row("h3", "deploy/values.template")])
+        self.assertEqual(findings.secrets_found(r), [])
+        r = report(secrets=[self.row("h1", ".env.example"), self.row("h1", ".env.dev", "c2")])
+        self.assertEqual([x["severity"] for x in findings.secrets_found(r)], ["critical"], "the same value in a real file is a leak")
+
+    def test_a_password_to_a_local_service_is_info_and_the_hosted_one_stays_critical(self):
+        rows = [dict(self.row("hl", f"docker/f{i}.yml", f"c{i}", rule="generic-credential-uri"), local=True, confidence="medium") for i in range(4)]
+        rows += [dict(self.row("hr", ".env.dev", "c9", rule="generic-credential-uri"), confidence="medium"),
+                 dict(self.row("hm", "app/db.py", "c8", rule="generic-credential-uri"), confidence="medium", local=True),
+                 dict(self.row("hm", "app/prod.py", "c8", rule="generic-credential-uri"), confidence="medium", local=False),
+                 dict(self.row("hl", "docker/docker-compose.yml", "c1", rule="generic-password"), confidence="medium")]
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
+        self.assertEqual(set(f), {"secrets_in_source", "secrets_local"})
+        self.assertEqual(f["secrets_local"]["severity"], "info")
+        self.assertIn("1 password(s) to a local service", f["secrets_local"]["title"])
+        self.assertEqual(f["secrets_local"]["evidence"]["files"], ["docker/docker-compose.yml"] + [f"docker/f{i}.yml" for i in range(4)],
+                         "the evidence names the files; the compose file's own setting of the password is the same default")
+        self.assertIn("2 secret(s) in history", f["secrets_in_source"]["title"], "a value also sent to another host is not a local default")
+        self.assertIn(".env.dev", f["secrets_in_source"]["detail"])
 
 
 class CredentialFiles(unittest.TestCase):
