@@ -781,7 +781,8 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     """Functions at or over the complexity floor, worst first, from lizard when it is installed."""
     cls = classify.Classifier(report)
     measured = report.get("functions") or []
-    funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
+    # a span lizard may have mis-parsed goes after every one it did not: its complexity may be the next function's too
+    funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (bool(f.get("suspect")), -f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     funcs, hidden_note = _hide_tests(funcs, lambda f: f["file"], full, noun="function in a test file", plural="functions in test files", classifier=cls)
     funcs, vendor_note = _hide_vendor(funcs, lambda f: f["file"], full, noun="function in vendored code", plural="functions in vendored code", report=report, classifier=cls)
     funcs, sample_note = _hide_by(funcs, lambda f: f["file"], full, cls, {"example code"}, "function in example code", "functions in example code")

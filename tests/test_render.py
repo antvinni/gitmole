@@ -575,6 +575,18 @@ class Report(unittest.TestCase):
         plain = _section_text(rendered(sample_report(), [], width=200), "Complex functions")
         self.assertNotIn("?", plain)
 
+    def test_suspect_spans_sort_after_every_trusted_function(self):
+        # paperclip: six "?" rows led the table, a 25-line regex helper at complexity 1036 first
+        r = sample_report()
+        r["functions"] += [{"file": "server/access.ts", "function": "parseSkillFrontmatter", "anonymous": False, "ccn": 1036, "nloc": 4232, "params": 1,
+                            "start": 211, "end": 4766, "suspect": "opens a block at line 231 no deeper than its own start"},
+                           {"file": "server/runs.ts", "function": "trusted", "anonymous": False, "ccn": 11, "nloc": 30, "params": 1,
+                            "start": 1, "end": 30, "suspect": ""}]
+        for full in (False, True):
+            fn = _section_text(rendered(r, [], width=200, full=full), "Complex functions")
+            self.assertLess(fn.index("trusted"), fn.index("parseSkillFrontmatter"), full)
+            self.assertIn("1036?", fn)
+
     def test_default_complex_functions_hide_vendored_code_and_say_so(self):
         r = sample_report()
         r["functions"].append({"file": "vendor/github.com/x/y.go", "function": "validate", "ccn": 179, "nloc": 424, "params": 3, "start": 1, "end": 424})
