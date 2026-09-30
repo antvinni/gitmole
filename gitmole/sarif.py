@@ -78,6 +78,12 @@ def _places(f: dict) -> list:
         area = a.get("area") if isinstance(a, dict) else None
         if area and area != "(root files)":
             out.append((area.rstrip("/"), None, None, ""))
+    # a file the finding is about as a whole: unpinned_actions' workflow files, lockfile_drift's manifests. Line
+    # 1, since code scanning shows a result by its region and neither rule records a line; one result per file
+    named = [u.get("file") for u in items("unpinned") if isinstance(u, dict)] + \
+        [d.get("manifest") for d in items("drift") if isinstance(d, dict)]
+    for path in dict.fromkeys(p for p in named if isinstance(p, str) and p):
+        out.append((path, 1, None, ""))
     if isinstance(e.get("file"), str):
         out.append((e["file"], None, None, ""))
     if isinstance(e.get("ref"), str) and e["ref"]:

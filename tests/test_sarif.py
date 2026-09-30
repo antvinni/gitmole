@@ -89,6 +89,25 @@ class Document(unittest.TestCase):
         self.assertEqual([(r["ruleId"], r["level"]) for r in results], [("secrets_in_source", "error")])
         self.assertNotIn("locations", results[0])
 
+    def test_workflow_and_manifest_findings_point_at_their_files(self):
+        """unpinned_actions and lockfile_drift name files, under keys of their own; without a location code scanning
+        never showed them. One result per file, at line 1, as neither rule records a line."""
+        found = [finding("unpinned_actions", evidence={"count": 3, "unpinned": [
+                     {"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4"},
+                     {"file": ".github/workflows/ci.yml", "uses": "actions/setup-node@v4"},
+                     {"file": ".github/workflows/gone.yml", "uses": "x/y@main"}]}),
+                 finding("lockfile_drift", evidence={"count": 1, "drift": [
+                     {"manifest": "web/package.json", "lockfile": "web/package-lock.json", "manifest_date": "2026-01-02", "lockfile_date": "2025-01-01"}]})]
+        tree = frozenset({"src/a.py", ".github/workflows/ci.yml", "web/package.json", "web/package-lock.json"})
+        results = sarif.build(report(tree=tree), found)["runs"][0]["results"]
+        places = [(r["ruleId"], r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"], r["locations"][0]["physicalLocation"]["region"])
+                  for r in results]
+        self.assertEqual(places, [("unpinned_actions", ".github/workflows/ci.yml", {"startLine": 1}),
+                                  ("lockfile_drift", "web/package.json", {"startLine": 1})],
+                         "the workflow no longer in the tree is left out under the head scope")
+        history = sarif.build(report(tree=tree), found, scope="history")["runs"][0]["results"]
+        self.assertEqual(len([r for r in history if r["ruleId"] == "unpinned_actions"]), 2)
+
     def test_a_tracked_credential_file_is_in_the_tree_though_scc_does_not_count_it(self):
         """prometheus: web/ui/react-app/.env is in git's index (meta.credential_files) and in no scc language."""
         r = report(meta={"name": "demo", "credential_files": ["web/.env"]})
