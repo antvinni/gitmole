@@ -8,18 +8,35 @@ ELLIPSIS = "…"
 
 def shorten_path(path: str, max_len: int) -> str:
     """Elide middle directories so the path fits, keeping the file name whole:
-    a/b/c/d/e.py -> a/…/d/e.py -> …/d/e.py -> …/e.py."""
-    if len(path) <= max_len or "/" not in path:
+    a/b/c/d/e.py -> a/…/d/e.py -> a/…/e.py -> …/d/e.py -> …/e.py. A directory (`a/b/c/`) keeps its own
+    name the same way (`…/c/`), never the empty name after its last slash; a name that alone is too
+    long is returned whole, for the caller to cut (cut_path)."""
+    if len(path) <= max_len:
         return path
-    parts = path.split("/")
+    slash = "/" if path.endswith("/") else ""
+    parts = path.rstrip("/").split("/")
+    if len(parts) < 2:
+        return path
+    parts[-1] += slash
     candidates = [f"{parts[0]}/{ELLIPSIS}/" + "/".join(parts[-2:])] if len(parts) > 3 else []
     if len(parts) > 2:
-        candidates.append(f"{ELLIPSIS}/" + "/".join(parts[-2:]))
+        candidates += [f"{parts[0]}/{ELLIPSIS}/{parts[-1]}", f"{ELLIPSIS}/" + "/".join(parts[-2:])]
     candidates.append(f"{ELLIPSIS}/{parts[-1]}")
     for c in candidates:
         if len(c) <= max_len:
             return c
     return candidates[-1]
+
+
+def cut_path(path: str, width: int) -> str:
+    """`path` in at most `width` characters: directories elided first (shorten_path), then the name cut in
+    its middle. A directory keeps its trailing slash (`hindsi…-slim/`), so it still reads as one."""
+    path = shorten_path(path, width)
+    if len(path) <= width:
+        return path
+    if path.endswith("/") and width > 1:
+        return cut_middle(path[:-1], width - 1) + "/"
+    return cut_middle(path, width)
 
 
 def cut_middle(text: str, width: int) -> str:

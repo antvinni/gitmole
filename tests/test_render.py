@@ -1801,6 +1801,24 @@ class Fit(unittest.TestCase):
         self.assertRegex(text, r"…/(settings/)?model-library\.tsx")
         self.assertTrue(all(len(line) <= 80 for line in text.splitlines()))
 
+    def test_a_long_area_keeps_its_name_and_the_owner_columns_give_way_first(self):
+        # hindsight at 0.40.0: "hindsight-integrations/" (23 characters) printed as "…/" at 80 columns while the
+        # owner columns kept their full width
+        areas = ["hindsight-integrations/", "hindsight-api-slim/", "hindsight-cli/"]
+        cols = [("area", render.PATH), ("lines added", render.RIGHT), ("main owner", {}), ("second", {})]
+        rows = [(a, "311,910", "Nicolò Boschi (77%)", "Miguel de Benito Delgado (3%)") for a in areas]
+        fitted = render.fit(render._section("Knowledge map", cols, rows), 80)
+        self.assertEqual([r[0] for r in fitted["rows"]], areas)
+        self.assertEqual(len(fitted["columns"]), 4, "nothing left out")
+        self.assertLess(fitted["col_opts"][3]["width"], len("Miguel de Benito Delgado (3%)"))
+
+    def test_an_area_too_long_for_any_width_is_cut_in_its_middle_and_keeps_its_slash(self):
+        sec = render._section("Knowledge map", [("area", render.PATH)], [("hindsight-api-slim/",), ("docs/",)])
+        fitted = render.fit(sec, 16)
+        self.assertTrue(fitted["rows"][0][0].endswith("/"))
+        self.assertIn("…", fitted["rows"][0][0])
+        self.assertTrue(fitted["rows"][0][0].startswith("hind"))
+
     def test_a_table_that_fits_is_left_alone(self):
         sec = render._section("T", [("file", render.PATH), ("n", render.RIGHT)], [("a/b.py", 1)])
         self.assertIs(render.fit(sec, 80), sec)

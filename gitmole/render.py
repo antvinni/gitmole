@@ -1177,8 +1177,8 @@ def _fit_cell(kind: str, text: str, width: int) -> str:
     if len(text) <= width:
         return text
     if kind == "path":
-        text = textfmt.shorten_path(text, width)
-    return textfmt.cut_middle(text, width) if len(text) > width else text
+        return textfmt.cut_path(text, width)
+    return textfmt.cut_middle(text, width)
 
 
 def fit(sec: dict, width) -> dict:
@@ -1248,9 +1248,14 @@ def fit(sec: dict, width) -> dict:
         if kinds[i] != "prose" and heads[i] > cells[i] and excess() > 0:
             widths[i] = max(cells[i], head_word[i], widths[i] - excess())
             floor[i] = min(floor[i], widths[i])
-    for floors, give in ((floor, ("path", "name")), (floor, ("prose",)), (least, ("path", "name", "prose"))):
+    # a column of directories (the knowledge map's areas) is cut below its names only after every other column
+    # has given what it can: an area is the row's subject, an owner's name is its detail
+    dirs = {i for i in keep if kinds[i] == "path" and any(r[i].endswith("/") for r in rows)
+            and all(r[i].endswith("/") or "/" not in r[i] for r in rows)}   # "(root files)" sits among them
+    for floors, give, among in ((floor, ("path", "name"), keep), (floor, ("prose",), keep),
+                                (least, ("path", "name", "prose"), [i for i in keep if i not in dirs]), (least, ("path",), dirs)):
         while excess() > 0:
-            cand = [i for i in keep if kinds[i] in give and widths[i] > floors[i]]
+            cand = [i for i in among if kinds[i] in give and widths[i] > floors[i]]
             if not cand:
                 break
             widths[max(cand, key=lambda i: widths[i])] -= 1
