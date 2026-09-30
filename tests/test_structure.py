@@ -458,6 +458,7 @@ class TooBig(unittest.TestCase):
         self.assertEqual(structure.skip_reason(len(huge), huge), "over 4 MB")
         self.assertIsNone(structure.skip_reason(10, b"var a=1;" * 125), "under MAX_BYTES everything is parsed")
 
+    @unittest.skipUnless(HAVE, "the tree-sitter grammars need Python 3.10 or newer")
     def test_the_step_names_what_it_skipped(self):
         with tempfile.TemporaryDirectory() as d:
             repo = os.path.join(d, "repo")
