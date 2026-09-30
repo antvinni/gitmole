@@ -117,6 +117,13 @@ class Report(unittest.TestCase):
         self.assertNotIn("No known vulnerabilities", text)
         self.assertIn("Dependencies: 151 packages in 2 lock files, 1 vulnerable (database from 2026-09-16)", text)
 
+    def test_a_requirement_file_is_not_counted_as_a_lock_file(self):
+        r = sample_report()
+        r["dependencies"]["sources"].append({"path": "tools/requirements.txt", "packages": 3})
+        text = rendered(r, [])
+        self.assertIn("osv-scanner checked 151 packages in 2 lock files and 1 requirement file against", text)
+        self.assertIn("Dependencies: 151 packages in 2 lock files and 1 requirement file, none vulnerable", text)
+
     def test_the_footer_says_why_dependencies_were_not_scanned(self):
         r = sample_report()
         r["dependencies"] = {"status": "no-sources"}

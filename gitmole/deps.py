@@ -155,8 +155,63 @@ def _relative(path: str, cwd: str) -> str:
     return path[2:] if path.startswith("./") else path
 
 
+# pip's requirement files: osv-scanner reads them as it reads a lock file (its JSON calls both "lockfile"),
+# but a requirement is a specifier, not an installed version, and for `mcp>=1.0.0` it reports the floor, 1.0.0,
+# which no install picks on purpose. The file's name is the convention pip and pip-tools use.
+REQUIREMENT_FILE = re.compile(r"(^|/)[^/]*(requirements|constraints)[^/]*\.(txt|in)$")
+_REQUIREMENT = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*([^;]*)")
+_EXACT = re.compile(r"^===?[^,*]+$")   # one `==` or `===` clause without a wildcard: the only specifier that names one version
+
+
+def is_requirement_file(path: str) -> bool:
+    """Whether osv-scanner read this file as a pip requirement file rather than a lock file."""
+    return bool(REQUIREMENT_FILE.search(path or ""))
+
+
+def _normal(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name or "").lower()   # PEP 503
+
+
+def requirement(text: str, name: str):
+    """The specifier a requirement file gives `name` ('>=1.0.0'; '' for the bare name), or None when no line
+    names it (an included file, a URL). Comments, options and environment markers are left out."""
+    for raw in text.splitlines():
+        line = re.split(r"(?:^|\s)#", raw, maxsplit=1)[0].strip()
+        if not line or line.startswith("-"):
+            continue
+        m = _REQUIREMENT.match(line)
+        if m and _normal(m.group(1)) == _normal(name):
+            return re.sub(r"\s+", "", m.group(2))
+    return None
+
+
+def _pin(row: dict, cwd: str, texts: dict) -> None:
+    """On a row from a requirement file, the specifier it was read from and whether that names one version:
+    `requirement` and `pinned`, so the report can tell a floor from a pin. Nothing when the line is not found."""
+    path = row["source"]
+    if path not in texts:
+        try:
+            with open(os.path.join(cwd, path), encoding="utf-8", errors="replace") as fh:
+                texts[path] = fh.read()
+        except OSError:
+            texts[path] = ""
+    spec = requirement(texts[path], row["name"])
+    if spec is not None:
+        row["requirement"] = spec
+        row["pinned"] = bool(_EXACT.match(spec))
+
+
+def files_phrase(paths) -> str:
+    """'3 lock files', or '3 lock files and 1 requirement file': a requirement file is not a lock file."""
+    paths = set(paths)
+    reqs = sum(1 for p in paths if is_requirement_file(p))
+    locks = len(paths) - reqs
+    out = [f"{n} {word}{'' if n == 1 else 's'}" for n, word in ((locks, "lock file"), (reqs, "requirement file")) if n]
+    return " and ".join(out) or "0 lock files"
+
+
 def summarise(data: dict, cwd: str) -> dict:
-    sources, vulnerable, packages = [], [], 0
+    sources, vulnerable, packages, texts = [], [], 0, {}
     for r in data.get("results") or []:
         path = _relative((r.get("source") or {}).get("path") or "", cwd)
         pkgs = r.get("packages") or []
@@ -176,6 +231,8 @@ def summarise(data: dict, cwd: str) -> dict:
                                "summary": next((v.get("summary") for v in vulns if v.get("summary")), ""),
                                "fixed": fixed_version(vulns, info.get("name", ""), info.get("version", "")),
                                "malicious": is_malicious(vulns)})
+            if is_requirement_file(path):
+                _pin(vulnerable[-1], cwd, texts)
     vulnerable.sort(key=lambda r: (not r["malicious"], -(r["score"] if r["score"] is not None else -1), r["name"], r["source"]))
     return {"status": "scanned", "sources": sources, "packages": packages, "vulnerable": vulnerable}
 

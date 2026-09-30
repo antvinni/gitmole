@@ -758,6 +758,29 @@ class VulnerableDependencies(unittest.TestCase):
         [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
         self.assertIn("p2 1 (CVE-2024-1, 5.0, fixed in 9.9.9) in package-lock.json and 2 more.", f["detail"])
 
+    def test_a_requirement_range_is_said_as_a_range_and_kept_out_of_the_installed_rows(self):
+        """hindsight: `mcp>=1.0.0` was reported as "mcp 1.0.0" in a "lock file"; the floor is what osv-scanner
+        read, and no install picks it on purpose."""
+        floor = {**self.row("mcp", "1.0.0", "tools/requirements.txt", score=9.1, fixed="1.9.4"), "requirement": ">=1.0.0", "pinned": False}
+        pin = {**self.row("requests", "2.31.0", "tools/requirements.txt", score=5.6, fixed="2.32.0"), "requirement": "==2.31.0", "pinned": True}
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps([floor, pin])))   # one group, wherever requirement files are filed
+        self.assertNotEqual(f["severity"], "critical", "a vulnerable floor is not an installed critical")
+        self.assertIn("1 vulnerable package in 1 requirement file: requests 2.31.0 (CVE-2024-1, 5.6, fixed in 2.32.0) in tools/requirements.txt.", f["detail"])
+        self.assertIn("1 requirement range admits a vulnerable version: mcp>=1.0.0 in tools/requirements.txt, whose floor 1.0.0 is vulnerable (CVE-2024-1, 9.1, fixed in 1.9.4).", f["detail"])
+        self.assertEqual([p["name"] for p in f["evidence"]["packages"]], ["requests"])
+        self.assertEqual(f["evidence"]["lock_files"], 0, "a requirement file is not a lock file")
+        self.assertEqual(f["evidence"]["requirements"][0]["floor"], "1.0.0")
+        self.assertEqual(f["evidence"]["requirements"][0]["requirement"], ">=1.0.0")
+        self.assertNotIn("version", f["evidence"]["requirements"][0])
+        self.assertTrue(f["advice"].startswith("Upgrade requests to 2.32.0 in tools/requirements.txt first"), f["advice"])
+
+    def test_only_ranges_advise_raising_the_floor(self):
+        old = self.row("mcp", "1.0.0", "requirements.txt", score=8.7, fixed="1.9.4")   # a scan from before the specifier was kept
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps([old])))
+        self.assertIn("mcp 1.0.0 in requirements.txt, a requirement file that may name only the lowest version it admits", f["detail"])
+        self.assertTrue(f["advice"].startswith("Raise the floor of mcp to 1.9.4 in requirements.txt first; its floor scores 8.7."), f["advice"])
+        self.assertEqual(f["evidence"]["packages"], [])
+
     def test_nothing_without_a_scan_or_without_vulnerable_packages(self):
         self.assertEqual(findings.vulnerable_dependencies(report()), [])
         self.assertEqual(findings.vulnerable_dependencies(report(dependencies={"status": "no-database"})), [])

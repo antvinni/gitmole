@@ -6,7 +6,7 @@ import math
 import os
 import re
 
-from . import classify, coupling, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, scope, structure, textfmt, trend
+from . import classify, coupling, deps, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, scope, structure, textfmt, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -699,27 +699,58 @@ def _malicious_id(r: dict) -> str:
     return next((x for x in list(r.get("ids") or []) + list(r.get("aliases") or []) if str(x).startswith(MALICIOUS_PREFIX)), "")
 
 
-def _vuln_statement(rows: list, sources: int) -> str:
-    def one(r):
-        ref = _malicious_id(r) or (r["aliases"][0] if r.get("aliases") else (r["ids"][0] if r.get("ids") else ""))
-        score = f", {r['score']:.1f}" if r.get("score") is not None else (f", {r['severity']}" if r.get("severity") not in (None, "unknown") else "")
-        if r.get("malicious"):
-            score = ", malicious"
-        fixed = f", fixed in {r['fixed']}" if r.get("fixed") else ", no fix yet"
-        loaded = ", imported by no tracked source" if r.get("imported") is False else ""
-        return f"{r['name']} {r['version']} ({ref}{score}{fixed}{loaded}) in {r['source']}"
-    listed = "; ".join(one(r) for r in rows[:3])
-    more = f" and {len(rows) - 3} more" if len(rows) > 3 else ""
-    return f"{_plural(len(rows), 'vulnerable package')} in {_plural(sources, 'lock file')}: {listed}{more}."
+def _floating(r: dict) -> bool:
+    """A row from a requirement file whose specifier does not name one version (`mcp>=1.0.0`), or whose
+    specifier was not recorded: its version is the floor osv-scanner read, not what an install picks."""
+    return deps.is_requirement_file(r.get("source") or "") and not r.get("pinned")
 
 
-def vulnerable_dependencies(report: dict) -> list:
-    """Packages in the lock files with a known vulnerability, from the offline osv-scanner scan. A package
-    a lock file in the source tree pins is critical when an advisory scores in the critical band, else a
-    warning; one pinned only by a lock file under tests, examples, docs or vendored code is a note. The
-    advice names the package to upgrade first and the version that fixes it."""
-    deps = report.get("dependencies") or {}
-    rows = deps.get("vulnerable") or []
+def _vuln_ref(r: dict) -> str:
+    ref = _malicious_id(r) or (r["aliases"][0] if r.get("aliases") else (r["ids"][0] if r.get("ids") else ""))
+    score = f", {r['score']:.1f}" if r.get("score") is not None else (f", {r['severity']}" if r.get("severity") not in (None, "unknown") else "")
+    if r.get("malicious"):
+        score = ", malicious"
+    fixed = f", fixed in {r['fixed']}" if r.get("fixed") else ", no fix yet"
+    loaded = ", imported by no tracked source" if r.get("imported") is False else ""
+    return f"{ref}{score}{fixed}{loaded}"
+
+
+def _vuln_statement(rows: list) -> str:
+    """The installed rows, counted by lock file, then the requirement ranges whose floor is vulnerable:
+    a range admits a vulnerable version without saying one is installed."""
+    locked = [r for r in rows if not _floating(r)]
+    ranges = [r for r in rows if _floating(r)]
+    parts = []
+    if locked:
+        listed = "; ".join(f"{r['name']} {r['version']} ({_vuln_ref(r)}) in {r['source']}" for r in locked[:3])
+        more = f" and {len(locked) - 3} more" if len(locked) > 3 else ""
+        parts.append(f"{_plural(len(locked), 'vulnerable package')} in {deps.files_phrase(r['source'] for r in locked)}: {listed}{more}.")
+    if ranges:
+        def one(r):
+            if r.get("requirement") is None:
+                return f"{r['name']} {r['version']} in {r['source']}, a requirement file that may name only the lowest version it admits ({_vuln_ref(r)})"
+            return f"{r['name']}{r['requirement'] or ' (any version)'} in {r['source']}, whose floor {r['version']} is vulnerable ({_vuln_ref(r)})"
+        listed = "; ".join(one(r) for r in ranges[:3])
+        more = f" and {len(ranges) - 3} more" if len(ranges) > 3 else ""
+        verb = "admits" if len(ranges) == 1 else "admit"
+        parts.append(f"{_plural(len(ranges), 'requirement range')} {verb} a vulnerable version: {listed}{more}.")
+    return " ".join(parts)
+
+
+def _vuln_evidence(r: dict) -> dict:
+    out = {"name": r["name"], "version": r["version"], "source": r["source"], "score": r.get("score"),
+           "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
+           "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious")),
+           "imported": r.get("imported", "unknown")}
+    if _floating(r):   # the version is the range's floor, not an installed one
+        out = {**{k: v for k, v in out.items() if k != "version"}, "floor": r["version"], "requirement": r.get("requirement")}
+    return out
+
+
+def _vuln_rows(report: dict) -> list:
+    """(rule id, severity, title, rows) for each group of vulnerable rows: the source tree's, and the ones
+    only under tests, examples, docs or vendored code. The finding and its SARIF results read the same rows."""
+    rows = (report.get("dependencies") or {}).get("vulnerable") or []
     if not rows:
         return []
     vendored = filetypes.vendor_dirs(report)
@@ -727,30 +758,49 @@ def vulnerable_dependencies(report: dict) -> list:
     def aside(r):
         p = r.get("source") or ""
         return filetypes.is_test_path(p) or filetypes.is_sample_path(p) or filetypes.is_doc_path(p) or filetypes.is_vendored(p, vendored)
-    source = [r for r in rows if not aside(r)]
-    other = [r for r in rows if aside(r)]
     out = []
-    for group, sev_default, title in ((source, "warning", "Vulnerable dependencies"),
-                                      (other, "info", "Vulnerable dependencies only in test, example or vendored lock files")):
-        if not group:
-            continue
-        worst = group[0]   # the rows come sorted malicious first, then by score, highest first
-        critical = worst.get("malicious") or (worst.get("score") is not None and worst["score"] >= CRITICAL_SCORE)
-        sev = "critical" if group is source and critical else sev_default
-        sources = len({r["source"] for r in group})
+    for rid, group, title in (("vulnerable_dependencies", [r for r in rows if not aside(r)], "Vulnerable dependencies"),
+                              ("vulnerable_dependencies_aside", [r for r in rows if aside(r)], "Vulnerable dependencies only in test, example or vendored lock files")):
+        if group:
+            out.append((rid, _vuln_severity(rid, group), title, group))
+    return out
+
+
+def _vuln_severity(rid: str, group: list) -> str:
+    """A note aside; else critical for a malicious package, or for an installed one an advisory scores in the
+    critical band, and a warning otherwise. A requirement range is never critical by its score, as the
+    vulnerable floor is not what an install picks."""
+    if rid == "vulnerable_dependencies_aside":
+        return "info"
+    critical = any(r.get("malicious") or (not _floating(r) and r.get("score") is not None and r["score"] >= CRITICAL_SCORE) for r in group)
+    return "critical" if critical else "warning"
+
+
+def vulnerable_dependencies(report: dict) -> list:
+    """Packages in the lock files with a known vulnerability, from the offline osv-scanner scan. A package
+    a lock file in the source tree pins is critical when an advisory scores in the critical band, else a
+    warning; one pinned only by a lock file under tests, examples, docs or vendored code is a note. A pip
+    requirement range whose floor is vulnerable is said as a range, not as an installed version. The
+    advice names the package to upgrade first and the version that fixes it."""
+    out = []
+    for rid, sev, title, group in _vuln_rows(report):
+        locked = [r for r in group if not _floating(r)]
+        worst = (locked or group)[0]   # the rows come sorted malicious first, then by score, highest first
         if worst.get("malicious"):
             target = f"Remove {worst['name']} {worst['version']} from {worst['source']} first; {_malicious_id(worst)} lists it as malicious, so no version fixes it."
+        elif _floating(worst):
+            target = f"Raise the floor of {worst['name']} to {worst['fixed']} in {worst['source']} first" if worst.get("fixed") else f"Look at {worst['name']} in {worst['source']} first, which has no fixed version yet"
+            target += f"; its floor scores {worst['score']:.1f}." if worst.get("score") is not None else "."
         else:
             target = f"Upgrade {worst['name']} to {worst['fixed']} in {worst['source']} first" if worst.get("fixed") else f"Look at {worst['name']} in {worst['source']} first, which has no fixed version yet"
             target += f"; it scores {worst['score']:.1f}." if worst.get("score") is not None else "."
-        out.append(_f(sev, title, _vuln_statement(group, sources), f"{target} {IGNORE_DEPS}",
-                      rule={"id": "vulnerable_dependencies" if group is source else "vulnerable_dependencies_aside", "critical_score": CRITICAL_SCORE,
-                            "malicious_prefix": MALICIOUS_PREFIX},
-                      evidence={"lock_files": sources,
-                                "packages": [{"name": r["name"], "version": r["version"], "source": r["source"], "score": r.get("score"),
-                                              "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
-                                              "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious")),
-                                              "imported": r.get("imported", "unknown")} for r in group[:10]]}))
+        ranges = [r for r in group if _floating(r)]
+        evidence = {"lock_files": len({r["source"] for r in locked if not deps.is_requirement_file(r["source"])}), "packages": [_vuln_evidence(r) for r in locked[:10]]}
+        if ranges:
+            evidence["requirements"] = [_vuln_evidence(r) for r in ranges[:10]]
+        out.append(_f(sev, title, _vuln_statement(group), f"{target} {IGNORE_DEPS}",
+                      rule={"id": "vulnerable_dependencies" if rid == "vulnerable_dependencies" else "vulnerable_dependencies_aside", "critical_score": CRITICAL_SCORE, "malicious_prefix": MALICIOUS_PREFIX},
+                      evidence=evidence))
     return out
 
 

@@ -91,6 +91,36 @@ class Summarise(unittest.TestCase):
         self.assertIs(row["malicious"], False)
 
 
+class Requirements(unittest.TestCase):
+    """osv-scanner reads `mcp>=1.0.0` as mcp 1.0.0: the row keeps the specifier, so a floor is not an install."""
+
+    def test_the_specifier_is_read_by_the_normalised_name(self):
+        text = "# pinned\n-r base.txt\nMCP >= 1.0.0 ; python_version >= '3.9'  # the SDK\nrequests[socks]==2.31.0\nPyYAML\n"
+        self.assertEqual(deps.requirement(text, "mcp"), ">=1.0.0")
+        self.assertEqual(deps.requirement(text, "requests"), "==2.31.0")
+        self.assertEqual(deps.requirement(text, "pyyaml"), "", "the bare name admits any version")
+        self.assertIsNone(deps.requirement(text, "base"), "an option line names no package")
+        self.assertIsNone(deps.requirement(text, "absent"))
+
+    def test_a_row_from_a_requirement_file_says_whether_it_is_pinned(self):
+        with tempfile.TemporaryDirectory() as repo:
+            os.makedirs(os.path.join(repo, "tools"))
+            with open(os.path.join(repo, "tools", "requirements.txt"), "w") as fh:
+                fh.write("mcp>=1.0.0\nrequests==2.31.0\npytest==7.*\n")
+            pkgs = [package(n, v, [vuln("GHSA-" + n, name=n)], ecosystem="PyPI") for n, v in (("mcp", "1.0.0"), ("requests", "2.31.0"), ("pytest", "7.0"))]
+            out = deps.summarise({"results": [{"source": {"path": os.path.join(repo, "tools", "requirements.txt"), "type": "lockfile"}, "packages": pkgs}]}, repo)
+        got = {r["name"]: (r.get("requirement"), r.get("pinned")) for r in out["vulnerable"]}
+        self.assertEqual(got, {"mcp": (">=1.0.0", False), "requests": ("==2.31.0", True), "pytest": ("==7.*", False)})
+
+    def test_a_lock_file_row_carries_no_specifier(self):
+        self.assertNotIn("requirement", deps.summarise(report(), "/repo")["vulnerable"][0])
+
+    def test_files_are_counted_by_kind(self):
+        self.assertEqual(deps.files_phrase(["uv.lock", "a/package-lock.json"]), "2 lock files")
+        self.assertEqual(deps.files_phrase(["uv.lock", "x/requirements-dev.txt", "y/requirements.txt"]), "1 lock file and 2 requirement files")
+        self.assertEqual(deps.files_phrase(["constraints.txt"]), "1 requirement file")
+
+
 class DatabaseDate(unittest.TestCase):
     def test_newest_file_under_the_cache_names_the_day_and_nothing_means_none(self):
         with tempfile.TemporaryDirectory() as d:
