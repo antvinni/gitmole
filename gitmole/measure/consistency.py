@@ -54,7 +54,7 @@ import subprocess
 import sys
 import tempfile
 
-from .. import loss, sarif
+from .. import identity, loss, sarif
 
 # the rules whose subject is the people who left: naming them is the point
 ABOUT_THE_GONE = frozenset({"knowledge_loss", "authors_gone"})
@@ -227,25 +227,11 @@ def trailer_author(report: dict, found: list) -> list:
 
 # --- the checks the 0.39.0 review of a one-developer, agent-assisted repository added ---------------------
 
-NO_REPLY = re.compile(r"^(?:no-?reply|donotreply|do-not-reply)@", re.I)   # a bare no-reply mailbox; a per-user `id+login@users.noreply…` is not one
-
-
 def agents(report: dict) -> set:
-    """The identities that are a tool rather than a person, by shape: one that authored no commit and
-    only ever appears in Co-authored-by trailers, or one whose address is a bare no-reply mailbox that
-    several differently named identities share (one per model version of the same assistant)."""
-    ids = (report.get("meta") or {}).get("identities") or []
-    shared = {}
-    for i in ids:
-        for email in {i.get("email") or ""} | {a.get("email") or "" for a in i.get("aliases") or []}:
-            if NO_REPLY.match(email):
-                shared.setdefault(email.lower(), set()).add(i.get("name"))
-    out = set()
-    for i in ids:
-        emails = {(i.get("email") or "").lower()} | {(a.get("email") or "").lower() for a in i.get("aliases") or []}
-        if (i.get("authored") == 0 and (i.get("commits") or 0) > 0) or any(len(shared.get(e, ())) >= 2 for e in emails):
-            out.add(i.get("name"))
-    return out
+    """The identities that are a tool rather than a person, by shape (identity.tools, which the report's
+    own tables read too): one that authored no commit and only ever appears in Co-authored-by trailers,
+    or one whose address is a bare no-reply mailbox that several differently named identities share."""
+    return identity.tools((report.get("meta") or {}).get("identities") or [])
 
 
 def agent_owner(report: dict, found: list) -> list:

@@ -187,3 +187,26 @@ def canonical_names(merged: list) -> dict:
         for a in m.get("aliases", []):
             out[a["name"]] = m["name"]
     return out
+
+
+NO_REPLY_MAILBOX = re.compile(r"^(?:no-?reply|donotreply|do-not-reply)@", re.I)   # a bare no-reply mailbox; a per-user `id+login@users.noreply…` is not one
+
+
+def tools(identities: list) -> set:
+    """The names of the identities that are a tool rather than a person, by shape: one that authored no
+    commit and only ever appears in Co-authored-by trailers, or one whose address is a bare no-reply
+    mailbox that several differently named identities share (one per model version of the same
+    assistant). `identities` are the run's merged rows (meta.json), each with `authored` where the run
+    recorded it; a row without it is judged on the address alone. The measurement harness's
+    consistency check reads the same definition."""
+    shared = {}
+    for i in identities:
+        for email in {i.get("email") or ""} | {a.get("email") or "" for a in i.get("aliases") or []}:
+            if NO_REPLY_MAILBOX.match(email):
+                shared.setdefault(email.lower(), set()).add(i.get("name"))
+    out = set()
+    for i in identities:
+        emails = {(i.get("email") or "").lower()} | {(a.get("email") or "").lower() for a in i.get("aliases") or []}
+        if (i.get("authored") == 0 and (i.get("commits") or 0) > 0) or any(len(shared.get(e, ())) >= 2 for e in emails):
+            out.add(i.get("name"))
+    return out
