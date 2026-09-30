@@ -103,6 +103,40 @@ class Lockfiles(unittest.TestCase):
                                   "changes": [{"commit": bump, "date": "2026-04-01"}]}], "dated by the change the lock records, not the rename after it")
 
 
+    def test_a_workspace_member_is_pinned_by_the_roots_lock_even_with_one_of_its_own(self):
+        # VoiceStudio: the root package.json declares "workspaces": ["electron"]; CI installs from the root
+        # bun.lock frozen, and electron/bun.lock is a stale leftover the finding told the reader to regenerate
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("package.json", json.dumps({"name": "mono", "workspaces": ["electron", "packages/*", "!packages/legacy"]}))
+            r.write("bun.lock", "{}\n")
+            r.write("electron/package.json", '{"name": "e"}\n')
+            r.write("electron/bun.lock", "{}\n")
+            r.write("packages/a/package.json", '{"name": "a"}\n')
+            r.write("packages/a/bun.lock", "{}\n")
+            r.write("packages/a/tools/package.json", '{"name": "t"}\n')   # `*` does not cross a directory
+            r.write("packages/a/tools/bun.lock", "{}\n")
+            r.write("packages/legacy/package.json", '{"name": "l"}\n')   # excluded by "!packages/legacy"
+            r.write("packages/legacy/bun.lock", "{}\n")
+            r.write("site/package.json", json.dumps({"name": "site", "workspaces": {"packages": ["apps/**"]}}))
+            r.write("site/yarn.lock", "\n")
+            r.write("site/apps/web/ui/package.json", '{"name": "ui"}\n')
+            r.write("site/apps/web/ui/yarn.lock", "\n")
+            r.commit(date="2026-09-14T00:00:00")
+            for m in ("electron", "packages/a", "packages/a/tools", "packages/legacy", "site/apps/web/ui"):
+                r.write(f"{m}/package.json", json.dumps({"name": m, "dependencies": {"left-pad": "1"}}))
+            r.write("bun.lock", '{"lockfileVersion": 1}\n')
+            r.write("site/yarn.lock", "# updated\n")
+            r.commit("members add a dependency; the roots relock", date="2026-09-26T00:00:00")
+            r.write("packages/a/tools/package.json", json.dumps({"name": "t", "dependencies": {"left-pad": "2"}}))
+            r.write("packages/legacy/package.json", json.dumps({"name": "l", "dependencies": {"left-pad": "2"}}))
+            r.commit("later", date="2026-09-28T00:00:00")
+            out = hygiene.lockfiles(d)
+        self.assertEqual([(x["manifest"], x["lockfile"]) for x in out["drift"]],
+                         [("packages/a/tools/package.json", "packages/a/tools/bun.lock"), ("packages/legacy/package.json", "packages/legacy/bun.lock")],
+                         "electron, packages/a and site/apps/web/ui are members their roots relocked; the rest keep their own lock")
+
+
 class DependencyUpdates(unittest.TestCase):
     def test_ecosystems_with_a_lockfile_that_dependabot_does_not_cover(self):
         with tempfile.TemporaryDirectory() as d:
