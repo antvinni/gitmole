@@ -27,8 +27,10 @@ jobs:
           sarif: gitmole.sarif
           upload-sarif: "false"   # a pull request's findings are not this repository's alerts
           vulnerability-db: "true"
+          baseline: "true"        # a pull request restores, never saves; the restore and the export are what is tested
       - name: The action ran and wrote what it said
         env:
+          BASELINE: ${{ steps.gitmole.outputs.baseline }}
           EXIT_CODE: ${{ steps.gitmole.outputs.exit-code }}
           MARKDOWN: ${{ steps.gitmole.outputs.markdown }}
           SARIF: ${{ steps.gitmole.outputs.sarif }}
@@ -36,6 +38,8 @@ jobs:
           set -euo pipefail
           test "$EXIT_CODE" = 0
           test -s "$MARKDOWN"
+          test -s "$RUNNER_TEMP/gitmole-export.json"   # baseline: true writes this run's export
+          test -z "$BASELINE" || test -s "$BASELINE"
           python3 - "$SARIF" <<'PY'
           import json, sys
           sarif = json.load(open(sys.argv[1]))

@@ -495,7 +495,9 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
 
 
 def people_section(report: dict, full: bool = True, width=None) -> dict:
-    ids = report["meta"].get("identities") or []
+    tools = set((report.get("tools") or {}).get("names") or [])   # load.py keeps them out of the tables about people
+    ids = [i for i in report["meta"].get("identities") or [] if i["name"] not in tools]
+    apart = len(tools & {i["name"] for i in report["meta"].get("identities") or []})
     merges = any(i.get("merges") for i in ids)   # merges apart: merging every pull request is not writing the code
 
     def own(i):   # the commits they authored: a Co-authored-by credit is shown apart, not as a commit of theirs
@@ -521,8 +523,9 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if merges:
         notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
     more = _more(len(ids), limit)
-    if more:
-        notes.append(more)
+    left = f"{apart} coding tool{'s' if apart != 1 else ''} (names sharing one no-reply address) left out" if apart else None
+    if more or left:
+        notes.append("; ".join(x for x in (more, left) if x))
     bots = report["meta"].get("bots") or []
     if bots:
         notes.append("bots left out: " + ", ".join(f"{b['name']} ({b['commits']}{' commits' if i == 0 else ''})" for i, b in enumerate(bots[:3]))
@@ -866,15 +869,30 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         hidden = len({knowledge.top_area(r["entity"], base) for r in rows_all if not knowledge.in_tree(knowledge.top_area(r["entity"], base), tree, base)})
         hidden_note = f"{hidden} historical area{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None
     limit = _limit("Knowledge map", full)
-    rows = []
+    # the lines Co-authored-by trailers credit to a coding tool are not anyone's to own: the owners' shares are
+    # of the people's lines, and the tools' part of each area is shown on its own
+    assisted = ((report.get("tools") or {}).get("added") or {})
+    if full is not True and tree:
+        assisted = {e: n for e, n in assisted.items() if e in tree}
+    rows, shares, outrank = [], [], False
     for a in areas[:limit]:
         owners = [f"{name}{' (gone)' if name in gone else ''} ({_pct(n, a['lines'])})" for name, n in a["owners"][:2]] + ["-"]
         lost = f"{100 * a['lost_share']:.0f}%" if a["lines"] else "-"
-        rows.append((a["area"], f"{a['lines']:,}", a["authors"], lost if gone else "-", owners[0], owners[1]))
-    columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("second", {})]
+        theirs = sum(n for e, n in assisted.items() if knowledge.in_area(e, a["area"], base))
+        shares.append(round(100 * theirs / (a["lines"] + theirs)) if a["lines"] + theirs else 0)
+        outrank = outrank or (theirs > 0 and theirs >= (a["owners"][1][1] if len(a["owners"]) > 1 else 0))
+        rows.append((a["area"], f"{a['lines']:,}", a["authors"], lost if gone else "-", owners[0], owners[1], f"{shares[-1]}%"))
+    columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("second", {}), ("agents", RIGHT)]
+    # a column only when a row shown has a whole percent of it; in the default report only when the tools
+    # together hold as much of an area as its second owner, where naming them apart changes who is listed
+    shown = any(shares) and (full is True or outrank)
     if full is not True:
-        columns, rows = _keep(columns, rows, ["area", "lines added", "main owner", "second"])
+        columns, rows = _keep(columns, rows, ["area", "lines added", "main owner", "second", *(["agents"] if shown else [])])
+    elif not shown:
+        columns, rows = _keep(columns, rows, [c[0] for c in columns[:-1]])
     notes = [c for c in (_more(len(areas), limit), hidden_note) if c]
+    if shown:
+        notes.append("agents: the lines trailers credit to coding tools, several names sharing one no-reply address")
     if gone:
         notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
                      + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))
@@ -957,18 +975,31 @@ def sections(report: dict, full: bool = True, width=None) -> list:
     return out
 
 
+SECRET_FINDINGS = ("secrets_in_source", "secrets_possible", "secrets_declared")
+
+
 def secrets_line(report: dict) -> str:
+    """The scan's totals, and how many of them no finding holds: since 0.39.0 a value only in test, example,
+    vendored, generated or documentation files is no finding, so VoiceStudio's footer counted 4 values
+    beside a finding of 2 with nothing to say where the other 2 went. Saying so costs a wrapped line at
+    80 columns on every development repository, which the report-length ceiling does not allow; it is
+    paid for by the unreachable sweep's parenthetical, kept only on a line with no values to report."""
+    from .findings import secrets_found
     rows = report.get("secrets") or []
     groups = leaks.group(rows)
     places = sum(g["places"] for g in groups)
     line = (f"Secrets: {len(groups)} distinct value{'s' if len(groups) != 1 else ''} in {places} place{'s' if places != 1 else ''}"
             if groups else "Secrets: none found")
+    if groups:
+        held = sum((f.get("evidence") or {}).get("values", 0) for f in secrets_found(report) if f["rule"]["id"] in SECRET_FINDINGS)
+        if len(groups) > held:   # the rest are only in test, example, vendored, generated or documentation files
+            line += f", {len(groups) - held} never in source (secrets.json)"
     skipped = leaks.placeholders(rows)
     if skipped:
         line += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
     loose = report.get("unreachable") or {}
     if loose and not loose.get("objects"):
-        line += "; no unreachable objects (a fresh clone fetches only what a ref reaches)"
+        line += "; no unreachable objects" + ("" if groups else " (a fresh clone fetches only what a ref reaches)")
     elif loose.get("scanned"):
         line += f"; {loose['scanned']:,} unreachable blob{'s' if loose['scanned'] != 1 else ''} scanned too"
     return line

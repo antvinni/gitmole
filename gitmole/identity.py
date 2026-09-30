@@ -187,3 +187,28 @@ def canonical_names(merged: list) -> dict:
         for a in m.get("aliases", []):
             out[a["name"]] = m["name"]
     return out
+
+
+NO_REPLY_MAILBOX = re.compile(r"^(?:no-?reply|donotreply|do-not-reply)@", re.I)   # a bare no-reply mailbox; a per-user `id+login@users.noreply…` is not one
+
+
+def tools(identities: list) -> set:
+    """The names of the identities that are a coding tool rather than a person, by shape alone: two or
+    more differently named identities on one bare no-reply mailbox (noreply@, no-reply@, donotreply@),
+    as an assistant that signs each model version with its own name and the vendor's one address does.
+    A per-account `id+login@users.noreply…` is a person's address, and one name alone on a no-reply
+    address is a person. Someone credited only by Co-authored-by trailers is a person too: most of them
+    are (django's 71, redis's 63). A name that any other row carries is not a tool either, since the
+    report's tables key people by name. `identities` are the run's merged rows (meta.json). The
+    measurement harness's consistency check reads this same definition, so its agent_owner and the
+    report agree."""
+    shared = {}
+    for i in identities:
+        for email in {i.get("email") or ""} | {a.get("email") or "" for a in i.get("aliases") or []}:
+            if NO_REPLY_MAILBOX.match(email):
+                shared.setdefault(email.lower(), set()).add(i.get("name"))
+    tool, person = set(), set()
+    for i in identities:
+        emails = {(i.get("email") or "").lower()} | {(a.get("email") or "").lower() for a in i.get("aliases") or []}
+        (tool if any(len(shared.get(e, ())) >= 2 for e in emails) else person).add(i.get("name"))
+    return tool - person

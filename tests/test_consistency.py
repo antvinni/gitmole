@@ -210,9 +210,9 @@ class Agents(unittest.TestCase):
     def ids(self, *rows):
         return report(meta={"identities": [dict(r) for r in rows]})
 
-    def test_a_trailer_only_identity_is_a_tool(self):
+    def test_a_trailer_only_identity_is_a_person(self):
         r = self.ids({"name": "Helper", "email": "h@x.org", "commits": 9, "authored": 0})
-        self.assertEqual(consistency.agents(r), {"Helper"})
+        self.assertEqual(consistency.agents(r), set())
 
     def test_names_sharing_a_bare_no_reply_address_are_a_tool(self):
         r = self.ids({"name": "Model A", "email": "noreply@vendor.example", "commits": 9, "authored": 1},

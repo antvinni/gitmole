@@ -89,6 +89,25 @@ class Document(unittest.TestCase):
         self.assertEqual([(r["ruleId"], r["level"]) for r in results], [("secrets_in_source", "error")])
         self.assertNotIn("locations", results[0])
 
+    def test_workflow_and_manifest_findings_point_at_their_files(self):
+        """unpinned_actions and lockfile_drift name files, under keys of their own; without a location code scanning
+        never showed them. One result per file, at line 1, as neither rule records a line."""
+        found = [finding("unpinned_actions", evidence={"count": 3, "unpinned": [
+                     {"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4"},
+                     {"file": ".github/workflows/ci.yml", "uses": "actions/setup-node@v4"},
+                     {"file": ".github/workflows/gone.yml", "uses": "x/y@main"}]}),
+                 finding("lockfile_drift", evidence={"count": 1, "drift": [
+                     {"manifest": "web/package.json", "lockfile": "web/package-lock.json", "manifest_date": "2026-01-02", "lockfile_date": "2025-01-01"}]})]
+        tree = frozenset({"src/a.py", ".github/workflows/ci.yml", "web/package.json", "web/package-lock.json"})
+        results = sarif.build(report(tree=tree), found)["runs"][0]["results"]
+        places = [(r["ruleId"], r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"], r["locations"][0]["physicalLocation"]["region"])
+                  for r in results]
+        self.assertEqual(places, [("unpinned_actions", ".github/workflows/ci.yml", {"startLine": 1}),
+                                  ("lockfile_drift", "web/package.json", {"startLine": 1})],
+                         "the workflow no longer in the tree is left out under the head scope")
+        history = sarif.build(report(tree=tree), found, scope="history")["runs"][0]["results"]
+        self.assertEqual(len([r for r in history if r["ruleId"] == "unpinned_actions"]), 2)
+
     def test_a_tracked_credential_file_is_in_the_tree_though_scc_does_not_count_it(self):
         """prometheus: web/ui/react-app/.env is in git's index (meta.credential_files) and in no scc language."""
         r = report(meta={"name": "demo", "credential_files": ["web/.env"]})
@@ -134,6 +153,33 @@ class Document(unittest.TestCase):
         self.assertEqual(len(history["runs"][0]["results"]), 2)
         gone = next(x for x in history["runs"][0]["results"] if x["properties"]["commit"] == "d2d2d2d")
         self.assertEqual(gone["locations"][0]["physicalLocation"]["region"], {"startLine": 3})
+
+    def test_head_scope_keeps_a_secret_only_where_heads_file_still_holds_the_value(self):
+        """VoiceStudio: a key replaced in a file still in the tree was pinned to that file at HEAD, where it no longer is."""
+        rows = [{"rule": "posthog", "file": "src/a.py", "commit": "c1c1c1c", "line": 57, "fingerprint": "x", "value": "h1", "placeholder": False,
+                 "at_head": False},
+                {"rule": "github-pat", "file": "src/a.py", "commit": "d2d2d2d", "line": 3, "fingerprint": "y", "value": "h2", "placeholder": False,
+                 "at_head": True, "head_line": 12}]
+        found = [finding("secrets_in_source", "critical", evidence={"files": ["src/a.py"]})]
+        [r] = sarif.build(report(secrets=rows), found, scope="head")["runs"][0]["results"]
+        self.assertEqual(r["properties"]["commit"], "d2d2d2d", "the replaced value is history only, though its file is in the tree")
+        self.assertEqual(r["locations"][0]["physicalLocation"]["region"], {"startLine": 12}, "HEAD's line, where the value is now")
+        self.assertEqual(r["message"]["text"], "github-pat in src/a.py at commit d2d2d2d, line 3 of that commit's version; at HEAD, line 12")
+        [only] = sarif.build(report(secrets=rows[:1]), found, scope="head")["runs"][0]["results"]
+        self.assertNotIn("locations", only, "a gated finding with nothing at HEAD keeps one result, without a location")
+        self.assertEqual(only["level"], "error")
+        self.assertEqual(len(sarif.build(report(secrets=rows), found, scope="history")["runs"][0]["results"]), 2)
+
+    def test_a_declared_value_is_the_declared_findings_and_not_the_criticals(self):
+        said = {"file": ".gitleaks.toml", "commit": "e3ed952", "how": "allowlist regex"}
+        rows = [{"rule": "posthog-project-api-key", "file": "src/a.py", "commit": "c1c1c1c", "line": 9, "fingerprint": "x", "value": "h1", "placeholder": False,
+                 "declared": said},
+                {"rule": "generic-password", "file": "src/a.py", "commit": "d2d2d2d", "line": 3, "fingerprint": "y", "value": "h2", "placeholder": False}]
+        found = [finding("secrets_in_source", "critical", evidence={"files": ["src/a.py"]}),
+                 finding("secrets_declared", "info", evidence={"files": ["src/a.py"]})]
+        results = sarif.build(report(secrets=rows), found, scope="history")["runs"][0]["results"]
+        self.assertEqual([(r["ruleId"], r["properties"]["commit"]) for r in results], [("secrets_in_source", "d2d2d2d"), ("secrets_declared", "c1c1c1c")],
+                         "one file, two values: each result under the finding that holds its value")
 
     def test_vulnerable_dependencies_are_one_result_per_package_with_the_advisory_score(self):
         found = [finding("vulnerable_dependencies", "critical", evidence={"packages": [

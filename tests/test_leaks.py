@@ -334,7 +334,7 @@ class Group(unittest.TestCase):
         groups = leaks.group(rows)
         self.assertEqual([g["value"] for g in groups], ["h1", "h2", "h3"], "source first, then by places; placeholders left out")
         self.assertEqual(groups[0], {"value": "h1", "rule": "generic-api-key", "files": ["app/settings.py"], "commits": ["c1", "c2"],
-                                     "places": 2, "test": False, "docs": False, "confidence": None})
+                                     "places": 2, "test": False, "docs": False, "confidence": None, "declared": None})
         self.assertEqual(groups[1]["files"], ["tests/data/a.html", "app/tests/data/a.html"])
         self.assertEqual(groups[1]["places"], 2)
         self.assertTrue(groups[1]["test"])
@@ -524,3 +524,129 @@ class HeadlineOrder(unittest.TestCase):
                  self.row("h4", "ui/src/data/Low.js", "slack-webhook-url", "low")]
         self.assertEqual([g["value"] for g in leaks.group(rows)], ["h2", "h3", "h1", "h4"],
                          "the scanner's grade first, then a provider's rule before a generic one, then places")
+
+
+class Declared(unittest.TestCase):
+    """The repository's own declaration that a value is not a secret, at any commit of HEAD's history."""
+
+    def repo(self, d):
+        from tests.test_hygiene import Repo
+        return Repo(d)
+
+    def raw(self, repo, path, value, line=1):
+        commit = repo.git("log", "-1", "--format=%H", "--", path).stdout.decode().strip()
+        return {"RuleID": "posthog-project-api-key", "File": path, "Commit": commit, "StartLine": line, "Secret": value,
+                "Fingerprint": f"{commit}:{path}:posthog-project-api-key:{line}"}
+
+    def test_an_allowlist_regex_that_a_later_config_dropped_still_declares_the_value(self):
+        old, new = "phc_" + FAKE, "phc_" + FAKE[::-1]
+        with tempfile.TemporaryDirectory() as d:
+            r = self.repo(d)
+            r.write("app/analytics.py", f'TOKEN = "{old}"\n')
+            r.commit(date="2026-01-01T00:00:00")
+            first = self.raw(r, "app/analytics.py", old)
+            r.write(".gitleaks.toml", "[extend]\nuseDefault = true\n\n[allowlist]\nregexes = [\n  # the public key\n  '''^" + old + "$''',\n]\n")
+            r.commit(date="2026-01-02T00:00:00")
+            declaring = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            r.write("app/analytics.py", f'TOKEN = "{new}"\n')
+            r.write(".gitleaks.toml", "[allowlist]\nregexes = ['''^" + new + "$''']\n")
+            r.commit(date="2026-01-03T00:00:00")
+            other = dict(first, Secret="phc_" + "9" * 32)
+            leaks.annotate(d, [first, other])
+        self.assertEqual(first["Declared"], {"File": ".gitleaks.toml", "Commit": declaring, "How": "allowlist regex"})
+        self.assertNotIn("Declared", other, "a value no version declared stays undeclared")
+        self.assertNotIn(old, json.dumps(leaks.sanitise([first])), "the declaration names the file and commit, never the value")
+
+    def test_a_marker_on_the_values_line_in_a_later_version_declares_it(self):
+        value = "phc_" + FAKE
+        with tempfile.TemporaryDirectory() as d:
+            r = self.repo(d)
+            r.write("web/a.ts", f"const T = '{value}';\n")
+            r.commit(date="2026-01-01T00:00:00")
+            row = self.raw(r, "web/a.ts", value)
+            r.write("web/a.ts", f"const T = '{value}'; // gitleaks:allow publishable\n")
+            r.commit(date="2026-01-02T00:00:00")
+            marking = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            r.write("web/b.ts", "// gitleaks:allow on a line of its own\n")
+            r.commit(date="2026-01-03T00:00:00")
+            other = dict(row, Secret="phc_" + "9" * 32)
+            leaks.annotate(d, [row, other])
+        self.assertEqual(row["Declared"], {"File": "web/a.ts", "Commit": marking, "How": "gitleaks:allow"})
+        self.assertNotIn("Declared", other, "the marker covers the value on its own line only")
+
+    def test_stopwords_ignore_files_and_what_is_not_a_declaration(self):
+        value = "sk_" + FAKE
+        with tempfile.TemporaryDirectory() as d:
+            r = self.repo(d)
+            r.write("app/k.py", f'KEY = "{value}"\n')
+            r.commit(date="2026-01-01T00:00:00")
+            row = self.raw(r, "app/k.py", value)
+            # a rule's own detection regex matches the value too, and says the opposite of allowed
+            r.write(".gitleaks.toml", "[[rules]]\nid = \"x\"\nregex = '''sk_[0-9a-f]{32}'''\n")
+            r.commit(date="2026-01-02T00:00:00")
+            leaks.annotate(d, [row])
+            self.assertNotIn("Declared", row, "a detection regex is not an allowlist")
+            r.write(".gitleaks.toml", "[[allowlists]]\ncondition = \"AND\"\nstopwords = [\"" + FAKE[:10] + "\"]\npaths = ['''^docs/''']\n")
+            r.commit(date="2026-01-03T00:00:00")
+            leaks.annotate(d, [row])
+            self.assertNotIn("Declared", row, "AND: the stopword matches, the path does not")
+            os.remove(os.path.join(d, ".gitleaks.toml"))
+            r.write(".betterleaksignore", "# reviewed\n" + row["Fingerprint"] + "\n")
+            r.commit(date="2026-01-04T00:00:00")
+            leaks.annotate(d, [row])
+            self.assertEqual((row["Declared"]["File"], row["Declared"]["How"]), (".betterleaksignore", "fingerprint"))
+            elsewhere = dict({k: v for k, v in row.items() if k != "Declared"}, Fingerprint="other")
+            leaks.annotate(d, [elsewhere])
+            self.assertNotIn("Declared", elsewhere, "an ignore file that names neither the value nor the place")
+            r.write(".gitleaks.toml", "[[rules]]\nid = \"x\"\n[rules.allowlist]\nstopwords = [\"" + FAKE[:10] + "\"]\n")
+            r.commit(date="2026-01-05T00:00:00")
+            leaks.annotate(d, [elsewhere])
+            self.assertEqual(elsewhere["Declared"]["How"], "allowlist stopword")
+
+    def test_outside_a_repository_nothing_is_declared(self):
+        with tempfile.TemporaryDirectory() as d:
+            row = {"RuleID": "x", "File": "a.py", "Commit": "abc", "StartLine": 1, "Secret": FAKE}
+            leaks.annotate(d, [row])
+        self.assertNotIn("Declared", row)
+
+
+class DeclaredToml(unittest.TestCase):
+    def test_the_allowlist_tables_and_their_keys(self):
+        text = ("title = 'x'\n[extend]\nuseDefault = true\n[allowlist]\ndescription = \"d\"\nregexes = ['''^a$''', # c\n  '''b\\.c''']\n"
+                "stopwords = [\"s1\"]\n[[rules]]\nid = \"r\"\nregex = '''zzz'''\n[[rules.allowlists]]\nregexTarget = \"line\"\nregexes = [\"q\\\\d\"]\n"
+                "[[allowlists]]\ncondition = \"AND\"\npaths = ['''^t/''']\ncommits = [\"abc\"]\n")
+        lists = leaks.allowlists(text)
+        self.assertEqual([(a["regexes"], a["stopwords"], a["paths"], a["commits"], a["target"], a["condition"]) for a in lists],
+                         [(["^a$", "b\\.c"], ["s1"], [], [], "secret", "or"), (["q\\d"], [], [], [], "line", "or"), ([], [], ["^t/"], ["abc"], "secret", "and")],
+                         "a basic string's escapes are TOML's; a literal string's are the regex's; a rule's detection regex is not read")
+
+
+class AtHead(unittest.TestCase):
+    def test_whether_heads_version_of_the_file_still_holds_the_value_and_where(self):
+        from tests.test_hygiene import Repo
+        gone, kept = "sk_" + FAKE, "sk_" + FAKE[::-1]
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("app/k.py", f'A = "{gone}"\nB = "{kept}"\n')
+            r.commit(date="2026-01-01T00:00:00")
+            first = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            r.write("app/k.py", f'# moved down\nA = "none"\n\nB = "{kept}"\nC = "{kept}"\n')
+            r.commit(date="2026-01-02T00:00:00")
+            rows = [{"RuleID": "x", "File": "app/k.py", "Commit": first, "StartLine": 1, "Secret": gone},
+                    {"RuleID": "x", "File": "app/k.py", "Commit": first, "StartLine": 2, "Secret": kept},
+                    {"RuleID": "x", "File": "app/k.py", "Commit": first, "StartLine": 5, "Secret": kept},
+                    {"RuleID": "x", "File": "old/deleted.py", "Commit": first, "StartLine": 2, "Secret": kept},
+                    {"RuleID": "x", "File": "(unreachable blob 0123456789ab)", "Commit": "", "StartLine": 2, "Secret": kept}]
+            leaks.annotate(d, rows)
+        self.assertEqual([(x["AtHead"], x.get("HeadLine")) for x in rows], [(False, None), (True, 4), (True, 5), (False, None), (False, None)],
+                         "the file is in the tree for the first row, but the value is not; the second moved to line 4; "
+                         "a row whose own line holds the value at HEAD keeps it")
+        clean = leaks.sanitise(rows)
+        self.assertNotIn(FAKE[::-1], json.dumps(clean))
+        self.assertEqual(clean[1]["HeadLine"], 4)
+
+    def test_outside_a_repository_it_is_left_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            row = {"RuleID": "x", "File": "a.py", "Commit": "abc", "StartLine": 1, "Secret": FAKE}
+            leaks.annotate(d, [row])
+        self.assertNotIn("AtHead", row)

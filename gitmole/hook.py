@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 
 _PATH_KEYS = ("file_path", "filePath", "path", "notebook_path")
 _LIST_KEYS = ("file_paths", "filePaths", "files", "paths")
@@ -101,3 +102,34 @@ def hook_output(event: dict, lines: list) -> str:
     and Gemini CLI ignore stdout and read the exit code, so the same document serves all three."""
     name = event.get("hook_event_name") or "PostToolUse"
     return json.dumps({"hookSpecificOutput": {"hookEventName": name, "additionalContext": "\n".join(lines)}})
+
+
+def setup_hint(out_dir: str) -> str:
+    """What to say when the hook's output directory is not there: the one-time run it scores against. Said
+    and passed (exit 0), not refused: every agent reads a hook's exit 2 as "block", so a missing directory
+    would otherwise stop every edit with a message about arguments."""
+    return (f"gitmole hook: no analysis in {out_dir}, so nothing was scored; run once in the repository: "
+            f"gitmole . --out {out_dir}")
+
+
+def behind(repo: str, commit) -> int | None:
+    """How many commits HEAD of `repo` has that the analysed `commit` did not, or None when that cannot be
+    said (no commit recorded, not a git repository, a commit this clone does not have)."""
+    if not commit or not repo:
+        return None
+    try:
+        proc = subprocess.run(["git", "rev-list", "--count", f"{commit}..HEAD"], cwd=repo, capture_output=True, text=True)
+    except OSError:
+        return None
+    try:
+        return int(proc.stdout.strip()) if proc.returncode == 0 else None
+    except ValueError:
+        return None
+
+
+def stale_line(out_dir: str, repo: str, commit: str, gap: int) -> str:
+    """The notice for an analysis older than the tree the agent edits. No threshold: the scores are the
+    analysed commit's, and a file changed since has revisions the watch list has not counted, so any gap is
+    said, with how large it is, and the reader decides when to refresh."""
+    return (f"gitmole hook: the analysis in {out_dir} is of {commit[:12]}, {gap} commit{'s' if gap != 1 else ''} behind HEAD; "
+            f"its scores leave those out; refresh it with: gitmole {repo} --out {out_dir}")

@@ -224,3 +224,37 @@ class KeyIndex(unittest.TestCase):
             merged = identity.merge(ids)
         self.assertEqual(len(merged), 400)
         self.assertLess(compared.call_count, 400, "all pairs would be 79,800 comparisons")
+
+
+class Tools(unittest.TestCase):
+    """A coding tool is told by shape: one of several names on one bare no-reply address."""
+
+    def test_someone_credited_only_by_trailers_is_a_person(self):
+        self.assertEqual(identity.tools([{"name": "Helper", "email": "h@x.org", "commits": 9, "authored": 0}]), set())
+
+    def test_names_sharing_a_bare_no_reply_address_are_a_tool_and_per_user_addresses_are_people(self):
+        ids = [{"name": "Model A", "email": "noreply@vendor.example", "commits": 9, "authored": 1},
+               {"name": "Model B", "email": "no-reply@vendor.example", "commits": 3, "authored": 1,
+                "aliases": [{"name": "Model B2", "email": "noreply@vendor.example", "commits": 1}]},
+               {"name": "Ann", "email": "12+ann@users.noreply.example", "commits": 40, "authored": 40},
+               {"name": "Bo", "email": "12+bo@users.noreply.example", "commits": 5, "authored": 5}]
+        self.assertEqual(identity.tools(ids), {"Model A", "Model B"})
+
+    def test_one_person_on_a_no_reply_address_is_a_person(self):
+        self.assertEqual(identity.tools([{"name": "Ann", "email": "noreply@ann.example", "commits": 40, "authored": 40},
+                                         {"name": "Old", "email": "o@x.org", "commits": 4}]), set())
+
+    def test_a_name_a_person_also_carries_is_not_a_tool(self):
+        ids = [{"name": "pukkandan", "email": "p@x.org", "commits": 1629, "authored": 1616},
+               {"name": "pukkandan", "email": "noreply@v.example", "commits": 1, "authored": 0},
+               {"name": "Model A", "email": "noreply@v.example", "commits": 9, "authored": 0}]
+        self.assertEqual(identity.tools(ids), {"Model A"})
+
+    def test_the_harness_reads_the_same_definition(self):
+        from gitmole.measure import consistency
+        ids = [{"name": "Helper", "email": "h@x.org", "commits": 9, "authored": 0},
+               {"name": "Model A", "email": "noreply@v.example", "commits": 2, "authored": 2},
+               {"name": "Model B", "email": "noreply@v.example", "commits": 2, "authored": 2},
+               {"name": "Ann", "email": "a@x.org", "commits": 5, "authored": 5}]
+        self.assertEqual(consistency.agents({"meta": {"identities": ids}}), identity.tools(ids))
+        self.assertEqual(identity.tools(ids), {"Model A", "Model B"})

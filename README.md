@@ -58,7 +58,7 @@ gitmole . --sbom sbom.cdx.json         # a CycloneDX SBOM of every package the l
 gitmole . --compare last.json          # what changed since an earlier --json export
 gitmole . --fail-on critical --baseline last.json  # gate only on what is new since last.json
 gitmole . --path backend/plugins/github  # one directory: its history, owners and watch list
-gitmole analysis-repo --no-run --hook  # an agent's edit hook, over an earlier run's output: history's view of the files it just touched
+gitmole analysis-repo --no-run --hook  # an agent's edit hook, over the output of one earlier `gitmole . --out analysis-repo`
 gitmole . --since 2y --full            # the current team, every row and column
 gitmole --clean                        # list what gitmole left behind, delete on a yes
 gitmole --doctor                       # every tool gitmole runs, the version found against the one pinned
@@ -71,7 +71,8 @@ blocks on secrets in source files and still posts the report; in GitHub Actions,
 ([GitHub Actions](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#github-actions)),
 and a [Dockerfile](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#docker) runs it anywhere else. The same
 scoring wires into Claude Code, Cursor, Gemini CLI and pre-commit as a hook
-that exits 2 over a threshold. Every option:
+that exits 2 over a threshold, after one `gitmole . --out analysis-repo` for it
+to score against ([Agent hooks](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#agent-hooks)). Every option:
 [docs/cli.md](https://github.com/antvinni/gitmole/blob/main/docs/cli.md).
 What each part of the report means and what to do first:
 [Reading your first report](https://github.com/antvinni/gitmole/blob/main/docs/first-report.md).

@@ -518,22 +518,24 @@ def _mailmap(repo_dir: str, pairs: list) -> dict:
 
 def _co_author_rows(repo_dir: str, lines: list) -> tuple:
     """The (date, name, email) rows of the people the Co-authored-by trailers name, through .mailmap,
-    and the alias map from a trailer's own spelling to the name git would show for it. Each is a row
-    per commit it is named on, like an author's, so the identity table counts the commits they share."""
-    raw = []
+    the alias map from a trailer's own spelling to the name git would show for it, and the author (the
+    name git shows) of the commit each row came from. Each is a row per commit it is named on, like an
+    author's, so the identity table counts the commits they share."""
+    raw, by = [], []
     for line in lines:
         if "\t" not in line:
             continue
         head, _, trailers = line.partition("\x1f")
-        date = head.split("\t", 1)[0]
+        date, author = head.split("\t", 2)[:2] if head.count("\t") >= 2 else (head.split("\t", 1)[0], "")
         for value in trailers.split("\x1f"):
             m = _TRAILER_ID.match(value)
             if m and m.group("name"):
                 raw.append((date, m.group("name"), m.group("email") or ""))
+                by.append(author)
     mapped = _mailmap(repo_dir, sorted({(n, e) for _, n, e in raw}))
     rows = [[d, *mapped[(n, e)]] for d, n, e in raw]
     renamed = {n: mapped[(n, e)][0] for n, e in mapped if mapped[(n, e)][0] != n}
-    return rows, renamed
+    return rows, renamed, by
 
 
 def _merge_rows(repo_dir: str, scope=()) -> list:
@@ -571,7 +573,7 @@ def collect_meta(repo_dir: str, since: str = None, scope=()) -> dict:
     lines = _git(repo_dir, "log", "HEAD", "--use-mailmap", "--format=%ad\t%aN\t%aE%x1f%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x1f)",
                  "--date=short", *scopes.pathspec(scope)).split("\n")
     all_rows = [l.partition("\x1f")[0].split("\t", 2) for l in lines if l.partition("\x1f")[0].count("\t") == 2]
-    co_rows, renamed = _co_author_rows(repo_dir, lines)
+    co_rows, renamed, co_by = _co_author_rows(repo_dir, lines)
     bot_names = identity.bot_names(parse_authors_log("\n".join(f"{n}\t{e}" for _, n, e in all_rows + co_rows)))
     rows = [r for r in all_rows + co_rows if r[1] not in bot_names]
     all_windowed = [r for r in all_rows if not since or r[0] >= since]
@@ -598,6 +600,17 @@ def collect_meta(repo_dir: str, since: str = None, scope=()) -> dict:
         "bots": [{"name": n, "commits": c} for n, c in sorted(bots.items(), key=lambda kv: (-kv[1], kv[0]))],
         "aliases": aliases,
     }
+    # a trailer naming the commit's own author under another alias (a second address in their own trailer)
+    # is one person writing their commit once, not a co-author: its credit comes off the identity it merged into
+    selves = Counter((n, e) for (d, n, e), by in zip(co_rows, co_by)
+                     if n not in bot_names and (not since or d >= since) and canonical.get(n, n) == canonical.get(by, by))
+    if selves:   # the row keeps the name the merge gave it, which every table keys it by
+        for i in meta["identities"]:
+            for a in i.get("aliases") or []:
+                a["commits"] -= selves[(a["name"], a["email"])]
+            i["commits"] -= sum(selves[(v["name"], v["email"])] for v in [i, *(i.get("aliases") or [])])
+        # a row made only of such trailers (an alias the windowed merge left apart) was never anyone else
+        meta["identities"] = sorted((i for i in meta["identities"] if i["commits"] > 0), key=lambda m: (-m["commits"], m["name"]))
     # the commits each identity authored, apart from the ones a trailer credits it with: the People table's
     # commits are these, and the credit is shown beside them, not as authorship
     authored = Counter((n, e) for _, n, e in all_windowed if n not in bot_names)
