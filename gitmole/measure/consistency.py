@@ -177,7 +177,11 @@ def sarif_gate(report: dict, found: list) -> list:
 
 
 def _git(clone: str, *args) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", "-c", "core.quotePath=false", *args], cwd=clone, capture_output=True, text=True)
+    """git's output as text. Paths and file contents need not be UTF-8 (the awkward-non-utf8-path fixture
+    holds one that is not), so undecodable bytes are replaced rather than raised: a check that cannot read a
+    name says nothing about it, and the harness must not crash on the repository it is measuring."""
+    return subprocess.run(["git", "-c", "core.quotePath=false", *args], cwd=clone, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
 
 
 def tree_claim(report: dict, found: list, clone: str, commit: str) -> list:

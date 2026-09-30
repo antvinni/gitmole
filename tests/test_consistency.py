@@ -336,6 +336,28 @@ class WithARepository(unittest.TestCase):
         f["severity"] = "warning"
         self.assertNotIn("declared_critical", self.over(findings=[f], secrets=rows), "only a critical is held to it")
 
+class UndecodablePaths(unittest.TestCase):
+    """The 0.40.0 round crashed on the awkward-non-utf8-path fixture: git printed a Latin-1 file name."""
+
+    def test_a_path_that_is_not_utf8_does_not_crash_the_checks(self):
+        from gitmole.measure import corpus
+        with tempfile.TemporaryDirectory() as root:
+            repo = corpus.fixture("non-utf8-path", root)   # the very fixture: its path is built through git's index
+            head = git(repo, "rev-parse", "HEAD")
+            names = subprocess.run(["git", "ls-tree", "-r", "-z", "--name-only", head], cwd=repo, capture_output=True).stdout
+            self.assertTrue(any(not _utf8(n) for n in names.split(b"\0") if n), "the fixture holds a name that is not UTF-8")
+            f = finding("bug_magnets", evidence={"files": [{"file": "x.py"}], "new_in_window": ["x.py"]})
+            one = consistency.over(report(meta={"run": {"commit": head}}, findings=[f]), repo)
+            self.assertTrue(one["clone"], "the git checks ran rather than raising")
+
+
+def _utf8(b: bytes) -> bool:
+    try:
+        b.decode("utf-8")
+        return True
+    except UnicodeDecodeError:
+        return False
+
 class Totals(unittest.TestCase):
     def test_clean_counts_findings_and_tables_are_apart(self):
         f = finding("minor_contributors", "x.py.", "Have Ann review it.", {"files": [{"owner": "Ann"}]})
