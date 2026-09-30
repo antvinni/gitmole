@@ -200,6 +200,8 @@ def parse_dependencies(data) -> dict:
                     "vulnerable": data.get("vulnerable") or [], "database_date": data.get("database_date")})
         if data.get("database_digest"):
             out["database_digest"] = data["database_digest"]
+        if data.get("compose_builds"):
+            out["compose_builds"] = data["compose_builds"]
     elif data["status"] == "no-database":
         out["download"] = data.get("download") or ""
     return out

@@ -717,10 +717,40 @@ class VulnerableDependencies(unittest.TestCase):
 
     def test_a_critical_score_makes_it_critical_and_the_worst_leads(self):
         rows = [self.row("minimist", "0.0.8", "package-lock.json", score=9.8, fixed="1.2.6"), self.row("lodash", "4.17.15", "package-lock.json", score=7.2)]
-        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows), tree=frozenset({"Dockerfile", "package-lock.json"})))
         self.assertEqual(f["severity"], "critical")
-        self.assertTrue(f["advice"].startswith("Upgrade minimist to 1.2.6 in package-lock.json first; it scores 9.8."), f["advice"])
+        self.assertTrue(f["advice"].startswith("Upgrade minimist to 1.2.6 in package-lock.json first; it scores 9.8, and Dockerfile ships that lock."), f["advice"])
         self.assertIn("2 vulnerable packages in 1 lock file", f["detail"])
+        self.assertEqual(f["evidence"]["packages"][0]["deploys"], ["Dockerfile"])
+
+    def test_a_critical_score_in_a_lock_nothing_declares_it_ships_is_a_warning(self):
+        """hindsight: the headline was chromadb in an integration library's development lock, not the shipped
+        service's pyjwt in the root uv.lock."""
+        rows = [self.row("chromadb", "1.1.1", "integrations/crewai/uv.lock", score=9.4, fixed=None)]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows), tree=frozenset({"integrations/crewai/pyproject.toml"})))
+        self.assertEqual(f["severity"], "warning")
+        self.assertIn("A critical score in integrations/crewai/uv.lock is a warning here, as nothing in its directory declares a deployment", f["detail"])
+        self.assertEqual(f["evidence"]["packages"][0]["deploys"], [])
+
+    def test_what_ships_is_read_from_the_tree_the_workspace_and_the_compose_builds(self):
+        base = self.row("pyjwt", "2.13.0", "uv.lock", score=9.1, fixed="2.14.0")
+        cases = [({"path": "uv.lock", "packages": 1, "members": ["api"]}, frozenset({"api/Dockerfile.prod"}), (), ["api/Dockerfile.prod"]),
+                 ({"path": "uv.lock", "packages": 1, "entry_points": ["api/pyproject.toml [project.scripts]"]}, frozenset(), (), ["api/pyproject.toml [project.scripts]"]),
+                 ({"path": "svc/uv.lock", "packages": 1}, frozenset(), ["svc"], ["a compose service built from svc"]),
+                 ({"path": "svc/uv.lock", "packages": 1}, frozenset({"helm/Chart.yaml", "svc/sub/Dockerfile"}), (), [])]
+        for source, tree, builds, want in cases:
+            row = {**base, "source": source["path"]}
+            deps = {**self.deps([row]), "sources": [source], "compose_builds": list(builds)}
+            [f] = findings.vulnerable_dependencies(report(dependencies=deps, tree=tree))
+            self.assertEqual(f["evidence"]["packages"][0]["deploys"], want, source)
+            self.assertEqual(f["severity"], "critical" if want else "warning", source)
+
+    def test_within_a_grade_a_fixable_package_leads_a_fixless_one(self):
+        rows = [self.row("chromadb", "1.1.1", "uv.lock", score=9.4, fixed=None), self.row("pyjwt", "2.13.0", "uv.lock", score=9.1, fixed="2.14.0"),
+                self.row("click", "8.1.8", "uv.lock", score=7.2, fixed="8.3.3")]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows), tree=frozenset({"Dockerfile"})))
+        self.assertEqual([p["name"] for p in f["evidence"]["packages"]], ["pyjwt", "chromadb", "click"])
+        self.assertTrue(f["advice"].startswith("Upgrade pyjwt to 2.14.0 in uv.lock first"), f["advice"])
 
     def test_a_malicious_package_is_critical_without_a_score_and_the_advice_is_to_remove_it(self):
         rows = [self.row("evil-pad", "1.0.2", "package-lock.json", score=None, fixed=None, aliases=(), ids=("MAL-2026-1234",), malicious=True),

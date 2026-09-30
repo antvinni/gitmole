@@ -741,7 +741,7 @@ def _vuln_evidence(r: dict) -> dict:
     out = {"name": r["name"], "version": r["version"], "source": r["source"], "score": r.get("score"),
            "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
            "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious")),
-           "imported": r.get("imported", "unknown")}
+           "imported": r.get("imported", "unknown"), "deploys": list(r.get("deploys") or [])[:3]}
     if _floating(r):   # the version is the range's floor, not an installed one
         out = {**{k: v for k, v in out.items() if k != "version"}, "floor": r["version"], "requirement": r.get("requirement")}
     return out
@@ -749,11 +749,25 @@ def _vuln_evidence(r: dict) -> dict:
 
 def _vuln_rows(report: dict) -> list:
     """(rule id, severity, title, rows) for each group of vulnerable rows: the source tree's, and the ones
-    only under tests, examples, docs or vendored code. The finding and its SARIF results read the same rows."""
-    rows = (report.get("dependencies") or {}).get("vulnerable") or []
+    only under tests, examples, docs or vendored code. Each row carries `deploys`, what declares that its
+    lock ships (deps.deploys), and the rows are in the order the finding names them: critical ones first,
+    a malicious package leading, then the ones with a fixed version before the ones without, then by score.
+    The finding and its SARIF results read the same rows."""
+    scan = report.get("dependencies") or {}
+    rows = scan.get("vulnerable") or []
     if not rows:
         return []
     vendored = filetypes.vendor_dirs(report)
+    tree, builds = report.get("tree"), scan.get("compose_builds") or ()
+    sources = {s.get("path"): s for s in scan.get("sources") or []}
+    shipped = {}
+
+    def ships(r):
+        src = r.get("source") or ""
+        if src not in shipped:
+            shipped[src] = deps.deploys(sources.get(src) or {"path": src}, tree, builds)
+        return shipped[src]
+    rows = [{**r, "deploys": ships(r)} for r in rows]
 
     def aside(r):
         p = r.get("source") or ""
@@ -762,30 +776,37 @@ def _vuln_rows(report: dict) -> list:
     for rid, group, title in (("vulnerable_dependencies", [r for r in rows if not aside(r)], "Vulnerable dependencies"),
                               ("vulnerable_dependencies_aside", [r for r in rows if aside(r)], "Vulnerable dependencies only in test, example or vendored lock files")):
         if group:
+            group.sort(key=lambda r: (not _vuln_critical(r), not r.get("malicious"), not r.get("fixed"),
+                                      -(r["score"] if r.get("score") is not None else -1), r["name"], r["source"]))
             out.append((rid, _vuln_severity(rid, group), title, group))
     return out
 
 
+def _vuln_critical(r: dict) -> bool:
+    """A malicious package anywhere; or an installed version an advisory scores in the critical band, pinned
+    by a lock that declares it ships (a Dockerfile, a Helm chart, a compose build, an entry point...)."""
+    return bool(r.get("malicious")) or (not _floating(r) and r.get("score") is not None and r["score"] >= CRITICAL_SCORE and bool(r.get("deploys")))
+
+
 def _vuln_severity(rid: str, group: list) -> str:
-    """A note aside; else critical for a malicious package, or for an installed one an advisory scores in the
-    critical band, and a warning otherwise. A requirement range is never critical by its score, as the
-    vulnerable floor is not what an install picks."""
+    """A note aside; else critical when a row is (_vuln_critical), and a warning otherwise: a library's or a
+    development workspace's lock pins what its own developers install, not what anyone runs."""
     if rid == "vulnerable_dependencies_aside":
         return "info"
-    critical = any(r.get("malicious") or (not _floating(r) and r.get("score") is not None and r["score"] >= CRITICAL_SCORE) for r in group)
-    return "critical" if critical else "warning"
+    return "critical" if any(_vuln_critical(r) for r in group) else "warning"
 
 
 def vulnerable_dependencies(report: dict) -> list:
-    """Packages in the lock files with a known vulnerability, from the offline osv-scanner scan. A package
-    a lock file in the source tree pins is critical when an advisory scores in the critical band, else a
-    warning; one pinned only by a lock file under tests, examples, docs or vendored code is a note. A pip
-    requirement range whose floor is vulnerable is said as a range, not as an installed version. The
-    advice names the package to upgrade first and the version that fixes it."""
+    """Packages in the lock files with a known vulnerability, from the offline osv-scanner scan. In the source
+    tree, a malicious package is critical, and so is one an advisory scores in the critical band when its lock
+    file's directory (or a workspace member it pins) declares that it ships; the rest are a warning. One
+    pinned only by a lock file under tests, examples, docs or vendored code is a note. A pip requirement range
+    whose floor is vulnerable is said as a range, not as an installed version. The advice names the package
+    to upgrade first and the version that fixes it."""
     out = []
     for rid, sev, title, group in _vuln_rows(report):
         locked = [r for r in group if not _floating(r)]
-        worst = (locked or group)[0]   # the rows come sorted malicious first, then by score, highest first
+        worst = (locked or group)[0]
         if worst.get("malicious"):
             target = f"Remove {worst['name']} {worst['version']} from {worst['source']} first; {_malicious_id(worst)} lists it as malicious, so no version fixes it."
         elif _floating(worst):
@@ -793,15 +814,27 @@ def vulnerable_dependencies(report: dict) -> list:
             target += f"; its floor scores {worst['score']:.1f}." if worst.get("score") is not None else "."
         else:
             target = f"Upgrade {worst['name']} to {worst['fixed']} in {worst['source']} first" if worst.get("fixed") else f"Look at {worst['name']} in {worst['source']} first, which has no fixed version yet"
-            target += f"; it scores {worst['score']:.1f}." if worst.get("score") is not None else "."
+            target += f"; it scores {worst['score']:.1f}" if worst.get("score") is not None else ""
+            target += f", and {_deploy_phrase(worst['deploys'])} ships that lock." if worst.get("deploys") else "."
+        statement = _vuln_statement(group)
+        unshipped = sorted({r["source"] for r in locked if not r.get("deploys") and r.get("score") is not None and r["score"] >= CRITICAL_SCORE})
+        if sev == "warning" and unshipped:
+            where = unshipped[0] + (f" and {_plural(len(unshipped) - 1, 'more lock file')}" if len(unshipped) > 1 else "")
+            statement += (f" A critical score in {where} is a warning here, as nothing in "
+                          f"{'its directory' if len(unshipped) == 1 else 'their directories'} declares a deployment (a Dockerfile, a Helm chart, a compose build, an entry point).")
         ranges = [r for r in group if _floating(r)]
         evidence = {"lock_files": len({r["source"] for r in locked if not deps.is_requirement_file(r["source"])}), "packages": [_vuln_evidence(r) for r in locked[:10]]}
         if ranges:
             evidence["requirements"] = [_vuln_evidence(r) for r in ranges[:10]]
-        out.append(_f(sev, title, _vuln_statement(group), f"{target} {IGNORE_DEPS}",
-                      rule={"id": "vulnerable_dependencies" if rid == "vulnerable_dependencies" else "vulnerable_dependencies_aside", "critical_score": CRITICAL_SCORE, "malicious_prefix": MALICIOUS_PREFIX},
+        out.append(_f(sev, title, statement, f"{target} {IGNORE_DEPS}",
+                      rule={"id": "vulnerable_dependencies" if rid == "vulnerable_dependencies" else "vulnerable_dependencies_aside", "critical_score": CRITICAL_SCORE,
+                            "malicious_prefix": MALICIOUS_PREFIX, "critical_needs": "a deploy declaration beside the lock"},
                       evidence=evidence))
     return out
+
+
+def _deploy_phrase(reasons: list) -> str:
+    return reasons[0] + (f" (and {len(reasons) - 1} more)" if len(reasons) > 1 else "")
 
 
 def _files_list(items: list, n: int = 3) -> str:

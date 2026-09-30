@@ -319,12 +319,32 @@ in plain words, and what to do first. This page is the reference.
    [install.md](https://github.com/antvinni/gitmole/blob/main/docs/install.md#the-vulnerability-database)
    for the one-time download). One row per package with an advisory: the
    CVE or advisory id, the worst CVSS score, and the version that fixes it.
-   A package pinned by a lock file in the source tree is a warning, critical
-   when an advisory scores in CVSS's critical band or is a `MAL-` record
-   (OpenSSF's malicious-packages list ships in the same database; those
-   records carry no score, and a malicious package is critical whatever its
-   score); a package pinned only by a lock file under tests, examples, docs
-   or vendored code is a note. osv-scanner also reads pip's requirement
+   A package pinned by a lock file in the source tree is a warning. It is
+   critical when it is a `MAL-` record (OpenSSF's malicious-packages list
+   ships in the same database; those records carry no score, and a
+   malicious package is critical whatever its score), or when an advisory
+   scores in CVSS's critical band and the lock file's directory declares
+   that it ships: a lock pins what is installed where it is used, and a
+   library's lock pins only its own developers' environment, since whoever
+   installs the published package resolves its dependencies again. What
+   counts as declaring it, in the lock's directory or in a workspace member
+   the lock pins (uv's `[tool.uv.workspace]`, Cargo's `[workspace]`,
+   `workspaces` in package.json, `pnpm-workspace.yaml`): a `Dockerfile`
+   (`Dockerfile.*`, `*.Dockerfile`, `Containerfile`), a Helm `Chart.yaml`,
+   a `Procfile`, `fly.toml`, `vercel.json`, `netlify.toml`, `wrangler.toml`
+   or `serverless.yml`; a compose service whose `build` context is that
+   directory; an entry point (`[project.scripts]`, `[project.gui-scripts]`
+   or `[tool.poetry.scripts]` in pyproject.toml, `bin` in package.json,
+   `[[bin]]` in Cargo.toml); and for Cargo and Go the ecosystem's program
+   layout (`src/main.rs` or `src/bin/`, `main.go` or `cmd/`). A lock
+   nothing declares, a published library's or a development or integration
+   workspace's, stays a warning at any score, and the finding says which
+   lock's critical score it held back. Each package row in the evidence
+   names what declared its lock (`deploys`). The rows are named critical
+   ones first (a malicious package leading), then those with a fixed
+   version before those without, then by score, so the advice starts where
+   a fix exists. A package pinned only by a lock file under tests,
+   examples, docs or vendored code is a note. osv-scanner also reads pip's requirement
    files (`requirements*.txt`, `constraints*.txt`, `*.in` by those names),
    and for a range such as `mcp>=1.0.0` it reports the floor, 1.0.0, which
    no install picks on purpose; the scan keeps each such row's specifier,
@@ -727,7 +747,7 @@ directory for a remote target:
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, the import commits left out with the history's total lines added, and how many declared commits the log holds; the oversized fixes left out of the fix counts, the tangled commits with a sample, and how many subjects end in a squash-merge suffix |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `secrets.json` | betterleaks | secret-looking strings across HEAD's history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
-| `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record, and for a row from a pip requirement file its specifier and whether that pins one version), the database date and a digest of that snapshot; or a status: no lock files, no local database |
+| `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record, and for a row from a pip requirement file its specifier and whether that pins one version); on each lock file, the workspace members it pins and the entry points declared there, and the directories compose files build from, the database date and a digest of that snapshot; or a status: no lock files, no local database |
 | `packages.json` | osv-scanner, with or without its database | every package the lock files pin, once per ecosystem, name and version, with the lock files that pin it and the licence a lock file declares; read by `--sbom`, not part of the report |
 | `log.txt` | git | the numstat log export the change analysis reads, whitespace ignored, with each commit's `Co-authored-by` trailers behind its subject |
 | `maat-revisions.csv` | change analysis | change frequency per file |
