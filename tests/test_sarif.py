@@ -191,6 +191,22 @@ class Document(unittest.TestCase):
         self.assertEqual(results[1]["message"]["text"], "evil 1.0.0 in package-lock.json: MAL-2026-1, malicious, no fix; remove it")
         self.assertEqual(results[1]["partialFingerprints"]["gitmole/v1"], hashlib.sha256(b"vulnerable_dependencies\0package-lock.json\0\0\0evil@1.0.0").hexdigest())
 
+    def test_every_vulnerable_row_is_a_result_not_only_the_ten_the_evidence_keeps(self):
+        """hindsight: 34 rows, and the SARIF carried the finding's capped evidence, 10."""
+        from gitmole import findings as fs
+        rows = [{"name": f"p{i}", "version": "1", "ecosystem": "npm", "source": f"d{i}/package-lock.json", "ids": ["GHSA-1"], "aliases": [],
+                 "score": 7.5, "severity": "high", "fixed": "2", "malicious": False} for i in range(14)]
+        rows.append({"name": "mcp", "version": "1.0.0", "ecosystem": "PyPI", "source": "svc/requirements.txt", "ids": ["GHSA-2"], "aliases": [],
+                     "score": 8.7, "severity": "high", "fixed": "1.9.4", "malicious": False, "requirement": ">=1.0.0", "pinned": False})
+        rep = report(dependencies={"status": "scanned", "sources": [], "vulnerable": rows})
+        found = fs.vulnerable_dependencies(rep)
+        self.assertLess(sum(len(f["evidence"]["packages"]) for f in found), 15)
+        results = [r for r in sarif.build(rep, found)["runs"][0]["results"] if r["ruleId"].startswith("vulnerable_dependencies")]
+        self.assertEqual(len(results), 15)
+        self.assertEqual(sorted(r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for r in results)[-1], "svc/requirements.txt")
+        self.assertIn("mcp>=1.0.0 in svc/requirements.txt admits a vulnerable version, its floor 1.0.0: GHSA-2 (8.7), fixed in 1.9.4",
+                      [r["message"]["text"] for r in results])
+
     def test_the_document_is_json_and_deterministic(self):
         found = [finding("bug_magnets", evidence={"files": [{"file": "src/a.py"}]})]
         a, b = sarif.dumps(report(), found), sarif.dumps(report(), found)
