@@ -593,6 +593,21 @@ def fix_prone(report: dict, keep, q: float = FIX_RATE_Q):
             "rate": {e: rates.get(stratum[e], 0.0) for e in pvalues}}
 
 
+def _magnet_keep(report: dict):
+    """Whether a path may be a bug magnet: not a test, not release plumbing, not generated, still in the tree."""
+    plumb, derived, tree = filetypes.plumbing_paths(report), _generated(report), report.get("tree") or _tree(report)
+
+    def keep(path):
+        return not (filetypes.is_test_path(path) or filetypes.is_release(path, plumb) or path in derived) and (not tree or path in tree)
+    return keep
+
+
+def magnet_rows(report: dict, min_recent: int = 3) -> list:
+    """The fix rows bug_magnets names, every one of them: what --baseline compares (gate.py)."""
+    keep = _magnet_keep(report)
+    return [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and keep(f["entity"])]
+
+
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     """Source files with a run of recent fix commits. Test files are left out: they change with every fix.
     So is release plumbing: a manifest touched by every fix release is not where the bug was.
@@ -604,11 +619,8 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     there are, and says so when there are none. Which files are magnets, and the severity, stay the
     window's counts: the test annotates and orders."""
     import datetime as _dt
-    plumb, derived, tree = filetypes.plumbing_paths(report), _generated(report), report.get("tree") or _tree(report)
-
-    def keep(path):
-        return not (filetypes.is_test_path(path) or filetypes.is_release(path, plumb) or path in derived) and (not tree or path in tree)
-    hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and keep(f["entity"])]
+    keep = _magnet_keep(report)
+    hot = magnet_rows(report, min_recent)
     if not hot:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
@@ -684,16 +696,21 @@ def _partial_functions(report: dict) -> str:
     return _partial(report, "functions", "Function metrics")
 
 
+def brain_rows(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
+    """The function rows brain_methods names, every one of them: what --baseline compares (gate.py)."""
+    generated, vendored = _generated(report), filetypes.vendor_dirs(report)
+    return [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not f.get("suspect")
+            and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
+                     or f["file"] in generated or filetypes.is_migration_path(f["file"]))]
+
+
 def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list:
     """Functions that are both long and complex, in this repository's own source files: test files,
     example code, vendored code, generated files (amalgamations included) and numbered schema
     migrations (written once and replayed as they stand, so nobody should split one) are left out, and
     so is a span the function step marked suspect, since a mis-parse that swallowed the next function is
     long and complex by construction. A warning when one sits in a hotspot."""
-    generated, vendored = _generated(report), filetypes.vendor_dirs(report)
-    big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not f.get("suspect")
-           and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
-                    or f["file"] in generated or filetypes.is_migration_path(f["file"]))]
+    big = brain_rows(report, min_ccn, min_lines)
     if not big:
         return []
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
@@ -934,8 +951,14 @@ def hygiene_findings(report: dict) -> list:
     return out
 
 
-def _hygiene_actions(h: dict, out: list) -> None:
+def unpinned_actions(report: dict) -> list:
+    """The unpinned_actions finding alone, which --baseline runs again over the rows its baseline lacked."""
+    out = []
+    _hygiene_actions(report.get("hygiene") or {}, out)
+    return out
 
+
+def _hygiene_actions(h: dict, out: list) -> None:
     a = h.get("actions") or {}
     if a.get("unpinned"):
         n, total = a.get("unpinned_count", len(a["unpinned"])), a.get("unpinned_count", len(a["unpinned"])) + (a.get("pinned") or 0)
@@ -1292,18 +1315,23 @@ def commented_out_code(report: dict, min_lines: int = 10) -> list:
                evidence={"files": [{"file": p, "start": sh["commented_sample"][0], "lines": sh["commented_code"]} for p, sh in rows[:10]]})]
 
 
+def deep_rows(report: dict, min_nesting: int = 5, min_bumps: int = 3) -> list:
+    """The structure step's function rows deep_nesting names, every one of them: what --baseline compares."""
+    s = _structure(report)
+    if not s:
+        return []
+    generated, vendored = _generated(report), filetypes.vendor_dirs(report)
+    return [f for f in s.get("functions") or [] if (f["nesting"] >= min_nesting or f["bumps"] >= min_bumps)
+            and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
+                     or f["file"] in generated)]
+
+
 def deep_nesting(report: dict, min_nesting: int = 5, min_bumps: int = 3, top_n: int = 10) -> list:
     """Functions nested five levels or more, or with three or more separate chunks of nested logic (a
     bumpy road), in this repository's own source: CodeScene's nesting and bumpy-road factors, measured
     by tree-sitter in every language it parses, with Sonar's cognitive complexity beside them. A
     warning when one sits in a top hotspot."""
-    s = _structure(report)
-    if not s:
-        return []
-    generated, vendored = _generated(report), filetypes.vendor_dirs(report)
-    deep = [f for f in s.get("functions") or [] if (f["nesting"] >= min_nesting or f["bumps"] >= min_bumps)
-            and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
-                     or f["file"] in generated)]
+    deep = deep_rows(report, min_nesting, min_bumps)
     if not deep:
         return []
     deep.sort(key=lambda f: (-f["cognitive"], -f["nesting"], f["file"], f["start"]))

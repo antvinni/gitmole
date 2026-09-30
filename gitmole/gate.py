@@ -95,37 +95,91 @@ def _package(row: dict) -> tuple:
     return (row.get("name"), row.get("version"), row.get("source"), tuple(sorted(row.get("ids") or [])))
 
 
+def _unpinned(rep: dict):
+    a = (rep.get("hygiene") or {}).get("actions")
+    return None if a is None else a.get("unpinned") or []
+
+
+def _with_unpinned(rep: dict, rows: list) -> dict:
+    h = rep.get("hygiene") or {}
+    return {**rep, "hygiene": {**h, "actions": {**(h.get("actions") or {}), "unpinned": rows, "unpinned_count": len(rows)}}}
+
+
+def _deep(rep: dict):
+    s = rep.get("structure")
+    return None if not isinstance(s, dict) or "functions" not in s else s.get("functions") or []
+
+
 def _row_rules():
-    """The rules that fold many rows into one finding, with how to take rows out of a report and what a row
-    is: a finding's rule id says nothing about which values or packages it holds, so for these the rows the
-    baseline did not have are judged again on their own."""
+    """The rules that fold many rows into one finding, as (rule, identity, rows_of, with_rows, held): how to take
+    rows out of a report, what a row is, how to put rows back, and which rows of a baseline export its finding
+    held. A finding's rule id says nothing about which values, packages, actions or functions it holds, so for
+    these the rows the baseline's finding did not hold are judged again on their own. `held` gives None for an
+    export from before it carried those rows; that rule is then judged by its key, as every rule was until 0.42.0.
+    For secrets and vulnerable dependencies every row is a finding's, so what a baseline held is all its rows;
+    for the rest a row is only a subject when the rule picks it, so what the baseline held is what the rule
+    picks from the baseline's own rows (the evidence keeps ten, which would make the eleventh look new)."""
     from . import findings
+
+    def picked(pick, present):
+        return lambda rep: pick(rep) if present(rep) is not None else None
     return (
         (findings.secrets_found, _secret_place,
          lambda rep: rep.get("secrets") or [],
-         lambda rep, rows: {**rep, "secrets": rows}),
+         lambda rep, rows: {**rep, "secrets": rows},
+         lambda rep: rep.get("secrets") or []),
         (findings.vulnerable_dependencies, _package,
          lambda rep: (rep.get("dependencies") or {}).get("vulnerable") or [],
-         lambda rep, rows: {**rep, "dependencies": {**(rep.get("dependencies") or {}), "vulnerable": rows}}),
+         lambda rep, rows: {**rep, "dependencies": {**(rep.get("dependencies") or {}), "vulnerable": rows}},
+         lambda rep: (rep.get("dependencies") or {}).get("vulnerable") or []),
+        # a workflow file and the action it names: the same action added to another workflow is new
+        (findings.unpinned_actions, lambda r: (r.get("file"), r.get("uses")), lambda rep: _unpinned(rep) or [], _with_unpinned, _unpinned),
+        # a function by its file and name: one that grew past the thresholds is new, one that moved to another file is too
+        (findings.brain_methods, lambda r: (r.get("file"), r.get("function")), lambda rep: rep.get("functions") or [],
+         lambda rep, rows: {**rep, "functions": rows}, picked(findings.brain_rows, lambda rep: rep.get("functions"))),
+        (findings.deep_nesting, lambda r: (r.get("file"), r.get("name")), lambda rep: _deep(rep) or [],
+         lambda rep, rows: {**rep, "structure": {**(rep.get("structure") or {}), "functions": rows}}, picked(findings.deep_rows, _deep)),
+        (findings.bug_magnets, lambda r: r.get("entity"), lambda rep: rep.get("fixes") or [],
+         lambda rep, rows: {**rep, "fixes": rows}, picked(findings.magnet_rows, lambda rep: rep.get("fixes"))),
     )
+
+
+def _truck_subjects(f: dict) -> set:
+    """The people a truck factor hangs on, and its areas of one when the evidence lists them all (it keeps ten)."""
+    ev = f.get("evidence") or {}
+    areas = ev.get("areas") or []
+    return {("without", p) for p in ev.get("removed") or []} | ({("area", a.get("area")) for a in areas} if len(areas) < 10 else set())
+
+
+def _subjects_grew(f: dict, old: dict) -> bool:
+    """Whether a finding judged by its key holds a subject the baseline's finding did not. Only the truck factor
+    has subjects without rows behind them in the export: a person the count hangs on, an area of one."""
+    return f["rule"]["id"] == "truck_factor" and bool(_truck_subjects(f) - _truck_subjects(old))
 
 
 def against_baseline(report: dict, found: list, before: dict) -> list:
     """Mark each finding of `found` new or in the baseline `before` (an earlier --json export), and return the
     findings that count toward --fail-on. A finding is in the baseline when the export has one with the same
     key (compare.key: the rule id, and the metric or email for the rules that emit several) at the same
-    severity or worse. For secrets and vulnerable dependencies that key says nothing about which values or
-    packages the finding holds, so their rows are compared instead - a secret's place by betterleaks'
-    fingerprint, a package by name, version, lock file and advisory ids - and the rows the baseline did not
-    have are run through the same rule on their own: what that finds is what counts. A value committed again
-    in a new place is a new row, and counts."""
+    severity or worse. For the rules that fold many subjects into one finding (_row_rules: secrets, vulnerable
+    dependencies, unpinned actions, brain methods, deep nesting, bug magnets) that key says nothing about which
+    subjects the finding holds, so their rows are compared instead - a secret's place by betterleaks'
+    fingerprint, a package by name, version, lock file and advisory ids, an action by workflow file and ref, a
+    function by file and name, a magnet by file - and the rows the baseline's finding did not hold are run
+    through the same rule on their own: what that finds, at the severity it finds it, is what counts. A value
+    committed again in a new place is a new row, and counts. A truck factor counts when it hangs on a person,
+    or names an area of one, the baseline's did not. An export without a rule's rows (from before they were
+    exported) judges that rule by its key alone."""
     from . import compare
     from .findings import SEVERITIES
-    was = {compare.key(f): f["severity"] for f in before.get("findings") or []}
+    was = {compare.key(f): f for f in before.get("findings") or []}
     counted, fresh_ids, row_ids = [], set(), set()
-    for rule, identity, rows_of, with_rows in _row_rules():
+    for rule, identity, rows_of, with_rows, held in _row_rules():
+        old = held(before)
+        if old is None:
+            continue
         row_ids |= {f["rule"]["id"] for f in rule(report)}
-        known = {identity(r) for r in rows_of(before)}
+        known = {identity(r) for r in old}
         fresh = rule(with_rows(report, [r for r in rows_of(report) if identity(r) not in known]))
         counted += fresh
         fresh_ids |= {f["rule"]["id"] for f in fresh}
@@ -135,7 +189,7 @@ def against_baseline(report: dict, found: list, before: dict) -> list:
             new = rid in fresh_ids
         else:
             old = was.get(compare.key(f))
-            new = old is None or SEVERITIES.index(f["severity"]) < SEVERITIES.index(old)
+            new = old is None or SEVERITIES.index(f["severity"]) < SEVERITIES.index(old["severity"]) or _subjects_grew(f, old)
             if new:
                 counted.append(f)
         f["baseline"] = "new" if new else "in the baseline"
