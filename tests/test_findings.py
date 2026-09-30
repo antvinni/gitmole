@@ -1176,6 +1176,15 @@ class Hygiene(unittest.TestCase):
         self.assertIn("npm ci --ignore-scripts", f["advice"])
         self.assertIn("pip install --only-binary", f["advice"], "both ecosystems named, both switches given")
 
+    def test_install_advice_is_the_declared_package_managers(self):
+        manifests = [{"file": "package.json", "scripts": ["postinstall"]}]
+        for manager, switch in (("pnpm", "pnpm install --frozen-lockfile --ignore-scripts"), ("yarn-berry", "enableScripts: false"),
+                                ("yarn", "yarn install --frozen-lockfile --ignore-scripts"), ("npm", "npm ci --ignore-scripts")):
+            f = self.by_id(self.h(install={"lockfile": [], "manifests": manifests, "setup_py": [], "manager": {"name": manager, "from": "packageManager"}}))["install_scripts"]
+            self.assertIn(switch, f["advice"], manager)
+            if manager != "npm":
+                self.assertNotIn("npm ci", f["advice"], manager)
+
     def test_a_setup_py_alone_gets_the_advice_of_its_own_ecosystem(self):
         # VoiceStudio's scripts/setup.py was told to run npm ci --ignore-scripts, which does nothing to a Python file
         f = self.by_id(self.h(install={"lockfile": [], "manifests": [], "setup_py": [{"file": "pkg/setup.py", "calls": ["subprocess.run"]}]}))["install_scripts"]

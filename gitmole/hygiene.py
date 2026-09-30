@@ -282,6 +282,13 @@ def _workspace_root(repo: str, path: str, tracked: set, seen: dict):
     return None
 
 
+def _requires_nothing(repo: str, path: str) -> bool:
+    """A go.mod whose locked part has no `require`: go.sum holds the checksums of required modules, so a
+    module that requires none has nothing to put in one, and `go mod tidy` writes none."""
+    part = _locked_part("go.mod", _read(repo, path))
+    return part is not None and not any(line == "require" or line.startswith(("require ", "require(")) for line in part)
+
+
 def lockfiles(repo: str) -> dict:
     """Each tracked manifest with the lock file that pins it: in its own directory, or in an ancestor
     (a workspace member is locked by the root). A package.json an ancestor declares in its `workspaces`
@@ -294,7 +301,7 @@ def lockfiles(repo: str) -> dict:
     whose only change is its `module` line, a package.json whose only change is its scripts, is not
     behind); each drift names those changes, newest first, so the findings can leave out a sweeping
     commit. Missing is a manifest of an ecosystem that locks by convention with no lock file anywhere
-    above it."""
+    above it, except a go.mod that requires no module (_requires_nothing)."""
     tracked = set(_tracked(repo))
     drift, missing, pairs, workspaces = [], [], 0, {}
     for path in sorted(tracked):
@@ -317,7 +324,7 @@ def lockfiles(repo: str) -> dict:
                 break
             d = os.path.dirname(d)
         if not lock:
-            if name in LOCK_EXPECTED:
+            if name in LOCK_EXPECTED and not (name == "go.mod" and _requires_nothing(repo, path)):
                 missing.append({"manifest": path, "expected": LOCKS[name][:1] if name != "package.json" else ["package-lock.json"]})
             continue
         pairs += 1
@@ -560,7 +567,36 @@ def install_scripts(repo: str) -> dict:
             calls = sorted(n for n in names if _RISKY_CALLS.match(n))
             if calls:
                 setups.append({"file": path, "calls": calls})
-    return {"lockfile": in_lock[:CAP], "lockfile_count": len(in_lock), "manifests": manifests[:CAP], "setup_py": setups[:CAP]}
+    out = {"lockfile": in_lock[:CAP], "lockfile_count": len(in_lock), "manifests": manifests[:CAP], "setup_py": setups[:CAP]}
+    manager = package_manager(repo) if (in_lock or manifests) else None
+    return {**out, **({"manager": manager} if manager else {})}
+
+
+_LOCK_MANAGER = (("pnpm-lock.yaml", "pnpm"), ("yarn.lock", "yarn"), ("bun.lock", "bun"), ("bun.lockb", "bun"), ("package-lock.json", "npm"),
+                 ("npm-shrinkwrap.json", "npm"))
+
+
+def package_manager(repo: str):
+    """The package manager the root installs with, as {"name", "from"}: what the root package.json
+    declares in `packageManager` (Corepack's `name@version`), else what the root's lock file is named
+    after. Yarn from 2 on ("berry", a lock with a `__metadata:` block) is `yarn-berry`: it turns install
+    scripts off in .yarnrc.yml, not with a flag. None when the root declares nothing and locks nothing."""
+    try:
+        declared = json.loads(_text(repo, "package.json") or "{}").get("packageManager")
+    except (ValueError, AttributeError):
+        declared = None
+    if isinstance(declared, str) and re.match(r"^(npm|pnpm|yarn|bun)@\d", declared):
+        name, version = declared.split("@", 1)
+        if name == "yarn" and not version.startswith("1."):
+            name = "yarn-berry"
+        return {"name": name, "from": "packageManager"}
+    for lock, name in _LOCK_MANAGER:
+        data = _read(repo, lock, 4096)
+        if data is not None:
+            if name == "yarn" and b"__metadata:" in data:
+                name = "yarn-berry"
+            return {"name": name, "from": lock}
+    return None
 
 
 # --- committed binaries -------------------------------------------------------------------------
