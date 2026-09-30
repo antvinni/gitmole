@@ -103,6 +103,30 @@ class Lockfiles(unittest.TestCase):
                                   "changes": [{"commit": bump, "date": "2026-04-01"}]}], "dated by the change the lock records, not the rename after it")
 
 
+    def test_a_cargo_toml_change_the_lock_does_not_resolve_is_not_drift(self):
+        # VoiceStudio's native/desktop-bridge/Cargo.toml: one comment above global-hotkey reworded after Cargo.lock
+        base = ('[package]\nname = "bridge"\nversion = "0.1.0"\ndescription = "x"\n\n[dependencies]\n'
+                '# Same backend already pinned elsewhere.\nglobal-hotkey = "=0.8.0"\nurl = { git = "https://h/r#frag" }\n\n'
+                '[target.\'cfg(unix)\'.dependencies]\nlibc = "0.2"\n\n[features]\ndefault = []\n\n[profile.release]\nlto = true\n')
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("Cargo.toml", base)
+            r.write("Cargo.lock", "version = 4\n")
+            r.commit(date="2026-09-18T00:00:00")
+            r.write("Cargo.toml", base.replace("# Same backend already pinned elsewhere.", "# Native global-shortcut backend.")
+                    .replace('description = "x"', 'description = "y"').replace("default = []", 'default = ["fast"]').replace("lto = true", "lto = false")
+                    .replace('"=0.8.0"\n', '"=0.8.0"   # pinned\n'))
+            r.commit("comments, description, features, profile", date="2026-09-26T00:00:00")
+            self.assertEqual(hygiene.lockfiles(d)["drift"], [])
+            r.write("Cargo.toml", base.replace('libc = "0.2"', 'libc = "0.3"'))
+            r.commit("a target dependency", date="2026-09-27T12:00:00")
+            bump = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            r.write("Cargo.toml", base.replace('libc = "0.2"', 'libc = "0.3"').replace('version = "0.1.0"', 'version = "0.2.0"'))
+            r.commit("the version, which the lock records", date="2026-09-28T12:00:00")
+            release = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            drift = hygiene.lockfiles(d)["drift"]
+        self.assertEqual(drift[0]["changes"], [{"commit": release, "date": "2026-09-28"}, {"commit": bump, "date": "2026-09-27"}])
+
     def test_a_workspace_member_is_pinned_by_the_roots_lock_even_with_one_of_its_own(self):
         # VoiceStudio: the root package.json declares "workspaces": ["electron"]; CI installs from the root
         # bun.lock frozen, and electron/bun.lock is a stale leftover the finding told the reader to regenerate

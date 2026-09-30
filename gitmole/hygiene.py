@@ -136,7 +136,8 @@ def _last_commit(repo: str, path: str) -> int:
 
 # what a lock file records from its manifest: a change to anything else cannot put the lock behind.
 # go.sum holds the checksums of the modules go.mod requires, so the `module` line (a rename) and comments
-# do not reach it; package-lock.json copies the dependency sections and the root's name and version.
+# do not reach it; package-lock.json copies the dependency sections and the root's name and version;
+# Cargo.lock resolves the dependency tables (_CARGO_LOCKED), so a comment or a [features] change does not.
 _NPM_LOCKED = ("name", "version", "dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta",
                "bundleDependencies", "bundledDependencies", "overrides", "resolutions", "workspaces")
 DRIFT_WALK = 200   # manifest commits read past the lock file's last one: a cost bound, not a threshold
@@ -158,7 +159,55 @@ def _locked_part(name: str, data):
         except ValueError:
             return None
         return {k: doc.get(k) for k in _NPM_LOCKED} if isinstance(doc, dict) else None
+    if name == "Cargo.toml":
+        return _cargo_locked(text)
     return None
+
+
+# the Cargo.toml tables Cargo.lock is resolved from: every kind of dependency (target-specific ones too),
+# the workspace's members and shared dependencies, [patch] and [replace]; of [package] and
+# [workspace.package] only the name and version, which the lock records for each member. Features,
+# profiles, targets and metadata do not reach the lock.
+_CARGO_LOCKED = re.compile(r"^(?:(?:target\.[^\]]+\.)?(?:dependencies|dev-dependencies|build-dependencies)(?:\..+)?"
+                           r"|workspace|workspace\.dependencies(?:\..+)?|patch\..+|replace)$")
+_CARGO_HEADER = re.compile(r"^\[\[?\s*([^\]]+?)\s*\]\]?$")
+
+
+def _toml_code(line: str) -> str:
+    """A TOML line without its comment: from the first # outside a quoted string."""
+    quote, escaped = None, False
+    for i, c in enumerate(line):
+        if quote:
+            if escaped:
+                escaped = False
+            elif c == "\\" and quote == '"':
+                escaped = True
+            elif c == quote:
+                quote = None
+        elif c in "\"'":
+            quote = c
+        elif c == "#":
+            return line[:i].strip()
+    return line.strip()
+
+
+def _cargo_locked(text: str) -> list:
+    """The lines of a Cargo.toml that Cargo.lock depends on, without comments or blank lines, each with
+    the table it sits in. A top-level dotted key before any table is kept, since it can be anything."""
+    table, kept = "", []
+    for raw in text.splitlines():
+        line = _toml_code(raw)
+        if not line:
+            continue
+        header = _CARGO_HEADER.match(line)
+        if header:
+            table = re.sub(r"\s*\.\s*", ".", header.group(1))
+            continue
+        key = re.split(r"[\s.=]", line, maxsplit=1)[0].strip("\"'")
+        if (not table or _CARGO_LOCKED.match(table)
+                or (table in ("package", "workspace.package") and key in ("name", "version"))):
+            kept.append(f"{table}|{line}")
+    return kept
 
 
 def _show(repo: str, rev: str, path: str):
