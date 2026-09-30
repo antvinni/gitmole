@@ -158,7 +158,7 @@ class VulnerableImported(unittest.TestCase):
     def test_the_row_says_when_nothing_imports_it_and_the_severity_stands(self):
         rows = [{"name": "qs", "version": "1", "ecosystem": "npm", "source": "package-lock.json", "ids": ["GHSA-1"], "aliases": [], "score": 9.8,
                  "severity": "critical", "fixed": "2", "malicious": False, "imported": False}]
-        f = findings.vulnerable_dependencies(report(dependencies={"status": "scanned", "vulnerable": rows}))
+        f = findings.vulnerable_dependencies(report(dependencies={"status": "scanned", "vulnerable": rows}, tree=frozenset({"Dockerfile", "package-lock.json"})))
         self.assertEqual(f[0]["severity"], "critical", "an unimported package is still installed; nothing is suppressed on it")
         self.assertIn("imported by no tracked source", f[0]["detail"])
         self.assertIs(f[0]["evidence"]["packages"][0]["imported"], False)

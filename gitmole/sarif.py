@@ -171,9 +171,17 @@ def _removed_result(f: dict, r: dict) -> dict:
     return out
 
 
-def _dependency_results(f: dict) -> list:
+def _dependency_results(report: dict, f: dict) -> list:
+    """One result per vulnerable row the finding holds, located at the file that pins it: every row from the
+    report, not the ten the finding's evidence keeps (hindsight's SARIF carried 10 of 34). A finding with no
+    rows in the report behind it (a hand-built one) falls back to its evidence."""
+    from . import findings
+    rows = next((group for rid, _, _, group in findings._vuln_rows(report) if rid == f["rule"]["id"]), None)
+    if rows is None:
+        ev = f.get("evidence") or {}
+        rows = list(ev.get("packages") or []) + [{**r, "version": r.get("floor")} for r in ev.get("requirements") or []]
     out = []
-    for p in (f.get("evidence") or {}).get("packages") or []:
+    for p in rows:
         ref = next((x for x in list(p.get("ids") or []) + list(p.get("aliases") or []) if str(x).startswith(leaks_prefix())), None) \
             or (p["aliases"][0] if p.get("aliases") else (p["ids"][0] if p.get("ids") else ""))
         if p.get("malicious"):
@@ -182,6 +190,9 @@ def _dependency_results(f: dict) -> list:
             score = f" ({p['score']:.1f})" if p.get("score") is not None else ""
             fixed = f"fixed in {p['fixed']}" if p.get("fixed") else "no fix yet"
             text = f"{p['name']} {p['version']} in {p['source']}: {ref}{score}, {fixed}"
+            if findings._floating(p):
+                text = (f"{p['name']}{p['requirement'] or ' (any version)'} in {p['source']} admits a vulnerable version, its floor {p['version']}: {ref}{score}, {fixed}"
+                        if p.get("requirement") is not None else f"{p['name']} {p['version']} in {p['source']}, perhaps only the floor a requirement admits: {ref}{score}, {fixed}")
             severity = f"{max(0.1, min(10.0, float(p['score']))):.1f}" if p.get("score") is not None else SEVERITY[f["severity"]]
         out.append(_result(f["rule"]["id"], LEVELS[f["severity"]], severity, text, p["source"], None, None, f"{p['name']}@{p['version']}"))
     return out
@@ -208,7 +219,7 @@ def _finding_results(report: dict, f: dict, scope: str) -> list:
     if rule.startswith("secrets_"):
         return _secret_results(report, f, scope)
     if rule.startswith("vulnerable_dependencies"):
-        return _dependency_results(f)
+        return _dependency_results(report, f)
     places = _places(f)
     if not places:
         return [_result(rule, level, severity, f["detail"])] if scope == "history" or not _repo_wide_needs_tree(f) else []
