@@ -433,6 +433,15 @@ class Export(unittest.TestCase):
             self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical"], console=console()), 0)
             self.assertEqual(cli.main([out, "--no-run"], console=console()), 0)
 
+    def test_a_rule_not_labelled_yet_counts_and_the_tripping_line_says_it_was_one(self):
+        """paperclip: deep_nesting, folded into the report's "not labelled yet" line, tripped --fail-on warning unsaid."""
+        from gitmole import gate
+        deep = {"severity": "warning", "title": "Deeply nested code", "rule": {"id": "deep_nesting"}, "summary": True, "unjudged": True}
+        self.assertTrue(gate.tripped([deep], "warning"), "the gate fails closed: an unlabelled rule still counts")
+        self.assertEqual(gate.tripping([deep], "warning"),
+                         ["--fail-on warning: deep_nesting, 1 warning finding (Deeply nested code; not labelled yet, so the report folds it "
+                          "into its closing line, and it counts all the same) (exit 3)"])
+
     def test_a_tripped_gate_says_what_it_stopped_on(self):
         """--fail-on critical exited 3 with an empty stderr: a CI log said the job failed and not why."""
         ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]

@@ -60,7 +60,12 @@ def tripped(found: list, level: str) -> bool:
 
 def tripping(found: list, level: str, where: str = "") -> list:
     """One line per rule with a finding at `level` or worse, for stderr: an exit 3 with nothing said left a CI
-    log reader to rerun the scan to learn what it stopped on. `where` names the repository in a portfolio."""
+    log reader to rerun the scan to learn what it stopped on. `where` names the repository in a portfolio.
+    A rule nobody has labelled yet (findings.UNJUDGED) counts like any other, as docs/output.md has said since
+    the default report began folding them into one line: the gate fails closed, and a pipeline gating on
+    warnings may rely on deep nesting. But the report shows such a finding only as a count in that line, so
+    the line that names what tripped the gate says it was one of those (paperclip: deep_nesting tripped
+    --fail-on warning from "N more from the structure step, not labelled yet")."""
     from .findings import SEVERITIES
     by = {}
     for f in found:
@@ -70,8 +75,9 @@ def tripping(found: list, level: str, where: str = "") -> list:
     for rule, fs in by.items():
         worst = min((f["severity"] for f in fs), key=SEVERITIES.index)
         titles = "; ".join(dict.fromkeys(f["title"] for f in fs))
+        folded = "; not labelled yet, so the report folds it into its closing line, and it counts all the same" if any(f.get("unjudged") for f in fs) else ""
         lines.append(f"--fail-on {level}: {where + ': ' if where else ''}{rule}, {len(fs)} {worst} finding{'s' if len(fs) != 1 else ''}"
-                     f" ({titles}) (exit {EXIT_FOUND})")
+                     f" ({titles}{folded}) (exit {EXIT_FOUND})")
     return lines
 
 
