@@ -28,6 +28,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from multiprocessing import Pool
 
@@ -1029,8 +1030,128 @@ def entry_points(repo: str, tracked: set) -> set:
             for key in ("main", "module", "types", "typings", "bin", "exports", "browser"):
                 walk(data.get(key))
             for v in values:
-                out.add(os.path.normpath(os.path.join(base, v)))
+                target = os.path.normpath(os.path.join(base, v))
+                if "*" in v:
+                    out.update(_wildcard(target, tracked))
+                else:
+                    out.add(target)
+                    out.update(sources_of(target, tracked))
     return out
+
+
+# a build writes its output under one of these directories, and a manifest, a script or a deploy file
+# names the output: `dist/cli/x.js` is what tsc or a bundler makes from `src/cli/x.ts` (TypeScript's
+# outDir/rootDir, by the directory names the ecosystem uses), or from `cli/x.ts` when the root is the package
+OUTPUT_DIRS = ("dist", "build", "out", "lib")
+_OUTPUT_EXT = re.compile(r"(\.d)?\.(?:[cm]?js|jsx|[cm]?ts|tsx)$")
+_SOURCE_EXTS = (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
+
+
+def _output_stems(stem: str) -> list:
+    """A path without its extension, and, when one of its directories is a build output (OUTPUT_DIRS), the
+    same path under src/ in its place and with it left out."""
+    parts = stem.split("/")
+    for i, seg in enumerate(parts[:-1]):
+        if seg in OUTPUT_DIRS:
+            return [stem, "/".join(parts[:i] + ["src"] + parts[i + 1:]), "/".join(parts[:i] + parts[i + 1:])]
+    return [stem]
+
+
+def _variants(path: str) -> list:
+    """The source paths a declared path may stand for (_output_stems, with the declared extension, a
+    declaration file's .d dropped, and every source extension), the path itself first."""
+    m = _OUTPUT_EXT.search(path)
+    if not m:
+        return [path]
+    ext = m.group(0).replace(".d.", ".")
+    out = [path] + [st + e for st in _output_stems(path[:m.start()]) for e in (ext,) + _SOURCE_EXTS]
+    return list(dict.fromkeys(out))
+
+
+def sources_of(path: str, tracked: set) -> set:
+    """The tracked files a declared path stands for when it is not tracked itself: the same path with a
+    TypeScript source extension (`./x.js` in ESM TypeScript is x.ts), and, when a directory of the path is a
+    build output (OUTPUT_DIRS), the source under src/ or under the package itself. Empty when the path is tracked."""
+    if path in tracked:
+        return set()
+    return {c for c in _variants(path) if c in tracked}
+
+
+def _wildcard(pattern: str, tracked: set) -> set:
+    """The tracked files a package.json `exports` pattern (`./src/*.ts`) matches; `*` spans directories, as
+    Node's subpath patterns do. A pattern into a build output matches the sources it is built from."""
+    def match(pat, tail=r"\Z"):
+        rx = re.compile(r"\A" + ".*".join(re.escape(part) for part in pat.split("*")) + tail)
+        return {p for p in tracked if rx.match(p)}
+    out = match(pattern)
+    m = _OUTPUT_EXT.search(pattern)
+    if not out and m:
+        for alt in _output_stems(pattern[:m.start()])[1:]:
+            out |= {p for p in match(alt, r"\.(?:[cm]?ts|tsx|[cm]?js|jsx)\Z") if not p.endswith(".d.ts")}
+    return out
+
+
+# a path to a source file, as a script, a manifest's `scripts`, a CI step or `new URL(..., import.meta.url)`
+# names it: at least a directory and a file name with a source extension
+_PATH_LITERAL = re.compile(r"(?<![\w.@/${}-])((?:\$\{?\w+\}?/)*(?:\.{1,2}/)*(?:[\w@.-]+/)+[\w.-]+\.(?:[cm]?[jt]s|[jt]sx|py|go))\b")
+_VARIABLE_HEAD = re.compile(r"^(?:\$\{?\w+\}?/)+")
+
+
+def _package_dir(path: str, packages: set):
+    d = os.path.dirname(path)
+    while True:
+        if d in packages:
+            return d
+        if not d:
+            return None
+        d = os.path.dirname(d)
+
+
+def path_references(repo: str, tracked: set, candidates) -> set:
+    """The candidates some other tracked file names by path: a string or a shell word shaped like a path to
+    a source file (_PATH_LITERAL), read relative to the naming file, to the package.json directory it sits
+    under (the directory a package script runs in), and to the repository root, each through the build
+    output convention (sources_of); and, when none of those is a tracked file, as the unique tracked path it
+    ends with (a script that runs `src/x.ts` in another workspace by --filter). A variable at the front
+    (`"$package_root/dist/x.js"`) is dropped. Documentation naming a file is not a use of it, so prose and
+    doc paths are not read. Only files that name a candidate's file name are read, found by one git grep
+    over the index."""
+    candidates = set(candidates)
+    if not candidates:
+        return set()
+    wanted = {p.rsplit("/", 1)[-1].split(".", 1)[0] for p in candidates}
+    names = sorted(wanted)
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8", errors="surrogateescape") as fh:
+        fh.write("\n".join(names) + "\n")
+        patterns = fh.name
+    try:
+        proc = subprocess.run([*filetypes.GIT, "grep", "--cached", "-I", "-l", "-z", "-F", "-f", patterns], cwd=repo, capture_output=True)
+    finally:
+        os.unlink(patterns)
+    hits = [h.decode("utf-8", "surrogateescape") for h in proc.stdout.split(b"\0") if h]
+    hits = [h for h in hits if h in tracked and "node_modules/" not in h and not filetypes.is_doc_path(h)]
+    packages = {os.path.dirname(p) for p in tracked if p.rsplit("/", 1)[-1] == "package.json" and "node_modules/" not in p}
+    found = set()
+    for path, (_, data) in _blobs(repo, hits).items():
+        text = data.decode("utf-8", "replace")
+        bases = [os.path.dirname(path), _package_dir(path, packages), ""]
+        for literal in set(_PATH_LITERAL.findall(text)):
+            if literal.rsplit("/", 1)[-1].split(".", 1)[0] not in wanted:
+                continue
+            literal = _VARIABLE_HEAD.sub("", literal)
+            hit = set()
+            for base in bases:
+                if base is None:
+                    continue
+                target = os.path.normpath(os.path.join(base, literal))
+                hit |= ({target} & tracked) | sources_of(target, tracked)
+            if not hit and "/" in literal.lstrip("./"):
+                tails = [t for t in _variants(literal.lstrip("./")) if "/" in t]
+                same = {p for p in tracked if any(p == t or p.endswith("/" + t) for t in tails)}
+                if len(same) == 1:
+                    hit = same
+            found |= (hit & candidates) - {path}
+    return found
 
 
 # a fenced code block in Markdown and the info strings that say it is Python
@@ -1070,7 +1191,7 @@ def documented(repo: str, tracked, files: dict, vendored=()) -> set:
     return {t for d in docs for t in edges.get(d, [])}
 
 
-def unreferenced(files: dict, edges: dict, resolved: dict, entries: set, referenced=frozenset()) -> list:
+def unreferenced(files: dict, edges: dict, resolved: dict, entries: set, referenced=frozenset(), loud: bool = True) -> list:
     """Files in Python, JavaScript, TypeScript or Go that nothing in the tree imports and that are not an
     entry point by convention or by declaration: `possibly unreferenced`, never `dead`. A dynamic
     import, a plugin loaded by name or a framework's file routing does not show in an import graph, so
@@ -1103,9 +1224,11 @@ def unreferenced(files: dict, edges: dict, resolved: dict, entries: set, referen
             continue
         out.append(path)
         per_language[lang] += 1
+    if not loud:   # every candidate, before the loud languages are dropped: what path_references looks for
+        return out
     # a language where more than one file in twenty looks unreferenced loads code by name here: no list for it
-    loud = {lang for lang, n in per_language.items() if n > MAX_SHARE * counts[lang]}
-    return [p for p in out if files[p]["language"] not in loud]
+    noisy = {lang for lang, n in per_language.items() if n > MAX_SHARE * counts[lang]}
+    return [p for p in out if files[p]["language"] not in noisy]
 
 
 def _slim_shapes(s: dict) -> dict:
@@ -1222,7 +1345,9 @@ def collect(repo: str, procs: int = None, vendored=(), scope=()) -> dict:
                               and not filetypes.is_vendored(p, vendored)])
     aliases = ts_aliases({p: data.decode("utf-8", "replace") for p, (_, data) in tsconfigs.items()})
     edges, eager, resolved = _resolve(files, modules, aliases)   # one pass: the second walk cost the step twice its resolution on a large clone
-    orphans = [p for p in unreferenced(files, edges, resolved, entry_points(repo, set(tracked)), documented(repo, set(tracked), files, vendored)) if inside(p)]
+    entries, known = entry_points(repo, set(tracked)), documented(repo, set(tracked), files, vendored)
+    known |= path_references(repo, set(tracked), unreferenced(files, edges, resolved, entries, known, loud=False))
+    orphans = [p for p in unreferenced(files, edges, resolved, entries, known) if inside(p)]
     functions = []
     for path in sorted(p for p in files if inside(p)):
         for f in files[path].get("functions") or []:

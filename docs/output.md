@@ -156,9 +156,11 @@ in plain words, and what to do first. This page is the reference.
    What the project declares about its dependencies and licence is read
    as declared, never detected. Declared dependencies nothing imports: a
    `package.json` runtime dependency no tracked file imports (a stylesheet's
-   `@import`, `@use` or `@forward` counts, `~` prefix and all), names in a
-   quoted string of a configuration file, or runs from the manifest's
-   scripts; a `go.mod` direct requirement no import path or `go:generate`
+   `@import`, `@use`, `@forward` or Tailwind's `@plugin` counts, `~` prefix
+   and all), names in a quoted string of a configuration file, runs from the
+   manifest's scripts, or that the lock file resolved as the peer of another
+   package the manifest declares (a `pnpm-lock.yaml` version's peer suffix,
+   the `peerDependencies` a `package-lock.json` or Yarn 2+ lock records); a `go.mod` direct requirement no import path or `go:generate`
    line falls under; a Cargo.toml dependency no `name::` path, `use` or
    `extern crate` names (a note). Python and Ruby are left out because a
    distribution's import name need not be its own, and gitmole keeps no
@@ -236,7 +238,13 @@ in plain words, and what to do first. This page is the reference.
      `__main__.py`, `index.*`, `main.*`, `*.config.*`, a dotfile, a file
      beside `package.json` or `go.mod`, `bin/`, `scripts/`, `migrations/`,
      file-routed `pages/` and `app/`), by declaration (`pyproject.toml`
-     scripts, `package.json` main, bin and exports) or by content (a
+     scripts, `package.json` main, bin and exports, a wildcard export
+     expanded, a path into a build output such as `dist/x.js` read as its
+     source `src/x.ts`), by being named by path in another tracked file (a
+     package script, a shell script, a CI step, `new URL('./x.mjs',
+     import.meta.url)`; relative to that file, its package or the root, or
+     as the one tracked path the name ends with; documentation does not
+     count) or by content (a
      `__main__` guard, a shebang, Go's `package main`); a basename that
      recurs across directories, and a directory the code itself barely
      imports, are loaded by name and left
