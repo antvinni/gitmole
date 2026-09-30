@@ -52,8 +52,12 @@ def parse(spec):
     return {t.strip().lstrip(".").lower() for t in spec.split(",") if t.strip()}
 
 
-_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|testsuite|snapshots?|__snapshots__|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
-                        r"|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+|[^/]*\.snap)$", re.I)
+# smoke/ and e2e/ hold smoke and end-to-end suites (Playwright's and Cypress's e2e/, a scripts/smoke/ runner), and
+# a name ending -e2e, _e2e or .e2e before its extension is one such suite's file (login.e2e.ts, gateway-e2e.sh);
+# __fixtures__/ is Jest's directory of test inputs beside __tests__/ and __snapshots__/.
+_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|testsuite|snapshots?|__snapshots__|__fixtures__|smoke|e2e"
+                        r"|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
+                        r"|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+|[^/]*[-_.]e2e\.[^/]+|[^/]*\.snap)$", re.I)
 
 # Suffix conventions of test frameworks, case-sensitive (Contest.java is not a Test, requests/ is not a
 # Tests/ target): JUnit/XCTest/NUnit's FooTest(s), hspec/ScalaTest's FooSpec, RSpec's _spec.rb, Foundry's
@@ -82,10 +86,66 @@ def is_tooling_path(path: str) -> bool:
 
 def is_test_path(path: str) -> bool:
     """A test file or anything under a tests directory (tests/, pending_tests/, e2e-tests/, test_utils/,
-    snapshots/ and .snap files): changes with every fix, so not a signal on its own. Also the suffix
+    snapshots/ and .snap files, smoke/, e2e/, __fixtures__/, and a -e2e/_e2e/.e2e file): changes with every fix, so not a signal on its own. Also the suffix
     conventions of test frameworks: FooTest.java, user_spec.rb, ParserSpec.hs, Vault.t.sol, tb_counter.v,
     and AppTests/ directories."""
     return bool(_TEST_PATH.search(path) or _TEST_SUFFIX.search(path))
+
+
+# A Rust unit-test module as rustfmt writes it: `#[cfg(test)]` at column 0, any further attributes, then
+# `mod name {` at column 0, closed by the first `}` at column 0 after it. The language's own convention for
+# tests that live in the file they test (The Rust Book, ch. 11.3); what sits inside is compiled only for
+# `cargo test`. Only the top-level form is read: an indented or one-line module is left alone.
+_CFG_TEST = re.compile(r"^#\[cfg\(test\)\]\s*$")
+_MOD_OPEN = re.compile(r"^(pub(\([^)]*\))?\s+)?mod\s+[A-Za-z_]\w*\s*\{\s*$")
+
+
+def rust_test_spans(text: str) -> list:
+    """[(first line, last line)], 1-based and inclusive, of each top-level `#[cfg(test)] mod x { ... }` in a Rust
+    source text, from the attribute to the module's closing brace. A module with no closing brace at column 0 is
+    not a span: better to miss one than to call the rest of a file test code."""
+    lines = (text or "").split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        if not _CFG_TEST.match(lines[i]):
+            i += 1
+            continue
+        j = i + 1
+        while j < len(lines) and (lines[j].startswith("#[") or lines[j].startswith("//") or not lines[j].strip()):
+            j += 1
+        if j >= len(lines) or not _MOD_OPEN.match(lines[j]):
+            i = j
+            continue
+        end = next((k for k in range(j + 1, len(lines)) if lines[k].rstrip() == "}"), None)
+        if end is None:
+            break
+        out.append((i + 1, end + 1))
+        i = end + 1
+    return out
+
+
+def in_spans(line, spans) -> bool:
+    return bool(line) and any(a <= int(line) <= b for a, b in spans or ())
+
+
+def rust_test_modules(repo: str, paths: list) -> dict:
+    """{path: [[first, last], ...]} for the tracked .rs files that hold a top-level test module (rust_test_spans),
+    read from the working tree. Functions there are test code, however the file is named."""
+    out = {}
+    for path in paths:
+        if not path.endswith(".rs"):
+            continue
+        try:
+            with open(os.path.join(repo, path), "rb") as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        if b"#[cfg(test)]" not in data:
+            continue
+        spans = rust_test_spans(data.decode("utf-8", "replace"))
+        if spans:
+            out[path] = [list(s) for s in spans]
+    return out
 
 
 _DOC_DIR = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|(^|/)[A-Za-z0-9]+Docs/", re.I)
@@ -368,6 +428,88 @@ def is_credential_path(path: str) -> bool:
         return True
     name = path.rsplit("/", 1)[-1].lower()
     return bool(_CREDENTIAL_NAME.match(name)) and not _CREDENTIAL_TEMPLATE.match(name)
+
+
+# A Cargo binary target that exists for the tests: Cargo builds every [[bin]] of a package before its integration
+# tests and hands each one's path to them as the CARGO_BIN_EXE_<name> environment variable (the Cargo Book,
+# "Environment variables Cargo sets for crates"). A bin the tests start that nothing else names (no Dockerfile,
+# script, workflow or source file outside the tests) is a test double: a fake server, a stub harness. A bin that
+# ships is named where it is built, installed or started, and stays source.
+_CARGO_BIN_EXE = re.compile(r"CARGO_BIN_EXE_([A-Za-z0-9_-]+)")
+_TOML_SECTION = re.compile(r"^\s*\[\[?([^\]]+)\]\]?\s*$")
+_TOML_STR = re.compile(r"^\s*(name|path)\s*=\s*[\"']([^\"']+)[\"']")
+
+
+def cargo_bins(manifest: str, text: str, tracked: set) -> dict:
+    """{bin name: [source files]} of one Cargo.toml: each [[bin]] with its path (src/bin/<name>.rs by default), and
+    the targets Cargo discovers, src/bin/<name>.rs and src/bin/<name>/*.rs. Only tracked files are named."""
+    root = posixpath.dirname(manifest)
+    at = (lambda rel: posixpath.normpath(posixpath.join(root, rel)) if root else posixpath.normpath(rel))
+    out = {}
+    prefix = at("src/bin") + "/"
+    for p in tracked:
+        if p.startswith(prefix) and p.endswith(".rs"):
+            rest = p[len(prefix):]
+            name = rest[:-3] if "/" not in rest else rest.split("/", 1)[0]
+            out.setdefault(name, []).append(p)
+    section, entry = None, None
+    for line in (text or "").split("\n") + ["[end]"]:
+        m = _TOML_SECTION.match(line)
+        if m:
+            if entry and entry.get("name"):
+                path = at(entry.get("path") or f"src/bin/{entry['name']}.rs")
+                if path in tracked and path not in out.get(entry["name"], []):
+                    out.setdefault(entry["name"], []).append(path)
+            section = m.group(1).strip()
+            entry = {} if line.strip().startswith("[[") and section == "bin" else None
+            continue
+        m = _TOML_STR.match(line)
+        if entry is not None and m:
+            entry[m.group(1)] = m.group(2)
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def _grep(repo: str, *args) -> list:
+    """(path, line text) for each tracked line `git grep` matches in the working tree."""
+    out = subprocess.run([*GIT, "grep", "-I", "-z", "-n", *args], cwd=repo, capture_output=True).stdout
+    rows = []
+    for rec in out.decode("utf-8", "surrogateescape").split("\n"):
+        parts = rec.split("\0", 2)
+        if len(parts) == 3:
+            rows.append((parts[0], parts[2]))
+    return rows
+
+
+def test_doubles(repo: str, paths: list) -> list:
+    """The source files of the Cargo binary targets that only the tests use (see _CARGO_BIN_EXE): started by name
+    through CARGO_BIN_EXE_<name> from test files only, and named by no tracked file but a Cargo manifest or lock,
+    their own sources, test files and documentation."""
+    tracked = set(paths)
+    manifests = [p for p in paths if p.rsplit("/", 1)[-1] == "Cargo.toml"]
+    if not manifests:
+        return []
+    started = {}
+    for path, text in _grep(repo, "-F", "-e", "CARGO_BIN_EXE_"):
+        for name in _CARGO_BIN_EXE.findall(text):
+            started.setdefault(name, set()).add(path)
+    bins = {}
+    for manifest in manifests:
+        if not started:
+            break
+        try:
+            with open(os.path.join(repo, manifest), encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        for name, files in cargo_bins(manifest, text, tracked).items():
+            if name in started and all(is_test_path(p) for p in started[name]):
+                bins.setdefault(name, set()).update(files)
+    out = set()
+    for name, files in sorted(bins.items()):
+        named = {p for p, _ in _grep(repo, "-w", "-F", "-e", name)}
+        if all(p in files or p.rsplit("/", 1)[-1] in ("Cargo.toml", "Cargo.lock") or is_test_path(p) or is_doc_path(p) for p in named):
+            out |= files
+    return sorted(out)
 
 
 def credential_files(paths: list) -> list:

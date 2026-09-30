@@ -82,6 +82,27 @@ class DeclaredUnused(unittest.TestCase):
         self.assertEqual([(x["manifest"], x["package"]) for x in out["unused"]], [("other/package.json", "idle"), ("package.json", "idle")],
                          "another manifest naming a package is not a use of it, and an example's manifest is left out")
 
+    def test_a_peer_the_lock_resolved_for_another_dependency_is_used(self):
+        # paperclip: nice-grpc and nice-grpc-common are declared for @photon-ai/advanced-imessage, which names them as peers
+        pnpm = ("lockfileVersion: '9.0'\n\nimporters:\n\n  server:\n    dependencies:\n      host:\n        specifier: ^2\n"
+                "        version: 2.1.0(peer-a@2.0.4)\n      peer-a:\n        specifier: ^2\n        version: 2.0.4\n"
+                "      idle:\n        specifier: ^1\n        version: 1.0.0\n")
+        npm = json.dumps({"lockfileVersion": 3, "packages": {"": {}, "node_modules/host": {"version": "1", "peerDependencies": {"peer-b": "1"}},
+                                                               "node_modules/peer-b": {"version": "1"}, "node_modules/idle": {"version": "1"}}})
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("pnpm-lock.yaml", pnpm)
+            r.write("server/package.json", json.dumps({"dependencies": {"host": "^2", "peer-a": "^2", "idle": "^1"}}))
+            r.write("server/a.ts", "import h from 'host'\n")
+            r.write("web/package-lock.json", npm)
+            r.write("web/package.json", json.dumps({"dependencies": {"host": "1", "peer-b": "1", "idle": "1"}}))
+            r.write("web/a.ts", "import h from 'host'\n")
+            r.commit()
+            out = imports.unused(d)
+        self.assertEqual([(x["manifest"], x["package"]) for x in out["unused"]], [("server/package.json", "idle"), ("web/package.json", "idle")])
+
+    def test_a_tailwind_plugin_line_is_a_use(self):
+        self.assertEqual(imports.scan_text("npm", '@import "tailwindcss";\n@plugin "@tailwindcss/typography";\n'), {"tailwindcss", "@tailwindcss/typography"})
 
     def test_a_crate_that_includes_generated_code_is_not_judged(self):
         with tempfile.TemporaryDirectory() as d:
@@ -181,6 +202,47 @@ class VulnerableImported(unittest.TestCase):
         self.assertIs(f[0]["evidence"]["packages"][0]["imported"], False)
         self.assertEqual(f[0]["rule"]["osps"], ["OSPS-VM-05.03"])
 
+    def test_rows_the_source_imports_from_runtime_dependencies_lead_and_the_grade_stands(self):
+        # paperclip: form-data 4.0.5 (8.7) reached only through supertest led; multer (7.5), a runtime dependency four routes import, came sixth
+        def row(name, score, **kw):
+            return {"name": name, "version": "1", "ecosystem": "npm", "source": "pnpm-lock.yaml", "ids": [f"GHSA-{name}"], "aliases": [],
+                    "score": score, "severity": "high", "fixed": "2", "malicious": False, **kw}
+        rows = [row("form-data", 8.7, imported=False, runtime=False), row("fast-uri", 7.5, imported=False, runtime=True),
+                row("multer", 7.5, imported=True, runtime=True), row("yarn-only", 9.0, imported=False)]
+        f = findings.vulnerable_dependencies(report(dependencies={"status": "scanned", "vulnerable": rows}, tree=frozenset({"pnpm-lock.yaml"})))
+        self.assertEqual([p["name"] for p in f[0]["evidence"]["packages"]], ["multer", "yarn-only", "fast-uri", "form-data"])
+        self.assertEqual(f[0]["severity"], "warning")
+        self.assertTrue(f[0]["advice"].startswith("Upgrade multer to 2"))
+        self.assertIn("development dependencies only", findings._vuln_ref(rows[0]))
+        self.assertNotIn("development dependencies only", findings._vuln_ref(rows[3]))
+        self.assertIs(f[0]["evidence"]["packages"][3]["runtime"], False)
+        self.assertNotIn("runtime", f[0]["evidence"]["packages"][1], "a lock that does not say leaves it out")
+
+    def test_the_footer_names_an_informational_advisory_without_counting_it(self):
+        dep = {"status": "scanned", "packages": 10, "sources": [{"path": "Cargo.lock", "packages": 10}], "vulnerable": [],
+               "informational": [{"name": "rustls-pemfile", "version": "2.2.0", "kinds": ["unmaintained"]}]}
+        from gitmole import load
+        dep = load.parse_dependencies(dep)
+        line, style = render.dependencies_line({"dependencies": dep})
+        self.assertIn("none vulnerable; 1 with an informational advisory (rustls-pemfile 2.2.0, unmaintained)", line)
+        self.assertEqual(style, "green")
+
+    def test_the_lock_says_which_rows_run_and_which_version_is_imported(self):
+        lock = ("lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      multer:\n        specifier: ^2\n        version: 2.2.0\n"
+                "      esbuild:\n        specifier: ^0.28\n        version: 0.28.2\n    devDependencies:\n      supertest:\n        specifier: ^7\n"
+                "        version: 7.1.0\n\nsnapshots:\n\n  multer@2.2.0: {}\n\n  esbuild@0.28.2: {}\n\n  supertest@7.1.0:\n    dependencies:\n"
+                "      form-data: 4.0.5\n      esbuild: 0.18.20\n\n  form-data@4.0.5: {}\n\n  esbuild@0.18.20: {}\n")
+        with tempfile.TemporaryDirectory() as d:
+            with open(f"{d}/pnpm-lock.yaml", "w") as fh:
+                fh.write(lock)
+            rows = [{"name": n, "version": v, "ecosystem": "npm", "source": "pnpm-lock.yaml", "imported": i}
+                    for n, v, i in (("multer", "2.2.0", True), ("form-data", "4.0.5", False), ("esbuild", "0.18.20", True), ("esbuild", "0.28.2", True))]
+            rows.append({"name": "left-pad", "version": "1", "ecosystem": "npm", "source": "yarn.lock", "imported": True})
+            deps.lock_context(rows, d)
+        self.assertEqual([(r["name"], r["version"], r.get("runtime"), r["imported"]) for r in rows],
+                         [("multer", "2.2.0", True, True), ("form-data", "4.0.5", False, False), ("esbuild", "0.18.20", False, False),
+                          ("esbuild", "0.28.2", True, True), ("left-pad", "1", None, True)])
+
 
 class OspsCoverage(unittest.TestCase):
     def _report(self, **over):
@@ -240,7 +302,7 @@ class OspsCoverage(unittest.TestCase):
         binaries = next(f for f in found if f["rule"]["id"] == "committed_binaries")
         self.assertEqual(binaries["rule"]["osps"], ["OSPS-QA-05.01", "OSPS-QA-05.02"])
         rules = {x["id"]: x for x in sarif.build(r, found)["runs"][0]["tool"]["driver"]["rules"]}
-        self.assertEqual(rules["committed_binaries"]["properties"]["tags"], ["gitmole", "OSPS-QA-05.01", "OSPS-QA-05.02"])
+        self.assertEqual(rules["committed_binaries"]["properties"]["tags"], ["gitmole", "security", "OSPS-QA-05.01", "OSPS-QA-05.02"])
 
     def test_the_section_is_full_only_and_the_export_carries_the_table(self):
         r = self._report()

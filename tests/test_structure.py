@@ -559,6 +559,50 @@ class Unreferenced(unittest.TestCase):
         self.assertEqual(named - entries, set())
         self.assertEqual({"backend/hooks/other.py", "electron/src/main/z.ts", "docs/public/theme.js", "infra/src/dev.js"} & entries, set())
 
+    def test_exports_into_a_build_output_or_through_a_wildcard_declare_the_sources(self):
+        # paperclip: "./testing": "./dist/testing.js" is built from src/testing.ts; "./*": "./src/*.ts" exports every module
+        tree = {"runner/package.json": json.dumps({"exports": {"./testing": {"types": "./dist/testing.d.ts", "import": "./dist/testing.js"}},
+                                                    "bin": {"x": "./dist/cli/x.js"}}),
+                "runner/src/testing.ts": "", "runner/src/cli/x.ts": "", "runner/src/other.ts": "",
+                "shared/package.json": json.dumps({"exports": {".": "./src/index.ts", "./*": "./src/*.ts"}}),
+                "shared/src/node-version.ts": "", "shared/src/deep/hash.ts": "", "shared/src/style.css": "",
+                "flat/package.json": json.dumps({"main": "lib/main.js", "exports": {"./sub/*": "./dist/sub/*.js"}}), "flat/main.ts": "", "flat/sub/a.ts": "", "flat/sub/a.d.ts": ""}
+        with tempfile.TemporaryDirectory() as repo:
+            for p, text in tree.items():
+                os.makedirs(os.path.join(repo, os.path.dirname(p)), exist_ok=True)
+                with open(os.path.join(repo, p), "w") as fh:
+                    fh.write(text)
+            entries = structure.entry_points(repo, set(tree))
+        self.assertEqual({"runner/src/testing.ts", "runner/src/cli/x.ts", "shared/src/node-version.ts", "shared/src/deep/hash.ts", "flat/main.ts", "flat/sub/a.ts"} - entries, set())
+        self.assertEqual({"runner/src/other.ts", "shared/src/style.css", "flat/sub/a.d.ts"} & entries, set())
+
+    def test_a_source_file_another_file_names_by_path_is_referenced(self):
+        # paperclip's first ten "unreferenced" files: new URL(..., import.meta.url), a package script running the
+        # build output, a shell script running it through a variable, a script running another workspace's file
+        tree = {"packages/db/package.json": "{}",
+                "packages/db/src/recovery.test.ts": 'const f = fileURLToPath(new URL("./__fixtures__/pg-recovery.mjs", import.meta.url));\n',
+                "packages/db/src/__fixtures__/pg-recovery.mjs": "",
+                "packages/runner/package.json": json.dumps({"scripts": {"replay": "pnpm build && node dist/cli/replay.js"}}),
+                "packages/runner/src/cli/replay.ts": "", "packages/runner/src/live/loopback-proxy.ts": "",
+                "packages/runner/scripts/demo.sh": 'node "$package_root/dist/live/loopback-proxy.js" &\n',
+                "server/package.json": "{}", "server/src/runner-status.ts": "",
+                "scripts/dev-runner.ts": 'run(["--filter", "@x/server", "exec", "tsx", "src/runner-status.ts"]);\n',
+                "server/src/lonely.ts": "", "docs/guide.md": "Run `node server/src/lonely.ts`.\n",
+                "a/src/twin.ts": "", "b/src/twin.ts": "", "scripts/twins.sh": "tsx src/twin.ts\n"}
+        candidates = {"packages/db/src/__fixtures__/pg-recovery.mjs", "packages/runner/src/cli/replay.ts", "packages/runner/src/live/loopback-proxy.ts",
+                      "server/src/runner-status.ts", "server/src/lonely.ts", "a/src/twin.ts", "b/src/twin.ts"}
+        with tempfile.TemporaryDirectory() as repo:
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            for p, text in tree.items():
+                os.makedirs(os.path.join(repo, os.path.dirname(p)), exist_ok=True)
+                with open(os.path.join(repo, p), "w") as fh:
+                    fh.write(text)
+            subprocess.run(["git", "add", "."], cwd=repo, check=True)
+            found = structure.path_references(repo, set(tree), candidates)
+        self.assertEqual(found, {"packages/db/src/__fixtures__/pg-recovery.mjs", "packages/runner/src/cli/replay.ts",
+                                 "packages/runner/src/live/loopback-proxy.ts", "server/src/runner-status.ts"},
+                         "documentation naming a file is not a use; an ending two files share names neither")
+
     def test_a_language_where_more_than_one_file_in_twenty_looks_unreferenced_is_not_listed(self):
         files = self.files(n=20, orphans=3)   # 3 of 20 is over MAX_SHARE: the language loads code by name here
         edges = {p: info["imports"] for p, info in files.items()}

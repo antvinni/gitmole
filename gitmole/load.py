@@ -183,6 +183,8 @@ def parse_secrets(text: str) -> list:
             out[-1]["at_head"] = r["AtHead"]
             if r["AtHead"] and r.get("HeadLine"):
                 out[-1]["head_line"] = r["HeadLine"]
+        if r.get("TestCode") is True:   # inside a Rust #[cfg(test)] module of its file at that commit (leaks.mark_test_code)
+            out[-1]["test_code"] = True
         if isinstance(r.get("Local"), bool):   # a credential URI's password: to loopback or a compose service, or not (leaks.mark_local)
             out[-1]["local"] = r["Local"]
         declared = r.get("Declared")
@@ -195,7 +197,7 @@ def parse_secrets(text: str) -> list:
 
 def parse_dependencies(data) -> dict:
     """dependencies.json as the osv-scanner step writes it, with a status: scanned (sources, packages,
-    vulnerable rows, database_date), no-sources, no-database, or not-run when there is no file."""
+    vulnerable rows, database_date, the informational rows), no-sources, no-database, or not-run when there is no file."""
     if not isinstance(data, dict) or not data.get("status"):
         return {"status": "not-run"}
     out = {"status": data["status"]}
@@ -206,6 +208,8 @@ def parse_dependencies(data) -> dict:
             out["database_digest"] = data["database_digest"]
         if data.get("compose_builds"):
             out["compose_builds"] = data["compose_builds"]
+        if data.get("informational"):   # packages whose every advisory is informational (deps.informational)
+            out["informational"] = data["informational"]
     elif data["status"] == "no-database":
         out["download"] = data.get("download") or ""
     return out

@@ -68,6 +68,13 @@ class SecretsFound(unittest.TestCase):
         detail = findings.secrets_found(r)[0]["detail"]
         self.assertIn(f"2 distinct values in 2 places: 2 values of facebook-access-token in {blob}.", detail)
 
+    def test_a_value_only_inside_a_rust_test_module_is_no_finding(self):
+        """paperclip's two possible secrets were generic-password hits inside #[cfg(test)] modules of runner-core."""
+        inline = dict(self.row("h1", "src/durable/state.rs", "c1", 3471, rule="generic-password"), confidence="low", test_code=True)
+        self.assertEqual(findings.secrets_found(report(secrets=[inline])), [])
+        outside = self.row("h1", "src/durable/state.rs", "c2", 12, rule="generic-password")
+        self.assertEqual([f["rule"]["id"] for f in findings.secrets_found(report(secrets=[inline, outside]))], ["secrets_possible"])
+
     def test_test_only_secrets_do_not_fail_a_critical_gate(self):
         r = report(secrets=[self.row("h3", "tests/t.py")])
         self.assertEqual(findings.secrets_found(r), [])
@@ -594,9 +601,17 @@ class BugMagnets(unittest.TestCase):
         self.assertIsNone(findings.fix_prone(r, lambda p: True))
         f = findings.bug_magnets(r)[0]
         self.assertIn("2 file(s) were fixed 3+ times in six months: src/busy.py", f["detail"])
-        self.assertNotIn("fix_rate", f["evidence"])
+        # paperclip review (D6): the test that did not run was advertised and never mentioned, and 391 raw counts were a warning
+        self.assertIn("Raw counts: the test against files of their size needs 12 months of history, this has 11.", f["detail"])
+        self.assertEqual(f["evidence"]["fix_rate"], {"not_run": "history too short", "history_months": 11})
+        self.assertEqual(f["severity"], "info", "nine recent fixes, but raw counts on a short history are a note")
         r["meta"]["first_date"] = "2025-09-30"
         self.assertIsNotNone(findings.fix_prone(r, lambda p: True), "twelve months: tested")
+        f = findings.bug_magnets(r)[0]
+        self.assertEqual(f["severity"], "warning")
+        self.assertNotIn("Raw counts", f["detail"])
+        del r["meta"]["first_date"]
+        self.assertEqual(findings.bug_magnets(r)[0]["severity"], "warning", "no dates to judge by: the window's counts decide, as before")
 
     def test_the_rate_is_over_the_files_the_rule_reads(self):
         """Tests change with every fix and are left out of the magnets, so they are left out of the rate too."""
@@ -667,6 +682,23 @@ class BrainMethods(unittest.TestCase):
 
     def test_nothing_without_data(self):
         self.assertEqual(findings.brain_methods(report()), [])
+
+    def test_a_function_in_a_cargo_test_double_is_not_a_brain_method(self):
+        fns = [{"file": "crates/core/src/bin/fake-server.rs", "function": "run", "ccn": 360, "nloc": 1266, "params": 0, "start": 5, "end": 1300},
+               {"file": "crates/core/src/lib.rs", "function": "serve", "ccn": 20, "nloc": 150, "params": 1, "start": 10, "end": 160}]
+        r = report(functions=fns)
+        r["meta"]["test_doubles"] = ["crates/core/src/bin/fake-server.rs"]
+        f = findings.brain_methods(r)[0]
+        self.assertEqual([x["function"] for x in f["evidence"]["functions"]], ["serve"])
+
+    def test_a_function_inside_a_rust_test_module_is_not_a_brain_method(self):
+        fns = [{"file": "src/lib.rs", "function": "big_case", "ccn": 40, "nloc": 300, "params": 0, "start": 520, "end": 820},
+               {"file": "src/lib.rs", "function": "run", "ccn": 20, "nloc": 150, "params": 1, "start": 10, "end": 160}]
+        r = report(functions=fns)
+        r["meta"]["test_modules"] = {"src/lib.rs": [[500, 900]]}
+        f = findings.brain_methods(r)[0]
+        self.assertEqual(f["evidence"]["count"], 1)
+        self.assertEqual(f["evidence"]["functions"][0]["function"], "run")
 
     def test_functions_in_test_files_are_not_brain_methods(self):
         fns = [{"file": "tests/test_all.py", "function": "test_all", "ccn": 20, "nloc": 400, "params": 1, "start": 1, "end": 400},
@@ -1168,6 +1200,15 @@ class Hygiene(unittest.TestCase):
         self.assertIn("npm ci --ignore-scripts", f["advice"])
         self.assertIn("pip install --only-binary", f["advice"], "both ecosystems named, both switches given")
 
+    def test_install_advice_is_the_declared_package_managers(self):
+        manifests = [{"file": "package.json", "scripts": ["postinstall"]}]
+        for manager, switch in (("pnpm", "pnpm install --frozen-lockfile --ignore-scripts"), ("yarn-berry", "enableScripts: false"),
+                                ("yarn", "yarn install --frozen-lockfile --ignore-scripts"), ("npm", "npm ci --ignore-scripts")):
+            f = self.by_id(self.h(install={"lockfile": [], "manifests": manifests, "setup_py": [], "manager": {"name": manager, "from": "packageManager"}}))["install_scripts"]
+            self.assertIn(switch, f["advice"], manager)
+            if manager != "npm":
+                self.assertNotIn("npm ci", f["advice"], manager)
+
     def test_a_setup_py_alone_gets_the_advice_of_its_own_ecosystem(self):
         # VoiceStudio's scripts/setup.py was told to run npm ci --ignore-scripts, which does nothing to a Python file
         f = self.by_id(self.h(install={"lockfile": [], "manifests": [], "setup_py": [{"file": "pkg/setup.py", "calls": ["subprocess.run"]}]}))["install_scripts"]
@@ -1447,6 +1488,14 @@ class Structure(unittest.TestCase):
         self.assertEqual((f["severity"], f["title"]), ("info", "Possibly unreferenced files"))
         self.assertIn("src/f11.py", f["detail"])
         self.assertIn("dynamic imports, plugins loaded by name and framework routing do not show", f["advice"])
+
+    def test_a_file_a_later_test_convention_names_is_left_out_of_a_saved_list(self):
+        """paperclip's list led with packages/db/src/__fixtures__/x.mjs, a Jest fixture the structure step of its day
+        did not call a test file; the render takes it out and counts one fewer."""
+        f = self.by_id(self.base(unreferenced=["src/__fixtures__/f.mjs", "src/f11.py"], unreferenced_count=3))["unreferenced_files"]
+        self.assertNotIn("__fixtures__", f["detail"])
+        self.assertEqual((f["evidence"]["count"], f["evidence"]["files"]), (2, ["src/f11.py"]))
+        self.assertNotIn("unreferenced_files", self.by_id(self.base(unreferenced=["scripts/smoke/run.mjs"], unreferenced_count=1)))
 
     def test_a_skipped_file_in_a_judged_language_is_named(self):
         """hindsight's busiest file was over the size limit, its imports vanished, and a file it imports read as
