@@ -432,3 +432,34 @@
   list beat churn and chance (#199); secrets name their strongest value and form labels are placeholders
   (#201); `--help` in groups and a first-report page (#187); the usefulness graph says its labels are one
   agent's (#193).
+
+- **0.40.0 is the VoiceStudio release: every change answers a finding a maintainer checked and found wrong.**
+  Ten reviewers read 0.39.0's report on debpalash/VoiceStudio, one developer with 43% of commits co-authored
+  by a coding agent, and its maintainer rated five of seventeen findings false. The consistency harness
+  gained a check for each (#206), recorded before any fix: 219 contradictions over the 0.39.0 analyses. This
+  round has 53: self_credit 205 → 51 (#210 drops trailers naming the author's own identity; the rest are a
+  few credits per person where the harness and the tool resolve an identity differently, 40 of them on
+  prometheus), agent_owner 9 → 0, magnet_gone 2 → 0, unreferenced_named 2 → 1 (a setupTests file a
+  framework loads by name), secrets_headline 1. On VoiceStudio itself: 22 → 1, seventeen of seventeen
+  findings consistent. Every effectiveness number is 0.39.0's; no change touched the ranking.
+- **Findings unchanged in count, shorter to read, faster to run.** Findings 11 and 16.9 at the median and
+  90th percentile, the large set's 14, spelled out 8.5; report lines 209 → 204 (#212: tables no longer split
+  a name or a path). Time: the development set 351 → 330 s, the large set 434 → 405 s. The first round read
+  480 s: django's code-age projection crossed its 60 s budget and the pass ran (108 s); run again alone it
+  stayed under (32 s), the straddle the 0.38.0 note describes. The rounds' first entry for
+  awkward-non-utf8-path was a harness crash (the #206 checks decoded git output strictly), fixed by #214 and
+  run again into this record: robustness 26 of 26, the gate 3 of 3, no critical on a well-kept repository.
+- **Two peak-memory ceilings rise by noise-sized amounts, decided by the maintainer on 30 September.** The
+  development set's peak 995 → 1,004 MB (brew: two runs 1,011 and 1,004, no step up by as much; react fell
+  52 MB) and the large set's 1,133 → 1,135 MB (ghidra). Raised because both are within run-to-run
+  variation and the same release lowers every other cost lane.
+- **Since 0.39.0, besides the measurement:** a value the repository declared allowed (a gitleaks or
+  betterleaks config or ignore file at any commit, or `gitleaks:allow` on its line) is a note, not a
+  critical, SARIF's head scope follows the value and the secrets footer reconciles (#208); pip comments,
+  setup() calls, npm workspaces, Cargo.toml sections, tsconfig paths and declared entry points are read
+  (#207); coding tools (names sharing one no-reply address) are an agent-assisted share, never an owner
+  or an author, and a trailer naming its own author is no credit (#210); bug magnets keep to HEAD and name
+  first the files fixed beyond the repository's own rate (#211); no vulnerability database is said, and
+  `--require-vuln-db` fails it; `--hook` before a first run passes and says how to set up; the Action keeps a
+  `baseline`; file-shaped findings get SARIF locations (#209); tables, `<anonymous>` functions and
+  first-report.md (#212); in_tree indexed (#213: react's example 734 → 65 s on the way).
