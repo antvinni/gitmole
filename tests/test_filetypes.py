@@ -120,6 +120,13 @@ class TestPaths(unittest.TestCase):
         for path in ("app/settings.py", "static/index.html", "docsite/app.js", "mdx/a.py", "config.yaml", "doctor/a.py"):
             self.assertFalse(filetypes.is_doc_path(path), path)
 
+    def test_a_manifest_ending_txt_is_not_documentation(self):
+        for path in ("requirements.txt", "integrations/dify/requirements.txt", "requirements-dev.txt", "dev-requirements.txt",
+                     "requirements_test.txt", "constraints.txt", "ci/constraints-py3.11.txt", "CMakeLists.txt", "src/lib/CMakeLists.txt"):
+            self.assertFalse(filetypes.is_doc_path(path), path)
+        for path in ("docs/requirements.txt", "doc/CMakeLists.txt", "NOTES.txt", "LICENSE.txt", "src/requirements.md"):
+            self.assertTrue(filetypes.is_doc_path(path), path)
+
     def test_example_fixture_and_rule_directories(self):
         for path in ("examples/language/bru.bru", "example/app.py", "samples/x.json", "sample/x.json", "fixtures/keys.pem",
                      "src/fixture/a.txt", "pkg/testdata/creds.yaml", "demo/x.py", "demos/x.py", "config/generate/rules/slack.go",

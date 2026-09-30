@@ -88,15 +88,22 @@ def is_test_path(path: str) -> bool:
     return bool(_TEST_PATH.search(path) or _TEST_SUFFIX.search(path))
 
 
-_DOC_PATH = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|\.(md|markdown|rst|txt|adoc|pyi|d\.ts)$|(^|/)[A-Za-z0-9]+Docs/", re.I)
+_DOC_DIR = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|(^|/)[A-Za-z0-9]+Docs/", re.I)
+_DOC_EXT = re.compile(r"\.(md|markdown|rst|txt|adoc|pyi|d\.ts)$", re.I)
+# A .txt an ecosystem reads as a manifest by its name: pip's requirements files (requirements.txt,
+# requirements-dev.txt, dev-requirements.txt) and constraints files, and CMake's CMakeLists.txt. The
+# extension says prose; the name says what installs or builds the project.
+_TXT_MANIFEST = re.compile(r"(^|/)([^/]*requirements[^/]*|constraints[^/]*|cmakelists)\.txt$", re.I)
 
 
 def is_doc_path(path: str) -> bool:
     """Documentation: prose formats anywhere, anything under docs/, doc/, docs_src/, docs-site/ or a
     CamelCase ProjectDocs/ (the AppTests/ convention for documentation), and
     type stubs (.pyi, .d.ts), which declare shapes and carry no runtime values. A key in a planning
-    document, a tutorial or a stub's default is far more often a specimen than a leak."""
-    return bool(_DOC_PATH.search(path))
+    document, a tutorial or a stub's default is far more often a specimen than a leak. A manifest that
+    happens to end .txt (_TXT_MANIFEST) is not prose, though under docs/ it is still documentation's own
+    (a docs/requirements.txt installs the documentation build)."""
+    return bool(_DOC_DIR.search(path)) or (bool(_DOC_EXT.search(path)) and not _TXT_MANIFEST.search(path))
 
 
 _SAMPLE_PATH = re.compile(r"(^|/)(examples?|samples?|fixtures?([-_][\w-]+)?|testdata|demos?|rules|stubs?|tutorials?|exercises?(files)?)(/|$)"
