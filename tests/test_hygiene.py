@@ -80,6 +80,17 @@ class Lockfiles(unittest.TestCase):
         self.assertEqual(out["missing"], [{"manifest": "lib/Cargo.toml", "expected": ["Cargo.lock"]}])
         self.assertEqual(out["pairs"], 3, "root npm, api uv and the workspace member through the root lockfile")
 
+    def test_a_go_mod_that_requires_nothing_needs_no_go_sum(self):
+        # paperclip's tools/agent-shim/go.mod: a module line and a go line, stdlib only
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("shim/go.mod", "module example.com/x/shim\n\ngo 1.22\n// require nothing yet\n")
+            r.write("tool/go.mod", "module example.com/x/tool\n\ngo 1.22\n\nrequire (\n\tgolang.org/x/text v0.3.0\n)\n")
+            r.write("one/go.mod", "module example.com/x/one\n\nrequire golang.org/x/text v0.3.0\n")
+            r.commit()
+            out = hygiene.lockfiles(d)
+        self.assertEqual([m["manifest"] for m in out["missing"]], ["one/go.mod", "tool/go.mod"])
+
     def test_a_change_the_lock_does_not_record_is_not_drift(self):
         # devlake's backend/go.mod "changed on 2026-09-02, after go.sum": the module rename, one line
         with tempfile.TemporaryDirectory() as d:

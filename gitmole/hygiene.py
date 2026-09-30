@@ -279,6 +279,13 @@ def _workspace_root(repo: str, path: str, tracked: set, seen: dict):
     return None
 
 
+def _requires_nothing(repo: str, path: str) -> bool:
+    """A go.mod whose locked part has no `require`: go.sum holds the checksums of required modules, so a
+    module that requires none has nothing to put in one, and `go mod tidy` writes none."""
+    part = _locked_part("go.mod", _read(repo, path))
+    return part is not None and not any(line == "require" or line.startswith(("require ", "require(")) for line in part)
+
+
 def lockfiles(repo: str) -> dict:
     """Each tracked manifest with the lock file that pins it: in its own directory, or in an ancestor
     (a workspace member is locked by the root). A package.json an ancestor declares in its `workspaces`
@@ -291,7 +298,7 @@ def lockfiles(repo: str) -> dict:
     whose only change is its `module` line, a package.json whose only change is its scripts, is not
     behind); each drift names those changes, newest first, so the findings can leave out a sweeping
     commit. Missing is a manifest of an ecosystem that locks by convention with no lock file anywhere
-    above it."""
+    above it, except a go.mod that requires no module (_requires_nothing)."""
     tracked = set(_tracked(repo))
     drift, missing, pairs, workspaces = [], [], 0, {}
     for path in sorted(tracked):
@@ -314,7 +321,7 @@ def lockfiles(repo: str) -> dict:
                 break
             d = os.path.dirname(d)
         if not lock:
-            if name in LOCK_EXPECTED:
+            if name in LOCK_EXPECTED and not (name == "go.mod" and _requires_nothing(repo, path)):
                 missing.append({"manifest": path, "expected": LOCKS[name][:1] if name != "package.json" else ["package-lock.json"]})
             continue
         pairs += 1
