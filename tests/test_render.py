@@ -1751,7 +1751,7 @@ class SummaryLine(unittest.TestCase):
                     {"severity": "info", "title": "Debt in hotspots", "detail": "debt", "advice": "act",
                      "rule": {"id": "debt_in_hotspots"}, "summary": True, "unjudged": True}]
         text = self._text(render.findings_panel(self._findings() + unjudged, {}, full=False))
-        self.assertIn("2 more from the structure step, not labelled yet: Deep nesting and Debt in hotspots; --full lists them", text)
+        self.assertIn("2 more from the structure step, not labelled yet (1 warning, 1 note): Deep nesting and Debt in hotspots; --full lists them", text)
         self.assertNotIn("deep", text.replace("Deep nesting", ""))
         full = self._text(render.findings_panel(self._findings() + unjudged, {}, full=True))
         self.assertIn("deep", full)

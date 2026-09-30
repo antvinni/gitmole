@@ -72,7 +72,8 @@ in plain words, and what to do first. This page is the reference.
 
    The default report folds the rules no label has reached yet into a
    closing line instead of spelling them out ("4 more from the structure
-   step, not labelled yet"); the set is `UNJUDGED` in
+   step, not labelled yet (1 warning, 3 notes)", the severities the
+   header's tally counts them under); the set is `UNJUDGED` in
    [gitmole/findings.py](https://github.com/antvinni/gitmole/blob/main/gitmole/findings.py).
    `--full`, Markdown, JSON (where they carry `"summary": true` and
    `"unjudged": true`), SARIF and `--fail-on` treat them like any other
