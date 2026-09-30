@@ -135,6 +135,17 @@ class Document(unittest.TestCase):
         gone = next(x for x in history["runs"][0]["results"] if x["properties"]["commit"] == "d2d2d2d")
         self.assertEqual(gone["locations"][0]["physicalLocation"]["region"], {"startLine": 3})
 
+    def test_a_declared_value_is_the_declared_findings_and_not_the_criticals(self):
+        said = {"file": ".gitleaks.toml", "commit": "e3ed952", "how": "allowlist regex"}
+        rows = [{"rule": "posthog-project-api-key", "file": "src/a.py", "commit": "c1c1c1c", "line": 9, "fingerprint": "x", "value": "h1", "placeholder": False,
+                 "declared": said},
+                {"rule": "generic-password", "file": "src/a.py", "commit": "d2d2d2d", "line": 3, "fingerprint": "y", "value": "h2", "placeholder": False}]
+        found = [finding("secrets_in_source", "critical", evidence={"files": ["src/a.py"]}),
+                 finding("secrets_declared", "info", evidence={"files": ["src/a.py"]})]
+        results = sarif.build(report(secrets=rows), found, scope="history")["runs"][0]["results"]
+        self.assertEqual([(r["ruleId"], r["properties"]["commit"]) for r in results], [("secrets_in_source", "d2d2d2d"), ("secrets_declared", "c1c1c1c")],
+                         "one file, two values: each result under the finding that holds its value")
+
     def test_vulnerable_dependencies_are_one_result_per_package_with_the_advisory_score(self):
         found = [finding("vulnerable_dependencies", "critical", evidence={"packages": [
             {"name": "minimist", "version": "0.0.8", "source": "package-lock.json", "score": 9.8, "fixed": "1.2.6", "ids": ["GHSA-1"], "aliases": ["CVE-2021-1"], "malicious": False},

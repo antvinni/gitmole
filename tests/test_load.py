@@ -187,6 +187,14 @@ class ParseSecrets(unittest.TestCase):
         self.assertTrue(row["placeholder"])
         self.assertNotIn("dfbbb54", json.dumps(row))
 
+    def test_the_repositorys_declaration_is_carried_with_a_short_commit(self):
+        text = json.dumps([{"RuleID": "x", "File": "a.py", "Commit": "abc1234def", "StartLine": 1, "SecretHash": "h", "Placeholder": False,
+                            "Declared": {"File": ".gitleaks.toml", "Commit": "e3ed9523aaaa", "How": "allowlist regex"}},
+                           {"RuleID": "x", "File": "b.py", "Commit": "abc1234def", "StartLine": 1, "SecretHash": "h2", "Placeholder": False}])
+        rows = load.parse_secrets(text)
+        self.assertEqual(rows[0]["declared"], {"file": ".gitleaks.toml", "commit": "e3ed952", "how": "allowlist regex"})
+        self.assertNotIn("declared", rows[1], "an undeclared row carries no key, as every row did before")
+
     def test_a_row_with_neither_hash_nor_value_still_loads(self):
         row = load.parse_secrets(json.dumps([{"RuleID": "x", "File": "f", "Commit": "c", "StartLine": 1}]))[0]
         self.assertIsNone(row["value"])

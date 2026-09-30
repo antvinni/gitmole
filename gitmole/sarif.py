@@ -99,11 +99,14 @@ def _in_tree(report: dict, path: str) -> bool:
 
 def _secret_results(report: dict, f: dict, scope: str) -> list:
     """One result per distinct (file, commit, line) the scanner reported under this finding's files, from
-    the rows themselves, so the line and the commit are the scanner's; placeholders are not secrets."""
+    the rows themselves, so the line and the commit are the scanner's; placeholders are not secrets. A value
+    the repository declared allowed is secrets_declared's, and no other finding's, though they share a file."""
     wanted = set((f.get("evidence") or {}).get("files") or [])
+    declared = {g["value"] for g in leaks.group(report.get("secrets") or []) if g.get("declared") and g.get("value")}
+    mine = f["rule"]["id"] == "secrets_declared"
     seen, out = set(), []
     for r in report.get("secrets") or []:
-        if r.get("placeholder") or r["file"] not in wanted:
+        if r.get("placeholder") or r["file"] not in wanted or (r.get("value") in declared) != mine:
             continue
         key = (r["file"], r["commit"], r.get("line"))
         if key in seen:

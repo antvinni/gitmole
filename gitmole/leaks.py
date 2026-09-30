@@ -280,6 +280,182 @@ def read_lines(repo: str, rows: list) -> None:
         r["Line"] = line_of(repo, r.get("Commit") or "", r.get("File") or "", int(r.get("StartLine") or 0), above=2, files=files)
 
 
+# What the repository says about its own findings. betterleaks reads the allowlist of the config in the
+# directory it runs in, today's version only, so a value the repository allowlisted and later replaced with
+# another (VoiceStudio's public analytics key, rotated for a second public key) is still reported at the
+# commit that added it. The config files as every commit of HEAD's history had them, and the inline
+# marker on the value's own line in any version of its file, are the repository's declaration.
+CONFIGS = (".gitleaks.toml", ".betterleaks.toml", ".gitleaksignore", ".betterleaksignore")
+ALLOW_MARKERS = ("gitleaks:allow", "betterleaks:allow")
+_TOML_TOKEN = re.compile(r"'''(.*?)'''|\"\"\"(.*?)\"\"\"|'([^'\n]*)'|\"((?:[^\"\\\n]|\\.)*)\"|(#[^\n]*)"
+                         r"|^[ \t]*(\[\[?[^\]\n]*\]\]?)|(?:^|[{,])[ \t]*([A-Za-z0-9_.-]+)[ \t]*=", re.S | re.M)
+_ALLOW_KEYS = ("regexes", "stopwords", "paths", "commits")
+
+
+def _toml_string(m) -> str:
+    if m.group(4) is not None:   # a basic string: its escapes are TOML's, not the regex's
+        return re.sub(r"\\(.)", lambda e: {"n": "\n", "t": "\t", "\\": "\\", '"': '"'}.get(e.group(1), "\\" + e.group(1)), m.group(4))
+    return next(g for g in m.groups()[:3] if g is not None)
+
+
+def allowlists(text: str) -> list:
+    """The allowlists a gitleaks/betterleaks TOML config declares: the global [allowlist], every
+    [[allowlists]] and each rule's [rules.allowlist] / [[rules.allowlists]], as dicts of regexes,
+    stopwords, paths and commits plus regexTarget and condition. A small reader, since the Python gitmole
+    supports may predate tomllib: strings are assigned to the key before them and the table they sit in;
+    an allowlist written as an inline table ({ regexes = [...] }) is not read."""
+    out, current, key = [], None, None
+    for m in _TOML_TOKEN.finditer(text or ""):
+        if m.group(5) is not None:
+            continue
+        if m.group(6) is not None:
+            name = m.group(6).strip("[] \t").lower()
+            current = {k: [] for k in _ALLOW_KEYS} if name.split(".")[-1] in ("allowlist", "allowlists") else None
+            if current is not None:
+                current.update(target="secret", condition="or")
+                out.append(current)
+            key = None
+            continue
+        if m.group(7) is not None:
+            key = m.group(7)
+            continue
+        if current is None or key is None:
+            continue
+        value = _toml_string(m)
+        if key in _ALLOW_KEYS:
+            current[key].append(value)
+        elif key == "regexTarget":
+            current["target"] = value.lower()
+        elif key == "condition":
+            current["condition"] = value.lower()
+    return out
+
+
+def _search(pattern: str, text: str) -> bool:
+    """RE2's pattern against `text`; a pattern Python's re cannot read is compared as a literal."""
+    try:
+        return re.search(pattern.replace(r"\z", r"\Z"), text or "") is not None
+    except re.error:
+        return pattern == text
+
+
+def _allowed_by(lists: list, row: dict) -> str:
+    """How an allowlist of `lists` covers the row's value: "regex", "stopword" or ""; a paths or commits
+    entry is honoured only beside one of those under condition AND, since on its own it declares a place,
+    not the value, and betterleaks applies today's already."""
+    value, line = row.get("Secret") or "", (row.get("Line") or "").split("\n")[-1]
+    for a in lists:
+        subject = {"line": line, "match": row.get("Match") or ""}.get(a["target"], value)
+        hits = {"regex": any(_search(p, subject) for p in a["regexes"]),
+                "stopword": any(w and w.lower() in value.lower() for w in a["stopwords"])}
+        if a["condition"] == "and":
+            place = [c for c, entries in (("paths", a["paths"]), ("commits", a["commits"])) if entries]
+            by_place = all(any(_search(p, row.get("File") or "") for p in a["paths"]) if c == "paths"
+                           else any(str(row.get("Commit") or "").startswith(e) for e in a["commits"] if e) for c in place)
+            asked = [k for k, entries in (("regex", a["regexes"]), ("stopword", a["stopwords"])) if entries]
+            if asked and by_place and all(hits[k] for k in asked):
+                return " and ".join(asked)
+        else:
+            for how in ("regex", "stopword"):
+                if hits[how]:
+                    return how
+    return ""
+
+
+def _stands_alone(value: str, text: str) -> bool:
+    """`value` in `text` with no letter, digit or underscore either side: the value itself, not part of a longer one."""
+    return bool(value) and re.search(r"(?<![A-Za-z0-9_])" + re.escape(value) + r"(?![A-Za-z0-9_])", text or "") is not None
+
+
+def _history(repo: str, paths: list, *extra) -> list:
+    """[(commit, path)] for each commit of HEAD's history that changed one of `paths`, oldest first."""
+    if not paths:
+        return []
+    proc = subprocess.run(["git", "-C", repo, "log", "--reverse", "--format=%x00%H", "--name-only", *extra, "HEAD", "--", *paths],
+                          capture_output=True)
+    if proc.returncode != 0:
+        return []
+    wanted, out = set(paths), []
+    for chunk in proc.stdout.decode("utf-8", "surrogateescape").split("\x00")[1:]:
+        lines = [l for l in chunk.split("\n") if l]
+        out += [(lines[0], p) for p in lines[1:] if p in wanted]
+    return out
+
+
+def _blobs(repo: str, specs: list):
+    """Yield (spec, text or None) for each `rev:path`, from one `git cat-file --batch` read object by object."""
+    if not specs:
+        return
+    proc = subprocess.Popen(["git", "-C", repo, "cat-file", "--batch"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        for spec in specs:
+            proc.stdin.write(spec.encode("utf-8", "surrogateescape") + b"\n")
+            proc.stdin.flush()
+            header = proc.stdout.readline().split()
+            if len(header) != 3 or header[1] != b"blob":
+                if len(header) == 3:   # a tree or a commit: skip its body
+                    proc.stdout.read(int(header[2]) + 1)
+                yield spec, None
+                continue
+            data = proc.stdout.read(int(header[2]) + 1)[:-1]
+            yield spec, data.decode("utf-8", "surrogateescape")
+    finally:
+        proc.stdin.close()
+        proc.stdout.close()
+        proc.wait()
+
+
+def annotate(repo: str, rows: list) -> None:
+    """What the clone says about each row, read while the value is in memory and written as neither the
+    value nor anything derived from it.
+
+    `Declared`, when the repository declared the value allowed at some commit of HEAD's history: an
+    allowlist regex or stopword of a .gitleaks.toml or .betterleaks.toml matches it, it stands on its own
+    in a .gitleaksignore or .betterleaksignore (or the row's fingerprint is listed there), or a version of
+    its file carries it on a line marked gitleaks:allow. {File, Commit, How}: the first declaration."""
+    if not rows:
+        return
+    versions = _history(repo, list(CONFIGS))
+    configs = []   # (commit, path, allowlists or None, text), oldest first
+    for (commit, path), (_, text) in zip(versions, _blobs(repo, [f"{c}:{p}" for c, p in versions])):
+        if text is not None:
+            configs.append((commit, path, allowlists(text) if path.endswith(".toml") else None, text))
+    located = sorted({r.get("File") or "" for r in rows if r.get("Commit") and r.get("File")})
+    # the versions of each file that added or removed a marked line, the only ones that can hold one. Finding
+    # them diffs every version of every file named (15 s on yt-dlp's 118), so only in a repository that uses
+    # the markers today or has had a config: one that removed its every marker and never had a config is missed.
+    uses = bool(configs) or subprocess.run(["git", "-C", repo, "grep", "-q", "-I", "-F", "leaks:allow", "HEAD", "--"],
+                                           capture_output=True).returncode == 0
+    marked = _history(repo, located, "-Gleaks:allow") if located and uses else []
+    marker_lines = {}   # path -> [(commit, marked line)]
+    for (commit, path), (_, text) in zip(marked, _blobs(repo, [f"{c}:{p}" for c, p in marked])):
+        for l in (text or "").split("\n"):
+            if any(m in l for m in ALLOW_MARKERS):
+                marker_lines.setdefault(path, []).append((commit, l))
+    for r in rows:
+        value, path = r.get("Secret") or "", r.get("File") or ""
+        if not value:
+            continue
+        declared = None
+        for commit, cfg, lists, text in configs:
+            if lists is not None:
+                how = _allowed_by(lists, r)
+                how = f"allowlist {how}" if how else ""
+            else:
+                ignored = [l.strip() for l in text.split("\n") if l.strip() and not l.lstrip().startswith("#")]
+                how = ("fingerprint" if r.get("Fingerprint") and r["Fingerprint"] in ignored
+                       else "literal" if any(_stands_alone(value, l) for l in ignored) else "")
+            if how:
+                declared = {"File": cfg, "Commit": commit, "How": how}
+                break
+        if declared is None:
+            hit = next(((c, l) for c, l in marker_lines.get(path, []) if value in l), None)
+            if hit:
+                declared = {"File": path, "Commit": hit[0], "How": next(m for m in ALLOW_MARKERS if m in hit[1])}
+        if declared:
+            r["Declared"] = declared
+
+
 def sanitise(rows: list) -> list:
     key = new_key()   # one key for the whole report, so repeats of a value still group
     out = []
@@ -304,7 +480,7 @@ _ONE_WORD = re.compile(r"[a-z]{3,20}|[A-Z]{3,20}")
 def group(rows: list) -> list:
     """One entry per distinct secret value (placeholders left out): its rule, the files and commits it
     appears in, the number of distinct places (commit, file, line), whether every place is a test
-    file, and whether every place is a documentation file. The strongest come first, since a finding
+    file, whether every place is a documentation file, and the repository's declaration of it, if any. The strongest come first, since a finding
     names the first three: the scanner's highest grade, then a provider's rule before a generic one,
     then values that appear in source, then the most widespread (devlake's critical led with a form
     label's `password: 'Enter Password'` and never named the GitHub token graded high)."""
@@ -315,7 +491,7 @@ def group(rows: list) -> list:
         key = r.get("value") or ("row", i)
         if key not in groups:
             groups[key] = {"value": r.get("value"), "rule": r["rule"], "files": [], "commits": [], "_places": set(), "test": True, "docs": True,
-                           "confidence": None}
+                           "confidence": None, "declared": None}
             order.append(key)
         g = groups[key]
         if r["file"] not in g["files"]:
@@ -325,6 +501,8 @@ def group(rows: list) -> list:
         g["_places"].add((r["commit"], r["file"], r.get("line")))
         if CONFIDENCE.get(r.get("confidence"), -1) > CONFIDENCE.get(g["confidence"], -1):   # the scanner's highest grade for the value
             g["confidence"] = r.get("confidence")
+        if r.get("declared") and not g["declared"]:   # the value is one: a declaration of it anywhere covers every place
+            g["declared"] = r["declared"]
         g["test"] = g["test"] and filetypes.is_test_path(r["file"])
         g["docs"] = g["docs"] and filetypes.is_doc_path(r["file"])
     out = []
@@ -419,6 +597,7 @@ def main(argv=None) -> int:
     read_lines(os.getcwd(), raw)   # betterleaks does not report the line; the clone in the current directory has it
     found = unreachable(os.getcwd())
     extra = scan_unreachable(os.getcwd(), os.path.dirname(os.path.abspath(target)), found) if found else []
+    annotate(os.getcwd(), raw + extra)   # before sanitise drops the values
     rows = sanitise(raw + extra)
     if found is not None:
         with open(os.path.join(os.path.dirname(os.path.abspath(target)), "unreachable.json"), "w", encoding="utf-8") as fh:

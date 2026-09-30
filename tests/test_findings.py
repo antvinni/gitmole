@@ -1369,6 +1369,36 @@ class ImportCommits(unittest.TestCase):
         self.assertIn("79d8f164f8 by Dan (gone, 12,449 files", f[0]["detail"])
 
 
+class SecretsDeclared(unittest.TestCase):
+    """VoiceStudio: a public analytics key the repository allowlisted, then replaced; betterleaks reads today's config only."""
+
+    def test_a_value_the_repository_declared_is_info_naming_the_declaration_and_the_rest_stays_critical(self):
+        said = {"file": ".gitleaks.toml", "commit": "e3ed952", "how": "allowlist regex"}
+        rows = [{"rule": "posthog-project-api-key", "file": "backend/core/analytics.py", "commit": "23f1767", "line": 57, "fingerprint": "a",
+                 "value": "v1", "placeholder": False, "confidence": "high", "declared": said},
+                {"rule": "posthog-project-api-key", "file": "frontend/src/utils/analytics.ts", "commit": "23f1767", "line": 44, "fingerprint": "b",
+                 "value": "v1", "placeholder": False, "confidence": "high"},
+                {"rule": "generic-password", "file": "scripts/smoke.ps1", "commit": "51bbf50", "line": 8, "fingerprint": "c",
+                 "value": "v2", "placeholder": False, "confidence": "medium"}]
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
+        self.assertEqual(set(f), {"secrets_in_source", "secrets_declared"})
+        self.assertIn("1 distinct value in 1 place: generic-password in scripts/smoke.ps1", f["secrets_in_source"]["detail"])
+        d = f["secrets_declared"]
+        self.assertEqual(d["severity"], "info")
+        self.assertIn("posthog-project-api-key in backend/core/analytics.py and 1 other file (23f1767, declared allowed in .gitleaks.toml at e3ed952)",
+                      d["detail"], "one declaration covers the value wherever it is")
+        self.assertNotIn("otate", d["advice"])
+        self.assertEqual(d["evidence"]["declared"], [dict(said, rule="posthog-project-api-key")])
+        self.assertEqual(d["evidence"]["files"], ["backend/core/analytics.py", "frontend/src/utils/analytics.ts"])
+        only = findings.secrets_found(report(secrets=rows[:2]))
+        self.assertEqual([x["severity"] for x in only], ["info"], "nothing critical is left for --fail-on critical to stop on")
+
+    def test_a_declared_value_only_in_tests_is_still_no_finding(self):
+        rows = [{"rule": "x", "file": "tests/t.py", "commit": "c", "line": 1, "fingerprint": "a", "value": "v1", "placeholder": False,
+                 "declared": {"file": ".gitleaksignore", "commit": "d", "how": "fingerprint"}}]
+        self.assertEqual(findings.secrets_found(report(secrets=rows)), [])
+
+
 class SecretsByConfidence(unittest.TestCase):
     def _row(self, value, rule, file, confidence):
         return {"rule": rule, "file": file, "commit": "abc1234", "line": 3, "fingerprint": value, "value": value, "placeholder": False, "confidence": confidence}
