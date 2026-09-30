@@ -181,6 +181,8 @@ def parse_secrets(text: str) -> list:
             out[-1]["at_head"] = r["AtHead"]
             if r["AtHead"] and r.get("HeadLine"):
                 out[-1]["head_line"] = r["HeadLine"]
+        if isinstance(r.get("Local"), bool):   # a credential URI's password: to loopback or a compose service, or not (leaks.mark_local)
+            out[-1]["local"] = r["Local"]
         declared = r.get("Declared")
         if isinstance(declared, dict) and declared.get("File"):   # the repository declared the value allowed (leaks.annotate)
             out[-1]["declared"] = {"file": declared["File"], "commit": str(declared.get("Commit") or "")[:7], "how": declared.get("How", "")}

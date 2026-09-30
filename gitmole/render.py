@@ -946,7 +946,7 @@ def sections(report: dict, full: bool = True, width=None) -> list:
     return out
 
 
-SECRET_FINDINGS = ("secrets_in_source", "secrets_possible", "secrets_declared")
+SECRET_FINDINGS = ("secrets_in_source", "secrets_possible", "secrets_declared", "secrets_local")
 
 
 def secrets_line(report: dict) -> str:
