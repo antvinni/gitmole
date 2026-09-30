@@ -596,7 +596,7 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                f"That is {_pct(covered, total)} of all lines added.",
                advice,
                rule={"id": "knowledge_islands", "min_lines": min_lines, "min_share": min_share, "min_fraction": min_fraction},
-               evidence={"covered_lines": covered, "total_lines": total,
+               evidence={"count": len(islands), "covered_lines": covered, "total_lines": total, "owners": sorted({i["owner"] for i in islands}),
                          "islands": [{"area": i["area"], "owner": i["owner"], "gone": i["owner"] in gone, "share_pct": i["share"], "lines": i["lines"]}
                                      for i in islands[:10]]})]
 
@@ -1505,7 +1505,7 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
                rule={"id": "truck_factor", "doa_author_share": 0.75, "doa_floor": 3.293, "orphan_share": 0.5, "decay_months": 5,
                      "ref": "Avelino et al., ICPC 2016"},
                evidence={"truck_factor": tf, "removed": removed, "truck_factor_decayed": tf_d, "removed_decayed": removed_d,
-                         "files": len(files), "orphaned": orphans,
+                         "files": len(files), "orphaned": orphans, "area_authors": sorted({w for _, w, _, _ in lone}),
                          "areas": [{"area": a, "author": w, "files": n, "orphaned": o} for a, w, n, o in lone[:10]]})]
 
 
@@ -1532,10 +1532,71 @@ UNJUDGED = frozenset({"commented_out_code", "debt_in_hotspots", "deep_nesting", 
                       "hidden_coupling", "import_cycles", "swallowed_errors", "unreferenced_files"})
 
 
+OWNERSHIP = ("bus_factor", "truck_factor", "knowledge_islands")   # in the order the merged finding takes its lead from
+
+
+def _sole_person(f: dict):
+    """The one person an ownership finding is about, or None when it names several: the bus factor's author, a
+    truck factor of one whose areas of one are all theirs, islands that all have the same owner."""
+    rid, ev = f["rule"]["id"], f["evidence"]
+    if rid == "bus_factor":
+        return ev.get("author")
+    if rid == "truck_factor":
+        who = ev.get("removed") or []
+        return who[0] if ev.get("truck_factor") == 1 and len(who) == 1 and set(ev.get("area_authors") or who) <= set(who) else None
+    owners = ev.get("owners") or []
+    return owners[0] if len(owners) == 1 else None
+
+
+def one_owner(found: list, gone: set) -> list:
+    """The bus factor, the truck factor and the knowledge islands, when two or more of them name the same single
+    person, as one finding: they are one fact measured three ways (surviving lines, files that would lose their
+    author, areas one person wrote), and hindsight's report said it three times with three start areas. The lead
+    is the first of OWNERSHIP present; the others' rules and evidence ride along under `measures`, and a second
+    sentence gives their numbers, so which measures fired stays visible. The start area is the truck factor's,
+    the person's area with the most files at stake, when it counted one; otherwise the lead's advice stands."""
+    by = {f["rule"]["id"]: f for f in found if f["rule"]["id"] in OWNERSHIP}
+    people = {rid: _sole_person(f) for rid, f in by.items()}
+    for who in {p for p in people.values() if p}:
+        same = [rid for rid in OWNERSHIP if people.get(rid) == who]
+        if len(same) < 2:
+            continue
+        lead, rest = by[same[0]], [by[rid] for rid in same[1:]]
+        parts = []
+        bus, truck, isl = (by[rid] if rid in same else None for rid in OWNERSHIP)
+        name = _who(who, gone)
+        if truck:
+            ev = truck["evidence"]
+            parts.append(f"without {'them' if bus else name}, {ev['orphaned']} of the {ev['files']} source files "
+                         f"({_pct(ev['orphaned'], ev['files'])}) have no author left (truck factor 1)")
+        if isl:
+            ev = isl["evidence"]
+            parts.append(f"{ev['count']} area(s) of at least {isl['rule']['min_lines']} lines are almost entirely theirs, "
+                         f"{_pct(ev['covered_lines'], ev['total_lines'])} of all lines added (knowledge islands)")
+        said = ", and ".join(parts)
+        said = said[0].upper() + said[1:] + "."
+        if bus:
+            ev = bus["evidence"]
+            statement = f"{name} wrote {_pct(ev['lines'], ev['total_lines'])} of the code that survives today. {said}"
+        else:
+            statement = said
+        advice = lead["advice"]
+        mine = [a for a in (truck["evidence"]["areas"] if truck else []) if a["author"] == who]
+        if truck and mine and who not in gone:
+            a = mine[0]   # ordered by files at stake
+            advice = f"Pair someone with {who} on {a['area']} first; {a['orphaned']} of its {a['files']} files would have no author left without them."
+        merged = _f(max((lead, *rest), key=lambda f: -SEVERITIES.index(f["severity"]))["severity"], lead["title"], statement, advice,
+                    rule={**lead["rule"], "measures": {f["rule"]["id"]: f["rule"] for f in rest}},
+                    evidence={**lead["evidence"], "measures": {f["rule"]["id"]: f["evidence"] for f in rest}})
+        found = [merged if f is lead else f for f in found if not any(f is r for r in rest)]
+    return found
+
+
 def evaluate(report: dict) -> list:
     found = []
     for rule in RULES:
         found.extend(rule(report))
+    found = one_owner(found, _gone(report))
     for f in found:
         if f["rule"]["id"] in UNJUDGED:
             f["summary"] = True

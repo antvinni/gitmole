@@ -888,7 +888,8 @@ class Advice(unittest.TestCase):
                                  "vulnerable": [{"name": "x", "version": "1", "ecosystem": "PyPI", "source": "uv.lock", "ids": ["GHSA-1"], "aliases": [],
                                                  "advisories": 1, "score": 8.0, "severity": "high", "summary": "", "fixed": "2"}]},
                    age=[{"entity": "a.py", "age-months": 30}, {"entity": "b.py", "age-months": 0}],
-                   ownership=[{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0}])
+                   ownership=[{"entity": "core/a.py", "author": "Ann", "added": 950, "deleted": 0},
+                              {"entity": "web/b.py", "author": "Bob", "added": 900, "deleted": 0}])   # islands of two people: not merged into the bus factor
         r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 5, "aliases": [{"name": "root", "email": "root@localhost", "commits": 1}]}]
         found = findings.evaluate(r)
         self.assertEqual({f["title"] for f in found} >= {"Bus factor of one", "Bug magnets", "Brain methods",
@@ -1461,6 +1462,53 @@ class TruckFactor(unittest.TestCase):
         self.assertNotIn("()", f["detail"])
         self.assertIn("With knowledge halving every five months, more than half the files already have no author", f["detail"])
         self.assertEqual(f["evidence"]["truck_factor_decayed"], 0)
+
+
+class OneOwner(unittest.TestCase):
+    """The bus factor, the truck factor and the knowledge islands naming one person are one finding: hindsight's
+    report said the same fact three times, each with its own start area."""
+    rep, row = TruckFactor.rep, TruckFactor.row
+
+    def doa(self):
+        return ([self.row(f"core/a{i}.py", "Ann") for i in range(20)] + [self.row(f"docs/d{i}.py", "Ann") for i in range(10)]
+                + [self.row(f"web/b{i}.py", "Bob") for i in range(8)])
+
+    def own(self):
+        return [{"entity": "core/a0.py", "author": "Ann", "added": 900, "deleted": 0}, {"entity": "web/b0.py", "author": "Bob", "added": 50, "deleted": 0},
+                {"entity": "docs/d0.py", "author": "Ann", "added": 300, "deleted": 0}]
+
+    def test_one_person_three_measures_is_one_finding(self):
+        found = findings.evaluate(self.rep(self.doa(), theseus_authors={"Ann": 90, "Bob": 10}, ownership=self.own()))
+        ids = [f["rule"]["id"] for f in found]
+        self.assertEqual([i for i in ids if i in findings.OWNERSHIP], ["bus_factor"])
+        [f] = [f for f in found if f["rule"]["id"] == "bus_factor"]
+        self.assertEqual(f["severity"], "warning")
+        self.assertEqual(set(f["rule"]["measures"]), {"truck_factor", "knowledge_islands"}, "which measures fired stays in the rule")
+        self.assertEqual(f["evidence"]["measures"]["truck_factor"]["truck_factor"], 1)
+        self.assertEqual(f["evidence"]["measures"]["knowledge_islands"]["owners"], ["Ann"])
+        self.assertIn("Ann wrote 90% of the code that survives today. Without them, 30 of the 38 source files (79%) have no author left (truck factor 1)", f["detail"])
+        self.assertIn("2 area(s) of at least 200 lines are almost entirely theirs", f["detail"])
+        self.assertIn("(knowledge islands)", f["detail"])
+        self.assertEqual(f["advice"], "Pair someone with Ann on core/ first; 20 of its 20 files would have no author left without them.",
+                         "the start area is the one with the most files at stake")
+
+    def test_different_people_stay_apart(self):
+        found = findings.evaluate(self.rep(self.doa(), theseus_authors={"Bob": 90, "Ann": 10}))
+        ids = {f["rule"]["id"] for f in found}
+        self.assertLessEqual({"bus_factor", "truck_factor"}, ids)
+        self.assertNotIn("measures", next(f for f in found if f["rule"]["id"] == "bus_factor")["rule"])
+
+    def test_a_truck_factor_with_someone_elses_area_of_one_stays_apart(self):
+        doa = self.doa() + [self.row(f"web/c{i}.py", "Bob") for i in range(4)]   # web/ now has 12 files, all Bob's
+        found = findings.evaluate(self.rep(doa, theseus_authors={"Ann": 90, "Bob": 10}))
+        self.assertLessEqual({"bus_factor", "truck_factor"}, {f["rule"]["id"] for f in found})
+
+    def test_two_of_three_merge_and_keep_the_leads_title(self):
+        found = findings.evaluate(self.rep(self.doa(), theseus_authors={"Ann": 60, "Bob": 40}, ownership=self.own()))
+        [f] = [f for f in found if f["rule"]["id"] in findings.OWNERSHIP]
+        self.assertEqual((f["rule"]["id"], f["title"]), ("truck_factor", "Truck factor"))
+        self.assertEqual(list(f["rule"]["measures"]), ["knowledge_islands"])
+        self.assertTrue(f["detail"].startswith("Without Ann, 30 of the 38 source files"), f["detail"])
 
 
 class ImportCommits(unittest.TestCase):
