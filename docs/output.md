@@ -102,7 +102,15 @@ in plain words, and what to do first. This page is the reference.
      again in recent months; a file whose recent fixes were all commits that
      also fixed a file listed above it is counted with that file ("fixed in
      the same commits"), and a file that first appeared inside the six months
-     says it is new in the window, when the history reaches back past them;
+     says it is new in the window, when the history reaches back past them.
+     A busy file in a repository that fixes a lot is fixed a lot, so the
+     finding names first the files fixed more often than the repository's
+     own fixes per change explain, and says how many there are, or "none":
+     a one-sided binomial test per file over the whole history, with a
+     Benjamini-Hochberg false discovery rate of 5% over every source file.
+     Fixes cluster within a pull request, which makes the test err towards
+     finding, so it orders and annotates and decides nothing: which files
+     are magnets, and the severity, are the six months' counts;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
    - hotspots getting more complex, a warning when the top one did;

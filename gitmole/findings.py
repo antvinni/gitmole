@@ -2,6 +2,7 @@
 carries the short citation in its rule dict's `ref` (see REFS); docs/references.md has the full entries."""
 from __future__ import annotations
 
+import math
 import os
 import re
 
@@ -450,35 +451,104 @@ def _magnet_items(hot: list, history: dict, now: str, since: str = None) -> list
     return items
 
 
+FIX_RATE_Q = 0.05   # the false discovery rate the fix-rate test keeps to, Benjamini and Hochberg's own example
+
+
+def _binomial_tail(k: int, n: int, p: float) -> float:
+    """P(X >= k) for X ~ Binomial(n, p), summed upward from k in log space until the terms stop mattering."""
+    if k <= 0:
+        return 1.0
+    if k > n:
+        return 0.0
+    lp, lq = math.log(p), math.log1p(-p)
+    term = math.exp(math.lgamma(n + 1) - math.lgamma(k + 1) - math.lgamma(n - k + 1) + k * lp + (n - k) * lq)
+    total, i, mode = term, k, (n + 1) * p
+    while i < n:
+        term *= (n - i) / (i + 1) * p / (1 - p)
+        i += 1
+        total += term
+        if i > mode and term <= total * 1e-17:
+            break
+    return min(1.0, total)
+
+
+def _benjamini_hochberg(pvalues: dict, q: float) -> set:
+    """The keys whose null the Benjamini-Hochberg step-up procedure rejects at false discovery rate q."""
+    ranked = sorted(pvalues.items(), key=lambda kv: (kv[1], kv[0]))
+    m, cut = len(ranked), 0
+    for i, (_, pv) in enumerate(ranked, 1):
+        if pv <= q * i / m:
+            cut = i
+    return {k for k, _ in ranked[:cut]}
+
+
+def fix_prone(report: dict, keep, q: float = FIX_RATE_Q):
+    """The files fixed more often than the repository's own fixes explain: per file, a one-sided
+    binomial test of its fix commits against its changes at the repository's rate (fixes over changes
+    across every file `keep` admits), then Benjamini-Hochberg over all of them at false discovery rate
+    `q`. Counts are the whole analysed history's, as maat-fixes and maat-revisions draw them from the
+    same commits; the six-month window is what picked the magnets, and testing them on the counts they
+    were picked by would find what it selected. Fixes cluster (one pull request, several fix commits),
+    so the variance is wider than a binomial's and the test errs towards discovery (Spiegelhalter,
+    Stat Med 2005): the result orders and annotates, it decides nothing. None when there is no rate to
+    test against: no change table, or every change a fix or none."""
+    fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or [] if keep(f["entity"])}
+    changes = {r["entity"]: r["n-revs"] for r in report.get("revisions") or [] if keep(r["entity"])}
+    if not changes:
+        return None
+    pool = {e: (fixes.get(e, 0), max(n, fixes.get(e, 0))) for e, n in changes.items()}   # a file with no change row is not tested
+    total_fixes, total_changes = sum(k for k, _ in pool.values()), sum(n for _, n in pool.values())
+    if not 0 < total_fixes < total_changes:
+        return None
+    rate = total_fixes / total_changes
+    pvalues = {e: _binomial_tail(k, n, rate) for e, (k, n) in pool.items() if n}
+    return {"fixes": total_fixes, "changes": total_changes, "files": len(pvalues), "q": q,
+            "above": _benjamini_hochberg(pvalues, q), "p": pvalues, "counts": pool}
+
+
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     """Source files with a run of recent fix commits. Test files are left out: they change with every fix.
     So is release plumbing: a manifest touched by every fix release is not where the bug was.
     So is a file no longer in the tree: the finding names files to review before the next release, and
     a file a later commit deleted is history (from the run's listing of HEAD, else scc's file list).
-    A file whose recent fixes all fixed a file above it too is listed with that file (see _magnet_items)."""
+    A file whose recent fixes all fixed a file above it too is listed with that file (see _magnet_items).
+    Most magnets are busy files in a repository that fixes a lot, so the finding names first the ones
+    fixed more often than the repository's own fixes explain (see fix_prone), says how many of all
+    there are, and says so when there are none. Which files are magnets, and the severity, stay the
+    window's counts: the test annotates and orders."""
     import datetime as _dt
     plumb, derived, tree = filetypes.plumbing_paths(report), _generated(report), report.get("tree") or _tree(report)
-    hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent
-           and not (filetypes.is_test_path(f["entity"]) or filetypes.is_release(f["entity"], plumb) or f["entity"] in derived)
-           and (not tree or f["entity"] in tree)]
+
+    def keep(path):
+        return not (filetypes.is_test_path(path) or filetypes.is_release(path, plumb) or path in derived) and (not tree or path in tree)
+    hot = [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and keep(f["entity"])]
     if not hot:
         return []
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
     sev = "warning" if hot[0]["recent-fixes"] >= warn_at else "info"
+    prone = fix_prone(report, keep)
+    above = [f for f in hot if f["entity"] in prone["above"]] if prone else []
     history = report.get("fix_history") or {}
-    items = _magnet_items(hot, history, report["meta"].get("now") or _dt.date.today().isoformat(), report["meta"].get("first_date"))
+    order = sorted(hot, key=lambda f: f["entity"] not in prone["above"]) if prone else hot   # stable: the window's order within each
+    items = _magnet_items(order, history, report["meta"].get("now") or _dt.date.today().isoformat(), report["meta"].get("first_date"))
     listed = "; ".join(text for _, text, _, _ in items[:5])
     more = len(hot) - sum(len(paths) for paths, _, _, _ in items[:5])
     more = f" and {more} more" if more > 0 else ""
     first = " and ".join(label for _, _, label, _ in items[:2])
     clusters = [{"file": paths[0], "with": paths[1:], "fixes": history[paths[0]]["recent"]} for paths, _, _, _ in items if len(paths) > 1]
     fresh = [p for _, _, _, new in items for p in new]
+    rate = "" if prone is None else f", {len(above) or 'none'} beyond this repository's fix rate"
     return [_f(sev, "Bug magnets",
-               f"{len(hot)} file(s) were fixed {min_recent}+ times in the last six months: {listed}{more}.",
-               f"Review {first} before the next release; fixes keep landing there.",
+               f"{len(hot)} file(s) were fixed {min_recent}+ times in six months{rate}: {listed}{more}.",
+               f"Review {first} before the next release.",
                rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so",
-                     "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing"},
+                     "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing",
+                     "above_rate": {"test": "one-sided binomial, a file's fixes against its changes at the repository's fixes per change, whole history",
+                                    "fdr": "Benjamini-Hochberg over every source file", "q": FIX_RATE_Q, "ref": "Benjamini and Hochberg, JRSS B 1995"}},
                evidence={"count": len(hot), "files": [{"file": f["entity"], "recent_fixes": f["recent-fixes"], "fixes": f["n-fixes"]} for f in hot[:10]],
+                         **({"fix_rate": {"fixes": prone["fixes"], "changes": prone["changes"], "files": prone["files"],
+                                          "above_rate": [{"file": f["entity"], "fixes": prone["counts"][f["entity"]][0], "changes": prone["counts"][f["entity"]][1]}
+                                                         for f in above[:10]]}} if prone else {}),
                          **({"shared_fixes": clusters} if clusters else {}), **({"new_in_window": fresh} if fresh else {})})]
 
 

@@ -438,12 +438,12 @@ class BugMagnets(unittest.TestCase):
         self.assertIn("core/util.py (3", f[0]["detail"])
         self.assertNotIn("tests/", f[0]["detail"])
         self.assertNotIn("core/old.py", f[0]["detail"])
-        self.assertTrue(f[0]["detail"].endswith("Review core/parser.py and core/util.py before the next release; fixes keep landing there."), f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Review core/parser.py and core/util.py before the next release."), f[0]["detail"])
 
     def test_info_below_five_recent_fixes(self):
         f = findings.bug_magnets(report(fixes=self.FIXES[1:2]))
         self.assertEqual(f[0]["severity"], "info")
-        self.assertTrue(f[0]["detail"].endswith("Review core/util.py before the next release; fixes keep landing there."), f[0]["detail"])
+        self.assertTrue(f[0]["detail"].endswith("Review core/util.py before the next release."), f[0]["detail"])
 
     def test_a_file_whose_recent_fixes_all_fixed_a_file_above_it_is_listed_with_that_file(self):
         fixes = [{"entity": f"plug/tasks/{n}.go", "n-fixes": k, "last-fix": "2026-09-01", "recent-fixes": k}
@@ -456,7 +456,7 @@ class BugMagnets(unittest.TestCase):
         r = report(fixes=fixes, fix_history=history)
         r["meta"]["now"] = "2026-09-17"
         f = findings.bug_magnets(r)[0]
-        self.assertIn("5 file(s) were fixed 3+ times in the last six months: core/parser.py (5 recent, 9 total); "
+        self.assertIn("5 file(s) were fixed 3+ times in six months: core/parser.py (5 recent, 9 total); "
                       "plug/tasks/user.go (5 recent, 5 total) and 2 files beside it fixed in the same commits; "
                       "plug/tasks/helper.go (4 recent, 4 total).", f["detail"], "created seven months before now: not new in the window")
         self.assertIn("Review core/parser.py and plug/tasks/user.go before the next release", f["advice"])
@@ -492,7 +492,7 @@ class BugMagnets(unittest.TestCase):
                                 "core/util.py": {"first": "2026-04-10", "recent": ["f", "g", "h"]}})
         r["meta"].update({"now": "2026-09-17", "first_date": "2026-04-10"})
         f = findings.bug_magnets(r)[0]
-        self.assertIn("fixed 3+ times in the last six months: core/parser.py (5 recent); core/util.py (3 recent).", f["detail"])
+        self.assertIn("fixed 3+ times in six months: core/parser.py (5 recent); core/util.py (3 recent).", f["detail"])
         self.assertNotIn("new_in_window", f["evidence"])
 
     def test_without_the_commits_every_file_stands_alone(self):
@@ -510,6 +510,53 @@ class BugMagnets(unittest.TestCase):
         by_scc = report(fixes=[gone, *self.FIXES], size={"files": {"core/parser.py": {"code": 9}, "core/util.py": {"code": 3}}})
         self.assertNotIn("frontend/app.js", findings.bug_magnets(by_scc)[0]["detail"], "an output directory from before tree.txt: scc's list")
         self.assertIn("frontend/app.js", findings.bug_magnets(report(fixes=[gone, *self.FIXES]))[0]["detail"], "nothing to judge by: kept")
+
+    @staticmethod
+    def rated(fixes, revs):
+        """A report whose change table holds `revs` ({file: changes}) beside 97 quiet files, 2 changes each and
+        no fix: the repository fixes about one change in ten."""
+        quiet = {f"src/q{i}.py": 2 for i in range(97)}
+        return report(fixes=[{"entity": e, "n-fixes": k, "last-fix": "2026-09-01", "recent-fixes": r} for e, k, r in fixes],
+                      revisions=[{"entity": e, "n-revs": n} for e, n in {**revs, **quiet}.items()])
+
+    def test_names_first_the_files_fixed_beyond_the_repository_rate(self):
+        """VoiceStudio fixes 45% of its changes: most of its magnets were busy files at that rate, and one
+        of the five named was fixed less often than the repository's average."""
+        r = self.rated([("src/busy.py", 30, 9), ("src/prone.py", 12, 4)], {"src/busy.py": 200, "src/prone.py": 14})
+        prone = findings.fix_prone(r, lambda p: True)
+        self.assertEqual((prone["fixes"], prone["changes"], prone["files"]), (42, 408, 99))
+        self.assertEqual(prone["above"], {"src/prone.py"}, "12 of 14 against 42 of 408; 30 of 200 is about the rate")
+        f = findings.bug_magnets(r)[0]
+        self.assertIn("2 file(s) were fixed 3+ times in six months, 1 beyond this repository's fix rate: "
+                      "src/prone.py (4 recent, 12 total); src/busy.py (9 recent, 30 total).", f["detail"])
+        self.assertIn("Review src/prone.py and src/busy.py before the next release.", f["advice"])
+        self.assertEqual(f["severity"], "warning", "severity stays the window's: busy.py has 9 recent fixes")
+        self.assertEqual([x["file"] for x in f["evidence"]["files"]], ["src/busy.py", "src/prone.py"], "the named files keep the window's order")
+        self.assertEqual(f["evidence"]["fix_rate"], {"fixes": 42, "changes": 408, "files": 99,
+                                                     "above_rate": [{"file": "src/prone.py", "fixes": 12, "changes": 14}]})
+
+    def test_says_so_when_none_is_fixed_beyond_the_rate(self):
+        r = self.rated([("src/busy.py", 30, 9), ("src/lib.py", 20, 0)], {"src/busy.py": 300, "src/lib.py": 100})
+        f = findings.bug_magnets(r)[0]   # 30 of 300 against 50 of 494
+        self.assertIn("1 file(s) were fixed 3+ times in six months, none beyond this repository's fix rate: src/busy.py", f["detail"])
+        self.assertEqual(f["evidence"]["fix_rate"]["above_rate"], [])
+
+    def test_the_rate_is_over_the_files_the_rule_reads(self):
+        """Tests change with every fix and are left out of the magnets, so they are left out of the rate too."""
+        r = self.rated([("src/prone.py", 12, 4), ("tests/test_prone.py", 12, 4)], {"src/prone.py": 14, "tests/test_prone.py": 14})
+        f = findings.bug_magnets(r)[0]
+        self.assertEqual((f["evidence"]["fix_rate"]["fixes"], f["evidence"]["fix_rate"]["changes"]), (12, 208))
+
+    def test_the_binomial_tail_and_the_step_up(self):
+        from math import comb
+        for k, n, p in ((0, 5, 0.3), (3, 10, 0.2), (12, 14, 0.1), (30, 200, 0.103), (7, 7, 0.5), (8, 7, 0.5)):
+            exact = sum(comb(n, i) * p ** i * (1 - p) ** (n - i) for i in range(k, n + 1))
+            self.assertAlmostEqual(findings._binomial_tail(k, n, p), exact, places=12, msg=(k, n, p))
+        self.assertLess(findings._binomial_tail(105, 132, 0.451), 1e-9)
+        # Benjamini and Hochberg's step-up: the largest i with p(i) <= q i / m, and every smaller p with it
+        self.assertEqual(findings._benjamini_hochberg({"a": 0.01, "b": 0.02, "c": 0.04, "d": 0.5}, 0.05), {"a", "b"})
+        self.assertEqual(findings._benjamini_hochberg({"a": 0.02, "b": 0.025, "c": 0.9}, 0.05), {"a", "b"}, "0.02 > 0.05/3 alone, but b carries it")
+        self.assertEqual(findings._benjamini_hochberg({"a": 0.2}, 0.05), set())
 
     def test_nothing_without_recent_fixes(self):
         self.assertEqual(findings.bug_magnets(report(fixes=self.FIXES[3:])), [])
@@ -857,8 +904,11 @@ class Advice(unittest.TestCase):
         f = findings.bug_magnets(report(fixes=[{"entity": "a.py", "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5},
                                                {"entity": "b.py", "n-fixes": 3, "last-fix": "2026-08-01", "recent-fixes": 3}]))[0]
         self.assertEqual(f["rule"], {"id": "bug_magnets", "min_recent": 3, "warn_at": 5, "window_months": 6, "fix": "the commit subject says so",
-                                     "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing"})
-        self.assertEqual(f["evidence"], {"count": 2, "files": [{"file": "a.py", "recent_fixes": 5, "fixes": 9}, {"file": "b.py", "recent_fixes": 3, "fixes": 3}]})
+                                     "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing",
+                                     "above_rate": {"test": "one-sided binomial, a file's fixes against its changes at the repository's fixes per change, whole history",
+                                                    "fdr": "Benjamini-Hochberg over every source file", "q": 0.05, "ref": "Benjamini and Hochberg, JRSS B 1995"}})
+        self.assertEqual(f["evidence"], {"count": 2, "files": [{"file": "a.py", "recent_fixes": 5, "fixes": 9}, {"file": "b.py", "recent_fixes": 3, "fixes": 3}]},
+                         "no change table for a.py or b.py: no rate to test against, so no fix_rate")
         self.assertTrue(all(x["recent_fixes"] >= f["rule"]["min_recent"] for x in f["evidence"]["files"]))
 
     def test_a_bus_factor_can_be_rechecked_from_its_own_rule_and_evidence(self):
