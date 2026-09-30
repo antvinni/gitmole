@@ -957,18 +957,31 @@ def sections(report: dict, full: bool = True, width=None) -> list:
     return out
 
 
+SECRET_FINDINGS = ("secrets_in_source", "secrets_possible", "secrets_declared")
+
+
 def secrets_line(report: dict) -> str:
+    """The scan's totals, and how many of them no finding holds: since 0.39.0 a value only in test, example,
+    vendored, generated or documentation files is no finding, so VoiceStudio's footer counted 4 values
+    beside a finding of 2 with nothing to say where the other 2 went. Saying so costs a wrapped line at
+    80 columns on every development repository, which the report-length ceiling does not allow; it is
+    paid for by the unreachable sweep's parenthetical, kept only on a line with no values to report."""
+    from .findings import secrets_found
     rows = report.get("secrets") or []
     groups = leaks.group(rows)
     places = sum(g["places"] for g in groups)
     line = (f"Secrets: {len(groups)} distinct value{'s' if len(groups) != 1 else ''} in {places} place{'s' if places != 1 else ''}"
             if groups else "Secrets: none found")
+    if groups:
+        held = sum((f.get("evidence") or {}).get("values", 0) for f in secrets_found(report) if f["rule"]["id"] in SECRET_FINDINGS)
+        if len(groups) > held:   # the rest are only in test, example, vendored, generated or documentation files
+            line += f", {len(groups) - held} never in source (secrets.json)"
     skipped = leaks.placeholders(rows)
     if skipped:
         line += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
     loose = report.get("unreachable") or {}
     if loose and not loose.get("objects"):
-        line += "; no unreachable objects (a fresh clone fetches only what a ref reaches)"
+        line += "; no unreachable objects" + ("" if groups else " (a fresh clone fetches only what a ref reaches)")
     elif loose.get("scanned"):
         line += f"; {loose['scanned']:,} unreachable blob{'s' if loose['scanned'] != 1 else ''} scanned too"
     return line
