@@ -147,6 +147,22 @@ class Document(unittest.TestCase):
         history = sarif.build(report(tree=tree), found, scope="history")["runs"][0]["results"]
         self.assertEqual(len([r for r in history if r["ruleId"] == "unpinned_actions"]), 2)
 
+    def test_every_unpinned_action_is_a_result_at_its_uses_line(self):
+        """paperclip: the evidence keeps ten rows, so SARIF covered 2 of 7 workflow files, both at line 1. The report's
+        rows are all of them, each with the line of its uses:; a row from an older output directory goes to line 1."""
+        rows = [{"file": ".github/workflows/w%d.yml" % i, "uses": "actions/checkout@v4", "line": 10 + i} for i in range(12)]
+        rows.append({"file": ".github/workflows/w0.yml", "uses": "x/y@main"})
+        found = [finding("unpinned_actions", evidence={"count": 13, "unpinned": [{"file": r["file"], "uses": r["uses"]} for r in rows[:10]]})]
+        tree = frozenset(r["file"] for r in rows)
+        results = sarif.build(report(tree=tree, hygiene={"actions": {"unpinned": rows, "unpinned_count": 13}}), found)["runs"][0]["results"]
+        places = [(r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"], r["locations"][0]["physicalLocation"]["region"]["startLine"])
+                  for r in results]
+        self.assertEqual(len(results), 13)
+        self.assertEqual(places[0], (".github/workflows/w0.yml", 10))
+        self.assertEqual(places[-1], (".github/workflows/w0.yml", 1))
+        self.assertTrue(results[0]["message"]["text"].startswith("actions/checkout@v4 in .github/workflows/w0.yml, line 10: "))
+        self.assertEqual(len({r["partialFingerprints"]["gitmole/v1"] for r in results}), 13)
+
     def test_a_tracked_credential_file_is_in_the_tree_though_scc_does_not_count_it(self):
         """prometheus: web/ui/react-app/.env is in git's index (meta.credential_files) and in no scc language."""
         r = report(meta={"name": "demo", "credential_files": ["web/.env"]})

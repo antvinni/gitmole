@@ -326,8 +326,9 @@ changed this month; the files have 130 prior changes by 3 people; Bob has
 `gitmole . --sarif gitmole.sarif` writes the findings in the format GitHub
 code scanning and GitLab read: one run with gitmole as the driver, a rule
 per finding id with its title, detail and advice, a result per place the
-evidence names (a finding about a whole file, such as `unpinned_actions`'
-workflows or `lockfile_drift`'s manifests, points at line 1 of each), `level` from the severity (critical is `error`, warning is
+evidence names (a finding about a whole file, such as `lockfile_drift`'s
+manifests, points at line 1 of each; `unpinned_actions` has a result per
+`uses:` the hygiene step recorded, up to 50, at its line), `level` from the severity (critical is `error`, warning is
 `warning`, info is `note`). The security rules alone (secrets, credential
 files, vulnerable dependencies, Trojan Source characters, unpinned actions,
 install scripts, dependency confusion, committed binaries, submodule URLs,

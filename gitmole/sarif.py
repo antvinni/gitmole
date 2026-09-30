@@ -106,8 +106,9 @@ def _places(f: dict) -> list:
         area = a.get("area") if isinstance(a, dict) else None
         if area and area != "(root files)":
             out.append((area.rstrip("/"), None, None, ""))
-    # a file the finding is about as a whole: unpinned_actions' workflow files, lockfile_drift's manifests. Line
-    # 1, since code scanning shows a result by its region and neither rule records a line; one result per file
+    # a file the finding is about as a whole: lockfile_drift's manifests, and unpinned_actions' workflow files when
+    # the report has no rows behind the finding (_action_results). Line 1, since code scanning shows a result by
+    # its region and the rule records no line; one result per file
     named = [u.get("file") for u in items("unpinned") if isinstance(u, dict)] + \
         [d.get("manifest") for d in items("drift") if isinstance(d, dict)]
     for path in dict.fromkeys(p for p in named if isinstance(p, str) and p):
@@ -215,6 +216,28 @@ def _dependency_results(report: dict, f: dict) -> list:
     return out
 
 
+def _action_results(report: dict, f: dict, scope: str) -> list:
+    """One result per unpinned `uses:` the hygiene step recorded, at its line: every row, not the ten the
+    finding's evidence keeps (paperclip's SARIF covered 2 of its 7 workflow files, both at line 1). A row from
+    an output directory older than the recorded line is placed at line 1 of its workflow. A finding with no
+    rows in the report behind it (a hand-built one) falls back to its evidence's files."""
+    rows = ((report.get("hygiene") or {}).get("actions") or {}).get("unpinned")
+    if not rows:
+        return []
+    rule, level, severity = f["rule"]["id"], LEVELS[f["severity"]], _severity(f["rule"]["id"], f["severity"])
+    out, seen = [], set()
+    for r in rows:
+        line = r.get("line") or 1
+        if (r["file"], line, r["uses"]) in seen or (scope == "head" and not _in_tree(report, r["file"])):
+            continue
+        seen.add((r["file"], line, r["uses"]))
+        text = (f"{r['uses']} in {r['file']}" + (f", line {r['line']}" if r.get("line") else "") +
+                ": an action used by tag or branch, which whoever controls the action can move to other code. "
+                "Pin it to a full commit SHA, with the tag in a comment.")
+        out.append(_result(rule, level, severity, text, r["file"], line, None, r["uses"]))
+    return out
+
+
 def leaks_prefix() -> str:
     from . import findings
     return findings.MALICIOUS_PREFIX
@@ -237,6 +260,8 @@ def _finding_results(report: dict, f: dict, scope: str) -> list:
         return _secret_results(report, f, scope)
     if rule.startswith("vulnerable_dependencies"):
         return _dependency_results(report, f)
+    if rule == "unpinned_actions" and ((report.get("hygiene") or {}).get("actions") or {}).get("unpinned"):
+        return _action_results(report, f, scope)
     places = _places(f)
     if not places:
         return [_result(rule, level, severity, f["detail"])] if scope == "history" or not _repo_wide_needs_tree(f) else []

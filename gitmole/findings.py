@@ -971,7 +971,8 @@ def _hygiene_actions(h: dict, out: list) -> None:
         out.append(_f("warning", "Actions pinned by tag or branch",
                       f"{n} of {total} workflow steps use an action by tag or branch: {listed}. Whoever controls the action can move the tag to other code.",
                       f"Pin {first} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
-                      rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0), "unpinned": a["unpinned"][:10]}))
+                      rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0),
+                                                                                                "unpinned": [{"file": u["file"], "uses": u["uses"]} for u in a["unpinned"][:10]]}))
 
 
 def _drift_past_sweeps(lf: dict, swept: list) -> dict:

@@ -42,7 +42,8 @@ class ActionsPinning(unittest.TestCase):
             r.write(".github/workflows/release.yaml", "jobs:\n  r:\n    steps:\n      - uses: softprops/action-gh-release@" + "b" * 64 + "\n")
             r.commit()
             out = hygiene.actions_pinning(d)
-        self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4"}, {"file": ".github/workflows/ci.yml", "uses": "org/repo@main"}])
+        self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4", "line": 4},
+                                           {"file": ".github/workflows/ci.yml", "uses": "org/repo@main", "line": 8}], "each at the line of its uses:")
         self.assertEqual(out["pinned"], 2)
         self.assertEqual(out["local"], 3, "a local action, a docker image and a path without @ref (curl writes $/.github/...) are neither")
         self.assertIsNone(out["origin"], "no origin remote")

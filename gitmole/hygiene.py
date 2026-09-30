@@ -102,18 +102,21 @@ def origin_owner(repo: str):
 def actions_pinning(repo: str) -> dict:
     """Every `uses:` in the tracked workflows: pinned to a full commit SHA, a local action or a docker
     image (neither), or unpinned (a tag or a branch the action's owner can move). `origin` is the
-    account the clone's origin remote names, so the advice can put another owner's actions first."""
+    account the clone's origin remote names, so the advice can put another owner's actions first. Each
+    unpinned row carries the line of its `uses:`, where SARIF places it."""
     unpinned, pinned, local = [], 0, 0
     for path in _tracked(repo):
         if not re.match(r"^\.github/workflows/[^/]+\.ya?ml$", path):
             continue
-        for ref in _USES.findall(_text(repo, path)):
+        text = _text(repo, path)
+        for m in _USES.finditer(text):
+            ref = m.group(1)
             if ref.startswith("./") or ref.startswith("docker://") or "@" not in ref:   # a remote action always names its ref
                 local += 1
             elif "@" in ref and _SHA.match(ref.rsplit("@", 1)[1]):
                 pinned += 1
             else:
-                unpinned.append({"file": path, "uses": ref})
+                unpinned.append({"file": path, "uses": ref, "line": text.count("\n", 0, m.start(1)) + 1})
     return {"unpinned": unpinned[:CAP], "unpinned_count": len(unpinned), "pinned": pinned, "local": local, "origin": origin_owner(repo)}
 
 
