@@ -84,6 +84,7 @@ Exit codes for CI and for coding agents.
 | Option | What it does |
 |---|---|
 | `--fail-on LEVEL` | Exit 3 if any finding is at LEVEL or worse, LEVEL being `critical`, `warning` or `info`; exit 4 when none is and a step the findings read did not complete. See [Exit codes](#exit-codes). |
+| `--require-vuln-db` | Exit 4 when the dependency scan ran with no vulnerability database, so no package was checked. Without it that run is said on stderr under a gate and in the SARIF, and passes. See [No vulnerability database](#no-vulnerability-database). |
 | `--baseline BEFORE.json` | With an earlier `--json` export of the same clone: the findings it already had are still reported, their statement opening "In the baseline:", and do not count toward `--fail-on`. See [Baseline](#baseline). Not with `owner/*`. |
 | `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
 | `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent; exit 4 when they do not and scc, the log or the change analysis did not complete. With `--hook`: exit 2 at the same point. |
@@ -198,7 +199,7 @@ exports also work with `--no-run` against an earlier output directory.
 | 1 | `--doctor` found a tool off its pin; `--install-tools` or `--clean` could not do all it was asked. |
 | 2 | Bad arguments or an unreadable output directory; with `--hook`, over `--risk-threshold`. |
 | 3 | A gate found what it stops on: a finding at the `--fail-on` level or worse that is not in the `--baseline`, or a change over `--risk-threshold`. |
-| 4 | A gate could not check: a step it reads failed, timed out or was skipped, and it found nothing it stops on in what the other steps left. The message names the step; `run.log` in the output directory says why. `--fail-on` reads every step but the two plots and the backtest; `--risk-threshold` and `--hook` read scc, the log and the change analysis. |
+| 4 | A gate could not check: a step it reads failed, timed out or was skipped, and it found nothing it stops on in what the other steps left. The message names the step; `run.log` in the output directory says why. `--fail-on` reads every step but the two plots and the backtest; `--risk-threshold` and `--hook` read scc, the log and the change analysis. Also, with `--require-vuln-db`, a dependency scan that had no vulnerability database. |
 | 130 | Interrupted. |
 
 A secrets scan that timed out leaves no secrets table, so before 4 existed
@@ -210,6 +211,28 @@ recorded (before 0.8.0) cannot say, and is judged on what it holds. Under
 had an unfinished step. `--sarif` records the same thing on its run:
 `invocations[0].executionSuccessful` is false and
 `toolExecutionNotifications` names each unfinished step.
+
+### No vulnerability database
+
+osv-scanner runs `--offline`, and with no offline database on disk it
+checks nothing and exits cleanly. The step completed, so it is not a
+failed step, and until 0.40.0 `--fail-on critical` passed such a run as a
+clean one. Now a gate says so on stderr, once:
+
+```
+dependency gate: no vulnerability database; nothing was checked
+```
+
+and the SARIF carries a `warning` notification with the descriptor
+`no-vulnerability-database` in `invocations[0].toolExecutionNotifications`
+(the invocation stays successful). The exit code does not change unless
+you asked for the database: `--require-vuln-db` makes it 4, the code for a
+gate that could not check. It is not the default because the database is
+a download (the report's header names the command), and the Action's
+`vulnerability-db` input is off by default, so every default CI run would
+exit 4 and the code would stop meaning anything; the Action passes
+`--require-vuln-db` when `vulnerability-db: true`. A repository with no
+lock file had nothing to check and needs no database.
 
 ### Baseline
 
@@ -354,13 +377,13 @@ the `version` input overrides both. The inputs:
 | `risk-threshold` | none | With `risk`: fail when the changed files hold more than N percent. |
 | `sarif` | none | Write SARIF to this path. |
 | `upload-sarif` | `true` | With `sarif`: upload it to code scanning (`category: gitmole`); the job needs `permissions: security-events: write`, which a pull request from a fork does not get. |
-| `vulnerability-db` | `false` | Download osv-scanner's offline database first, cached per day. |
+| `vulnerability-db` | `false` | Download osv-scanner's offline database first, cached per day, and pass `--require-vuln-db`, so a scan that still found no database exits 4. |
 | `summary` | `true` | Append the Markdown report to the job summary. |
 | `version` | the tag | The gitmole version to install from PyPI. |
 | `python-version` | `3.12` | The Python gitmole runs on. |
 
 Outputs: `exit-code` (0; 3 when a gate tripped; 4 when a gate could not check
-because a step it reads did not finish), `markdown` (the report's path) and
+because a step it reads did not finish, or `vulnerability-db` found no database), `markdown` (the report's path) and
 `sarif`. A tripped gate, or one that could not check, fails the job only after
 the summary is written and the SARIF uploaded, so a blocked pull request still
 shows why.

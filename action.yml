@@ -36,7 +36,9 @@ inputs:
     description: With sarif, upload the file to GitHub code scanning (the job needs security-events write).
     default: "true"
   vulnerability-db:
-    description: Download osv-scanner's offline database before the scan (cached per day), so the dependency scan has something to match against.
+    description: >-
+      Download osv-scanner's offline database before the scan (cached per day), so the dependency scan has
+      something to match against, and pass --require-vuln-db, so a scan that still had no database exits 4.
     default: "false"
   summary:
     description: Append the Markdown report to the job summary.
@@ -47,7 +49,9 @@ inputs:
 
 outputs:
   exit-code:
-    description: gitmole's exit code (0; 3 when fail-on or risk-threshold tripped; 4 when a gate could not check because a step did not finish).
+    description: >-
+      gitmole's exit code (0; 3 when fail-on or risk-threshold tripped; 4 when a gate could not check because a
+      step did not finish, or vulnerability-db found no database).
     value: ${{ steps.run.outputs.exit-code }}
   markdown:
     description: The path of the Markdown report.
@@ -153,6 +157,7 @@ runs:
         INPUT_RISK_THRESHOLD: ${{ inputs.risk-threshold }}
         INPUT_SARIF: ${{ inputs.sarif }}
         INPUT_SUMMARY: ${{ inputs.summary }}
+        INPUT_VULNERABILITY_DB: ${{ inputs.vulnerability-db }}
       run: |
         set -uo pipefail
         read -r -a argv <<< "$INPUT_ARGS"   # split on whitespace, never evaluated by a shell
@@ -162,6 +167,7 @@ runs:
         [ -n "$INPUT_RISK" ] && argv+=(--risk "$INPUT_RISK")
         [ -n "$INPUT_RISK_THRESHOLD" ] && argv+=(--risk-threshold "$INPUT_RISK_THRESHOLD")
         [ -n "$INPUT_SARIF" ] && argv+=(--sarif "$INPUT_SARIF")
+        [ "$INPUT_VULNERABILITY_DB" = "true" ] && argv+=(--require-vuln-db)   # asked for the database: none is a gate that could not check
         rc=0
         gitmole "${argv[@]}" || rc=$?
         echo "exit-code=$rc" >> "$GITHUB_OUTPUT"
@@ -201,5 +207,5 @@ runs:
       if: steps.run.outputs.exit-code == '4'
       shell: bash
       run: |
-        echo "::error::gitmole's gate could not check: a step it reads did not finish (the report's header names it)"
+        echo "::error::gitmole's gate could not check: a step it reads did not finish, or the dependency scan had no vulnerability database (the log above names which)"
         exit 4

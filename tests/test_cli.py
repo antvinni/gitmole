@@ -463,6 +463,51 @@ class IncompleteGate(unittest.TestCase):
             self._dir(out, {"scc": "run", "backtest": "failed", "theseus stack plot": "failed"})
             self.assertEqual(cli.main([out, "--no-run", "--fail-on", "info"], console=console()), 0)
 
+    def test_a_scan_with_no_vulnerability_database_is_said_and_fails_only_when_required(self):
+        """osv-scanner with no offline database exits cleanly having checked nothing; the step is "run", so the
+        gate passed it as a clean scan. It is said on stderr under a gate, and exits 4 with --require-vuln-db."""
+        ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"scc": "run", "osv-scanner": "run"})
+            with open(os.path.join(out, "dependencies.json"), "w") as fh:
+                json.dump({"status": "no-database", "download": "osv-scanner ..."}, fh)
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical"], console=c), 0, "the Action's default: said, not failed")
+            self.assertIn("dependency gate: no vulnerability database; nothing was checked", c.export_text())
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--require-vuln-db"], console=c), 4)
+            self.assertIn("nothing was checked (exit 4: --require-vuln-db)", c.export_text())
+            self.assertEqual(cli.main([out, "--no-run", "--require-vuln-db"], console=console()), 4, "a gate of its own")
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run"], console=c), 0)
+            self.assertNotIn("dependency gate:", c.export_text(), "no gate asked for, no gate to speak of")
+            self._dir(out, {"scc": "run", "osv-scanner": "run"}, ids)
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "warning", "--require-vuln-db"], console=c), 3,
+                             "what the gate found is an answer whatever the database")
+            self.assertNotIn("(exit 4", c.export_text())
+            with open(os.path.join(out, "dependencies.json"), "w") as fh:
+                json.dump({"status": "no-sources"}, fh)
+            self._dir(out, {"scc": "run", "osv-scanner": "run"})
+            c = console()
+            self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--require-vuln-db"], console=c), 0,
+                             "no lock file: nothing to check, and no database needed")
+            self.assertNotIn("dependency gate:", c.export_text())
+
+    def test_sarif_says_the_dependency_scan_had_no_database(self):
+        with tempfile.TemporaryDirectory() as out:
+            self._dir(out, {"scc": "run", "osv-scanner": "run"})
+            with open(os.path.join(out, "dependencies.json"), "w") as fh:
+                json.dump({"status": "no-database", "download": "osv-scanner ..."}, fh)
+            path = os.path.join(out, "r.sarif")
+            cli.main([out, "--no-run", "--sarif", path], console=console())
+            with open(path) as fh:
+                invocation = json.load(fh)["runs"][0]["invocations"][0]
+            self.assertTrue(invocation["executionSuccessful"], "the step completed; it checked nothing")
+            [note] = invocation["toolExecutionNotifications"]
+            self.assertEqual((note["level"], note["descriptor"]["id"]), ("warning", "no-vulnerability-database"))
+            self.assertIn("nothing was checked", note["message"]["text"])
+
     def test_sarif_says_the_run_did_not_complete(self):
         with tempfile.TemporaryDirectory() as out:
             self._dir(out, {"betterleaks": "timeout", "osv-scanner": "skipped", "scc": "run"})
@@ -601,6 +646,18 @@ class Portfolio(unittest.TestCase):
         self.assertIn("one: betterleaks failed; two: betterleaks failed", text)
         rc, *_ = self._run(["--fail-on", "warning"], step=("betterleaks", "false"))
         self.assertEqual(rc, 3, "a finding at the level is an answer")
+
+    def test_require_vuln_db_names_the_repositories_nothing_was_checked_in(self):
+        from unittest.mock import patch
+
+        from gitmole import gate
+        with patch.object(gate, "no_database", lambda report: True):
+            rc, text, *_ = self._run(["--fail-on", "critical"])
+            self.assertEqual(rc, 0, "said, not failed, without --require-vuln-db")
+            self.assertIn("dependency gate: no vulnerability database; nothing was checked: one, two", text)
+            rc, text, *_ = self._run(["--fail-on", "critical", "--require-vuln-db"])
+            self.assertEqual(rc, 4)
+            self.assertIn("one: no vulnerability database; two: no vulnerability database", text)
 
     def test_markdown_export_writes_a_portfolio_file(self):
         rc, _, _, _, md = self._run(["--markdown", "portfolio.md"])

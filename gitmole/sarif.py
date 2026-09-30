@@ -247,14 +247,19 @@ def _invocation(report: dict) -> dict:
     """Whether the run behind these results completed: a step a rule reads that failed or timed out means
     the document is missing whatever that step would have found, so the invocation is not successful and
     one notification per step names it. A consumer reading `results` alone would take an empty list from a
-    killed secrets scan for a clean one."""
+    killed secrets scan for a clean one. A dependency scan with no vulnerability database completed, and
+    checked nothing: that is a warning notification, the run still successful."""
     missing = gate.unfinished(report)
     out = {"executionSuccessful": not missing}
-    if missing:
-        out["toolExecutionNotifications"] = [
-            {"level": "error", "descriptor": {"id": name},
-             "message": {"text": f"step {gate.describe([(name, status)])}: the results are missing whatever it would have found"}}
-            for name, status in missing]
+    notes = [{"level": "error", "descriptor": {"id": name},
+              "message": {"text": f"step {gate.describe([(name, status)])}: the results are missing whatever it would have found"}}
+             for name, status in missing]
+    if gate.no_database(report):   # the step ran and checked nothing: an empty vulnerable list is not a clean one
+        notes.append({"level": "warning", "descriptor": {"id": "no-vulnerability-database"},
+                      "message": {"text": f"{gate.NO_DATABASE_NOTE}: osv-scanner found no offline database, so no package was "
+                                          "matched against an advisory"}})
+    if notes:
+        out["toolExecutionNotifications"] = notes
     return out
 
 

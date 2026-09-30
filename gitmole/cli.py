@@ -95,6 +95,8 @@ def build_parser() -> argparse.ArgumentParser:
     gates.add_argument("--fail-on", choices=findings.SEVERITIES, metavar="LEVEL",
                        help="exit 3 at LEVEL or worse; 4 if a step failed")
     gates.add_argument("--baseline", metavar="BEFORE.json", help="gate only on findings not in that earlier export")
+    gates.add_argument("--require-vuln-db", action="store_true",
+                       help="exit 4 if no vulnerability database was found")
     gates.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (a local clone)")
     gates.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk or --hook: fail over N percent")
     gates.add_argument("--hook", action="store_true", help="with --no-run: score the files an agent hook names")
@@ -717,14 +719,19 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
     if "-" not in (args.json, args.markdown):
         render.print_section(console, render.portfolio_section(reports))
         console.print(Text(f"\nPer-repository results in {base}", style="dim"), soft_wrap=True)
-    if not args.fail_on:
+    if not args.fail_on and not args.require_vuln_db:
         return 0
     from . import gate
-    if gate.tripped([f for _, _, found in reports for f in found], args.fail_on):
+    if args.fail_on and gate.tripped([f for _, _, found in reports for f in found], args.fail_on):
         return gate.EXIT_FOUND
-    missing = [(name, gate.describe(gate.unfinished(report))) for name, report, _ in reports if gate.unfinished(report)]
+    blind = [name for name, report, _ in reports if gate.no_database(report)]
+    if blind:
+        ui.print(f"{gate.NO_DATABASE_NOTE}: {', '.join(blind)}", soft_wrap=True, markup=False, highlight=False)
+    missing = [(name, gate.describe(gate.unfinished(report))) for name, report, _ in reports if gate.unfinished(report)] if args.fail_on else []
+    if args.require_vuln_db:
+        missing += [(name, "no vulnerability database") for name in blind]
     if missing:
-        ui.print(f"[red]gate incomplete:[/red] {'; '.join(f'{name}: {what}' for name, what in missing)}, so --fail-on could not check "
+        ui.print(f"[red]gate incomplete:[/red] {'; '.join(f'{name}: {what}' for name, what in missing)}, so the gate could not check "
                  f"what those steps would have found (exit {gate.EXIT_INCOMPLETE})", soft_wrap=True)
         return gate.EXIT_INCOMPLETE
     return 0
@@ -866,7 +873,8 @@ def _export(path: str, flag: str, report: dict, err: Console):
 
 def _gate_exit(report: dict, found: list, risk, args, err: Console) -> int:
     """The exit code of the gates asked for: 3 when one found what it stops on; 4 when none did and a step
-    one of them reads did not complete, so it could not check (gate.py); 0 otherwise, and always without a gate."""
+    one of them reads did not complete, so it could not check (gate.py), or when --require-vuln-db was asked
+    for and the dependency scan had no database; 0 otherwise, and always without a gate."""
     from . import gate
     code, missing, flags = 0, [], []
     if args.fail_on:
@@ -878,6 +886,11 @@ def _gate_exit(report: dict, found: list, risk, args, err: Console) -> int:
         missing, flags = sorted(set(missing) | set(short)), flags + (["--risk-threshold"] if short else [])
         if risk["total"] > args.risk_threshold:
             code = gate.EXIT_FOUND
+    if gate.no_database(report) and (args.fail_on or args.require_vuln_db):
+        err.print(gate.NO_DATABASE_NOTE + ("" if code or not args.require_vuln_db else f" (exit {gate.EXIT_INCOMPLETE}: --require-vuln-db)"),
+                  soft_wrap=True, markup=False, highlight=False)
+        if args.require_vuln_db and not missing:
+            code = code or gate.EXIT_INCOMPLETE
     if missing:
         flags = " and ".join(flags)
         err.print(f"[red]gate incomplete:[/red] {gate.describe(missing)}, so {flags} could not check what "
