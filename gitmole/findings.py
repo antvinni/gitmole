@@ -689,7 +689,8 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     example code, vendored code, generated files (amalgamations included) and numbered schema
     migrations (written once and replayed as they stand, so nobody should split one) are left out, and
     so is a span the function step marked suspect, since a mis-parse that swallowed the next function is
-    long and complex by construction. A warning when one sits in a hotspot."""
+    long and complex by construction. A function lizard ended early is measured by the structure step's
+    span (load.cross_check), and its complexity is a floor. A warning when one sits in a hotspot."""
     generated, vendored = _generated(report), filetypes.vendor_dirs(report)
     big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not f.get("suspect")
            and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
@@ -699,7 +700,8 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     hot = hotspots.top(report)
     sev = "warning" if any(f["file"] in hot for f in big) else "info"
-    listed = "; ".join(f"{_called(f)} ({_place(f)}) complexity {f['ccn']}, {f['nloc']} lines, {_plural(f['params'], 'param')}" for f in big[:5])
+    listed = "; ".join(f"{_called(f)} ({_place(f)}) complexity {'at least ' if f.get('lizard_span') else ''}{f['ccn']}, {f['nloc']} lines, "
+                       f"{_plural(f['params'], 'param')}" for f in big[:5])
     more = f" and {len(big) - 5} more" if len(big) > 5 else ""
     first = big[0]
     which = f"the anonymous function at {_place(first)}" if _anonymous(first) else f"{first['function']} in {first['file']}"

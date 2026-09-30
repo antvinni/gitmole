@@ -306,6 +306,8 @@ class LoadReport(unittest.TestCase):
                 "secrets.json": "[]",
                 "activity.json": json.dumps({"by_weekday": [1, 0, 0, 0, 0, 0, 0], "by_hour": [0] * 24, "by_month": {"2026-01": 1}, "authors": {}}),
                 "functions.csv": '3,2,20,1,3,"f@1-3@a.py","a.py","f","f( x )",1,3\n',
+                "structure.json": json.dumps({"status": "run", "files": {"a.py": {"errors": False}},
+                                              "functions": [{"file": "a.py", "name": "f", "start": 1, "end": 9, "nesting": 3, "cognitive": 20}]}),
                 "dependencies.json": json.dumps({"status": "scanned", "sources": [{"path": "uv.lock", "packages": 4}], "packages": 4, "vulnerable": [],
                                                  "database_date": "2026-09-17"}),
                 "theseus/cohorts.json": json.dumps({"labels": ["Code added in 2026"], "ts": ["t"], "y": [[10]]}),
@@ -328,6 +330,7 @@ class LoadReport(unittest.TestCase):
         self.assertEqual(r["tests"], [{"entity": "a.py", "n-sets": 3, "with-tests": 1}], "test co-change, as numbers")
         self.assertEqual(r["cohorts"], {"Code added in 2026": 10})
         self.assertEqual(r["theseus_authors"], {"Ann": 10})
+        self.assertEqual((r["functions"][0]["end"], r["functions"][0]["nloc"]), (9, 9), "lizard's span checked against the structure step's")
         self.assertNotIn("sizer", r, "git-sizer's step left at 0.39.0")
         self.assertEqual(r["secrets"], [])
         self.assertTrue(r["secrets_scanned"], "secrets.json was written, empty")
@@ -594,3 +597,59 @@ class ToolsApart(unittest.TestCase):
         rows = [{"entity": "a.py", "author": "Dev", "added": 3, "deleted": 0, "commits": 3}]
         self.assertEqual(load._tools_apart(meta, rows, [{"entity": "a.py", "n-authors": 1, "n-revs": 3, "minor": 0}], [], {"Dev": 3}),
                          (rows, [{"entity": "a.py", "n-authors": 1, "n-revs": 3, "minor": 0}], [], {"Dev": 3}, {}))
+
+
+def _fn(name, start, end, nloc, ccn=20, file="server/heartbeat.ts", suspect=""):
+    return {"file": file, "function": name, "anonymous": False, "ccn": ccn, "nloc": nloc, "params": 1, "start": start, "end": end, "suspect": suspect}
+
+
+def _structure(*rows, errors=False):
+    return {"files": {r["file"]: {"errors": errors} for r in rows}, "functions": list(rows)}
+
+
+def _st(name, start, end, file="server/heartbeat.ts"):
+    return {"file": file, "name": name, "start": start, "end": end, "nesting": 7, "cognitive": 40, "complex_conditions": 0, "bumps": 0}
+
+
+class CrossCheck(unittest.TestCase):
+    """lizard's spans against the structure step's (paperclip: executeRun is 268 lines to lizard, 6,394 to tree-sitter)."""
+
+    def test_a_function_lizard_ended_early_takes_the_structure_steps_span(self):
+        rows = load.cross_check([_fn("executeRun", 20179, 20446, 222, ccn=55)], _structure(_st("executeRun", 20179, 26572)))
+        self.assertEqual((rows[0]["end"], rows[0]["nloc"], rows[0]["ccn"], rows[0]["suspect"]), (26572, 6394, 55, ""))
+        self.assertEqual(rows[0]["lizard_span"], {"end": 20446, "nloc": 222})
+
+    def test_a_span_lizard_ran_past_the_end_of_is_marked_suspect(self):
+        rows = load.cross_check([_fn("safeMilestoneText", 144, 234, 84)], _structure(_st("safeMilestoneText", 144, 175)))
+        self.assertEqual(rows[0]["suspect"], "84 lines of code in a function the structure step ends after 32 lines, at line 175")
+        self.assertNotIn("lizard_span", rows[0])
+        # a span that ran on over a doc comment: 21 lines of code over 61, of a 25-line function; the counts are the function's
+        over = load.cross_check([_fn("passesFilter", 89, 149, 21)], _structure(_st("passesFilter", 89, 113)))
+        self.assertEqual((over[0]["suspect"], over[0]["end"], over[0]["nloc"]), ("", 149, 21))
+        kept = load.cross_check([_fn("f", 1, 100, 50, suspect="opens a block at line 8 no deeper than its own start")], _structure(_st("f", 1, 10)))
+        self.assertEqual(kept[0]["suspect"], "opens a block at line 8 no deeper than its own start", "the function step's own reason stays")
+
+    def test_spans_within_twice_each_other_are_left_alone(self):
+        rows = load.cross_check([_fn("f", 10, 59, 40), _fn("g", 100, 199, 90)], _structure(_st("f", 10, 109), _st("g", 100, 150)))
+        self.assertEqual([(r["end"], r["nloc"], r["suspect"], "lizard_span" in r) for r in rows], [(59, 40, "", False), (199, 90, "", False)])
+
+    def test_nothing_is_checked_where_the_match_is_uncertain(self):
+        # a file tree-sitter parsed with errors, two functions on one line, a different name, a file it did not see
+        lizard = [_fn("f", 10, 20, 10)]
+        for structure in (_structure(_st("f", 10, 500), errors=True), _structure(_st("f", 10, 500), _st("h", 10, 30)),
+                          _structure(_st("other", 10, 500)), {"files": {}, "functions": [_st("f", 10, 500)]}):
+            self.assertEqual(load.cross_check([dict(r) for r in lizard], structure), lizard, structure)
+        twice = [_fn("f", 10, 20, 10), _fn("g", 10, 12, 3)]
+        self.assertEqual(load.cross_check([dict(r) for r in twice], _structure(_st("f", 10, 500))), twice)
+
+    def test_a_nameless_function_matches_by_place(self):
+        anon = dict(_fn("await page.route(async (route) => {", 420, 613, 150), anonymous=True)
+        rows = load.cross_check([anon], _structure(_st("(anonymous at line 420)", 420, 821)))
+        self.assertEqual(rows[0]["end"], 821)
+        method = load.cross_check([_fn("Store.onmessage", 5, 9, 4)], _structure(_st("onmessage", 5, 90)))
+        self.assertEqual(method[0]["end"], 90, "a dotted name matches by its last part")
+
+    def test_no_structure_step_changes_nothing(self):
+        rows = [_fn("f", 1, 2, 2)]
+        self.assertEqual(load.cross_check([dict(r) for r in rows], {}), rows)
+

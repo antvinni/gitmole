@@ -706,6 +706,13 @@ class BrainMethods(unittest.TestCase):
         self.assertEqual(f[0]["advice"], "Split tidy in core/util.py first, before the next change lands there.")
         self.assertEqual(findings.brain_methods(report(functions=fns[:1])), [])
 
+    def test_a_function_lizard_ended_early_is_a_brain_method_at_its_real_length(self):
+        fns = [{"file": "server/heartbeat.ts", "function": "executeRun", "ccn": 55, "nloc": 6394, "params": 2, "start": 20179, "end": 26572,
+                "suspect": "", "lizard_span": {"end": 20446, "nloc": 222}}]
+        f = findings.brain_methods(report(functions=fns))
+        self.assertIn("executeRun (server/heartbeat.ts) complexity at least 55, 6394 lines, 2 params", f[0]["detail"])
+        self.assertEqual(f[0]["evidence"]["functions"][0]["lines"], 6394)
+
     def test_generated_files_are_not_brain_methods(self):
         fns = [{"file": "lib/config-validator.js", "function": "validate10", "ccn": 373, "nloc": 1150, "params": 5, "start": 1, "end": 1150},
                {"file": "lib/reply.js", "function": "onSendEnd", "ccn": 34, "nloc": 180, "params": 2, "start": 1, "end": 180}]

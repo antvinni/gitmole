@@ -587,6 +587,14 @@ class Report(unittest.TestCase):
             self.assertLess(fn.index("trusted"), fn.index("parseSkillFrontmatter"), full)
             self.assertIn("1036?", fn)
 
+    def test_a_function_lizard_ended_early_is_marked_at_least_and_sorts_by_its_count(self):
+        r = sample_report()
+        r["functions"].append({"file": "server/heartbeat.ts", "function": "executeRun", "anonymous": False, "ccn": 55, "nloc": 6394, "params": 2,
+                               "start": 20179, "end": 26572, "suspect": "", "lizard_span": {"end": 20446, "nloc": 222}})
+        fn = _section_text(rendered(r, [], width=200), "Complex functions")
+        self.assertRegex(fn, r"executeRun\s+server/heartbeat.ts\s+55\+\s+6394")
+        self.assertIn("+ marks 1 function lizard ended early: the lines are the structure step's, the complexity what lizard counted before it stopped", fn)
+
     def test_default_complex_functions_hide_vendored_code_and_say_so(self):
         r = sample_report()
         r["functions"].append({"file": "vendor/github.com/x/y.go", "function": "validate", "ccn": 179, "nloc": 424, "params": 3, "start": 1, "end": 424})

@@ -34,7 +34,7 @@ def amalgamations(report: dict, min_shared: int = 20, min_sources: int = 2, min_
     from collections import defaultdict
     by_file = defaultdict(set)
     for f in report.get("functions") or []:
-        by_file[f["file"]].add((f["function"], f["ccn"], f["nloc"], f["params"]))
+        by_file[f["file"]].add((f["function"], f["ccn"], (f.get("lizard_span") or f)["nloc"], f["params"]))   # lizard's own count on both sides
     owners = defaultdict(set)
     for file, sigs in by_file.items():
         for s in sigs:

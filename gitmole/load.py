@@ -160,6 +160,55 @@ def parse_functions(text: str) -> list:
     return rows
 
 
+SPAN_RATIO = 2   # a span more than twice the other's is not two parsers counting a brace differently
+
+
+def _last_name(name: str) -> str:
+    return re.split(r"[.:#]+", name)[-1] if name else ""
+
+
+def cross_check(functions: list, structure: dict) -> list:
+    """lizard's spans checked against the structure step's (tree-sitter), where both have the function: the
+    same file and start line, one function starting there on each side, the same name where both have one,
+    and a file tree-sitter parsed without errors. structure.json keeps only the functions over its own
+    thresholds, so this covers the long and complex ones, which are the ones a table and a finding name.
+
+    lizard loses its place in two ways. It ends a function early, at a nested function or a lambda it
+    closes the outer one for (`executeRun`: 268 lines to lizard, 6,394 to tree-sitter): the span becomes
+    the structure step's, the lines its line count, and the complexity stays lizard's, which is then a
+    floor, since it counted only the part it read; lizard's own end and lines stay under `lizard_span`.
+    Or it runs on past the end: when it also counted more lines of code than SPAN_RATIO times the lines
+    the function has at all, it counted what follows as the function's, and the row is marked suspect, as
+    the function step's own checks mark the swallowed spans they catch. A span that ran on over a comment
+    or into functions lizard listed on their own (paperclip's passesFilter: 21 lines of code over 61, of
+    a 25-line function; brew's audit_deps) keeps its counts, which are the function's. Both need the
+    spans to differ by more than SPAN_RATIO; nothing is ever unmarked."""
+    theirs = {}
+    for s in (structure or {}).get("functions") or []:
+        if not isinstance(s, dict) or not isinstance(s.get("start"), int) or not isinstance(s.get("end"), int):
+            continue
+        key = (s.get("file"), s["start"])
+        theirs[key] = None if key in theirs else s   # two functions on one line: which is which cannot be told
+    if not theirs:
+        return functions
+    parsed = (structure.get("files") or {}) if isinstance(structure.get("files"), dict) else {}
+    mine = Counter((f["file"], f["start"]) for f in functions)
+    for f in functions:
+        key = (f["file"], f["start"])
+        s = theirs.get(key)
+        if s is None or mine[key] != 1 or (parsed.get(f["file"]) or {}).get("errors", True):
+            continue
+        if not (f.get("anonymous") or textfmt.nameless(s.get("name") or "") or _last_name(f["function"]) == _last_name(s.get("name") or "")):
+            continue
+        ours, real = f["end"] - f["start"] + 1, s["end"] - s["start"] + 1
+        if real > SPAN_RATIO * ours:
+            f["lizard_span"] = {"end": f["end"], "nloc": f["nloc"]}
+            f.update(end=s["end"], nloc=real, suspect="")
+        elif ours > SPAN_RATIO * real and f["nloc"] > SPAN_RATIO * real and not f["suspect"]:
+            f["suspect"] = f"{f['nloc']} lines of code in a function the structure step ends after {real} lines, at line {s['end']}"
+    return functions
+
+
 def parse_secrets(text: str) -> list:
     """betterleaks rows as rule, file, short commit, line, fingerprint, the hashed value and the placeholder
     flag, and where the repository declared the value allowed when it did. A report written before values were hashed still has them: hash them here, keep nothing raw."""
@@ -501,6 +550,9 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
     ownership, authors_rows, doa, surviving, tools = _tools_apart(meta, ownership, parse_maat_csv(_read(out_dir, "maat-authors.csv")),
                                                                   parse_maat_csv(_read(out_dir, "maat-doa.csv")), surviving)
     doa = [{k: v for k, v in r.items() if k not in DECAYED} for r in doa]   # read for the recount above; the tables never showed them
+    structure = _read_json(out_dir, "structure.json", {}) or {}   # tree-sitter metrics (structure.py); {} without gitmole[structure]
+    if not isinstance(structure, dict):
+        structure = {}
     return {
         "out_dir": out_dir,
         "meta": meta,
@@ -531,7 +583,8 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         # directory leaves it missing, and the report must not claim a clean scan
         "secrets_scanned": isinstance(_read_json(out_dir, "secrets.json", None), list),
         "activity": activity,
-        "functions": parse_functions(_read(out_dir, "functions.csv")),
+        # lizard's spans, checked against the structure step's where it has the same function (cross_check)
+        "functions": cross_check(parse_functions(_read(out_dir, "functions.csv")), structure),
         # the osv-scanner step writes the file whatever it found (no lock files, no local database, a
         # scan); a missing file means the step did not finish or the run predates it
         "dependencies": parse_dependencies(_read_json(out_dir, "dependencies.json", None)),
@@ -539,7 +592,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "signing": _read_json(out_dir, "signing.json", {}) or {},   # commit signing coverage; {} before the step or after a killed one
         "hygiene": _read_json(out_dir, "hygiene.json", {}) or {},   # the hygiene checks (hygiene.py); {} before 0.15
         "unreachable": _read_json(out_dir, "unreachable.json", {}) or {},
-        "structure": _read_json(out_dir, "structure.json", {}) or {},
+        "structure": structure,
         "provenance": provenance,   # trailers, cohorts, commit shape, agent files; {} before 0.17   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
         "backtest": _nested(out_dir) if nested else None,
     }

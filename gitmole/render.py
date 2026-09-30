@@ -790,9 +790,12 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     hidden_note = _join_hidden(hidden_note, vendor_note, sample_note, generated_note)
     limit = _limit("Complex functions", full)
     shown = funcs[:limit]
-    rows = [(textfmt.ANONYMOUS if _nameless(f) else f["function"], _where(f), f"{f['ccn']}{SUSPECT_MARK}" if f.get("suspect") else f["ccn"], f["nloc"], f["params"]) for f in shown]
+    rows = [(textfmt.ANONYMOUS if _nameless(f) else f["function"], _where(f), _ccn_cell(f), f["nloc"], f["params"]) for f in shown]
     suspects = sum(1 for f in shown if f.get("suspect"))
     suspect_note = f"{SUSPECT_MARK} marks {suspects} span{'s' if suspects != 1 else ''} lizard may have mis-parsed" if suspects else None
+    cut = sum(1 for f in shown if f.get("lizard_span"))
+    cut_note = (f"{FLOOR_MARK} marks {cut} function{'s' if cut != 1 else ''} lizard ended early: the lines are the structure step's, "
+                f"the complexity what lizard counted before it stopped") if cut else None
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
     status = (report["meta"].get("functions") or {}).get("status", "skipped" if not measured else "run")
     reason = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)",
@@ -808,11 +811,18 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
                            f"nothing over complexity {CCN_FLOOR} in source files {counted}")
     else:
         note = None
-    caption = "; ".join(c for c in (_more(len(funcs), limit), None if note else hidden_note, partial, suspect_note) if c) or None
+    caption = "; ".join(c for c in (_more(len(funcs), limit), None if note else hidden_note, partial, suspect_note, cut_note) if c) or None
     return _section("Complex functions", columns, rows, note=note, caption=caption)
 
 
 SUSPECT_MARK = "?"
+FLOOR_MARK = "+"   # at least this: lizard counted only the part of the function it read (load.cross_check)
+
+
+def _ccn_cell(f: dict):
+    if f.get("suspect"):
+        return f"{f['ccn']}{SUSPECT_MARK}"
+    return f"{f['ccn']}{FLOOR_MARK}" if f.get("lizard_span") else f["ccn"]
 
 
 def _nameless(f: dict) -> bool:
