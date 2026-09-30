@@ -83,6 +83,22 @@ class Summarise(unittest.TestCase):
         self.assertIsNone(out["vulnerable"][1]["score"], "the score stays what the advisory says: nothing")
         self.assertEqual(out["vulnerable"][1]["ids"], ["MAL-2026-1234"])
 
+    def test_an_informational_advisory_is_a_note_not_a_vulnerability(self):
+        # paperclip: rustls-pemfile 2.2.0, RUSTSEC-2025-0134 "rustls-pemfile is unmaintained", no score, was counted vulnerable
+        note = vuln("RUSTSEC-2025-0134", summary="rustls-pemfile is unmaintained", name="rustls-pemfile")
+        note["affected"][0]["database_specific"] = {"informational": "unmaintained", "cvss": None}
+        real = vuln("RUSTSEC-2026-0285", summary="TLS 1.3 handshake", fixed="0.23.45", name="rustls")
+        mixed = vuln("RUSTSEC-2024-0001", name="both")
+        mixed_note = vuln("RUSTSEC-2024-0002", name="both")
+        mixed_note["affected"][0]["database_specific"] = {"informational": "unsound"}
+        rows = [package("rustls-pemfile", "2.2.0", [note], ecosystem="crates.io", max_severity=""),
+                package("rustls", "0.23.43", [real], ecosystem="crates.io", max_severity="5.3"),
+                package("both", "1.0.0", [mixed, mixed_note], ecosystem="crates.io", max_severity="")]
+        out = deps.summarise({"results": [{"source": {"path": "/r/Cargo.lock"}, "packages": rows}]}, "/r")
+        self.assertEqual(sorted(r["name"] for r in out["vulnerable"]), ["both", "rustls"], "one real advisory keeps a package vulnerable")
+        self.assertEqual(out["informational"], [{"name": "rustls-pemfile", "version": "2.2.0", "ecosystem": "crates.io", "source": "Cargo.lock",
+                                                 "ids": ["RUSTSEC-2025-0134"], "kinds": ["unmaintained"], "summary": "rustls-pemfile is unmaintained"}])
+
     def test_an_empty_scan(self):
         self.assertEqual(deps.summarise({"results": []}, "/r"), {"status": "scanned", "sources": [], "packages": 0, "vulnerable": []})
 

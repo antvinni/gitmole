@@ -1033,6 +1033,11 @@ def dependencies_line(report: dict):
         bad = len({r.get("name") for r in rows})
         line = f"Dependencies: {deps.get('packages', 0):,} packages in {_dependency_files(deps)}, "
         line += (f"{bad} vulnerable" + (f" in {len(rows)} places" if len(rows) != bad else "")) if bad else "none vulnerable"
+        notes = deps.get("informational") or []
+        if notes:   # RustSec's unmaintained, unsound and notice advisories: said, not counted as vulnerable
+            first = notes[0]
+            line += (f"; {len(notes)} with an informational advisory ({first.get('name')} {first.get('version')}, "
+                     f"{' and '.join(first.get('kinds') or [])}" + (f", and {len(notes) - 1} more" if len(notes) > 1 else "") + ")")
         if deps.get("database_date"):
             line += f" (database from {deps['database_date']})"
         return line, ("red" if bad else "green")

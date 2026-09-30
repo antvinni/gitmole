@@ -195,7 +195,7 @@ def parse_secrets(text: str) -> list:
 
 def parse_dependencies(data) -> dict:
     """dependencies.json as the osv-scanner step writes it, with a status: scanned (sources, packages,
-    vulnerable rows, database_date), no-sources, no-database, or not-run when there is no file."""
+    vulnerable rows, database_date, the informational rows), no-sources, no-database, or not-run when there is no file."""
     if not isinstance(data, dict) or not data.get("status"):
         return {"status": "not-run"}
     out = {"status": data["status"]}
@@ -206,6 +206,8 @@ def parse_dependencies(data) -> dict:
             out["database_digest"] = data["database_digest"]
         if data.get("compose_builds"):
             out["compose_builds"] = data["compose_builds"]
+        if data.get("informational"):   # packages whose every advisory is informational (deps.informational)
+            out["informational"] = data["informational"]
     elif data["status"] == "no-database":
         out["download"] = data.get("download") or ""
     return out

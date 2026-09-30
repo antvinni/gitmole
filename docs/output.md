@@ -350,9 +350,15 @@ in plain words, and what to do first. This page is the reference.
    workspace's, stays a warning at any score, and the finding says which
    lock's critical score it held back. Each package row in the evidence
    names what declared its lock (`deploys`). The rows are named critical
-   ones first (a malicious package leading), then those with a fixed
-   version before those without, then by score, so the advice starts where
-   a fix exists. A package pinned only by a lock file under tests,
+   ones first (a malicious package leading), then by reach: a version the
+   lock installs for running that the source imports, then one it installs
+   for running (or whose lock does not say), then one only development
+   dependencies reach (`runtime`: false, from a `pnpm-lock.yaml` importer's
+   dependencies walked through its snapshots, or a `package-lock.json`
+   `dev` mark; said as "development dependencies only"); then those with a
+   fixed version before those without, then by score, so the advice starts
+   where a fix exists. The reach orders the rows and never changes the
+   grade. A package pinned only by a lock file under tests,
    examples, docs or vendored code is a note. osv-scanner also reads pip's requirement
    files (`requirements*.txt`, `constraints*.txt`, `*.in` by those names),
    and for a range such as `mcp>=1.0.0` it reports the floor, 1.0.0, which
@@ -365,10 +371,15 @@ in plain words, and what to do first. This page is the reference.
    apply to your code is silenced in `osv-scanner.toml` at the repository
    root. Each row says whether any tracked source imports the package
    (`imported`: true, false, or unknown where the import name need not be
-   the package's, as in Python and Ruby); the finding names a package
+   the package's, as in Python and Ruby; where the lock records the
+   versions the workspaces depend on directly, an import of the name is
+   not an import of another version a tool brings along); the finding names a package
    nothing imports, and never lowers its severity for it, since an
    unimported package is still installed. This is not reachability, which
-   needs a buildable tree. The footer line says how many packages in how
+   needs a buildable tree. A package whose every advisory is informational
+   (RustSec's `unmaintained`, `unsound` and `notice`, which report no
+   vulnerability) is not counted as vulnerable; the footer names it. The
+   footer line says how many packages in how
    many lock files were checked and how old the database copy is; without
    lock files, or without the database, it says that instead.
 

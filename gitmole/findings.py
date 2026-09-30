@@ -784,7 +784,8 @@ def _vuln_ref(r: dict) -> str:
         score = ", malicious"
     fixed = f", fixed in {r['fixed']}" if r.get("fixed") else ", no fix yet"
     loaded = ", imported by no tracked source" if r.get("imported") is False else ""
-    return f"{ref}{score}{fixed}{loaded}"
+    dev = ", development dependencies only" if r.get("runtime") is False else ""
+    return f"{ref}{score}{fixed}{loaded}{dev}"
 
 
 def _vuln_statement(rows: list) -> str:
@@ -819,7 +820,8 @@ def _vuln_evidence(r: dict) -> dict:
     out = {"name": r["name"], "version": r["version"], "source": r["source"], "score": r.get("score"),
            "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
            "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious")),
-           "imported": r.get("imported", "unknown"), "deploys": list(r.get("deploys") or [])[:3]}
+           "imported": r.get("imported", "unknown"), "deploys": list(r.get("deploys") or [])[:3],
+           **({"runtime": r["runtime"]} if isinstance(r.get("runtime"), bool) else {})}
     if _floating(r):   # the version is the range's floor, not an installed one
         out = {**{k: v for k, v in out.items() if k != "version"}, "floor": r["version"], "requirement": r.get("requirement")}
     return out
@@ -829,8 +831,10 @@ def _vuln_rows(report: dict) -> list:
     """(rule id, severity, title, rows) for each group of vulnerable rows: the source tree's, and the ones
     only under tests, examples, docs or vendored code. Each row carries `deploys`, what declares that its
     lock ships (deps.deploys), and the rows are in the order the finding names them: critical ones first,
-    a malicious package leading, then the ones with a fixed version before the ones without, then by score.
-    The finding and its SARIF results read the same rows."""
+    a malicious package leading, then by reach (_vuln_reach: a version the lock installs for running that
+    the source imports, then one it installs for running, then one only development dependencies reach),
+    then the ones with a fixed version before the ones without, then by score. The grade does not move
+    with the reach. The finding and its SARIF results read the same rows."""
     scan = report.get("dependencies") or {}
     rows = scan.get("vulnerable") or []
     if not rows:
@@ -854,10 +858,18 @@ def _vuln_rows(report: dict) -> list:
     for rid, group, title in (("vulnerable_dependencies", [r for r in rows if not aside(r)], "Vulnerable dependencies"),
                               ("vulnerable_dependencies_aside", [r for r in rows if aside(r)], "Vulnerable dependencies only in test, example or vendored lock files")):
         if group:
-            group.sort(key=lambda r: (not _vuln_critical(r), not r.get("malicious"), not r.get("fixed"),
+            group.sort(key=lambda r: (not _vuln_critical(r), not r.get("malicious"), _vuln_reach(r), not r.get("fixed"),
                                       -(r["score"] if r.get("score") is not None else -1), r["name"], r["source"]))
             out.append((rid, _vuln_severity(rid, group), title, group))
     return out
+
+
+def _vuln_reach(r: dict) -> int:
+    """0 for a row the lock installs for running (`runtime` not false) that the source imports, 1 for one
+    it installs for running, or whose lock does not say, 2 for one only development dependencies reach."""
+    if r.get("runtime") is False:
+        return 2
+    return 0 if r.get("imported") is True else 1
 
 
 def _vuln_critical(r: dict) -> bool:
