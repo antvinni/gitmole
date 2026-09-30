@@ -30,6 +30,23 @@ def unfinished(report: dict, steps=None) -> list:
             if status != "run" and name not in UNREAD_STEPS and (steps is None or name in steps)]
 
 
+# --- the dependency gate without a database ----------------------------------
+#
+# osv-scanner run offline with no database on disk exits cleanly having matched nothing: the step is "run",
+# dependencies.json says no-database, and without this the gate passed a repository whose packages nobody
+# checked. It is not a failed step: the Action's default downloads no database, so an exit 4 on every
+# default CI run would be an exit code everybody learns to ignore. It is said once on stderr and in the
+# SARIF invocation always; --require-vuln-db, for a pipeline that did ask for the database, makes it exit 4.
+
+NO_DATABASE_NOTE = "dependency gate: no vulnerability database; nothing was checked"
+
+
+def no_database(report: dict) -> bool:
+    """Whether the dependency scan ran with no vulnerability database, so no package was checked. A
+    repository with no lock file (no-sources) had nothing to check and is not this."""
+    return ((report.get("dependencies") or {}).get("status")) == "no-database"
+
+
 def describe(missing: list) -> str:
     """'betterleaks timed out, osv-scanner failed'."""
     return ", ".join(f"{name} {WORDS.get(status, status)}" for name, status in missing)

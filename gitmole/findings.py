@@ -52,7 +52,7 @@ def _plural(n: int, word: str) -> str:
     return f"{n} {word}es" if _SIBILANT.search(word) else f"{n} {word}s"
 
 
-def _secret_statement(groups: list) -> str:
+def _secret_statement(groups: list, declared: bool = False) -> str:
     """'N distinct values in M places: rule in file (commits), ...' with at most three values named.
 
     A value found in an unreachable blob belongs to no commit, so its commit is the empty string. Those
@@ -60,13 +60,15 @@ def _secret_statement(groups: list) -> str:
     one critical finding read "in (unreachable blob 00db21063ea1) ()", and django's "(, d61f33f and 6
     more)" with the empty string still in the list. Two distinct values can also be the same rule in the
     same blob, which rendered as the same words twice with nothing to tell them apart; identical entries
-    are counted instead."""
+    are counted instead. `declared` names, for each value, where the repository declared it allowed."""
     def one(g):
         others = len(g["files"]) - 1
         where = g["files"][0] + (f" and {_plural(others, 'other file')}" if others else "")
         named = [c for c in g["commits"] if c]     # an unreachable blob is in no commit
         commits = ", ".join(named[:2]) + (f" and {len(named) - 2} more" if len(named) > 2 else "")
-        return f"{g['rule']} in {where}" + (f" ({commits})" if commits else "")
+        said = g.get("declared") if declared else None
+        told = f", declared allowed in {said['file']} at {said['commit']}" if said else ""
+        return f"{g['rule']} in {where}" + (f" ({commits}{told})" if commits else f" ({told[2:]})" if told else "")
     places = sum(g["places"] for g in groups)
     counts = {}                                    # insertion order, so the first three stay in their order
     for text in (one(g) for g in groups[:3]):
@@ -76,8 +78,11 @@ def _secret_statement(groups: list) -> str:
     return f"{_plural(len(groups), 'distinct value')} in {_plural(places, 'place')}: {sample}{more}."
 
 
-def _secret_evidence(groups: list) -> dict:
-    return {"values": len(groups), "places": sum(g["places"] for g in groups), "files": sorted({f for g in groups for f in g["files"]})[:10]}
+def _secret_evidence(groups: list, declared: bool = False) -> dict:
+    out = {"values": len(groups), "places": sum(g["places"] for g in groups), "files": sorted({f for g in groups for f in g["files"]})[:10]}
+    if declared:
+        out["declared"] = [dict(g["declared"], rule=g["rule"]) for g in groups][:10]
+    return out
 
 
 def secrets_found(report: dict) -> list:
@@ -86,7 +91,12 @@ def secrets_found(report: dict) -> list:
     rules), documentation (templates), vendored or generated files is not a finding: it was one
     (secrets_aside) until 0.39.0, labelled never actionable, and it is still counted in the report's
     Secrets line and kept in secrets.json. Version strings, template markers and key blocks without key
-    material were flagged as placeholders and are not a finding."""
+    material were flagged as placeholders and are not a finding.
+
+    A value in source the repository declared allowed at some commit (an allowlist of its gitleaks or
+    betterleaks config, its ignore file, `gitleaks:allow` on the value's line: leaks.annotate) is not
+    critical: betterleaks reads today's config only, so a public key the repository allowlisted and later
+    replaced was graded critical and told to be rotated. It is info, naming where the declaration is."""
     groups = leaks.group(report.get("secrets") or [])
 
     vendored, generated = filetypes.vendor_dirs(report), _generated(report)
@@ -99,8 +109,9 @@ def secrets_found(report: dict) -> list:
 
     def possible(g):   # only the scanner's generic rules found it, and it graded every sighting low
         return g["rule"].startswith("generic-") and g.get("confidence") == "low"
-    source = [g for g in groups if in_source(g) and not possible(g)]
-    maybe = [g for g in groups if in_source(g) and possible(g)]
+    declared = [g for g in groups if in_source(g) and g.get("declared")]
+    source = [g for g in groups if in_source(g) and not possible(g) and not g.get("declared")]
+    maybe = [g for g in groups if in_source(g) and possible(g) and not g.get("declared")]
     ignore = "Add the fingerprint of any false positive from secrets.json to .betterleaksignore in the repository."
     out = []
     if source:
@@ -112,6 +123,12 @@ def secrets_found(report: dict) -> list:
                       f"Look at each: the scanner's generic rules found them and graded every sighting low, which is how an ordinary assignment "
                       f"or a hash reads as well as a key. {ignore}",
                       rule={"id": "secrets_possible", "scanner": "betterleaks", "confidence": "low", "rules": "generic-*"}, evidence=_secret_evidence(maybe)))
+    if declared:
+        out.append(_f("info", f"{len(declared)} secret(s) the repository declared allowed", _secret_statement(declared, declared=True),
+                      "The repository marked each as not a secret (a publishable client key, a fixture); confirm that still holds. "
+                      "Withdrawing the declaration makes the value a finding again.",
+                      rule={"id": "secrets_declared", "scanner": "betterleaks", "declared_by": "config, ignore file or gitleaks:allow at any commit"},
+                      evidence=_secret_evidence(declared, declared=True)))
     return out
 
 
@@ -796,8 +813,12 @@ def _hygiene_install(h: dict, out: list) -> None:
             parts.append(f"{n} locked package{'s' if n != 1 else ''} {'runs' if n == 1 else 'run'} an install script ({_files_list([x['package'] for x in ins['lockfile']])})")
         parts += [f"{m['file']} declares {textfmt.join_and(m['scripts'])}" for m in (ins.get("manifests") or [])[:3]]
         parts += [f"{s_['file']} calls {textfmt.join_and(s_['calls'])}" for s_ in (ins.get("setup_py") or [])[:3]]
-        out.append(_f("info", "Code that runs at install", "; ".join(parts) + ".",
-                      "Install with scripts disabled where the build allows it (npm ci --ignore-scripts) and review what the rest run.",
+        # the advice of the ecosystem the finding names: npm's switch does nothing to a setup.py, which pip runs whenever it builds from source
+        npm = "Install with scripts disabled where the build allows it (npm ci --ignore-scripts) and review what the rest run."
+        pip = (f"Review what {ins['setup_py'][0]['file']} runs: pip runs it on every install from source; "
+               "a wheel install (pip install --only-binary :all:) does not.") if ins.get("setup_py") else ""
+        advice = pip if not (ins.get("lockfile") or ins.get("manifests")) else f"{npm} {pip}".strip()
+        out.append(_f("info", "Code that runs at install", "; ".join(parts) + ".", advice,
                       rule={"id": "install_scripts"}, evidence={k: ins.get(k) for k in ("lockfile", "manifests", "setup_py")}))
 
 

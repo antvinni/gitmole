@@ -103,6 +103,64 @@ class Lockfiles(unittest.TestCase):
                                   "changes": [{"commit": bump, "date": "2026-04-01"}]}], "dated by the change the lock records, not the rename after it")
 
 
+    def test_a_cargo_toml_change_the_lock_does_not_resolve_is_not_drift(self):
+        # VoiceStudio's native/desktop-bridge/Cargo.toml: one comment above global-hotkey reworded after Cargo.lock
+        base = ('[package]\nname = "bridge"\nversion = "0.1.0"\ndescription = "x"\n\n[dependencies]\n'
+                '# Same backend already pinned elsewhere.\nglobal-hotkey = "=0.8.0"\nurl = { git = "https://h/r#frag" }\n\n'
+                '[target.\'cfg(unix)\'.dependencies]\nlibc = "0.2"\n\n[features]\ndefault = []\n\n[profile.release]\nlto = true\n')
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("Cargo.toml", base)
+            r.write("Cargo.lock", "version = 4\n")
+            r.commit(date="2026-09-18T00:00:00")
+            r.write("Cargo.toml", base.replace("# Same backend already pinned elsewhere.", "# Native global-shortcut backend.")
+                    .replace('description = "x"', 'description = "y"').replace("default = []", 'default = ["fast"]').replace("lto = true", "lto = false")
+                    .replace('"=0.8.0"\n', '"=0.8.0"   # pinned\n'))
+            r.commit("comments, description, features, profile", date="2026-09-26T00:00:00")
+            self.assertEqual(hygiene.lockfiles(d)["drift"], [])
+            r.write("Cargo.toml", base.replace('libc = "0.2"', 'libc = "0.3"'))
+            r.commit("a target dependency", date="2026-09-27T12:00:00")
+            bump = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            r.write("Cargo.toml", base.replace('libc = "0.2"', 'libc = "0.3"').replace('version = "0.1.0"', 'version = "0.2.0"'))
+            r.commit("the version, which the lock records", date="2026-09-28T12:00:00")
+            release = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            drift = hygiene.lockfiles(d)["drift"]
+        self.assertEqual(drift[0]["changes"], [{"commit": release, "date": "2026-09-28"}, {"commit": bump, "date": "2026-09-27"}])
+
+    def test_a_workspace_member_is_pinned_by_the_roots_lock_even_with_one_of_its_own(self):
+        # VoiceStudio: the root package.json declares "workspaces": ["electron"]; CI installs from the root
+        # bun.lock frozen, and electron/bun.lock is a stale leftover the finding told the reader to regenerate
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("package.json", json.dumps({"name": "mono", "workspaces": ["electron", "packages/*", "!packages/legacy"]}))
+            r.write("bun.lock", "{}\n")
+            r.write("electron/package.json", '{"name": "e"}\n')
+            r.write("electron/bun.lock", "{}\n")
+            r.write("packages/a/package.json", '{"name": "a"}\n')
+            r.write("packages/a/bun.lock", "{}\n")
+            r.write("packages/a/tools/package.json", '{"name": "t"}\n')   # `*` does not cross a directory
+            r.write("packages/a/tools/bun.lock", "{}\n")
+            r.write("packages/legacy/package.json", '{"name": "l"}\n')   # excluded by "!packages/legacy"
+            r.write("packages/legacy/bun.lock", "{}\n")
+            r.write("site/package.json", json.dumps({"name": "site", "workspaces": {"packages": ["apps/**"]}}))
+            r.write("site/yarn.lock", "\n")
+            r.write("site/apps/web/ui/package.json", '{"name": "ui"}\n')
+            r.write("site/apps/web/ui/yarn.lock", "\n")
+            r.commit(date="2026-09-14T00:00:00")
+            for m in ("electron", "packages/a", "packages/a/tools", "packages/legacy", "site/apps/web/ui"):
+                r.write(f"{m}/package.json", json.dumps({"name": m, "dependencies": {"left-pad": "1"}}))
+            r.write("bun.lock", '{"lockfileVersion": 1}\n')
+            r.write("site/yarn.lock", "# updated\n")
+            r.commit("members add a dependency; the roots relock", date="2026-09-26T00:00:00")
+            r.write("packages/a/tools/package.json", json.dumps({"name": "t", "dependencies": {"left-pad": "2"}}))
+            r.write("packages/legacy/package.json", json.dumps({"name": "l", "dependencies": {"left-pad": "2"}}))
+            r.commit("later", date="2026-09-28T00:00:00")
+            out = hygiene.lockfiles(d)
+        self.assertEqual([(x["manifest"], x["lockfile"]) for x in out["drift"]],
+                         [("packages/a/tools/package.json", "packages/a/tools/bun.lock"), ("packages/legacy/package.json", "packages/legacy/bun.lock")],
+                         "electron, packages/a and site/apps/web/ui are members their roots relocked; the rest keep their own lock")
+
+
 class DependencyUpdates(unittest.TestCase):
     def test_ecosystems_with_a_lockfile_that_dependabot_does_not_cover(self):
         with tempfile.TemporaryDirectory() as d:
@@ -184,6 +242,18 @@ class DependencyConfusion(unittest.TestCase):
         self.assertEqual(out["registries"], {"package-lock.json": ["npm.acme.internal", "registry.npmjs.org"]})
         self.assertEqual(out["pip_extra_index"], ["pip.conf"], "extra-index-url is the setting the confusion attack needs")
 
+    def test_an_extra_index_named_only_in_a_comment_is_not_one(self):
+        # VoiceStudio's cosyvoice requirements.txt: "# No --extra-index-url lines"
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("a/requirements.txt", "# No --extra-index-url lines\ntorch==2.5  # not via --extra-index-url either\n")
+            r.write("b/pip.conf", "[global]\n; extra-index-url = https://old.example/simple\n# extra-index-url = x\n")
+            r.write("c/requirements.txt", "--extra-index-url https://pypi.acme.internal/simple  # the private one\nacme-auth\n")
+            r.write("d/pip.ini", "[global]\nextra-index-url = https://pypi.acme.internal/simple\n")
+            r.commit()
+            out = hygiene.dependency_confusion(d)
+        self.assertEqual(out["pip_extra_index"], ["c/requirements.txt", "d/pip.ini"])
+
 
 class InstallScripts(unittest.TestCase):
     def test_lifecycle_scripts_in_the_lockfile_and_manifests_and_import_time_calls_in_setup_py(self):
@@ -199,6 +269,17 @@ class InstallScripts(unittest.TestCase):
         self.assertEqual(out["lockfile"], [{"lockfile": "package-lock.json", "package": "esbuild"}])
         self.assertEqual(out["manifests"], [{"file": "package.json", "scripts": ["postinstall"]}], "node_modules is not tracked code")
         self.assertEqual(out["setup_py"], [{"file": "setup.py", "calls": ["subprocess.run"]}])
+
+    def test_a_setup_py_without_setup_is_a_script_pip_never_runs(self):
+        # VoiceStudio's scripts/setup.py is `uv run python scripts/setup.py`: no setuptools, no setup()
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("scripts/setup.py", "import subprocess\nsubprocess.run(['uv', 'sync'])\n")
+            r.write("pkg/setup.py", "import os, setuptools\nos.system('make')\nsetuptools.setup(name='x')\n")
+            r.write("old/setup.py", "from distutils.core import setup\nimport subprocess\nsubprocess.call(['make'])\nsetup(name='y')\n")
+            r.commit()
+            out = hygiene.install_scripts(d)
+        self.assertEqual(out["setup_py"], [{"file": "old/setup.py", "calls": ["subprocess.call"]}, {"file": "pkg/setup.py", "calls": ["os.system"]}])
 
 
 class Binaries(unittest.TestCase):

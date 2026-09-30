@@ -1223,7 +1223,14 @@ class Timeline(unittest.TestCase):
             return {"rule": "r", "file": file, "commit": commit, "line": 1, "fingerprint": f"{commit}:{file}", "value": value, "placeholder": placeholder}
         r = sample_report()
         r["secrets"] = [row("h1", "a.py", "c1"), row("h1", "a.py", "c2"), row("h2", "tests/b.py", "c1"), row("h3", "p.json", "c1", True)]
-        self.assertIn("Secrets: 2 distinct values in 3 places; 1 placeholder-shaped hit left out", render.secrets_line(r))
+        self.assertIn("Secrets: 2 distinct values in 3 places, 1 never in source (secrets.json); 1 placeholder-shaped hit left out",
+                      render.secrets_line(r), "the footer says how many of its values no finding holds (VoiceStudio: 4 in the footer, 2 in the finding)")
+        r["unreachable"] = {"objects": 0}
+        self.assertTrue(render.secrets_line(r).endswith("; no unreachable objects"), "the parenthetical pays for the count")
+        r["secrets"] = [row("h1", "a.py", "c1"), dict(row("h4", "b.py", "c1"), declared={"file": ".gitleaksignore", "commit": "d", "how": "literal"})]
+        self.assertEqual(render.secrets_line(r), "Secrets: 2 distinct values in 2 places; no unreachable objects",
+                         "a declared value is in a finding too; with every value in one, there is nothing to add")
+        del r["unreachable"]
         r["secrets"] = [row("h3", "p.json", "c1", True)]
         self.assertEqual(render.secrets_line(r), "Secrets: none found; 1 placeholder-shaped hit left out")
         self.assertEqual(render.secrets_line(sample_report()), "Secrets: none found")

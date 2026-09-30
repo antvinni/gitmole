@@ -187,6 +187,22 @@ class ParseSecrets(unittest.TestCase):
         self.assertTrue(row["placeholder"])
         self.assertNotIn("dfbbb54", json.dumps(row))
 
+    def test_the_repositorys_declaration_is_carried_with_a_short_commit(self):
+        text = json.dumps([{"RuleID": "x", "File": "a.py", "Commit": "abc1234def", "StartLine": 1, "SecretHash": "h", "Placeholder": False,
+                            "Declared": {"File": ".gitleaks.toml", "Commit": "e3ed9523aaaa", "How": "allowlist regex"}},
+                           {"RuleID": "x", "File": "b.py", "Commit": "abc1234def", "StartLine": 1, "SecretHash": "h2", "Placeholder": False}])
+        rows = load.parse_secrets(text)
+        self.assertEqual(rows[0]["declared"], {"file": ".gitleaks.toml", "commit": "e3ed952", "how": "allowlist regex"})
+        self.assertNotIn("declared", rows[1], "an undeclared row carries no key, as every row did before")
+
+    def test_whether_the_value_is_at_head_is_carried_and_left_out_when_unknown(self):
+        text = json.dumps([{"RuleID": "x", "File": "a.py", "Commit": "c", "StartLine": 1, "SecretHash": "h", "AtHead": True, "HeadLine": 7},
+                           {"RuleID": "x", "File": "b.py", "Commit": "c", "StartLine": 1, "SecretHash": "h", "AtHead": False},
+                           {"RuleID": "x", "File": "c.py", "Commit": "c", "StartLine": 1, "SecretHash": "h"}])
+        rows = load.parse_secrets(text)
+        self.assertEqual([(r.get("at_head"), r.get("head_line")) for r in rows], [(True, 7), (False, None), (None, None)])
+        self.assertNotIn("at_head", rows[2], "an output directory from before the scan recorded it")
+
     def test_a_row_with_neither_hash_nor_value_still_loads(self):
         row = load.parse_secrets(json.dumps([{"RuleID": "x", "File": "f", "Commit": "c", "StartLine": 1}]))[0]
         self.assertIsNone(row["value"])

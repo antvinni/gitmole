@@ -84,6 +84,7 @@ Exit codes for CI and for coding agents.
 | Option | What it does |
 |---|---|
 | `--fail-on LEVEL` | Exit 3 if any finding is at LEVEL or worse, LEVEL being `critical`, `warning` or `info`; exit 4 when none is and a step the findings read did not complete. See [Exit codes](#exit-codes). |
+| `--require-vuln-db` | Exit 4 when the dependency scan ran with no vulnerability database, so no package was checked. Without it that run is said on stderr under a gate and in the SARIF, and passes. See [No vulnerability database](#no-vulnerability-database). |
 | `--baseline BEFORE.json` | With an earlier `--json` export of the same clone: the findings it already had are still reported, their statement opening "In the baseline:", and do not count toward `--fail-on`. See [Baseline](#baseline). Not with `owner/*`. |
 | `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
 | `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent; exit 4 when they do not and scc, the log or the change analysis did not complete. With `--hook`: exit 2 at the same point. |
@@ -196,9 +197,9 @@ exports also work with `--no-run` against an earlier output directory.
 | --- | --- |
 | 0 | Done, and no gate asked for found anything. Without `--fail-on`, `--risk-threshold` or `--hook` a run exits 0 even when a step did not complete; the run names the step and the report's header says what is missing. |
 | 1 | `--doctor` found a tool off its pin; `--install-tools` or `--clean` could not do all it was asked. |
-| 2 | Bad arguments or an unreadable output directory; with `--hook`, over `--risk-threshold`. |
+| 2 | Bad arguments or an unreadable output directory; with `--hook`, over `--risk-threshold` (a `--hook` with no output directory says how to make one and exits 0). |
 | 3 | A gate found what it stops on: a finding at the `--fail-on` level or worse that is not in the `--baseline`, or a change over `--risk-threshold`. |
-| 4 | A gate could not check: a step it reads failed, timed out or was skipped, and it found nothing it stops on in what the other steps left. The message names the step; `run.log` in the output directory says why. `--fail-on` reads every step but the two plots and the backtest; `--risk-threshold` and `--hook` read scc, the log and the change analysis. |
+| 4 | A gate could not check: a step it reads failed, timed out or was skipped, and it found nothing it stops on in what the other steps left. The message names the step; `run.log` in the output directory says why. `--fail-on` reads every step but the two plots and the backtest; `--risk-threshold` and `--hook` read scc, the log and the change analysis. Also, with `--require-vuln-db`, a dependency scan that had no vulnerability database. |
 | 130 | Interrupted. |
 
 A secrets scan that timed out leaves no secrets table, so before 4 existed
@@ -210,6 +211,28 @@ recorded (before 0.8.0) cannot say, and is judged on what it holds. Under
 had an unfinished step. `--sarif` records the same thing on its run:
 `invocations[0].executionSuccessful` is false and
 `toolExecutionNotifications` names each unfinished step.
+
+### No vulnerability database
+
+osv-scanner runs `--offline`, and with no offline database on disk it
+checks nothing and exits cleanly. The step completed, so it is not a
+failed step, and until 0.40.0 `--fail-on critical` passed such a run as a
+clean one. Now a gate says so on stderr, once:
+
+```
+dependency gate: no vulnerability database; nothing was checked
+```
+
+and the SARIF carries a `warning` notification with the descriptor
+`no-vulnerability-database` in `invocations[0].toolExecutionNotifications`
+(the invocation stays successful). The exit code does not change unless
+you asked for the database: `--require-vuln-db` makes it 4, the code for a
+gate that could not check. It is not the default because the database is
+a download (the report's header names the command), and the Action's
+`vulnerability-db` input is off by default, so every default CI run would
+exit 4 and the code would stop meaning anything; the Action passes
+`--require-vuln-db` when `vulnerability-db: true`. A repository with no
+lock file had nothing to check and needs no database.
 
 ### Baseline
 
@@ -290,7 +313,8 @@ changed this month; the files have 130 prior changes by 3 people; Bob has
 `gitmole . --sarif gitmole.sarif` writes the findings in the format GitHub
 code scanning and GitLab read: one run with gitmole as the driver, a rule
 per finding id with its title, detail and advice, a result per place the
-evidence names, `level` from the severity (critical is `error`, warning is
+evidence names (a finding about a whole file, such as `unpinned_actions`'
+workflows or `lockfile_drift`'s manifests, points at line 1 of each), `level` from the severity (critical is `error`, warning is
 `warning`, info is `note`) and `properties["security-severity"]`, which is
 what GitHub ranks alerts by (9.0 critical, 5.0 warning, 2.0 info; a
 vulnerable dependency carries its advisory's own score, a malicious one
@@ -352,18 +376,63 @@ the `version` input overrides both. The inputs:
 | `fail-on` | none | `critical`, `warning` or `info`: fail the step when a finding is at that severity or worse. |
 | `risk` | none | `--risk` base, for a pull request `origin/${{ github.base_ref }}`. |
 | `risk-threshold` | none | With `risk`: fail when the changed files hold more than N percent. |
+| `baseline` | `false` | Gate only on what is new since the default branch's last run. See [Baseline in the Action](#baseline-in-the-action). |
 | `sarif` | none | Write SARIF to this path. |
 | `upload-sarif` | `true` | With `sarif`: upload it to code scanning (`category: gitmole`); the job needs `permissions: security-events: write`, which a pull request from a fork does not get. |
-| `vulnerability-db` | `false` | Download osv-scanner's offline database first, cached per day. |
+| `vulnerability-db` | `false` | Download osv-scanner's offline database first, cached per day, and pass `--require-vuln-db`, so a scan that still found no database exits 4. |
 | `summary` | `true` | Append the Markdown report to the job summary. |
 | `version` | the tag | The gitmole version to install from PyPI. |
 | `python-version` | `3.12` | The Python gitmole runs on. |
 
 Outputs: `exit-code` (0; 3 when a gate tripped; 4 when a gate could not check
-because a step it reads did not finish), `markdown` (the report's path) and
-`sarif`. A tripped gate, or one that could not check, fails the job only after
+because a step it reads did not finish, or `vulnerability-db` found no database), `markdown` (the report's path) and
+`sarif`, and with `baseline` the path of the export it gated against
+(`baseline`, empty on a first run). A tripped gate, or one that could not check, fails the job only after
 the summary is written and the SARIF uploaded, so a blocked pull request still
 shows why.
+
+### Baseline in the Action
+
+With `baseline: true` the action keeps the [baseline](#baseline) for you in
+the Actions cache. A push to the default branch saves that run's `--json`
+export; a pull request, or a push to any other branch, restores the default
+branch's latest one and passes it as `--baseline`, so a pull request fails
+only on what it adds. Nothing is saved from a pull request, and nothing from
+a run that exited 4, whose export lacks what the unfinished step would have
+found: the cached baseline stays. The cache key is per repository, default
+branch and `args`, so two gitmole steps over different targets keep two
+baselines. When `args` already writes `--json` to a file, that export is the
+one saved; otherwise the action adds its own.
+
+```yaml
+on:
+  push:
+    branches: [main]      # saves the baseline
+  pull_request:           # gates on what is new since it
+jobs:
+  gitmole:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: antvinni/gitmole@v0.39.0
+        with:
+          fail-on: critical
+          baseline: true
+          sarif: gitmole.sarif
+```
+
+The first run has no baseline, says so in a notice, and gates on every
+finding like a run without `baseline`; so does every run until a push to the
+default branch has saved one, and again after the cache entry expires (GitHub
+evicts one not read for seven days). A secret committed years ago therefore
+fails the first run: look at it, rotate it, and the push that follows saves a
+baseline that holds it. The baseline records what the default branch had, not
+what anyone reviewed; a finding that landed on the default branch is in it.
 
 The network is reached in the setup steps only: pip, the tool archives, and
 with `vulnerability-db: true` the OSV database for the ecosystems the
@@ -430,9 +499,27 @@ which every one of these hooks reads as "block"; without a threshold it is
 a soft warning. When the output directory's scc, log or change analysis did
 not complete, every file scores 0, so with a threshold the hook exits 4 and
 says so instead of passing the edit: Claude Code shows that to you without
-blocking the model, Cursor with `failClosed` and pre-commit block on it. The output directory comes from an earlier run
-(`gitmole . --out analysis-repo`), so the hook itself costs a few hundred
-milliseconds and needs no tool on PATH.
+blocking the model, Cursor with `failClosed` and pre-commit block on it.
+
+The hook scores against an earlier run, so set it up with one run first, in
+the repository:
+
+```bash
+gitmole . --out analysis-repo
+```
+
+The hook itself then costs a few hundred milliseconds and needs no tool on
+PATH. Before that run, or with a mistyped directory, the hook says
+`gitmole hook: no analysis in analysis-repo, so nothing was scored; run once
+in the repository: gitmole . --out analysis-repo` on stderr and exits 0: an
+exit 2 there would block every edit over a missing file. The scores are the
+analysed commit's, so when HEAD has moved on the hook also says how far,
+on stderr and without changing the exit code (`the analysis in
+analysis-repo is of 1a2b3c4d5e6f, 14 commits behind HEAD; its scores leave
+those out; refresh it with: gitmole … --out analysis-repo`). There is no
+threshold on that gap: any commit since is revisions the watch list has
+not counted, so run the same command again when the number is more than
+you want to ignore, after a merge from main at the latest.
 
 Claude Code, `.claude/settings.json`, a `PostToolUse` hook on `Write|Edit`;
 the JSON on stdout becomes `additionalContext`, exit 2 shows stderr to the

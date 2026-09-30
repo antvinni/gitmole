@@ -136,7 +136,8 @@ def _last_commit(repo: str, path: str) -> int:
 
 # what a lock file records from its manifest: a change to anything else cannot put the lock behind.
 # go.sum holds the checksums of the modules go.mod requires, so the `module` line (a rename) and comments
-# do not reach it; package-lock.json copies the dependency sections and the root's name and version.
+# do not reach it; package-lock.json copies the dependency sections and the root's name and version;
+# Cargo.lock resolves the dependency tables (_CARGO_LOCKED), so a comment or a [features] change does not.
 _NPM_LOCKED = ("name", "version", "dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta",
                "bundleDependencies", "bundledDependencies", "overrides", "resolutions", "workspaces")
 DRIFT_WALK = 200   # manifest commits read past the lock file's last one: a cost bound, not a threshold
@@ -158,7 +159,55 @@ def _locked_part(name: str, data):
         except ValueError:
             return None
         return {k: doc.get(k) for k in _NPM_LOCKED} if isinstance(doc, dict) else None
+    if name == "Cargo.toml":
+        return _cargo_locked(text)
     return None
+
+
+# the Cargo.toml tables Cargo.lock is resolved from: every kind of dependency (target-specific ones too),
+# the workspace's members and shared dependencies, [patch] and [replace]; of [package] and
+# [workspace.package] only the name and version, which the lock records for each member. Features,
+# profiles, targets and metadata do not reach the lock.
+_CARGO_LOCKED = re.compile(r"^(?:(?:target\.[^\]]+\.)?(?:dependencies|dev-dependencies|build-dependencies)(?:\..+)?"
+                           r"|workspace|workspace\.dependencies(?:\..+)?|patch\..+|replace)$")
+_CARGO_HEADER = re.compile(r"^\[\[?\s*([^\]]+?)\s*\]\]?$")
+
+
+def _toml_code(line: str) -> str:
+    """A TOML line without its comment: from the first # outside a quoted string."""
+    quote, escaped = None, False
+    for i, c in enumerate(line):
+        if quote:
+            if escaped:
+                escaped = False
+            elif c == "\\" and quote == '"':
+                escaped = True
+            elif c == quote:
+                quote = None
+        elif c in "\"'":
+            quote = c
+        elif c == "#":
+            return line[:i].strip()
+    return line.strip()
+
+
+def _cargo_locked(text: str) -> list:
+    """The lines of a Cargo.toml that Cargo.lock depends on, without comments or blank lines, each with
+    the table it sits in. A top-level dotted key before any table is kept, since it can be anything."""
+    table, kept = "", []
+    for raw in text.splitlines():
+        line = _toml_code(raw)
+        if not line:
+            continue
+        header = _CARGO_HEADER.match(line)
+        if header:
+            table = re.sub(r"\s*\.\s*", ".", header.group(1))
+            continue
+        key = re.split(r"[\s.=]", line, maxsplit=1)[0].strip("\"'")
+        if (not table or _CARGO_LOCKED.match(table)
+                or (table in ("package", "workspace.package") and key in ("name", "version"))):
+            kept.append(f"{table}|{line}")
+    return kept
 
 
 def _show(repo: str, rev: str, path: str):
@@ -194,23 +243,68 @@ def _day(ts: int) -> str:
     return dt.datetime.fromtimestamp(ts, dt.timezone.utc).date().isoformat()
 
 
+def _workspace_glob(pattern: str):
+    """A workspaces glob as npm, Yarn and Bun read it: `*` within one directory, `**` across them."""
+    p = pattern.strip().rstrip("/")
+    p = p[2:] if p.startswith("./") else p
+    out = ""
+    for part in re.split(r"(\*\*/?|\*|\?)", p):
+        out += {"**/": "(?:.*/)?", "**": ".*", "*": "[^/]*", "?": "[^/]"}.get(part, re.escape(part))
+    return re.compile(out + r"\Z")
+
+
+def _workspace_root(repo: str, path: str, tracked: set, seen: dict):
+    """The directory of the nearest ancestor package.json whose `workspaces` (a list, or Yarn's
+    {"packages": [...]}) declares this package.json's directory, with its `!` exclusions; None when none
+    does. That root is where npm, Yarn and Bun install the member from, and its lock file pins it."""
+    member = os.path.dirname(path)
+    parts = member.split("/") if member else []
+    for depth in range(len(parts) - 1, -1, -1):
+        root = "/".join(parts[:depth])
+        manifest = f"{root}/package.json" if root else "package.json"
+        if manifest not in tracked:
+            continue
+        if manifest not in seen:
+            try:
+                declared = json.loads(_text(repo, manifest) or "{}").get("workspaces")
+            except (ValueError, AttributeError):
+                declared = None
+            patterns = declared.get("packages") if isinstance(declared, dict) else declared
+            seen[manifest] = [p for p in patterns if isinstance(p, str)] if isinstance(patterns, list) else []
+        rel = "/".join(parts[depth:])
+        keep = [p for p in seen[manifest] if not p.startswith("!")]
+        drop = [p[1:] for p in seen[manifest] if p.startswith("!")]
+        if any(_workspace_glob(p).match(rel) for p in keep) and not any(_workspace_glob(p).match(rel) for p in drop):
+            return root
+    return None
+
+
 def lockfiles(repo: str) -> dict:
     """Each tracked manifest with the lock file that pins it: in its own directory, or in an ancestor
-    (a workspace member is locked by the root). Drift is a manifest changed after its lock file's last
-    commit, by commit time, which a clone keeps and mtime does not, in a part the lock records (a go.mod
+    (a workspace member is locked by the root). A package.json an ancestor declares in its `workspaces`
+    is pinned by that workspace root's lock file whenever the root has one, even when the member keeps a
+    lock of its own: the install reads the root's (a frozen `bun install` at VoiceStudio's root reads
+    bun.lock, never electron/bun.lock), so the member's own lock pins nothing and cannot fall behind. It
+    is not reported either: calling it stale would be a rule of its own. Drift is a manifest changed
+    after its lock file's last commit, by commit time, which a clone keeps and mtime does not, in a part
+    the lock records (a go.mod
     whose only change is its `module` line, a package.json whose only change is its scripts, is not
     behind); each drift names those changes, newest first, so the findings can leave out a sweeping
     commit. Missing is a manifest of an ecosystem that locks by convention with no lock file anywhere
     above it."""
     tracked = set(_tracked(repo))
-    drift, missing, pairs = [], [], 0
+    drift, missing, pairs, workspaces = [], [], 0, {}
     for path in sorted(tracked):
         name = path.rsplit("/", 1)[-1]
         if name not in LOCKS or _aside(path):
             continue
         d = os.path.dirname(path)
         lock = None
-        while True:
+        if name == "package.json" and d:
+            root = _workspace_root(repo, path, tracked, workspaces)
+            if root is not None:
+                lock = next((c for c in ((f"{root}/{x}" if root else x) for x in LOCKS[name]) if c in tracked), None)
+        while not lock:
             for candidate in LOCKS[name]:
                 full = f"{d}/{candidate}" if d else candidate
                 if full in tracked:
@@ -390,9 +484,26 @@ def dependency_confusion(repo: str) -> dict:
                 scoped.append({"lockfile": path, "package": name, "registry": host, "declared": scopes[scope]})
         if len(hosts) > 1:
             registries[path] = sorted(hosts)
-    pip = [p for p in tracked if (p.rsplit("/", 1)[-1] in ("pip.conf", "pip.ini") or re.search(r"(^|/)requirements[\w.-]*\.(txt|in)$", p))
-           and not _aside(p) and re.search(r"extra[-_]index[-_]url", _text(repo, p), re.I)]
+    pip = []
+    for p in tracked:
+        ini = p.rsplit("/", 1)[-1] in ("pip.conf", "pip.ini")
+        if (ini or re.search(r"(^|/)requirements[\w.-]*\.(txt|in)$", p)) and not _aside(p) \
+                and re.search(r"extra[-_]index[-_]url", _pip_settings(_text(repo, p), ini), re.I):
+            pip.append(p)
     return {"scoped_public": scoped[:CAP], "scoped_public_count": len(scoped), "registries": registries, "pip_extra_index": pip}
+
+
+def _pip_settings(text: str, ini: bool) -> str:
+    """The text pip reads as settings, comments left out: in a requirements file a line starting with #
+    and anything after whitespace and a # (pip's requirements file format); in pip.conf or pip.ini a
+    line starting with # or ; (an INI comment). `# No --extra-index-url lines` says there is none."""
+    kept = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or (ini and s.startswith(";")):
+            continue
+        kept.append(s if ini else re.split(r"\s#", s, maxsplit=1)[0])
+    return "\n".join(kept)
 
 
 # --- install-time code --------------------------------------------------------------------------
@@ -415,7 +526,8 @@ def _call_name(node) -> str:
 def install_scripts(repo: str) -> dict:
     """Code that runs when a dependency is installed: packages package-lock.json marks hasInstallScript,
     lifecycle scripts in the repository's own package.json files, and process, network and exec calls
-    in a setup.py, which pip runs."""
+    in a setup.py that calls setup() (setuptools' or distutils'), which pip runs when it builds the
+    package; a setup.py without one is a script someone runs by hand, and pip never does."""
     in_lock = []
     for path, lock in _npm_locks(repo):
         for name, entry in _npm_packages(lock):
@@ -439,7 +551,10 @@ def install_scripts(repo: str) -> dict:
                 tree = ast.parse(_text(repo, path))
             except SyntaxError:
                 continue
-            calls = sorted({n for n in (_call_name(c) for c in ast.walk(tree) if isinstance(c, ast.Call)) if _RISKY_CALLS.match(n)})
+            names = {_call_name(c) for c in ast.walk(tree) if isinstance(c, ast.Call)}
+            if not any(n == "setup" or n.endswith(".setup") for n in names):
+                continue   # a helper script that happens to be called setup.py: pip runs a setup.py only for its setup()
+            calls = sorted(n for n in names if _RISKY_CALLS.match(n))
             if calls:
                 setups.append({"file": path, "calls": calls})
     return {"lockfile": in_lock[:CAP], "lockfile_count": len(in_lock), "manifests": manifests[:CAP], "setup_py": setups[:CAP]}

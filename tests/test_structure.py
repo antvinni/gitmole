@@ -303,6 +303,45 @@ class Resolve(unittest.TestCase):
         edges, _ = structure.resolve(files)
         self.assertEqual(edges["app/main.py"], ["d000/pkg/json.py"], "the lowest path, not whichever the set yielded first")
 
+    def test_a_bare_import_resolves_through_the_paths_a_tsconfig_declares(self):
+        # VoiceStudio's electron/tsconfig.web.json maps @shared/* to ./src/shared/*: sixteen files it imports
+        # that way were called unreferenced, and the imports were counted neither as resolved nor as missed
+        configs = {
+            "electron/tsconfig.json": '{"files": [], // project references\n "compilerOptions": {"paths": {"@/*": ["./src/renderer/src/*"],}}}',
+            "electron/tsconfig.web.json": '{"compilerOptions": {/* the renderer */ "paths": {"@/*": ["./src/renderer/src/*"], "@shared/*": ["./src/shared/*"],'
+                                          ' "@shared/ui/*": ["./src/ui-kit/*", "./src/shared/ui/*"], "react": ["./node_modules/@types/react"]}}}',
+            "tools/base.json": '{"compilerOptions": {"baseUrl": "../lib", "paths": {"~/*": ["./*"]}}}',
+            "tools/tsconfig.json": '{"extends": "./base", "compilerOptions": {"strict": true}}',
+            "site/jsconfig.json": '{"extends": "@tsconfig/node20/tsconfig.json", "compilerOptions": {"baseUrl": "src"}}',
+        }
+        aliases = structure.ts_aliases(configs)
+        self.assertEqual([a["dir"] for a in aliases], ["electron", "site", "tools"])
+        self.assertNotIn("react", aliases[0]["patterns"], "a target in node_modules is a package's, not this tree's")
+        self.assertEqual(aliases[2]["patterns"], {"~/*": ["lib/*"]}, "extends followed in the tree; targets relative to the inherited baseUrl")
+        ts = lambda *imports: {"language": "typescript", "imports": [["path", i] for i in imports]}
+        files = {"electron/src/renderer/src/page.ts": ts("@shared/utils/cookie", "@/lib/x", "@shared/ui/button", "@shared/gone", "@tanstack/query", "react"),
+                 "electron/src/renderer/src/lib/x.ts": ts(),
+                 "electron/src/shared/utils/cookie.ts": ts(),
+                 "electron/src/shared/ui/button/index.tsx": {"language": "tsx", "imports": []},
+                 "tools/run.ts": ts("~/fmt", "fmt"),
+                 "lib/fmt.ts": ts(),
+                 "site/src/app.ts": ts("components/card", "react"),
+                 "site/src/components/card.ts": ts(),
+                 "outside.ts": ts("@shared/utils/cookie")}
+        edges, resolved = structure.resolve(files, aliases=aliases)
+        self.assertEqual(edges["electron/src/renderer/src/page.ts"],
+                         ["electron/src/renderer/src/lib/x.ts", "electron/src/shared/ui/button/index.tsx", "electron/src/shared/utils/cookie.ts"],
+                         "the longest prefix wins and its targets are tried in order; @tanstack and react are packages")
+        self.assertEqual(edges["tools/run.ts"], ["lib/fmt.ts"])
+        self.assertEqual(edges["site/src/app.ts"], ["site/src/components/card.ts"], "baseUrl alone, for an import whose first segment is there")
+        self.assertEqual(edges["outside.ts"], [], "a config reaches the files under its own directory only")
+        self.assertEqual(resolved["typescript"], round(6 / 7, 3), "@shared/gone matched a pattern and resolved to nothing: a miss, not a package")
+        self.assertEqual(structure.resolve(files)[0]["electron/src/renderer/src/page.ts"], [], "without the configs, as before")
+
+    def test_jsonc_keeps_comment_marks_inside_strings(self):
+        self.assertEqual(structure.jsonc('{"a": "@/*", // c\n /* b */ "b": [1, 2,], "c": "x//y\\"z",}'), {"a": "@/*", "b": [1, 2], "c": 'x//y"z'})
+        self.assertIsNone(structure.jsonc("{nope"))
+
 
 @unittest.skipUnless(HAVE, "the tree-sitter grammars need Python 3.10 or newer")
 class Step(unittest.TestCase):
@@ -362,6 +401,28 @@ class Step(unittest.TestCase):
         self.assertEqual(data["files"]["cmd/app/main.go"]["imports"], ["store/s.go"])
         self.assertEqual(data["files"]["store/s.go"]["imports"], ["lib/util/u.go"])
         self.assertEqual(data["resolved"], {"go": 1.0})
+
+    def test_the_step_reads_tsconfig_paths_from_the_tree(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo, out = os.path.join(d, "repo"), os.path.join(d, "out")
+            env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x",
+                       GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x", GITMOLE_CACHE="off", PYTHONPATH=ROOT)
+            tree = {"web/tsconfig.json": '{\n  // aliases\n  "compilerOptions": {"paths": {"@shared/*": ["./src/shared/*"]}}\n}\n',
+                    "web/src/main.ts": "import { f } from '@shared/util';\nf();\n", "web/src/shared/util.ts": "export const f = () => 1;\n"}
+            for p, text in tree.items():
+                os.makedirs(os.path.join(repo, os.path.dirname(p)), exist_ok=True)
+                with open(os.path.join(repo, p), "w") as fh:
+                    fh.write(text)
+            os.makedirs(out)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "add", "-A"], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "commit", "-q", "-m", "c"], cwd=repo, check=True, env=env)
+            p = subprocess.run([sys.executable, "-m", "gitmole.structure", out, "--procs", "1"], cwd=repo, env=env, capture_output=True, text=True)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            with open(os.path.join(out, "structure.json")) as fh:
+                data = json.load(fh)
+        self.assertEqual(data["files"]["web/src/main.ts"]["imports"], ["web/src/shared/util.ts"])
+        self.assertEqual(data["resolved"], {"typescript": 1.0})
 
 
 class Blobs(unittest.TestCase):
@@ -439,6 +500,31 @@ class Unreferenced(unittest.TestCase):
         files = self.files(n=40)
         edges = {p: info["imports"] for p, info in files.items()}
         self.assertEqual(structure.unreferenced(files, edges, {"python": 0.9}, set(), {"pkg/m0.py"}), [])
+
+    def test_what_a_build_spec_a_bundler_config_a_deploy_config_or_a_public_directory_declares_is_an_entry_point(self):
+        # VoiceStudio: PyInstaller runtime hooks in backend.spec, a rollup input and a vite-served public/ file,
+        # two Cloudflare workers named by wrangler's `main`
+        tree = {
+            "backend.spec": "a = Analysis(['backend/main.py'], pathex=['backend', '.'],\n    runtime_hooks=['backend/hooks/pyi_rth_x.py'])\n",
+            "rpm/pkg.spec": "Source0: 'backend/hooks/other.py'\n",   # an RPM spec, not PyInstaller's: no Analysis()
+            "backend/main.py": "", "backend/hooks/pyi_rth_x.py": "", "backend/hooks/other.py": "",
+            "electron/package.json": "{}",
+            "electron/electron.vite.config.ts": "input: { x: resolve(__dirname, 'src/main/server.ts') }, emit: \"public/boot.js\", url: 'https://x/src/y.ts', abs: '/src/main/z.ts'\n",
+            "electron/src/main/server.ts": "", "electron/src/main/z.ts": "", "electron/public/boot.js": "", "electron/public/worklet.js": "",
+            "docs/public/theme.js": "",   # no package.json beside it: not a web package's public directory
+            "deploy/worker/wrangler.jsonc": '{\n  // the worker\n  "main": "worker.mjs",\n}\n', "deploy/worker/worker.mjs": "",
+            "infra/wrangler.toml": 'name = "x"\nmain = "src/index.js"\n[env.dev]\nmain = "src/dev.js"\n', "infra/src/index.js": "", "infra/src/dev.js": "",
+        }
+        with tempfile.TemporaryDirectory() as repo:
+            for p, text in tree.items():
+                os.makedirs(os.path.join(repo, os.path.dirname(p)), exist_ok=True)
+                with open(os.path.join(repo, p), "w") as fh:
+                    fh.write(text)
+            entries = structure.entry_points(repo, set(tree))
+        named = {"backend/main.py", "backend/hooks/pyi_rth_x.py", "electron/src/main/server.ts", "electron/public/boot.js", "electron/public/worklet.js",
+                 "deploy/worker/worker.mjs", "infra/src/index.js"}
+        self.assertEqual(named - entries, set())
+        self.assertEqual({"backend/hooks/other.py", "electron/src/main/z.ts", "docs/public/theme.js", "infra/src/dev.js"} & entries, set())
 
     def test_a_language_where_more_than_one_file_in_twenty_looks_unreferenced_is_not_listed(self):
         files = self.files(n=20, orphans=3)   # 3 of 20 is over MAX_SHARE: the language loads code by name here

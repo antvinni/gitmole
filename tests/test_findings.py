@@ -952,6 +952,15 @@ class Hygiene(unittest.TestCase):
                                        "manifests": [{"file": "package.json", "scripts": ["postinstall"]}], "setup_py": [{"file": "setup.py", "calls": ["subprocess.run"]}]}))["install_scripts"]
         self.assertEqual(f["severity"], "info")
         self.assertIn("1 locked package runs an install script (esbuild); package.json declares postinstall; setup.py calls subprocess.run", f["detail"])
+        self.assertIn("npm ci --ignore-scripts", f["advice"])
+        self.assertIn("pip install --only-binary", f["advice"], "both ecosystems named, both switches given")
+
+    def test_a_setup_py_alone_gets_the_advice_of_its_own_ecosystem(self):
+        # VoiceStudio's scripts/setup.py was told to run npm ci --ignore-scripts, which does nothing to a Python file
+        f = self.by_id(self.h(install={"lockfile": [], "manifests": [], "setup_py": [{"file": "pkg/setup.py", "calls": ["subprocess.run"]}]}))["install_scripts"]
+        self.assertNotIn("npm", f["advice"])
+        self.assertIn("pkg/setup.py", f["advice"])
+        self.assertIn("pip install --only-binary", f["advice"])
 
     def test_committed_executables_outside_tests_are_a_warning(self):
         f = self.by_id(self.h(binaries={"binaries": 3, "executables": [{"file": "build/app.exe", "format": "PE"}, {"file": "tests/data/x.so", "format": "ELF"}],
@@ -1367,6 +1376,36 @@ class ImportCommits(unittest.TestCase):
         act["authors_all"] = {"Dan": {"last": "2019-03-26"}}
         f = findings.import_commits(report(activity=act, meta={"name": "r", "commits": 100, "identities": [], "last_date": "2026-09-01"}))
         self.assertIn("79d8f164f8 by Dan (gone, 12,449 files", f[0]["detail"])
+
+
+class SecretsDeclared(unittest.TestCase):
+    """VoiceStudio: a public analytics key the repository allowlisted, then replaced; betterleaks reads today's config only."""
+
+    def test_a_value_the_repository_declared_is_info_naming_the_declaration_and_the_rest_stays_critical(self):
+        said = {"file": ".gitleaks.toml", "commit": "e3ed952", "how": "allowlist regex"}
+        rows = [{"rule": "posthog-project-api-key", "file": "backend/core/analytics.py", "commit": "23f1767", "line": 57, "fingerprint": "a",
+                 "value": "v1", "placeholder": False, "confidence": "high", "declared": said},
+                {"rule": "posthog-project-api-key", "file": "frontend/src/utils/analytics.ts", "commit": "23f1767", "line": 44, "fingerprint": "b",
+                 "value": "v1", "placeholder": False, "confidence": "high"},
+                {"rule": "generic-password", "file": "scripts/smoke.ps1", "commit": "51bbf50", "line": 8, "fingerprint": "c",
+                 "value": "v2", "placeholder": False, "confidence": "medium"}]
+        f = {x["rule"]["id"]: x for x in findings.secrets_found(report(secrets=rows))}
+        self.assertEqual(set(f), {"secrets_in_source", "secrets_declared"})
+        self.assertIn("1 distinct value in 1 place: generic-password in scripts/smoke.ps1", f["secrets_in_source"]["detail"])
+        d = f["secrets_declared"]
+        self.assertEqual(d["severity"], "info")
+        self.assertIn("posthog-project-api-key in backend/core/analytics.py and 1 other file (23f1767, declared allowed in .gitleaks.toml at e3ed952)",
+                      d["detail"], "one declaration covers the value wherever it is")
+        self.assertNotIn("otate", d["advice"])
+        self.assertEqual(d["evidence"]["declared"], [dict(said, rule="posthog-project-api-key")])
+        self.assertEqual(d["evidence"]["files"], ["backend/core/analytics.py", "frontend/src/utils/analytics.ts"])
+        only = findings.secrets_found(report(secrets=rows[:2]))
+        self.assertEqual([x["severity"] for x in only], ["info"], "nothing critical is left for --fail-on critical to stop on")
+
+    def test_a_declared_value_only_in_tests_is_still_no_finding(self):
+        rows = [{"rule": "x", "file": "tests/t.py", "commit": "c", "line": 1, "fingerprint": "a", "value": "v1", "placeholder": False,
+                 "declared": {"file": ".gitleaksignore", "commit": "d", "how": "fingerprint"}}]
+        self.assertEqual(findings.secrets_found(report(secrets=rows)), [])
 
 
 class SecretsByConfidence(unittest.TestCase):

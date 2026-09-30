@@ -95,6 +95,8 @@ def build_parser() -> argparse.ArgumentParser:
     gates.add_argument("--fail-on", choices=findings.SEVERITIES, metavar="LEVEL",
                        help="exit 3 at LEVEL or worse; 4 if a step failed")
     gates.add_argument("--baseline", metavar="BEFORE.json", help="gate only on findings not in that earlier export")
+    gates.add_argument("--require-vuln-db", action="store_true",
+                       help="exit 4 if no vulnerability database was found")
     gates.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (a local clone)")
     gates.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk or --hook: fail over N percent")
     gates.add_argument("--hook", action="store_true", help="with --no-run: score the files an agent hook names")
@@ -306,6 +308,10 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
         err.print("[red]--since needs a run:[/red] a re-render cannot narrow an earlier analysis")
         return 2
     out_dir = os.path.abspath(args.target)
+    if args.hook and not os.path.isfile(os.path.join(out_dir, "meta.json")):
+        from . import hook
+        err.print(hook.setup_hint(args.target), soft_wrap=True, markup=False, highlight=False)
+        return 0   # an agent reads 2 as "block": a hook set up before its first run must not stop every edit
     if not os.path.isfile(os.path.join(out_dir, "meta.json")):
         err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
         for line in _no_run_hint(args, out_dir):
@@ -320,7 +326,7 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
 
 def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
     """The agent-hook gate (see hook.py): 2 over the threshold, 0 otherwise, silent when the event
-    names no file in the repository."""
+    names no file in the repository. An analysis older than HEAD is said on stderr, with the gap."""
     from . import gate, hook, watch
     try:
         report = load.load_report(out_dir)
@@ -332,6 +338,10 @@ def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
     files = [os.path.relpath(os.path.abspath(f), os.path.realpath(repo)) if os.path.isabs(f) else f for f in args.files] or hook.paths_in(event, repo)
     if not files:
         return 0
+    commit = (report["meta"].get("run") or {}).get("commit")
+    gap = hook.behind(repo, commit)
+    if gap:   # stderr: never on the stdout the agent parses; the exit code is the scores', not the notice's
+        err.print(hook.stale_line(args.target, repo, commit, gap), soft_wrap=True, markup=False, highlight=False)
     risk = watch.change_risk(report, files)
     lines = hook.summary(risk, args.risk_threshold)
     if args.files:
@@ -717,14 +727,19 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
     if "-" not in (args.json, args.markdown):
         render.print_section(console, render.portfolio_section(reports))
         console.print(Text(f"\nPer-repository results in {base}", style="dim"), soft_wrap=True)
-    if not args.fail_on:
+    if not args.fail_on and not args.require_vuln_db:
         return 0
     from . import gate
-    if gate.tripped([f for _, _, found in reports for f in found], args.fail_on):
+    if args.fail_on and gate.tripped([f for _, _, found in reports for f in found], args.fail_on):
         return gate.EXIT_FOUND
-    missing = [(name, gate.describe(gate.unfinished(report))) for name, report, _ in reports if gate.unfinished(report)]
+    blind = [name for name, report, _ in reports if gate.no_database(report)]
+    if blind:
+        ui.print(f"{gate.NO_DATABASE_NOTE}: {', '.join(blind)}", soft_wrap=True, markup=False, highlight=False)
+    missing = [(name, gate.describe(gate.unfinished(report))) for name, report, _ in reports if gate.unfinished(report)] if args.fail_on else []
+    if args.require_vuln_db:
+        missing += [(name, "no vulnerability database") for name in blind]
     if missing:
-        ui.print(f"[red]gate incomplete:[/red] {'; '.join(f'{name}: {what}' for name, what in missing)}, so --fail-on could not check "
+        ui.print(f"[red]gate incomplete:[/red] {'; '.join(f'{name}: {what}' for name, what in missing)}, so the gate could not check "
                  f"what those steps would have found (exit {gate.EXIT_INCOMPLETE})", soft_wrap=True)
         return gate.EXIT_INCOMPLETE
     return 0
@@ -866,7 +881,8 @@ def _export(path: str, flag: str, report: dict, err: Console):
 
 def _gate_exit(report: dict, found: list, risk, args, err: Console) -> int:
     """The exit code of the gates asked for: 3 when one found what it stops on; 4 when none did and a step
-    one of them reads did not complete, so it could not check (gate.py); 0 otherwise, and always without a gate."""
+    one of them reads did not complete, so it could not check (gate.py), or when --require-vuln-db was asked
+    for and the dependency scan had no database; 0 otherwise, and always without a gate."""
     from . import gate
     code, missing, flags = 0, [], []
     if args.fail_on:
@@ -878,6 +894,11 @@ def _gate_exit(report: dict, found: list, risk, args, err: Console) -> int:
         missing, flags = sorted(set(missing) | set(short)), flags + (["--risk-threshold"] if short else [])
         if risk["total"] > args.risk_threshold:
             code = gate.EXIT_FOUND
+    if gate.no_database(report) and (args.fail_on or args.require_vuln_db):
+        err.print(gate.NO_DATABASE_NOTE + ("" if code or not args.require_vuln_db else f" (exit {gate.EXIT_INCOMPLETE}: --require-vuln-db)"),
+                  soft_wrap=True, markup=False, highlight=False)
+        if args.require_vuln_db and not missing:
+            code = code or gate.EXIT_INCOMPLETE
     if missing:
         flags = " and ".join(flags)
         err.print(f"[red]gate incomplete:[/red] {gate.describe(missing)}, so {flags} could not check what "

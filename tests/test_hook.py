@@ -156,6 +156,56 @@ class Gate(unittest.TestCase):
             rc = cli.main([out, "--no-run", "--hook", "--", "core/cold.py"], console=Console(file=io.StringIO(), width=300), stdin=io.StringIO(""))
             self.assertEqual(rc, 0, "no threshold, no gate")
 
+    def test_a_missing_output_directory_says_how_to_make_it_and_does_not_block(self):
+        """Claude Code reads a PostToolUse hook's exit 2 as "block" and shows its stderr to the model: a hook
+        wired up before its first run exited 2 ("no gitmole output found") on every edit."""
+        with tempfile.TemporaryDirectory() as d:
+            event = {"tool_input": {"file_path": os.path.join(d, "a.py")}}
+            for argv in ([os.path.join(d, "analysis-repo"), "--no-run", "--hook", "--risk-threshold", "10"],
+                         [os.path.join(d, "analysis-repo"), "--no-run", "--hook", "--", "a.py"]):
+                c = Console(file=io.StringIO(), width=300)
+                rc = cli.main(argv, console=c, stdin=io.StringIO(json.dumps(event)))
+                self.assertEqual(rc, 0)
+                said = c.file.getvalue()
+                self.assertIn("no analysis in", said)
+                self.assertIn("run once in the repository: gitmole . --out " + os.path.join(d, "analysis-repo"), said)
+                self.assertNotIn("hookSpecificOutput", said)
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                rc = cli.main([os.path.join(d, "none"), "--no-run", "--hook"], stdin=io.StringIO(json.dumps(event)))
+            self.assertEqual((rc, stdout.getvalue()), (0, ""), "the warning goes to stderr; stdout is the agent's JSON, and there is none")
+            self.assertIn("no analysis in", stderr.getvalue())
+        c = Console(file=io.StringIO(), width=300)
+        self.assertEqual(cli.main([os.path.join(d, "none"), "--no-run"], console=c), 2, "without --hook it is still bad arguments")
+
+    def test_an_analysis_behind_head_is_said_with_the_gap(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            out = self._out(d)
+            head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=d, capture_output=True, text=True, check=True).stdout.strip()
+            with open(os.path.join(out, "meta.json")) as fh:
+                meta = json.load(fh)
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({**meta, "run": {"commit": head}}, fh)
+            argv = [out, "--no-run", "--hook", "--risk-threshold", "99.9", "--", "core/cold.py"]
+            c = Console(file=io.StringIO(), width=400)
+            self.assertEqual(cli.main(argv, console=c, stdin=io.StringIO("")), 0)
+            self.assertNotIn("behind HEAD", c.file.getvalue(), "the analysis is of HEAD: nothing to say")
+            for n in range(2):
+                subprocess.run(["git", "-c", "user.name=Ann", "-c", "user.email=a@x", "commit", "-q", "--allow-empty", "-m", f"later {n}"],
+                               cwd=d, check=True, capture_output=True, env=dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null"))
+            c = Console(file=io.StringIO(), width=400)
+            self.assertEqual(cli.main(argv, console=c, stdin=io.StringIO("")), 0, "the notice does not change the exit code")
+            self.assertIn(f"the analysis in {out} is of {head[:12]}, 2 commits behind HEAD", c.file.getvalue())
+            self.assertIn(f"refresh it with: gitmole {d} --out {out}", c.file.getvalue())
+            c = Console(file=io.StringIO(), width=400)
+            self.assertEqual(cli.main([out, "--no-run", "--hook", "--risk-threshold", "50", "--", "core/hot.py"], console=c, stdin=io.StringIO("")), 2)
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({**meta, "run": {"commit": "f" * 40}}, fh)
+            c = Console(file=io.StringIO(), width=400)
+            self.assertEqual(cli.main(argv, console=c, stdin=io.StringIO("")), 0)
+            self.assertNotIn("behind HEAD", c.file.getvalue(), "a commit this clone does not have: nothing can be said")
+
     def test_the_hook_needs_an_output_directory(self):
         c = Console(file=io.StringIO(), width=200)
         rc = cli.main(["owner/repo", "--hook"], console=c, tool_check=lambda **kw: [])

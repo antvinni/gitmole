@@ -29,6 +29,12 @@ inputs:
   risk-threshold:
     description: With risk, fail the step when the changed files hold more than this percent of the repository's revisions x lines.
     default: ""
+  baseline:
+    description: >-
+      Gate only on what is new since the default branch's last run: restore that run's --json export from the
+      Actions cache and pass it as --baseline; on a push to the default branch, save this run's export as the
+      next baseline (never from a pull request). The first run has no baseline and gates on every finding.
+    default: "false"
   sarif:
     description: Write the findings as SARIF 2.1.0 to this path; empty writes none.
     default: ""
@@ -36,7 +42,9 @@ inputs:
     description: With sarif, upload the file to GitHub code scanning (the job needs security-events write).
     default: "true"
   vulnerability-db:
-    description: Download osv-scanner's offline database before the scan (cached per day), so the dependency scan has something to match against.
+    description: >-
+      Download osv-scanner's offline database before the scan (cached per day), so the dependency scan has
+      something to match against, and pass --require-vuln-db, so a scan that still had no database exits 4.
     default: "false"
   summary:
     description: Append the Markdown report to the job summary.
@@ -47,7 +55,9 @@ inputs:
 
 outputs:
   exit-code:
-    description: gitmole's exit code (0; 3 when fail-on or risk-threshold tripped; 4 when a gate could not check because a step did not finish).
+    description: >-
+      gitmole's exit code (0; 3 when fail-on or risk-threshold tripped; 4 when a gate could not check because a
+      step did not finish, or vulnerability-db found no database).
     value: ${{ steps.run.outputs.exit-code }}
   markdown:
     description: The path of the Markdown report.
@@ -55,6 +65,9 @@ outputs:
   sarif:
     description: The path of the SARIF file, when one was asked for.
     value: ${{ steps.run.outputs.sarif }}
+  baseline:
+    description: With baseline, the path of the export this run was gated against; empty when there was none yet.
+    value: ${{ steps.run.outputs.baseline }}
 
 runs:
   using: composite
@@ -68,6 +81,7 @@ runs:
       shell: bash
       env:
         INPUT_VERSION: ${{ inputs.version }}
+        INPUT_ARGS: ${{ inputs.args }}
         ACTION_REF: ${{ github.action_ref }}
         ACTION_PATH: ${{ github.action_path }}
       run: |
@@ -94,6 +108,9 @@ runs:
         print(f"osv={tools.PINNED['osv-scanner']}")
         PY
         echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+        # the baseline's cache key: one per set of arguments, so two gitmole steps over different targets in
+        # one repository keep two baselines
+        echo "args=$(printf '%s' "$INPUT_ARGS" | python -c 'import hashlib,sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])')" >> "$GITHUB_OUTPUT"
 
     - name: Restore the pinned tools
       id: tools-cache
@@ -143,6 +160,17 @@ runs:
           *) echo "::error::osv-scanner exited $rc downloading the offline database"; exit "$rc" ;;
         esac
 
+    - name: Restore the baseline
+      # the default branch's last export: caches saved on the default branch are visible to every branch and
+      # pull request, and only a push to it saves one (below), so this is always the default branch's
+      id: baseline-cache
+      if: inputs.baseline == 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/gitmole-baseline
+        key: gitmole-baseline-${{ github.event.repository.default_branch }}-${{ steps.install.outputs.args }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: gitmole-baseline-${{ github.event.repository.default_branch }}-${{ steps.install.outputs.args }}-
+
     - name: Run gitmole
       id: run
       shell: bash
@@ -153,6 +181,8 @@ runs:
         INPUT_RISK_THRESHOLD: ${{ inputs.risk-threshold }}
         INPUT_SARIF: ${{ inputs.sarif }}
         INPUT_SUMMARY: ${{ inputs.summary }}
+        INPUT_VULNERABILITY_DB: ${{ inputs.vulnerability-db }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
       run: |
         set -uo pipefail
         read -r -a argv <<< "$INPUT_ARGS"   # split on whitespace, never evaluated by a shell
@@ -162,9 +192,39 @@ runs:
         [ -n "$INPUT_RISK" ] && argv+=(--risk "$INPUT_RISK")
         [ -n "$INPUT_RISK_THRESHOLD" ] && argv+=(--risk-threshold "$INPUT_RISK_THRESHOLD")
         [ -n "$INPUT_SARIF" ] && argv+=(--sarif "$INPUT_SARIF")
+        [ "$INPUT_VULNERABILITY_DB" = "true" ] && argv+=(--require-vuln-db)   # asked for the database: none is a gate that could not check
+        baseline="" export_json=""
+        if [ "$INPUT_BASELINE" = "true" ]; then
+          # this run's export, the next baseline: the one args already writes to a file, else one of the action's own
+          export_json=""
+          for i in "${!argv[@]}"; do
+            case "${argv[$i]}" in
+              --json) export_json="${argv[$((i + 1))]:-}" ;;
+              --json=*) export_json="${argv[$i]#--json=}" ;;
+            esac
+          done
+          if [ -z "$export_json" ] || [ "$export_json" = "-" ]; then
+            export_json="$RUNNER_TEMP/gitmole-export.json"
+            argv+=(--json "$export_json")
+          fi
+          if [ -s "$RUNNER_TEMP/gitmole-baseline/baseline.json" ]; then
+            baseline="$RUNNER_TEMP/gitmole-baseline/baseline.json"
+            argv+=(--baseline "$baseline")
+          else
+            echo "::notice::gitmole: no baseline yet (the default branch saves one on its next push), so this run gates on every finding"
+          fi
+        fi
         rc=0
         gitmole "${argv[@]}" || rc=$?
         echo "exit-code=$rc" >> "$GITHUB_OUTPUT"
+        echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
+        # the next baseline, from a run that completed (0, or 3 for a tripped gate): a 4's export lacks what an
+        # unfinished step would have found, and the cached one stays the better baseline
+        if [ "$INPUT_BASELINE" = "true" ] && { [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; } && [ -s "$export_json" ]; then
+          mkdir -p "$RUNNER_TEMP/gitmole-baseline"
+          cp "$export_json" "$RUNNER_TEMP/gitmole-baseline/baseline.json"
+          echo "next-baseline=true" >> "$GITHUB_OUTPUT"
+        fi
         echo "markdown=$markdown" >> "$GITHUB_OUTPUT"
         echo "sarif=$INPUT_SARIF" >> "$GITHUB_OUTPUT"
         if [ "$INPUT_SUMMARY" = "true" ] && [ -s "$markdown" ]; then
@@ -190,6 +250,16 @@ runs:
         sarif_file: ${{ inputs.sarif }}
         category: gitmole
 
+    - name: Save this run's export as the next baseline
+      # only a push to the default branch: a pull request's findings are not yet the default branch's
+      if: >-
+        inputs.baseline == 'true' && steps.run.outputs.next-baseline == 'true' && github.event_name == 'push' &&
+        github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/gitmole-baseline
+        key: gitmole-baseline-${{ github.event.repository.default_branch }}-${{ steps.install.outputs.args }}-${{ github.run_id }}-${{ github.run_attempt }}
+
     - name: Fail on a tripped gate
       if: steps.run.outputs.exit-code == '3'
       shell: bash
@@ -201,5 +271,5 @@ runs:
       if: steps.run.outputs.exit-code == '4'
       shell: bash
       run: |
-        echo "::error::gitmole's gate could not check: a step it reads did not finish (the report's header names it)"
+        echo "::error::gitmole's gate could not check: a step it reads did not finish, or the dependency scan had no vulnerability database (the log above names which)"
         exit 4
