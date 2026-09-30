@@ -432,7 +432,8 @@ def _call_name(node) -> str:
 def install_scripts(repo: str) -> dict:
     """Code that runs when a dependency is installed: packages package-lock.json marks hasInstallScript,
     lifecycle scripts in the repository's own package.json files, and process, network and exec calls
-    in a setup.py, which pip runs."""
+    in a setup.py that calls setup() (setuptools' or distutils'), which pip runs when it builds the
+    package; a setup.py without one is a script someone runs by hand, and pip never does."""
     in_lock = []
     for path, lock in _npm_locks(repo):
         for name, entry in _npm_packages(lock):
@@ -456,7 +457,10 @@ def install_scripts(repo: str) -> dict:
                 tree = ast.parse(_text(repo, path))
             except SyntaxError:
                 continue
-            calls = sorted({n for n in (_call_name(c) for c in ast.walk(tree) if isinstance(c, ast.Call)) if _RISKY_CALLS.match(n)})
+            names = {_call_name(c) for c in ast.walk(tree) if isinstance(c, ast.Call)}
+            if not any(n == "setup" or n.endswith(".setup") for n in names):
+                continue   # a helper script that happens to be called setup.py: pip runs a setup.py only for its setup()
+            calls = sorted(n for n in names if _RISKY_CALLS.match(n))
             if calls:
                 setups.append({"file": path, "calls": calls})
     return {"lockfile": in_lock[:CAP], "lockfile_count": len(in_lock), "manifests": manifests[:CAP], "setup_py": setups[:CAP]}

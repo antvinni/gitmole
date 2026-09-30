@@ -212,6 +212,17 @@ class InstallScripts(unittest.TestCase):
         self.assertEqual(out["manifests"], [{"file": "package.json", "scripts": ["postinstall"]}], "node_modules is not tracked code")
         self.assertEqual(out["setup_py"], [{"file": "setup.py", "calls": ["subprocess.run"]}])
 
+    def test_a_setup_py_without_setup_is_a_script_pip_never_runs(self):
+        # VoiceStudio's scripts/setup.py is `uv run python scripts/setup.py`: no setuptools, no setup()
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("scripts/setup.py", "import subprocess\nsubprocess.run(['uv', 'sync'])\n")
+            r.write("pkg/setup.py", "import os, setuptools\nos.system('make')\nsetuptools.setup(name='x')\n")
+            r.write("old/setup.py", "from distutils.core import setup\nimport subprocess\nsubprocess.call(['make'])\nsetup(name='y')\n")
+            r.commit()
+            out = hygiene.install_scripts(d)
+        self.assertEqual(out["setup_py"], [{"file": "old/setup.py", "calls": ["subprocess.call"]}, {"file": "pkg/setup.py", "calls": ["os.system"]}])
+
 
 class Binaries(unittest.TestCase):
     def test_executables_by_magic_bytes_binaries_by_name_and_lfs_declared_but_not_used(self):

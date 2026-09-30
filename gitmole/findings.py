@@ -796,8 +796,12 @@ def _hygiene_install(h: dict, out: list) -> None:
             parts.append(f"{n} locked package{'s' if n != 1 else ''} {'runs' if n == 1 else 'run'} an install script ({_files_list([x['package'] for x in ins['lockfile']])})")
         parts += [f"{m['file']} declares {textfmt.join_and(m['scripts'])}" for m in (ins.get("manifests") or [])[:3]]
         parts += [f"{s_['file']} calls {textfmt.join_and(s_['calls'])}" for s_ in (ins.get("setup_py") or [])[:3]]
-        out.append(_f("info", "Code that runs at install", "; ".join(parts) + ".",
-                      "Install with scripts disabled where the build allows it (npm ci --ignore-scripts) and review what the rest run.",
+        # the advice of the ecosystem the finding names: npm's switch does nothing to a setup.py, which pip runs whenever it builds from source
+        npm = "Install with scripts disabled where the build allows it (npm ci --ignore-scripts) and review what the rest run."
+        pip = (f"Review what {ins['setup_py'][0]['file']} runs: pip runs it on every install from source; "
+               "a wheel install (pip install --only-binary :all:) does not.") if ins.get("setup_py") else ""
+        advice = pip if not (ins.get("lockfile") or ins.get("manifests")) else f"{npm} {pip}".strip()
+        out.append(_f("info", "Code that runs at install", "; ".join(parts) + ".", advice,
                       rule={"id": "install_scripts"}, evidence={k: ins.get(k) for k in ("lockfile", "manifests", "setup_py")}))
 
 

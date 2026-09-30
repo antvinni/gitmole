@@ -952,6 +952,15 @@ class Hygiene(unittest.TestCase):
                                        "manifests": [{"file": "package.json", "scripts": ["postinstall"]}], "setup_py": [{"file": "setup.py", "calls": ["subprocess.run"]}]}))["install_scripts"]
         self.assertEqual(f["severity"], "info")
         self.assertIn("1 locked package runs an install script (esbuild); package.json declares postinstall; setup.py calls subprocess.run", f["detail"])
+        self.assertIn("npm ci --ignore-scripts", f["advice"])
+        self.assertIn("pip install --only-binary", f["advice"], "both ecosystems named, both switches given")
+
+    def test_a_setup_py_alone_gets_the_advice_of_its_own_ecosystem(self):
+        # VoiceStudio's scripts/setup.py was told to run npm ci --ignore-scripts, which does nothing to a Python file
+        f = self.by_id(self.h(install={"lockfile": [], "manifests": [], "setup_py": [{"file": "pkg/setup.py", "calls": ["subprocess.run"]}]}))["install_scripts"]
+        self.assertNotIn("npm", f["advice"])
+        self.assertIn("pkg/setup.py", f["advice"])
+        self.assertIn("pip install --only-binary", f["advice"])
 
     def test_committed_executables_outside_tests_are_a_warning(self):
         f = self.by_id(self.h(binaries={"binaries": 3, "executables": [{"file": "build/app.exe", "format": "PE"}, {"file": "tests/data/x.so", "format": "ELF"}],
