@@ -1451,6 +1451,9 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
             n, who, orphaned_share = knowledge.truck_factor({f: authored[f] for f in fs})
             if n == 1:   # the area's size and what one departure orphans, so a reader can tell ten files from ten thousand
                 lone.append((area, who[0], len(fs), round(orphaned_share * len(fs))))
+    # most files at stake first: the list, the evidence's first ten and the advice's start area all begin where
+    # one departure orphans the most, not where the alphabet does (hindsight's docker/, 9 files, over 267)
+    lone.sort(key=lambda t: (-t[3], t[0]))
     if tf > 2 and not lone:
         return []
     orphans = round(share * len(files))
@@ -1490,7 +1493,7 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
                 if p not in gone:
                     counts[p] = counts.get(p, 0) + 1
         ask = min(counts, key=lambda p: (-counts[p], p)) if counts else None
-    first_area = next((a for a, w, _, _ in lone if w == ask), None)
+    first_area = next((a for a, w, _, _ in lone if w == ask), None)   # lone is ordered by files at stake
     if ask is None:
         advice = "Everyone who authors these files has stopped committing; give the files owners, starting with the ones changed most."
     else:

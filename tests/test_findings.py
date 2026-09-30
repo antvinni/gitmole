@@ -1428,6 +1428,14 @@ class TruckFactor(unittest.TestCase):
         self.assertEqual(f["advice"], "Pair someone with Ann first; they author most of what would be left without an author.",
                          "core/ is Bob's: it is not where to pair someone with Ann")
 
+    def test_the_start_area_is_where_most_files_are_at_stake(self):
+        # hindsight named docker/ (9 files at stake) over hindsight-api-slim/ (267): the first area in the alphabet
+        doa = [self.row(f"server/a{i}.py", "Ann") for i in range(30)] + [self.row(f"docker/d{i}.py", "Ann") for i in range(10)]
+        doa += [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa, theseus_authors={"Ann": 50, "Bob": 50}))}["truck_factor"]
+        self.assertEqual(f["advice"], "Pair someone with Ann on server/ first; they author most of what would be left without an author.")
+        self.assertEqual([a["area"] for a in f["evidence"]["areas"]], ["server/", "docker/"], "most at stake first")
+
     def test_an_even_split_of_the_surviving_code_is_explained(self):
         doa = [self.row(f"core/a{i}.py", "Ann") for i in range(20)] + [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
         f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa, theseus_authors={"Ann": 50, "Bob": 50}))}["truck_factor"]
