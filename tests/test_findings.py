@@ -1448,6 +1448,14 @@ class Structure(unittest.TestCase):
         self.assertIn("src/f11.py", f["detail"])
         self.assertIn("dynamic imports, plugins loaded by name and framework routing do not show", f["advice"])
 
+    def test_a_file_a_later_test_convention_names_is_left_out_of_a_saved_list(self):
+        """paperclip's list led with packages/db/src/__fixtures__/x.mjs, a Jest fixture the structure step of its day
+        did not call a test file; the render takes it out and counts one fewer."""
+        f = self.by_id(self.base(unreferenced=["src/__fixtures__/f.mjs", "src/f11.py"], unreferenced_count=3))["unreferenced_files"]
+        self.assertNotIn("__fixtures__", f["detail"])
+        self.assertEqual((f["evidence"]["count"], f["evidence"]["files"]), (2, ["src/f11.py"]))
+        self.assertNotIn("unreferenced_files", self.by_id(self.base(unreferenced=["scripts/smoke/run.mjs"], unreferenced_count=1)))
+
     def test_a_skipped_file_in_a_judged_language_is_named(self):
         """hindsight's busiest file was over the size limit, its imports vanished, and a file it imports read as
         unreferenced with nothing saying so."""

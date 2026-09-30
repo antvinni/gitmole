@@ -1493,10 +1493,13 @@ def unreferenced_files(report: dict) -> list:
     "dead": Romano et al. found no comprehension cost to dead code in controlled experiments, and a
     dynamic import cannot be seen from here, so this is a list to check, not to delete."""
     s = _structure(report)
-    paths = s.get("unreferenced") or []
+    listed = s.get("unreferenced") or []
+    # the structure step left test files out by the conventions of its day; one a later convention calls a test
+    # (a __fixtures__/ input, a smoke/ script) is taken out here too, so a saved run reads as a new one would
+    paths = [p for p in listed if not filetypes.is_test_path(p)]
     if not paths:
         return []
-    n = s.get("unreferenced_count", len(paths))
+    n = s.get("unreferenced_count", len(listed)) - (len(listed) - len(paths))
     # a file too big to parse imports what it imports unseen: say so, in a language the list judges
     judged = {info.get("language") for p, info in (s.get("files") or {}).items() if p in set(paths)}
     unseen = [r for r in s.get("skipped") or [] if (structure.GRAMMARS.get(os.path.splitext(r.get("file") or "")[1].lower()) or ("",))[0] in judged]

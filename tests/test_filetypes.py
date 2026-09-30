@@ -98,9 +98,12 @@ class TestPaths(unittest.TestCase):
     def test_test_files_and_directories(self):
         for path in ("tests/test_a.py", "a/spec/b.rb", "src/__tests__/x.js", "x/y_test.go", "app.spec.ts", "app.test.tsx", "test_x.py",
                      "pending_tests/main.py", "e2e-tests/login.ts", "src/test_utils/helpers.py", "crates/x/snapshots/rule__S105.py.snap",
-                     "src/__snapshots__/a.js.snap", "lib/render.snap"):
+                     "src/__snapshots__/a.js.snap", "lib/render.snap", "scripts/smoke/check.sh", "smoke/run.py", "e2e/login.spec.js",
+                     "apps/web/e2e/fixtures.ts", "scripts/smoke/gateway-e2e.sh", "src/login_e2e.go", "ui/login.e2e.ts",
+                     "packages/db/src/__fixtures__/recovery.mjs"):
             self.assertTrue(filetypes.is_test_path(path), path)
-        for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md", "src/testimony.py", "snapshot.py"):
+        for path in ("src/contest.py", "gitmole/render.py", "attest/x.py", "latest.md", "src/testimony.py", "snapshot.py",
+                     "src/smoke_detector.py", "src/smokescreen/x.go", "lib/e2ee/cipher.rs", "src/e2e.go", "src/e2e_crypto/x.rs"):
             self.assertFalse(filetypes.is_test_path(path), path)
 
     def test_suffix_conventions_of_test_frameworks(self):

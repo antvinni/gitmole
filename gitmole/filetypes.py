@@ -52,8 +52,12 @@ def parse(spec):
     return {t.strip().lstrip(".").lower() for t in spec.split(",") if t.strip()}
 
 
-_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|testsuite|snapshots?|__snapshots__|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
-                        r"|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+|[^/]*\.snap)$", re.I)
+# smoke/ and e2e/ hold smoke and end-to-end suites (Playwright's and Cypress's e2e/, a scripts/smoke/ runner), and
+# a name ending -e2e, _e2e or .e2e before its extension is one such suite's file (login.e2e.ts, gateway-e2e.sh);
+# __fixtures__/ is Jest's directory of test inputs beside __tests__/ and __snapshots__/.
+_TEST_PATH = re.compile(r"(^|/)(tests?|spec|specs|__tests__|testing|testsuite|snapshots?|__snapshots__|__fixtures__|smoke|e2e"
+                        r"|[\w-]+[_-]tests?|tests?[_-][\w-]+)(/|$)"
+                        r"|(^|/)(test_[^/]*|[^/]*_test\.[^/]+|[^/]*\.spec\.[^/]+|[^/]*\.test\.[^/]+|[^/]*[-_.]e2e\.[^/]+|[^/]*\.snap)$", re.I)
 
 # Suffix conventions of test frameworks, case-sensitive (Contest.java is not a Test, requests/ is not a
 # Tests/ target): JUnit/XCTest/NUnit's FooTest(s), hspec/ScalaTest's FooSpec, RSpec's _spec.rb, Foundry's
@@ -82,7 +86,7 @@ def is_tooling_path(path: str) -> bool:
 
 def is_test_path(path: str) -> bool:
     """A test file or anything under a tests directory (tests/, pending_tests/, e2e-tests/, test_utils/,
-    snapshots/ and .snap files): changes with every fix, so not a signal on its own. Also the suffix
+    snapshots/ and .snap files, smoke/, e2e/, __fixtures__/, and a -e2e/_e2e/.e2e file): changes with every fix, so not a signal on its own. Also the suffix
     conventions of test frameworks: FooTest.java, user_spec.rb, ParserSpec.hs, Vault.t.sol, tb_counter.v,
     and AppTests/ directories."""
     return bool(_TEST_PATH.search(path) or _TEST_SUFFIX.search(path))
