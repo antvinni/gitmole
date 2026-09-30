@@ -359,12 +359,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0          # gitmole reads the whole history; a shallow clone has one commit
-      - uses: antvinni/gitmole@v0.39.0
+      - uses: antvinni/gitmole@v0.40.0
         with:
           fail-on: critical
 ```
 
-The tag decides the version: `@v0.39.0` installs `gitmole==0.39.0`.
+The tag decides the version: `@v0.40.0` installs `gitmole==0.40.0`.
 Pinned to a commit SHA instead (with the tag in a comment, as gitmole's own
 `unpinned_actions` finding asks of a workflow), or used from a branch or as
 `uses: ./`, the action installs gitmole from its own source at that commit;
@@ -419,7 +419,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: antvinni/gitmole@v0.39.0
+      - uses: antvinni/gitmole@v0.40.0
         with:
           fail-on: critical
           baseline: true

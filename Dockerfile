@@ -1,6 +1,6 @@
 # gitmole from PyPI and the three tools it runs, at the versions that release pins.
 #
-#   docker build --build-arg GITMOLE_VERSION=0.39.0 -t gitmole .
+#   docker build --build-arg GITMOLE_VERSION=0.40.0 -t gitmole .
 #   docker run --rm -v "$PWD:/repo" gitmole .
 #
 # Builds for linux/amd64 and linux/arm64: every pinned tool publishes both (gitmole/tools.py). Before 0.39.0
@@ -9,7 +9,7 @@
 ARG BASE=python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e
 
 FROM ${BASE} AS build
-ARG GITMOLE_VERSION=0.39.0
+ARG GITMOLE_VERSION=0.40.0
 ENV GITMOLE_TOOLS=/opt/gitmole/tools
 RUN python -m venv /opt/gitmole/venv \
  && /opt/gitmole/venv/bin/pip install --no-cache-dir --disable-pip-version-check "gitmole==${GITMOLE_VERSION}" \
