@@ -606,6 +606,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     meta["generated"] = filetypes.generated_files(repo_dir, tracked, attrs=attrs)   # hidden from the tables, out of the findings
     meta["vendored"] = filetypes.vendored_paths(repo_dir, tracked, attrs=attrs)    # somebody else's code, by the licence it carries or the attribute it declares
     meta["test_modules"] = filetypes.rust_test_modules(repo_dir, tracked)   # Rust #[cfg(test)] modules: test code inside a source file
+    meta["test_doubles"] = filetypes.test_doubles(repo_dir, tracked)   # Cargo bins only the tests start: test code outside a tests directory
     meta["credential_files"] = filetypes.credential_files(filetypes.git_paths(repo_dir, "ls-files"))   # by name, over every tracked file
     if args.since_date and meta["commits"] == 0:
         raise NoCommits(f"no commits since {args.since_date}" + (f" under {', '.join(args.path)}" if args.path else "") + "; widen --since")

@@ -139,6 +139,30 @@ class TestPaths(unittest.TestCase):
                 fh.write("#[cfg(test)]\nmod tests {\n}\n")
             self.assertEqual(filetypes.rust_test_modules(d, ["src/lib.rs", "src/notes.md", "src/gone.rs"]), {"src/lib.rs": [[2, 4]]})
 
+    def test_a_cargo_bin_only_the_tests_start_is_a_test_double(self):
+        """paperclip's brain methods led with `run` in runner-core/src/bin/fake-codex-app-server.rs, a [[bin]] its
+        integration tests start through CARGO_BIN_EXE_fake-codex-app-server and nothing else ships."""
+        from tests.test_hygiene import Repo
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("crates/core/Cargo.toml", '[package]\nname = "core"\n\n[[bin]]\nname = "fake-server"\npath = "src/bin/fake-server.rs"\n\n'
+                                              '[[bin]]\nname = "daemon"\npath = "src/bin/daemon.rs"\n\n[dependencies]\nname = "x"\n')
+            for name in ("fake-server", "daemon", "tracer"):
+                r.write(f"crates/core/src/bin/{name}.rs", f'fn main() {{ eprintln!("{name}"); }}\n')
+            r.write("crates/core/src/bin/stub/main.rs", "fn main() {}\n")
+            r.write("crates/core/src/bin/stub/io.rs", "pub fn io() {}\n")
+            r.write("crates/core/tests/e2e.rs", 'const A: &str = env!("CARGO_BIN_EXE_fake-server");\nconst B: &str = env!("CARGO_BIN_EXE_daemon");\n'
+                                                'const C: &str = env!("CARGO_BIN_EXE_stub");\n')
+            r.write("docs/debugging.md", "cargo build --bin fake-server\n")
+            r.write("Dockerfile", "COPY target/release/daemon /usr/bin/daemon\n")
+            r.write("scripts/release.sh", "cargo build --bin tracer\n")
+            r.commit()
+            paths = subprocess.run(["git", "-C", d, "ls-files"], capture_output=True, text=True).stdout.split()
+            self.assertEqual(filetypes.test_doubles(d, paths),
+                             ["crates/core/src/bin/fake-server.rs", "crates/core/src/bin/stub/io.rs", "crates/core/src/bin/stub/main.rs"],
+                             "daemon ships (the Dockerfile names it); tracer no test starts")
+            self.assertEqual(filetypes.test_doubles(d, [p for p in paths if not p.endswith("Cargo.toml")]), [], "no manifest, no bin")
+
     def test_documentation_files_and_directories(self):
         for path in ("README.md", "docs/GA4-API-INTEGRATION.md", "doc/guide.rst", "NOTES.txt", "a/b/CHANGELOG.markdown", "docs/conf.py", "x.adoc",
                      "docs_src/security/tutorial004.py", "docs-site/app.js", "doc_examples/x.py",

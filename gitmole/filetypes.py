@@ -430,6 +430,88 @@ def is_credential_path(path: str) -> bool:
     return bool(_CREDENTIAL_NAME.match(name)) and not _CREDENTIAL_TEMPLATE.match(name)
 
 
+# A Cargo binary target that exists for the tests: Cargo builds every [[bin]] of a package before its integration
+# tests and hands each one's path to them as the CARGO_BIN_EXE_<name> environment variable (the Cargo Book,
+# "Environment variables Cargo sets for crates"). A bin the tests start that nothing else names (no Dockerfile,
+# script, workflow or source file outside the tests) is a test double: a fake server, a stub harness. A bin that
+# ships is named where it is built, installed or started, and stays source.
+_CARGO_BIN_EXE = re.compile(r"CARGO_BIN_EXE_([A-Za-z0-9_-]+)")
+_TOML_SECTION = re.compile(r"^\s*\[\[?([^\]]+)\]\]?\s*$")
+_TOML_STR = re.compile(r"^\s*(name|path)\s*=\s*[\"']([^\"']+)[\"']")
+
+
+def cargo_bins(manifest: str, text: str, tracked: set) -> dict:
+    """{bin name: [source files]} of one Cargo.toml: each [[bin]] with its path (src/bin/<name>.rs by default), and
+    the targets Cargo discovers, src/bin/<name>.rs and src/bin/<name>/*.rs. Only tracked files are named."""
+    root = posixpath.dirname(manifest)
+    at = (lambda rel: posixpath.normpath(posixpath.join(root, rel)) if root else posixpath.normpath(rel))
+    out = {}
+    prefix = at("src/bin") + "/"
+    for p in tracked:
+        if p.startswith(prefix) and p.endswith(".rs"):
+            rest = p[len(prefix):]
+            name = rest[:-3] if "/" not in rest else rest.split("/", 1)[0]
+            out.setdefault(name, []).append(p)
+    section, entry = None, None
+    for line in (text or "").split("\n") + ["[end]"]:
+        m = _TOML_SECTION.match(line)
+        if m:
+            if entry and entry.get("name"):
+                path = at(entry.get("path") or f"src/bin/{entry['name']}.rs")
+                if path in tracked and path not in out.get(entry["name"], []):
+                    out.setdefault(entry["name"], []).append(path)
+            section = m.group(1).strip()
+            entry = {} if line.strip().startswith("[[") and section == "bin" else None
+            continue
+        m = _TOML_STR.match(line)
+        if entry is not None and m:
+            entry[m.group(1)] = m.group(2)
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def _grep(repo: str, *args) -> list:
+    """(path, line text) for each tracked line `git grep` matches in the working tree."""
+    out = subprocess.run([*GIT, "grep", "-I", "-z", "-n", *args], cwd=repo, capture_output=True).stdout
+    rows = []
+    for rec in out.decode("utf-8", "surrogateescape").split("\n"):
+        parts = rec.split("\0", 2)
+        if len(parts) == 3:
+            rows.append((parts[0], parts[2]))
+    return rows
+
+
+def test_doubles(repo: str, paths: list) -> list:
+    """The source files of the Cargo binary targets that only the tests use (see _CARGO_BIN_EXE): started by name
+    through CARGO_BIN_EXE_<name> from test files only, and named by no tracked file but a Cargo manifest or lock,
+    their own sources, test files and documentation."""
+    tracked = set(paths)
+    manifests = [p for p in paths if p.rsplit("/", 1)[-1] == "Cargo.toml"]
+    if not manifests:
+        return []
+    started = {}
+    for path, text in _grep(repo, "-F", "-e", "CARGO_BIN_EXE_"):
+        for name in _CARGO_BIN_EXE.findall(text):
+            started.setdefault(name, set()).add(path)
+    bins = {}
+    for manifest in manifests:
+        if not started:
+            break
+        try:
+            with open(os.path.join(repo, manifest), encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        for name, files in cargo_bins(manifest, text, tracked).items():
+            if name in started and all(is_test_path(p) for p in started[name]):
+                bins.setdefault(name, set()).update(files)
+    out = set()
+    for name, files in sorted(bins.items()):
+        named = {p for p, _ in _grep(repo, "-w", "-F", "-e", name)}
+        if all(p in files or p.rsplit("/", 1)[-1] in ("Cargo.toml", "Cargo.lock") or is_test_path(p) or is_doc_path(p) for p in named):
+            out |= files
+    return sorted(out)
+
+
 def credential_files(paths: list) -> list:
     return sorted(p for p in paths if is_credential_path(p))
 

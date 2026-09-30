@@ -675,6 +675,14 @@ class BrainMethods(unittest.TestCase):
     def test_nothing_without_data(self):
         self.assertEqual(findings.brain_methods(report()), [])
 
+    def test_a_function_in_a_cargo_test_double_is_not_a_brain_method(self):
+        fns = [{"file": "crates/core/src/bin/fake-server.rs", "function": "run", "ccn": 360, "nloc": 1266, "params": 0, "start": 5, "end": 1300},
+               {"file": "crates/core/src/lib.rs", "function": "serve", "ccn": 20, "nloc": 150, "params": 1, "start": 10, "end": 160}]
+        r = report(functions=fns)
+        r["meta"]["test_doubles"] = ["crates/core/src/bin/fake-server.rs"]
+        f = findings.brain_methods(r)[0]
+        self.assertEqual([x["function"] for x in f["evidence"]["functions"]], ["serve"])
+
     def test_a_function_inside_a_rust_test_module_is_not_a_brain_method(self):
         fns = [{"file": "src/lib.rs", "function": "big_case", "ccn": 40, "nloc": 300, "params": 0, "start": 520, "end": 820},
                {"file": "src/lib.rs", "function": "run", "ccn": 20, "nloc": 150, "params": 1, "start": 10, "end": 160}]

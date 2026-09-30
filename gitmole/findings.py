@@ -125,13 +125,13 @@ def _secrets_by_rule(report: dict) -> tuple:
     value of a finding and no other."""
     groups = leaks.group(report.get("secrets") or [])
 
-    vendored, generated = filetypes.vendor_dirs(report), _generated(report)
+    vendored, generated, doubles = filetypes.vendor_dirs(report), _generated(report), _test_doubles(report)
 
     def in_source(g):   # a copy in an unreachable blob has no path: the value's located copies say where it lives
         located = [f for f in g["files"] if not f.startswith(leaks.UNREACHABLE)] or g["files"]
         inline = set(g.get("test_code_files") or ())   # every sighting there inside a Rust test module
         return any(not (filetypes.is_test_path(f) or filetypes.is_doc_path(f) or filetypes.is_sample_path(f) or filetypes.is_vendored(f, vendored)
-                        or filetypes.is_mock_path(f) or filetypes.is_tooling_path(f) or f in generated or _TEMPLATE_FILE.search(f) or f in inline)
+                        or filetypes.is_mock_path(f) or filetypes.is_tooling_path(f) or f in generated or _TEMPLATE_FILE.search(f) or f in inline or f in doubles)
                    for f in located)
 
     def possible(g):   # only the scanner's generic rules found it, and it graded every sighting low
@@ -691,9 +691,9 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     migrations (written once and replayed as they stand, so nobody should split one) are left out, and
     so is a span the function step marked suspect, since a mis-parse that swallowed the next function is
     long and complex by construction. A warning when one sits in a hotspot."""
-    generated, vendored, inline = _generated(report), filetypes.vendor_dirs(report), _test_modules(report)
+    generated, vendored, inline, doubles = _generated(report), filetypes.vendor_dirs(report), _test_modules(report), _test_doubles(report)
     big = [f for f in report.get("functions") or [] if f["ccn"] >= min_ccn and f["nloc"] >= min_lines and not f.get("suspect")
-           and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
+           and not (filetypes.is_test_path(f["file"]) or f["file"] in doubles or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
                     or f["file"] in generated or filetypes.is_migration_path(f["file"]) or filetypes.in_spans(f["start"], inline.get(f["file"])))]
     if not big:
         return []
@@ -736,6 +736,12 @@ def _test_modules(report: dict) -> dict:
     """{path: spans} of the Rust test modules the run found (meta.json, filetypes.rust_test_modules): a function
     starting inside one is test code in a file that is not a test file. Empty for a run from before the record."""
     return (report.get("meta") or {}).get("test_modules") or {}
+
+
+def _test_doubles(report: dict) -> set:
+    """The source files of Cargo bins only the tests start (meta.json, filetypes.test_doubles): test code, like a
+    file under tests/. Empty for a run from before the record."""
+    return set((report.get("meta") or {}).get("test_doubles") or [])
 
 
 def _generated(report: dict) -> set:
@@ -1307,9 +1313,9 @@ def deep_nesting(report: dict, min_nesting: int = 5, min_bumps: int = 3, top_n: 
     s = _structure(report)
     if not s:
         return []
-    generated, vendored, inline = _generated(report), filetypes.vendor_dirs(report), _test_modules(report)
+    generated, vendored, inline, doubles = _generated(report), filetypes.vendor_dirs(report), _test_modules(report), _test_doubles(report)
     deep = [f for f in s.get("functions") or [] if (f["nesting"] >= min_nesting or f["bumps"] >= min_bumps)
-            and not (filetypes.is_test_path(f["file"]) or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
+            and not (filetypes.is_test_path(f["file"]) or f["file"] in doubles or filetypes.is_sample_path(f["file"]) or filetypes.is_vendored(f["file"], vendored)
                      or f["file"] in generated or filetypes.in_spans(f["start"], inline.get(f["file"])))]
     if not deep:
         return []
