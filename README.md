@@ -18,9 +18,9 @@ Free. Any stack. Local. Offline. Deterministic. Fast.
 
 Trusting and triaging a repository you did not write, or one you are about to change.
 
-- **A gate you can check.** Secrets in history, invisible and mixed-script characters, vulnerable dependencies and dependency-confusion shapes, agent settings that turn approval off: each a plain rule with its evidence, the same on every run, fit for CI (`--fail-on`, SARIF). It fails closed: a gate whose scan did not finish exits 4 instead of passing, and `--baseline` gates only on what is new since an earlier run, so a secret committed years ago does not block every build.
+- **A gate you can check.** Secrets in history, invisible and mixed-script characters, vulnerable dependencies and dependency-confusion shapes, agent settings that turn approval off: each a plain rule with its evidence, the same on every run, fit for CI (`--fail-on`, SARIF). It fails closed: a gate whose scan did not finish exits 4 instead of passing, and `--baseline` gates only on what is new since an earlier run, so a secret committed years ago does not block every build. A value the repository itself declared allowed (a gitleaks or betterleaks allowlist, `gitleaks:allow`) is a note, not a critical, and `--require-vuln-db` makes a run without a vulnerability database fail rather than pass unchecked.
 - **A place to start looking.** The watch list is Tornhill's hotspots, revisions × lines of code. It tells you where to read first, and `--hook` gives an agent the same ranking for the files it just edited. It is not a defect model: on repositories nobody tuned against, at the top it names about as many soon-to-be-fixed files as churn alone, and per line read it finds fewer ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md#what-the-ranking-is-for)).
-- **Who and when.** Ownership, knowledge islands, code age and the files that change together, read from the history itself. Advice names only people still committing; someone who left is marked `(gone)`. `--path DIR` narrows all of it to one package or plugin of a monorepo.
+- **Who and when.** Ownership, knowledge islands, code age and the files that change together, read from the history itself. Advice names only people still committing; someone who left is marked `(gone)`. A coding assistant credited in commit trailers is counted apart, as an area's agent-assisted share, never as an owner or an author. `--path DIR` narrows all of it to one package or plugin of a monorepo.
 
 ## Install
 
@@ -67,7 +67,7 @@ gitmole --install-tools                # the three pinned tools, downloaded into
 
 A CI job that runs `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"`
 blocks on secrets in source files and still posts the report; in GitHub Actions,
-`uses: antvinni/gitmole@v0.39.0` does that with the pinned tools installed and cached
+`uses: antvinni/gitmole@v0.40.0` does that with the pinned tools installed and cached
 ([GitHub Actions](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#github-actions)),
 and a [Dockerfile](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#docker) runs it anywhere else. The same
 scoring wires into Claude Code, Cursor, Gemini CLI and pre-commit as a hook
@@ -84,8 +84,8 @@ Reports on repositories you know, each at a pinned commit, published as gitmole 
 | Repository | Commit | Commits | Lines | gitmole run |
 |---|---|---:|---:|---:|
 | [curl](https://github.com/antvinni/gitmole/blob/main/docs/examples/curl.md) | [`540ee5b5`](https://github.com/curl/curl/commit/540ee5b560cc6e775e11317048a13cc7e355bf91) | 39,758 | 247,179 | 47 s |
-| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | [`8cbdd4a8`](https://github.com/django/django/commit/8cbdd4a814397f81adf0129288f32b615bd1f94f) | 34,933 | 431,749 | 85 s |
-| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | [`2b19aecd`](https://github.com/facebook/react/commit/2b19aecd0e9111b774fad0fad9862e50bcb5bc8a) | 21,703 | 681,078 | 75 s |
+| [django](https://github.com/antvinni/gitmole/blob/main/docs/examples/django.md) | [`8cbdd4a8`](https://github.com/django/django/commit/8cbdd4a814397f81adf0129288f32b615bd1f94f) | 34,933 | 431,749 | 80 s |
+| [react](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md) | [`2b19aecd`](https://github.com/facebook/react/commit/2b19aecd0e9111b774fad0fad9862e50bcb5bc8a) | 21,703 | 681,078 | 65 s |
 
 Run times are one `gitmole CLONE` with every default step, on a MacBook Pro (M4, 16 GB).
 
