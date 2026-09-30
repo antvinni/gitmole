@@ -357,6 +357,15 @@ class Group(unittest.TestCase):
         groups = leaks.group([self.row("h1", "tests/t.py", "c1"), self.row("h1", "app/a.py", "c2")])
         self.assertFalse(groups[0]["test"])
 
+    def test_a_value_only_inside_a_rust_test_module_counts_as_test(self):
+        inline = dict(self.row("h1", "src/state.rs", "c1", 3471), test_code=True)
+        groups = leaks.group([inline])
+        self.assertTrue(groups[0]["test"])
+        self.assertEqual(groups[0]["test_code_files"], ["src/state.rs"])
+        groups = leaks.group([inline, self.row("h1", "src/state.rs", "c2", 12)])
+        self.assertFalse(groups[0]["test"], "the same value outside the module is source")
+        self.assertNotIn("test_code_files", groups[0])
+
     def test_rows_without_a_value_are_their_own_group(self):
         groups = leaks.group([{"rule": "aws", "file": "a.env", "commit": "abc1234"}, {"rule": "aws", "file": "b.env", "commit": "abc1234"}])
         self.assertEqual(len(groups), 2)
@@ -714,3 +723,22 @@ class AtHead(unittest.TestCase):
             row = {"RuleID": "x", "File": "a.py", "Commit": "abc", "StartLine": 1, "Secret": FAKE}
             leaks.annotate(d, [row])
         self.assertNotIn("AtHead", row)
+
+
+class TestCode(unittest.TestCase):
+    def test_a_row_inside_a_rust_test_module_at_its_commit_is_test_code(self):
+        """paperclip's two possible secrets sat in #[cfg(test)] modules of state.rs and provider_backend.rs."""
+        from tests.test_hygiene import Repo
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/state.rs", "fn open() {}\n\n#[cfg(test)]\nmod tests {\n    const P: &str = \"x\";\n}\nfn after() {}\n")
+            r.write("src/lib.py", "#[cfg(test)]\nmod tests {\n    P = 1\n}\n")
+            r.commit(date="2026-01-01T00:00:00")
+            c = r.git("rev-parse", "HEAD").stdout.decode().strip()
+            rows = [{"RuleID": "x", "File": "src/state.rs", "Commit": c, "StartLine": 5},
+                    {"RuleID": "x", "File": "src/state.rs", "Commit": c, "StartLine": 7},
+                    {"RuleID": "x", "File": "src/lib.py", "Commit": c, "StartLine": 3},
+                    {"RuleID": "x", "File": "(unreachable blob 0123456789ab)", "Commit": "", "StartLine": 5}]
+            leaks.mark_test_code(d, rows)
+        self.assertEqual([x.get("TestCode") for x in rows], [True, None, None, None])
+        self.assertTrue(leaks.sanitise(rows[:1])[0]["TestCode"], "kept through sanitising: it says nothing about the value")

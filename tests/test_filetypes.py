@@ -115,6 +115,30 @@ class TestPaths(unittest.TestCase):
                      "rtl/outbound.v", "src/spec_writer.rb", "lib/Spec.hs"):   # case-sensitive: contest is not a Test, requests/ is not a Tests/ dir
             self.assertFalse(filetypes.is_test_path(path), path)
 
+    def test_rust_test_modules_are_spans_from_the_attribute_to_the_closing_brace(self):
+        text = "\n".join(["fn run() {", "}", "", "#[cfg(test)]", "#[allow(unused)]", "mod tests {", "    use super::*;", "    #[test]",
+                          "    fn a() {", "    }", "}", "", "fn after() {}", "#[cfg(test)]", "pub(crate) mod support {", "}"])
+        self.assertEqual(filetypes.rust_test_spans(text), [(4, 11), (14, 16)])
+        self.assertTrue(filetypes.in_spans(7, [(4, 11)]))
+        self.assertFalse(filetypes.in_spans(13, [(4, 11), (14, 16)]), "code after the module is the file's own again")
+
+    def test_only_the_top_level_rustfmt_shape_is_a_test_module(self):
+        for text in ("#[cfg(test)]\nfn helper() {\n}\n",                     # a test-only function, not a module
+                     "    #[cfg(test)]\n    mod tests {\n    }\n",          # nested: its closing brace is not at column 0
+                     "#[cfg(test)]\nmod tests;\n",                            # tests in another file, which its own path judges
+                     "#[cfg(test)]\nmod tests {\n    fn a() {}\n",           # never closed: not the rest of the file
+                     "#[cfg(all(test, feature = \"x\"))]\nmod tests {\n}\n"):
+            self.assertEqual(filetypes.rust_test_spans(text), [], text)
+
+    def test_rust_test_modules_reads_rs_files_only(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "src"))
+            with open(os.path.join(d, "src", "lib.rs"), "w") as fh:
+                fh.write("fn a() {}\n#[cfg(test)]\nmod tests {\n}\n")
+            with open(os.path.join(d, "src", "notes.md"), "w") as fh:
+                fh.write("#[cfg(test)]\nmod tests {\n}\n")
+            self.assertEqual(filetypes.rust_test_modules(d, ["src/lib.rs", "src/notes.md", "src/gone.rs"]), {"src/lib.rs": [[2, 4]]})
+
     def test_documentation_files_and_directories(self):
         for path in ("README.md", "docs/GA4-API-INTEGRATION.md", "doc/guide.rst", "NOTES.txt", "a/b/CHANGELOG.markdown", "docs/conf.py", "x.adoc",
                      "docs_src/security/tutorial004.py", "docs-site/app.js", "doc_examples/x.py",

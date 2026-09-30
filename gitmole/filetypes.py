@@ -92,6 +92,62 @@ def is_test_path(path: str) -> bool:
     return bool(_TEST_PATH.search(path) or _TEST_SUFFIX.search(path))
 
 
+# A Rust unit-test module as rustfmt writes it: `#[cfg(test)]` at column 0, any further attributes, then
+# `mod name {` at column 0, closed by the first `}` at column 0 after it. The language's own convention for
+# tests that live in the file they test (The Rust Book, ch. 11.3); what sits inside is compiled only for
+# `cargo test`. Only the top-level form is read: an indented or one-line module is left alone.
+_CFG_TEST = re.compile(r"^#\[cfg\(test\)\]\s*$")
+_MOD_OPEN = re.compile(r"^(pub(\([^)]*\))?\s+)?mod\s+[A-Za-z_]\w*\s*\{\s*$")
+
+
+def rust_test_spans(text: str) -> list:
+    """[(first line, last line)], 1-based and inclusive, of each top-level `#[cfg(test)] mod x { ... }` in a Rust
+    source text, from the attribute to the module's closing brace. A module with no closing brace at column 0 is
+    not a span: better to miss one than to call the rest of a file test code."""
+    lines = (text or "").split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        if not _CFG_TEST.match(lines[i]):
+            i += 1
+            continue
+        j = i + 1
+        while j < len(lines) and (lines[j].startswith("#[") or lines[j].startswith("//") or not lines[j].strip()):
+            j += 1
+        if j >= len(lines) or not _MOD_OPEN.match(lines[j]):
+            i = j
+            continue
+        end = next((k for k in range(j + 1, len(lines)) if lines[k].rstrip() == "}"), None)
+        if end is None:
+            break
+        out.append((i + 1, end + 1))
+        i = end + 1
+    return out
+
+
+def in_spans(line, spans) -> bool:
+    return bool(line) and any(a <= int(line) <= b for a, b in spans or ())
+
+
+def rust_test_modules(repo: str, paths: list) -> dict:
+    """{path: [[first, last], ...]} for the tracked .rs files that hold a top-level test module (rust_test_spans),
+    read from the working tree. Functions there are test code, however the file is named."""
+    out = {}
+    for path in paths:
+        if not path.endswith(".rs"):
+            continue
+        try:
+            with open(os.path.join(repo, path), "rb") as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        if b"#[cfg(test)]" not in data:
+            continue
+        spans = rust_test_spans(data.decode("utf-8", "replace"))
+        if spans:
+            out[path] = [list(s) for s in spans]
+    return out
+
+
 _DOC_DIR = re.compile(r"(^|/)docs?([-_][\w-]+)?(/|$)|(^|/)[A-Za-z0-9]+Docs/", re.I)
 _DOC_EXT = re.compile(r"\.(md|markdown|rst|txt|adoc|pyi|d\.ts)$", re.I)
 # A .txt an ecosystem reads as a manifest by its name: pip's requirements files (requirements.txt,

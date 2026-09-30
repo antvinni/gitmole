@@ -68,6 +68,13 @@ class SecretsFound(unittest.TestCase):
         detail = findings.secrets_found(r)[0]["detail"]
         self.assertIn(f"2 distinct values in 2 places: 2 values of facebook-access-token in {blob}.", detail)
 
+    def test_a_value_only_inside_a_rust_test_module_is_no_finding(self):
+        """paperclip's two possible secrets were generic-password hits inside #[cfg(test)] modules of runner-core."""
+        inline = dict(self.row("h1", "src/durable/state.rs", "c1", 3471, rule="generic-password"), confidence="low", test_code=True)
+        self.assertEqual(findings.secrets_found(report(secrets=[inline])), [])
+        outside = self.row("h1", "src/durable/state.rs", "c2", 12, rule="generic-password")
+        self.assertEqual([f["rule"]["id"] for f in findings.secrets_found(report(secrets=[inline, outside]))], ["secrets_possible"])
+
     def test_test_only_secrets_do_not_fail_a_critical_gate(self):
         r = report(secrets=[self.row("h3", "tests/t.py")])
         self.assertEqual(findings.secrets_found(r), [])
@@ -667,6 +674,15 @@ class BrainMethods(unittest.TestCase):
 
     def test_nothing_without_data(self):
         self.assertEqual(findings.brain_methods(report()), [])
+
+    def test_a_function_inside_a_rust_test_module_is_not_a_brain_method(self):
+        fns = [{"file": "src/lib.rs", "function": "big_case", "ccn": 40, "nloc": 300, "params": 0, "start": 520, "end": 820},
+               {"file": "src/lib.rs", "function": "run", "ccn": 20, "nloc": 150, "params": 1, "start": 10, "end": 160}]
+        r = report(functions=fns)
+        r["meta"]["test_modules"] = {"src/lib.rs": [[500, 900]]}
+        f = findings.brain_methods(r)[0]
+        self.assertEqual(f["evidence"]["count"], 1)
+        self.assertEqual(f["evidence"]["functions"][0]["function"], "run")
 
     def test_functions_in_test_files_are_not_brain_methods(self):
         fns = [{"file": "tests/test_all.py", "function": "test_all", "ccn": 20, "nloc": 400, "params": 1, "start": 1, "end": 400},
