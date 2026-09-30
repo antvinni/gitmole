@@ -659,6 +659,28 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(meta["bots"], [], "a bot named only in a trailer is nobody, not a bot with commits")
         self.assertEqual(meta["aliases"].get("Bob Lee"), "Robert Lee", "the change analysis maps the trailer's name the way git would")
 
+    def test_a_trailer_naming_the_commit_s_own_author_under_another_address_is_no_credit(self):
+        # VoiceStudio: the owner showed 454 co-authored, 24 of them on someone else's commit; the rest named the
+        # owner's own second address on the owner's own commits
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, **env):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q")
+            ann = dict(GIT_COMMITTER_NAME="x", GIT_COMMITTER_EMAIL="x@x", GIT_AUTHOR_NAME="Ann Smith", GIT_AUTHOR_EMAIL="ann@work.example")
+            bob = dict(ann, GIT_AUTHOR_NAME="Bob Lee", GIT_AUTHOR_EMAIL="bob@x.example")
+            for _ in range(3):
+                git("commit", "-q", "--allow-empty", "-m", "own\n\nCo-authored-by: Ann Smith <ann@home.example>", **ann)
+            git("commit", "-q", "--allow-empty", "-m", "pair\n\nCo-authored-by: Ann Smith <ann@home.example>", **bob)
+            meta = run.collect_meta(d)
+        rows = {i["name"]: i for i in meta["identities"]}
+        self.assertEqual((rows["Ann Smith"]["commits"], rows["Ann Smith"]["authored"]), (4, 3),
+                         "three commits of her own and one credit on Bob's; her own address in her own trailer is not a second person")
+        ann = rows["Ann Smith"]
+        variants = {a["email"]: a["commits"] for a in ann["aliases"]} | {ann["email"]: ann["commits"] - sum(a["commits"] for a in ann["aliases"])}
+        self.assertEqual(variants, {"ann@work.example": 3, "ann@home.example": 1}, "the home address keeps only its credit on Bob's commit")
+        self.assertEqual((rows["Bob Lee"]["commits"], rows["Bob Lee"]["authored"]), (1, 1))
+
     def test_an_alias_of_a_declared_bot_is_a_bot_too(self):
         # fastapi: "github-actions <github-actions@github.com>" beside github-actions[bot]; same account, one declaration
         with tempfile.TemporaryDirectory() as d:
