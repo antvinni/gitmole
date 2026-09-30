@@ -164,6 +164,12 @@ def _secrets_by_rule(report: dict) -> tuple:
     return out, {"secrets_in_source": source, "secrets_possible": maybe, "secrets_declared": declared, "secrets_local": local}
 
 
+def secret_groups(report: dict) -> dict:
+    """{secrets rule id: the value groups (leaks.group) its finding holds}, for SARIF, which places each value
+    under the finding that holds it and under no other."""
+    return _secrets_by_rule(report)[1]
+
+
 def credential_files(report: dict) -> list:
     """Tracked files whose name says they hold a login (.env.production, .netrc, id_rsa): a finding by the
     name alone, whatever betterleaks made of the contents. The run lists them in meta.json."""

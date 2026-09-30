@@ -177,6 +177,8 @@ def parse_secrets(text: str) -> list:
             value, placeholder = None, False
         out.append({"rule": r.get("RuleID", ""), "file": r.get("File", ""), "commit": r.get("Commit", "")[:7], "line": r.get("StartLine"),
                     "fingerprint": r.get("Fingerprint", ""), "value": value, "placeholder": placeholder, "confidence": r.get("Confidence")})
+        if r.get("Date"):   # the commit's date: which sighting of a value came first (sarif places a removed value there)
+            out[-1]["date"] = str(r["Date"])
         if isinstance(r.get("AtHead"), bool):   # whether HEAD's version of the file still holds the value (leaks.annotate)
             out[-1]["at_head"] = r["AtHead"]
             if r["AtHead"] and r.get("HeadLine"):
