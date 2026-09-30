@@ -28,13 +28,13 @@ class Document(unittest.TestCase):
         self.assertEqual(driver["rules"], [{"id": "bug_magnets", "name": "BugMagnets", "shortDescription": {"text": "T"},
                                             "fullDescription": {"text": about}, "help": {"text": about, "markdown": about},
                                             "defaultConfiguration": {"level": "warning"},
-                                            "properties": {"security-severity": "5.0", "tags": ["gitmole"]}}])
+                                            "properties": {"tags": ["gitmole", "maintainability"]}}])
         [result] = doc["runs"][0]["results"]
         self.assertEqual(result["ruleId"], "bug_magnets")
         self.assertEqual(result["level"], "warning")
         self.assertEqual(result["message"]["text"], "D")
         self.assertEqual(result["locations"], [{"physicalLocation": {"artifactLocation": {"uri": "src/a.py", "uriBaseId": "%SRCROOT%"}}}])
-        self.assertEqual(result["properties"]["security-severity"], "5.0")
+        self.assertNotIn("security-severity", result["properties"], "a bug magnet is not a vulnerability: GitHub files it as code quality")
         self.assertEqual(result["partialFingerprints"], {"gitmole/v1": hashlib.sha256(b"bug_magnets\0src/a.py\0\0").hexdigest()},
                          "rule, path, commit and line: stable across runs, nothing random in it")
         self.assertEqual(doc["runs"][0]["versionControlProvenance"], [{"repositoryUri": "https://github.com/antvinni/gitmole", "revisionId": "abc1234def"}]
@@ -78,9 +78,21 @@ class Document(unittest.TestCase):
                                      finding("brain_methods", "info", evidence={"functions": [{"file": "src/a.py", "start": 1, "function": "f"}]})], scope="history")
         by = {r["ruleId"]: r for r in doc["runs"][0]["results"]}
         self.assertEqual((by["credential_files"]["level"], by["credential_files"]["properties"]["security-severity"]), ("error", "9.0"))
-        self.assertEqual((by["brain_methods"]["level"], by["brain_methods"]["properties"]["security-severity"]), ("note", "2.0"))
+        self.assertEqual((by["brain_methods"]["level"], by["brain_methods"]["properties"].get("security-severity")), ("note", None))
+        rules = {r["id"]: r["properties"] for r in doc["runs"][0]["tool"]["driver"]["rules"]}
+        self.assertEqual(rules["credential_files"], {"security-severity": "9.0", "tags": ["gitmole", "security"]})
+        self.assertEqual(rules["brain_methods"], {"tags": ["gitmole", "maintainability"]})
         self.assertEqual(by["brain_methods"]["locations"][0]["physicalLocation"]["region"], {"startLine": 1})
         self.assertNotIn("locations", by["dormant"], "a repository-wide finding has no file to point at")
+
+    def test_only_rules_that_exist_are_declared_security_rules(self):
+        """paperclip review: bug magnets, brain methods, the truck factor and deep nesting were Medium security alerts."""
+        import pathlib
+        source = pathlib.Path(sarif.__file__).with_name("findings.py").read_text()
+        for rule in sarif.SECURITY:
+            self.assertIn(f'"{rule}"', source, rule)
+        for rule in ("bug_magnets", "brain_methods", "truck_factor", "deep_nesting"):
+            self.assertNotIn(rule, sarif.SECURITY)
 
     def test_every_finding_the_gate_stops_on_has_an_error_result_under_head_scope(self):
         """A critical secret only in a file deleted since is placed where it was committed, not left without a

@@ -240,7 +240,7 @@ class OspsCoverage(unittest.TestCase):
         binaries = next(f for f in found if f["rule"]["id"] == "committed_binaries")
         self.assertEqual(binaries["rule"]["osps"], ["OSPS-QA-05.01", "OSPS-QA-05.02"])
         rules = {x["id"]: x for x in sarif.build(r, found)["runs"][0]["tool"]["driver"]["rules"]}
-        self.assertEqual(rules["committed_binaries"]["properties"]["tags"], ["gitmole", "OSPS-QA-05.01", "OSPS-QA-05.02"])
+        self.assertEqual(rules["committed_binaries"]["properties"]["tags"], ["gitmole", "security", "OSPS-QA-05.01", "OSPS-QA-05.02"])
 
     def test_the_section_is_full_only_and_the_export_carries_the_table(self):
         r = self._report()

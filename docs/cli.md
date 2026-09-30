@@ -328,10 +328,17 @@ code scanning and GitLab read: one run with gitmole as the driver, a rule
 per finding id with its title, detail and advice, a result per place the
 evidence names (a finding about a whole file, such as `unpinned_actions`'
 workflows or `lockfile_drift`'s manifests, points at line 1 of each), `level` from the severity (critical is `error`, warning is
-`warning`, info is `note`) and `properties["security-severity"]`, which is
-what GitHub ranks alerts by (9.0 critical, 5.0 warning, 2.0 info; a
-vulnerable dependency carries its advisory's own score, a malicious one
-10.0). Every result has a `partialFingerprints` entry hashed from rule,
+`warning`, info is `note`). The security rules alone (secrets, credential
+files, vulnerable dependencies, Trojan Source characters, unpinned actions,
+install scripts, dependency confusion, committed binaries, submodule URLs,
+symlinks out of the tree, agent settings that turn approval off, literal
+MCP secrets; `SECURITY` in `gitmole/sarif.py`) carry
+`properties["security-severity"]`, which is what GitHub ranks security
+alerts by (9.0 critical, 5.0 warning, 2.0 info; a vulnerable dependency
+carries its advisory's own score, a malicious one 10.0), and the tag
+`security`. The rest carry no security-severity, so code scanning files a
+bug magnet or a brain method as code quality rather than as a Medium
+vulnerability, and their tag is `maintainability`. Every result has a `partialFingerprints` entry hashed from rule,
 path, commit and line, so a second upload updates alerts instead of
 duplicating them; for a secret that hash comes from where it was found,
 never from the value, so two runs agree although the keyed value hashes

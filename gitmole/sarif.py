@@ -4,8 +4,9 @@
 result. What the uploaders need on top: `version "2.1.0"`, `tool.driver` with `rules[]` (id,
 shortDescription, help, defaultConfiguration.level), results with `message.text` and a
 `physicalLocation` (GitLab drops a result without one), repo-relative POSIX paths (a differing path
-closes and reopens the alert), and `properties["security-severity"]` as a 0.1-10.0 string, which is
-what GitHub ranks on rather than `level`.
+closes and reopens the alert), and, for the security rules alone (SECURITY), `properties["security-severity"]`
+as a 0.1-10.0 string, which is what GitHub ranks on rather than `level` and what makes it file the result as a
+security alert.
 
 Two gitmole-specific points. Dedup: without a fingerprint the REST upload duplicates alerts, so every
 result carries `partialFingerprints["gitmole/v1"]`, a hash of rule, path, commit and line, derived
@@ -36,6 +37,22 @@ from . import __version__, gate, leaks
 
 LEVELS = {"critical": "error", "warning": "warning", "info": "note"}
 SEVERITY = {"critical": "9.0", "warning": "5.0", "info": "2.0"}
+# The rules whose findings are security findings: a secret or credential, a vulnerable or malicious package,
+# code that reads one way and runs another, a supply-chain opening (a movable action tag, an install script, a
+# package a public registry can shadow, a committed executable, a submodule fetched with a credential or in the
+# clear, a symlink out of the tree), an agent told to act without approval. Only these carry
+# `security-severity`: GitHub files a result with that property as a security alert and ranks it by the number,
+# so a bug magnet at 5.0 read as a Medium vulnerability. The rest go without it, which GitHub files as code
+# quality, and their rule's tags say "maintainability" where these say "security".
+SECURITY = frozenset({"secrets_in_source", "secrets_possible", "secrets_declared", "secrets_local", "credential_files", "mcp_literal_env",
+                      "vulnerable_dependencies", "vulnerable_dependencies_aside", "trojan_source", "unpinned_actions",
+                      "agent_approval_disabled", "submodule_urls", "install_scripts", "dependency_confusion", "committed_binaries",
+                      "unsafe_symlinks"})
+
+
+def _severity(rule: str, severity: str):
+    """The security-severity a result of this rule carries, or None for a rule that is not about security."""
+    return SEVERITY[severity] if rule in SECURITY else None
 SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 HOMEPAGE = "https://github.com/antvinni/gitmole"
 
@@ -55,7 +72,7 @@ def _location(path: str, line=None) -> dict:
 def _result(rule: str, level: str, severity: str, text: str, path: str = None, line=None, commit: str = None, extra: str = "") -> dict:
     out = {"ruleId": rule, "level": level, "message": {"text": text},
            "partialFingerprints": {"gitmole/v1": _fingerprint(rule, path or "", commit or "", line, extra)},
-           "properties": {"security-severity": severity}}
+           "properties": {} if severity is None else {"security-severity": severity}}
     if path:
         out["locations"] = [_location(path, line)]
     if commit:
@@ -153,7 +170,7 @@ def _secret_results(report: dict, f: dict, scope: str) -> list:
         seen.add(key)
         line_text = f", line {r['line']} of that commit's version" if r.get("line") else ""
         head_text = f"; at HEAD, line {r['head_line']}" if scope == "head" and r.get("head_line") else ""
-        out.append(_result(f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]],
+        out.append(_result(f["rule"]["id"], LEVELS[f["severity"]], _severity(f["rule"]["id"], f["severity"]),
                            f"{r['rule']} in {r['file']} at commit {r['commit']}{line_text}{head_text}", r["file"],
                            r.get("head_line") if scope == "head" else r.get("line"), r["commit"]))
         out[-1]["partialFingerprints"]["gitmole/v1"] = _fingerprint(f["rule"]["id"], r["file"], r["commit"], r.get("line"))
@@ -163,7 +180,7 @@ def _secret_results(report: dict, f: dict, scope: str) -> list:
 def _removed_result(f: dict, r: dict) -> dict:
     """A critical value HEAD no longer holds, where it was first committed: the path and line as they were."""
     line_text = f", line {r['line']} of that commit's version" if r.get("line") else ""
-    out = _result(f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]],
+    out = _result(f["rule"]["id"], LEVELS[f["severity"]], _severity(f["rule"]["id"], f["severity"]),
                   f"{r['rule']} in {r['file']} at commit {r['commit']}{line_text}; no longer in the tree at HEAD, still in history: "
                   "rotate it", r["file"], r.get("line"), r["commit"])
     out["partialFingerprints"]["gitmole/v1"] = _fingerprint(f["rule"]["id"], r["file"], r["commit"], r.get("line"))
@@ -193,7 +210,7 @@ def _dependency_results(report: dict, f: dict) -> list:
             if findings._floating(p):
                 text = (f"{p['name']}{p['requirement'] or ' (any version)'} in {p['source']} admits a vulnerable version, its floor {p['version']}: {ref}{score}, {fixed}"
                         if p.get("requirement") is not None else f"{p['name']} {p['version']} in {p['source']}, perhaps only the floor a requirement admits: {ref}{score}, {fixed}")
-            severity = f"{max(0.1, min(10.0, float(p['score']))):.1f}" if p.get("score") is not None else SEVERITY[f["severity"]]
+            severity = f"{max(0.1, min(10.0, float(p['score']))):.1f}" if p.get("score") is not None else _severity(f["rule"]["id"], f["severity"])
         out.append(_result(f["rule"]["id"], LEVELS[f["severity"]], severity, text, p["source"], None, None, f"{p['name']}@{p['version']}"))
     return out
 
@@ -215,7 +232,7 @@ def results(report: dict, found: list, scope: str = "head") -> list:
 
 
 def _finding_results(report: dict, f: dict, scope: str) -> list:
-    rule, level, severity = f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]]
+    rule, level, severity = f["rule"]["id"], LEVELS[f["severity"]], _severity(f["rule"]["id"], f["severity"])
     if rule.startswith("secrets_"):
         return _secret_results(report, f, scope)
     if rule.startswith("vulnerable_dependencies"):
@@ -240,7 +257,7 @@ def _elsewhere(f: dict) -> dict:
     It has no location, as nothing at HEAD is where it is: SARIF allows that, GitHub code scanning accepts
     the upload and does not display the result, GitLab drops it; --sarif-scope history places it."""
     from .compare import key
-    out = _result(f["rule"]["id"], LEVELS[f["severity"]], SEVERITY[f["severity"]],
+    out = _result(f["rule"]["id"], LEVELS[f["severity"]], _severity(f["rule"]["id"], f["severity"]),
                   f"{f['detail']} Nothing it names is in the tree at HEAD; --sarif-scope history lists where it was found.",
                   extra="\0".join(str(k) for k in key(f)[1:]))
     out["properties"]["inTree"] = False
@@ -279,7 +296,8 @@ def _rule(f: dict) -> dict:
     about = _about(f)
     return {"id": rule, "name": name, "shortDescription": {"text": f["title"]}, "fullDescription": {"text": about},
             "help": {"text": about, "markdown": about}, "defaultConfiguration": {"level": LEVELS[f["severity"]]},
-            "properties": {"security-severity": SEVERITY[f["severity"]], "tags": ["gitmole", *f["rule"].get("osps", [])]}}
+            "properties": {**({"security-severity": SEVERITY[f["severity"]]} if rule in SECURITY else {}),
+                           "tags": ["gitmole", "security" if rule in SECURITY else "maintainability", *f["rule"].get("osps", [])]}}
 
 
 def build(report: dict, found: list, scope: str = "head") -> dict:
