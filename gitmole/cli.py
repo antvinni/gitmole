@@ -369,7 +369,7 @@ def _clean(args, console: Console, ask) -> int:
         console.print("nothing to clean")
         return 0
     total = sum(size for _, size, _ in found)
-    columns = [("directory", {"no_wrap": True}), ("size", render.RIGHT), ("modified", {})]
+    columns = [("directory", render.PATH), ("size", render.RIGHT), ("modified", {})]   # fitted when printed: middle-elided, the last segment whole
     clones = [r for r in found if os.path.dirname(r[0]) == tmp]
     listed = found
     if clones and not args.full:
@@ -378,7 +378,6 @@ def _clean(args, console: Console, ask) -> int:
         listed = [(os.path.join(tmp, label), sum(s for _, s, _ in clones), max(m for _, _, m in clones))]
         listed += [r for r in found if os.path.dirname(r[0]) != tmp]
     rows = [(path, clean.human(size), time.strftime("%Y-%m-%d", time.localtime(mtime))) for path, size, mtime in listed]
-    rows = render._shorten(rows, console.width, columns)   # middle-elided paths, one line per row; the last segment stays whole
     sec = render._section("Left behind", columns, rows, caption=f"{_dirs(len(found))}, {clean.human(total)} in all")
     render.print_section(console, sec)
     console.print(Text(""))

@@ -42,6 +42,20 @@ class Cut(unittest.TestCase):
         self.assertTrue(cut.endswith(textfmt.ELLIPSIS))
 
 
+class CutMiddle(unittest.TestCase):
+    def test_fits_unchanged(self):
+        self.assertEqual(textfmt.cut_middle("Palash Debnath", 14), "Palash Debnath")
+
+    def test_words_stay_whole_and_the_tail_is_kept(self):
+        self.assertEqual(textfmt.cut_middle("Claude Opus 4.8 (1M context) (15%)", 29), "Claude Opus 4.8 … (15%)")
+
+    def test_an_identifier_keeps_its_last_segment(self):
+        cut = textfmt.cut_middle("dub_transcribe_stream._gen_body", 24)
+        self.assertEqual(len(cut), 24)
+        self.assertTrue(cut.endswith("._gen_body"))
+        self.assertIn("…", cut)
+
+
 class GroupFindings(unittest.TestCase):
     def test_same_title_findings_merge_into_one_with_a_list(self):
         found = [

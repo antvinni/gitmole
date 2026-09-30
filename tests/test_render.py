@@ -936,7 +936,7 @@ class ComplexFunctions(unittest.TestCase):
         r["functions"] = [{"file": "src/main/java/com/example/service/impl/AccountServiceImpl.java",
                            "function": "shouldReturnTheAccountWhenTheIdentifierIsKnownAndActive",
                            "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200}]
-        sec = next(x for x in render.sections(r, full=False, width=100) if x["title"] == "Complex functions")
+        sec = render.fit(next(x for x in render.sections(r, full=False, width=100) if x["title"] == "Complex functions"), 100)
         self.assertEqual(sec["rows"][0][1], "src/…/impl/AccountServiceImpl.java", "the directory survives; only the name would at the 16-char floor")
 
     def test_only_functions_over_the_floor(self):
@@ -1756,3 +1756,65 @@ class SummaryLine(unittest.TestCase):
         full = self._text(render.findings_panel(self._findings() + unjudged, {}, full=True))
         self.assertIn("deep", full)
         self.assertNotIn("not labelled yet", full)
+
+
+class Fit(unittest.TestCase):
+    """At 80 columns no table splits a name, an identifier or a path across two lines: the columns are sized
+    from their content, paths lose directories and long names their middle, and a table that cannot fit
+    leaves its rightmost columns out and says so (debpalash/VoiceStudio's 0.39.0 report split "Palash
+    Debnath", `tts_stream.p / y` and `branch main @ / eef0e230`)."""
+
+    def people(self):
+        r = sample_report()
+        r["meta"]["identities"] = [{"name": "Palash Debnath", "email": "p@x.com", "commits": 3060, "authored": 3060 - 454, "merges": 913},
+                                   {"name": "Paolo Antinori", "email": "q@x.com", "commits": 38, "merges": 4}]
+        r["theseus_authors"] = {"Palash Debnath": 900, "Paolo Antinori": 10}
+        return r
+
+    def test_a_name_is_never_split_across_lines(self):
+        text = _section_text(rendered(self.people(), [], width=80), "◉ People")
+        self.assertIn("Palash Debnath", text)
+        self.assertIn("Paolo Antinori", text)
+
+    def test_a_path_is_elided_not_wrapped(self):
+        r = sample_report()
+        r["coupling"] = [{"entity": "backend/api/routers/openai_compat.py", "coupled": "backend/api/routers/tts_stream.py", "degree": 31, "average-revs": 9},
+                         {"entity": "electron/src/renderer/src/features/settings/model-library.tsx", "coupled": "backend/api/schemas.py",
+                          "degree": 30, "average-revs": 9}]
+        r["size"]["files"].update({p: {"code": 10, "complexity": 0} for c in r["coupling"] for p in (c["entity"], c["coupled"])})
+        text = _section_text(rendered(r, [], width=80), "⟷ Change coupling")
+        self.assertIn("tts_stream.py", text)
+        self.assertRegex(text, r"…/(settings/)?model-library\.tsx")
+        self.assertTrue(all(len(line) <= 80 for line in text.splitlines()))
+
+    def test_a_table_that_fits_is_left_alone(self):
+        sec = render._section("T", [("file", render.PATH), ("n", render.RIGHT)], [("a/b.py", 1)])
+        self.assertIs(render.fit(sec, 80), sec)
+        self.assertIs(render.fit(sec, None), sec, "Markdown fits nothing")
+
+    def test_a_header_wraps_at_its_spaces_before_a_name_is_cut(self):
+        sec = render._section("T", [("owner", {}), ("surviving code", render.RIGHT)], [("x" * 60, "63%")])
+        fitted = render.fit(sec, 76)
+        self.assertEqual(fitted["rows"][0][0], "x" * 60)
+        self.assertLess(fitted["col_opts"][1]["width"], len("surviving code"))
+
+    def test_full_hotspots_are_one_line_a_row_with_the_left_out_columns_named(self):
+        r = sample_report()
+        deep = "backend/services/deeply/nested/directory/model_manager.py"
+        r["revisions"] = [{"entity": deep, "n-revs": 132}] + r["revisions"]
+        r["size"]["files"][deep] = {"code": 2039, "complexity": 634}
+        text = _rendered_section(render.hotspots_section(r, full=True, width=80), width=80)
+        row = next(line for line in text.splitlines() if "model_manager.py" in line)
+        self.assertRegex(row, r"…/(\w+/)?model_manager\.py")
+        self.assertIn("132", row)
+        self.assertRegex(" ".join(text.split()), r"trend left out at 80 columns; a wider terminal or --markdown shows them")
+        self.assertTrue(all(len(line) <= 80 for line in text.splitlines()))
+
+    def test_header_facts_are_not_split(self):
+        r = sample_report()
+        r["meta"]["run"] = {"commit": "eef0e230" + "0" * 32}
+        r["meta"]["commits"] = 3470
+        r["meta"]["identities"] = [{"name": f"p{i}", "email": f"{i}@x", "commits": 1} for i in range(87)]
+        r["meta"]["branch"] = "main-with-a-longer-name"
+        text = rendered(r, [], width=80)
+        self.assertRegex(text, r"│ branch main-with-a-longer-name @ eef0e230\s+│")

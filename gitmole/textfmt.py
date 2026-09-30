@@ -22,6 +22,35 @@ def shorten_path(path: str, max_len: int) -> str:
     return candidates[-1]
 
 
+def cut_middle(text: str, width: int) -> str:
+    """`text` in at most `width` characters, the middle given up for an ellipsis so both ends stay
+    readable. Words are kept whole where there are words ("Claude Opus 4.8 (1M context) (15%)" ->
+    "Claude Opus 4.8 … (15%)"), and a word never ends the head with a bracket it does not close; a single
+    token keeps its last segment after a dot, slash or colon whole when that leaves room for a head
+    ("dub_transcribe_stream._gen_body" -> "dub_transcri…._gen_body")."""
+    if len(text) <= width:
+        return text
+    if width < 3:
+        return text[:max(width - 1, 0)] + ELLIPSIS if width else ""
+    words = text.split(" ")
+    if len(words) > 1:
+        head, tail = [], [words[-1]]
+        for w in words[:-1]:
+            if len(" ".join(head + [w, ELLIPSIS] + tail)) > width:
+                break
+            head.append(w)
+        while head and head[-1].count("(") > head[-1].count(")"):
+            head.pop()
+        if head and len(" ".join(head + [ELLIPSIS] + tail)) <= width:
+            return " ".join(head + [ELLIPSIS] + tail)
+    keep = width - 1
+    tail_len = keep // 2
+    seg = max(text.rfind("."), text.rfind("/"), text.rfind(":"))
+    if seg > 0 and 4 <= keep - (len(text) - seg):
+        tail_len = len(text) - seg
+    return text[:keep - tail_len] + ELLIPSIS + text[len(text) - tail_len:]
+
+
 def cut(name: str, cap: int) -> str:
     """`name`, unchanged if it fits in `cap` characters, else cut to exactly `cap` ending in the ellipsis."""
     return name if len(name) <= cap else name[:cap - 1] + ELLIPSIS

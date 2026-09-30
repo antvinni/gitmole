@@ -52,7 +52,7 @@ KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "revs
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
-PATH = {"overflow": "fold", "no_wrap": False}
+PATH = {"overflow": "fold", "no_wrap": False, "kind": "path"}   # "kind" (and "spare") are fit()'s, not rich's
 
 # rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own. Hotspots has
 # no entry: it is `--full`/Markdown only now, so its row count is never decided by this table.
@@ -217,36 +217,6 @@ def _keep(columns: list, rows: list, names) -> tuple:
     index = {c[0]: i for i, c in enumerate(columns)}
     picked = [index[n] for n in names]
     return [columns[i] for i in picked], [tuple(r[i] for i in picked) for r in rows]
-
-
-FOLD_BUDGET = 24   # the most a non-path folding column (a function name, say) may take from the paths' room
-
-
-def _path_indices(path_columns) -> tuple:
-    """path_columns: the first N columns (an int) or explicit column indices."""
-    return tuple(range(path_columns)) if isinstance(path_columns, int) else tuple(path_columns)
-
-
-def _path_room(width, rows: list, columns: list, path_columns=1) -> int:
-    """Characters available to each path column once the other cells and rich's padding are counted."""
-    if width is None:
-        return None
-    paths = _path_indices(path_columns)
-    other = [i for i in range(len(columns)) if i not in paths]
-    def charged(i):
-        widest = max([len(str(r[i])) for r in rows] + [len(columns[i][0])])
-        return min(widest, FOLD_BUDGET) if columns[i][1].get("overflow") == "fold" else widest   # a folding column wraps instead
-    widest = sum(charged(i) for i in other)
-    padding = 3 * (len(columns) - 1)
-    return max(16, (width - widest - padding) // len(paths))
-
-
-def _shorten(rows: list, width, columns: list, path_columns=1) -> list:
-    room = _path_room(width, rows, columns, path_columns)
-    if room is None:
-        return rows
-    paths = _path_indices(path_columns)
-    return [tuple(textfmt.shorten_path(str(c), room) if i in paths else c for i, c in enumerate(r)) for r in rows]
 
 
 # --- data ------------------------------------------------------------------
@@ -513,7 +483,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     credited = any(credit(i) for i in ids[:limit])   # a column only when a row shown has any
     rows = [(i["name"], i["email"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
              _pct(own(i), total_commits), _pct(surviving.get(i["name"], 0), total_lines)) for i in ids[:limit]]
-    columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold"}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
+    columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold", "spare": True}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
                *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving code", RIGHT)]
     if full is not True:
         columns, rows = _keep(columns, rows, ["author", "commits", *(["merges"] if merges else []), *(["co-authored"] if credited else []),
@@ -760,7 +730,6 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     columns = [("file", PATH), ("changes with", PATH), ("degree", RIGHT), ("avg revs", RIGHT)]
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "changes with", "degree"])
-        rows = _shorten(rows, width, columns, path_columns=2)
     note = None if rows else _empty_note("no pairs with 5+ shared revisions", hidden_note, "no source pairs with 5+ shared revisions")
     notes = [c for c in (_more(len(pairs), limit), None if note else hidden_note) if c]
     caveat = coupling.regime(report)[1]   # what a pair means here: a pull request under squash merging, an edit otherwise
@@ -824,8 +793,6 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     suspects = sum(1 for f in shown if f.get("suspect"))
     suspect_note = f"{SUSPECT_MARK} marks {suspects} span{'s' if suspects != 1 else ''} lizard may have mis-parsed" if suspects else None
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
-    if full is not True:
-        rows = _shorten(rows, width, columns, path_columns=(1,))
     status = (report["meta"].get("functions") or {}).get("status", "skipped" if not measured else "run")
     reason = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)",
               "skipped": "no function metrics (install lizard)"}.get(status, "function metrics did not complete")
@@ -1071,23 +1038,45 @@ def dependencies_line(report: dict):
 
 # --- rich ------------------------------------------------------------------
 
-def header(report: dict, findings: list = (), full: bool = False) -> Panel:
+def _facts(body: Text, facts: list, sep: str, width) -> None:
+    """Append (text, style) facts joined by `sep`, starting a new line before a fact that would not fit
+    in `width`, so that no fact ("branch main @ eef0e230") is split across two lines unless it is longer
+    than a line on its own. `width` None joins them all on one line, as before."""
+    used = 0
+    for i, (text, style) in enumerate(facts):
+        if i:
+            if width is not None and used + len(sep) + len(text) > width and len(text) <= width:   # a fact longer than a line wraps where it is
+                body.append("\n")
+                used = 0
+            else:
+                body.append(sep)
+                used += len(sep)
+        body.append(text, style=style)
+        used = (used + len(text)) % width if width is not None and used + len(text) > width else used + len(text)
+    body.append("\n")
+
+
+PANEL_EDGES = 4   # a panel's two borders and its padding of one either side
+
+
+def header(report: dict, findings: list = (), full: bool = False, width=None) -> Panel:
     s = summary(report)
+    inner = width - PANEL_EDGES if width else None
     body = Text()
-    body.append(f"{s['commits']} commits", style="bold")
-    body.append(f"  ·  {s['first_date']} → {s['last_date']}")
+    first = [(f"{s['commits']} commits", "bold"), (f"{s['first_date']} → {s['last_date']}", "")]
     if s["since"]:
-        body.append(f"  ·  since {s['since']}", style="yellow")
-    body.append(f"  ·  {s['identities']} {'identity' if s['identities'] == 1 else 'identities'}"
-                f"  ·  branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "\n")
+        first.append((f"since {s['since']}", "yellow"))
+    first += [(f"{s['identities']} {'identity' if s['identities'] == 1 else 'identities'}", ""),
+              (f"branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else ""), "")]
+    _facts(body, first, "  ·  ", inner)
     if s["scope"]:
         body.append(scope.label(s["scope"]), style="bold yellow")
         body.append(f"  ·  {scope.REPOSITORY_WIDE}\n", style="dim")
-    body.append(f"{s['lines']:,} lines in {s['files']} files  ·  {', '.join(s['languages']) or 'unknown'}\n")
+    _facts(body, [(f"{s['lines']:,} lines in {s['files']} files", ""), (", ".join(s["languages"]) or "unknown", "")], "  ·  ", inner)
     if full and s["coverage"]:
-        body.append(classify.coverage_line(s["coverage"]) + "\n", style="dim")
+        _facts(body, [(part, "dim") for part in classify.coverage_line(s["coverage"]).split(" · ")], " · ", inner)
     if s["pulse"]:
-        body.append("  ·  ".join(s["pulse"]) + "\n", style="dim")
+        _facts(body, [(part, "dim") for part in s["pulse"]], "  ·  ", inner)
     tally = textfmt.tally(list(findings))
     worst = next((f["severity"] for f in findings), None)
     body.append(tally, style=SEVERITY_STYLE.get(worst, "green"))
@@ -1156,6 +1145,117 @@ def _cell(column: str, value: str, bars: bool) -> Text:
     return Text(value, style=style)
 
 
+# fit(): how far a column may give way before anything else does. A path keeps its file name whole (the directories
+# go first, textfmt.shorten_path), a name or label keeps NAME_KEEP characters, prose wraps at words down to
+# PROSE_FLOOR; only then are names and file names cut in the middle, never below CUT_FLOOR.
+# Columns are left out only when even less does not fit: a file name cut at PATH_LEAST, a name at NAME_LEAST, prose
+# folded at PROSE_FLOOR; a column marked "spare" goes first, then the rightmost.
+# Prose keeps PROSE_KEEP characters before a path loses a directory, so a long path does not squeeze the reasons
+# beside it into a column of single words.
+NAME_KEEP, PROSE_KEEP, PROSE_FLOOR, CUT_FLOOR, PATH_LEAST, NAME_LEAST = 32, 40, 20, 12, 24, 16
+GAP = 3   # rich's padding either side of a column plus the SIMPLE_HEAD box's divider between two
+
+
+def _kind(name: str, opts: dict) -> str:
+    """How a column may give way: "path" (directories elided), "name" (cut in the middle), "prose" (wraps at
+    words) or "fixed" (a number, a bar: never cut)."""
+    if opts.get("kind"):
+        return opts["kind"]
+    if opts.get("justify") == "right" or name == "":
+        return "fixed"
+    return "prose" if opts.get("ratio") else "name"
+
+
+def _fit_cell(kind: str, text: str, width: int) -> str:
+    if len(text) <= width:
+        return text
+    if kind == "path":
+        text = textfmt.shorten_path(text, width)
+    return textfmt.cut_middle(text, width) if len(text) > width else text
+
+
+def fit(sec: dict, width) -> dict:
+    """The section with its columns sized to `width` from their content, so that no cell is split across
+    lines: a name, an identifier, a path or a number stays on one line. When the columns do not fit, the
+    table gives way in this order: prose columns wrap at words, a header of several words wraps at its
+    spaces, paths lose directories and long names their middle (widest column first), and last the
+    rightmost columns are left out, which the caption says. Rows and captions are otherwise unchanged; a
+    table that fits is returned as it came. `width` None (Markdown) fits nothing."""
+    from rich.cells import cell_len
+    if width is None or not sec["rows"]:
+        return sec
+    cols, opts = sec["columns"], sec["col_opts"]
+    bars = "share" in cols and "" not in cols
+    kinds = [_kind(c, o) for c, o in zip(cols, opts)]
+    rows = sec["rows"]
+    cells = [max(_cell(c, r[i], bars).cell_len for r in rows) for i, c in enumerate(cols)]
+    heads = [cell_len(c) for c in cols]
+    head_word = [max((cell_len(w) for w in c.split()), default=0) for c in cols]
+    want = [max(a, b) for a, b in zip(cells, heads)]
+
+    def room(keep):
+        return width - INDENT - GAP * (len(keep) - 1)
+    keep = list(range(len(cols)))
+    if sum(want) <= room(keep):
+        return sec
+
+    def longest_word(i):
+        return max(cell_len(w) for r in rows for w in (r[i].split() or [""]))
+
+    def name_floor(i):   # what a column keeps before anything is cut: whole file names, NAME_KEEP of a name
+        if kinds[i] == "path":
+            return min(want[i], max(head_word[i], max(cell_len(textfmt.shorten_path(r[i], 0)) for r in rows)))
+        return min(want[i], max(head_word[i], NAME_KEEP))
+
+    # the least each column can take: a number whole, a name or path cut to CUT_FLOOR, prose folded at PROSE_FLOOR
+    least = [min(want[i], max(head_word[i], PROSE_FLOOR if k == "prose" else CUT_FLOOR)) if k != "fixed" else max(cells[i], head_word[i])
+             for i, k in enumerate(kinds)]
+
+    def needs(i):   # what a column must have to stay in the table
+        if kinds[i] == "path":
+            return min(name_floor(i), max(head_word[i], PATH_LEAST))
+        return min(want[i], max(head_word[i], NAME_LEAST)) if kinds[i] == "name" else least[i]
+    dropped = []
+    while len(keep) > 1 and sum(needs(i) for i in keep) > room(keep):
+        spare = [i for i in keep[1:] if opts[i].get("spare")]
+        gone = spare[0] if spare else keep[-1]
+        keep.remove(gone)
+        dropped.append(gone)
+    dropped = [cols[i] for i in sorted(dropped)]
+    floor = []   # what each column keeps before anything is cut: prose wraps at words, file names and NAME_KEEP of a name stay whole
+    for i, k in enumerate(kinds):
+        if k == "prose":
+            floor.append(min(want[i], max(PROSE_FLOOR, longest_word(i), head_word[i])))
+        elif k in ("path", "name"):
+            floor.append(name_floor(i))
+        else:
+            floor.append(least[i])
+    widths = {i: want[i] for i in keep}
+
+    def excess():
+        return sum(widths.values()) - room(keep)
+    for i in keep:   # prose first, down to PROSE_KEEP; then headers; then the columns that are cut; then prose again
+        if kinds[i] == "prose" and excess() > 0:
+            widths[i] = max(floor[i], min(want[i], PROSE_KEEP), widths[i] - excess())
+    for i in sorted(keep, key=lambda i: cells[i] - heads[i]):   # a header wider than its cells wraps at its spaces
+        if kinds[i] != "prose" and heads[i] > cells[i] and excess() > 0:
+            widths[i] = max(cells[i], head_word[i], widths[i] - excess())
+            floor[i] = min(floor[i], widths[i])
+    for floors, give in ((floor, ("path", "name")), (floor, ("prose",)), (least, ("path", "name", "prose"))):
+        while excess() > 0:
+            cand = [i for i in keep if kinds[i] in give and widths[i] > floors[i]]
+            if not cand:
+                break
+            widths[max(cand, key=lambda i: widths[i])] -= 1
+    fitted = [tuple(_fit_cell(kinds[i], r[i], widths[i]) if kinds[i] in ("path", "name") else r[i] for i in keep) for r in rows]
+    col_opts = [dict(opts[i], width=widths[i]) for i in keep]
+    caption = sec.get("caption")
+    if dropped:
+        left = f"{textfmt.join_and(dropped)} left out at {width} columns; a wider terminal or --markdown shows {'it' if len(dropped) == 1 else 'them'}"
+        caption = f"{caption}\n{left}" if caption else left
+    return dict(sec, columns=[cols[i] for i in keep], col_opts=col_opts, rows=fitted, caption=caption)
+
+
 def rich_table(sec: dict):
     """A table for a section: no title (the caller prints the heading), caption underneath,
     coloured headers, bold key column, dimmed secondary columns, zebra rows, threshold colours."""
@@ -1168,7 +1268,7 @@ def rich_table(sec: dict):
     t = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, min_width=fits, header_style=HEADER,
               row_styles=ROW_STYLES, border_style="#3a4150", **kw)
     for i, (name, opts) in enumerate(zip(sec["columns"], sec["col_opts"])):
-        o = dict(opts)
+        o = {k: v for k, v in opts.items() if k not in ("kind", "spare")}   # fit()'s, not rich's
         o.setdefault("style", "bold" if i == 0 else ("" if name in (key, "share", "") else "dim"))
         if bars and name == "share":
             o["justify"] = "left"   # the percentage is padded to four characters, so the bars line up
@@ -1183,17 +1283,18 @@ def heading(sec: dict) -> Text:
     return Text(f"{symbol} ", style=ACCENT) + Text(sec["title"], style=f"bold {ACCENT}")
 
 
-def section_block(sec: dict):
-    """Heading plus table, or heading plus a dim note for an empty section."""
+def section_block(sec: dict, width=None):
+    """Heading plus table, or heading plus a dim note for an empty section. With a `width`, the table is
+    fitted to it first (fit)."""
     if not sec["rows"] and sec["note"]:
         return heading(sec) + Text(f": {sec['note']}", style="dim")
-    return Group(heading(sec), Padding(rich_table(sec), (0, 0, 0, 2)))
+    return Group(heading(sec), Padding(rich_table(fit(sec, width)), (0, 0, 0, INDENT)))
 
 
 def print_section(console: Console, sec: dict) -> None:
-    """Blank line, then the section's heading and table (or note)."""
+    """Blank line, then the section's heading and table (or note), fitted to the console's width."""
     console.print(Text(""))
-    console.print(section_block(sec))
+    console.print(section_block(sec, console.width))
 
 
 # small tables that sit side by side when the terminal is wide enough, by section id; a section pairs at most once
@@ -1211,7 +1312,7 @@ def _partners(secs: list) -> dict:
 
 
 def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> None:
-    console.print(header(report, findings, full=full))
+    console.print(header(report, findings, full=full, width=console.width))
     console.print(findings_panel(findings, report, full=full))
     if compare is not None:
         print_section(console, compare_section(compare))
@@ -1247,7 +1348,7 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
 def excerpt(report: dict, findings: list, console: Console, full: bool = False) -> None:
     """The report's opening on its own: the header, whose tally counts the findings, and the watch
     list. What the README's text block shows; the findings themselves are in the full report."""
-    console.print(header(report, findings))
+    console.print(header(report, findings, width=console.width))
     print_section(console, watch_section(report, full=full, width=console.width))
 
 

@@ -1193,7 +1193,7 @@ class Clean(unittest.TestCase):
             return rc, c.export_text()
         rc, text = self._with_tmp(go)
         self.assertEqual(rc, 0)
-        rows = [line for line in text.splitlines() if line.strip().startswith("/")]
+        rows = [line for line in text.splitlines() if line.strip().startswith(("/", "…/"))]   # an elided absolute path may lose its root
         self.assertEqual(len(rows), 2, text)
         self.assertTrue(any("analysis-widgets" in r and "…/" in r for r in rows), text)
         self.assertTrue(all(" B " in r and "2026-" in r for r in rows), "each row carries its size and date on the same line:\n" + text)
