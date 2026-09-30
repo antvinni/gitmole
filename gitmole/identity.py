@@ -201,7 +201,13 @@ def tools(identities: list) -> set:
     are (django's 71, redis's 63). A name that any other row carries is not a tool either, since the
     report's tables key people by name. `identities` are the run's merged rows (meta.json). The
     measurement harness's consistency check reads this same definition, so its agent_owner and the
-    report agree."""
+    report agree.
+
+    Tool-ness belongs to an address, not to a merged row: a row that authored commits and holds an address
+    of its own (neither empty nor a bare no-reply mailbox) is a person, whatever else was merged into it.
+    hindsight's TuftyBruno authored a commit under his own per-account address and credited himself in a
+    trailer under the vendor's shared mailbox; the same spelled name merged the two, and the one shared
+    alias made the whole row a tool."""
     shared = {}
     for i in identities:
         for email in {i.get("email") or ""} | {a.get("email") or "" for a in i.get("aliases") or []}:
@@ -210,5 +216,6 @@ def tools(identities: list) -> set:
     tool, person = set(), set()
     for i in identities:
         emails = {(i.get("email") or "").lower()} | {(a.get("email") or "").lower() for a in i.get("aliases") or []}
-        (tool if any(len(shared.get(e, ())) >= 2 for e in emails) else person).add(i.get("name"))
+        own = bool(i.get("authored")) and any(not shared_mailbox(e) for e in emails)
+        (tool if not own and any(len(shared.get(e, ())) >= 2 for e in emails) else person).add(i.get("name"))
     return tool - person

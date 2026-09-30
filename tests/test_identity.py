@@ -250,6 +250,20 @@ class Tools(unittest.TestCase):
                {"name": "Model A", "email": "noreply@v.example", "commits": 9, "authored": 0}]
         self.assertEqual(identity.tools(ids), {"Model A"})
 
+    def test_a_person_whose_own_trailer_used_the_tools_mailbox_is_a_person(self):
+        # hindsight: TuftyBruno authored under his per-account address; his trailer credited him under the vendor's
+        ids = [{"name": "TuftyBruno", "email": "7+TuftyBruno@users.noreply.github.com", "commits": 1, "authored": 1,
+                "aliases": [{"name": "TuftyBruno", "email": "noreply@v.example", "commits": 0}]},
+               {"name": "Model A", "email": "noreply@v.example", "commits": 9, "authored": 0},
+               {"name": "Model B", "email": "noreply@v.example", "commits": 4, "authored": 0,
+                "aliases": [{"name": "Model B2", "email": "", "commits": 1}]}]
+        self.assertEqual(identity.tools(ids), {"Model A", "Model B"})
+
+    def test_a_tool_that_authored_under_the_shared_mailbox_is_still_a_tool(self):
+        ids = [{"name": "Model A", "email": "noreply@v.example", "commits": 9, "authored": 3},
+               {"name": "Model B", "email": "noreply@v.example", "commits": 4, "authored": 1, "aliases": [{"name": "Model B", "email": "", "commits": 1}]}]
+        self.assertEqual(identity.tools(ids), {"Model A", "Model B"}, "an empty address names no one either")
+
     def test_the_harness_reads_the_same_definition(self):
         from gitmole.measure import consistency
         ids = [{"name": "Helper", "email": "h@x.org", "commits": 9, "authored": 0},
