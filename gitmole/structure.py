@@ -932,13 +932,47 @@ _ENTRY_SUFFIX = re.compile(r"\.(config|stories|d)\.[cm]?[jt]sx?$")
 _SCRIPT_VALUE = re.compile(r"""["']([A-Za-z_][\w.]*):[A-Za-z_][\w.]*["']""")
 
 
+# configurations that name the files a build or a deploy starts from, by the file names their tools read
+_BUNDLER_CONFIG = re.compile(r"^(?:[\w-]+\.)*(?:vite|vitest|rollup)(?:\.[\w-]+)*\.config\.[cm]?[jt]s$")
+_WRANGLER = {"wrangler.toml", "wrangler.json", "wrangler.jsonc"}
+_LITERAL = re.compile(r"""(["'])([^"'\n]+)\1""")
+_TOML_MAIN = re.compile(r"""^\s*main\s*=\s*["']([^"']+)["']""")
+
+
+def _named_paths(text: str, base: str, tracked: set) -> set:
+    """The string literals of a file that are tracked paths, read relative to the file's directory."""
+    found = set()
+    for _, value in _LITERAL.findall(text):
+        if value.startswith("/") or "://" in value:
+            continue
+        p = os.path.normpath(os.path.join(base, value))
+        if p in tracked:
+            found.add(p)
+    return found
+
+
 def entry_points(repo: str, tracked: set) -> set:
-    """Files a manifest declares as entry points: the modules in pyproject.toml's `mod.sub:func` values
-    (scripts, gui-scripts, entry-points), and package.json's main, module, types, bin and exports."""
+    """Files the repository declares as entry points: the modules in pyproject.toml's `mod.sub:func`
+    values (scripts, gui-scripts, entry-points); package.json's main, module, types, bin and exports;
+    the `main` of a Cloudflare wrangler.toml or wrangler.json(c), the worker it deploys; every tracked
+    path a vite, vitest or rollup config names in a string literal (a build input, a setup file, an
+    alias target), relative to the config; the same in a PyInstaller .spec (one that calls Analysis(),
+    as every spec does), whose runtime hooks and scripts the bundle runs; and every file under a
+    public/ directory beside a package.json, which web bundlers serve by URL as it is, never import."""
     out = set()
+    packages = {os.path.dirname(p) for p in tracked if p.rsplit("/", 1)[-1] == "package.json" and "node_modules/" not in p}
     for path in tracked:
         name = path.rsplit("/", 1)[-1]
         base = os.path.dirname(path)
+        parts = path.split("/")
+        if any(seg == "public" and "/".join(parts[:i]) in packages for i, seg in enumerate(parts[:-1])):
+            out.add(path)
+        spec = name.endswith(".spec")
+        if not (name in ("pyproject.toml", "go.mod", "package.json") or name in _WRANGLER or spec or _BUNDLER_CONFIG.match(name)):
+            continue
+        if name == "go.mod":
+            out.add(path)   # the module's root package is its surface, as the files beside package.json are
+            continue
         try:
             with open(os.path.join(repo, path), encoding="utf-8", errors="replace") as fh:
                 text = fh.read(500_000)
@@ -948,8 +982,25 @@ def entry_points(repo: str, tracked: set) -> set:
             for mod in _SCRIPT_VALUE.findall(text):
                 stem = mod.replace(".", "/")
                 out.update({f"{stem}.py", f"{stem}/__init__.py", f"src/{stem}.py", f"src/{stem}/__init__.py"})
-        elif name == "go.mod":
-            out.add(path)   # the module's root package is its surface, as the files beside package.json are
+        elif name in _WRANGLER:
+            if name == "wrangler.toml":
+                main = None
+                for line in text.splitlines():
+                    if line.lstrip().startswith("["):
+                        break   # `main` is a top-level key: a table's own main is something else
+                    m = _TOML_MAIN.match(line)
+                    if m:
+                        main = m.group(1)
+            else:
+                doc = jsonc(text)
+                main = doc.get("main") if isinstance(doc, dict) else None
+            if isinstance(main, str):
+                out.add(os.path.normpath(os.path.join(base, main)))
+        elif spec:
+            if "Analysis(" in text:
+                out.update(_named_paths(text, base, tracked))
+        elif _BUNDLER_CONFIG.match(name):
+            out.update(_named_paths(text, base, tracked))
         elif name == "package.json" and "node_modules/" not in path:
             out.add(path)
             try:

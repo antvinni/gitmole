@@ -501,6 +501,31 @@ class Unreferenced(unittest.TestCase):
         edges = {p: info["imports"] for p, info in files.items()}
         self.assertEqual(structure.unreferenced(files, edges, {"python": 0.9}, set(), {"pkg/m0.py"}), [])
 
+    def test_what_a_build_spec_a_bundler_config_a_deploy_config_or_a_public_directory_declares_is_an_entry_point(self):
+        # VoiceStudio: PyInstaller runtime hooks in backend.spec, a rollup input and a vite-served public/ file,
+        # two Cloudflare workers named by wrangler's `main`
+        tree = {
+            "backend.spec": "a = Analysis(['backend/main.py'], pathex=['backend', '.'],\n    runtime_hooks=['backend/hooks/pyi_rth_x.py'])\n",
+            "rpm/pkg.spec": "Source0: 'backend/hooks/other.py'\n",   # an RPM spec, not PyInstaller's: no Analysis()
+            "backend/main.py": "", "backend/hooks/pyi_rth_x.py": "", "backend/hooks/other.py": "",
+            "electron/package.json": "{}",
+            "electron/electron.vite.config.ts": "input: { x: resolve(__dirname, 'src/main/server.ts') }, emit: \"public/boot.js\", url: 'https://x/src/y.ts', abs: '/src/main/z.ts'\n",
+            "electron/src/main/server.ts": "", "electron/src/main/z.ts": "", "electron/public/boot.js": "", "electron/public/worklet.js": "",
+            "docs/public/theme.js": "",   # no package.json beside it: not a web package's public directory
+            "deploy/worker/wrangler.jsonc": '{\n  // the worker\n  "main": "worker.mjs",\n}\n', "deploy/worker/worker.mjs": "",
+            "infra/wrangler.toml": 'name = "x"\nmain = "src/index.js"\n[env.dev]\nmain = "src/dev.js"\n', "infra/src/index.js": "", "infra/src/dev.js": "",
+        }
+        with tempfile.TemporaryDirectory() as repo:
+            for p, text in tree.items():
+                os.makedirs(os.path.join(repo, os.path.dirname(p)), exist_ok=True)
+                with open(os.path.join(repo, p), "w") as fh:
+                    fh.write(text)
+            entries = structure.entry_points(repo, set(tree))
+        named = {"backend/main.py", "backend/hooks/pyi_rth_x.py", "electron/src/main/server.ts", "electron/public/boot.js", "electron/public/worklet.js",
+                 "deploy/worker/worker.mjs", "infra/src/index.js"}
+        self.assertEqual(named - entries, set())
+        self.assertEqual({"backend/hooks/other.py", "electron/src/main/z.ts", "docs/public/theme.js", "infra/src/dev.js"} & entries, set())
+
     def test_a_language_where_more_than_one_file_in_twenty_looks_unreferenced_is_not_listed(self):
         files = self.files(n=20, orphans=3)   # 3 of 20 is over MAX_SHARE: the language loads code by name here
         edges = {p: info["imports"] for p, info in files.items()}
