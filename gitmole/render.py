@@ -1029,9 +1029,10 @@ def dependencies_line(report: dict):
     deps = report.get("dependencies") or {}
     status = deps.get("status")
     if status == "scanned":
-        bad = len(deps.get("vulnerable") or [])
+        rows = deps.get("vulnerable") or []
+        bad = len({r.get("name") for r in rows})
         line = f"Dependencies: {deps.get('packages', 0):,} packages in {_dependency_files(deps)}, "
-        line += f"{bad} vulnerable" if bad else "none vulnerable"
+        line += (f"{bad} vulnerable" + (f" in {len(rows)} places" if len(rows) != bad else "")) if bad else "none vulnerable"
         if deps.get("database_date"):
             line += f" (database from {deps['database_date']})"
         return line, ("red" if bad else "green")

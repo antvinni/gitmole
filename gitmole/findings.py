@@ -722,9 +722,15 @@ def _vuln_statement(rows: list) -> str:
     ranges = [r for r in rows if _floating(r)]
     parts = []
     if locked:
-        listed = "; ".join(f"{r['name']} {r['version']} ({_vuln_ref(r)}) in {r['source']}" for r in locked[:3])
-        more = f" and {len(locked) - 3} more" if len(locked) > 3 else ""
-        parts.append(f"{_plural(len(locked), 'vulnerable package')} in {deps.files_phrase(r['source'] for r in locked)}: {listed}{more}.")
+        versions = {}   # one entry per package version, with every file that pins it, in the rows' order
+        for r in locked:
+            versions.setdefault((r["name"], r["version"]), []).append(r)
+        listed = "; ".join(f"{same[0]['name']} {same[0]['version']} ({_vuln_ref(same[0])}) in {same[0]['source']}"
+                           + (f" and {_plural(len(same) - 1, 'more file')}" if len(same) > 1 else "") for same in list(versions.values())[:3])
+        more = f" and {len(versions) - 3} more" if len(versions) > 3 else ""
+        names = len({r["name"] for r in locked})
+        places = f" in {len(locked)} places across " if len(locked) != names else " in "
+        parts.append(f"{_plural(names, 'vulnerable package')}{places}{deps.files_phrase(r['source'] for r in locked)}: {listed}{more}.")
     if ranges:
         def one(r):
             if r.get("requirement") is None:
@@ -823,7 +829,8 @@ def vulnerable_dependencies(report: dict) -> list:
             statement += (f" A critical score in {where} is a warning here, as nothing in "
                           f"{'its directory' if len(unshipped) == 1 else 'their directories'} declares a deployment (a Dockerfile, a Helm chart, a compose build, an entry point).")
         ranges = [r for r in group if _floating(r)]
-        evidence = {"lock_files": len({r["source"] for r in locked if not deps.is_requirement_file(r["source"])}), "packages": [_vuln_evidence(r) for r in locked[:10]]}
+        evidence = {"lock_files": len({r["source"] for r in locked if not deps.is_requirement_file(r["source"])}),
+                    "names": len({r["name"] for r in locked}), "places": len(locked), "packages": [_vuln_evidence(r) for r in locked[:10]]}
         if ranges:
             evidence["requirements"] = [_vuln_evidence(r) for r in ranges[:10]]
         out.append(_f(sev, title, statement, f"{target} {IGNORE_DEPS}",

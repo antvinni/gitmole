@@ -811,6 +811,14 @@ class VulnerableDependencies(unittest.TestCase):
         self.assertTrue(f["advice"].startswith("Raise the floor of mcp to 1.9.4 in requirements.txt first; its floor scores 8.7."), f["advice"])
         self.assertEqual(f["evidence"]["packages"], [])
 
+    def test_a_package_in_many_lock_files_is_counted_once_and_its_places_apart(self):
+        """hindsight said "34 vulnerable packages": 34 rows of package and lock file, about 20 packages."""
+        rows = [self.row("pyjwt", "2.13.0", f"{d}/uv.lock", score=7.1) for d in ("a", "b", "c")] + [self.row("click", "8.1.8", "a/uv.lock", score=7.0)]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        self.assertIn("2 vulnerable packages in 4 places across 3 lock files: pyjwt 2.13.0 (CVE-2024-1, 7.1, fixed in 9.9.9) in a/uv.lock and 2 more files; click 8.1.8", f["detail"])
+        self.assertEqual((f["evidence"]["names"], f["evidence"]["places"], f["evidence"]["lock_files"]), (2, 4, 3))
+        self.assertEqual(len(f["evidence"]["packages"]), 4, "the evidence keeps a row per place")
+
     def test_nothing_without_a_scan_or_without_vulnerable_packages(self):
         self.assertEqual(findings.vulnerable_dependencies(report()), [])
         self.assertEqual(findings.vulnerable_dependencies(report(dependencies={"status": "no-database"})), [])

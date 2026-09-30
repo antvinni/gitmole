@@ -117,6 +117,13 @@ class Report(unittest.TestCase):
         self.assertNotIn("No known vulnerabilities", text)
         self.assertIn("Dependencies: 151 packages in 2 lock files, 1 vulnerable (database from 2026-09-16)", text)
 
+    def test_the_footer_counts_packages_and_places_apart(self):
+        r = sample_report()
+        row = {"name": "lodash", "version": "4.17.15", "source": "package-lock.json", "score": 7.2, "fixed": "4.17.21",
+               "ids": ["GHSA-1"], "aliases": [], "severity": "high", "ecosystem": "npm", "advisories": 1, "summary": ""}
+        r["dependencies"]["vulnerable"] = [row, {**row, "source": "web/package-lock.json"}]
+        self.assertIn("Dependencies: 151 packages in 2 lock files, 1 vulnerable in 2 places (database", rendered(r, []))
+
     def test_a_requirement_file_is_not_counted_as_a_lock_file(self):
         r = sample_report()
         r["dependencies"]["sources"].append({"path": "tools/requirements.txt", "packages": 3})
