@@ -51,6 +51,17 @@ def cut_middle(text: str, width: int) -> str:
     return text[:keep - tail_len] + ELLIPSIS + text[len(text) - tail_len:]
 
 
+ANONYMOUS = "<anonymous>"   # what the report calls a function that has no name of its own
+
+
+def nameless(name: str) -> bool:
+    """A function name that is not a name: empty, lizard's "(anonymous)", the start line gitmole labels a
+    nameless function with (`const rows = (['tts'] as const).map((family) => {`), or the structure step's
+    "(anonymous at line 12)". Told by shape: whitespace, an opening bracket that is not an empty `()`
+    (`operator()` is a name), `=>` or `{`."""
+    return not name or bool(re.search(r"\s|=>|\{", name)) or "(" in name.replace("()", "")
+
+
 def cut(name: str, cap: int) -> str:
     """`name`, unchanged if it fits in `cap` characters, else cut to exactly `cap` ending in the ellipsis."""
     return name if len(name) <= cap else name[:cap - 1] + ELLIPSIS

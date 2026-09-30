@@ -179,14 +179,15 @@ def _reasons(r: dict) -> list:
         out.append(f"{r['minor']} of {r['authors']} authors are minor contributors")   # Bird et al.: the defect signal; the sole owner is the knowledge signal
     fn = r["function"]
     if fn and fn["ccn"] >= CCN_FLOOR:
-        named = f"the function at line {fn['start']}" if fn.get("anonymous") else f"{fn['function']}()"
+        named = f"the function at line {fn['start']}" if fn.get("anonymous") or textfmt.nameless(fn["function"]) else f"{fn['function']}()"
         out.append(f"{named} complexity {fn['ccn']}")
     grown = r.get("trend") or ""
     if grown.startswith("+") and int(grown[1:-1]) >= trend.GROWTH_FLOOR:
         out.append(f"complexity {grown} in a year")   # the Hotspots table's trend column, which the default report no longer shows
     deepest = r.get("deepest")
     if deepest and deepest["nesting"] >= NESTING_FLOOR:
-        out.append(f"{deepest['name']}() nested {deepest['nesting']} deep")
+        named = f"the function at line {deepest['start']}" if textfmt.nameless(deepest["name"]) else f"{deepest['name']}()"
+        out.append(f"{named} nested {deepest['nesting']} deep")
     if r.get("debt", 0) >= DEBT_FLOOR:
         out.append(f"{r['debt']} TODO/FIXME comments")   # self-admitted debt: the authors said it is unfinished
     if r.get("changes") and r["changes"] >= TESTED_SETS and r["tested_share"] <= TESTED_SHARE:

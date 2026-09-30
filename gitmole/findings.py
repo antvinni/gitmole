@@ -548,7 +548,7 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     big.sort(key=lambda f: (-f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
     hot = hotspots.top(report)
     sev = "warning" if any(f["file"] in hot for f in big) else "info"
-    listed = "; ".join(f"{f['function']} ({_place(f)}) complexity {f['ccn']}, {f['nloc']} lines, {_plural(f['params'], 'param')}" for f in big[:5])
+    listed = "; ".join(f"{_called(f)} ({_place(f)}) complexity {f['ccn']}, {f['nloc']} lines, {_plural(f['params'], 'param')}" for f in big[:5])
     more = f" and {len(big) - 5} more" if len(big) > 5 else ""
     first = big[0]
     which = f"the anonymous function at {_place(first)}" if _anonymous(first) else f"{first['function']} in {first['file']}"
@@ -564,9 +564,15 @@ ANONYMOUS = "(anonymous)"
 
 
 def _anonymous(f: dict) -> bool:
-    """A function lizard could not name: it goes by its start line's text (or "(anonymous)" in an
-    older functions.csv), which is not a name to search for."""
-    return f.get("anonymous", f["function"] == ANONYMOUS)
+    """A function lizard (or the structure step) could not name: it goes by its start line's text (or
+    "(anonymous)" in an older functions.csv, "(anonymous at line N)" from the structure step), which is
+    not a name to search for. Told by the flag the loader sets or by the name's shape (textfmt.nameless)."""
+    return bool(f.get("anonymous")) or textfmt.nameless(f.get("function", f.get("name", "")))
+
+
+def _called(f: dict) -> str:
+    """What the report calls a function: its name, or <anonymous> beside a file:line (_place)."""
+    return textfmt.ANONYMOUS if _anonymous(f) else f.get("function", f.get("name", ""))
 
 
 def _place(f: dict) -> str:
@@ -1064,11 +1070,12 @@ def deep_nesting(report: dict, min_nesting: int = 5, min_bumps: int = 3, top_n: 
     sev = "warning" if any(f["file"] in top for f in deep) else "info"
 
     def one(f):
-        return f"{f['name']} ({f['file']}:{f['start']}) nested {f['nesting']} deep, cognitive complexity {f['cognitive']}, {f['bumps']} bump{'s' if f['bumps'] != 1 else ''}"
+        return f"{_called(f)} ({f['file']}:{f['start']}) nested {f['nesting']} deep, cognitive complexity {f['cognitive']}, {f['bumps']} bump{'s' if f['bumps'] != 1 else ''}"
     listed = "; ".join(one(f) for f in deep[:5]) + (f" and {len(deep) - 5} more" if len(deep) > 5 else "")
     first = next((f for f in deep if f["file"] in top), deep[0])
+    which = f"the anonymous function at {first['file']}:{first['start']}" if _anonymous(first) else f"{first['name']} in {first['file']}"
     return [_f(sev, "Deeply nested code", f"{_plural(len(deep), 'function')} nest {min_nesting} levels or more or carry {min_bumps}+ separate nested chunks: {listed}.",
-               f"Flatten {first['name']} in {first['file']} first: return early and move each nested chunk into a function of its own.",
+               f"Flatten {which} first: return early and move each nested chunk into a function of its own.",
                rule={"id": "deep_nesting", "min_nesting": min_nesting, "min_bumps": min_bumps, "measure": "tree-sitter",
                      "ref": "SonarSource cognitive complexity; CodeScene code health"},
                evidence={"count": len(deep), "functions": [{k: f[k] for k in ("file", "name", "start", "nesting", "cognitive", "bumps")} for f in deep[:10]]})]

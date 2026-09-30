@@ -542,12 +542,13 @@ class Report(unittest.TestCase):
         full_text = rendered(r, [], full=True)
         self.assertIn("tests/test_a.py", full_text[full_text.index("Complex functions"):])
 
-    def test_a_nameless_function_shows_its_label_and_its_file_with_the_line(self):
+    def test_a_nameless_function_is_anonymous_with_its_file_and_line(self):
         r = sample_report()
         r["functions"].append({"file": "server/routes.ts", "function": 'app.post("/api/x", async (req, res) => {', "anonymous": True,
                                "ccn": 25, "nloc": 60, "params": 0, "start": 1162, "end": 1240, "suspect": ""})
         fn = _section_text(rendered(r, [], width=200), "Complex functions")
-        self.assertIn('app.post("/api/x", async (req, res) => {', fn)
+        self.assertRegex(fn, r"<anonymous>\s+server/routes.ts:1162")
+        self.assertNotIn("app.post", fn, "a start line is not a name")
         self.assertIn("server/routes.ts:1162", fn)
         self.assertNotIn("static/js/app.js:", fn, "a named function is found by its name; the row shows the file alone")
 

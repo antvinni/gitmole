@@ -551,14 +551,22 @@ class BrainMethods(unittest.TestCase):
     def test_an_anonymous_function_is_named_by_its_place(self):
         fns = [{"file": "completions.go", "function": "(anonymous)", "ccn": 47, "nloc": 136, "params": 1, "start": 316, "end": 585}]
         f = findings.brain_methods(report(functions=fns))
-        self.assertIn("(anonymous) (completions.go:316) complexity 47, 136 lines, 1 param", f[0]["detail"])
+        self.assertIn("<anonymous> (completions.go:316) complexity 47, 136 lines, 1 param", f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Split the anonymous function at completions.go:316 first, before the next change lands there.")
 
-    def test_a_labelled_nameless_function_is_listed_by_its_label_and_placed_by_its_line(self):
+    def test_a_labelled_nameless_function_is_listed_as_anonymous_and_placed_by_its_line(self):
+        # VoiceStudio's 0.39.0 report listed `const rows = (['tts', 'asr', 'llm'] as const).map((family) => {` as a name
+        for flag in (True, False):   # the loader's flag, or the name's shape alone (an analysis the flag is missing from)
+            fns = [{"file": "server/routes.ts", "function": 'app.post("/api/x", async (req, res) => {', "anonymous": flag,
+                    "ccn": 47, "nloc": 136, "params": 1, "start": 316, "end": 585, "suspect": ""}]
+            f = findings.brain_methods(report(functions=fns))
+            self.assertIn("<anonymous> (server/routes.ts:316) complexity 47, 136 lines, 1 param", f[0]["detail"])
+            self.assertNotIn("app.post", f[0]["detail"])
+        fns = [{"file": "a.cpp", "function": "Matrix::operator()", "ccn": 47, "nloc": 136, "params": 1, "start": 3, "end": 200, "suspect": ""}]
+        self.assertIn("Matrix::operator() (a.cpp) complexity 47", findings.brain_methods(report(functions=fns))[0]["detail"], "an empty () is part of a name")
         fns = [{"file": "server/routes.ts", "function": 'app.post("/api/x", async (req, res) => {', "anonymous": True,
                 "ccn": 47, "nloc": 136, "params": 1, "start": 316, "end": 585, "suspect": ""}]
         f = findings.brain_methods(report(functions=fns))
-        self.assertIn('app.post("/api/x", async (req, res) => { (server/routes.ts:316) complexity 47, 136 lines, 1 param', f[0]["detail"])
         self.assertEqual(f[0]["advice"], "Split the anonymous function at server/routes.ts:316 first, before the next change lands there.")
 
     def test_a_suspect_span_is_not_a_brain_method(self):
@@ -1024,6 +1032,14 @@ class Structure(unittest.TestCase):
         self.assertNotIn("test_x", f["detail"])
         self.assertTrue(f["advice"].startswith("Flatten parse in src/f0.py first"), f["advice"])
         self.assertEqual(f["rule"]["min_nesting"], 5)
+
+    def test_a_nameless_nested_function_is_anonymous_at_its_line(self):
+        r = self.base(functions=[{"file": "src/f0.py", "name": "(anonymous at line 12)", "start": 12, "end": 300, "nesting": 6, "cognitive": 80,
+                                  "complex_conditions": 2, "bumps": 3}])
+        f = self.by_id(r)["deep_nesting"]
+        self.assertIn("<anonymous> (src/f0.py:12) nested 6 deep", f["detail"])
+        self.assertTrue(f["advice"].startswith("Flatten the anonymous function at src/f0.py:12 first"), f["advice"])
+        self.assertEqual(f["evidence"]["functions"][0]["name"], "(anonymous at line 12)", "the evidence keeps what the step recorded")
 
     def test_import_cycles_name_each_group_and_a_shortest_loop_through_it(self):
         r = self.base()

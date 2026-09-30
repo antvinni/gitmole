@@ -107,6 +107,8 @@ class Risks(unittest.TestCase):
         self.assertIn("parse() nested 6 deep", reasons)
         self.assertIn("defines 72 functions and classes", reasons)
         self.assertFalse([x for x in by["core/util.py"]["reasons"] if "TODO" in x or "nested" in x or "defines" in x])
+        r["structure"]["functions"][0]["name"] = "(anonymous at line 10)"
+        self.assertIn("the function at line 10 nested 6 deep", {x["file"]: x for x in watch.risks(r)}["core/parser.py"]["reasons"])
 
     def test_late_night_changes_are_a_reason_and_never_a_rank(self):
         r = report()

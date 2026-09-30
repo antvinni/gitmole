@@ -789,7 +789,7 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     hidden_note = _join_hidden(hidden_note, vendor_note, sample_note, generated_note)
     limit = _limit("Complex functions", full)
     shown = funcs[:limit]
-    rows = [(f["function"], _where(f), f"{f['ccn']}{SUSPECT_MARK}" if f.get("suspect") else f["ccn"], f["nloc"], f["params"]) for f in shown]
+    rows = [(textfmt.ANONYMOUS if _nameless(f) else f["function"], _where(f), f"{f['ccn']}{SUSPECT_MARK}" if f.get("suspect") else f["ccn"], f["nloc"], f["params"]) for f in shown]
     suspects = sum(1 for f in shown if f.get("suspect"))
     suspect_note = f"{SUSPECT_MARK} marks {suspects} span{'s' if suspects != 1 else ''} lizard may have mis-parsed" if suspects else None
     columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
@@ -814,10 +814,14 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
 SUSPECT_MARK = "?"
 
 
+def _nameless(f: dict) -> bool:
+    return bool(f.get("anonymous")) or textfmt.nameless(f["function"])
+
+
 def _where(f: dict) -> str:
-    """A named function is found by its name in its file; a nameless one goes by its start line's text,
-    so the row says which line."""
-    return f"{f['file']}:{f['start']}" if f.get("anonymous") else f["file"]
+    """A named function is found by its name in its file; a nameless one is shown as <anonymous>, so the
+    row says which line."""
+    return f"{f['file']}:{f['start']}" if _nameless(f) else f["file"]
 
 
 def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
