@@ -1470,16 +1470,25 @@ def mcp_literal_env(report: dict) -> list:
 
 
 def agent_instructions_drift(report: dict, min_months: int = 6, min_commits: int = 100) -> list:
-    """Agent instruction files (AGENTS.md and the like) far behind the code they describe."""
+    """Agent instruction files (AGENTS.md and the like) far behind the code they describe. A file that only
+    points at another (`points_to`, provenance.pointer_targets) is dated by the newest file it points at, and
+    one under a vendored directory describes someone else's code, so it is left out."""
     last = (report.get("meta") or {}).get("last_date") or ""
+    vendored = filetypes.vendor_dirs(report)
     stale = [r for r in _agents(report).get("instructions") or []
-             if last and _months_apart(r["last"], last) >= min_months and r["commits_behind"] >= min_commits]
+             if last and _months_apart(r["last"], last) >= min_months and r["commits_behind"] >= min_commits
+             and not filetypes.is_vendored(r["file"], vendored)]
     if not stale:
         return []
-    listed = "; ".join(f"{r['file']} last changed on {r['last']}, {_months_apart(r['last'], last)} months and {r['commits_behind']:,} commits before the last commit" for r in stale)
-    return [_f("info", "Agent instructions behind the code", f"{listed}.",
-               f"Read {stale[0]['file']} against the tree and update what moved; an agent follows it literally.",
-               rule={"id": "agent_instructions_drift", "min_months": min_months, "min_commits": min_commits},
+
+    def said(r):
+        via = f"{r['file']} points at {textfmt.join_and(r['points_to'])}, which" if r.get("points_to") else r["file"]
+        return f"{via} last changed on {r['last']}, {_months_apart(r['last'], last)} months and {r['commits_behind']:,} commits before the last commit"
+    first = (stale[0].get("points_to") or [stale[0]["file"]])[0]
+    return [_f("info", "Agent instructions behind the code", f"{'; '.join(said(r) for r in stale)}.",
+               f"Read {first} against the tree and update what moved; an agent follows it literally.",
+               rule={"id": "agent_instructions_drift", "min_months": min_months, "min_commits": min_commits,
+                     "pointers": "dated by the files they point at", "vendored": "left out"},
                evidence={"files": stale})]
 
 

@@ -21,7 +21,8 @@ writes provenance.json:
 - shape: neutral descriptors (commits landing in bursts, conventional-commit subjects, how many hours
   of the day commits come in). Every one has a benign cause, and none is labelled.
 - agents: the agent instruction files by path convention (AGENTS.md, CLAUDE.md, GEMINI.md,
-  .github/copilot-instructions.md) and how far behind HEAD each is, the hook files that declare
+  .github/copilot-instructions.md) and how far behind HEAD each is (a file that only points at another, by
+  symlink, `@path` or a link, as far as the newest file it points at), the hook files that declare
   guardrails, tracked personal settings, settings that turn approval prompts off, and MCP server
   declarations whose environment carries literal values rather than references. Values are never
   written."""
@@ -299,17 +300,70 @@ def _literal_secret(value) -> bool:
     return len(v) >= 16 and not _REFERENCE.match(v) and not leaks.is_placeholder(v)
 
 
+_POINTER_REF = re.compile(r"@(\S+)|\]\(([^)\s]+)\)|([\w.-]+(?:/[\w.-]+)*\.\w+)")
+POINTER_LINES = 3   # a pointer says where the instructions are, in a line or three; more is instructions
+
+
+def _resolve(ref: str, base: str, tracked: set):
+    """A reference in an agent file (`@AGENTS.md`, `./CLAUDE.md#setup`, `docs/agents.md`) as the tracked file it
+    names, relative to the file's directory first and then to the root; None when it names no tracked file."""
+    ref = ref.split("#", 1)[0].strip("`'\"<>(),;:").rstrip(".")   # a sentence's full stop is not the name's
+    if not ref or "://" in ref or ref.startswith("~"):
+        return None
+    for cand in (os.path.normpath(os.path.join(base, ref)), os.path.normpath(ref.lstrip("/"))):
+        if cand in tracked:
+            return cand
+    return None
+
+
+def pointer_targets(repo: str, path: str, tracked: set) -> list:
+    """The tracked files an agent instruction file only points at, or [] when it holds instructions of its own.
+    A pointer, by shape: a symlink, or a file that after its headings and blank lines has at most POINTER_LINES
+    lines, each naming a tracked file by `@path` (Claude Code's import), a Markdown link or a bare path
+    (brew's and prometheus's CLAUDE.md is `@AGENTS.md`; hindsight's AGENTS.md is "See [CLAUDE.md](./CLAUDE.md)")."""
+    full, base = os.path.join(repo, path), os.path.dirname(path)
+    if os.path.islink(full):
+        target = _resolve(os.readlink(full), base, tracked)
+        return [target] if target and target != path else []
+    try:
+        with open(full, encoding="utf-8", errors="replace") as fh:
+            text = fh.read(4096)
+    except OSError:
+        return []
+    lines = [l.strip() for l in text.splitlines() if l.strip() and not l.lstrip().startswith("#")]
+    if not lines or len(lines) > POINTER_LINES or len(text) >= 4096:
+        return []
+    targets = []
+    for line in lines:
+        named = [t for m in _POINTER_REF.finditer(line) for t in [_resolve(next(g for g in m.groups() if g), base, tracked)] if t and t != path]
+        if not named:
+            return []
+        targets += [t for t in dict.fromkeys(named) if t not in targets]
+    return targets
+
+
+def _last_change(repo: str, path: str):
+    """(commit, day, commit time) of the last commit that touched `path`, or None."""
+    last = subprocess.run(["git", "log", "-1", "--format=%H%x1f%cs%x1f%ct", "--", path], cwd=repo, capture_output=True, text=True).stdout.strip()
+    if not last:
+        return None
+    sha, day, when = last.split("\x1f")
+    return sha, day, int(when)
+
+
 def agents(repo: str) -> dict:
     tracked = set(filetypes.git_paths(repo, "ls-files"))
     head_count = int(subprocess.run(["git", "rev-list", "--count", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip() or 0)
     instructions = []
     for path in sorted(p for p in tracked if p.rsplit("/", 1)[-1] in ("AGENTS.md", "CLAUDE.md", "GEMINI.md") or p in INSTRUCTIONS):
-        last = subprocess.run(["git", "log", "-1", "--format=%H%x1f%cs", "--", path], cwd=repo, capture_output=True, text=True).stdout.strip()
-        if not last:
+        targets = pointer_targets(repo, path, tracked)
+        # a pointer's instructions are its targets': it is as current as the newest of them
+        dated = [c for c in (_last_change(repo, t) for t in (targets or [path])) if c]
+        if not dated:
             continue
-        sha, day = last.split("\x1f")
+        sha, day, _ = max(dated, key=lambda c: c[2])
         behind = int(subprocess.run(["git", "rev-list", "--count", f"{sha}..HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip() or 0)
-        instructions.append({"file": path, "last": day, "commits_behind": behind})
+        instructions.append(dict({"file": path, "last": day, "commits_behind": behind}, **({"points_to": targets} if targets else {})))
     guard, disabled = [], []
     for path in GUARDRAILS:
         data = _json(repo, path) if path in tracked else None

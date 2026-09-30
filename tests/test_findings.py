@@ -1415,6 +1415,16 @@ class AgentSurface(unittest.TestCase):
         self.assertIn("AGENTS.md last changed on 2025-01-01, 20 months and 640 commits before the last commit", f["detail"])
         self.assertNotIn("CLAUDE.md", f["detail"])
 
+    def test_a_pointer_names_its_target_and_a_vendored_file_is_left_out(self):
+        found = self.by_id(self.rep(agents={"instructions": [
+            {"file": "CLAUDE.md", "last": "2025-01-01", "commits_behind": 640, "points_to": ["AGENTS.md"]},
+            {"file": "vendor/go.opentelemetry.io/otel/AGENTS.md", "last": "2025-01-01", "commits_behind": 640}]}))
+        f = found["agent_instructions_drift"]
+        self.assertIn("CLAUDE.md points at AGENTS.md, which last changed on 2025-01-01", f["detail"])
+        self.assertNotIn("vendor/", f["detail"])
+        self.assertEqual([r["file"] for r in f["evidence"]["files"]], ["CLAUDE.md"])
+        self.assertTrue(f["advice"].startswith("Read AGENTS.md against the tree"))
+
     def test_a_sign_off_by_an_identity_that_only_co_authors(self):
         f = self.by_id(self.rep(trailers={"never_author": [], "signoff_by_co_author": [{"name": "Ghost", "email": "ghost@x.com", "commits": 3}]}))["signoff_by_co_author"]
         self.assertEqual(f["severity"], "info")

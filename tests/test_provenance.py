@@ -110,6 +110,30 @@ class Agents(unittest.TestCase):
         self.assertNotIn("p4ss", json.dumps(out))
 
 
+    def test_a_pointer_is_dated_by_the_file_it_points_at(self):
+        # brew and prometheus: CLAUDE.md is "@AGENTS.md"; hindsight: AGENTS.md is "See [CLAUDE.md](./CLAUDE.md) for ..."
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.commit("CLAUDE.md", "@AGENTS.md\n", "pointer", date="2025-01-01T10:00:00")
+            r.commit("docs/AGENTS.md", "# AGENTS.md\n\nSee [CLAUDE.md](../CLAUDE.md#rules) for project documentation.\n", "pointer", date="2025-01-01T11:00:00")
+            r.commit("GEMINI.md", "Read docs/AGENTS.md first.\nThen run the tests.\n", "instructions", date="2025-01-01T12:00:00")
+            for i in range(3):
+                r.commit("src.py", f"{i}\n", f"work {i}", date=f"2026-0{i + 1}-01T10:00:00")
+            r.commit("AGENTS.md", "Run the tests before every commit.\n", "instructions", date="2026-04-01T10:00:00")
+            r.commit("src.py", "x\n", "work", date="2026-05-01T10:00:00")
+            os.symlink("AGENTS.md", os.path.join(d, "lib"))   # not an agent file: ignored
+            os.makedirs(os.path.join(d, "sub"))
+            os.symlink("../AGENTS.md", os.path.join(d, "sub", "CLAUDE.md"))
+            r.git("add", "sub/CLAUDE.md")
+            r.git("commit", "-q", "-m", "link", date="2025-02-01T10:00:00")
+            out = {x["file"]: x for x in provenance.agents(d)["instructions"]}
+        self.assertEqual(out["CLAUDE.md"], {"file": "CLAUDE.md", "last": "2026-04-01", "commits_behind": 2, "points_to": ["AGENTS.md"]})
+        self.assertEqual(out["docs/AGENTS.md"]["points_to"], ["CLAUDE.md"], "a link resolves from the file's directory, its anchor dropped")
+        self.assertEqual(out["sub/CLAUDE.md"]["points_to"], ["AGENTS.md"], "a symlink points at its target")
+        self.assertNotIn("points_to", out["GEMINI.md"], "a line that names no file is an instruction")
+        self.assertEqual(out["GEMINI.md"]["last"], "2025-01-01")
+
+
 class Lines(unittest.TestCase):
     def _write(self, r, path, text, message, date):
         with open(os.path.join(r.d, path), "w") as fh:
