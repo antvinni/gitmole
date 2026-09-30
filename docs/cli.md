@@ -197,7 +197,7 @@ exports also work with `--no-run` against an earlier output directory.
 | --- | --- |
 | 0 | Done, and no gate asked for found anything. Without `--fail-on`, `--risk-threshold` or `--hook` a run exits 0 even when a step did not complete; the run names the step and the report's header says what is missing. |
 | 1 | `--doctor` found a tool off its pin; `--install-tools` or `--clean` could not do all it was asked. |
-| 2 | Bad arguments or an unreadable output directory; with `--hook`, over `--risk-threshold`. |
+| 2 | Bad arguments or an unreadable output directory; with `--hook`, over `--risk-threshold` (a `--hook` with no output directory says how to make one and exits 0). |
 | 3 | A gate found what it stops on: a finding at the `--fail-on` level or worse that is not in the `--baseline`, or a change over `--risk-threshold`. |
 | 4 | A gate could not check: a step it reads failed, timed out or was skipped, and it found nothing it stops on in what the other steps left. The message names the step; `run.log` in the output directory says why. `--fail-on` reads every step but the two plots and the backtest; `--risk-threshold` and `--hook` read scc, the log and the change analysis. Also, with `--require-vuln-db`, a dependency scan that had no vulnerability database. |
 | 130 | Interrupted. |
@@ -453,9 +453,27 @@ which every one of these hooks reads as "block"; without a threshold it is
 a soft warning. When the output directory's scc, log or change analysis did
 not complete, every file scores 0, so with a threshold the hook exits 4 and
 says so instead of passing the edit: Claude Code shows that to you without
-blocking the model, Cursor with `failClosed` and pre-commit block on it. The output directory comes from an earlier run
-(`gitmole . --out analysis-repo`), so the hook itself costs a few hundred
-milliseconds and needs no tool on PATH.
+blocking the model, Cursor with `failClosed` and pre-commit block on it.
+
+The hook scores against an earlier run, so set it up with one run first, in
+the repository:
+
+```bash
+gitmole . --out analysis-repo
+```
+
+The hook itself then costs a few hundred milliseconds and needs no tool on
+PATH. Before that run, or with a mistyped directory, the hook says
+`gitmole hook: no analysis in analysis-repo, so nothing was scored; run once
+in the repository: gitmole . --out analysis-repo` on stderr and exits 0: an
+exit 2 there would block every edit over a missing file. The scores are the
+analysed commit's, so when HEAD has moved on the hook also says how far,
+on stderr and without changing the exit code (`the analysis in
+analysis-repo is of 1a2b3c4d5e6f, 14 commits behind HEAD; its scores leave
+those out; refresh it with: gitmole … --out analysis-repo`). There is no
+threshold on that gap: any commit since is revisions the watch list has
+not counted, so run the same command again when the number is more than
+you want to ignore, after a merge from main at the latest.
 
 Claude Code, `.claude/settings.json`, a `PostToolUse` hook on `Write|Edit`;
 the JSON on stdout becomes `additionalContext`, exit 2 shows stderr to the

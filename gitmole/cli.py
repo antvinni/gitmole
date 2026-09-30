@@ -308,6 +308,10 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
         err.print("[red]--since needs a run:[/red] a re-render cannot narrow an earlier analysis")
         return 2
     out_dir = os.path.abspath(args.target)
+    if args.hook and not os.path.isfile(os.path.join(out_dir, "meta.json")):
+        from . import hook
+        err.print(hook.setup_hint(args.target), soft_wrap=True, markup=False, highlight=False)
+        return 0   # an agent reads 2 as "block": a hook set up before its first run must not stop every edit
     if not os.path.isfile(os.path.join(out_dir, "meta.json")):
         err.print(f"[red]no gitmole output found in {out_dir}[/red] (expected meta.json)")
         for line in _no_run_hint(args, out_dir):
@@ -322,7 +326,7 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
 
 def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
     """The agent-hook gate (see hook.py): 2 over the threshold, 0 otherwise, silent when the event
-    names no file in the repository."""
+    names no file in the repository. An analysis older than HEAD is said on stderr, with the gap."""
     from . import gate, hook, watch
     try:
         report = load.load_report(out_dir)
@@ -334,6 +338,10 @@ def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
     files = [os.path.relpath(os.path.abspath(f), os.path.realpath(repo)) if os.path.isabs(f) else f for f in args.files] or hook.paths_in(event, repo)
     if not files:
         return 0
+    commit = (report["meta"].get("run") or {}).get("commit")
+    gap = hook.behind(repo, commit)
+    if gap:   # stderr: never on the stdout the agent parses; the exit code is the scores', not the notice's
+        err.print(hook.stale_line(args.target, repo, commit, gap), soft_wrap=True, markup=False, highlight=False)
     risk = watch.change_risk(report, files)
     lines = hook.summary(risk, args.risk_threshold)
     if args.files:
