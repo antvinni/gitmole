@@ -375,6 +375,7 @@ the `version` input overrides both. The inputs:
 | `fail-on` | none | `critical`, `warning` or `info`: fail the step when a finding is at that severity or worse. |
 | `risk` | none | `--risk` base, for a pull request `origin/${{ github.base_ref }}`. |
 | `risk-threshold` | none | With `risk`: fail when the changed files hold more than N percent. |
+| `baseline` | `false` | Gate only on what is new since the default branch's last run. See [Baseline in the Action](#baseline-in-the-action). |
 | `sarif` | none | Write SARIF to this path. |
 | `upload-sarif` | `true` | With `sarif`: upload it to code scanning (`category: gitmole`); the job needs `permissions: security-events: write`, which a pull request from a fork does not get. |
 | `vulnerability-db` | `false` | Download osv-scanner's offline database first, cached per day, and pass `--require-vuln-db`, so a scan that still found no database exits 4. |
@@ -384,9 +385,53 @@ the `version` input overrides both. The inputs:
 
 Outputs: `exit-code` (0; 3 when a gate tripped; 4 when a gate could not check
 because a step it reads did not finish, or `vulnerability-db` found no database), `markdown` (the report's path) and
-`sarif`. A tripped gate, or one that could not check, fails the job only after
+`sarif`, and with `baseline` the path of the export it gated against
+(`baseline`, empty on a first run). A tripped gate, or one that could not check, fails the job only after
 the summary is written and the SARIF uploaded, so a blocked pull request still
 shows why.
+
+### Baseline in the Action
+
+With `baseline: true` the action keeps the [baseline](#baseline) for you in
+the Actions cache. A push to the default branch saves that run's `--json`
+export; a pull request, or a push to any other branch, restores the default
+branch's latest one and passes it as `--baseline`, so a pull request fails
+only on what it adds. Nothing is saved from a pull request, and nothing from
+a run that exited 4, whose export lacks what the unfinished step would have
+found: the cached baseline stays. The cache key is per repository, default
+branch and `args`, so two gitmole steps over different targets keep two
+baselines. When `args` already writes `--json` to a file, that export is the
+one saved; otherwise the action adds its own.
+
+```yaml
+on:
+  push:
+    branches: [main]      # saves the baseline
+  pull_request:           # gates on what is new since it
+jobs:
+  gitmole:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: antvinni/gitmole@v0.39.0
+        with:
+          fail-on: critical
+          baseline: true
+          sarif: gitmole.sarif
+```
+
+The first run has no baseline, says so in a notice, and gates on every
+finding like a run without `baseline`; so does every run until a push to the
+default branch has saved one, and again after the cache entry expires (GitHub
+evicts one not read for seven days). A secret committed years ago therefore
+fails the first run: look at it, rotate it, and the push that follows saves a
+baseline that holds it. The baseline records what the default branch had, not
+what anyone reviewed; a finding that landed on the default branch is in it.
 
 The network is reached in the setup steps only: pip, the tool archives, and
 with `vulnerability-db: true` the OSV database for the ecosystems the
