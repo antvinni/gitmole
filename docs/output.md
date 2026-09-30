@@ -50,8 +50,12 @@ in plain words, and what to do first. This page is the reference.
    apart: `12% of commits signed by their authors (gpg 12%), 0% of the
    last year's; 50% signed by the forge on merge`. `--full` and Markdown add a Signing by year table with humans
    against bots and the busiest identities. `--full` and Markdown add a Trailers table: every hyphenated
-   trailer key and how many commits carry it, then the commits an
-   `Assisted-by` trailer or a co-author who never authors a commit marks,
+   trailer key and how many commits carry it, counted without regard to
+   case as git matches them (`Co-authored-by` and `Co-Authored-By` are one
+   row, under the more common spelling), and never an issue reference
+   such as `PAP-10182:` (capitals, a hyphen and a number) that happens to
+   end a message; then the commits an `Assisted-by` trailer, a co-author
+   who never authors a commit or a coding tool marks,
    against the rest (reverted, fixes, a file changed again within two
    weeks), with the share of the history they cover, and three neutral
    descriptors of how commits arrive (bursts of commits minutes apart,

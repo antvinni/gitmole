@@ -59,6 +59,19 @@ class Trailers(unittest.TestCase):
         self.assertEqual(out["signoff_by_co_author"], [{"name": "Ghost", "email": "ghost@x.com", "commits": 1}],
                          "a sign-off by an identity that only ever co-authors: what the kernel's policy forbids agents")
 
+    def test_keys_count_without_case_under_their_most_common_spelling_and_an_issue_id_is_no_key(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.commit("a.py", "1\n", "one\n\nCo-authored-by: Bob <bob@x.com>")
+            r.commit("a.py", "2\n", "two\n\nCo-authored-by: Bob <bob@x.com>")
+            r.commit("a.py", "3\n", "three\n\nCo-Authored-By: Bob <bob@x.com>\nco-authored-by: Cat <cat@x.com>")
+            r.commit("a.py", "4\n", "four\n\nPAP-10182: follow-up to the retry fix")
+            out = provenance.trailers(provenance.read_commits(d))
+        self.assertEqual(out["keys"], {"Co-authored-by": 3}, "one trailer, one count per commit, git's matching ignores case")
+        self.assertEqual(out["with_any"], 3)
+        self.assertEqual(provenance.fold_keys({"Co-authored-by": 5, "Co-Authored-By": 2, "PAP-10182": 1, "Signed-off-by": 1}),
+                         {"Co-authored-by": 7, "Signed-off-by": 1}, "an older run's keys, folded when the table is drawn")
+
 
 class Cohorts(unittest.TestCase):
     def test_trailer_cohort_against_the_rest(self):

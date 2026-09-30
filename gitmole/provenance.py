@@ -49,6 +49,10 @@ SEP, END = "\x1f", "\x1e"
 # a trailer key is hyphenated by convention (Co-authored-by, Signed-off-by, Change-Id); git's parser also
 # accepts a URL or a line of prose that happens to end the message, and those are not trailers
 _TRAILER_LINE = re.compile(r"^([A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+):\s*(?!//)(.+)$")
+# an issue reference that happens to end a message ("PAP-10182: fixed the retry"): a project key in capitals, a
+# hyphen and a number, Jira's shape and GitHub's autolink references'. git reads it as a trailer; a trailer key
+# names a field (Signed-off-by, Change-Id), and no field's name ends in a bare number
+_TICKET_KEY = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
 _IDENT = re.compile(r"^\s*(?P<name>[^<]*?)\s*<(?P<email>[^>]*)>\s*$")
 _CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]*\))?!?: \S")
 BURST_SIZE, BURST_SECONDS = 5, 600
@@ -77,7 +81,8 @@ def read_commits(repo: str) -> list:
         if len(parts) < 7:
             continue
         h, at, name, email, subject, trailer_text, files = parts[:7]
-        trailers = [(m.group(1), m.group(2).strip()) for m in (_TRAILER_LINE.match(l) for l in trailer_text.split("\n")) if m]
+        trailers = [(m.group(1), m.group(2).strip()) for m in (_TRAILER_LINE.match(l) for l in trailer_text.split("\n"))
+                    if m and not _TICKET_KEY.match(m.group(1))]
         commits.append({"hash": h, "time": int(at), "author": name, "email": email.lower(), "subject": subject,
                         "trailers": trailers, "files": [f for f in files.split("\n") if f.strip()]})
     commits.reverse()
@@ -89,14 +94,28 @@ def _ident(value: str):
     return (m.group("name"), m.group("email").lower()) if m else None
 
 
+def fold_keys(keys: dict) -> dict:
+    """Trailer keys counted without regard to case, as git's own trailer matching is (Co-authored-by and
+    Co-Authored-By are one trailer), each under its most common spelling, most used first; an issue reference
+    (_TICKET_KEY) is not a trailer. Counts per spelling of one key are summed, which for an older run that
+    counted spellings apart can count a commit carrying both twice."""
+    groups = {}
+    for k, n in keys.items():
+        if not _TICKET_KEY.match(k):
+            groups.setdefault(k.lower(), []).append((k, n))
+    folded = [(min(g, key=lambda kv: (-kv[1], kv[0]))[0], sum(n for _, n in g)) for g in groups.values()]
+    return dict(sorted(folded, key=lambda kv: (-kv[1], kv[0])))
+
+
 def trailers(commits: list) -> dict:
-    keys = Counter()
+    keys, spellings = Counter(), Counter()
     authors = {c["email"] for c in commits} | {c["author"] for c in commits}
     co, signed = Counter(), Counter()
     names = {}
     for c in commits:
-        for k in {k for k, _ in c["trailers"]}:
+        for k in {k.lower() for k, _ in c["trailers"]}:
             keys[k] += 1
+        spellings.update(k for k, _ in c["trailers"])
         for k, v in c["trailers"]:
             ident = _ident(v)
             if not ident:
@@ -109,7 +128,10 @@ def trailers(commits: list) -> dict:
     never = {e for e in co if e not in authors and names[e] not in authors}
     listing = sorted(({"name": names[e], "email": e, "commits": co[e]} for e in never), key=lambda x: (-x["commits"], x["name"]))
     signoff = sorted(({"name": names[e], "email": e, "commits": signed[e]} for e in never if signed.get(e)), key=lambda x: (-x["commits"], x["name"]))
-    return {"commits": len(commits), "keys": dict(sorted(keys.items(), key=lambda kv: (-kv[1], kv[0]))[:25]),
+    spelled = {}
+    for k, n in sorted(spellings.items(), key=lambda kv: (-kv[1], kv[0])):
+        spelled.setdefault(k.lower(), k)   # the most common spelling of each key names it
+    return {"commits": len(commits), "keys": dict(sorted(((spelled[k], n) for k, n in keys.items()), key=lambda kv: (-kv[1], kv[0]))[:25]),
             "with_any": sum(1 for c in commits if c["trailers"]), "never_author": listing[:50], "signoff_by_co_author": signoff[:50]}
 
 

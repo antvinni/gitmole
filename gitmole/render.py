@@ -15,7 +15,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import classify, coupling, deps, filetypes, hotspots, identity, knowledge, leaks, loss, scope, textfmt, trend, watch
+from . import classify, coupling, deps, filetypes, hotspots, identity, knowledge, leaks, loss, provenance, scope, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -628,7 +628,7 @@ def trailers_section(report: dict, full: bool = True, width=None) -> dict:
     tr, co, sh = prov.get("trailers") or {}, prov.get("cohort") or {}, prov.get("shape") or {}
     columns = [("trailer", {}), ("commits", RIGHT), ("share", RIGHT)]
     total = tr.get("commits") or 0
-    rows = [(k, n, _pct(n, total)) for k, n in (tr.get("keys") or {}).items()]
+    rows = [(k, min(n, total) if total else n, _pct(min(n, total), total)) for k, n in provenance.fold_keys(tr.get("keys") or {}).items()]
     notes = []
     marked, rest = co.get("cohort") or {}, co.get("rest") or {}
     if marked.get("commits"):
