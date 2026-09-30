@@ -61,6 +61,15 @@ class Merge(unittest.TestCase):
         self.assertEqual(merged, {"Junegunn Choi": 3047, "Sam Altman": 5, "sam": 2, "Kevin Brown": 76, "Kevin": 21},
                          "a short or common first name is not distinctive enough")
 
+    def test_a_first_name_handle_joins_a_full_name_only_when_an_address_ties_them(self):
+        # hindsight: co-author "andrew <andrew.neeser@…>" was merged into Andrew Barnes <bortstheboat@…> on the first name alone
+        ids = [{"name": "Andrew Barnes", "email": "bortstheboat@a.com", "commits": 2}, {"name": "andrew", "email": "andrew.neeser@b.com", "commits": 1},
+               {"name": "Marcus Holloway", "email": "mh@a.com", "commits": 9}, {"name": "marcus", "email": "marcus.holloway@b.com", "commits": 3},
+               {"name": "Bartholomew Chen", "email": "bartholomew@a.com", "commits": 7}, {"name": "bartholomew", "email": "b@c.com", "commits": 2}]
+        merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
+        self.assertEqual(merged, {"Andrew Barnes": 2, "andrew": 1, "Marcus Holloway": 12, "Bartholomew Chen": 9},
+                         "the handle's mailbox names the surname, or the full name's mailbox is the handle")
+
     def test_a_handle_that_is_the_full_name_run_together_is_the_same_person(self):
         ids = [{"name": "Robin Malfait", "email": "malfait.robin@a.com", "commits": 1271}, {"name": "RobinMalfait", "email": "1834413+RobinMalfait@users.noreply.github.com", "commits": 4},
                {"name": "Jo Li", "email": "jo@a.com", "commits": 3}, {"name": "joli", "email": "x@b.com", "commits": 1}]
