@@ -65,8 +65,11 @@ class Placeholder(unittest.TestCase):
         # `password: 'hello'` in a doc comment, `secret` in a sample config: the words every example uses
         for value in ["hello", "Hello", "secret", "password", "PASSWORD", "example", "123456", "qwerty", "letmein", "foo", "dummy"]:
             self.assertTrue(leaks.is_placeholder(value), value)
-        for value in ["x-oauth-basic", "x-access-token", "x-token-auth"]:   # one service's documented literals are vocabulary, not a shape
-            self.assertFalse(leaks.is_placeholder(value), value)
+        # one service's documented literals are vocabulary, not a shape: no word list names them. Those built on a
+        # credential word are a hyphen-joined name by shape (_LABEL), as x_access_token always was
+        self.assertFalse(leaks.is_placeholder("x-oauth-basic"))
+        for value in ["x-access-token", "x-token-auth"]:
+            self.assertTrue(leaks.is_placeholder(value), value)
         self.assertTrue(leaks.is_placeholder("hunter2", line='url = f"https://{token}:hunter2@github.com/{SLUG}.git"'),
                         "a line with a template field is a template being filled in")
         for value in ["hello123", "secret-9f8a7b6c5d4e", "s3cr3t!Passw0rd", "foobarbaz2024"]:
@@ -382,6 +385,10 @@ class PlaceholderShapes(unittest.TestCase):
         self.assertTrue(leaks.is_placeholder('-----BEGIN PRIVATE KEY-----");\n\t\twriter.println();'))
         self.assertFalse(leaks.is_placeholder("P4ssw0rd!x9Q"))
         self.assertTrue(leaks.is_placeholder("CURLOPT_PASSWD"))
+        self.assertTrue(leaks.is_placeholder("choose-a-strong-password"), "hyphens join a phrase as underscores do")
+        self.assertTrue(leaks.is_placeholder("CLIENT-SECRET"))
+        self.assertFalse(leaks.is_placeholder("My-Company-Secret"), "mixed case, hyphenated or not")
+        self.assertFalse(leaks.is_placeholder("password-7Hq2x9"), "a digit: not a name")
         self.assertFalse(leaks.is_placeholder("MyCompanySecret"), "mixed case reads as a chosen password, not a name")
 
     def test_a_guid_in_a_table_of_guids_is_an_interface_id(self):

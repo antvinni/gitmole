@@ -133,12 +133,14 @@ dart ex exs lua r jl zig nim cr ml hs sql proto sinc slaspec
 """.split())
 _MASKED = re.compile(r"^[^:\s]+:(x{3,}|\*{3,}|<[^<>]+>|\.{3,})$", re.I)   # user:XXXXXX, user:****, user:<password>
 _FILE_REF = re.compile(r"\.(png|jpe?g|gif|svg|ico|icns|bmp|webp|pdf|html?|css|md|txt|xml|properties)\b", re.I)
-_LABEL = re.compile(r"^[A-Za-z_]*(pass(word|wd|phrase)|secret|token)[A-Za-z_]*$", re.I)   # resetpassword, password_missing: a name, not a value
+# resetpassword, password_missing, a-strong-password-here: a name or a phrase standing in for a value. A hyphen joins
+# words as an underscore does; kebab-case is how a placeholder phrase is written in a README or an .env template.
+_LABEL = re.compile(r"^[A-Za-z_-]*(pass(word|wd|phrase)|secret|token)[A-Za-z_-]*$", re.I)
 
 
 def _is_label(value: str) -> bool:
     """A name built on the keyword, in one case as names are written (resetpassword, CURLOPT_PASSWD,
-    password_missing); a mixed-case word such as MyCompanySecret is more likely a chosen password."""
+    password_missing, my-db-password); a mixed-case word such as MyCompanySecret is more likely a chosen password."""
     return bool(_LABEL.match(value)) and (value == value.lower() or value == value.upper())
 _HEADER_WRITTEN = re.compile(r"^-----BEGIN[ A-Z]*KEY-----(?:\\n)?[\"'`]")   # print("-----BEGIN ... KEY-----\n"): code writing a PEM file
 _UUID = re.compile(r"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b")
