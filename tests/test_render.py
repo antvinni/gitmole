@@ -279,7 +279,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["provenance"] = {"trailers": {"commits": 363, "keys": {"Co-authored-by": 40, "Signed-off-by": 12, "Assisted-by": 5}, "with_any": 50,
                                         "never_author": [{"name": "Helper", "email": "h@x", "commits": 30}], "signoff_by_co_author": []},
-                           "cohort": {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here", "share": 0.096,
+                           "cohort": {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool", "share": 0.096,
                                       "cohort": {"commits": 35, "reverted": 2, "fixes": 4, "retouched": 20},
                                       "rest": {"commits": 328, "reverted": 3, "fixes": 60, "retouched": 150}},
                            "shape": {"burst_share": 0.12, "conventional_share": 0.8, "hours_used": 20}, "agents": {}}
@@ -287,7 +287,7 @@ class Report(unittest.TestCase):
         block = _section_text(rendered(r, [], width=200, full=True), "Trailers")
         self.assertRegex(block, r"Co-authored-by\s+40\s+11%")
         caption = render.trailers_section(r)["caption"]
-        self.assertIn("marked commits (an Assisted-by trailer, or a co-author who never authors a commit here): 35, 10% of the history; "
+        self.assertIn("marked commits (an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool): 35, 10% of the history; "
                       "reverted 6% against 1% for the rest, fixes 11% against 18%, a file changed again within two weeks 57% against 46%", caption)
         self.assertIn("12% of commits land in bursts of five or more within ten minutes; 80% have conventional-commit subjects; commits come in 20 hours of the day", caption)
         self.assertIn("## Trailers", render.markdown(r, []))

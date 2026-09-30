@@ -7,7 +7,8 @@ writes provenance.json:
 - trailers: every trailer key and how many commits carry it; the co-authors who never author a commit
   here (a structural fact about the repository, no list of products); sign-offs by such identities,
   which the Linux kernel's policy on coding assistants forbids an agent to add.
-- cohort: commits with an `Assisted-by` trailer or a never-authoring co-author, against the rest: how
+- cohort: commits with an `Assisted-by` trailer, a never-authoring co-author or a coding tool (identity.tools
+  over meta.json) as co-author, against the rest: how
   many were reverted (by git's own `Revert "subject"`), how many are fixes, and how many had a file
   changed again by another commit within two weeks. This repository against itself, with the share
   of commits the cohort covers beside it; no prior from elsewhere, since the best-controlled study
@@ -38,9 +39,10 @@ import sys
 from collections import Counter, deque
 
 try:
-    from . import filetypes, leaks
+    from . import filetypes, identity, leaks
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
+    import identity
     import leaks
 
 SEP, END = "\x1f", "\x1e"
@@ -111,8 +113,17 @@ def trailers(commits: list) -> dict:
             "with_any": sum(1 for c in commits if c["trailers"]), "never_author": listing[:50], "signoff_by_co_author": signoff[:50]}
 
 
-def marker(inventory: dict):
-    """The predicate that marks a commit: an `Assisted-by` trailer, or a co-author who never authors."""
+def tool_names(meta: dict) -> frozenset:
+    """The coding tools of the run (identity.tools over meta.json's rows), and every name that merged into one."""
+    names = identity.tools(meta.get("identities") or [])
+    aliases = meta.get("aliases") or {}
+    return frozenset(names | {a for a, to in aliases.items() if to in names})
+
+
+def marker(inventory: dict, tools=frozenset()):
+    """The predicate that marks a commit: an `Assisted-by` trailer, or a co-author who never authors or who is a
+    coding tool (`tools`, tool_names). A tool that authored a commit or two is still one: paperclip's agent,
+    credited on 2,052 commits, authored 2, and the never-authoring test alone left all of them unmarked."""
     marked_emails = {x["email"] for x in inventory["never_author"]}
 
     def marked(c):
@@ -120,16 +131,16 @@ def marker(inventory: dict):
             if k.lower() == "assisted-by":
                 return True
             ident = _ident(v)
-            if k.lower() == "co-authored-by" and ident and ident[1] in marked_emails:
+            if k.lower() == "co-authored-by" and ident and (ident[1] in marked_emails or ident[0] in tools):
                 return True
         return False
     return marked
 
 
-def cohort(commits: list, inventory: dict, watch_files=None) -> dict:
-    """The commits an `Assisted-by` trailer or a never-authoring co-author marks, against the rest; with
-    `watch_files`, how many of each touched a file on the watch list."""
-    marked = marker(inventory)
+def cohort(commits: list, inventory: dict, watch_files=None, tools=frozenset()) -> dict:
+    """The commits an `Assisted-by` trailer, a never-authoring co-author or a coding tool marks (marker), against
+    the rest; with `watch_files`, how many of each touched a file on the watch list."""
+    marked = marker(inventory, tools)
 
     reverted = {c["subject"][len('Revert "'):-1] for c in commits if c["subject"].startswith('Revert "') and c["subject"].endswith('"')}
     by_file = {}
@@ -152,7 +163,7 @@ def cohort(commits: list, inventory: dict, watch_files=None) -> dict:
         if watch_files:
             s["watch"] += any(f in watch_files for f in c["files"])
     total = len(commits)
-    return {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here",
+    return {"definition": "an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool",
             "share": round(stats[True]["commits"] / total, 3) if total else 0.0,
             "cohort": dict(stats[True]) or {"commits": 0}, "rest": dict(stats[False]) or {"commits": 0}}
 
@@ -410,8 +421,9 @@ def main(argv=None) -> int:
             meta = json.load(fh)
     except (OSError, ValueError):
         pass
-    marked = marker(inventory)
-    result = {"trailers": inventory, "cohort": cohort(commits, inventory, watch_files), "shape": shape(commits), "agents": agents(repo)}
+    tools = tool_names(meta)
+    marked = marker(inventory, tools)
+    result = {"trailers": inventory, "cohort": cohort(commits, inventory, watch_files, tools), "shape": shape(commits), "agents": agents(repo)}
     if watch_files is not None:
         result["cohort"]["watch_top"] = WATCH_TOP
     if commits:

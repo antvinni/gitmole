@@ -66,7 +66,7 @@ class Cohorts(unittest.TestCase):
             history(d)
             commits = provenance.read_commits(d)
             out = provenance.cohort(commits, provenance.trailers(commits))
-        self.assertEqual(out["definition"], "an Assisted-by trailer, or a co-author who never authors a commit here")
+        self.assertEqual(out["definition"], "an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool")
         self.assertEqual((out["cohort"]["commits"], out["rest"]["commits"]), (3, 6))
         self.assertEqual(out["cohort"]["reverted"], 1, "the helper commit was reverted by subject")
         self.assertEqual(out["rest"]["reverted"], 0)
@@ -74,6 +74,24 @@ class Cohorts(unittest.TestCase):
         self.assertEqual(out["rest"]["fixes"], 1)
         self.assertEqual(out["cohort"]["retouched"], 1, "a.py changed again two minutes after the helper commit")
         self.assertEqual(out["share"], 0.333)
+
+    def test_a_coding_tool_that_authored_a_commit_still_marks_the_commits_it_is_credited_on(self):
+        # paperclip: the product agent authored 2 of its 2,054 commits, so the never-authoring test left all of them out
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.commit("a.py", "1\n", "own", name="Agent", email="noreply@product.example")
+            r.commit("a.py", "2\n", "work\n\nCo-authored-by: Agent <noreply@product.example>")
+            r.commit("a.py", "3\n", "more\n\nCo-authored-by: Agent CTO <noreply@product.example>")
+            r.commit("b.py", "4\n", "solo")
+            commits = provenance.read_commits(d)
+            inventory = provenance.trailers(commits)
+            meta = {"identities": [{"name": "Ann", "email": "ann@x.com", "commits": 3, "authored": 3},
+                                   {"name": "Agent", "email": "noreply@product.example", "commits": 2, "authored": 1},
+                                   {"name": "Agent CTO", "email": "noreply@product.example", "commits": 1, "authored": 0}], "aliases": {}}
+            without = provenance.cohort(commits, inventory)
+            out = provenance.cohort(commits, inventory, tools=provenance.tool_names(meta))
+        self.assertEqual(without["cohort"]["commits"], 0, "a commit authored under the shared mailbox makes every name on it an author")
+        self.assertEqual((out["cohort"]["commits"], out["rest"]["commits"]), (2, 2))
 
 
 class Shape(unittest.TestCase):
