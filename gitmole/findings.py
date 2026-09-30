@@ -1337,9 +1337,15 @@ def unreferenced_files(report: dict) -> list:
     if not paths:
         return []
     n = s.get("unreferenced_count", len(paths))
-    return [_f("info", "Possibly unreferenced files", f"{_plural(n, 'file')} {'is' if n == 1 else 'are'} imported by nothing in the tree and {'is' if n == 1 else 'are'} no entry point: {_files_list(paths, 5)}.",
+    # a file too big to parse imports what it imports unseen: say so, in a language the list judges
+    judged = {info.get("language") for p, info in (s.get("files") or {}).items() if p in set(paths)}
+    unseen = [r for r in s.get("skipped") or [] if (structure.GRAMMARS.get(os.path.splitext(r.get("file") or "")[1].lower()) or ("",))[0] in judged]
+    blind = (f" {_files_list([r['file'] for r in unseen], 2)} {'was' if len(unseen) == 1 else 'were'} too big to parse ({unseen[0]['reason']}), "
+             f"so what {'it imports' if len(unseen) == 1 else 'they import'} is not seen.") if unseen else ""
+    return [_f("info", "Possibly unreferenced files", f"{_plural(n, 'file')} {'is' if n == 1 else 'are'} imported by nothing in the tree and {'is' if n == 1 else 'are'} no entry point: {_files_list(paths, 5)}.{blind}",
                f"Check {paths[0]} before anything else; dynamic imports, plugins loaded by name and framework routing do not show in an import graph.",
-               rule={"id": "unreferenced_files", "ref": "Romano et al., TSE 2020"}, evidence={"count": n, "files": paths[:10]})]
+               rule={"id": "unreferenced_files", "ref": "Romano et al., TSE 2020"},
+               evidence={"count": n, "files": paths[:10], **({"skipped": unseen[:10]} if unseen else {})})]
 
 
 def _agents(report: dict) -> dict:

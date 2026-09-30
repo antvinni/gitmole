@@ -1328,6 +1328,17 @@ class Structure(unittest.TestCase):
         self.assertIn("src/f11.py", f["detail"])
         self.assertIn("dynamic imports, plugins loaded by name and framework routing do not show", f["advice"])
 
+    def test_a_skipped_file_in_a_judged_language_is_named(self):
+        """hindsight's busiest file was over the size limit, its imports vanished, and a file it imports read as
+        unreferenced with nothing saying so."""
+        skipped = [{"file": "src/huge.py", "bytes": 5_000_000, "reason": "over 4 MB"}, {"file": "web/app.min.js", "bytes": 2_000_000, "reason": "minified"}]
+        f = self.by_id(self.base(unreferenced=["src/f11.py"], unreferenced_count=1, skipped=skipped))["unreferenced_files"]
+        self.assertIn("src/huge.py was too big to parse (over 4 MB), so what it imports is not seen.", f["detail"])
+        self.assertNotIn("app.min.js", f["detail"], "a language the list does not judge says nothing about it")
+        self.assertEqual(f["evidence"]["skipped"], skipped[:1])
+        f = self.by_id(self.base(unreferenced=["src/f11.py"], unreferenced_count=1, skipped=skipped[1:]))["unreferenced_files"]
+        self.assertNotIn("skipped", f["evidence"])
+
     def test_nothing_without_the_step(self):
         r = self.base()
         r["structure"] = {"status": "not-installed"}

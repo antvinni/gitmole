@@ -37,8 +37,16 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
     import userdirs
 
-ANALYSER = "7"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
-MAX_BYTES = 1_000_000
+ANALYSER = "8"   # bump whenever what a file yields changes (a metric, an import's shape): the cache key carries it
+# 8: files over MAX_BYTES are parsed when they are shaped like source, and structure.json names every file it skipped
+MAX_BYTES = 1_000_000          # every file up to this size is parsed
+# Past MAX_BYTES a file is parsed when its lines are a person's length, and skipped when they are a bundle's: GitHub
+# Linguist calls a file minified when its mean line runs past 110 characters (generated.rb, minified_files?).
+MINIFIED_MEAN_LINE = 110
+# And never past this, whatever its shape: a parse holds about 30 bytes of memory per byte of source at worst
+# (measured on 1-4 MB C and Python files, 28 on binutils' sim/frv/model.c), so a 4 MB file costs one worker about
+# 120 MB, a tenth of the 1,135 MB the large measurement set may peak at.
+CEILING_BYTES = 4_000_000
 FUNCTIONS_KEPT = 3000
 
 # extension -> (language, grammar module, the function that returns the language pointer)
@@ -1121,9 +1129,23 @@ def entries_dirs(entries: set) -> set:
     return {e for e in entries if e.endswith("package.json") or e.rsplit("/", 1)[-1] == "go.mod"}
 
 
-def _blobs(repo: str, paths: list) -> dict:
-    """{path: (sha, bytes)} for the tracked files in `paths`, through one cat-file --batch; files over
-    MAX_BYTES are left out, since a file that size is data or a bundle. git lists the whole index and the
+def skip_reason(size: int, data: bytes):
+    """Why a file is too big to parse, or None: over CEILING_BYTES, or over MAX_BYTES with the long lines of a
+    minified file or a bundle (MINIFIED_MEAN_LINE). A 1.2 MB Python module of ordinary lines is parsed: a
+    busy file's imports are the ones the graph can least afford to lose."""
+    if size <= MAX_BYTES:
+        return None
+    if size > CEILING_BYTES:
+        return f"over {CEILING_BYTES // 1_000_000} MB"
+    if size / (data.count(b"\n") + 1) > MINIFIED_MEAN_LINE:
+        return f"lines average over {MINIFIED_MEAN_LINE} characters, as a minified file's do"
+    return None
+
+
+def _blobs(repo: str, paths: list, skipped: list = None) -> dict:
+    """{path: (sha, bytes)} for the tracked files in `paths`, through one cat-file --batch; a file
+    skip_reason turns away is left out, and appended to `skipped` as {file, bytes, reason} when the caller
+    passes a list. git lists the whole index and the
     paths are matched here: passing them as pathspecs overflows the argument list on a repository whose
     paths are long, which is how Ghidra (12,000 deep Java paths, over the 1 MB macOS limit) lost this step
     entirely with "Argument list too long"."""
@@ -1147,8 +1169,12 @@ def _blobs(repo: str, paths: list) -> dict:
             break
         header = data[pos:end].split()
         size = int(header[2]) if len(header) == 3 else 0
-        if size <= MAX_BYTES:
-            result[p] = (shas[p], data[end + 1:end + 1 + size])
+        body = data[end + 1:end + 1 + size]
+        reason = skip_reason(size, body)
+        if reason is None:
+            result[p] = (shas[p], body)
+        elif skipped is not None:
+            skipped.append({"file": p, "bytes": size, "reason": reason})
         pos = end + 1 + size + 1
     return result
 
@@ -1176,7 +1202,8 @@ def collect(repo: str, procs: int = None, vendored=(), scope=()) -> dict:
     tracked = filetypes.git_paths(repo, "ls-files")
     paths = [p for p in tracked if os.path.splitext(p)[1].lower() in GRAMMARS
              and not filetypes.is_vendored(p, vendored) and "node_modules/" not in p]
-    blobs = _blobs(repo, paths)
+    skipped = []
+    blobs = _blobs(repo, paths, skipped)
     cache = cache_root()
     items = [(p, sha, os.path.splitext(p)[1].lower(), data, cache) for p, (sha, data) in sorted(blobs.items())]
     files, languages, missing, cached = {}, Counter(), Counter(), 0
@@ -1214,7 +1241,9 @@ def collect(repo: str, procs: int = None, vendored=(), scope=()) -> dict:
         languages = Counter(files[p]["language"] for p in slim)
     return {"status": "run", "analyser": ANALYSER, "languages": dict(sorted(languages.items())), "missing_grammars": dict(sorted(missing.items())),
             "cached": cached, "resolved": resolved, "files": slim, "functions": functions[:FUNCTIONS_KEPT], "functions_count": len(functions),
-            "unreferenced": orphans[:200], "unreferenced_count": len(orphans)}
+            "unreferenced": orphans[:200], "unreferenced_count": len(orphans),
+            # every file of a parsed language left unparsed, the whole tree's: a file outside --path can import one inside
+            "skipped": skipped}
 
 
 def main(argv=None) -> int:
