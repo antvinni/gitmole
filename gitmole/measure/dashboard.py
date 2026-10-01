@@ -88,6 +88,16 @@ def summarise(record: dict, only=None) -> dict:
     lift = [c["hits"] - max(c["churn_hits"], c["size_hits"]) for c in cuts if c.get("size_hits") is not None]
     out["simple_lift"] = sum(lift) if lift else None
     out["simple_wins_losses_ties"] = [sum(x > 0 for x in lift), sum(x < 0 for x in lift), sum(x == 0 for x in lift)] if lift else None
+    # what the score cannot credit (harness.misses): the outcome's files by cause, summed over the cut-offs that
+    # carry the account; reported only, and absent from a record made before it, so an old summary keeps its keys
+    accounts = [c["misses"] for c in cuts if c.get("misses")]
+    if accounts:
+        causes = {}
+        for a in accounts:
+            for k, v in a["by_cause"].items():
+                causes[k] = causes.get(k, 0) + v
+        out["outcome_account"] = {"cutoffs": len(accounts), "outcome": sum(a["outcome"] for a in accounts),
+                                  "credited": sum(a["credited"] for a in accounts), "by_cause": dict(sorted(causes.items()))}
     out["saturated_cutoffs"] = [sum(1 for c in cuts if c.get("pool") and c["positives"] / c["pool"] >= SATURATED), len(cuts)] if cuts else None
     ok = [r for r in cost.values() if r["status"] == "ok"]
     out["findings_median"] = metrics.median([r.get("findings") for r in ok])
@@ -139,6 +149,23 @@ def summarise(record: dict, only=None) -> dict:
         if acted:
             out["remediation"] = acted
     return out
+
+
+def positive_shares(record: dict, sets=("development",)) -> list:
+    """The negative control for snoring: per cut-off, oldest first, each repository's share of its pool
+    that the outcome holds, and the median over the repositories. Fix locality is a complete window and
+    cannot snore, so on the development set the share should not fall toward the latest cut-off; on labels
+    that end, a falling share is what snoring looks like. Cut-offs are aligned by position, since each
+    repository counts back from its own last commit. [{"index", "median", "repos": {name: share}}]."""
+    columns = {}
+    for name, rec in sorted(record["repos"].items()):
+        if rec.get("set") not in sets:
+            continue
+        for i, c in enumerate(r for r in ((rec.get("ranking") or {}).get("cutoffs") or []) if "error" not in r):
+            if c.get("pool"):
+                columns.setdefault(i, {})[name] = c["positives"] / c["pool"]
+    return [{"index": i, "median": _round(metrics.median(list(v.values()))), "repos": {n: _round(x) for n, x in v.items()}}
+            for i, v in sorted(columns.items())]
 
 
 def _remediation(recs) -> dict:
