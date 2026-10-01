@@ -273,7 +273,14 @@ was the thing a finding named fixed within a fixed window after it — the actio
 pinned, the binary gone, the dependency dropped. That is "the repository acted
 on this", never precision, and a biased lower bound, since mechanical advice is
 taken far more readily than structural advice; its docstring says which rules
-it can and cannot score.
+it can and cannot score. A release round asks it at the ranking's own cut-offs
+on the development and large repositories: the release's `--json` export of
+the tree at each cut-off, scored against the tree six months later. The record
+keeps the outcome counts by rule (`remediation` on each entry), the summary
+pools them over the development set, and the history page prints the table.
+As it stands it counts a subject still named at several cut-offs at each, and
+a file moved or renamed as having left the tree; those are changes to the
+yardstick, and this table is their before.
 
 ## Description accuracy
 
