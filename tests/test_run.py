@@ -7,7 +7,9 @@ import tempfile
 import sys
 import unittest
 
-from gitmole import __version__, blame, run
+from unittest.mock import patch
+
+from gitmole import __version__, blame, filetypes, run
 
 
 class ClassifyTarget(unittest.TestCase):
@@ -248,7 +250,8 @@ class Plan(unittest.TestCase):
         self.assertIn("--use-mailmap", by["git-log"]["argv"])
         self.assertIn("-M", by["git-log"]["argv"], "renames are followed so a move to src/ credits nobody with the moved lines")
         self.assertNotIn("--no-renames", by["git-log"]["argv"])
-        self.assertEqual(by["git-log"]["argv"][:4], ["git", "-c", "core.quotePath=false", "log"], "non-ASCII paths must not be octal-escaped and quoted")
+        self.assertEqual(by["git-log"]["argv"][:4 + len(filetypes.RENAMES)], ["git", "-c", "core.quotePath=false", *filetypes.RENAMES, "log"],
+                         "non-ASCII paths must not be octal-escaped and quoted; rename detection is pinned")
 
     def test_provenance_runs_as_a_module(self):
         steps = by_name(run.plan("/r", "/o"))
@@ -908,3 +911,50 @@ class EmptyAndShallow(unittest.TestCase):
             self._git(d, "clone", "-q", "--depth", "1", "file://" + src, shallow)
             self.assertTrue(run.is_shallow(shallow))
 
+
+
+class RenameDetectionIsPinned(unittest.TestCase):
+    """A reader's git config cannot change what a run reads: rename detection, its limit and log.follow are
+    pinned on every git call whose output depends on them (filetypes.RENAMES)."""
+    HOSTILE = "[diff]\n\trenames = false\n\trenameLimit = 1\n[log]\n\tfollow = true\n"
+
+    def _repo(self, d):
+        def git(*args, **env):
+            e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", **env)
+            subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+        git("init", "-q")
+        ident = dict(GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.com", GIT_COMMITTER_NAME="Ann", GIT_COMMITTER_EMAIL="ann@x.com")
+        body = {n: "".join(f"{n} line {i}\n" for i in range(40)) for n in ("a", "b")}
+        for n, text in body.items():
+            with open(os.path.join(d, f"{n}.py"), "w") as f:
+                f.write(text)
+        git("add", "-A")
+        git("commit", "-q", "-m", "one", GIT_AUTHOR_DATE="2024-01-01T10:00:00", GIT_COMMITTER_DATE="2024-01-01T10:00:00", **ident)
+        os.makedirs(os.path.join(d, "src"))
+        for n, text in body.items():   # two inexact moves in one commit: a rename limit of 1 skips pairing them
+            os.remove(os.path.join(d, f"{n}.py"))
+            with open(os.path.join(d, "src", f"{n}.py"), "w") as f:
+                f.write(text + "edited\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "move", GIT_AUTHOR_DATE="2024-02-01T10:00:00", GIT_COMMITTER_DATE="2024-02-01T10:00:00", **ident)
+
+    def _read(self, d, config):
+        from gitmole import hygiene, leaks, provenance
+        argv = {s["name"]: s for s in run.plan(d, d)}["git-log"]["argv"]
+        with patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": config, "GIT_CONFIG_SYSTEM": "/dev/null"}):
+            log = subprocess.run(argv, cwd=d, capture_output=True).stdout
+            return (log, provenance.read_commits(d), leaks._history(d, ["src/a.py", "a.py"]),
+                    hygiene._last_commit(d, "src/a.py"), run.change_stats(d, "HEAD~1"))
+
+    def test_a_hostile_config_gives_the_same_bytes(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            hostile = os.path.join(d, ".hostile-gitconfig")
+            with open(hostile, "w") as f:
+                f.write(self.HOSTILE)
+            plain, bent = self._read(d, "/dev/null"), self._read(d, hostile)
+        self.assertIn(b"a.py => src/a.py", plain[0], "the move is read as a move")
+        self.assertEqual(plain, bent)
+
+    def test_the_limit_is_gits_default(self):
+        self.assertIn("diff.renameLimit=1000", filetypes.RENAMES)

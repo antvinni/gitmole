@@ -39,7 +39,7 @@ def deleted_ranges(repo: str, fix: str) -> dict:
     modified (added and deleted files have no parent version to blame). An empty list is a file
     that only gained lines."""
     out, path = {}, None
-    text = _git(repo, "diff", "-U0", "--diff-filter=M", "--no-color", f"{fix}^", fix)
+    text = _git(repo, *filetypes.RENAMES, "diff", "-U0", "--diff-filter=M", "--no-color", f"{fix}^", fix)
     for line in text.split("\n"):
         if line.startswith("diff --git "):
             path = None

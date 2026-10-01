@@ -418,7 +418,7 @@ def _history(repo: str, paths: list, *extra) -> list:
     """[(commit, path)] for each commit of HEAD's history that changed one of `paths`, oldest first."""
     if not paths:
         return []
-    proc = subprocess.run(["git", "-C", repo, "log", "--reverse", "--format=%x00%H", "--name-only", *extra, "HEAD", "--", *paths],
+    proc = subprocess.run(["git", "-C", repo, *filetypes.RENAMES, "log", "--reverse", "--format=%x00%H", "--name-only", *extra, "HEAD", "--", *paths],
                           capture_output=True)
     if proc.returncode != 0:
         return []
@@ -562,7 +562,7 @@ def compose_services(text: str) -> set:
 
 def declared_services(repo: str) -> set:
     """The services every version of every Compose file in HEAD's history declares."""
-    proc = subprocess.run(["git", "-C", repo, "log", "--format=%x00%H", "--name-only", "HEAD", "--",
+    proc = subprocess.run(["git", "-C", repo, *filetypes.RENAMES, "log", "--format=%x00%H", "--name-only", "HEAD", "--",
                            ":(glob)**/*compose*.yml", ":(glob)**/*compose*.yaml"], capture_output=True)
     if proc.returncode != 0:
         return set()

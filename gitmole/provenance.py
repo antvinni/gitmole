@@ -74,7 +74,7 @@ def read_commits(repo: str) -> list:
     """[{hash, time, author, email, subject, trailers: [(key, value)], files}] of HEAD's history, oldest
     first, through one git log: trailers by git's own parser, files from --name-only."""
     fmt = f"{END}%H{SEP}%at{SEP}%aN{SEP}%aE{SEP}%s{SEP}%(trailers:unfold,only){SEP}"
-    out = subprocess.run([*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--name-only", f"--format={fmt}"], cwd=repo,
+    out = subprocess.run([*filetypes.GIT, *filetypes.RENAMES, "log", "HEAD", "--use-mailmap", "--name-only", f"--format={fmt}"], cwd=repo,
                          capture_output=True, check=True).stdout.decode("utf-8", "replace")
     commits = []
     for chunk in out.split(END)[1:]:
@@ -201,7 +201,7 @@ def lines(repo: str, end: int, marked_hashes: set, generated=frozenset(), vendor
     weeks, deletes a line with the same text from the same file; blank lines and lines without three
     letters or digits (a lone brace) are not matched, since any brace would pair with any other."""
     start = end - 2 * YEAR
-    argv = ["git", *_COLORS, "-c", "core.quotePath=false", "log", "HEAD", "--reverse", "--no-merges", "-p", "-U0", "-M", "--color=always",
+    argv = ["git", *_COLORS, "-c", "core.quotePath=false", *filetypes.RENAMES, "log", "HEAD", "--reverse", "--no-merges", "-p", "-U0", "-M", "--color=always",
             "--color-moved=blocks", "--color-moved-ws=allow-indentation-change", f"--since=@{start}", f"--until=@{end}",
             f"--format={END}%H{SEP}%at", "--", ".", *DATA_EXCLUDES]
     proc = subprocess.Popen(argv, cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -402,7 +402,7 @@ def pointer_targets(repo: str, path: str, tracked: set) -> list:
 
 def _last_change(repo: str, path: str):
     """(commit, day, commit time) of the last commit that touched `path`, or None."""
-    last = subprocess.run(["git", "log", "-1", "--format=%H%x1f%cs%x1f%ct", "--", path], cwd=repo, capture_output=True, text=True).stdout.strip()
+    last = subprocess.run(["git", *filetypes.RENAMES, "log", "-1", "--format=%H%x1f%cs%x1f%ct", "--", path], cwd=repo, capture_output=True, text=True).stdout.strip()
     if not last:
         return None
     sha, day, when = last.split("\x1f")
