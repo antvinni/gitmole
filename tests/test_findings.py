@@ -1152,6 +1152,29 @@ class Hygiene(unittest.TestCase):
         f = self.by_id(self.h(actions={"unpinned": unpinned[:2], "unpinned_count": 2, "pinned": 0, "origin": {"host": "github.com", "owner": "apache"}}))["unpinned_actions"]
         self.assertTrue(f["advice"].startswith("Pin apache/skywalking-eyes@main "), "the repository's own owner still comes before GitHub's")
 
+    def test_a_pwn_request_is_a_warning_naming_the_job_line_and_field(self):
+        row = {"file": ".github/workflows/preview.yml", "job": "build", "line": 14, "key": "ref", "field": "github.event.pull_request.head.sha",
+               "triggers": ["pull_request_target"]}
+        f = self.by_id(self.h(actions={"unpinned": [], "unpinned_count": 0, "pinned": 1, "pwn_request": [row], "pwn_request_count": 1}))["pwn_request"]
+        self.assertEqual((f["severity"], f["title"]), ("warning", "Workflows that run a pull request's code with secrets"))
+        self.assertIn("1 checkout step under pull_request_target fetches the pull request's head: job build in .github/workflows/preview.yml, "
+                      "line 14 (ref: github.event.pull_request.head.sha).", f["detail"])
+        self.assertIn("not a value passed in through env: or a step output", f["detail"])
+        self.assertEqual(f["evidence"], {"count": 1, "files": [{"file": ".github/workflows/preview.yml", "start": 14, "job": "build",
+                                                                "field": "github.event.pull_request.head.sha", "key": "ref"}]})
+        self.assertEqual(f["rule"]["scorecard"], "Dangerous-Workflow")
+        self.assertIn("ref", f["rule"])
+
+    def test_an_expression_injection_is_a_warning_that_says_it_sees_the_direct_case_only(self):
+        rows = [{"file": ".github/workflows/bump.yml", "job": "update", "line": 44, "field": "github.event.pull_request.head.ref"}]
+        f = self.by_id(self.h(actions={"unpinned": [], "unpinned_count": 0, "pinned": 1, "injection": rows, "injection_count": 1}))["expression_injection"]
+        self.assertEqual(f["severity"], "warning")
+        self.assertIn("1 run: script puts an event field someone outside the project can write (a title, a body, a branch name, a commit message) straight into the shell: "
+                      "github.event.pull_request.head.ref at .github/workflows/bump.yml:44 (job update).", f["detail"])
+        self.assertIn("gitmole sees the direct case only", f["detail"])
+        self.assertIn("env: VALUE: ${{ github.event.pull_request.head.ref }}", f["advice"])
+        self.assertEqual(f["evidence"]["files"][0]["start"], 44)
+
     def test_lockfile_drift_and_missing_lockfiles(self):
         found = self.by_id(self.h(lockfiles={"drift": [{"manifest": "package.json", "lockfile": "package-lock.json", "manifest_date": "2026-03-01", "lockfile_date": "2026-01-01"}],
                                              "drift_count": 1, "missing": [{"manifest": "lib/Cargo.toml", "expected": ["Cargo.lock"]}], "missing_count": 1, "pairs": 3}))

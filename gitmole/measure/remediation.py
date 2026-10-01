@@ -420,6 +420,8 @@ NO_PREDICATE = {
     "repo_policy": "names what is missing at the root; a predicate would look for the file in the later tree",
     "dependency_updates": "names the ecosystems left uncovered; a predicate would re-read dependabot.yml or renovate.json",
     "project_licence": "names the licence file and the manifests; a predicate would compare them in the later tree",
+    "pwn_request": "names each workflow, job and line; a predicate would re-read the checkout step in the later tree",
+    "expression_injection": "names each workflow, line and field; a predicate would look for the expression in the later tree",
 }
 
 # The lists printed under the table, in this order, each under its heading.

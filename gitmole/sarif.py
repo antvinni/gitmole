@@ -40,14 +40,15 @@ SEVERITY = {"critical": "9.0", "warning": "5.0", "info": "2.0"}
 # The rules whose findings are security findings: a secret or credential, a vulnerable or malicious package,
 # code that reads one way and runs another, a supply-chain opening (a movable action tag, an install script, a
 # package a public registry can shadow, a committed executable, a submodule fetched with a credential or in the
-# clear, a symlink out of the tree), an agent told to act without approval. Only these carry
+# clear, a symlink out of the tree, a workflow that runs a fork's code with secrets or pastes an outsider's text into a
+# script), an agent told to act without approval. Only these carry
 # `security-severity`: GitHub files a result with that property as a security alert and ranks it by the number,
 # so a bug magnet at 5.0 read as a Medium vulnerability. The rest go without it, which GitHub files as code
 # quality, and their rule's tags say "maintainability" where these say "security".
 SECURITY = frozenset({"secrets_in_source", "secrets_possible", "secrets_declared", "secrets_local", "credential_files", "mcp_literal_env",
                       "vulnerable_dependencies", "vulnerable_dependencies_aside", "trojan_source", "unpinned_actions",
                       "agent_approval_disabled", "submodule_urls", "install_scripts", "dependency_confusion", "committed_binaries",
-                      "unsafe_symlinks"})
+                      "unsafe_symlinks", "pwn_request", "expression_injection"})
 
 
 def _severity(rule: str, severity: str):

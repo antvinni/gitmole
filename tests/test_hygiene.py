@@ -61,6 +61,108 @@ class ActionsPinning(unittest.TestCase):
                 self.assertEqual(hygiene.origin_owner(d), expected, url)
 
 
+PWN = """name: preview
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: npm ci && npm test
+"""
+
+# react's sizebot shape: under workflow_run, the head's sha is a value (an artifact lookup, a comment), never the checkout's ref
+SIZEBOT = """on:
+  workflow_run:
+    workflows: [build]
+    types: [completed]
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # ref: ${{ github.event.workflow_run.head_sha }} would check out the fork
+      - name: Download
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          gh run download --name "sizes-${{ github.event.workflow_run.head_sha }}"
+      - uses: actions/checkout@v4
+        with:
+          ref: builds/facebook-www
+"""
+
+INJECTION = """on: [issues, pull_request]
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ github.event.issue.title }}"
+      - name: Branch
+        run: |
+          echo building
+          git push origin "HEAD:refs/heads/${{github.event.pull_request.head.ref}}"
+      - run: echo "${{ github.event.inputs.tag }}" "${{ github.event.pull_request.number }}"
+      - if: ${{ !contains(github.event.head_commit.message, 'ci skip') }}
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: echo "$TITLE"
+      - run: printf '%s' "${{ github.event.commits[0].message }}" "${{ github.head_ref }}"
+"""
+
+
+class WorkflowShapes(unittest.TestCase):
+    def test_a_checkout_of_the_pull_requests_head_under_pull_request_target_is_a_pwn_request(self):
+        out = hygiene.workflow_shapes(".github/workflows/preview.yml", PWN)
+        self.assertEqual(out["pwn_request"], [{"file": ".github/workflows/preview.yml", "job": "build", "line": 14, "key": "ref",
+                                               "field": "github.event.pull_request.head.sha", "triggers": ["pull_request_target"]}])
+        self.assertEqual(out["injection"], [])
+
+    def test_workflow_run_and_the_repository_key_and_the_inline_trigger_forms(self):
+        text = ("on: [push, workflow_run]\njobs:\n  deploy:\n    steps:\n      - uses: actions/checkout@v4\n        with:\n"
+                "          repository: ${{ github.event.workflow_run.head_repository.full_name }}\n          ref: ${{ github.event.workflow_run.head_sha }}\n")
+        rows = hygiene.workflow_shapes("w.yml", text)["pwn_request"]
+        self.assertEqual([(r["job"], r["line"], r["key"]) for r in rows], [("deploy", 7, "repository"), ("deploy", 8, "ref")])
+        self.assertEqual(rows[0]["triggers"], ["workflow_run"])
+
+    def test_the_heads_sha_used_as_a_value_is_not_one(self):
+        self.assertEqual(hygiene.workflow_shapes("w.yml", SIZEBOT), {"pwn_request": [], "injection": []})
+
+    def test_the_same_checkout_under_pull_request_is_not_one(self):
+        """on: pull_request gives a fork's run no secrets: checking out its head there is the normal case (etcd)."""
+        self.assertEqual(hygiene.workflow_shapes("w.yml", PWN.replace("pull_request_target", "pull_request"))["pwn_request"], [])
+
+    def test_a_ref_in_another_step_is_not_the_checkouts(self):
+        text = ("on: pull_request_target\njobs:\n  a:\n    steps:\n      - uses: actions/checkout@v4\n"
+                "      - uses: some/action@v1\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n")
+        self.assertEqual(hygiene.workflow_shapes("w.yml", text)["pwn_request"], [])
+
+    def test_an_outsiders_field_straight_in_a_run_script_is_an_injection(self):
+        rows = hygiene.workflow_shapes(".github/workflows/triage.yml", INJECTION)["injection"]
+        self.assertEqual([(r["line"], r["field"], r["job"]) for r in rows],
+                         [(6, "github.event.issue.title", "triage"), (10, "github.event.pull_request.head.ref", "triage"),
+                          (16, "github.event.commits[0].message", "triage"), (16, "github.head_ref", "triage")],
+                         "not inputs.* (only a writer sets it), not a number, not an if: or an env: value")
+
+    def test_the_walk_carries_both_shapes_beside_the_pins(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write(".github/workflows/preview.yml", PWN)
+            r.write(".github/workflows/triage.yml", INJECTION)
+            r.write(".github/workflows/sizebot.yml", SIZEBOT)
+            r.commit()
+            out = hygiene.actions_pinning(d)
+        self.assertEqual((out["pwn_request_count"], out["injection_count"]), (1, 4))
+        self.assertEqual(out["unpinned_count"], 3, "the pins are counted as before")
+
+
 class Lockfiles(unittest.TestCase):
     def test_manifest_newer_than_its_lockfile_is_drift_and_a_manifest_without_one_is_missing(self):
         with tempfile.TemporaryDirectory() as d:

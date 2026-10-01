@@ -23,7 +23,9 @@ REFS = {"tangled_commits": "Herzig and Zeller, MSR 2013",
         "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
         "unreferenced_files": "Romano et al., TSE 2020", "signoff_by_co_author": "Linux kernel, Documentation/process/coding-assistants.rst",
         "deep_nesting": "SonarSource cognitive complexity; CodeScene code health",
-        "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013", "import_cycles": "Oyetoyan et al., SANER 2015"}
+        "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013", "import_cycles": "Oyetoyan et al., SANER 2015",
+        "pwn_request": "GitHub Security Lab, Preventing pwn requests, 2021",
+        "expression_injection": "GitHub, Security hardening for GitHub Actions"}
 
 
 def _f(severity: str, title: str, statement: str, advice: str, rule: dict, evidence: dict) -> dict:
@@ -986,7 +988,7 @@ def hygiene_findings(report: dict) -> list:
     if swept and (h.get("lockfiles") or {}).get("drift"):
         h = {**h, "lockfiles": _drift_past_sweeps(h["lockfiles"], swept)}
     out = []
-    for check in (_hygiene_actions, _hygiene_lockfiles, _hygiene_updates, _hygiene_presence, _hygiene_confusion, _hygiene_install, _hygiene_binaries, _hygiene_submodules, _hygiene_symlinks, _hygiene_trojan,
+    for check in (_hygiene_actions, _hygiene_pwn_request, _hygiene_injection, _hygiene_lockfiles, _hygiene_updates, _hygiene_presence, _hygiene_confusion, _hygiene_install, _hygiene_binaries, _hygiene_submodules, _hygiene_symlinks, _hygiene_trojan,
                   _hygiene_unused, _hygiene_licence, _hygiene_copyleft):
         check(h, out)
     return out
@@ -1014,6 +1016,50 @@ def _hygiene_actions(h: dict, out: list) -> None:
                       f"Pin {first} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
                       rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0),
                                                                                                 "unpinned": [{"file": u["file"], "uses": u["uses"]} for u in a["unpinned"][:10]]}))
+
+
+def _workflow_rows(rows: list) -> list:
+    """The rows of a workflow shape as evidence: each names its file, job, line (`start`, where SARIF places it)
+    and field."""
+    return [{"file": r["file"], "start": r["line"], "job": r.get("job"), "field": r["field"], **({"key": r["key"]} if r.get("key") else {})}
+            for r in rows[:10]]
+
+
+def _hygiene_pwn_request(h: dict, out: list) -> None:
+    a = h.get("actions") or {}
+    rows = a.get("pwn_request")
+    if not rows:
+        return
+    n = a.get("pwn_request_count", len(rows))
+    listed = "; ".join(f"job {r['job']} in {r['file']}, line {r['line']} ({r['key']}: {r['field']})" for r in rows[:3])
+    triggers = sorted({t for r in rows for t in r.get("triggers") or []})
+    out.append(_f("warning", "Workflows that run a pull request's code with secrets",
+                  f"{_plural(n, 'checkout step')} under {textfmt.join_and(triggers)} fetch{'es' if n == 1 else ''} the pull request's head: {listed}. "
+                  "These triggers run with the base repository's secrets and a token that can write, so code from a fork that a later "
+                  "step builds or runs gets them too. gitmole reads the checkout's own ref: and repository: only, not a value passed in "
+                  "through env: or a step output.",
+                  f"Build the pull request in a workflow on pull_request, which gets no secrets, and hand its results to the privileged one as an "
+                  f"artifact it reads as data; or drop the ref: in {rows[0]['file']} so the checkout is the base branch.",
+                  rule={"id": "pwn_request", "scorecard": "Dangerous-Workflow", "triggers": ["pull_request_target", "workflow_run"]},
+                  evidence={"count": n, "files": _workflow_rows(rows)}))
+
+
+def _hygiene_injection(h: dict, out: list) -> None:
+    a = h.get("actions") or {}
+    rows = a.get("injection")
+    if not rows:
+        return
+    n = a.get("injection_count", len(rows))
+    listed = "; ".join(f"{r['field']} at {r['file']}:{r['line']}" + (f" (job {r['job']})" if r.get("job") else "") for r in rows[:3])
+    first = rows[0]
+    out.append(_f("warning", "Workflow scripts that paste in text an outsider writes",
+                  f"{_plural(n, 'run: script')} put{'s' if n == 1 else ''} an event field someone outside the project can write (a title, a body, a branch name, a "
+                  f"commit message) straight into the shell: {listed}. Actions pastes the text in before the shell parses the script, so a title or a branch "
+                  "name can carry commands. gitmole sees the direct case only, not a value passed through env: or a step output.",
+                  f"Pass the field through an environment variable and quote that in the script (env: VALUE: ${{{{ {first['field']} }}}}, then "
+                  f"\"$VALUE\"), starting at {first['file']}:{first['line']}.",
+                  rule={"id": "expression_injection", "scorecard": "Dangerous-Workflow", "sees": "direct ${{ }} in run: only"},
+                  evidence={"count": n, "files": _workflow_rows(rows)}))
 
 
 def _drift_past_sweeps(lf: dict, swept: list) -> dict:

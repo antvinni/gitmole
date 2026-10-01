@@ -332,7 +332,8 @@ manifests, points at line 1 of each; `unpinned_actions` has a result per
 `warning`, info is `note`). The security rules alone (secrets, credential
 files, vulnerable dependencies, Trojan Source characters, unpinned actions,
 install scripts, dependency confusion, committed binaries, submodule URLs,
-symlinks out of the tree, agent settings that turn approval off, literal
+symlinks out of the tree, workflows that run a pull request's code with secrets or paste an
+outsider's text into a script, agent settings that turn approval off, literal
 MCP secrets; `SECURITY` in `gitmole/sarif.py`) carry
 `properties["security-severity"]`, which is what GitHub ranks security
 alerts by (9.0 critical, 5.0 warning, 2.0 info; a vulnerable dependency

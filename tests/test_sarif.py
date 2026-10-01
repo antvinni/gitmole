@@ -17,6 +17,16 @@ def report(**over):
     return base
 
 
+class WorkflowShapes(unittest.TestCase):
+    def test_a_workflow_shape_is_a_security_result_at_its_line(self):
+        f = finding("expression_injection", evidence={"count": 1, "files": [{"file": ".github/workflows/bump.yml", "start": 44, "job": "update",
+                                                                              "field": "github.event.pull_request.head.ref"}]})
+        [result] = sarif.build(report(tree=[".github/workflows/bump.yml"]), [f])["runs"][0]["results"]
+        self.assertEqual(result["locations"][0]["physicalLocation"]["region"], {"startLine": 44})
+        self.assertEqual(result["properties"]["security-severity"], "5.0")
+        self.assertIn("pwn_request", sarif.SECURITY)
+
+
 class Document(unittest.TestCase):
     def test_the_envelope_github_and_gitlab_read(self):
         doc = sarif.build(report(), [finding("bug_magnets", evidence={"files": [{"file": "src/a.py", "recent_fixes": 5}]})])

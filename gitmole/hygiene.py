@@ -7,7 +7,9 @@ hygiene.json; findings.py turns it into findings. Each check keys on a conventio
 workflow's `uses:`, a lock file's name, `.gitmodules`, a symlink's mode) or on the shape of a value (a
 40-hex ref, magic bytes, a bidirectional control character), never on a name:
 
-- actions: `uses: owner/repo@ref` in .github/workflows where the ref is not a full commit SHA;
+- actions: `uses: owner/repo@ref` in .github/workflows where the ref is not a full commit SHA; in the same
+  walk, a checkout of the pull request's head under pull_request_target or workflow_run, and an outsider's
+  event field written straight into a `run:` script;
 - lockfiles: a manifest whose last commit is newer than its lock file's, or a manifest with none;
 - updates: the ecosystems whose lock files are tracked that dependabot.yml does not cover;
 - presence: a licence, a security policy, a contribution guide, CODEOWNERS and the CODEOWNERS paths
@@ -103,8 +105,9 @@ def actions_pinning(repo: str) -> dict:
     """Every `uses:` in the tracked workflows: pinned to a full commit SHA, a local action or a docker
     image (neither), or unpinned (a tag or a branch the action's owner can move). `origin` is the
     account the clone's origin remote names, so the advice can put another owner's actions first. Each
-    unpinned row carries the line of its `uses:`, where SARIF places it."""
-    unpinned, pinned, local = [], 0, 0
+    unpinned row carries the line of its `uses:`, where SARIF places it. The same walk reads each
+    workflow's two dangerous shapes (workflow_shapes): `pwn_request` and `injection`."""
+    unpinned, pinned, local, pwn, injection = [], 0, 0, [], []
     for path in _tracked(repo):
         if not re.match(r"^\.github/workflows/[^/]+\.ya?ml$", path):
             continue
@@ -117,7 +120,144 @@ def actions_pinning(repo: str) -> dict:
                 pinned += 1
             else:
                 unpinned.append({"file": path, "uses": ref, "line": text.count("\n", 0, m.start(1)) + 1})
-    return {"unpinned": unpinned[:CAP], "unpinned_count": len(unpinned), "pinned": pinned, "local": local, "origin": origin_owner(repo)}
+        shapes = workflow_shapes(path, text)
+        pwn += shapes["pwn_request"]
+        injection += shapes["injection"]
+    return {"unpinned": unpinned[:CAP], "unpinned_count": len(unpinned), "pinned": pinned, "local": local, "origin": origin_owner(repo),
+            "pwn_request": pwn[:CAP], "pwn_request_count": len(pwn), "injection": injection[:CAP], "injection_count": len(injection)}
+
+
+# The two shapes of GitHub's "Security hardening for GitHub Actions" (script injection) and GitHub Security Lab's
+# "Preventing pwn requests", read off the workflow's lines: a YAML parser is not a dependency, and both shapes are
+# lexical. What the walk sees is the direct case only: a value passed through `env:`, a step output or a script
+# file is not followed.
+
+# Triggers that run in the base repository's context, with its secrets and a write token, for an event a fork's
+# author starts.
+PRIVILEGED_TRIGGERS = ("pull_request_target", "workflow_run")
+# A checkout `ref:` or `repository:` whose value is the pull request's head (or its merge with the base): the
+# fork's code, by the event payload's field names.
+_PR_HEAD = re.compile(r"github\.event\.(?:pull_request\.(?:head\.(?:sha|ref|repo\.full_name)|merge_commit_sha)"
+                      r"|workflow_run\.(?:head_sha|head_branch|head_commit\.id|head_repository\.full_name))\b"
+                      r"|github\.head_ref\b|refs/pull/")
+# The event fields an outsider writes, from GitHub's list of untrusted input in "Security hardening for GitHub
+# Actions" and the event payload schema: titles and bodies of issues, pull requests, comments, reviews and
+# discussions; the head branch's name and label; commit messages and authors; wiki page names. Never
+# github.event.inputs.*, which only someone with write access can set.
+_OUTSIDER = re.compile(r"github\.(?:head_ref|event\.(?:"
+                       r"(?:issue|pull_request|discussion)\.(?:title|body)"
+                       r"|(?:comment|review|review_comment)\.body"
+                       r"|pull_request\.head\.(?:ref|label|repo\.default_branch)"
+                       r"|(?:head_commit|workflow_run\.head_commit)\.(?:message|author\.(?:name|email))"
+                       r"|commits(?:\[\d+\]|\.\*)\.(?:message|author\.(?:name|email))"
+                       r"|pages(?:\[\d+\]|\.\*)\.page_name"
+                       r"|workflow_run\.(?:head_branch|display_title)))")
+_DIRECT = re.compile(r"\$\{\{\s*(" + _OUTSIDER.pattern + r")\s*\}\}")
+_KEY = re.compile(r"^(\s*)(-\s+)?([\w\"'-]+)\s*:\s*(.*)$")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _code(line: str) -> bool:
+    s = line.strip()
+    return bool(s) and not s.startswith("#")
+
+
+def _triggers(lines: list) -> set:
+    """The events of the top-level `on:` that run privileged: `on: x`, `on: [x, y]` or a block of keys or items."""
+    out = set()
+    for i, ln in enumerate(lines):
+        m = re.match(r"""^(?:on|"on"|'on')\s*:\s*(.*)$""", ln)
+        if not m:
+            continue
+        rest = m.group(1).split("#", 1)[0]
+        words = set(re.findall(r"[\w-]+", rest))
+        if not rest.strip():
+            for nxt in lines[i + 1:]:
+                if _code(nxt) and _indent(nxt) == 0:
+                    break
+                k = re.match(r"^\s+(?:-\s*)?([\w-]+)\s*(?::|$)", nxt)
+                if k:
+                    words.add(k.group(1))
+        out |= words & set(PRIVILEGED_TRIGGERS)
+    return out
+
+
+def _jobs(lines: list) -> list:
+    """(job id, first line index, end index) for each job under the top-level `jobs:`."""
+    start = next((i for i, ln in enumerate(lines) if re.match(r"^jobs\s*:\s*(#.*)?$", ln)), None)
+    if start is None:
+        return []
+    end = next((i for i in range(start + 1, len(lines)) if _code(lines[i]) and _indent(lines[i]) == 0), len(lines))
+    child = next((_indent(lines[i]) for i in range(start + 1, end) if _code(lines[i])), None)
+    heads = [(i, re.match(r"^\s*([\w\"'-]+)\s*:", lines[i])) for i in range(start + 1, end)
+             if child is not None and _code(lines[i]) and _indent(lines[i]) == child]
+    heads = [(i, m.group(1).strip("\"'")) for i, m in heads if m]
+    return [(name, i, heads[n + 1][0] if n + 1 < len(heads) else end) for n, (i, name) in enumerate(heads)]
+
+
+def _step_end(lines: list, i: int, stop: int) -> int:
+    """The end of the sequence item a line belongs to: the next code line at or left of its dash."""
+    dash = i
+    while dash > 0 and not re.match(r"^\s*-\s", lines[dash]):
+        dash -= 1
+    col = _indent(lines[dash])
+    return next((j for j in range(i + 1, stop) if _code(lines[j]) and _indent(lines[j]) <= col), stop), dash
+
+
+def _run_lines(lines: list, lo: int, hi: int):
+    """(index, text) of every line of a `run:` value between lo and hi: the rest of the key's line, and a block
+    scalar's lines indented past the key."""
+    i = lo
+    while i < hi:
+        m = _KEY.match(lines[i])
+        if m and m.group(3) == "run":
+            col = len(m.group(1)) + len(m.group(2) or "")
+            yield i, m.group(4)
+            j = i + 1
+            while j < hi and (not lines[j].strip() or _indent(lines[j]) > col):
+                yield j, lines[j]
+                j += 1
+            i = j
+            continue
+        i += 1
+
+
+def workflow_shapes(path: str, text: str) -> dict:
+    """The two shapes in one workflow, each row naming the file, the job, the line and the field:
+
+    - pwn_request: under on: pull_request_target or workflow_run, an `actions/checkout` step whose `ref:` or
+      `repository:` is the pull request's head, so the fork's code runs with the base repository's secrets.
+      The head's sha used anywhere else (a comment, an artifact name) is not one.
+    - injection: `${{ github.event.<field> }}` written straight into a `run:` script, for a field an outsider
+      writes; Actions pastes the text in before the shell parses it."""
+    lines = text.split("\n")
+    jobs = _jobs(lines)
+    privileged = sorted(_triggers(lines))
+
+    def job_of(i):
+        return next((name for name, lo, hi in jobs if lo <= i < hi), None)
+    pwn, injection = [], []
+    if privileged:
+        for name, lo, hi in jobs:
+            for i in range(lo, hi):
+                m = re.match(r"""^\s*(?:-\s*)?uses:\s*['"]?actions/checkout@""", lines[i])
+                if not m:
+                    continue
+                end, dash = _step_end(lines, i, hi)
+                for j in range(dash, end):
+                    k = _KEY.match(lines[j])
+                    if k and k.group(3) in ("ref", "repository") and _code(lines[j]):
+                        head = _PR_HEAD.search(k.group(4).split(" #", 1)[0])
+                        if head:
+                            pwn.append({"file": path, "job": name, "line": j + 1, "key": k.group(3), "field": head.group(0),
+                                        "triggers": privileged})
+    for i, ln in _run_lines(lines, 0, len(lines)):
+        for m in _DIRECT.finditer(ln):
+            injection.append({"file": path, "job": job_of(i), "line": i + 1, "field": m.group(1)})
+    return {"pwn_request": pwn, "injection": injection}
 
 
 # --- lock files ---------------------------------------------------------------------------------
