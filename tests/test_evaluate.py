@@ -42,6 +42,15 @@ class Outcome(unittest.TestCase):
         commits.append(commit("2025-08-01", "fix: the big one", *[(f"core/g{i}.py", 100, 100) for i in range(10)]))
         self.assertEqual(evaluate.fixed_between(commits, "2025-07-01", "2025-09-01"), {"core/b.py"}, "2,000 lines over the 99th percentile: tangled by size, credits nothing")
 
+    def test_commits_after_the_window_do_not_move_its_outcome(self):
+        commits = COMMITS + [commit(f"2025-05-{1 + i:02d}", "small", ("core/a.py", 1, 1)) for i in range(20)]
+        commits.append(commit("2025-08-01", "fix: the big one", *[(f"core/g{i}.py", 30, 30) for i in range(10)]))
+        before = evaluate.fixed_between(commits, "2025-07-01", "2025-09-01")
+        self.assertEqual(before, {"core/b.py"}, "600 lines, over the 99th percentile of the history up to the window's end")
+        later = [commit(f"2026-0{1 + i // 28}-{1 + i % 28:02d}", "import", ("core/big.py", 5000, 5000)) for i in range(50)]
+        self.assertEqual(evaluate.fixed_between(commits + later, "2025-07-01", "2025-09-01"), before,
+                         "fifty 10,000-line commits a year later would lift a whole-log percentile past the fix: a leak")
+
 
 class Induced(unittest.TestCase):
     def _log(self, d):

@@ -103,7 +103,11 @@ and no judgement, and says which constants carry weight.
 
 The harness rebuilds each release's ranking at six cut-offs and scores it
 against the files a fix commit touched in the six months after each (the
-ApacheJIT labels on the holdout). `evaluate.py` computes the same against three
+ApacheJIT labels on the holdout). A fix larger than the repository's 99th
+percentile of lines changed is tangled by size and credits nothing; the
+percentile is taken over the commits before the window's end, the history as
+it stood when the outcome was observed, so no window's outcome depends on what
+the repository did after it. `evaluate.py` computes the same against three
 outcome definitions (fix locality, R-SZZ bug insertion, external labels).
 
 **Headroom, not raw hits and not lift.** Raw hits do not compare across
