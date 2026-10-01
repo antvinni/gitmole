@@ -141,6 +141,23 @@ def summarise(record: dict, only=None) -> dict:
     return out
 
 
+def positive_shares(record: dict, sets=("development",)) -> list:
+    """The negative control for snoring: per cut-off, oldest first, each repository's share of its pool
+    that the outcome holds, and the median over the repositories. Fix locality is a complete window and
+    cannot snore, so on the development set the share should not fall toward the latest cut-off; on labels
+    that end, a falling share is what snoring looks like. Cut-offs are aligned by position, since each
+    repository counts back from its own last commit. [{"index", "median", "repos": {name: share}}]."""
+    columns = {}
+    for name, rec in sorted(record["repos"].items()):
+        if rec.get("set") not in sets:
+            continue
+        for i, c in enumerate(r for r in ((rec.get("ranking") or {}).get("cutoffs") or []) if "error" not in r):
+            if c.get("pool"):
+                columns.setdefault(i, {})[name] = c["positives"] / c["pool"]
+    return [{"index": i, "median": _round(metrics.median(list(v.values()))), "repos": {n: _round(x) for n, x in v.items()}}
+            for i, v in sorted(columns.items())]
+
+
 def _remediation(recs) -> dict:
     """The share acted on per rule, its outcome counts summed over the repositories and the cut-offs
     (remediation.pooled), and the mechanical and structural bands; None when no record carries it. It is

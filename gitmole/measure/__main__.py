@@ -5,6 +5,7 @@
     python -m gitmole.measure report                                                             # docs/measurement-history.md and the graphs
     python -m gitmole.measure labels dump|score                                                  # the hand-label sheet and its verdicts
     python -m gitmole.measure consistency [--version V] [--rerender]                             # findings against the report's own facts
+    python -m gitmole.measure positives [--version V] [--sets development]                     # share of each pool fixed, per cut-off
 
 The timed runs are sequential, one repository at a time and nothing else on the machine, so the times
 and memory are comparable. The rankings at cut-offs are not timed, so they run side by side once every
@@ -83,6 +84,18 @@ def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: in
     return record
 
 
+def positives_table(record: dict, sets: list) -> str:
+    """dashboard.positive_shares as Markdown: one row per cut-off, oldest first, the median then each repository."""
+    shares = dashboard.positive_shares(record, sets)
+    names = sorted({n for c in shares for n in c["repos"]})
+    out = [f"Share of the pool in the outcome per cut-off, {record['version']}, {', '.join(sets)} (oldest first)", "",
+           "| cut-off | median | " + " | ".join(names) + " |", "|---:|---:|" + "---:|" * len(names)]
+    for c in shares:
+        cells = ["-" if c["repos"].get(n) is None else f"{c['repos'][n]:.2f}" for n in names]
+        out.append(f"| {c['index'] + 1} | {c['median']:.2f} | " + " | ".join(cells) + " |")
+    return "\n".join(out)
+
+
 def write(record: dict, directory: str = RECORDS) -> str:
     os.makedirs(directory, exist_ok=True)
     path = os.path.join(directory, f"{record['version']}.json")
@@ -114,6 +127,9 @@ def main(argv=None) -> int:
     co.add_argument("--rerender", action="store_true",
                     help="judge this tree's rules instead: re-render each saved analysis with --no-run first (no collection)")
     co.add_argument("--only", action="append", default=[], help="only these corpus entries")
+    po = sub.add_parser("positives", help="the snoring control: each cut-off's share of the pool in the outcome, from a recorded round")
+    po.add_argument("--version", default=None, help="a recorded release (default: the latest recorded)")
+    po.add_argument("--sets", default="development", help="comma-separated, of development, large, well-kept (the holdout is not read here)")
     lab = sub.add_parser("labels")
     lab.add_argument("action", choices=["dump", "score"])
     args = p.parse_args(argv)
@@ -162,6 +178,17 @@ def main(argv=None) -> int:
         from . import consistency
         version = args.version or dashboard.load_history(RECORDS)[-1]["version"]
         return consistency.round_(manifest, root, version, rerender=args.rerender, only=set(args.only) or None)
+    if args.command == "positives":
+        sets = args.sets.split(",")
+        if not set(sets) <= set(dashboard.RANKED):
+            p.error(f"--sets takes {', '.join(dashboard.RANKED)}: the holdout is read only by a release-tag job")
+        history = dashboard.load_history(RECORDS)
+        record = next((r for r in history if r["version"] == args.version), None) if args.version else history[-1]
+        if record is None:
+            print(f"positives: no record for {args.version}", file=sys.stderr)
+            return 2
+        print(positives_table(record, sets))
+        return 0
     if args.command == "extras":
         from . import extras
         print(write(extras.run_all(manifest, root, release=args.release), os.path.join(RECORDS, "extras")))
