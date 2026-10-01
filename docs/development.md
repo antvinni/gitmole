@@ -201,7 +201,9 @@ releases that change what gitmole finds or ranks are measured; the command that
 re-measured every past release tag was dropped at 0.39.0 as more machine time than
 it was worth, and the records it made stay as they are); it defaults to the
 fast loop's sets (development, awkward, gate), and `--release` runs a release
-round's instead (development, large, awkward, gate, well-kept); `extras` runs the
+round's instead (development, large, awkward, gate, well-kept), with remediation
+asked at the development set's six cut-offs (`--remediation` asks it without
+`--release`; about 15 to 20 minutes more wall time); `extras` runs the
 current tree's sensitivity sweep, description checks and hook replay over
 the development set (and the large set under `--release`) and its
 determinism check on curl and django (curl and react when django did not
