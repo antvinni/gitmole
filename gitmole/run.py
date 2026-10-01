@@ -538,6 +538,24 @@ def _co_author_rows(repo_dir: str, lines: list) -> tuple:
     return rows, renamed, by
 
 
+def _merges_per_identity(identities: list, by_ident: Counter) -> None:
+    """Give each identity the merges git credits to its own name and address and its aliases', each pair once:
+    an identity's alias list can repeat its own pair (an address that differed only in case), and a pair
+    claimed by two identities goes to the first, the larger, so the rows add up to git's count. django's
+    rows summed to 606 against git's 591 while four identities counted their own pair twice."""
+    claimed = set()
+    for i in identities:
+        keys = []
+        for v in [i, *(i.get("aliases") or [])]:
+            k = (v["name"], (v.get("email") or "").lower())
+            if k not in claimed:
+                claimed.add(k)
+                keys.append(k)
+        n = sum(by_ident[k] for k in keys)
+        if n:
+            i["merges"] = n
+
+
 def _merge_rows(repo_dir: str, scope=()) -> list:
     """[date, name, email] per merge on HEAD, through .mailmap. With --path's directories, only the merges that
     brought a change into them: whose diff against their first parent touches them. A pathspec alone would
@@ -624,11 +642,7 @@ def collect_meta(repo_dir: str, since: str = None, scope=()) -> dict:
     # a maintainer who merges every pull request would otherwise lead it on merges alone. Keyed by the name and
     # address git shows, as the rows are: by name alone, every row carrying a name got the name's whole count
     # (a trailer-only alias of the maintainer showed -348 commits), and the rows summed to twice git's count
-    by_ident = Counter((n, e.lower()) for d, n, e in merge_rows if not since or d >= since)
-    for i in meta["identities"]:
-        n = sum(by_ident[(v["name"], (v.get("email") or "").lower())] for v in [i, *(i.get("aliases") or [])])
-        if n:
-            i["merges"] = n
+    _merges_per_identity(meta["identities"], Counter((n, e.lower()) for d, n, e in merge_rows if not since or d >= since))
     meta["merges_by"] = "identity"   # load._merges_once repairs a run from before this
     return meta
 
