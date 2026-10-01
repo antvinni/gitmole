@@ -172,6 +172,36 @@ class Scoring(unittest.TestCase):
         m = harness.magnets_at(rank, {"f0", "f2"})
         self.assertEqual((m["named"], m["named_fixed"], m["matched"], m["matched_fixed"]), (2, 1, 0, 0), "f0 and f1 fill the top decile alone")
         self.assertIsNone(harness.magnets_at({"pool": ["a"], "magnets": None}, set()))
+        self.assertEqual((m["observed"], m["expected"], m["unmatched"]), (0, 0.0, 2), "no unnamed file in their decile: no rate to expect from")
+
+    def test_standardised_magnets_weigh_each_decile_as_the_named_files_are_spread(self):
+        """One magnet in a hot decile and nine in a cold one: pooling the control lets the hot decile's
+        unnamed files set the rate the cold decile's magnets are judged against."""
+        pool = [f"f{i:03d}" for i in range(100)]          # ten deciles of ten
+        named = ["f000"] + [f"f{i:03d}" for i in range(90, 99)]   # one in decile 0, nine in decile 9
+        fixed = {f"f{i:03d}" for i in range(1, 10)} | {"f000", "f090"}
+        m = harness.magnets_at({"pool": pool, "magnets": named}, fixed)
+        self.assertEqual((m["named"], m["named_fixed"], m["matched"], m["matched_fixed"]), (10, 2, 10, 9), "the pooled numbers are unchanged")
+        self.assertEqual(m["observed"], 2)
+        self.assertAlmostEqual(m["expected"], 1 * 9 / 9 + 9 * 0 / 1)   # decile 0 rate 9/9, decile 9 rate 0/1
+        self.assertEqual(m["unmatched"], 0)
+        # pooled: (2/10) / (9/10) = 0.22, the magnets look worse than chance; standardised: 2 / 1 = 2
+        self.assertAlmostEqual((m["named_fixed"] / m["named"]) / (m["matched_fixed"] / m["matched"]), 2 / 9)
+
+    def test_the_standardised_ratio_counts_each_repository_once(self):
+        from gitmole.measure import dashboard
+        many = {"set": "development", "status": "ok", "ranking": {"magnets": [
+            {"named": 50, "named_fixed": 40, "matched": 50, "matched_fixed": 10, "observed": 40, "expected": 10.0, "unmatched": 0}] * 6}}
+        few = {"set": "development", "status": "ok", "ranking": {"magnets": [
+            {"named": 2, "named_fixed": 1, "matched": 20, "matched_fixed": 10, "observed": 1, "expected": 1.0, "unmatched": 0}]}}
+        other = {"set": "development", "status": "ok", "ranking": {"magnets": [
+            {"named": 2, "named_fixed": 2, "matched": 20, "matched_fixed": 10, "observed": 2, "expected": 1.0, "unmatched": 0}]}}
+        self.assertEqual(dashboard.magnets_standardised(many), 4.0)
+        s = dashboard.summarise({"repos": {"a": many, "b": few, "c": other}})
+        self.assertEqual(s["bug_magnets_standardised"], 2.0, "the median of 4, 1 and 2: the repository with 300 named files is one of three")
+        self.assertIsNotNone(s["bug_magnets_ratio"], "the pooled ratio is still there, beside it")
+        old = {"set": "development", "status": "ok", "ranking": {"magnets": [{"named": 2, "named_fixed": 1, "matched": 20, "matched_fixed": 10}]}}
+        self.assertIsNone(dashboard.magnets_standardised(old), "a record from before the decile counts has no standardised ratio")
 
 
 def _record(statuses):
