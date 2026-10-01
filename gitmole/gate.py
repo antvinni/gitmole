@@ -1,4 +1,4 @@
-"""What a gate (--fail-on, --risk-threshold, the hook) can and cannot vouch for.
+"""What a gate (--fail-on, --risk-threshold) can and cannot vouch for; the hook is context and gates nothing.
 
 A gate that stops on findings has checked only what the steps it reads left behind. A betterleaks that
 timed out leaves no secrets table, so no secrets finding and nothing for --fail-on critical to stop on:

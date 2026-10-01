@@ -1,14 +1,24 @@
-"""The agent-hook gate: `gitmole OUT_DIR --no-run --hook [--risk-threshold N] [-- FILE...]`, after Codacy's
+"""The agent hook: `gitmole OUT_DIR --no-run --hook [--risk-threshold N] [-- FILE...]`, after Codacy's
 argument for deterministic findings before inference and Zimmermann et al.'s co-change recommendations.
 
 Deterministic findings should run before inference, so the model reasons over a short list rather
 than rediscovering known issues. A linter says what is wrong in the diff; gitmole says what history
-says about the files the diff touches, and no other tool supplies those fields. The gate has the same
+says about the files the diff touches, and no other tool supplies those fields. The hook has the same
 shape everywhere: the hook's JSON on stdin (Claude Code's PostToolUse, Cursor's afterFileEdit, Gemini
 CLI's AfterTool), the files it names scored like `--risk`, a one-line summary per file with the
-companions the edit left untouched, and exit 2 when the total is over the threshold, which is what
-every one of those hooks reads as "block". Files on the command line (pre-commit's way) print the
-summary as plain text instead of the hook JSON."""
+companions the edit left untouched, and exit 0. Files on the command line (pre-commit's way) print the
+summary as plain text instead of the hook JSON.
+
+It never exits 2, which every one of those hooks reads as "block". Up to 0.42.0 it did, when the total was
+over --risk-threshold; but the total is the touched files' share of the repository's revisions × lines of
+code, a number no edit can lower: the revisions are already in the log. Lewis et al. (ICSE 2013) shipped a
+flag of that kind at Google and saw no change in what developers did, because "there is nothing that can be
+done by a team to immediately unflag a file". The only edits that did lower it were the ones that hide the
+file from the count (split it, mark it linguist-generated), which make nothing safer. The coupling warning is
+something an edit can clear, by touching the companion, but it is right a little more often than not (54% on
+the held-out replay, docs/validation.md), so blocking on it would stop the agent wrongly about half the time.
+So both are context; --risk-threshold with --hook only says whether the total is over N. `gitmole --risk BASE
+--risk-threshold N` in CI still exits 3 over N: there it gates a whole change before review, not one edit."""
 from __future__ import annotations
 
 import json
@@ -95,6 +105,12 @@ def summary(risk: dict, threshold=None) -> list:
         total += f", over the {threshold:g}% threshold" if risk["total"] > threshold else f", under the {threshold:g}% threshold"
     lines.append(total)
     return lines
+
+
+def incomplete_line(missing: str, out_dir: str) -> str:
+    """Said when the run the hook reads lacks the log, the sizes or the change analysis: every file then
+    scores 0, and a 0 that means "not counted" must not read as "safe"."""
+    return f"scores incomplete: {missing} in the run {out_dir} holds, so every file here scores 0 whatever its history"
 
 
 def hook_output(event: dict, lines: list) -> str:

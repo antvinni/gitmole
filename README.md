@@ -71,7 +71,7 @@ blocks on secrets in source files and still posts the report; in GitHub Actions,
 ([GitHub Actions](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#github-actions)),
 and a [Dockerfile](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#docker) runs it anywhere else. The same
 scoring wires into Claude Code, Cursor, Gemini CLI and pre-commit as a hook
-that exits 2 over a threshold, after one `gitmole . --out analysis-repo` for it
+that tells the agent what history says about the files it edited, without blocking it, after one `gitmole . --out analysis-repo` for it
 to score against ([Agent hooks](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#agent-hooks)). Every option:
 [docs/cli.md](https://github.com/antvinni/gitmole/blob/main/docs/cli.md).
 What each part of the report means and what to do first:

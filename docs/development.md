@@ -161,7 +161,7 @@ why a file is out of the scored pool, `findings.py` holds the heuristics,
 `trend.py` is complexity over time for the top hotspots, `clean.py` finds
 and removes what gitmole left behind, `compare.py` is the difference between
 two reports (the findings new, resolved and persisting, the watch list's
-moves), `hook.py` is the agent-hook gate behind `--hook`, `sarif.py` the SARIF export,
+moves), `hook.py` is the agent hook behind `--hook`, `sarif.py` the SARIF export,
 `signing.py` reads commit signing coverage from the objects, `hygiene.py` the
 repository hygiene checks, `imports.py` which packages the tracked source
 imports, `licences.py` the declared licences and their SPDX expressions,

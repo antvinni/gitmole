@@ -99,7 +99,7 @@ def build_parser() -> argparse.ArgumentParser:
     gates.add_argument("--require-vuln-db", action="store_true",
                        help="exit 4 if no vulnerability database was found")
     gates.add_argument("--risk", metavar="BASE", help="score the files changed since BASE (a local clone)")
-    gates.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk or --hook: fail over N percent")
+    gates.add_argument("--risk-threshold", type=float, metavar="N", help="with --risk: fail over N percent; --hook only says it")
     gates.add_argument("--hook", action="store_true", help="with --no-run: score the files an agent hook names")
 
     other = p.add_argument_group("tools and housekeeping")
@@ -336,8 +336,10 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
 
 
 def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
-    """The agent-hook gate (see hook.py): 2 over the threshold, 0 otherwise, silent when the event
-    names no file in the repository. An analysis older than HEAD is said on stderr, with the gap."""
+    """The agent hook (see hook.py): the history of the files an edit touched, said as context, and exit 0;
+    silent when the event names no file in the repository. It never blocks: the score is the files' share of
+    the repository's revisions × lines, which no edit can lower (hook.py). An analysis older than HEAD is said
+    on stderr, with the gap."""
     from . import gate, hook, watch
     try:
         report = load.load_report(out_dir)
@@ -355,18 +357,13 @@ def _hook(out_dir: str, args, console: Console, err: Console, stdin) -> int:
         err.print(hook.stale_line(args.target, repo, commit, gap), soft_wrap=True, markup=False, highlight=False)
     risk = watch.change_risk(report, files)
     lines = hook.summary(risk, args.risk_threshold)
+    missing = gate.unfinished(report, gate.RISK_STEPS)
+    if missing:   # every file scores 0 without the log or the sizes, and not because it is safe: the reader is told
+        lines.append(hook.incomplete_line(gate.describe(missing), args.target))
     if args.files:
         console.print("\n".join(lines), soft_wrap=True, markup=False, highlight=False)
     else:
         console.print(hook.hook_output(event, lines), soft_wrap=True, markup=False, highlight=False)
-    if args.risk_threshold is not None and risk["total"] > args.risk_threshold:
-        err.print("\n".join(lines), soft_wrap=True, markup=False, highlight=False)   # exit 2: what the agent is told
-        return 2
-    missing = gate.unfinished(report, gate.RISK_STEPS) if args.risk_threshold is not None else []
-    if missing:   # every file scores 0 without the log or the sizes: under the threshold, and not because it is safe
-        err.print(f"gate incomplete: {gate.describe(missing)} in the run {out_dir} holds, so these scores are not the files' "
-                  f"and --risk-threshold could not check them (exit {gate.EXIT_INCOMPLETE})", soft_wrap=True, markup=False, highlight=False)
-        return gate.EXIT_INCOMPLETE
     return 0
 
 

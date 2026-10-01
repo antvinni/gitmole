@@ -28,7 +28,7 @@ to be arithmetic. They are wrong when the arithmetic is wrong, which unit tests
 over synthetic input catch, or when the thing counted is not the thing named,
 which they do not.
 
-A **gate** — `--fail-on`, `--risk-threshold`, the hook — claims a change or a
+A **gate** — `--fail-on`, `--risk-threshold` — claims a change or a
 repository deserves to be stopped. It is wrong when it stops healthy work, and
 useless when it never stops anything.
 
