@@ -433,6 +433,38 @@
   (#201); `--help` in groups and a first-report page (#187); the usefulness graph says its labels are one
   agent's (#193).
 
+- **0.43.0 is the research-directions release: mostly the yardstick, measured before any rule it judges.** A
+  ten-reviewer debate on the maintainer's report found it right to put measurement first and stale about the code
+  (several of its gaps already existed), and settled on these harness changes, each its own PR recorded against the
+  code before it: remediation's share acted on in the record, development set only, by the maintainer's decision
+  (#237); fixes renamed or moved counted as MOVED, never fixed, and each subject counted once at the cut-off that first
+  flagged it (#250); the outcome's oversized cut taken from the history up to the window's end, not the whole log
+  (#243; one cut-off moved, curl 2023-09-17, 701 -> 207 files, no recorded number); an account of the outcome the score
+  cannot credit (#245); a standardised bug-magnet ratio beside the pooled one (#242); fix-count baselines also scored on
+  the R-SZZ outcome (#241); the holdout decision printed again without the cut-off that may snore, reported only (#235);
+  and size alone beside churn alone on the ranking graph (#239). Every effectiveness number is 0.42.0's.
+- **What the new rows say, as the yardstick stands** (lower bounds, development set): of the subjects findings named,
+  25% of the mechanical ones (38 of 151) and 23% of the structural ones (25 of 110) were acted on within six months;
+  bug magnets were fixed again 1.86 times as often as files of their decile, standardised (pooled, it reads higher);
+  of 16,237 outcome files over 84 cut-offs, 795 were credited in the top 15, 8,460 sat in the pool below it, 4,245 were
+  absent at the cut-off and 1,499 had changed fewer than twice. Size alone's headroom is 0.474 against churn's 0.546 and
+  the watch list's 0.601.
+- **Findings, report and memory held or fell; development time rose by load, decided by the maintainer on 1 October.**
+  Findings 10 and 16.9, spelled out 7.5, report lines 197.5; development peak 1,016 -> 1,014 MB, large 1,144 -> 1,135
+  MB, large time 482 -> 425 s. Development wall time 320 -> 352 s: every step slowed about 10%, the untouched ones
+  included (code age on react 60.1 -> 67.4 s, betterleaks 13.2 -> 14.8 s), at loads of 3 to 9 that were not the round's;
+  the one new step, git's revert body line, costs 0.01-0.46 s. Accepted as load by the maintainer rather than re-run,
+  since an honest re-run means remediation again on every development entry. The round took 87 minutes with
+  remediation (expected ~40 on a quiet machine). etcd, in the well-kept set, gained expression_injection (7 -> 8).
+- **The round ran without a vulnerability database**, as the earlier records did.
+- **Since 0.42.0, besides the measurement:** `pwn_request` and `expression_injection` warnings from the existing
+  workflow walk, outsider-written fields only, fixtures in the unit tests by the maintainer's decision (no gate entries)
+  (#249); secrets advice tells a value still at HEAD from one only in history, and rule refs carry measured limits
+  (#238); rename detection pinned on every git call that depends on it, so a reader's git config cannot change the
+  bytes (a hostile config moved 121,729 values on tokio before) (#244); the agent hook never blocks on the history score,
+  which no edit can lower, and stays context (#246); "declared" commits against every commit that declares nothing, and
+  reverts read git's own body line (#248); AGENTS.md: people and agents are never scored (#247); the README's Evolution
+  says the ranking has held since 0.8.0 (#240); the Action's listing name is "gitmole scan" (#236).
 - **0.42.0 is the paperclip release: every change answers a finding ten reviewers checked in 0.41.0's report on
   paperclipai/paperclip** (a seven-month, agent-heavy TypeScript/Rust monorepo; its maintainer's tally 7 act,
   5 ignore, 4 false, 1 mixed of 17). The harness gained eleven checks first, each by its own reading of the export
