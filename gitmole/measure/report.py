@@ -237,13 +237,15 @@ def _remediation(acted: dict) -> list:
            f"For each finding a release made at a ranking cut-off ({good} of {total} cut-offs over {acted['repos']} development "
            "repositories), whether the thing it named was fixed in the tree six months later "
            "(`gitmole/measure/remediation.py`). It is a lower bound and not precision: nobody acting may mean nobody ran "
-           "gitmole. As measured here a subject still named at several cut-offs counts at each, and a file moved or "
-           "renamed counts as having left the tree; \"left\" is acted on only for rules where deleting the file is the fix.", "",
-           "| rule | kind | acted on | still open | left the tree | left counts | can't say | gone before | share |",
-           "|---|---|---:|---:|---:|---|---:|---:|---:|"]
+           "gitmole. A subject still named at several cut-offs of a repository counts once, at the first (the rest are "
+           "repeats), and one moved or renamed is followed and counts as moved, never acted on; \"left\" is acted on only "
+           "for rules where deleting the file is the fix. A record made before these two counts existed shows 0 for both: "
+           "there a subject counted at each cut-off and a move read as leaving the tree.", "",
+           "| rule | kind | acted on | still open | moved | left the tree | left counts | can't say | gone before | repeats | share |",
+           "|---|---|---:|---:|---:|---:|---|---:|---:|---:|---:|"]
     for name, r in sorted(acted["rules"].items(), key=lambda kv: (kv[1]["kind"] != "mechanical", kv[0])):
-        out.append(f"| {name} | {r['kind']} | {r['resolved']} | {r['open']} | {r['gone']} | {'yes' if r['gone_is_fix'] else 'no'} | "
-                   f"{r['unknown']} | {r['absent']} | {_acted(r)} |")
+        out.append(f"| {name} | {r['kind']} | {r['resolved']} | {r['open']} | {r.get('moved', 0)} | {r['gone']} | {'yes' if r['gone_is_fix'] else 'no'} | "
+                   f"{r['unknown']} | {r['absent']} | {r.get('repeat', 0)} | {_acted(r)} |")
     return out + [""]
 
 

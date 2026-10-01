@@ -384,7 +384,7 @@ def tree_at(clone: str, rev: str, dest: str) -> None:
     subprocess.run(["git", "checkout", "--quiet", "--detach", rev], cwd=dest, check=True, capture_output=True)
 
 
-def remediation_at(src: str, clone: str, work: str, cutoff: str) -> dict:
+def remediation_at(src: str, clone: str, work: str, cutoff: str, seen: set = None) -> dict:
     """remediation's question for one cut-off, the design its docstring gives: the release's own --json
     export of the tree at the cut-off (run as the timed run is, GITMOLE_NOW the cut-off), scored by this
     tree's predicates against the tree HORIZON months later. The export is the release's, the yardstick
@@ -408,7 +408,7 @@ def remediation_at(src: str, clone: str, work: str, cutoff: str) -> dict:
             return row
         with open(rec["report"], encoding="utf-8") as fh:
             findings = (json.load(fh) or {}).get("findings") or []
-        row.update(remediation.over_window(findings, clone, cutoff, HORIZON))
+        row.update(remediation.over_window(findings, clone, cutoff, HORIZON, seen))
     finally:
         shutil.rmtree(tree, ignore_errors=True)
         shutil.rmtree(os.path.join(run_dir, "out"), ignore_errors=True)
@@ -418,16 +418,17 @@ def remediation_at(src: str, clone: str, work: str, cutoff: str) -> dict:
 
 def remediate_repo(src: str, entry: dict, clone: str, work: str, cache: str) -> dict:
     """remediation at every cut-off the ranking uses (cutoff_windows), each window HORIZON months: so the
-    pair (T, T + six months) is the ranking's own, and no new choice of dates enters. A subject still
-    named at several cut-offs is counted at each; deduplicating that is a later change to the yardstick,
-    and this is its before. `rules` pools the cut-offs: per rule the outcome counts, gone_is_fix and the
+    pair (T, T + six months) is the ranking's own, and no new choice of dates enters. The cut-offs run
+    oldest first and share one set of subjects already counted, so a subject still named at several is
+    counted once, at the first, and is a `repeat` at the rest; a subject moved or renamed in a window is
+    `moved`, never acted on. `rules` pools the cut-offs: per rule the outcome counts, gone_is_fix and the
     share acted on (remediation.pooled)."""
     from . import remediation
     commits = canonical_log(clone, cache)
-    rows = []
-    for t, _ in cutoff_windows(entry, commits):
+    rows, seen = [], set()
+    for t, _ in sorted(cutoff_windows(entry, commits)):
         try:
-            rows.append(remediation_at(src, clone, os.path.join(work, t), t))
+            rows.append(remediation_at(src, clone, os.path.join(work, t), t, seen))
         except Exception as e:   # one cut-off failing is recorded, not the entry lost
             rows.append({"cutoff": t, "error": f"{type(e).__name__}: {e}"[:200]})
     good = [r for r in rows if "error" not in r]

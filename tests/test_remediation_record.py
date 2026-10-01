@@ -151,13 +151,36 @@ class AtTheCutOffs(unittest.TestCase):
         cutoffs = [("2025-01-01", set()), ("2025-07-01", set())]
         with mock.patch.object(harness, "canonical_log", lambda clone, cache: [{}]), \
                 mock.patch.object(harness, "cutoff_windows", lambda entry, commits: cutoffs), \
-                mock.patch.object(harness, "remediation_at", lambda src, clone, work, t: rows.append(t) or
+                mock.patch.object(harness, "remediation_at", lambda src, clone, work, t, seen=None: rows.append(t) or
                                   ({"cutoff": t, "rules": {"unpinned_actions": {"resolved": 1}}} if t < "2025-06" else {"cutoff": t, "error": "x"})):
             out = harness.remediate_repo("/src", {"name": "x"}, "/clone", "/work", "/cache")
         self.assertEqual(rows, ["2025-01-01", "2025-07-01"])
         self.assertEqual(out["horizon"], harness.HORIZON)
         self.assertEqual(out["rules"]["unpinned_actions"]["acted_on"], 1, "a failed cut-off is left out of the pool")
         self.assertEqual(len(out["cutoffs"]), 2, "and kept in the rows")
+
+    def test_one_set_of_counted_subjects_spans_the_cut_offs_oldest_first(self):
+        """A subject named at six cut-offs is one subject: the set remediation_at scores against is shared."""
+        sets, order = [], []
+        cutoffs = [("2025-07-01", set()), ("2025-01-01", set())]
+        with mock.patch.object(harness, "canonical_log", lambda clone, cache: [{}]), \
+                mock.patch.object(harness, "cutoff_windows", lambda entry, commits: cutoffs), \
+                mock.patch.object(harness, "remediation_at", lambda src, clone, work, t, seen=None: sets.append(seen) or order.append(t)
+                                  or {"cutoff": t, "rules": {}}):
+            harness.remediate_repo("/src", {"name": "x"}, "/clone", "/work", "/cache")
+        self.assertEqual(order, ["2025-01-01", "2025-07-01"])
+        self.assertIsNotNone(sets[0])
+        self.assertIs(sets[0], sets[1])
+
+    def test_moved_and_repeats_are_kept_and_moved_is_judged(self):
+        pooled = r.pooled([{"unreferenced_files": {"resolved": 1, "open": 1, "moved": 2, "repeat": 5}},
+                           {"brain_methods": {"resolved": 1, "moved": 3}}])
+        self.assertEqual((pooled["unreferenced_files"]["moved"], pooled["unreferenced_files"]["repeat"]), (2, 5))
+        self.assertEqual(pooled["unreferenced_files"]["judged"], 4, "a moved file is judged, and not acted on")
+        self.assertEqual(pooled["unreferenced_files"]["acted_on"], 1)
+        self.assertEqual(pooled["brain_methods"]["judged"], 1, "a renamed function is a survivor: can't say")
+        old = r.pooled([{"unreferenced_files": {"resolved": 1, "open": 1}}])
+        self.assertEqual((old["unreferenced_files"]["moved"], old["unreferenced_files"]["judged"]), (0, 2), "a record from before reads as zero")
 
 
 class InTheRound(unittest.TestCase):
@@ -241,8 +264,8 @@ class Page(unittest.TestCase):
         from gitmole.measure import report
         text = "\n".join(report.current(self._record(), None))
         self.assertIn("### Was it acted on? Remediation by rule, as the yardstick stands", text)
-        self.assertIn("| unpinned_actions | mechanical | 2 | 2 | 0 | no | 0 | 0 | 2 of 4 |", text, "under five judged, a fraction")
-        self.assertIn("| brain_methods | structural | 0 | 6 | 3 | no | 0 | 0 | 0 of 6 (0%) |", text)
+        self.assertIn("| unpinned_actions | mechanical | 2 | 2 | 0 | 0 | no | 0 | 0 | 0 | 2 of 4 |", text, "under five judged, a fraction")
+        self.assertIn("| brain_methods | structural | 0 | 6 | 0 | 3 | no | 0 | 0 | 0 | 0 of 6 (0%) |", text)
         self.assertIn("mechanical 2 of 4; structural 0 of 6 (0%)", text)
         self.assertLess(text.index("unpinned_actions"), text.index("brain_methods"), "mechanical first")
 
