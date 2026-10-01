@@ -89,6 +89,17 @@ What a release produces is scored by the current tree's definitions, not its
 own, so the yardstick does not move with the tool. The rankings at cut-offs are
 not timed and run side by side once the timed runs are over.
 
+Every run the harness makes starts from an empty cache of its own
+(`GITMOLE_CACHE` under the run's directory, removed afterwards), never the
+machine's. The structure step keeps its parses by blob, so a run on a clone
+the machine has seen before parses nothing: until 0.43.0 the timed runs read
+that shared cache, and every timed `structure.json` had `cached` equal to its
+files, so the record's structure time and memory were a second run's, set by
+whatever had run before. They are a first run's now, the cost a new user pays,
+and the first record made after the change moves once for it. The untimed scans
+(remediation's cut-offs) get one each too, so scans side by side never share
+one.
+
 ### Threshold sensitivity
 
 `extras` moves every numeric keyword threshold of every rule by 10, 25 and 50%

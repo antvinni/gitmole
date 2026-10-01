@@ -389,6 +389,33 @@ class Fixtures(unittest.TestCase):
         self.assertNotIn("TTY_INTERACTIVE", env)
         self.assertEqual((env["PYTHONPATH"], env["GITMOLE_NOW"], env["NO_COLOR"]), ("/src", "2026-09-17", "1"))
 
+    def _spawned(self, env_extra=None, inherited=None):
+        """run_release with the spawn replaced: the environment the release got, and whether the cache it was
+        given was still there afterwards."""
+        from unittest import mock
+        seen = {}
+
+        def spawn(argv, cwd, env, stdout, stderr, timeout):
+            seen["env"] = env
+            if env.get("GITMOLE_CACHE"):
+                os.makedirs(os.path.join(env["GITMOLE_CACHE"], "structure"), exist_ok=True)   # what a run leaves in it
+            return None
+
+        with tempfile.TemporaryDirectory() as work, mock.patch.object(harness, "_spawn", spawn), \
+                mock.patch.dict(os.environ, {"GITMOLE_CACHE": inherited} if inherited else {}):
+            harness.run_release("/src", "/clone", os.path.join(work, "run"), "2026-09-17", env_extra=env_extra)
+            cache = seen["env"].get("GITMOLE_CACHE")
+            return seen["env"], cache, work, os.path.exists(cache) if cache else None
+
+    def test_every_run_starts_from_an_empty_cache_of_its_own_and_leaves_none(self):
+        env, cache, work, left = self._spawned(inherited="/home/someone/.cache/gitmole")
+        self.assertEqual(cache, os.path.join(work, "run", harness.CACHE_DIR), "under the run's own directory, not the caller's cache")
+        self.assertFalse(left, "removed when the run is over")
+
+    def test_a_caller_may_name_another_cache(self):
+        env, cache, _, _ = self._spawned(env_extra={"GITMOLE_CACHE": "off"})
+        self.assertEqual(cache, "off")
+
     def test_the_manifest_names_every_set_and_pins_every_clone(self):
         m = corpus.load()
         self.assertLessEqual({e["set"] for e in m["repos"]}, {"development", "large", "holdout", "well-kept", "awkward", "gate"})
