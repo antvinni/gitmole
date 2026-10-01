@@ -23,7 +23,8 @@ REFS = {"tangled_commits": "Herzig and Zeller, MSR 2013",
         "debt_in_hotspots": "Maldonado and Shihab, MTD 2015", "hidden_coupling": "Ajienka and Capiluppi, JSS 2017",
         "unreferenced_files": "Romano et al., TSE 2020", "signoff_by_co_author": "Linux kernel, Documentation/process/coding-assistants.rst",
         "deep_nesting": "SonarSource cognitive complexity; CodeScene code health",
-        "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013", "import_cycles": "Oyetoyan et al., SANER 2015"}
+        "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013", "import_cycles": "Oyetoyan et al., SANER 2015",
+        "secrets_in_source": "Meli, McNiece and Reaves, NDSS 2019"}
 
 
 def _f(severity: str, title: str, statement: str, advice: str, rule: dict, evidence: dict) -> dict:
@@ -87,6 +88,32 @@ def _secret_statement(groups: list, declared: bool = False, every: int = SECRETS
     return f"{_plural(len(groups), 'distinct value')} in {_plural(places, 'place')}: {sample}{more}."
 
 
+def _head_split(groups: list) -> dict:
+    """The values HEAD still holds and those only in history, each by its rule and first file (never the
+    value), from leaks.group's `at_head`; a value the run did not judge counts as still at HEAD, which is
+    what the advice assumed before HEAD was read."""
+    def name(g):
+        return {"rule": g["rule"], "file": g["files"][0]}
+    held = [g for g in groups if g.get("at_head") is not False]
+    gone = [g for g in groups if g.get("at_head") is False]
+    return {"at_head": len(held), "history_only": len(gone), "history_only_values": [name(g) for g in gone][:10]}
+
+
+def _rotate_advice(groups: list) -> str:
+    """Rotate every value; for one only in history, also rewrite the history if it is published. Deleting a
+    file leaves the value in every clone: Meli, McNiece and Reaves (NDSS 2019) found 81% of the secrets
+    they saw committed to GitHub never removed, and of the repositories that did remove one, none had
+    rewritten its history."""
+    split = _head_split(groups)
+    held, gone = split["at_head"], split["history_only"]
+    if not gone:
+        return "Rotate them; deleting the file does not remove them from git."
+    rewrite = "rewrite it: deleting the file does not remove a value from git"
+    if not held:
+        return f"None is at HEAD any more: rotate them and, if the history is published, {rewrite}."
+    return f"Rotate them all; {held} {'is' if held == 1 else 'are'} still at HEAD and {gone} only in history: if the history is published, {rewrite}."
+
+
 def _secret_evidence(groups: list, declared: bool = False) -> dict:
     out = {"values": len(groups), "places": sum(g["places"] for g in groups), "files": sorted({f for g in groups for f in g["files"]})[:10]}
     if declared:
@@ -144,8 +171,9 @@ def _secrets_by_rule(report: dict) -> tuple:
     out = []
     if source:
         out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source, every=SECRETS_NAMED_ALL),
-                      f"Rotate them; deleting the file does not remove them from git. {ignore}",
-                      rule={"id": "secrets_in_source", "scanner": "betterleaks", "placeholders": "left out"}, evidence=_secret_evidence(source)))
+                      f"{_rotate_advice(source)} {ignore}",
+                      rule={"id": "secrets_in_source", "scanner": "betterleaks", "placeholders": "left out"},
+                      evidence={**_secret_evidence(source), **_head_split(source)}))
     if maybe:
         out.append(_f("info", f"{len(maybe)} possible secret(s) in source", _secret_statement(maybe),
                       f"Look at each: the scanner's generic rules found them and graded every sighting low, which is how an ordinary assignment "
