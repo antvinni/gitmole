@@ -24,7 +24,7 @@ REFS = {"tangled_commits": "Herzig and Zeller, MSR 2013",
         "unreferenced_files": "Romano et al., TSE 2020", "signoff_by_co_author": "Linux kernel, Documentation/process/coding-assistants.rst",
         "deep_nesting": "SonarSource cognitive complexity; CodeScene code health",
         "sweeping_commits": "Kolassa, Riehle and Salim, SOFSEM 2013", "import_cycles": "Oyetoyan et al., SANER 2015",
-        "secrets_in_source": "Meli, McNiece and Reaves, NDSS 2019"}
+        "secrets_in_source": "Meli, McNiece and Reaves, NDSS 2019; Basak et al., ESEM 2023"}
 
 
 def _f(severity: str, title: str, statement: str, advice: str, rule: dict, evidence: dict) -> dict:
@@ -86,6 +86,11 @@ def _secret_statement(groups: list, declared: bool = False, every: int = SECRETS
     sample = "; ".join(f"{n} values of {text}" if n > 1 else text for text, n in counts.items())
     more = f" and {len(groups) - named} more" if len(groups) > named else ""
     return f"{_plural(len(groups), 'distinct value')} in {_plural(places, 'place')}: {sample}{more}."
+
+
+# The nearest published estimate of the scanner's accuracy: betterleaks is gitleaks' successor and has no measurement
+# of its own. Gitleaks on SecretBench, a benchmark of real secrets in public repositories (Basak et al., ESEM 2023).
+SECRETS_MEASURED = "Gitleaks, betterleaks' predecessor: 46% precision, 88% recall on SecretBench (Basak et al., ESEM 2023)"
 
 
 def _head_split(groups: list) -> dict:
@@ -172,7 +177,7 @@ def _secrets_by_rule(report: dict) -> tuple:
     if source:
         out.append(_f("critical", f"{len(source)} secret(s) in history", _secret_statement(source, every=SECRETS_NAMED_ALL),
                       f"{_rotate_advice(source)} {ignore}",
-                      rule={"id": "secrets_in_source", "scanner": "betterleaks", "placeholders": "left out"},
+                      rule={"id": "secrets_in_source", "scanner": "betterleaks", "placeholders": "left out", "measured": SECRETS_MEASURED},
                       evidence={**_secret_evidence(source), **_head_split(source)}))
     if maybe:
         out.append(_f("info", f"{len(maybe)} possible secret(s) in source", _secret_statement(maybe),
@@ -1712,6 +1717,11 @@ def _authors_of(report: dict, files: list, key: str = "is_author") -> dict:
     return out
 
 
+# How well the algorithm agrees with the people who know: against the truck factors 35 systems' own developers
+# gave, Avelino's algorithm was exact on 71.4% of them, and on 30% of those whose truck factor was 2 to 5.
+TRUCK_FACTOR_MEASURED = "exact on 71.4% of 35 systems, 30% of those at truck factor 2 to 5 (Ferreira, Valente and Ferreira, ICPC 2017)"
+
+
 def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> list:
     """Avelino et al.'s truck factor over the degree of authorship: how many people have to leave before
     more than half the source files have no author. One is a warning, two a note. Changes rather than
@@ -1793,7 +1803,7 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
         advice = f"Pair someone with {ask}" + (f" on {first_area}" if first_area else "") + f" first; {why}."
     return [_f("warning" if tf == 1 else "info", "Truck factor", statement, advice,
                rule={"id": "truck_factor", "doa_author_share": 0.75, "doa_floor": 3.293, "orphan_share": 0.5, "decay_months": 5,
-                     "ref": "Avelino et al., ICPC 2016"},
+                     "ref": "Avelino et al., ICPC 2016", "measured": TRUCK_FACTOR_MEASURED},
                evidence={"truck_factor": tf, "removed": removed, "truck_factor_decayed": tf_d, "removed_decayed": removed_d,
                          "files": len(files), "orphaned": orphans, "area_authors": sorted({w for _, w, _, _ in lone}),
                          "areas": [{"area": a, "author": w, "files": n, "orphaned": o} for a, w, n, o in lone[:10]]})]

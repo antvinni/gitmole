@@ -1,4 +1,9 @@
-"""Merge git identities that belong to the same person."""
+"""Merge git identities that belong to the same person.
+
+Unmeasured here. The published benchmark for the task is gambit (Gote and Zingg, MSR 2021), which reached
+an F1 of 0.985 against a hand-checked mapping of GNOME GTK's identities; that is gambit's score on its own
+benchmark, not gitmole's. The bot rule (is_bot) is broader than BIMAN's name pattern and has not been
+measured either."""
 from __future__ import annotations
 
 import re

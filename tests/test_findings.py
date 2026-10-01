@@ -1829,6 +1829,7 @@ class SecretsAtHead(unittest.TestCase):
 
     def test_the_rule_carries_its_measured_limit(self):
         f = self._critical([self._row("a", "app/a.py", True)])
+        self.assertIn("46% precision, 88% recall", f["rule"]["measured"])
         self.assertIn("Meli", f["rule"]["ref"])
 
 
