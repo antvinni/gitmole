@@ -87,7 +87,7 @@ _each component's share of the watch list's revisions × lines of code, and its 
 | Sophie Alpert | 909 | 393 | 5 | 5% | 2% |
 | Paul O’Shannessy | 822 | 956 | 0 | 4% | 0% |
 | Lauren Tan | 821 | 0 | 15 | 4% | 5% |
-| Sebastian "Sebbie" Silbermann | 475 | 0 | 44 | 3% | 4% |
+| Sebastian "Sebbie" Silbermann | 475 | 0 | 44 | 2% | 4% |
 | Dominic Gannaway | 429 | 7 | 1 | 2% | 1% |
 | Sathya Gunasekaran | 387 | 0 | 0 | 2% | 1% |
 | Jan Kassens | 345 | 1 | 11 | 2% | 5% |
@@ -108,8 +108,8 @@ _each component's share of the watch list's revisions × lines of code, and its 
 | Nathan Hunzaker | 94 | 0 | 0 | 0% | 0% |
 | Nicolas Gallagher | 92 | 0 | 0 | 0% | 0% |
 | Ben Newman | 89 | 51 | 0 | 0% | 0% |
+| Brandon Dail | 73 | 5 | 1 | 0% | 0% |
 | Andreas Svensson | 69 | 8 | 0 | 0% | 0% |
-| Brandon Dail | 68 | 10 | 1 | 0% | 0% |
 | Hendrik Liebau | 67 | 0 | 17 | 0% | 2% |
 | Flarnie Marchan | 67 | 1 | 0 | 0% | 0% |
 | Toru Kobayashi | 67 | 0 | 1 | 0% | 0% |
@@ -130,7 +130,7 @@ _each component's share of the watch list's revisions × lines of code, and its 
 | salazarm | 24 | 0 | 0 | 0% | 0% |
 | Heaven | 22 | 0 | 0 | 0% | 0% |
 
-_commits and share leave out merges, which are counted apart (2,610 in all)
+_commits and share leave out merges, which are counted apart (2,605 in all)
 and 1926 more; 4 coding tools (told by their no-reply address) left out
 bots left out: dependabot[bot] (96 commits), Facebook Community Bot (2)
 aliases merged for Sebastian Markbåge, Dan Abramov, Brian Vaughn and 134 more; a .mailmap makes that permanent_

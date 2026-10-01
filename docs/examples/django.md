@@ -126,7 +126,7 @@ _each component's share of the watch list's revisions × lines of code, and its 
 | Marc Fargas | 73 | 0 | 0 | 0% | 0% |
 | David Sanders | 71 | 0 | 9 | 0% | 0% |
 
-_commits and share leave out merges, which are counted apart (606 in all)
+_commits and share leave out merges, which are counted apart (591 in all)
 and 3164 more
 bots left out: django-bot (3 commits), rico-ci (1)
 aliases merged for Tim Graham, Claude Paroz, Mariusz Felisiak and 383 more; a .mailmap makes that permanent_
