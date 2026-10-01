@@ -1,8 +1,10 @@
 """Run under the MEASURED version's code (PYTHONPATH set to that release's source) to read its own view of
 an output directory: `probe.py rank OUT` prints the version's watch-list ranking over its whole pool, the
-lines of code each file had, and the files its bug-magnet rule names. Written against the interfaces
-every release since 0.2.0 shares (load.load_report, watch.risks, the size table), and nothing newer, so
-the harness can score any release the same way. Run as a script: it must not import the current tree."""
+lines of code each file had, the files its bug-magnet rule names, and why each file outside the pool is
+outside it. Written against the interfaces every release since 0.2.0 shares (load.load_report,
+watch.risks, the size table), and nothing newer except the classifier, asked only where the release has
+one, so the harness can score any release the same way. Run as a script: it must not import the current
+tree."""
 import json
 import sys
 
@@ -23,6 +25,28 @@ def _files_of(finding):
             out.append(item)
         elif isinstance(item, dict) and item.get("file"):
             out.append(item["file"])
+    return out
+
+
+def _left_out(report, rows, revisions, files):
+    """Every path the history before the cut-off or the tree at it names that the pool does not hold, with
+    the first reason the release's own classifier gives (generated, vendored, test file, ...), else
+    "changed fewer than twice" (the pool's floor of two revisions), else "left out" for a release whose
+    classifier this probe cannot ask. The harness counts the outcome's files by these reasons; a file
+    named by neither the history nor the tree was absent at the cut-off. None when the classifier cannot
+    be built, so an old release records no account rather than a wrong one."""
+    try:
+        from gitmole import classify
+        reason = classify.Classifier(report).reason
+    except Exception as e:   # a release from before classify.py, or one whose classifier wants more than this report has
+        print(f"probe: classifier: {e}", file=sys.stderr)
+        return None
+    pooled = {r["file"] for r in rows}
+    out = {}
+    for p in set(files) | set(revisions):
+        if p in pooled:
+            continue
+        out[p] = reason(p) or ("not in the tree" if p not in files else "changed fewer than twice" if revisions.get(p, 0) < 2 else "left out")
     return out
 
 
@@ -53,7 +77,9 @@ def rank(out):
             "lines": {r["file"]: lines.get(r["file"], 0) for r in rows}, "total_code": total, "magnets": magnets,
             # the second effort driver: a release whose size table carries no complexity reports None
             # rather than a budget built out of zeros, so the harness can tell the two apart
-            "complexity": {r["file"]: cplx.get(r["file"], 0) for r in rows}, "total_complexity": sum(cplx.values()) or None}
+            "complexity": {r["file"]: cplx.get(r["file"], 0) for r in rows}, "total_complexity": sum(cplx.values()) or None,
+            # why each file outside the pool is outside it, for the account of the outcome the score cannot credit
+            "left_out": _left_out(report, rows, revisions, files)}
 
 
 if __name__ == "__main__":

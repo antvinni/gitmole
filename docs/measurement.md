@@ -103,7 +103,11 @@ and no judgement, and says which constants carry weight.
 
 The harness rebuilds each release's ranking at six cut-offs and scores it
 against the files a fix commit touched in the six months after each (the
-ApacheJIT labels on the holdout). `evaluate.py` computes the same against three
+ApacheJIT labels on the holdout). A fix larger than the repository's 99th
+percentile of lines changed is tangled by size and credits nothing; the
+percentile is taken over the commits before the window's end, the history as
+it stood when the outcome was observed, so no window's outcome depends on what
+the repository did after it. `evaluate.py` computes the same against three
 outcome definitions (fix locality, R-SZZ bug insertion, external labels).
 
 **Headroom, not raw hits and not lift.** Raw hits do not compare across
@@ -178,6 +182,25 @@ from one cut-off to the next, six months later, median over repositories.
 term restored, windows and decays of recent revisions × lines) at the same
 cut-offs and scores every one on all of the measures above. It is for exploring
 on the development set.
+
+**Fix-count baselines.** The one ranking signal with long, consistent support
+is a file's prior fixes, weighted toward recent ones. `signals` carries it as
+rows, never as the list: Rahman et al.'s naive model (FSE 2011), the files by
+their count of fixes, as `evaluate` already ranks it (`recent fixes`, the last
+six months), the same over the whole history before the cut-off (`fixes`), and
+a fix count decayed exponentially (`fix decay Nm`, Graves et al., TSE 2000;
+Kim et al., ICSE 2007) at each half-life of a grid declared in the code before
+it was run (`FIX_HALF_LIVES`: 3, 6, 12 and 24 months) — swept, not tuned. The
+naive model's own cut, the files that fit in a fifth of the codebase's lines, is
+`recall20`. The predictor and the development outcome are the same thing —
+`maat.is_fix` — so on fix locality these rows share the outcome's label noise
+(about half of keyword-found fixes are not fixes, Herbold et al., EMSE 2022) and
+are flattered by it. `signals --szz` therefore scores them, and the watch list,
+churn and size they must beat, a second time against R-SZZ bug insertion
+(`evaluate.induced_between`), under `NAME / R-SZZ`. Development can only rank
+these candidates against each other; none of them is promoted without a
+release-tag holdout read, one candidate per read, as [Is a candidate
+better?](#is-a-candidate-better) sets out.
 
 ### Noise
 
@@ -273,7 +296,18 @@ was the thing a finding named fixed within a fixed window after it — the actio
 pinned, the binary gone, the dependency dropped. That is "the repository acted
 on this", never precision, and a biased lower bound, since mechanical advice is
 taken far more readily than structural advice; its docstring says which rules
-it can and cannot score.
+it can and cannot score. A release round asks it at the ranking's own six cut-offs
+on the development repositories (not the large ones, by the maintainer's
+decision: binutils-gdb alone would add about 35 minutes): the release's
+`--json` export of the tree at each cut-off, scored against the tree six
+months later. That is one release run per cut-off, about six times the
+development set's run time, in the untimed half beside the rankings: roughly
+15 to 20 minutes more wall time per release round. The record
+keeps the outcome counts by rule (`remediation` on each entry), the summary
+pools them over the development set, and the history page prints the table.
+As it stands it counts a subject still named at several cut-offs at each, and
+a file moved or renamed as having left the tree; those are changes to the
+yardstick, and this table is their before.
 
 ## Description accuracy
 
@@ -512,6 +546,24 @@ run as follows.
   cut-off's `pool_digest`, a fingerprint of the files it scored, so two records
   can be checked for having scored the same pool) from the first release round
   after the fields landed; earlier records are not backfilled.
+- **Snoring, reported beside the holdout's decision.** A bug is labelled only
+  once it is found, and defects are often found long after they are introduced,
+  so recent code reads clean (Ahluwalia, Falessi and Di Penta, MSR 2019; Falessi
+  et al., TOSEM 2022). Only labels that stop can snore: the holdout's ApacheJIT
+  labels end on 2019-12-31, the `end` of every holdout entry, while the
+  development outcome is fixes inside a complete six-month window. Wherever the
+  repositories' labels end, `candidate` prints the decision a second time without
+  the cut-offs whose horizon and one more (T + 2 × horizon) run past that end —
+  on the holdout exactly 2019-06-30 — side by side with the one that decides,
+  and the JSON keeps it under `unsnored`. It never decides, and nothing is
+  dropped from the decision. It runs only where the holdout is read, in a
+  release-tag job; its code is tested on fixtures. The control is on the
+  development set, where the outcome cannot snore: `python -m gitmole.measure
+  positives` prints each cut-off's share of the pool in the outcome from a
+  recorded round. On the 0.42.0 record the medians over the seven development
+  repositories with cut-offs, oldest first, are 0.23, 0.12, 0.17, 0.13, 0.18 and
+  0.13 — no fall toward the latest cut-off, which is what a complete window should
+  show.
 
 With fourteen repositories the test can show a candidate that wins consistently,
 not a small, uneven gain; that is a property of the corpus, and a result that
