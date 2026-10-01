@@ -12,20 +12,21 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">5,000</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="157.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.7.0</text>
-<text x="217.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
-<text x="278.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.13.1</text>
-<text x="338.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
-<text x="399.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.19.0</text>
-<text x="459.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
-<text x="520.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.25.0</text>
-<text x="581.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
-<text x="641.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.1</text>
-<text x="702.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.33.0</text>
-<text x="762.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.35.1</text>
-<text x="823.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.38.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.41.0</text>
-<polyline points="56.0,223.2 76.2,223.1 96.4,223.2 116.6,223.6 136.8,223.9 157.0,212.1 177.2,201.4 197.4,210.0 217.6,200.1 237.8,200.7 258.0,201.6 278.1,201.8 298.3,209.2 318.5,120.5 338.7,135.5 358.9,120.5 379.1,130.5 399.3,138.4 419.5,124.0 439.7,120.8 459.9,151.0 480.1,150.9 500.3,137.5 520.5,139.8 540.7,121.8 560.9,142.0 581.1,120.4 601.3,119.0 621.5,128.9 641.7,126.1 661.9,120.2 682.0,120.1 702.2,132.8 722.4,120.2 742.6,182.8 762.8,199.7 783.0,199.5 803.2,199.2 823.4,202.8 843.6,204.8 863.8,206.9 884.0,206.8" fill="none" stroke="#0969da" stroke-width="2"/>
+<text x="115.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
+<text x="174.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="233.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
+<text x="292.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="351.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
+<text x="410.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
+<text x="529.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<text x="588.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
+<text x="647.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
+<text x="706.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.34.0</text>
+<text x="765.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.36.0</text>
+<text x="824.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.39.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.42.0</text>
+<polyline points="56.0,223.2 75.7,223.1 95.4,223.2 115.1,223.6 134.9,223.9 154.6,212.1 174.3,201.4 194.0,210.0 213.7,200.1 233.4,200.7 253.1,201.6 272.9,201.8 292.6,209.2 312.3,120.5 332.0,135.5 351.7,120.5 371.4,130.5 391.1,138.4 410.9,124.0 430.6,120.8 450.3,151.0 470.0,150.9 489.7,137.5 509.4,139.8 529.1,121.8 548.9,142.0 568.6,120.4 588.3,119.0 608.0,128.9 627.7,126.1 647.4,120.2 667.1,120.1 686.9,132.8 706.6,120.2 726.3,182.8 746.0,199.7 765.7,199.5 785.4,199.2 805.1,202.8 824.9,204.8 844.6,206.9 864.3,206.8 884.0,206.2" fill="none" stroke="#0969da" stroke-width="2"/>
 <line x1="56" y1="278" x2="78" y2="278" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="282" fill="#1f2328">MB</text>
 <text x="56" y="302" fill="#57606a" font-size="11">the largest of the runs on curl, django, react and gitmole</text>

@@ -433,6 +433,46 @@
   (#201); `--help` in groups and a first-report page (#187); the usefulness graph says its labels are one
   agent's (#193).
 
+- **0.42.0 is the paperclip release: every change answers a finding ten reviewers checked in 0.41.0's report on
+  paperclipai/paperclip** (a seven-month, agent-heavy TypeScript/Rust monorepo; its maintainer's tally 7 act,
+  5 ignore, 4 false, 1 mixed of 17). The harness gained eleven checks first, each by its own reading of the export
+  and clone (#226): the 0.41.0 corpus runs read 97 contradictions under them (53 recorded), paperclip 38. This round
+  reads 54 (self_credit 51, unreferenced_named 2, secrets_headline 1): trailer_case 32 -> 0, merge_total 7 -> 0,
+  peer_unused 2 -> 0, suspect_lead 2 -> 0, silent_precondition 1 -> 0. The new unreferenced_named is react's
+  ReactFiberConfigART.js, named by a fork file's convention. On paperclip, scanned again at 0.42.0: 38 -> 1, 17
+  findings -> 14, no critical (it was a deliberately wrong key in a negative smoke test), 236 lines -> 218.
+  Every effectiveness number is 0.41.0's.
+- **The round found one bug of its own release.** merge_total said django 606 merges against git's 591 and react
+  2,610 against 2,605: #230 summed merges over an identity's own name and address and its aliases, and four django
+  identities repeated their own pair among their aliases. #232 counts each pair once; django and react were run
+  again into the record (`--only ... --merge`), and every corpus repository's merge total now equals git's
+  (prometheus's 126 short are its bots' merges, which People leaves out).
+- **Findings and reading unchanged in count, a line shorter:** findings 10 and 16.9, spelled out 7.5; report lines
+  199 -> 197.5 (the watch-list caption no longer names sweep kinds no step records). Time: development 322 -> 320 s,
+  large set 486 -> 482 s.
+- **Two peak-memory ceilings rise by noise-sized amounts, decided by the maintainer on 1 October.** The large set's
+  1,131 -> 1,144 MB (ghidra) and the development set's 1,014 -> 1,016 MB (brew). The same night 0.41.0's own code
+  measured 1,149 MB on ghidra in a full warm run. ghidra's first pass in the round read 1,457 MB: run alone, cold
+  full runs at 0.42.0-era commits reached about 1,455 MB while warm ones read 1,144-1,146, and `--no-run` re-renders
+  of ghidra reach 1,431 MB with 0.41.0's code too, so a heavy peak in the final load and render is older than this
+  release; the process behind the cold full-run spike is not yet identified. prometheus (4,032 -> 5,164 MB) and etcd
+  (2,471 -> 2,771 MB), in the well-kept set, rose in the osv-scanner step: run alone, that step read 2,084 and 2,250 MB
+  on etcd at 0.42.0 against 2,621 and 2,466 at 0.41.0, osv-scanner's own swing between identical runs.
+- **The round ran without a vulnerability database**, as the earlier records did. Five corpus clones (brew, jadx,
+  redis, tokio, yt-dlp) had been emptied by the /tmp cleaner and were restored offline at their pins before it.
+- **Since 0.41.0, besides the measurement:** a coding tool is a name on a no-reply address several names share, a
+  same-named row vetoing it only if that row authored under an address of its own, or an identity credited almost
+  only by trailer; merges and surviving code belong to an identity row, not its display name, and the agent-assisted
+  cohort counts tools' commits; trailer keys count without case and an issue id is not a trailer; the agent-instruction
+  inventory leaves out shipped copies and lists skills and subagents (#230). smoke/, e2e and __fixtures__ paths, Rust
+  #[cfg(test)] modules and a Cargo binary only tests run are test code, and a lowercase hyphenated slug is a
+  placeholder (#229). lizard's spans are checked against the structure step's for every function, suspect spans sort
+  last, and a cut path never reads as another file (#231). Peer dependencies the lock records, CSS @plugin/@import,
+  package exports and scripts, paths named in scripts and new URL(…, import.meta.url) count as uses; a go.mod with no
+  require needs no go.sum; install advice follows packageManager; vulnerable rows reached at run time lead, imports are
+  judged by version, and unmaintained advisories leave the count (#227). --baseline compares subjects, SARIF keeps
+  security-severity for security rules, unpinned actions are placed at their lines, and bug magnets say when the
+  size test could not run and become a note (#228).
 - **0.41.0 is the hindsight release: every change answers a finding ten reviewers checked in 0.40.0's report
   on vectorize-io/hindsight** (a many-package monorepo with one dominant author; its maintainer's tally 8 act,
   9 ignore, 7 false of 24). The harness gained eight checks first (#218): the 0.40.0 analyses read 67

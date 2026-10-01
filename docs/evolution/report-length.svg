@@ -12,20 +12,21 @@
 <line x1="56" y1="40.0" x2="884" y2="40.0" stroke="#d0d7de" stroke-width="1"/>
 <text x="50" y="44.0" text-anchor="end" fill="#1f2328">500</text>
 <text x="56.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.2.0</text>
-<text x="157.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.7.0</text>
-<text x="217.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.10.0</text>
-<text x="278.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.13.1</text>
-<text x="338.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.16.0</text>
-<text x="399.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.19.0</text>
-<text x="459.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.22.0</text>
-<text x="520.5" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.25.0</text>
-<text x="581.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.28.0</text>
-<text x="641.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.30.1</text>
-<text x="702.2" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.33.0</text>
-<text x="762.8" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.35.1</text>
-<text x="823.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.38.0</text>
-<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.41.0</text>
-<polyline points="56.0,157.5 76.2,157.5 96.4,157.3 116.6,157.3 136.8,156.5 157.0,154.6 177.2,153.6 197.4,164.2 217.6,164.2 237.8,152.0 258.0,153.0 278.1,153.0 298.3,151.0 318.5,145.9 338.7,145.9 358.9,145.7 379.1,145.7 399.3,138.5 419.5,138.5 439.7,138.5 459.9,138.5 480.1,138.5 500.3,138.9 520.5,138.5 540.7,138.5 560.9,138.5 581.1,140.6 601.3,140.6 621.5,162.0 641.7,162.0 661.9,162.0 682.0,160.6 702.2,160.6 722.4,160.6 742.6,160.6 762.8,161.4 783.0,161.4 803.2,161.4 823.4,161.8 843.6,165.3 863.8,166.5 884.0,167.3" fill="none" stroke="#0969da" stroke-width="2"/>
+<text x="115.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.5.0</text>
+<text x="174.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.8.0</text>
+<text x="233.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.11.0</text>
+<text x="292.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.14.0</text>
+<text x="351.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.17.0</text>
+<text x="410.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.20.0</text>
+<text x="470.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.23.0</text>
+<text x="529.1" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.26.0</text>
+<text x="588.3" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.29.0</text>
+<text x="647.4" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.31.0</text>
+<text x="706.6" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.34.0</text>
+<text x="765.7" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.36.0</text>
+<text x="824.9" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.39.0</text>
+<text x="884.0" y="260" text-anchor="middle" fill="#1f2328" font-size="10">0.42.0</text>
+<polyline points="56.0,157.5 75.7,157.5 95.4,157.3 115.1,157.3 134.9,156.5 154.6,154.6 174.3,153.6 194.0,164.2 213.7,164.2 233.4,152.0 253.1,153.0 272.9,153.0 292.6,151.0 312.3,145.9 332.0,145.9 351.7,145.7 371.4,145.7 391.1,138.5 410.9,138.5 430.6,138.5 450.3,138.5 470.0,138.5 489.7,138.9 509.4,138.5 529.1,138.5 548.9,138.5 568.6,140.6 588.3,140.6 608.0,162.0 627.7,162.0 647.4,162.0 667.1,160.6 686.9,160.6 706.6,160.6 726.3,160.6 746.0,161.4 765.7,161.4 785.4,161.4 805.1,161.8 824.9,165.3 844.6,166.5 864.3,167.3 884.0,167.3" fill="none" stroke="#0969da" stroke-width="2"/>
 <line x1="56" y1="278" x2="78" y2="278" stroke="#0969da" stroke-width="2"/>
 <text x="84" y="282" fill="#1f2328">lines at 80 columns, banner included</text>
 <text x="56" y="302" fill="#57606a" font-size="11">the default report, curl, django, react and gitmole</text>
