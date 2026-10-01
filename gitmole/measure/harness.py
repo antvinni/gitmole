@@ -277,9 +277,42 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
             "top": pool[:top]}   # for the carry-over between consecutive cut-offs
 
 
+ABSENT = "absent at the cut-off"   # neither in the tree at T nor touched before it: new after T, or renamed after it
+BELOW = "in the pool below the top"
+
+
+def misses(rank: dict, outcome: set, top: int = TOP) -> dict:
+    """The account of what score() cannot see: it counts the outcome inside the pool only, so an outcome
+    file the pool never held vanishes from every number. Each outcome file is credited (in the top), in
+    the pool below the top, absent at the cut-off, or left out of the pool for the reason the release's
+    own classifier gives (probe.rank's left_out: generated, vendored, not in the tree, changed fewer than
+    twice, ...). Reported beside the score and never entering it. None for a release whose probe gave
+    no reasons."""
+    left = rank.get("left_out")
+    if left is None:
+        return None
+    pool = rank["pool"]
+    head, members = set(pool[:top]), set(pool)
+    causes = {}
+    for f in outcome:
+        if f in head:
+            continue
+        cause = BELOW if f in members else left.get(f, ABSENT)
+        causes[cause] = causes.get(cause, 0) + 1
+    return {"outcome": len(outcome), "credited": len(outcome & head), "missed": sum(causes.values()), "by_cause": dict(sorted(causes.items()))}
+
+
 def magnets_at(rank: dict, outcome: set) -> dict:
     """The findings backtest for bug magnets: of the files the rule named, how many were fixed again in
-    the horizon, against unnamed files in the same deciles of the list's own score (the pool's order)."""
+    the horizon, against unnamed files in the same deciles of the list's own score (the pool's order).
+
+    `matched` pools the unnamed files of every decile that holds a named one, so a decile with one magnet
+    and a decile with forty weigh by their unnamed files, not by the magnets. `observed` and `expected`
+    are the standardised comparison beside it: expected = Σ_d named_d · rate_d, rate_d being the unnamed
+    files' fix rate in decile d, so the control is weighted as the named files are spread (indirect
+    standardisation; observed / expected is Σ_d (named_d / named) · rate_d against the named rate). A
+    decile with named files and no unnamed one has no rate, so its named files are left out of both and
+    counted as `unmatched`. Neither comparison replaces the other: the record keeps both."""
     named = set(rank.get("magnets") or [])
     pool = rank["pool"]
     if rank.get("magnets") is None or not pool:
@@ -287,7 +320,17 @@ def magnets_at(rank: dict, outcome: set) -> dict:
     decile = {f: i * 10 // len(pool) for i, f in enumerate(pool)}
     used = {decile[f] for f in named if f in decile}
     matched = [f for f in pool if f not in named and decile[f] in used]
-    return {"named": len(named), "named_fixed": len(named & outcome), "matched": len(matched), "matched_fixed": sum(f in outcome for f in matched)}
+    observed, expected, unmatched = 0, 0.0, 0
+    for d in sorted(used):
+        ours = [f for f in named if decile.get(f) == d]
+        others = [f for f in pool if f not in named and decile[f] == d]
+        if not others:
+            unmatched += len(ours)
+            continue
+        observed += sum(f in outcome for f in ours)
+        expected += len(ours) * sum(f in outcome for f in others) / len(others)
+    return {"named": len(named), "named_fixed": len(named & outcome), "matched": len(matched), "matched_fixed": sum(f in outcome for f in matched),
+            "observed": observed, "expected": round(expected, 6), "unmatched": unmatched}
 
 
 def cutoff_windows(entry: dict, commits: list, labels: dict = None) -> list:
@@ -320,7 +363,11 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
         if "error" in rank:
             rows.append({"cutoff": t, "error": rank["error"]})
             continue
-        rows.append({"cutoff": t, **score(rank, outcome)})
+        row = {"cutoff": t, **score(rank, outcome)}
+        account = misses(rank, outcome)
+        if account is not None:
+            row["misses"] = account
+        rows.append(row)
         m = magnets_at(rank, outcome)
         if m:
             magnets.append(m)
@@ -335,6 +382,74 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
             stability = {"from": t0, "to": t1, "spearman": metrics.spearman(a["pool"], b["pool"]),
                          "top_jaccard": metrics.jaccard(a["pool"][:TOP], b["pool"][:TOP])}
     return {"cutoffs": rows, "stability": stability, "magnets": magnets}
+
+
+# --- was it acted on? remediation at the same cut-offs -------------------------------------------
+
+REMEDIATION_SETS = ("development",)   # where a release round asks remediation's question: the maintainer's decision (1 Oct 2026),
+# since six release runs per entry on the large set would add about 35 minutes for binutils-gdb alone; never the holdout
+
+
+def tree_at(clone: str, rev: str, dest: str) -> None:
+    """A checkout of `rev` for a run at a cut-off: a --shared clone of the corpus clone (its objects are
+    borrowed, nothing is copied) with HEAD detached at `rev`. The corpus clone itself is never checked out
+    or given a worktree, since other runs read it. Its branches come along as remote refs, so whatever the
+    pinned history holds stays reachable and the unreachable step sees what it sees on the clone."""
+    if os.path.isdir(dest):
+        shutil.rmtree(dest)   # our own earlier checkout under the run directory
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    subprocess.run(["git", "clone", "--quiet", "--shared", "--no-checkout", clone, dest], check=True, capture_output=True)
+    subprocess.run(["git", "checkout", "--quiet", "--detach", rev], cwd=dest, check=True, capture_output=True)
+
+
+def remediation_at(src: str, clone: str, work: str, cutoff: str) -> dict:
+    """remediation's question for one cut-off, the design its docstring gives: the release's own --json
+    export of the tree at the cut-off (run as the timed run is, GITMOLE_NOW the cut-off), scored by this
+    tree's predicates against the tree HORIZON months later. The export is the release's, the yardstick
+    is the current one, as everywhere in the harness. The checkout and the run's output directory are
+    removed afterwards; the export (run/report.json) is kept, so the scoring can be repeated without a rerun."""
+    from . import remediation
+    started = time.monotonic()
+    row = {"cutoff": cutoff}
+    end, rev_end = remediation.window(clone, cutoff, HORIZON)
+    rev = rev_at(clone, cutoff)
+    if not rev or not rev_end:
+        row["error"] = f"no commit before {cutoff}" if not rev else f"the window would end {end}, past this history"
+        return row
+    tree, run_dir = os.path.join(work, "tree"), os.path.join(work, "run")
+    try:
+        tree_at(clone, rev, tree)
+        rec = run_release(src, tree, run_dir, cutoff)
+        row.update({k: rec.get(k) for k in ("status", "seconds", "peak_mb")})
+        if rec.get("status") != "ok":
+            row["error"] = f"{rec.get('status')}: {rec.get('note') or ''}".strip()[:200]
+            return row
+        with open(rec["report"], encoding="utf-8") as fh:
+            findings = (json.load(fh) or {}).get("findings") or []
+        row.update(remediation.over_window(findings, clone, cutoff, HORIZON))
+    finally:
+        shutil.rmtree(tree, ignore_errors=True)
+        shutil.rmtree(os.path.join(run_dir, "out"), ignore_errors=True)
+        row["measure_seconds"] = round(time.monotonic() - started, 1)
+    return row
+
+
+def remediate_repo(src: str, entry: dict, clone: str, work: str, cache: str) -> dict:
+    """remediation at every cut-off the ranking uses (cutoff_windows), each window HORIZON months: so the
+    pair (T, T + six months) is the ranking's own, and no new choice of dates enters. A subject still
+    named at several cut-offs is counted at each; deduplicating that is a later change to the yardstick,
+    and this is its before. `rules` pools the cut-offs: per rule the outcome counts, gone_is_fix and the
+    share acted on (remediation.pooled)."""
+    from . import remediation
+    commits = canonical_log(clone, cache)
+    rows = []
+    for t, _ in cutoff_windows(entry, commits):
+        try:
+            rows.append(remediation_at(src, clone, os.path.join(work, t), t))
+        except Exception as e:   # one cut-off failing is recorded, not the entry lost
+            rows.append({"cutoff": t, "error": f"{type(e).__name__}: {e}"[:200]})
+    good = [r for r in rows if "error" not in r]
+    return {"horizon": HORIZON, "cutoffs": rows, "rules": remediation.pooled(r["rules"] for r in good)}
 
 
 def labels_for(entry: dict, manifest: dict, labels_dir: str):
@@ -364,7 +479,7 @@ def needs_ranking(entry: dict, rec: dict) -> bool:
     return rec.get("status") == "ok" and entry["set"] in ("development", "large", "well-kept", "holdout") and not entry.get("fixture")
 
 
-def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labels_dir: str = None) -> dict:
+def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labels_dir: str = None, remediation: bool = False) -> dict:
     """The untimed half: the ranking at cut-offs and the finding ids, read off the files the timed run
     left. Nothing here is measured, so entries' rankings may run side by side; each works in its own
     run directory and log cache."""
@@ -377,6 +492,9 @@ def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labe
             rec["ranking"] = {"error": "labels not found"}
         else:
             rec["ranking"] = rank_repo(src, entry, clone, rec["out"], reference, os.path.join(root, "logs", name + ".txt"), labels)
+    if remediation and entry["set"] in REMEDIATION_SETS and rec.get("status") == "ok" and not entry.get("fixture"):
+        rec["remediation"] = remediate_repo(src, entry, clone, os.path.join(root, "runs", version_of(src), name, "remediation"),
+                                            os.path.join(root, "logs", name + ".txt"))
     if entry["set"] in hand_labels.LABELLED_SETS and rec.get("report"):   # for the actionable share, from the labels at report time
         rec["finding_ids"] = [{k: row[k] for k in ("id", "rule", "summary")} for row in hand_labels.id_rows(name, entry.get("commit"), rec["report"])]
     rec["measure_seconds"] = round((rec.get("measure_seconds") or 0) + time.monotonic() - started, 1)

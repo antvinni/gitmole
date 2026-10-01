@@ -93,19 +93,26 @@ Run times are one `gitmole CLONE` with every default step, on a MacBook Pro (M4,
 
 Every release that changes what gitmole finds or ranks is run from its own
 source over the same pinned repositories and judged by the same yardsticks
-([measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md)):
-is the watch list right against churn alone, and does it run on awkward inputs
-and catch the gate's planted problems. The second graph is weaker evidence than
-the other two: every "actionable" label behind it is one agent's reading, the
-same agent that wrote the rules, and no outside labels exist. Read it as that
-agent's opinion, not as a measure of whether the findings are worth acting on.
+([measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md)).
 
-<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/ranking.svg" width="900" alt="Headroom of the watch list by release, against churn alone, with the held-out repositories">
-<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/useful.svg" width="900" alt="Share of the default report's findings one agent labelled actionable, by release">
-<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/robustness.svg" width="900" alt="Runs completed and gate cases caught, by release">
+The ranking has held since 0.8.0. On the four repositories every release is
+drawn over, headroom rose from 0.73 to 0.92 at 0.8.0 and has been 0.93 since
+0.11.0. The lower figures in the history's table (0.62 at 0.28.0, 0.65 at
+0.37.0, 0.60 at 0.38.0) are changes to the yardstick, not to the ranking:
+repositories joined the set at 0.28.0 and 0.38.0, and 0.37.0 rebuilt the set
+and took its cut-offs from first-parent commits. Recent releases cut cost
+rather than raising effectiveness: from 0.38.0 to 0.42.0, on the same
+development set, the median findings per repository fell from 19.5 to 10, the
+report from 216 to 198 lines, and 0.40.0 to 0.42.0 answered findings that
+reviewers had checked and found false.
 
-What it costs (findings per repository, report length, run time, memory) and
-every release's numbers:
+<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/ranking.svg" width="900" alt="Headroom of the watch list by release, against churn alone and size alone, with the held-out repositories">
+<img src="https://raw.githubusercontent.com/antvinni/gitmole/main/docs/evolution/findings.svg" width="900" alt="Findings per repository by release: the median, the 90th percentile, and how many the default report spells out">
+
+Every run completes, and the gate catches 3 of 3, since 0.28.0.
+
+Every release's numbers, including what it costs in report length, run time and
+memory:
 [measurement-history.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement-history.md).
 
 ## The tool set
