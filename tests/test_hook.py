@@ -1,5 +1,5 @@
-"""The agent-hook gate: gitmole --hook reads a hook's JSON on stdin, scores the files it names, and
-exits 2 over the threshold, the same shape for Claude Code, Cursor and Gemini CLI."""
+"""The agent hook: gitmole --hook reads a hook's JSON on stdin, scores the files it names, and says what
+history says about them as context, never a block, the same shape for Claude Code, Cursor and Gemini CLI."""
 import io
 import json
 import os
@@ -61,17 +61,17 @@ class Gate(unittest.TestCase):
             fh.write("entity,coupled,degree,average-revs\ncore/hot.py,core/cold.py,80,20\ncore/hot.py,CHANGES,90,20\n")
         return out
 
-    def test_the_gate_reads_stdin_scores_the_named_files_and_exits_2_over_the_threshold(self):
+    def test_the_hook_reads_stdin_scores_the_named_files_and_says_the_threshold_without_blocking(self):
         with tempfile.TemporaryDirectory() as d:
             self._repo(d)
             out = self._out(d)
             event = {"hook_event_name": "PostToolUse", "tool_name": "Edit", "tool_input": {"file_path": os.path.join(d, "core/hot.py")}}
             stdout = io.StringIO()
             rc = cli.main([out, "--no-run", "--hook", "--risk-threshold", "50"], console=Console(file=stdout, width=200), stdin=io.StringIO(json.dumps(event)))
-            self.assertEqual(rc, 2, "hot.py holds 99% of the repository's revisions × lines: over 50, the edit is blocked")
-            printed = json.loads(stdout.getvalue().splitlines()[0])   # the JSON on stdout; what follows is the stderr text, on the same console here
+            self.assertEqual(rc, 0, "hot.py holds 99% of the repository's revisions × lines, over 50; no edit can lower that, so it is said, not blocked")
+            self.assertEqual(len(stdout.getvalue().splitlines()), 1, "only the JSON: nothing for a block to show on stderr")
+            printed = json.loads(stdout.getvalue())
             context = printed["hookSpecificOutput"]["additionalContext"]
-            self.assertIn("over the 50% threshold", stdout.getvalue().splitlines()[-1], "the reason also goes to stderr, which is what the agent shows on exit 2")
             self.assertEqual(printed["hookSpecificOutput"]["hookEventName"], "PostToolUse")
             self.assertIn("core/hot.py: 99.4% of the repository's revisions × lines of code (rank 1 of 2, on the watch list)", context)
             self.assertIn("not touched: core/cold.py, which moved in 80% of core/hot.py's changes", context)
@@ -130,31 +130,32 @@ class Gate(unittest.TestCase):
             out = self._out(d)
             stdout = io.StringIO()
             rc = cli.main([out, "--no-run", "--hook", "--risk-threshold", "50", "--", "core/hot.py"], console=Console(file=stdout, width=200), stdin=io.StringIO(""))
-            self.assertEqual(rc, 2)
+            self.assertEqual(rc, 0)
             self.assertIn("core/hot.py: 99.4%", stdout.getvalue())
+            self.assertIn("total 99.4%, over the 50% threshold", stdout.getvalue())
             self.assertNotIn("hookSpecificOutput", stdout.getvalue(), "with files on the command line the summary is plain text, for pre-commit's log")
 
-    def test_a_run_without_its_log_cannot_pass_an_edit(self):
-        """Without the change analysis every file scores 0, under any threshold; that is not a safe edit."""
+    def test_a_run_without_its_log_says_its_zeros_are_not_counts(self):
+        """Without the change analysis every file scores 0; that is not a safe edit, and the context says so. The
+        hook does not exit 4 for it: it gates nothing, so there is no check left that could not be made."""
         with tempfile.TemporaryDirectory() as d:
             self._repo(d)
             out = self._out(d)
             with open(os.path.join(out, "meta.json")) as fh:
                 meta = json.load(fh)
-            for steps, want in (({"change analysis": "failed", "betterleaks": "run"}, 2), ({"change analysis": "run", "betterleaks": "timeout"}, 2)):
-                with open(os.path.join(out, "meta.json"), "w") as fh:
-                    json.dump({**meta, "steps": steps}, fh)
-                stdout = io.StringIO()
-                rc = cli.main([out, "--no-run", "--hook", "--risk-threshold", "50", "--", "core/hot.py"], console=Console(file=stdout, width=300), stdin=io.StringIO(""))
-                self.assertEqual(rc, want, f"{steps}: over the threshold is an answer, and betterleaks is not the hook's")
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({**meta, "steps": {"change analysis": "run", "betterleaks": "timeout"}}, fh)
+            stdout = io.StringIO()
+            rc = cli.main([out, "--no-run", "--hook", "--", "core/hot.py"], console=Console(file=stdout, width=300), stdin=io.StringIO(""))
+            self.assertEqual(rc, 0)
+            self.assertNotIn("scores incomplete", stdout.getvalue(), "betterleaks is not the hook's")
             with open(os.path.join(out, "meta.json"), "w") as fh:
                 json.dump({**meta, "steps": {"change analysis": "failed"}}, fh)
-            stdout = io.StringIO()
-            rc = cli.main([out, "--no-run", "--hook", "--risk-threshold", "99.9", "--", "core/cold.py"], console=Console(file=stdout, width=300), stdin=io.StringIO(""))
-            self.assertEqual(rc, 4)
-            self.assertIn("gate incomplete: change analysis failed", stdout.getvalue())
-            rc = cli.main([out, "--no-run", "--hook", "--", "core/cold.py"], console=Console(file=io.StringIO(), width=300), stdin=io.StringIO(""))
-            self.assertEqual(rc, 0, "no threshold, no gate")
+            for threshold in ([], ["--risk-threshold", "99.9"]):
+                stdout = io.StringIO()
+                rc = cli.main([out, "--no-run", "--hook", *threshold, "--", "core/cold.py"], console=Console(file=stdout, width=300), stdin=io.StringIO(""))
+                self.assertEqual(rc, 0, threshold)
+                self.assertIn(f"scores incomplete: change analysis failed in the run {out} holds", stdout.getvalue())
 
     def test_a_missing_output_directory_says_how_to_make_it_and_does_not_block(self):
         """Claude Code reads a PostToolUse hook's exit 2 as "block" and shows its stderr to the model: a hook
@@ -199,12 +200,55 @@ class Gate(unittest.TestCase):
             self.assertIn(f"the analysis in {out} is of {head[:12]}, 2 commits behind HEAD", c.file.getvalue())
             self.assertIn(f"refresh it with: gitmole {d} --out {out}", c.file.getvalue())
             c = Console(file=io.StringIO(), width=400)
-            self.assertEqual(cli.main([out, "--no-run", "--hook", "--risk-threshold", "50", "--", "core/hot.py"], console=c, stdin=io.StringIO("")), 2)
+            self.assertEqual(cli.main([out, "--no-run", "--hook", "--risk-threshold", "50", "--", "core/hot.py"], console=c, stdin=io.StringIO("")), 0)
             with open(os.path.join(out, "meta.json"), "w") as fh:
                 json.dump({**meta, "run": {"commit": "f" * 40}}, fh)
             c = Console(file=io.StringIO(), width=400)
             self.assertEqual(cli.main(argv, console=c, stdin=io.StringIO("")), 0)
             self.assertNotIn("behind HEAD", c.file.getvalue(), "a commit this clone does not have: nothing can be said")
+
+    def _analysis(self, d, name, sizes, revisions, generated=()):
+        """An output directory as a fresh analysis of the repository would write it: `sizes` {path: lines},
+        `revisions` {path: n-revs}, `generated` the paths .gitattributes marks linguist-generated."""
+        out = os.path.join(d, name)
+        os.makedirs(out)
+        with open(os.path.join(out, "meta.json"), "w") as fh:
+            json.dump({"name": "demo", "path": d, "commits": 60, "identities": [], "last_date": "2026-09-01", "file_types": None,
+                       "generated": list(generated)}, fh)
+        with open(os.path.join(out, "size.json"), "w") as fh:
+            json.dump([{"Name": "Python", "Count": len(sizes), "Code": sum(sizes.values()), "Comment": 0, "Blank": 0, "Complexity": 10,
+                        "Files": [{"Location": "./" + p, "Code": n, "Complexity": 1} for p, n in sizes.items()]}], fh)
+        with open(os.path.join(out, "maat-revisions.csv"), "w") as fh:
+            fh.write("entity,n-revs\n" + "".join(f"{p},{n}\n" for p, n in revisions.items()))
+        return out
+
+    def test_splitting_a_hot_file_or_marking_it_generated_cannot_change_the_exit_code(self):
+        """The gaming invariant. The history score (revisions × lines share) is one no edit can lower, so it is
+        context and never a block (Lewis et al., ICSE 2013: a flag nothing can clear is not acted on). Had it
+        gated, the two cheapest ways to get an edit through would have been to split the hot file, which
+        halves its lines, or to mark it linguist-generated, which takes it out of the pool: neither makes the
+        code any safer. Every threshold gives the same exit code on all three analyses, and it is 0."""
+        with tempfile.TemporaryDirectory() as d:
+            self._repo(d)
+            whole = self._analysis(d, "whole", {"core/hot.py": 800, "core/mid.py": 400, "core/cold.py": 100},
+                                   {"core/hot.py": 40, "core/mid.py": 20, "core/cold.py": 2})
+            split = self._analysis(d, "split", {"core/hot.py": 400, "core/hot_rest.py": 400, "core/mid.py": 400, "core/cold.py": 100},
+                                   {"core/hot.py": 41, "core/hot_rest.py": 1, "core/mid.py": 20, "core/cold.py": 2})
+            marked = self._analysis(d, "marked", {"core/hot.py": 800, "core/mid.py": 400, "core/cold.py": 100},
+                                    {"core/hot.py": 41, "core/mid.py": 20, "core/cold.py": 2}, generated=["core/hot.py"])
+            event = json.dumps({"hook_event_name": "PostToolUse", "tool_input": {"file_path": os.path.join(d, "core/hot.py")}})
+            for threshold in (None, 1, 50, 70, 99.9):
+                codes = {}
+                for out in (whole, split, marked):
+                    argv = [out, "--no-run", "--hook"] + ([] if threshold is None else ["--risk-threshold", str(threshold)])
+                    for files in ([], ["--", "core/hot.py"]):   # an agent's JSON on stdin, and pre-commit's file arguments
+                        stdout = io.StringIO()
+                        codes[(os.path.basename(out), bool(files))] = cli.main(argv + files, console=Console(file=stdout, width=300),
+                                                                               stdin=io.StringIO("" if files else event))
+                        if out == whole:
+                            self.assertIn("core/hot.py: 79.6% of the repository", stdout.getvalue(),
+                                          "the history score is still said: it is context, not a verdict")
+                self.assertEqual(set(codes.values()), {0}, f"threshold {threshold}: {codes}")
 
     def test_the_hook_needs_an_output_directory(self):
         c = Console(file=io.StringIO(), width=200)

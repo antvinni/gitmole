@@ -87,8 +87,8 @@ Exit codes for CI and for coding agents.
 | `--require-vuln-db` | Exit 4 when the dependency scan ran with no vulnerability database, so no package was checked. Without it that run is said on stderr under a gate and in the SARIF, and passes. See [No vulnerability database](#no-vulnerability-database). |
 | `--baseline BEFORE.json` | With an earlier `--json` export of the same clone: the findings it already had are still reported, their statement opening "In the baseline:", and do not count toward `--fail-on`. See [Baseline](#baseline). Not with `owner/*`. |
 | `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
-| `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent; exit 4 when they do not and scc, the log or the change analysis did not complete. With `--hook`: exit 2 at the same point. |
-| `--hook` | With `--no-run` and an output directory: read an agent hook's JSON on stdin (or take files after `--`), score the files it names like `--risk`, print a summary the agent reads back, and exit 2 when `--risk-threshold` is exceeded. See [Agent hooks](#agent-hooks). |
+| `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent; exit 4 when they do not and scc, the log or the change analysis did not complete. With `--hook`: only says whether the total is over N; the hook never blocks (see [Agent hooks](#agent-hooks)). |
+| `--hook` | With `--no-run` and an output directory: read an agent hook's JSON on stdin (or take files after `--`), score the files it names like `--risk`, print a summary the agent reads back, and exit 0. It never blocks an edit: the score is one no edit can lower. See [Agent hooks](#agent-hooks). |
 
 ### Tools and housekeeping
 
@@ -196,11 +196,11 @@ exports also work with `--no-run` against an earlier output directory.
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Done, and no gate asked for found anything. Without `--fail-on`, `--risk-threshold` or `--hook` a run exits 0 even when a step did not complete; the run names the step and the report's header says what is missing. |
+| 0 | Done, and no gate asked for found anything. Without `--fail-on` or `--risk-threshold` a run exits 0 even when a step did not complete; the run names the step and the report's header says what is missing. `--hook` always exits 0 once it has an output directory to read, whatever the scores and whatever `--risk-threshold` says. |
 | 1 | `--doctor` found a tool off its pin; `--install-tools` or `--clean` could not do all it was asked. |
-| 2 | Bad arguments or an unreadable output directory; with `--hook`, over `--risk-threshold` (a `--hook` with no output directory says how to make one and exits 0). |
+| 2 | Bad arguments or an unreadable output directory (a `--hook` with no output directory says how to make one and exits 0). |
 | 3 | A gate found what it stops on: a finding at the `--fail-on` level or worse that is not in the `--baseline`, or a change over `--risk-threshold`. |
-| 4 | A gate could not check: a step it reads failed, timed out or was skipped, and it found nothing it stops on in what the other steps left. The message names the step; `run.log` in the output directory says why. `--fail-on` reads every step but the two plots and the backtest; `--risk-threshold` and `--hook` read scc, the log and the change analysis. Also, with `--require-vuln-db`, a dependency scan that had no vulnerability database. |
+| 4 | A gate could not check: a step it reads failed, timed out or was skipped, and it found nothing it stops on in what the other steps left. The message names the step; `run.log` in the output directory says why. `--fail-on` reads every step but the two plots and the backtest; `--risk-threshold` reads scc, the log and the change analysis. Also, with `--require-vuln-db`, a dependency scan that had no vulnerability database. |
 | 130 | Interrupted. |
 
 A secrets scan that timed out leaves no secrets table, so before 4 existed
@@ -515,12 +515,31 @@ what history already says. `gitmole OUT_DIR --no-run --hook` reads the
 hook's JSON on stdin, takes the file paths the agents put there
 (`tool_input.file_path`, `file_path`, `file_paths`, `tool_response.filePath`),
 scores them like `--risk`, prints one line per file with what imports it and
-the companions the edit left untouched, and exits 2 when the total is over `--risk-threshold`,
-which every one of these hooks reads as "block"; without a threshold it is
-a soft warning. When the output directory's scc, log or change analysis did
-not complete, every file scores 0, so with a threshold the hook exits 4 and
-says so instead of passing the edit: Claude Code shows that to you without
-blocking the model, Cursor with `failClosed` and pre-commit block on it.
+the companions the edit left untouched, and exits 0. When the output
+directory's scc, log or change analysis did not complete, every file scores
+0, and the summary ends by saying so, so a 0 that was never counted does
+not read as a safe file.
+
+The hook never blocks the agent; it is context. Up to 0.42.0 it exited 2,
+which every one of these hooks reads as "block", when the total was over
+`--risk-threshold`. But the total is the edited files' share of the
+repository's revisions × lines of code, and no edit can lower it: the
+revisions are already in the log. Lewis et al. (ICSE 2013) put a flag of
+that kind in front of Google's code reviewers and saw no change in what
+they did, because "there is nothing that can be done by a team to
+immediately unflag a file". The only edits that did get under the threshold
+were the ones that hide a file from the count, splitting it or marking it
+`linguist-generated`, which make nothing safer. The coupling warning is
+something an edit can clear, by touching the companion, but it names the
+right file a little more often than not (54% on the held-out replay,
+[validation.md](validation.md#the-hooks-coupling-warning)), so a
+block on it would stop the agent wrongly about half the time; it stays
+context too. `--risk-threshold` with `--hook` is still accepted, so an
+existing hook configuration keeps working; it only says `over the 10%
+threshold` or `under` on the total line. The gate on a whole change is
+`gitmole . --risk origin/main --risk-threshold 10` in CI or at `pre-push`,
+which still exits 3 over the threshold: there it stops a change before
+review, where a person decides, not an agent's next edit.
 
 The hook scores against an earlier run, so set it up with one run first, in
 the repository:
@@ -535,7 +554,7 @@ PATH. Before that run, or with a mistyped directory, the hook says
 in the repository: gitmole . --out analysis-repo` on stderr and exits 0: an
 exit 2 there would block every edit over a missing file. The scores are the
 analysed commit's, so when HEAD has moved on the hook also says how far,
-on stderr and without changing the exit code (`the analysis in
+on stderr (`the analysis in
 analysis-repo is of 1a2b3c4d5e6f, 14 commits behind HEAD; its scores leave
 those out; refresh it with: gitmole … --out analysis-repo`). There is no
 threshold on that gap: any commit since is revisions the watch list has
@@ -543,27 +562,27 @@ not counted, so run the same command again when the number is more than
 you want to ignore, after a merge from main at the latest.
 
 Claude Code, `.claude/settings.json`, a `PostToolUse` hook on `Write|Edit`;
-the JSON on stdout becomes `additionalContext`, exit 2 shows stderr to the
-model:
+the JSON on stdout becomes `additionalContext`, which the model reads before
+its next step:
 
 ```json
 {"hooks": {"PostToolUse": [{"matcher": "Write|Edit",
-  "hooks": [{"type": "command", "command": "gitmole analysis-repo --no-run --hook --risk-threshold 10"}]}]}}
+  "hooks": [{"type": "command", "command": "gitmole analysis-repo --no-run --hook"}]}]}}
 ```
 
-Cursor, `.cursor/hooks.json`, `afterFileEdit` (add `"failClosed": true` to
-block on a non-zero exit); Gemini CLI, `AfterTool` in its settings; both
-pass the same shape of JSON on stdin and read the exit code:
+Cursor, `.cursor/hooks.json`, `afterFileEdit`; Gemini CLI, `AfterTool` in its
+settings; both pass the same shape of JSON on stdin:
 
 ```json
-{"version": 1, "hooks": {"afterFileEdit": [{"command": "gitmole analysis-repo --no-run --hook --risk-threshold 10", "failClosed": true}]}}
+{"version": 1, "hooks": {"afterFileEdit": [{"command": "gitmole analysis-repo --no-run --hook"}]}}
 ```
 
 pre-commit, from the `.pre-commit-hooks.yaml` in gitmole's repository:
 `gitmole-risk` runs the whole analysis against `origin/main` at `pre-push`
+and is the one that can fail
 (the external tools have to be on PATH, or installed once with `gitmole --install-tools`); `gitmole-hook` scores the staged
 files against an earlier run at `pre-commit`, with the output directory as
-its first argument:
+its first argument, and prints its summary without failing the commit:
 
 ```yaml
 repos:
@@ -573,7 +592,7 @@ repos:
       - id: gitmole-risk
         args: [--risk, origin/main, --risk-threshold, "10"]
       - id: gitmole-hook
-        args: [analysis-repo, --no-run, --hook, --risk-threshold, "10", --]
+        args: [analysis-repo, --no-run, --hook, --]
 ```
 
 Put the latest tag from [the releases page](https://github.com/antvinni/gitmole/releases)

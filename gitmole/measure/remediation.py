@@ -30,7 +30,7 @@ someone on a knowledge island leaves no trace in a tree, which makes the advice 
 says nothing about whether taking it was worth it. Where this list and the hand labels agree, two
 methods agreed; that is worth recording and is not the same as either being right.
 
-    python -m gitmole.measure.remediation REPORT.json --repo DIR [--horizon 6]
+    python -m gitmole.measure.remediation REPORT.json [MORE.json ...] --repo DIR [--horizon 6]
 
 REPORT.json is a `--json` export made at the cut-off; the horizon picks the commit at the far end
 through harness.rev_at, main's first-parent commit, the way the rest of the harness picks one.
@@ -44,6 +44,17 @@ A subject the tree did not hold at the cut-off is counted ABSENT and left out of
 that gate curl's specimen values read as 90% remediated, because the secrets rules name paths from the
 whole history and most of those files had been deleted years before the cut-off. The secrets rules are
 in NOT_OBSERVABLE for the same reason: the value stays in history whatever the tree does.
+
+A subject whose path left the tree is followed through git's rename detection between the two trees
+(pinned limit and similarity, so a user's config cannot change the answer) and its predicate asked
+again at the new path; anything but RESOLVED there is MOVED, which is never counted as fixed. Before
+this, `git mv` of an unreferenced file or a trojan-source file read as the advice taken. A function gone
+by name whose declaration and body survive under another name is MOVED too, not RESOLVED.
+
+Given several exports of one repository, made at several cut-offs, each subject is counted once, at the
+first cut-off that flagged it, so a file left open through six cut-offs is one open subject, not six.
+A subject renamed between two cut-offs is still two identities; the window's own MOVED catches only a
+move inside one window.
 
 The predicates have fixtures in tests/test_remediation.py; the git reads were first exercised on curl
 over 2025-09-16 to 2026-03-16, which is where the ABSENT gate and the table's denominators came from.
@@ -65,6 +76,17 @@ OPEN = "open"           # it is still there
 GONE = "gone"           # the file it lived in left the tree
 UNKNOWN = "unknown"     # the tree cannot answer; needs a second run's metrics
 ABSENT = "absent"       # not in the tree at the cut-off, so the window says nothing about it
+MOVED = "moved"         # still there under another path or name: never counted as fixed
+
+# git's documented default for diff.renameLimit, pinned on the command line so that a user's git config
+# cannot change which moves are found, and so the bytes of a run (C6). Exact renames are found whatever
+# the limit; past it git skips the inexact ones and says so, and the run prints that it did.
+RENAME_LIMIT = 1000
+# git's own default similarity for -M: a path that kept half its content under a new name was moved.
+RENAME_SIMILARITY = 50
+
+# The subject keys that hold a path, followed through a rename together.
+PATH_KEYS = ("file", "manifest", "lockfile", "source")
 
 
 HORIZON = 6   # months from the cut-off, the horizon the watch list's backtest uses
@@ -93,6 +115,29 @@ def window(repo: str, cutoff: str, horizon: int) -> tuple:
     return end, rev_at(repo, end)
 
 
+def renames(repo: str, before_rev: str, rev: str) -> tuple:
+    """({old path: new path}, skipped) between the cut-off tree and the far end of the window, by git's
+    own rename detection over the two trees: one process, whatever the number of subjects. A file moved
+    twice in the window is found end to end, provided it kept the similarity. `skipped` is True when the
+    pinned limit made git leave inexact renames out, which the table then says."""
+    proc = subprocess.run([*GIT, "-c", f"diff.renameLimit={RENAME_LIMIT}", "diff", "--no-ext-diff", "--no-textconv", "--no-relative",
+                           "--name-status", "-z", f"--find-renames={RENAME_SIMILARITY}%", before_rev, rev, "--"],
+                          cwd=repo, capture_output=True)
+    if proc.returncode:
+        return {}, False
+    fields = [f.decode("utf-8", "surrogateescape") for f in proc.stdout.split(b"\0")]
+    moves, i = {}, 0
+    while i < len(fields) and fields[i]:
+        status = fields[i]
+        if status[:1] in ("R", "C"):
+            if status[:1] == "R":
+                moves[fields[i + 1]] = fields[i + 2]
+            i += 3
+        else:
+            i += 2
+    return moves, b"renameLimit" in proc.stderr
+
+
 class After:
     """The tree at the far end of the window, and when each path was last touched.
 
@@ -105,12 +150,14 @@ class After:
     curl's specimen values into a 90% remediation rate for acts nobody performed in the window."""
 
     def __init__(self, repo: str, rev: str, cutoff: str = "", before_rev: str = ""):
-        self.repo, self.rev, self.cutoff = repo, rev, cutoff
+        self.repo, self.rev, self.cutoff, self.before_rev = repo, rev, cutoff, before_rev
         self.at_cutoff = None
+        self.moves, self.renames_skipped = {}, False
         if before_rev:
             out = subprocess.run([*GIT, "ls-tree", "-r", "-z", "--name-only", before_rev], cwd=repo,
                                  capture_output=True, check=True).stdout
             self.at_cutoff = {p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p}
+            self.moves, self.renames_skipped = renames(repo, before_rev, rev)
         self._entries = {}
         out = subprocess.run([*GIT, "ls-tree", "-r", "-z", rev], cwd=repo, capture_output=True, check=True).stdout
         for row in out.split(b"\0"):
@@ -147,6 +194,15 @@ class After:
             value = None                      # binary: no predicate reads one
         self._text[path] = value
         return value
+
+    def before_text(self, path: str):
+        """The file's text in the cut-off tree, or None: what a renamed function is matched against."""
+        if not self.before_rev:
+            return None
+        blob = subprocess.run([*GIT, "cat-file", "blob", f"{self.before_rev}:{path}"], cwd=self.repo, capture_output=True)
+        if blob.returncode or b"\0" in blob.stdout[:8000]:
+            return None
+        return blob.stdout.decode("utf-8", "replace")
 
     def last_commit_day(self, path: str):
         """YYYY-MM-DD of the last commit to touch `path` at or before `rev`, or None."""
@@ -311,16 +367,76 @@ def _debt_marker(s, after):
     return RESOLVED if len(_MARKER.findall(text)) < was else OPEN
 
 
+_IDENT = r"[A-Za-z_$][\w$]*"
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
+
+
+def _body(lines: list, at: int) -> list:
+    """The non-blank lines after the declaration at `at`, up to the first one indented no deeper than it:
+    a closing brace, or the next statement at the declaration's level. An opening brace on a line of its
+    own at that level (C's usual layout) opens the body rather than ending it. Stripped, so a re-indent
+    is not an edit."""
+    out, depth = [], _indent(lines[at])
+    for line in lines[at + 1:]:
+        if not line.strip():
+            continue
+        out.append(line.strip())
+        if _indent(line) <= depth and line.strip() != "{":
+            break
+    return out
+
+
+def _similar(a: list, b: list) -> bool:
+    """git's rename rule on lines: at least RENAME_SIMILARITY percent of the larger body is shared. Lines
+    of punctuation alone (a brace) say nothing about which function this is and are not counted."""
+    a, b = [x for x in a if re.search(r"\w", x)], [x for x in b if re.search(r"\w", x)]
+    if not a and not b:
+        return True
+    shared = sum((Counter(a) & Counter(b)).values())
+    return shared * 100 >= RENAME_SIMILARITY * max(len(a), len(b))
+
+
+def _renamed(s, name: str, text: str, after) -> bool:
+    """Whether the function the finding named is still in `text` under another name: its declaration
+    line at the cut-off, with the name taken for any other identifier, starts a line there, and the body
+    that follows is similar by git's own rename threshold. Without the cut-off's text or a declaration
+    line that holds the name, nothing can be matched, and the old reading stands."""
+    read = getattr(after, "before_text", None)
+    start = s.get("start")
+    if not read or not isinstance(start, int) or start < 1:
+        return False
+    before = read(s.get("_from") or s["file"])
+    if before is None:
+        return False
+    old = before.split("\n")
+    word = rf"(?<![\w$]){re.escape(name)}(?![\w$])"
+    parts = re.split(word, old[start - 1].strip(), maxsplit=1) if start <= len(old) else []
+    if len(parts) != 2:
+        return False
+    head, tail = parts
+    shape = re.compile(rf"{re.escape(head)}(?!{re.escape(name)}(?![\w$])){_IDENT}{re.escape(tail)}")
+    was = _body(old, start - 1)
+    new = text.split("\n")
+    return any(shape.fullmatch(line.strip()) and _similar(was, _body(new, i)) for i, line in enumerate(new))
+
+
 def _named_function(s, after):
     """A weak proxy: the function is gone by name. Whether a surviving one got simpler needs a second
-    run's function metrics, so that case is UNKNOWN rather than OPEN."""
+    run's function metrics, so that case is UNKNOWN rather than OPEN. A function that is gone by name
+    but whose declaration and body are still there under another name was renamed, not split, and is
+    MOVED, never RESOLVED."""
     text = after.text(s["file"])
     if text is None:
         return GONE
     name = s.get("function") or s.get("name") or ""
     if not name or name == "(anonymous)":
         return UNKNOWN
-    return RESOLVED if name not in text else UNKNOWN
+    if name in text:
+        return UNKNOWN
+    return MOVED if _renamed(s, name, text, after) else RESOLVED
 
 
 def _instructions_drift(s, after):
@@ -449,8 +565,50 @@ def _present_at_cutoff(subject, after: After) -> bool:
     return path in after.at_cutoff
 
 
-def score(findings: list, after: After) -> dict:
-    """rule -> Counter of outcomes over every subject its findings named."""
+def _moved(subject, after):
+    """The subject with its paths followed through the window's renames, or None when none of them
+    moved. Only a path the later tree lacks is followed: one that is still there was not moved away."""
+    moves = getattr(after, "moves", None)
+    if not moves or not isinstance(subject, dict):
+        return None
+    out = dict(subject)
+    for key in PATH_KEYS:
+        path = subject.get(key)
+        if isinstance(path, str) and not after.exists(path) and path in moves:
+            out[key] = moves[path]
+            if key == "file":
+                out["_from"] = path
+    return out if out != subject else None
+
+
+def outcome(subject, predicate, after) -> str:
+    """The predicate's answer, with a moved subject judged where it went. A file renamed or moved used
+    to read as deleted, so an unreferenced file or a trojan-source file was counted fixed by a `git mv`;
+    now the predicate is asked again of the new path, and anything but RESOLVED there is MOVED."""
+    moved = _moved(subject, after)
+    if moved is None:
+        return predicate(subject, after)
+    answer = predicate(moved, after)
+    return RESOLVED if answer == RESOLVED else MOVED
+
+
+# Subject keys that say which thing a finding named, rather than how it measured that day: a line
+# number, a complexity or a count drifts between cut-offs while the subject stays the same.
+IDENTITY_KEYS = ("_kind", *PATH_KEYS, "uses", "char", "token", "value", "package", "version", "key",
+                 "url", "branch", "function", "name")
+
+
+def identity(rule: str, subject) -> tuple:
+    if not isinstance(subject, dict):
+        return (rule, str(subject))
+    return (rule, *((k, str(subject[k])) for k in IDENTITY_KEYS if subject.get(k) is not None))
+
+
+def score(findings: list, after: After, seen: set = None) -> dict:
+    """rule -> Counter of outcomes over every subject its findings named. With `seen`, a subject already
+    counted at an earlier cut-off is left out (and counted under REPEAT), and the ones counted here are
+    added to it: across several cut-offs a subject is counted once, where it was first flagged, so an
+    open file flagged six times is not six open subjects."""
     out = {}
     for finding in findings:
         rule = (finding.get("rule") or {}).get("id")
@@ -460,26 +618,43 @@ def score(findings: list, after: After) -> dict:
                 continue
             counts = out.setdefault(name, Counter())
             for subject in subjects(evidence):
+                if seen is not None:
+                    key = identity(name, subject)
+                    if key in seen:
+                        counts[REPEAT] += 1
+                        continue
+                    seen.add(key)
                 at_cutoff = getattr(after, "at_cutoff", None)   # a stub tree need not carry one
                 if at_cutoff is not None and not _present_at_cutoff(subject, after):
                     counts[ABSENT] += 1       # the window cannot speak for a file that was already gone
                     continue
                 try:
-                    counts[predicate(subject, after)] += 1
+                    counts[outcome(subject, predicate, after)] += 1
                 except (KeyError, TypeError, subprocess.SubprocessError):
                     counts[UNKNOWN] += 1
     return out
 
 
+REPEAT = "repeat"   # flagged again at a later cut-off; counted once, at the first
+
+
 MIN_JUDGED = 5   # below this a share is printed as the fraction it is: 1 of 1 is not 100%
 
 
-def judged(counts: Counter, gone_is_fix: bool) -> int:
-    """How many subjects the window could speak for: the denominator behind the share."""
-    return counts[RESOLVED] + counts[OPEN] + (counts[GONE] if gone_is_fix else 0)
+def moved_is_judged(name: str) -> bool:
+    """Whether a MOVED subject is in the denominator as not fixed. It is, except for the function rules,
+    whose predicate calls every surviving function can't-say (it may have got simpler): a renamed one is
+    a survivor too, so it stays out of the share as they do."""
+    return RULES[name][1] is not _named_function
 
 
-OUTCOMES = (RESOLVED, OPEN, GONE, UNKNOWN, ABSENT)
+def judged(counts: Counter, gone_is_fix: bool, moved: bool = True) -> int:
+    """How many subjects the window could speak for: the denominator behind the share. A MOVED subject
+    is judged and never fixed (see moved_is_judged for the exception)."""
+    return counts[RESOLVED] + counts[OPEN] + (counts[MOVED] if moved else 0) + (counts[GONE] if gone_is_fix else 0)
+
+
+OUTCOMES = (RESOLVED, OPEN, MOVED, GONE, UNKNOWN, ABSENT, REPEAT)
 
 
 def counts(scored: dict) -> dict:
@@ -502,7 +677,7 @@ def pooled(rows) -> dict:
     out = {}
     for name, c in sorted(totals.items()):
         gone_is_fix = RULES[name][2]
-        n = judged(c, gone_is_fix)
+        n = judged(c, gone_is_fix, moved_is_judged(name))
         fixed = c[RESOLVED] + (c[GONE] if gone_is_fix else 0)
         out[name] = {**{k: c[k] for k in OUTCOMES}, "gone_is_fix": gone_is_fix,
                      "kind": "mechanical" if name in MECHANICAL else "structural",
@@ -527,13 +702,13 @@ def table(scored: dict) -> str:
     two hundred are not the same claim. Each band pools its subjects rather than averaging its rules,
     so one rule with a single subject cannot move the band, and the two bands stay apart because a
     project pins an action far more readily than it splits a class."""
-    rows = ["| rule | kind | subjects | acted on | still open | left the tree | can't say | gone before | share |",
-            "|---|---|---:|---:|---:|---:|---:|---:|---:|"]
+    rows = ["| rule | kind | subjects | acted on | still open | moved | left the tree | can't say | gone before | share |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     bands = {"mechanical": Counter(), "structural": Counter()}
     for name, counts in sorted(scored.items(), key=lambda kv: (kv[0] not in MECHANICAL, kv[0])):
         kind = "mechanical" if name in MECHANICAL else "structural"
         gone_is_fix = RULES[name][2]
-        n = judged(counts, gone_is_fix)
+        n = judged(counts, gone_is_fix, moved_is_judged(name))
         fixed = counts[RESOLVED] + (counts[GONE] if gone_is_fix else 0)
         bands[kind].update({"fixed": fixed, "judged": n})
         if not n:
@@ -542,8 +717,8 @@ def table(scored: dict) -> str:
             shown = f"{fixed} of {n}"
         else:
             shown = format(fixed / n, ".0%")
-        rows.append(f"| {name} | {kind} | {sum(counts.values())} | {counts[RESOLVED]} | "
-                    f"{counts[OPEN]} | {counts[GONE]} | {counts[UNKNOWN]} | {counts[ABSENT]} | {shown} |")
+        rows.append(f"| {name} | {kind} | {sum(counts.values()) - counts[REPEAT]} | {counts[RESOLVED]} | "
+                    f"{counts[OPEN]} | {counts[MOVED]} | {counts[GONE]} | {counts[UNKNOWN]} | {counts[ABSENT]} | {shown} |")
     for kind, totals in bands.items():
         if totals["judged"]:
             line = f"\n{kind}: {totals['fixed']} of {totals['judged']} subjects acted on"
@@ -555,9 +730,11 @@ def table(scored: dict) -> str:
     return "\n".join(rows)
 
 
-def over_window(findings: list, repo: str, cutoff: str, horizon: int = HORIZON) -> dict:
+def over_window(findings: list, repo: str, cutoff: str, horizon: int = HORIZON, seen: set = None) -> dict:
     """What main() prints, as a record: the window's end, the outcome counts by rule, and the rules that
-    fired but are not scored. A window past the history is an `error`, as main() refuses it."""
+    fired but are not scored. A window past the history is an `error`, as main() refuses it. With `seen`,
+    shared across one repository's cut-offs oldest first, a subject an earlier cut-off counted is a
+    REPEAT here (score())."""
     end, rev = window(repo, cutoff, horizon)
     if not rev:
         return {"end": end, "error": f"the window would end {end}, past this history"}
@@ -565,44 +742,75 @@ def over_window(findings: list, repo: str, cutoff: str, horizon: int = HORIZON) 
     after = After(repo, rev, cutoff, before_rev=rev_at(repo, cutoff) or "")
     fired = {(f.get("rule") or {}).get("id") for f in findings} - {None}
     scored = {name for name in RULES if name in fired or name.split("_mixed")[0] in fired}
-    return {"end": end, "after": rev, "findings": len(findings), "rules": counts(score(findings, after)),
+    return {"end": end, "after": rev, "findings": len(findings), "rules": counts(score(findings, after, seen)),
             "unscored": sorted(fired - scored)}
+
+
+def _load(path: str) -> dict:
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
 
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("report", help="a --json export made at the cut-off")
+    p.add_argument("report", nargs="+", help="a --json export made at the cut-off; several, made at several cut-offs "
+                                             "of one repository, count each subject once, at the first that flagged it")
     p.add_argument("--repo", default=".")
     p.add_argument("--horizon", type=int, default=HORIZON, metavar="MONTHS",
                    help=f"months from the cut-off to the far end of the window (default {HORIZON})")
-    p.add_argument("--after", metavar="REV", help="score against this commit instead of the one the horizon picks")
+    p.add_argument("--after", metavar="REV", help="score against this commit instead of the one the horizon picks "
+                                                  "(one export only)")
     args = p.parse_args(argv)
-    with open(args.report, encoding="utf-8") as fh:
-        export = json.load(fh)
-    findings = export.get("findings") or []
-    if not findings:
-        print("remediation: the export carries no findings", file=sys.stderr)
+    exports = [_load(path) for path in args.report]
+    if args.after and len(exports) > 1:
+        print("remediation: --after places one window; give one export with it", file=sys.stderr)
         return 2
-    cutoff = (export.get("meta") or {}).get("now") or ""
-    rev, end = args.after, ""
-    if not rev:
-        if not cutoff:
-            print("remediation: the export records no reference date, so the window cannot be placed; pass --after",
-                  file=sys.stderr)
+    for path, export in zip(args.report, exports):
+        if not export.get("findings"):
+            print(f"remediation: {path} carries no findings", file=sys.stderr)
             return 2
-        end, rev = window(args.repo, cutoff, args.horizon)
-        if not rev:
-            print(f"remediation: the window would end {end}, past this history. Move the cut-off back "
-                  f"at least {args.horizon} months, or the rates are depressed by findings nobody has had time to act on.",
-                  file=sys.stderr)
-            return 2
+    # oldest cut-off first, so a subject is counted at the first export that flagged it
+    order = sorted(range(len(exports)), key=lambda i: ((exports[i].get("meta") or {}).get("now") or "", i))
     from .harness import rev_at
-    before_rev = (rev_at(args.repo, cutoff) or "") if cutoff else ""
-    after = After(args.repo, rev, cutoff, before_rev=before_rev)
-    scored = score(findings, after)
-    print(f"### Acted on by {end or rev}, against findings made at {cutoff or 'the export'}\n")
+    windows = []
+    for i in order:
+        cutoff = (exports[i].get("meta") or {}).get("now") or ""
+        rev, end = args.after, ""
+        if not rev:
+            if not cutoff:
+                print(f"remediation: {args.report[i]} records no reference date, so the window cannot be placed; "
+                      "pass --after", file=sys.stderr)
+                return 2
+            end, rev = window(args.repo, cutoff, args.horizon)
+            if not rev:
+                print(f"remediation: the window would end {end}, past this history. Move the cut-off back "
+                      f"at least {args.horizon} months, or the rates are depressed by findings nobody has had time to act on.",
+                      file=sys.stderr)
+                return 2
+        windows.append((exports[i], cutoff, rev, end))
+    seen = set() if len(windows) > 1 else None
+    scored, skipped = {}, []
+    for export, cutoff, rev, end in windows:
+        before_rev = (rev_at(args.repo, cutoff) or "") if cutoff else ""
+        after = After(args.repo, rev, cutoff, before_rev=before_rev)
+        if after.renames_skipped:
+            skipped.append(cutoff or rev)
+        for name, counts in score(export["findings"], after, seen).items():
+            scored.setdefault(name, Counter()).update(counts)
+    if len(windows) == 1:
+        _, cutoff, rev, end = windows[0]
+        print(f"### Acted on by {end or rev}, against findings made at {cutoff or 'the export'}\n")
+    else:
+        print(f"### Acted on within {args.horizon} months, against findings made at "
+              f"{', '.join(c for _, c, _, _ in windows)}, each subject counted at the first cut-off that flagged it\n")
     print(table(scored) if scored else "No scored rule fired in this export.")
-    fired = {(f.get("rule") or {}).get("id") for f in findings}
+    repeats = sum(c[REPEAT] for c in scored.values())
+    if repeats:
+        print(f"\n{repeats} subject(s) flagged again at a later cut-off are counted once, at the first.")
+    if skipped:
+        print(f"\ngit skipped inexact rename detection past diff.renameLimit={RENAME_LIMIT} in the window from "
+              f"{', '.join(skipped)}, so a file moved with edits there reads as gone.")
+    fired = {(f.get("rule") or {}).get("id") for export, _, _, _ in windows for f in export["findings"]}
     text = unscored(fired)
     if text:
         print(text, end="")

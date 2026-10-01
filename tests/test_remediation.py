@@ -7,10 +7,15 @@ WF = ".github/workflows/ci.yml"
 
 
 class Tree:
-    """Stands in for remediation.After: a dict of the tree at the far end of the window."""
+    """Stands in for remediation.After: a dict of the tree at the far end of the window, the window's
+    renames, and the cut-off tree's text where a test needs it."""
 
-    def __init__(self, files, days=None, links=(), cutoff="2025-01-01"):
+    def __init__(self, files, days=None, links=(), cutoff="2025-01-01", moves=None, before=None):
         self.files, self.days, self.links, self.cutoff = files, days or {}, set(links), cutoff
+        self.moves, self.before = moves or {}, before or {}
+
+    def before_text(self, path):
+        return self.before.get(path)
 
     def exists(self, path):
         return path in self.files
@@ -199,10 +204,10 @@ class Scoring(unittest.TestCase):
     def test_every_subject_is_accounted_for_in_a_column(self):
         """The denominator is the point: a share over two judged subjects is not a share over two hundred."""
         from collections import Counter
-        counts = Counter({r.RESOLVED: 2, r.OPEN: 1, r.GONE: 1, r.UNKNOWN: 3, r.ABSENT: 4})
+        counts = Counter({r.RESOLVED: 2, r.OPEN: 1, r.MOVED: 5, r.GONE: 1, r.UNKNOWN: 3, r.ABSENT: 4})
         row = [line for line in r.table({"committed_binaries": counts}).split("\n") if "committed_binaries" in line][0]
-        self.assertEqual(row.count("|"), 10)
-        self.assertIn("| 11 | 2 | 1 | 1 | 3 | 4 |", row, "subjects, then each outcome")
+        self.assertEqual(row.count("|"), 11)
+        self.assertIn("| 16 | 2 | 1 | 5 | 1 | 3 | 4 | 33% |", row, "subjects, then each outcome; moved is judged, never fixed")
 
     def test_the_band_pools_subjects_rather_than_averaging_rules(self):
         """Averaging 90% over ten subjects with 0% over one gave curl's misleading 45%."""
@@ -223,6 +228,127 @@ class Scoring(unittest.TestCase):
         self.assertEqual(counts[r.ABSENT], 1)
         self.assertEqual(sum(counts.values()), 2)
         self.assertEqual(r.judged(counts, False), 1, "the absent subject is out of the denominator")
+
+
+class Moves(unittest.TestCase):
+    """A `git mv` is not the advice taken: the subject is followed to its new path and judged there."""
+
+    def test_an_unreferenced_file_moved_is_not_fixed(self):
+        findings = [{"rule": {"id": "unreferenced_files"}, "evidence": {"files": ["old/dead.c", "gone.c"]}}]
+        tree = Tree({"new/dead.c": "int x;"}, moves={"old/dead.c": "new/dead.c"})
+        counts = r.score(findings, tree)["unreferenced_files"]
+        self.assertEqual(counts[r.MOVED], 1)
+        self.assertEqual(counts[r.RESOLVED], 1, "the file that really left the tree is still the fix")
+        self.assertEqual(r.judged(counts, True), 2)
+
+    def test_a_moved_file_whose_codepoint_went_is_resolved_there(self):
+        sub = {"file": "a.s", "char": "U+202E"}
+        still = Tree({"b.s": "x\u202ey"}, moves={"a.s": "b.s"})
+        clean = Tree({"b.s": "xy"}, moves={"a.s": "b.s"})
+        self.assertEqual(r.outcome(sub, r._bidi_char, still), r.MOVED)
+        self.assertEqual(r.outcome(sub, r._bidi_char, clean), r.RESOLVED)
+
+    def test_a_path_still_in_the_tree_is_not_followed(self):
+        """A copy at a new path leaves the old one where it was; only a missing path is followed."""
+        tree = Tree({"a.s": "x\u202ey", "b.s": "xy"}, moves={"a.s": "b.s"})
+        self.assertEqual(r.outcome({"file": "a.s", "char": "U+202E"}, r._bidi_char, tree), r.OPEN)
+
+    def test_a_moved_manifest_is_followed_with_its_lockfile(self):
+        sub = {"manifest": "a/package.json", "package": "lodash"}
+        tree = Tree({"b/package.json": '{"dependencies":{"lodash":"^4"}}'}, moves={"a/package.json": "b/package.json"})
+        self.assertEqual(r.outcome(sub, r._unused_dependency, tree), r.MOVED)
+
+    def test_a_renamed_function_is_moved_not_resolved(self):
+        before = "int x;\nstatic int big(int a, int b)\n{\n    if (a) return b;\n    return a + b;\n}\n"
+        after = "int x;\nstatic int huge(int a, int b)\n{\n    if (a) return b;\n    return a + b;\n}\n"
+        sub = {"file": "a.c", "function": "big", "start": 2}
+        self.assertEqual(r._named_function(sub, Tree({"a.c": after}, before={"a.c": before})), r.MOVED)
+
+    def test_a_brace_on_its_own_line_opens_the_body(self):
+        """C's layout: a body cut at the `{` is only the parameters, and any function sharing them would match."""
+        before = "static int big(int a,\n               int b)\n{\n  if(a)\n    return b;\n  return a + b;\n}\n"
+        same = "static int huge(int a,\n               int b)\n{\n  if(a)\n    return b;\n  return a + b;\n}\n"
+        other = "static int other(int a,\n               int b)\n{\n  return a * b * 2;\n}\n"
+        sub = {"file": "a.c", "function": "big", "start": 1}
+        self.assertEqual(r._named_function(sub, Tree({"a.c": same}, before={"a.c": before})), r.MOVED)
+        self.assertEqual(r._named_function(sub, Tree({"a.c": other}, before={"a.c": before})), r.RESOLVED)
+
+    def test_a_function_split_away_is_still_resolved(self):
+        before = "def big(a, b):\n    x = a\n    y = b\n    z = a * b\n    return x + y + z\n"
+        after = "def part(a, b):\n    return a + b\n\ndef other(a, b):\n    return a * b\n"
+        sub = {"file": "a.py", "function": "big", "start": 1}
+        self.assertEqual(r._named_function(sub, Tree({"a.py": after}, before={"a.py": before})), r.RESOLVED)
+
+    def test_without_the_cutoff_text_the_old_reading_stands(self):
+        sub = {"file": "a.py", "function": "big", "start": 1}
+        self.assertEqual(r._named_function(sub, Tree({"a.py": "def huge(): 0"})), r.RESOLVED)
+
+    def test_a_function_in_a_moved_file_is_read_there(self):
+        """Its file moved and the name survived: a survivor, so can't-say, and out of the share as survivors are."""
+        findings = [{"rule": {"id": "brain_methods"}, "evidence": {"functions": [{"file": "a.py", "function": "big", "start": 1}]}}]
+        counts = r.score(findings, Tree({"b.py": "def big(): 0"}, moves={"a.py": "b.py"}))["brain_methods"]
+        self.assertEqual(counts[r.MOVED], 1)
+        self.assertFalse(r.moved_is_judged("brain_methods"))
+        self.assertTrue(r.moved_is_judged("unreferenced_files"))
+        self.assertEqual(r.judged(counts, False, r.moved_is_judged("brain_methods")), 0)
+
+
+class Renames(unittest.TestCase):
+    """The rename map from git itself, with the limit pinned on the command line."""
+
+    def test_git_names_the_move(self):
+        import os
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+                       GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+
+            def git(*args):
+                return subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=env, text=True).stdout.strip()
+            git("init", "-q")
+            git("config", "diff.renameLimit", "1")      # a user's config: must not change the answer
+            git("config", "diff.renames", "false")
+            body = "".join(f"line {i}\n" for i in range(40))
+            for name in ("keep.c", "move me.c", "drop.c", "other.c"):
+                with open(os.path.join(d, name), "w") as fh:
+                    fh.write(name + "\n" + body)
+            git("add", "keep.c", "move me.c", "drop.c", "other.c")
+            git("commit", "-q", "-m", "a")
+            first = git("rev-parse", "HEAD")
+            os.makedirs(os.path.join(d, "sub"))
+            git("mv", "move me.c", "sub/moved.c")
+            git("mv", "other.c", "sub/other2.c")
+            with open(os.path.join(d, "sub", "moved.c"), "a") as fh:
+                fh.write("an edit\n")
+            git("rm", "-q", "drop.c")
+            git("add", "sub/moved.c")
+            git("commit", "-q", "-m", "b")
+            moves, skipped = r.renames(d, first, git("rev-parse", "HEAD"))
+            self.assertEqual(moves, {"move me.c": "sub/moved.c", "other.c": "sub/other2.c"})
+            self.assertFalse(skipped)
+
+
+class Repeats(unittest.TestCase):
+    """Across several cut-offs a subject is counted once, where it was first flagged."""
+
+    def test_a_subject_flagged_twice_is_counted_at_the_first(self):
+        seen = set()
+        first = [{"rule": {"id": "unpinned_actions"}, "evidence": {"unpinned": [{"file": WF, "uses": "actions/checkout@v4", "line": 3}]}}]
+        later = [{"rule": {"id": "unpinned_actions"}, "evidence": {"unpinned": [{"file": WF, "uses": "actions/checkout@v4", "line": 9},
+                                                                              {"file": WF, "uses": "actions/cache@v4", "line": 12}]}}]
+        tree = Tree({WF: "    - uses: actions/checkout@v4\n    - uses: actions/cache@v4\n"})
+        a = r.score(first, tree, seen)["unpinned_actions"]
+        b = r.score(later, tree, seen)["unpinned_actions"]
+        self.assertEqual(a[r.OPEN], 1)
+        self.assertEqual((b[r.OPEN], b[r.REPEAT]), (1, 1), "the line moved; the subject did not")
+        both = a + b
+        row = [line for line in r.table({"unpinned_actions": both}).split("\n") if "| unpinned_actions" in line][0]
+        self.assertIn("| 2 | 0 | 2 |", row, "a repeat is not a subject")
+
+    def test_one_export_counts_every_subject(self):
+        findings = [{"rule": {"id": "unpinned_actions"}, "evidence": {"unpinned": [{"file": WF, "uses": "a/b@v1"}, {"file": WF, "uses": "a/b@v1"}]}}]
+        self.assertEqual(r.score(findings, Tree({WF: "uses: a/b@v1"}))["unpinned_actions"][r.OPEN], 2)
 
 
 class Window(unittest.TestCase):

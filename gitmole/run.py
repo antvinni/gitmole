@@ -294,7 +294,7 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         # -M: a move is not an edit; -w --ignore-blank-lines: a whitespace-only hunk is not a changed line, so a reformat that only
         # re-indents a file is not a revision of it; HEAD, not --all: a backport on a release branch is not a second fix, and the
         # stash is not a commit
-        {"name": "git-log", "argv": [*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", f"--pretty=format:{LOG_FORMAT}", "-M", "-w", "--ignore-blank-lines", *scopes.pathspec(scope)], "stdout": log, "deps": []},
+        {"name": "git-log", "argv": [*filetypes.GIT, *filetypes.RENAMES, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", f"--pretty=format:{LOG_FORMAT}", "-M", "-w", "--ignore-blank-lines", *scopes.pathspec(scope)], "stdout": log, "deps": []},
         # the commits whose message carries git revert's own body line, "This reverts commit <sha>", with their bodies: a revert
         # whose subject was rewritten (a squash merge, a conventional-commit prefix) is still one. Only those commits are printed.
         {"name": "reverts", "argv": [*filetypes.GIT, "log", "HEAD", "-E", f"--grep={REVERT_GREP}", "--format=%H%x1f%b%x1e"], "stdout": o("reverts.txt"), "deps": []},
@@ -489,7 +489,7 @@ def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int
     already listed, so the index is not read again. `scope` is --path's directories: the files and the
     history under them."""
     files = len(_git(repo_dir, "ls-files", *scopes.pathspec(scope)).splitlines())
-    times = [int(t) for t in _git(repo_dir, "log", "--format=%ct", *scopes.pathspec(scope)).split()]
+    times = [int(t) for t in _git(repo_dir, *filetypes.RENAMES, "log", "--format=%ct", *scopes.pathspec(scope)).split()]
     span = (max(times) - min(times)) if times else 0
     samples = min(len(times), span // interval + 1) if times else 0
     text = blame.drop_ignored(scopes.keep(tracked, scope), ignore) if tracked is not None else blame.text_files(repo_dir, ignore, scope)
@@ -568,7 +568,7 @@ def _merge_rows(repo_dir: str, scope=()) -> list:
     if not scope:
         return [l.split("\t", 2) for l in _git(repo_dir, "log", "HEAD", "--merges", "--use-mailmap", "--format=%ad\t%aN\t%aE", "--date=short").split("\n")
                 if l.count("\t") == 2]
-    text = _git(repo_dir, *filetypes.GIT[1:], "log", "HEAD", "--merges", "--use-mailmap", "--full-history", "--diff-merges=first-parent", "--name-only",
+    text = _git(repo_dir, *filetypes.GIT[1:], *filetypes.RENAMES, "log", "HEAD", "--merges", "--use-mailmap", "--full-history", "--diff-merges=first-parent", "--name-only",
                 "--format=%x01%ad\t%aN\t%aE", "--date=short", *scopes.pathspec(scope))
     rows = []
     for block in text.split("\x01")[1:]:
@@ -653,7 +653,7 @@ def collect_meta(repo_dir: str, since: str = None, scope=()) -> dict:
 
 def changed_files(repo_dir: str, base: str) -> list:
     """Paths that differ between the merge base with `base` and HEAD, sorted. ValueError when git refuses."""
-    proc = subprocess.run([*filetypes.GIT, "diff", "-z", "--name-only", f"{base}...HEAD"], cwd=repo_dir, capture_output=True)
+    proc = subprocess.run([*filetypes.GIT, *filetypes.RENAMES, "diff", "-z", "--name-only", f"{base}...HEAD"], cwd=repo_dir, capture_output=True)
     if proc.returncode != 0:
         raise ValueError((proc.stderr.decode("utf-8", "replace").strip() or f"git diff {base}...HEAD failed"))
     return sorted(p.decode("utf-8", "surrogateescape") for p in proc.stdout.split(b"\0") if p)
@@ -665,7 +665,7 @@ def change_stats(repo_dir: str, base: str) -> dict:
     author of HEAD, how many commits the change spans and their subjects, newest first. ValueError
     when git refuses."""
     files = changed_files(repo_dir, base)
-    proc = subprocess.run([*filetypes.GIT, "diff", "--numstat", "-w", "--ignore-blank-lines", f"{base}...HEAD"], cwd=repo_dir, capture_output=True)
+    proc = subprocess.run([*filetypes.GIT, *filetypes.RENAMES, "diff", "--numstat", "-w", "--ignore-blank-lines", f"{base}...HEAD"], cwd=repo_dir, capture_output=True)
     if proc.returncode != 0:
         raise ValueError((proc.stderr.decode("utf-8", "replace").strip() or f"git diff {base}...HEAD failed"))
     added, deleted = {f: 0 for f in files}, {f: 0 for f in files}

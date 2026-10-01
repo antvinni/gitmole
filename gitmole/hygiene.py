@@ -133,7 +133,7 @@ LOCK_EXPECTED = {"package.json", "Pipfile", "Cargo.toml", "go.mod", "Gemfile", "
 
 
 def _last_commit(repo: str, path: str) -> int:
-    out = subprocess.run(["git", "log", "-1", "--format=%ct", "--", path], cwd=repo, capture_output=True, text=True).stdout.strip()
+    out = subprocess.run(["git", *filetypes.RENAMES, "log", "-1", "--format=%ct", "--", path], cwd=repo, capture_output=True, text=True).stdout.strip()
     return int(out) if out.isdigit() else 0
 
 
@@ -228,7 +228,7 @@ def _moves_lock(repo: str, commit: str, path: str) -> bool:
 def _changes_after(repo: str, path: str, since: int) -> tuple:
     """The manifest's commits after `since` that touched what its lock records, newest first, as
     (hash, commit time), at most DRIFT_KEPT; and whether the walk stopped before it had read them all."""
-    out = subprocess.run(["git", "log", "--format=%H %ct", f"-{DRIFT_WALK + 1}", "--", path], cwd=repo, capture_output=True, text=True).stdout.split("\n")
+    out = subprocess.run(["git", *filetypes.RENAMES, "log", "--format=%H %ct", f"-{DRIFT_WALK + 1}", "--", path], cwd=repo, capture_output=True, text=True).stdout.split("\n")
     rows = [(h, int(t)) for h, _, t in (line.partition(" ") for line in out if line) if t.isdigit()]
     kept, cut = [], len(rows) > DRIFT_WALK
     for h, t in rows[:DRIFT_WALK]:

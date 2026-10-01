@@ -7,11 +7,12 @@
 #         - id: gitmole-risk            # pre-push: the whole change against the branch's history
 #           args: [--risk, origin/main, --risk-threshold, "10"]
 #         - id: gitmole-hook            # pre-commit: the staged files against the last analysis
-#           args: [analysis-repo, --no-run, --hook, --risk-threshold, "10", --]
+#           args: [analysis-repo, --no-run, --hook, --]
 #
 # The external tools (scc, betterleaks, osv-scanner) have to be on PATH, or
 # installed once with `gitmole --install-tools`, for gitmole-risk; gitmole-hook only reads an
-# output directory an earlier run wrote.
+# output directory an earlier run wrote, and never fails the commit: the
+# history score is one no commit can lower, so it is printed, not enforced.
 - id: gitmole-risk
   name: gitmole change risk
   description: Score the files changed since the base branch by their share of the repository's revisions × lines of code; fail over the threshold.
@@ -22,8 +23,9 @@
   stages: [pre-push]
 - id: gitmole-hook
   name: gitmole watch-list gate
-  description: Score the given files against an earlier gitmole run (the output directory is the first argument); exit 2 over --risk-threshold.
+  description: Say what history says about the given files, from an earlier gitmole run (the output directory is the first argument); never fails.
   entry: gitmole
   language: python
   pass_filenames: true
+  verbose: true
   stages: [pre-commit]

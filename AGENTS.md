@@ -85,6 +85,19 @@ subjects rather than counting them (the remediation measurement cannot score a t
 that is principled with a citation or swept — never one chosen by looking at output on the development
 repositories.
 
+## People and agents are never scored
+
+People and agents appear only as the subject of a file- or area-level knowledge risk (an owner, the
+person a truck factor hangs on, an area's agent-assisted share). No per-person or per-agent score, rank
+or threshold, and no finding about a person's own work; the `--risk` author-experience reasons (EXP,
+SEXP) stay reasons and never enter a score or threshold. The People table and the timeline are allowed
+as what they are, descriptive counts of what git records per identity (commits, merges, share,
+surviving lines), and nothing may be computed from them per person beyond that. A finding about how an
+identity is recorded (`placeholder_identity`, `signoff_by_co_author`) is about the record, not the
+person's work, and is allowed on the same terms: it names the identity and judges nothing else. The retired
+`authors_gone` and `knowledge_loss` shapes stay retired. Engineers rate measuring individuals the
+least wise use of this data (Begel and Zimmermann, `docs/references.md`).
+
 ## Appendix: unattended loops
 
 When nobody is watching, these apply on top of the core.

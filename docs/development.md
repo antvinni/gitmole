@@ -55,6 +55,9 @@ kind of knowledge, the answer is the repository's own ignore mechanism, which
 the finding's advice already names (`.betterleaksignore`, `.mailmap`), not a
 gitmole change.
 
+People and agents are never scored: they appear only as the subject of a file-
+or area-level knowledge risk ([AGENTS.md](../AGENTS.md#people-and-agents-are-never-scored)).
+
 ## Releases
 
 Versions are git tags and follow semantic versioning. A minor release (0.31.0)
@@ -161,7 +164,7 @@ why a file is out of the scored pool, `findings.py` holds the heuristics,
 `trend.py` is complexity over time for the top hotspots, `clean.py` finds
 and removes what gitmole left behind, `compare.py` is the difference between
 two reports (the findings new, resolved and persisting, the watch list's
-moves), `hook.py` is the agent-hook gate behind `--hook`, `sarif.py` the SARIF export,
+moves), `hook.py` is the agent hook behind `--hook`, `sarif.py` the SARIF export,
 `signing.py` reads commit signing coverage from the objects, `hygiene.py` the
 repository hygiene checks, `imports.py` which packages the tracked source
 imports, `licences.py` the declared licences and their SPDX expressions,

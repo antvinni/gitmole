@@ -188,8 +188,8 @@ def positive_shares(record: dict, sets=("development",)) -> list:
 def _remediation(recs) -> dict:
     """The share acted on per rule, its outcome counts summed over the repositories and the cut-offs
     (remediation.pooled), and the mechanical and structural bands; None when no record carries it. It is
-    remediation's lower bound as it stands: subjects named at several cut-offs count at each, and a file
-    moved or renamed counts as left the tree."""
+    remediation's lower bound: a subject named at several cut-offs counts once, at the first, and one moved
+    or renamed counts as moved, never acted on (records before this have neither count)."""
     from . import remediation
     rows = [r["remediation"]["rules"] for r in recs if isinstance(r.get("remediation"), dict) and r["remediation"].get("rules") is not None]
     if not rows:

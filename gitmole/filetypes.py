@@ -14,6 +14,17 @@ from collections import Counter
 # every git call that prints paths goes through this prefix.
 GIT = ["git", "-c", "core.quotePath=false"]
 
+# Rename detection, pinned so that a reader's git config cannot change what a run reads. Every git call whose
+# output depends on whether a delete and an add pair up as a move (log or diff with -M, --numstat, --name-only,
+# and log with one path, which log.follow turns into --follow) puts these before its subcommand.
+# diff.renameLimit=1000 is git's documented default ("If not set, the default value is currently 1000",
+# git-config(1), git 2.55): pinning the default keeps every recorded run byte-identical, and takes the value
+# out of the reader's config and out of a future git's hands. A larger limit would pair the moves of a commit
+# touching more than a thousand files, at a quadratic cost in exactly the commits maat already leaves out as
+# sweeps, and would change every record; that is a measured change of its own, not this pin.
+RENAME_LIMIT = 1000
+RENAMES = ["-c", "diff.renames=true", "-c", f"diff.renameLimit={RENAME_LIMIT}", "-c", "log.follow=false"]
+
 
 def git_paths(repo: str, subcommand: str, *args) -> list:
     """Paths printed by a git subcommand, read NUL-separated as bytes so nothing is ever quoted
