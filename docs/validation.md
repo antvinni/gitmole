@@ -91,7 +91,10 @@ react) and the commits `.git-blame-ignore-revs` declares are left out of
 every count, so a file a formatter only re-indented is not a file that
 changed. Since 0.12 a fix that changes more lines than 99% of the
 repository's commits (never under 500) is not an outcome either: tangled by
-size, it credits none of its files. The numbers below are measured that
+size, it credits none of its files. Since October 2026 the percentile is over
+the commits before the window's end, not the whole log, so a later window's
+commits cannot move an earlier window's outcome; the tables below were measured
+before that. The numbers below are measured that
 way; the pools are a little smaller than before (471 files at curl's first
 cut-off, against 497), and the watch list's total moved from 224 to 225.
 

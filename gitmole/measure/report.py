@@ -63,8 +63,10 @@ def graphs(history: list) -> dict:
     out["ranking.svg"] = svg.chart("Is it right? The watch list's share of the gap from random to perfect (headroom at 15)", labels_, [
         {"label": "watch list", "values": col("headroom"), "band": [x.get("headroom_ci") for x in s]},
         {"label": "churn alone", "values": col("churn_headroom"), "dashed": True, "color": "#57606a"},
+        {"label": "size alone", "values": col("size_headroom"), "dashed": True, "color": "#bf8700"},
         {"label": "watch list, 13 held-out repositories", "values": [x.get("holdout_headroom") for x in whole], "color": "#bf3989"}], crashed, (0, 1), "%",
-        "curl, django, react and gitmole (every release), six cut-offs, fixes in the next six months; dots: independent labels, repositories never tuned on")
+        "curl, django, react and gitmole, six cut-offs, six months of fixes; size alone from 0.38.0, the first record that stores it; "
+        "dots: held out, never tuned on")
     out["useful.svg"] = svg.chart("Is it useful? Findings the default report spells out that one agent labelled actionable", labels_, [
         {"label": "labelled actionable", "values": [u.get("actionable_share") for u in useful]},
         {"label": "carrying a label at all", "values": [u.get("labelled_share") for u in useful], "dashed": True, "color": "#57606a"}], crashed, (0, 1), "%",
@@ -118,13 +120,14 @@ def page(history: list, extras: dict) -> str:
               "Headroom is (hits − random) / (perfect − random) at 15, the median over the development repositories "
               "(and the large ones, in a release round), "
               "with a bootstrap interval over repositories. ▲ or ▼ marks a release whose value left the previous "
-              "release's interval, the only move that counts. W/L/T is the watch list against churn alone at each "
+              "release's interval, the only move that counts. Churn and size are the headroom of the files ranked by churn alone and by "
+              "size alone; size from 0.38.0, the first record that stores it. W/L/T is the watch list against churn alone at each "
               "cut-off. Bug magnets is how much more often the files the rule named were fixed again than unnamed "
               "files in the same deciles of the list's own score, pooled over every repository and cut-off; std. "
               "beside it weights each decile's unnamed files as the named files are spread and counts each "
               "repository once (the median of their ratios). Neither replaces the other.", "",
-              "| release | headroom | churn | W/L/T | AUC | recall 20% | stable | magnets | std. | findings | lines | scored | robust | gate | seconds | MB | note |",
-              "|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
+              "| release | headroom | churn | size | W/L/T | AUC | recall 20% | stable | magnets | std. | findings | lines | scored | robust | gate | seconds | MB | note |",
+              "|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     prev = None
     for r in history:
         s = r["summary"]
@@ -144,7 +147,7 @@ def page(history: list, extras: dict) -> str:
         failed = [f"{n}: {_short(x.get('note') or x['status'])}" for n, x in sorted(r["repos"].items()) if x.get("status") not in ("ok", "refused")]
         failed += [f"{n}: {len(x['steps_failed'])} step(s) failed" for n, x in sorted(r["repos"].items()) if x.get("status") == "ok" and x.get("steps_failed")]
         failed += [sets_note] if sets_note else []
-        lines.append(f"| {r['version']} | {head} | {_num(s.get('churn_headroom'))} | {wlt} | {_num(s.get('auc'))} | {_pct(s.get('recall20'))} | "
+        lines.append(f"| {r['version']} | {head} | {_num(s.get('churn_headroom'))} | {_num(s.get('size_headroom'))} | {wlt} | {_num(s.get('auc'))} | {_pct(s.get('recall20'))} | "
                      f"{_num(s.get('stability_top15'))} | {_num(s.get('bug_magnets_ratio'))} | {_num(s.get('bug_magnets_standardised'))} | {_num(s.get('findings_median'), '{:g}')}/{_num(s.get('findings_p90'), '{:g}')} | "
                      f"{_num(s.get('report_lines'), '{:g}')} | {_pct(s.get('scored_share'))} | {robust} | {gate} | {_num(s.get('seconds'), '{:.0f}')} | "
                      f"{_num(s.get('peak_mb'), '{:.0f}')} | {'; '.join(failed).replace('|', '/')} |")
@@ -164,8 +167,8 @@ def page(history: list, extras: dict) -> str:
               "curl, django, react and gitmole, so a repository joining the development set is not a move; the table "
               "and the dashboard use the whole set: cost over the development set, effectiveness over development and "
               "large, and well-kept where a release round ranked it. Robust counts every set a round ran, so its denominator is larger in a release round. "
-              "The first three graphs are the ones the README shows: is the "
-              "ranking right, are the findings worth acting on, does it run.", ""]
+              "The README shows the ranking graph and the findings graph; the useful and robustness graphs are "
+              "kept here, robustness summed up in the README as one line.", ""]
     if history:
         lines += current(history[-1], extras)
     return "\n".join(lines) + "\n"
@@ -198,6 +201,10 @@ def current(record: dict, extras: dict) -> list:
     if s.get("large_seconds") is not None:
         rows.append(("wall time and peak memory", "large", f"{_num(s.get('large_seconds'), '{:.0f}')} s, {_num(s.get('large_peak_mb'), '{:.0f}')} MB"))
     rows.append(("scored share of tracked files", "development", _pct(s.get("scored_share"))))
+    acted = s.get("remediation")
+    rows.append(("subjects the repository acted on within six months, mechanical and structural rules (a lower bound)", "development",
+                 "; ".join(f"{k} {_acted(b)}" for k, b in acted["bands"].items()) or "no scored rule fired"
+                 if acted else "not in this record"))
     clean = s.get("claims_clean")
     rows.append(("findings whose text agrees with their own numbers", "every set",
                  f"{clean[0]} of {clean[1]}" if clean else "not checked in this record"))
@@ -209,9 +216,37 @@ def current(record: dict, extras: dict) -> list:
     unexplained = sum(1 for checks in desc.values() for c in checks if c["agree"] is False and not c.get("explained"))
     rows.append(("unexplained description disagreements", "development", str(unexplained) if desc else "not run"))
     out += ["| | set | value |", "|---|---|---|"] + [f"| {a} | {b} | {c} |" for a, b, c in rows] + [""]
+    if acted:
+        out += _remediation(acted)
     if extras:
         out += _extras(extras)
     return out
+
+
+def _acted(row: dict) -> str:
+    """'n of m' acted on, with the share only from remediation.MIN_JUDGED judged subjects up: 1 of 1 is not 100%."""
+    from .remediation import MIN_JUDGED
+    if not row.get("judged"):
+        return "none the window could judge"
+    text = f"{row['acted_on']} of {row['judged']}"
+    return text + (f" ({_pct(row['share'])})" if row["judged"] >= MIN_JUDGED else "")
+
+
+def _remediation(acted: dict) -> list:
+    """The share acted on by rule: remediation's table pooled over the development set's cut-offs."""
+    good, total = acted.get("cutoffs") or (0, 0)
+    out = ["### Was it acted on? Remediation by rule, as the yardstick stands", "",
+           f"For each finding a release made at a ranking cut-off ({good} of {total} cut-offs over {acted['repos']} development "
+           "repositories), whether the thing it named was fixed in the tree six months later "
+           "(`gitmole/measure/remediation.py`). It is a lower bound and not precision: nobody acting may mean nobody ran "
+           "gitmole. As measured here a subject still named at several cut-offs counts at each, and a file moved or "
+           "renamed counts as having left the tree; \"left\" is acted on only for rules where deleting the file is the fix.", "",
+           "| rule | kind | acted on | still open | left the tree | left counts | can't say | gone before | share |",
+           "|---|---|---:|---:|---:|---|---:|---:|---:|"]
+    for name, r in sorted(acted["rules"].items(), key=lambda kv: (kv[1]["kind"] != "mechanical", kv[0])):
+        out.append(f"| {name} | {r['kind']} | {r['resolved']} | {r['open']} | {r['gone']} | {'yes' if r['gone_is_fix'] else 'no'} | "
+                   f"{r['unknown']} | {r['absent']} | {_acted(r)} |")
+    return out + [""]
 
 
 def _extras(x: dict) -> list:
