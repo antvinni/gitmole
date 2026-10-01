@@ -89,6 +89,15 @@ What a release produces is scored by the current tree's definitions, not its
 own, so the yardstick does not move with the tool. The rankings at cut-offs are
 not timed and run side by side once the timed runs are over.
 
+The round keeps the machine awake while it runs (`caffeinate -i -w` on its own
+process, macOS; elsewhere it says once that it does not). Plug in for timings
+that compare: each run records the power source it started on. A closed lid
+still sleeps the machine, and the record shows it: every run keeps its wall-clock
+seconds beside the monotonic ones, which stop in sleep, and the round records its
+own wall seconds and the seconds it spent asleep. The 0.43.0 round spent about
+fifty of its 87 minutes in idle sleep on battery, which nothing in its record
+could show.
+
 ### Threshold sensitivity
 
 `extras` moves every numeric keyword threshold of every rule by 10, 25 and 50%
@@ -310,7 +319,12 @@ it can and cannot score. A release round asks it at the ranking's own six cut-of
 on the development repositories (not the large ones, by the maintainer's
 decision: binutils-gdb alone would add about 35 minutes): the release's
 `--json` export of the tree at each cut-off, scored against the tree six
-months later. That is one release run per cut-off, about six times the
+months later. Those runs are not the timed run's: they pass `--time-budget -1`,
+which no projection fits, so code age never runs in them. Code age feeds only the
+findings about people (bus factor and truck factor read the surviving lines), all
+of which the scoring leaves out as not observable; under the 60 s budget it ran
+or not by the machine's load, 10 of 42 cut-off scans skipping it at 0.43.0. That
+is one release run per cut-off, about six times the
 development set's run time, in the untimed half beside the rankings: roughly
 15 to 20 minutes more wall time per release round. The record
 keeps the outcome counts by rule (`remediation` on each entry), the summary
@@ -319,6 +333,24 @@ A subject that was renamed or moved is followed through git's rename
 detection (limit pinned) and judged at its new path, and counts as *moved*,
 never as fixed; a subject still named at several cut-offs of one repository is
 counted once, at the first, and the later ones as repeats.
+
+A release round asks the question only when its answer can change: when, since
+the commit of the last record that asked it, a path its rows depend on changed —
+the predicates (`gitmole/measure/remediation.py`), the file classifier
+(`classify.py`, `filetypes.py`), the code behind the scored findings and the
+scans at the cut-offs. `remediation.ASKED_WHEN_CHANGED` lists those paths in one
+place and errs toward asking; a test holds every module under `gitmole/` to that
+list or to a short one left out with a reason (the banner, the installer, the
+SARIF writer). The diff is mechanical, `git diff --name-only` over the named
+paths. Otherwise each development entry records
+`remediation: {"asked": false, "reason": ...}`, the summary keeps the gap and its
+reason, and the history page prints "not asked (reason)": a number is never
+carried forward from an earlier record. `run --remediation` asks it whatever
+changed, and `run --release --no-remediation` records it as not asked. The
+record's `remediation_asked` says which way the round went and which watched
+paths changed. In the releases from 0.36.0 to 0.43.0 `findings.py` changed in
+every one, so the question would have been asked each time: the saving is the
+rounds of a release whose changes lie elsewhere.
 
 ## Description accuracy
 
@@ -491,7 +523,9 @@ release round, curl and react otherwise. The metric is binary and should stay at
 one.
 
 **Runtime.** Every run records its wall time, peak memory, the load average and
-the seconds of each step, since step-level numbers say which step to look at.
+the seconds of each step (and, from the first round after 0.43.0, its wall-clock seconds, CPU
+seconds, power source and the load sampled through the run: minimum, median,
+maximum), since step-level numbers say which step to look at.
 The ceilings are the last release's record; jscpd's memory behaviour was the
 documented hazard until it was retired at 0.39.0.
 

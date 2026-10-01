@@ -183,6 +183,60 @@ class AtTheCutOffs(unittest.TestCase):
         self.assertEqual((old["unreferenced_files"]["moved"], old["unreferenced_files"]["judged"]), (0, 2), "a record from before reads as zero")
 
 
+class CodeAgeOff(unittest.TestCase):
+    """Remediation's scans run without code age, decided by an option rather than the machine's load, and
+    nothing code age feeds is scored."""
+
+    def test_the_cut_off_scan_is_asked_without_code_age(self):
+        seen = []
+
+        def run_release(src, clone, work, reference, **kw):
+            seen.append(kw.get("extra_args"))
+            return {"status": "crashed", "note": "stop here", "report": None}
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = os.path.join(tmp, "repo")
+            os.makedirs(repo)
+            _repo(repo)
+            with mock.patch.object(harness, "run_release", run_release):
+                harness.remediation_at("/src", repo, os.path.join(tmp, "work"), "2025-02-01")
+        self.assertEqual(seen, [harness.REMEDIATION_ARGS])
+        self.assertEqual(harness.REMEDIATION_ARGS, ("--time-budget", "-1"))
+
+    def test_extra_args_reach_the_command_line(self):
+        seen = []
+
+        def spawn(argv, cwd, env, stdout, stderr, timeout):
+            seen.append(argv)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(harness, "_spawn", spawn):
+            harness.run_release("/src", "/clone", os.path.join(tmp, "w"), "2025-02-01", extra_args=("--time-budget", "-1"))
+            harness.run_release("/src", "/clone", os.path.join(tmp, "w"), "2025-02-01")
+        self.assertEqual(seen[0][-2:], ["--time-budget", "-1"])
+        self.assertNotIn("--time-budget", seen[1], "the ordinary run is unchanged")
+
+    def test_a_negative_budget_skips_code_age_whatever_the_projection(self):
+        from gitmole import cli
+        ui = mock.Mock()
+        args = cli.parse_args(["x", "--time-budget", "-1"])
+        for estimate in ({"seconds": 0.0, "files": 0, "blames": 0}, {"seconds": 0.001, "files": 3, "blames": 3, "partial": True}):
+            age_ok, _, _ = cli._budgets(args, estimate, ui)
+            self.assertFalse(age_ok, estimate)
+        self.assertTrue(cli._budgets(cli.parse_args(["x", "--time-budget", "-1", "--deep"]), {"seconds": 0.0, "files": 0, "blames": 0}, ui)[0],
+                        "--deep still forces it, so the proof's other side is --deep")
+
+    def test_every_rule_that_reads_code_age_is_unscored(self):
+        """The rules that read the blame pass's output (the surviving lines, theseus_authors; the cohorts) are
+        about people, and each is in NOT_OBSERVABLE: turning code age off cannot change a scored row."""
+        import ast
+        import inspect
+        from gitmole import findings
+        tree = ast.parse(inspect.getsource(findings))
+        readers = {fn.name for fn in tree.body if isinstance(fn, ast.FunctionDef)
+                   and any(isinstance(n, ast.Constant) and n.value in ("theseus_authors", "surviving_by_identity", "cohorts") for n in ast.walk(fn))}
+        self.assertEqual(readers, {"bus_factor", "truck_factor"}, "a new reader: check it is unscored, then add it here")
+        self.assertFalse(readers & set(r.RULES))
+        self.assertLessEqual(readers | {"knowledge_loss", "knowledge_islands", "authors_gone"}, set(r.NOT_OBSERVABLE))
+
+
 class InTheRound(unittest.TestCase):
     def _rank(self, entry, remediation=True):
         rec = {"status": "ok", "out": "/out", "clone": "/clone"}   # no report: the label ids are not this test's
@@ -201,11 +255,14 @@ class InTheRound(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(main, "measure", measure), \
                 mock.patch.object(main, "write", lambda record: os.path.join(tmp, "9.9.9.json")), \
                 mock.patch.object(main.corpus, "load", lambda: {}), mock.patch.object(main.corpus, "workspace", lambda: tmp), \
-                contextlib.redirect_stdout(io.StringIO()):
+                mock.patch.object(main.harness, "keep_awake") as awake, contextlib.redirect_stdout(io.StringIO()):
             main.main(["run", "--release"])
             main.main(["run"])
             main.main(["run", "--only", "curl", "--remediation"])
-        self.assertEqual(seen, [True, False, True])
+            main.main(["run", "--release", "--remediation"])
+            main.main(["run", "--release", "--no-remediation"])
+        self.assertEqual(seen, ["auto", False, True, True, "off"], "a release round asks when what it depends on changed; --remediation forces it")
+        self.assertEqual(awake.call_count, 5, "every run keeps the machine awake")
 
     def test_the_development_set_is_asked(self):
         self.assertIn("remediation", self._rank({"set": "development"}))
