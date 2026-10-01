@@ -165,8 +165,8 @@ def page(history: list, extras: dict) -> str:
               "curl, django, react and gitmole, so a repository joining the development set is not a move; the table "
               "and the dashboard use the whole set: cost over the development set, effectiveness over development and "
               "large, and well-kept where a release round ranked it. Robust counts every set a round ran, so its denominator is larger in a release round. "
-              "The first three graphs are the ones the README shows: is the "
-              "ranking right, are the findings worth acting on, does it run.", ""]
+              "The README shows the ranking graph and the findings graph; the useful and robustness graphs are "
+              "kept here, robustness summed up in the README as one line.", ""]
     if history:
         lines += current(history[-1], extras)
     return "\n".join(lines) + "\n"
