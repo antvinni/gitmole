@@ -1796,6 +1796,43 @@ class SecretsByConfidence(unittest.TestCase):
         self.assertNotIn("generic-password", f["secrets_in_source"]["detail"], "its other copy is a test file")
 
 
+
+class SecretsAtHead(unittest.TestCase):
+    def _row(self, value, file, at_head=None):
+        r = {"rule": "aws-access-token", "file": file, "commit": "abc1234", "line": 3, "fingerprint": value + file, "value": value,
+             "placeholder": False, "confidence": "high"}
+        if at_head is not None:
+            r["at_head"] = at_head
+        return r
+
+    def _critical(self, rows):
+        return next(x for x in findings.secrets_found(report(secrets=rows)) if x["rule"]["id"] == "secrets_in_source")
+
+    def test_a_value_only_in_history_is_told_to_rewrite_it(self):
+        f = self._critical([self._row("a", "app/a.py", False), self._row("b", "app/b.py", False)])
+        self.assertIn("None is at HEAD any more", f["advice"])
+        self.assertIn("if the history is published, rewrite it", f["advice"])
+        self.assertEqual((f["evidence"]["at_head"], f["evidence"]["history_only"]), (0, 2))
+        self.assertEqual(f["evidence"]["history_only_values"], [{"rule": "aws-access-token", "file": "app/a.py"}, {"rule": "aws-access-token", "file": "app/b.py"}])
+        self.assertNotIn("a", [v.get("value") for v in f["evidence"]["history_only_values"]], "the evidence never carries the value")
+
+    def test_a_value_still_at_head_anywhere_is_at_head(self):
+        f = self._critical([self._row("a", "app/old.py", False), self._row("a", "app/new.py", True)])
+        self.assertTrue(f["advice"].startswith("Rotate them; deleting the file does not remove them from git."))
+        self.assertEqual((f["evidence"]["at_head"], f["evidence"]["history_only"]), (1, 0))
+
+    def test_a_mix_counts_each_and_one_unjudged_counts_as_at_head(self):
+        f = self._critical([self._row("a", "app/a.py", True), self._row("b", "app/b.py", False), self._row("c", "app/c.py")])
+        self.assertIn("2 are still at HEAD and 1 only in history", f["advice"])
+        self.assertEqual(len(findings.secrets_found(report(secrets=[self._row("a", "app/a.py", True), self._row("b", "app/b.py", False)]))), 1,
+                         "the split is in the text: still one finding")
+
+    def test_the_rule_carries_its_measured_limit(self):
+        f = self._critical([self._row("a", "app/a.py", True)])
+        self.assertIn("46% precision, 88% recall", f["rule"]["measured"])
+        self.assertIn("Meli", f["rule"]["ref"])
+
+
 class OneThreshold(unittest.TestCase):
     def test_the_structure_rules_read_min_resolved_from_one_place(self):
         """The sweep reads a threshold from the signature; a copy of the number drifts from the constant."""
