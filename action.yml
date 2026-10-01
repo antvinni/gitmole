@@ -1,4 +1,4 @@
-name: gitmole
+name: gitmole scan
 description: Offline git repository analysis in CI; the report in the job summary, a gate on the findings, SARIF for code scanning.
 author: antvinni
 branding:

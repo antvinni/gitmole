@@ -145,6 +145,47 @@ class SignFlip(unittest.TestCase):
                          "totals 0, 4/3, 2/3, 2/3 and 0 reach the observed 0: no float rounding decides the two ties")
 
 
+class OutcomeAccount(unittest.TestCase):
+    """harness.misses: every outcome file the score cannot credit, by cause, beside a score that does not move."""
+
+    RANK = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40,
+            "left_out": {"gen.c": "generated", "once.c": "changed fewer than twice", "gone.c": "not in the tree"}}
+
+    def test_each_outcome_file_is_credited_or_has_one_cause(self):
+        outcome = {"a", "c", "gen.c", "once.c", "gone.c", "new.c"}
+        m = harness.misses(self.RANK, outcome, top=2)
+        self.assertEqual(m["credited"], 1, "a is in the top two")
+        self.assertEqual(m["by_cause"], {harness.ABSENT: 1, "changed fewer than twice": 1, "generated": 1,
+                                         harness.BELOW: 1, "not in the tree": 1})
+        self.assertEqual(m["credited"] + m["missed"], m["outcome"], "the account adds up to the outcome")
+        self.assertEqual(m["credited"], harness.score(self.RANK, outcome, top=2)["hits"])
+
+    def test_the_score_does_not_move(self):
+        plain = {k: v for k, v in self.RANK.items() if k != "left_out"}
+        self.assertEqual(harness.score(self.RANK, {"a", "c", "gen.c", "new.c"}, top=2), harness.score(plain, {"a", "c", "gen.c", "new.c"}, top=2))
+
+    def test_a_probe_without_reasons_gives_no_account(self):
+        self.assertIsNone(harness.misses({k: v for k, v in self.RANK.items() if k != "left_out"}, {"a"}, top=2))
+
+    def test_the_summary_sums_the_account_and_an_old_record_has_none(self):
+        row = {"cutoff": "2025-01-01", **harness.score(self.RANK, {"a", "gen.c", "new.c"}, top=2)}
+        rec = {"version": "x", "repos": {"r": {"set": "development", "status": "ok", "ranking": {"cutoffs": [row]}}}}
+        self.assertNotIn("outcome_account", dashboard.summarise(rec), "a record from before the account keeps its keys")
+        row["misses"] = harness.misses(self.RANK, {"a", "gen.c", "new.c"}, top=2)
+        acc = dashboard.summarise(rec)["outcome_account"]
+        self.assertEqual(acc, {"cutoffs": 1, "outcome": 3, "credited": 1, "by_cause": {harness.ABSENT: 1, "generated": 1}})
+
+    def test_the_probe_gives_the_classifiers_reason_for_each_file_outside_the_pool(self):
+        from gitmole.measure import probe
+        report = {"meta": {"generated": ["gen.c"]},
+                  "size": {"files": {"a.c": {"code": 10}, "gen.c": {"code": 10}, "once.c": {"code": 10}}},
+                  "revisions": [{"entity": "a.c", "n-revs": 3}, {"entity": "gen.c", "n-revs": 4}, {"entity": "once.c", "n-revs": 1},
+                                {"entity": "gone.c", "n-revs": 2}]}
+        revisions = {r["entity"]: r["n-revs"] for r in report["revisions"]}
+        left = probe._left_out(report, [{"file": "a.c"}], revisions, report["size"]["files"])
+        self.assertEqual(left, {"gen.c": "generated", "once.c": "changed fewer than twice", "gone.c": "not in the tree"})
+
+
 class Scoring(unittest.TestCase):
     def test_one_cut_off_against_random_perfect_and_churn(self):
         rank = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40}
@@ -172,6 +213,36 @@ class Scoring(unittest.TestCase):
         m = harness.magnets_at(rank, {"f0", "f2"})
         self.assertEqual((m["named"], m["named_fixed"], m["matched"], m["matched_fixed"]), (2, 1, 0, 0), "f0 and f1 fill the top decile alone")
         self.assertIsNone(harness.magnets_at({"pool": ["a"], "magnets": None}, set()))
+        self.assertEqual((m["observed"], m["expected"], m["unmatched"]), (0, 0.0, 2), "no unnamed file in their decile: no rate to expect from")
+
+    def test_standardised_magnets_weigh_each_decile_as_the_named_files_are_spread(self):
+        """One magnet in a hot decile and nine in a cold one: pooling the control lets the hot decile's
+        unnamed files set the rate the cold decile's magnets are judged against."""
+        pool = [f"f{i:03d}" for i in range(100)]          # ten deciles of ten
+        named = ["f000"] + [f"f{i:03d}" for i in range(90, 99)]   # one in decile 0, nine in decile 9
+        fixed = {f"f{i:03d}" for i in range(1, 10)} | {"f000", "f090"}
+        m = harness.magnets_at({"pool": pool, "magnets": named}, fixed)
+        self.assertEqual((m["named"], m["named_fixed"], m["matched"], m["matched_fixed"]), (10, 2, 10, 9), "the pooled numbers are unchanged")
+        self.assertEqual(m["observed"], 2)
+        self.assertAlmostEqual(m["expected"], 1 * 9 / 9 + 9 * 0 / 1)   # decile 0 rate 9/9, decile 9 rate 0/1
+        self.assertEqual(m["unmatched"], 0)
+        # pooled: (2/10) / (9/10) = 0.22, the magnets look worse than chance; standardised: 2 / 1 = 2
+        self.assertAlmostEqual((m["named_fixed"] / m["named"]) / (m["matched_fixed"] / m["matched"]), 2 / 9)
+
+    def test_the_standardised_ratio_counts_each_repository_once(self):
+        from gitmole.measure import dashboard
+        many = {"set": "development", "status": "ok", "ranking": {"magnets": [
+            {"named": 50, "named_fixed": 40, "matched": 50, "matched_fixed": 10, "observed": 40, "expected": 10.0, "unmatched": 0}] * 6}}
+        few = {"set": "development", "status": "ok", "ranking": {"magnets": [
+            {"named": 2, "named_fixed": 1, "matched": 20, "matched_fixed": 10, "observed": 1, "expected": 1.0, "unmatched": 0}]}}
+        other = {"set": "development", "status": "ok", "ranking": {"magnets": [
+            {"named": 2, "named_fixed": 2, "matched": 20, "matched_fixed": 10, "observed": 2, "expected": 1.0, "unmatched": 0}]}}
+        self.assertEqual(dashboard.magnets_standardised(many), 4.0)
+        s = dashboard.summarise({"repos": {"a": many, "b": few, "c": other}})
+        self.assertEqual(s["bug_magnets_standardised"], 2.0, "the median of 4, 1 and 2: the repository with 300 named files is one of three")
+        self.assertIsNotNone(s["bug_magnets_ratio"], "the pooled ratio is still there, beside it")
+        old = {"set": "development", "status": "ok", "ranking": {"magnets": [{"named": 2, "named_fixed": 1, "matched": 20, "matched_fixed": 10}]}}
+        self.assertIsNone(dashboard.magnets_standardised(old), "a record from before the decile counts has no standardised ratio")
 
 
 def _record(statuses):
@@ -368,7 +439,7 @@ class Round(unittest.TestCase):
             span("run", entry["name"], 0.05)
             return {"status": "ok", "seconds": 1, "clone": "clone-" + entry["name"]}
 
-        def rank_entry(src, entry, root, reference, rec, labels_dir=None):
+        def rank_entry(src, entry, root, reference, rec, labels_dir=None, remediation=False):
             span("rank", entry["name"], 0.2)
             rec.pop("clone")
             rec["ranking"] = {"cutoffs": []}
@@ -427,6 +498,57 @@ class Signals(unittest.TestCase):
         self.assertEqual(ranked["hcm3s"][:2], ["core/util.py", "core/parser.py"])
         self.assertEqual(ranked["hcm3s x lines"][0], "core/parser.py", "1.0 x 800 beats 2.0 x 200")
         self.assertEqual(ranked["hcm1d"][0], "web/index.html")
+
+    def test_fix_count_rows_rank_the_same_pool_by_fixes_alone_and_decayed(self):
+        from gitmole import evaluate
+        from gitmole.measure import signals
+        from tests.test_watch import report
+
+        def fix(h, date, path):
+            return {"hash": h, "date": date, "author": "Ann", "subject": "fix crash", "files": [(path, 1, 1)]}
+        # util.py: one fix a month ago; parser.py: three fixes four years ago; a fix after the cut-off counts for nothing
+        commits = [fix("u1", "2026-08-01", "core/util.py"), fix("late", "2026-10-01", "web/index.html")]
+        commits += [fix(f"p{i}", "2022-08-01", "core/parser.py") for i in range(3)]
+        r = report()
+        ranked, _ = signals.variants(r, commits, "2026-09-01")
+        for row in signals.FIX_COUNT_ROWS:
+            self.assertEqual(sorted(ranked[row]), sorted(ranked["watch list"]), f"{row} ranks the one pool")
+        self.assertEqual(ranked["recent fixes"], evaluate.variants(r)["recent fixes"], "Rahman's naive order is evaluate's own, not a copy")
+        self.assertEqual(ranked["fixes"][0], "core/parser.py", "the report's whole-history fix count: 9 against 2")
+        self.assertEqual(signals.FIX_HALF_LIVES, (3, 6, 12, 24))
+        for h in signals.FIX_HALF_LIVES:
+            self.assertEqual(ranked[f"fix decay {h}m"][0], "core/util.py", "one fix a month old outweighs three four years old at every half-life on the grid")
+        self.assertEqual(ranked["fix decay 3m"][1:], ["core/parser.py", "web/index.html"], "index.html's only fix lands after the cut-off and weighs nothing")
+        self.assertEqual(set(signals.SZZ_ROWS) - set(ranked), set(), "every row scored on R-SZZ exists")
+
+    def test_the_szz_outcome_scores_the_fix_count_rows_beside_fix_locality(self):
+        from unittest import mock
+        from gitmole.measure import signals
+        from tests.test_watch import report
+        commits = [{"hash": "u1", "date": "2026-08-01", "author": "Ann", "subject": "fix crash", "files": [("core/util.py", 1, 1)]}]
+        entry = {"name": "r"}
+        with tempfile.TemporaryDirectory() as root:
+            out = os.path.join(root, "runs", "0.0.0", "r", "out")
+            os.makedirs(out)
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"last_date": "2026-09-20"}, fh)
+            open(os.path.join(out, "log.txt"), "w").close()
+            induced = []
+            with mock.patch.object(signals.maat, "parse_log", lambda *a: commits), \
+                    mock.patch.object(signals.evaluate, "cutoffs", lambda *a: ["2026-09-01"]), \
+                    mock.patch.object(signals.harness, "rev_at", lambda *a: "abc"), \
+                    mock.patch.object(signals.backtest, "snapshot_at", lambda *a: ("", [], [])), \
+                    mock.patch.object(signals.load, "parse_scc", lambda *a: report()["size"]), \
+                    mock.patch.object(signals.evaluate, "report_at", lambda *a: report()), \
+                    mock.patch.object(signals.evaluate, "induced_between", lambda *a, **k: induced.append(a[2]) or {"core/util.py", "nowhere.py"}):
+                plain = signals.measure(entry, "0.0.0", root, None, set())
+                both = signals.measure(entry, "0.0.0", root, None, set(), szz_outcome=True)
+                labelled = signals.measure(entry, "0.0.0", root, {"x": None}, set(), szz_outcome=True)
+        self.assertEqual(induced, ["2026-09-01"], "R-SZZ once, for the fix-locality run; never with labels")
+        self.assertEqual({k: v for k, v in both.items() if not k.endswith(signals.SZZ_SUFFIX)}, plain, "nothing existing moves")
+        self.assertEqual(sorted(k for k in both if k.endswith(signals.SZZ_SUFFIX)), sorted(v + signals.SZZ_SUFFIX for v in signals.SZZ_ROWS))
+        self.assertFalse(any(k.endswith(signals.SZZ_SUFFIX) for k in labelled))
+        self.assertEqual(both["fix decay 6m" + signals.SZZ_SUFFIX]["hits"], 1, "the induced file inside the pool, at the top of its list")
 
     def test_a_candidate_is_scored_on_the_records_measures_and_cannot_win_popt_by_naming_small_files(self):
         from gitmole.measure import signals
@@ -755,6 +877,30 @@ class SimpleLists(unittest.TestCase):
         self.assertIsNone(s["simple_lift"])
         self.assertIsNone(s["simple_wins_losses_ties"])
 
+    def test_size_alone_headroom_mirrors_churn_alone(self):
+        s = dashboard.summarise(self._rec(True))
+        self.assertAlmostEqual(s["size_headroom"], round(((7 - 3.75) / (10 - 3.75) + (4 - 3.75) / (10 - 3.75)) / 2, 3),
+                               msg="per repository over its cut-offs, then the median, as churn alone")
+        self.assertIsNone(dashboard.summarise(self._rec(False))["size_headroom"], "a record from before 0.38.0: a gap, not zero")
+
+    def test_size_alone_needs_every_repository_or_none(self):
+        rec = self._rec(True)
+        del rec["repos"]["b"]["ranking"]["cutoffs"][0]["size_hits"]
+        self.assertIsNone(dashboard.summarise(rec)["size_headroom"], "a median over a different population would not compare with churn's")
+
+    def test_the_ranking_graph_and_the_table_draw_size_alone_with_a_gap_before_it(self):
+        from gitmole.measure import report
+        old, new = self._rec(False), self._rec(True)
+        old["version"], new["version"] = "0.37.0", "0.38.0"
+        for r in (old, new):
+            r.update(summary=dashboard.summarise(r), reference_date="2026-09-17")
+        svg_ = report.graphs([old, new])["ranking.svg"]
+        self.assertIn("size alone", svg_)
+        self.assertIn("size alone from 0.38.0, the first record that stores it", svg_)
+        self.assertIn('stroke="#bf8700"', svg_)
+        rows = [l for l in report.page([old, new], None).splitlines() if l.startswith("| 0.3")]
+        self.assertEqual([l.split(" | ")[3] for l in rows], ["-", f"{new['summary']['size_headroom']:.2f}"])
+
     def test_saturated_cut_offs_are_counted(self):
         self.assertEqual(dashboard.summarise(self._rec(False))["saturated_cutoffs"], [1, 2], "25 of 40 fixed at b's cut-off")
 
@@ -765,3 +911,26 @@ class SimpleLists(unittest.TestCase):
         rows = [l for l in report.current(rec, None) if l.startswith("| top-15 hits above the better of churn and size") or l.startswith("| saturated cut-offs")]
         self.assertEqual(rows, ["| top-15 hits above the better of churn and size, summed over cut-offs (information) | development | 0 over 2 cut-offs (1 ahead, 1 behind, 0 level) |",
                                 "| saturated cut-offs, half the pool or more fixed (information) | development | 1 of 2 |"])
+
+
+class PositiveShares(unittest.TestCase):
+    def test_each_cut_offs_share_of_the_pool_in_the_outcome_by_position(self):
+        record = {"version": "9.9.9", "repos": {
+            "a": {"set": "development", "ranking": {"cutoffs": [{"pool": 10, "positives": 2}, {"pool": 10, "positives": 1}]}},
+            "b": {"set": "development", "ranking": {"cutoffs": [{"cutoff": "x", "error": "boom"}, {"pool": 4, "positives": 2}, {"pool": 5, "positives": 0}]}},
+            "c": {"set": "large", "ranking": {"cutoffs": [{"pool": 1, "positives": 1}]}},
+            "d": {"set": "development", "ranking": None}}}
+        shares = dashboard.positive_shares(record)
+        self.assertEqual(shares, [{"index": 0, "median": 0.35, "repos": {"a": 0.2, "b": 0.5}},
+                                  {"index": 1, "median": 0.05, "repos": {"a": 0.1, "b": 0.0}}])
+        self.assertEqual(dashboard.positive_shares(record, ("large",))[0]["repos"], {"c": 1.0})
+        from gitmole.measure import __main__ as main
+        table = main.positives_table(record, ["development"])
+        self.assertIn("| 1 | 0.35 | 0.20 | 0.50 |", table)
+
+    def test_the_holdout_is_not_a_set_it_reads(self):
+        import contextlib
+        import io
+        from gitmole.measure import __main__ as main
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            main.main(["positives", "--sets", "holdout"])
