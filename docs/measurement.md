@@ -542,6 +542,24 @@ run as follows.
   cut-off's `pool_digest`, a fingerprint of the files it scored, so two records
   can be checked for having scored the same pool) from the first release round
   after the fields landed; earlier records are not backfilled.
+- **Snoring, reported beside the holdout's decision.** A bug is labelled only
+  once it is found, and defects are often found long after they are introduced,
+  so recent code reads clean (Ahluwalia, Falessi and Di Penta, MSR 2019; Falessi
+  et al., TOSEM 2022). Only labels that stop can snore: the holdout's ApacheJIT
+  labels end on 2019-12-31, the `end` of every holdout entry, while the
+  development outcome is fixes inside a complete six-month window. Wherever the
+  repositories' labels end, `candidate` prints the decision a second time without
+  the cut-offs whose horizon and one more (T + 2 × horizon) run past that end —
+  on the holdout exactly 2019-06-30 — side by side with the one that decides,
+  and the JSON keeps it under `unsnored`. It never decides, and nothing is
+  dropped from the decision. It runs only where the holdout is read, in a
+  release-tag job; its code is tested on fixtures. The control is on the
+  development set, where the outcome cannot snore: `python -m gitmole.measure
+  positives` prints each cut-off's share of the pool in the outcome from a
+  recorded round. On the 0.42.0 record the medians over the seven development
+  repositories with cut-offs, oldest first, are 0.23, 0.12, 0.17, 0.13, 0.18 and
+  0.13 — no fall toward the latest cut-off, which is what a complete window should
+  show.
 
 With fourteen repositories the test can show a candidate that wins consistently,
 not a small, uneven gain; that is a property of the corpus, and a result that
