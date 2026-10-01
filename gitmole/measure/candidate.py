@@ -17,7 +17,9 @@ candidate is refused unless --again says it is one, and is counted as such.
 A repository or cut-off that failed on either side makes the result "incomplete": dropping it would let
 a candidate that crashes where it would lose be judged on the rest. What the saturated cut-offs (half
 the pool or more fixed) do to the result is printed for information and never decides: at such a
-cut-off the two lists tend to name the same files and tie on their own."""
+cut-off the two lists tend to name the same files and tie on their own. Where the labels end (the
+holdout's), the decision is printed again without the cut-offs that may be snoring (snore_exposed), for
+information only."""
 from __future__ import annotations
 
 import argparse
@@ -29,6 +31,7 @@ import subprocess
 import sys
 from fractions import Fraction
 
+from .. import evaluate
 from . import corpus, dashboard, harness, metrics
 
 SATURATED = dashboard.SATURATED   # half the pool or more fixed at a cut-off: flagged, for information only
@@ -83,6 +86,28 @@ def decide(rows: dict) -> dict:
     out.update(wins=sum(e > 0 for e in out["effects"].values()), losses=sum(e < 0 for e in out["effects"].values()),
                ties=sum(e == 0 for e in out["effects"].values()), failed=failed)
     out["without_saturated"] = summary(_effects({r: [x for x in xs if not x["saturated"]] for r, xs in rows.items()}))
+    return out
+
+
+def snore_exposed(cutoff: str, label_end: str, horizon: int = harness.HORIZON) -> bool:
+    """Whether a cut-off's bugs may not have been labelled yet. A labelled dataset stops at `label_end`, and
+    a bug is labelled only once it is found: defects are often found releases after they are introduced
+    ("snoring", Ahluwalia, Falessi and Di Penta, MSR 2019; Falessi et al., TOSEM 2022), so recent code reads
+    clean. A cut-off is exposed when its horizon and one more horizon for the bugs inserted in it to surface
+    (T + 2 x horizon) run past the label end: on the holdout's ApacheJIT labels, which end on 2019-12-31,
+    exactly 2019-06-30. Fix locality on development is a complete window and cannot snore."""
+    return evaluate.months_after(cutoff, 2 * horizon) > label_end
+
+
+def unsnored(rows: dict, ends: dict, horizon: int = harness.HORIZON) -> dict:
+    """decide() again without the snore-exposed cut-offs of the repositories whose labels end (`ends`:
+    {repository: label end}), with what was left out under `dropped`. Reported beside the decision, never
+    deciding: nothing is dropped from the result itself. A failed row is kept, so a failure still shows."""
+    dropped = {r: sorted({x["cutoff"] for x in xs if "d" in x and ends.get(r) and snore_exposed(x["cutoff"], ends[r], horizon)})
+               for r, xs in rows.items()}
+    kept = {r: [x for x in xs if "d" not in x or x["cutoff"] not in dropped[r]] for r, xs in rows.items()}
+    out = decide(kept)
+    out["dropped"] = {r: v for r, v in dropped.items() if v}
     return out
 
 
@@ -201,13 +226,36 @@ def markdown(base: str, cand: str, sets: str, rows: dict, result: dict) -> str:
     lines += ["", f"For information, without the saturated cut-offs: mean {_num(result['without_saturated']['mean'])}, "
               f"p = {_p(result['without_saturated']['p'])}. It does not decide. \"Pool moved\" counts the cut-offs where the "
               "candidate's own pool differs from the baseline's; both were scored on the baseline's."]
+    if result.get("unsnored") is not None:
+        lines += ["", snoring_table(result, result["unsnored"])]
     return "\n".join(lines) + "\n"
+
+
+def snoring_table(result: dict, quiet: dict) -> str:
+    """The decision with every cut-off beside the same without the snore-exposed ones, for information."""
+    cut = sorted({t for ts in quiet["dropped"].values() for t in ts})
+    n = sum(len(ts) for ts in quiet["dropped"].values())
+
+    def wlt(x):
+        return f"{sum(e > 0 for e in x['effects'].values())}/{sum(e < 0 for e in x['effects'].values())}/{sum(e == 0 for e in x['effects'].values())}"
+    rows = ["| | every cut-off (decides) | without the snore-exposed cut-offs (reported only) |", "|---|---:|---:|",
+            f"| cut-offs left out | 0 | {n}{(' (' + ', '.join(cut) + ')') if cut else ''} |",
+            f"| mean effect | {_num(result['mean'])} | {_num(quiet['mean'])} |",
+            f"| wins/losses/ties | {wlt(result)} | {wlt(quiet)} |",
+            f"| sign-flip p | {_p(result['p'])} | {_p(quiet['p'])} |",
+            f"| verdict | {verdict(result)} | {verdict(quiet)} |"]
+    return ("Snoring, for information: a cut-off whose horizon and one more run past its labels' end may hold bugs not yet "
+            "labelled. The verdict is the left column's; the right one never decides, and nothing is dropped.\n\n" + "\n".join(rows))
 
 
 def _jsonable(result: dict) -> dict:
     def part(x):
         return {**x, "effects": {k: float(v) for k, v in x["effects"].items()}, "mean": None if x["mean"] is None else float(x["mean"])}
-    return {**part(result), "without_saturated": part(result["without_saturated"]), "verdict": verdict(result)}
+    out = {**part(result), "without_saturated": part(result["without_saturated"]), "verdict": verdict(result)}
+    if result.get("unsnored") is not None:
+        quiet = result["unsnored"]
+        out["unsnored"] = {**part(quiet), "without_saturated": part(quiet["without_saturated"]), "verdict": verdict(quiet)}
+    return out
 
 
 def main(argv=None) -> int:
@@ -248,6 +296,9 @@ def main(argv=None) -> int:
         print(f"candidate: {entry['name']}", file=sys.stderr, flush=True)
         rows[entry["name"]] = compare_entry(base_src, cand_src, entry, root, manifest["reference_date"], labels_dir)
     result = decide(rows)
+    ends = {e["name"]: e["end"] for e in entries if e.get("labels") and e.get("end")}
+    if ends:   # labels that stop can snore (the holdout's); fix locality cannot, and gets no such column
+        result["unsnored"] = unsnored(rows, ends)
     print(markdown(args.base, args.candidate, sets, rows, result))
     dirty = "worktree" in (args.base, args.candidate) and bool(subprocess.run(
         ["git", "status", "--porcelain", "--untracked-files=no"], cwd=corpus.ROOT, capture_output=True, text=True).stdout.strip())

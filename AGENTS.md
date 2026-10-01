@@ -110,7 +110,8 @@ request, and stop. Never merge, including your own pull request; never tag; neve
 about another session's work is not yours to resolve.
 
 **Measure only what can move.** A loop round (`run`: development, awkward, gate) is about 8 minutes of
-timed runs, a release round (`run --release`) about 25, and the extras have not been timed. Run one only
+timed runs, a release round (`run --release`) about 25 plus 15–20 for remediation at the development set's cut-offs, and the extras
+have not been timed. Run one only
 when the change touches what gitmole finds or ranks (findings, scoring, a pinned
 tool), and end the loop at "record produced", not "released". A docs, test or refactor change runs the
 tests and nothing else.
