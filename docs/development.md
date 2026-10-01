@@ -55,6 +55,9 @@ kind of knowledge, the answer is the repository's own ignore mechanism, which
 the finding's advice already names (`.betterleaksignore`, `.mailmap`), not a
 gitmole change.
 
+People and agents are never scored: they appear only as the subject of a file-
+or area-level knowledge risk ([AGENTS.md](../AGENTS.md#people-and-agents-are-never-scored)).
+
 ## Releases
 
 Versions are git tags and follow semantic versioning. A minor release (0.31.0)
