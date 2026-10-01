@@ -273,7 +273,10 @@ was the thing a finding named fixed within a fixed window after it — the actio
 pinned, the binary gone, the dependency dropped. That is "the repository acted
 on this", never precision, and a biased lower bound, since mechanical advice is
 taken far more readily than structural advice; its docstring says which rules
-it can and cannot score.
+it can and cannot score. A subject that was renamed or moved is followed
+through git's rename detection (limit pinned) and judged at its new path, and
+counts as *moved*, never as fixed; given exports at several cut-offs, each
+subject is counted once, at the first cut-off that flagged it.
 
 ## Description accuracy
 
