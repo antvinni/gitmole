@@ -310,7 +310,12 @@ it can and cannot score. A release round asks it at the ranking's own six cut-of
 on the development repositories (not the large ones, by the maintainer's
 decision: binutils-gdb alone would add about 35 minutes): the release's
 `--json` export of the tree at each cut-off, scored against the tree six
-months later. That is one release run per cut-off, about six times the
+months later. Those runs are not the timed run's: they pass `--time-budget -1`,
+which no projection fits, so code age never runs in them. Code age feeds only the
+findings about people (bus factor and truck factor read the surviving lines), all
+of which the scoring leaves out as not observable; under the 60 s budget it ran
+or not by the machine's load, 10 of 42 cut-off scans skipping it at 0.43.0. That
+is one release run per cut-off, about six times the
 development set's run time, in the untimed half beside the rankings: roughly
 15 to 20 minutes more wall time per release round. The record
 keeps the outcome counts by rule (`remediation` on each entry), the summary

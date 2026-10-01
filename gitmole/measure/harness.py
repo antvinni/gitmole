@@ -112,9 +112,11 @@ def _env(src: str, reference: str, extra: dict = None) -> dict:
     return env
 
 
-def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool = False, timeout: float = MAIN_TIMEOUT, env_extra: dict = None) -> dict:
+def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool = False, timeout: float = MAIN_TIMEOUT, env_extra: dict = None,
+                extra_args=()) -> dict:
     """One ordinary run of the release on the clone: `gitmole CLONE --out OUT --json REPORT`, timed and
-    measured. Returns status (ok, refused, crashed, timeout), the note, the files it left."""
+    measured. Returns status (ok, refused, crashed, timeout), the note, the files it left. `extra_args`
+    are options added after those: a run that is not the ordinary one (remediation's) says so there."""
     if os.path.isdir(work):
         shutil.rmtree(work)
     os.makedirs(work)
@@ -122,6 +124,7 @@ def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool =
     argv = [sys.executable, os.path.join(HERE, "wrap.py"), stats, "--", sys.executable, "-m", "gitmole", clone, "--out", out, "--json", report]
     if fail_on:
         argv += ["--fail-on", "critical"]
+    argv += list(extra_args)
     with open(os.path.join(work, "stdout.txt"), "w") as so, open(os.path.join(work, "stderr.txt"), "w") as se:
         load = os.getloadavg()[0]
         killed = _spawn(argv, src, _env(src, reference, env_extra), so, se, timeout)
@@ -402,12 +405,24 @@ def tree_at(clone: str, rev: str, dest: str) -> None:
     subprocess.run(["git", "checkout", "--quiet", "--detach", rev], cwd=dest, check=True, capture_output=True)
 
 
-def remediation_at(src: str, clone: str, work: str, cutoff: str, seen: set = None) -> dict:
+# What remediation's scans add to the ordinary run: no code age. Code age (the blame pass) feeds only the
+# rules about people, bus_factor and truck_factor through the surviving lines, and every rule about people
+# is in remediation.NOT_OBSERVABLE, so it cannot change a scored row; under its 60 s budget it ran or not
+# by the machine's load (0.43.0 skipped it in 10 of 42 cut-off scans). A negative --time-budget is one no
+# projection fits (projected seconds are never negative, and only --deep overrides the budget), so the
+# skip is decided by the option rather than the clock. An existing option, so a past release run with
+# `run --ref` and --remediation still parses it; the estimate stops after its first blame.
+REMEDIATION_ARGS = ("--time-budget", "-1")
+
+
+def remediation_at(src: str, clone: str, work: str, cutoff: str, seen: set = None, extra_args=REMEDIATION_ARGS) -> dict:
     """remediation's question for one cut-off, the design its docstring gives: the release's own --json
-    export of the tree at the cut-off (run as the timed run is, GITMOLE_NOW the cut-off), scored by this
-    tree's predicates against the tree HORIZON months later. The export is the release's, the yardstick
-    is the current one, as everywhere in the harness. The checkout and the run's output directory are
-    removed afterwards; the export (run/report.json) is kept, so the scoring can be repeated without a rerun."""
+    export of the tree at the cut-off (GITMOLE_NOW the cut-off), scored by this tree's predicates against
+    the tree HORIZON months later. Not run as the timed run is: `extra_args` (REMEDIATION_ARGS) turn code
+    age off, so its findings about people are not the timed run's, and none of those is scored. The
+    export is the release's, the yardstick is the current one, as everywhere in the harness. The checkout
+    and the run's output directory are removed afterwards; the export (run/report.json) is kept, so the
+    scoring can be repeated without a rerun."""
     from . import remediation
     started = time.monotonic()
     row = {"cutoff": cutoff}
@@ -419,7 +434,7 @@ def remediation_at(src: str, clone: str, work: str, cutoff: str, seen: set = Non
     tree, run_dir = os.path.join(work, "tree"), os.path.join(work, "run")
     try:
         tree_at(clone, rev, tree)
-        rec = run_release(src, tree, run_dir, cutoff)
+        rec = run_release(src, tree, run_dir, cutoff, extra_args=extra_args)
         row.update({k: rec.get(k) for k in ("status", "seconds", "peak_mb")})
         if rec.get("status") != "ok":
             row["error"] = f"{rec.get('status')}: {rec.get('note') or ''}".strip()[:200]
