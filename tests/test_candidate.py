@@ -153,3 +153,70 @@ class CutoffWindows(unittest.TestCase):
         self.assertTrue(all(isinstance(o, set) for _, o in windows))
         self.assertTrue(all(o for _, o in windows), "every window holds a fix")
         self.assertEqual(harness.cutoff_windows({"name": "r"}, []), [])
+
+
+class Snoring(unittest.TestCase):
+    """Fixture data only: the holdout itself is read by the release-tag job, never by a test."""
+
+    @staticmethod
+    def _row(t, d):
+        return {"cutoff": t, "base_hits": 5, "cand_hits": 5 + d, "d": d, "saturated": False, "pool_added": 0, "pool_dropped": 0}
+
+    def test_only_the_cut_off_whose_two_horizons_pass_the_label_end_is_exposed(self):
+        from gitmole import evaluate
+        cuts = evaluate.cutoffs("2019-12-31", 6, 6)
+        self.assertEqual([t for t in cuts if candidate.snore_exposed(t, "2019-12-31")], ["2019-06-30"])
+        self.assertFalse(candidate.snore_exposed("2018-12-31", "2019-12-31"), "T + 12 months is the label end itself: complete")
+
+    def test_the_decision_is_reported_with_and_without_the_exposed_cut_offs_and_only_one_decides(self):
+        ends = {"r1": "2019-12-31", "r2": "2019-12-31", "r3": "2019-12-31"}
+        rows = {"r1": [self._row("2018-12-31", 0), self._row("2019-06-30", 3)],
+                "r2": [self._row("2018-12-31", 0), self._row("2019-06-30", 2)],
+                "r3": [self._row("2018-12-31", 1), self._row("2019-06-30", 1)]}
+        result = candidate.decide(rows)
+        quiet = candidate.unsnored(rows, ends)
+        self.assertEqual(quiet["dropped"], {"r1": ["2019-06-30"], "r2": ["2019-06-30"], "r3": ["2019-06-30"]})
+        self.assertEqual(quiet["effects"], {"r1": Fraction(0), "r2": Fraction(0), "r3": Fraction(1)})
+        self.assertEqual(result["effects"], {"r1": Fraction(3, 2), "r2": Fraction(1), "r3": Fraction(1)}, "the decision itself drops nothing")
+        self.assertEqual(rows["r1"][1]["cutoff"], "2019-06-30", "the rows are not changed")
+        result["unsnored"] = quiet
+        text = candidate.markdown("b", "c", "holdout", rows, result)
+        self.assertIn("| cut-offs left out | 0 | 3 (2019-06-30) |", text)
+        self.assertIn("| wins/losses/ties | 3/0/0 | 1/0/2 |", text)
+        self.assertIn(f"Verdict: **{candidate.verdict(result)}**", text, "the verdict printed is the one over every cut-off")
+        js = candidate._jsonable(result)
+        self.assertEqual(js["unsnored"]["effects"]["r3"], 1.0)
+        json.dumps(js)
+
+    def test_a_failure_still_shows_without_the_exposed_cut_offs(self):
+        rows = {"r1": [self._row("2018-12-31", 1), {"cutoff": "2019-06-30", "error": "base: boom"}]}
+        self.assertEqual(candidate.verdict(candidate.unsnored(rows, {"r1": "2019-12-31"})), "incomplete")
+
+    def test_labels_that_end_get_the_column_and_fix_locality_does_not(self):
+        from unittest import mock
+        import contextlib
+        import io
+        fixture = [{"name": "f1", "set": "development", "labels": "apachejit", "end": "2019-12-31"},
+                   {"name": "f2", "set": "development", "labels": "apachejit", "end": "2019-12-31"}]
+        plain = [{"name": "p1", "set": "development"}]
+        rows = {"f1": [self._row("2018-12-31", 1), self._row("2019-06-30", -1)], "f2": [self._row("2019-06-30", 2)],
+                "p1": [self._row("2019-06-30", 1)]}
+        for entries, expect in ((fixture, True), (plain, False)):
+            out = io.StringIO()
+            with tempfile.TemporaryDirectory() as d, \
+                    mock.patch.object(candidate.corpus, "load", return_value={"reference_date": "2026-09-17", "repos": entries}), \
+                    mock.patch.object(candidate.corpus, "workspace", return_value=d), \
+                    mock.patch.object(candidate.corpus, "entries", return_value=entries), \
+                    mock.patch.object(candidate, "resolve", return_value="0" * 40), \
+                    mock.patch.object(candidate.harness, "source", return_value=d), \
+                    mock.patch.object(candidate, "compare_entry", lambda b, c, e, *a: rows[e["name"]]), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                path = os.path.join(d, "r.json")
+                candidate.main(["b", "c", "--json", path])
+                with open(path) as fh:
+                    saved = json.load(fh)
+            self.assertEqual("Snoring, for information" in out.getvalue(), expect)
+            self.assertEqual("unsnored" in saved["result"], expect)
+            if expect:
+                self.assertEqual(saved["result"]["unsnored"]["dropped"], {"f1": ["2019-06-30"], "f2": ["2019-06-30"]})
+                self.assertEqual(saved["result"]["unsnored"]["effects"], {"f1": 1.0}, "f2 had only the exposed cut-off")

@@ -35,6 +35,11 @@ methods agreed; that is worth recording and is not the same as either being righ
 REPORT.json is a `--json` export made at the cut-off; the horizon picks the commit at the far end
 through harness.rev_at, main's first-parent commit, the way the rest of the harness picks one.
 
+A release round (`python -m gitmole.measure run --release`, or `run --remediation`) asks the same question
+at each of the ranking's cut-offs on the development repositories (harness.remediate_repo):
+the release's own export of the tree at the cut-off, scored here by over_window. The record keeps the
+outcome counts by rule; pooled() and bands() are the table's arithmetic over them.
+
 A subject the tree did not hold at the cut-off is counted ABSENT and left out of every share. Without
 that gate curl's specimen values read as 90% remediated, because the secrets rules name paths from the
 whole history and most of those files had been deleted years before the cut-off. The secrets rules are
@@ -649,6 +654,48 @@ def judged(counts: Counter, gone_is_fix: bool, moved: bool = True) -> int:
     return counts[RESOLVED] + counts[OPEN] + (counts[MOVED] if moved else 0) + (counts[GONE] if gone_is_fix else 0)
 
 
+OUTCOMES = (RESOLVED, OPEN, MOVED, GONE, UNKNOWN, ABSENT, REPEAT)
+
+
+def counts(scored: dict) -> dict:
+    """score()'s Counters as plain dicts for a record: every outcome present, zero or not, so two records diff."""
+    return {name: {k: c[k] for k in OUTCOMES} for name, c in sorted(scored.items())}
+
+
+def pooled(rows) -> dict:
+    """rule -> its outcome counts summed over `rows` (each a counts() dict), the rule's gone_is_fix, how many
+    subjects the window could speak for, how many of those were acted on, and the share: the table's own
+    arithmetic, kept as numbers. Subjects are summed, never shares averaged, as the table pools a band. The
+    share is None when nothing was judged; a reader applies MIN_JUDGED, the record keeps the fraction."""
+    totals = {}
+    for row in rows:
+        for name, c in (row or {}).items():
+            if name not in RULES:
+                continue
+            t = totals.setdefault(name, Counter())
+            t.update({k: c.get(k, 0) for k in OUTCOMES})
+    out = {}
+    for name, c in sorted(totals.items()):
+        gone_is_fix = RULES[name][2]
+        n = judged(c, gone_is_fix, moved_is_judged(name))
+        fixed = c[RESOLVED] + (c[GONE] if gone_is_fix else 0)
+        out[name] = {**{k: c[k] for k in OUTCOMES}, "gone_is_fix": gone_is_fix,
+                     "kind": "mechanical" if name in MECHANICAL else "structural",
+                     "judged": n, "acted_on": fixed, "share": round(fixed / n, 4) if n else None}
+    return out
+
+
+def bands(rules: dict) -> dict:
+    """pooled() rows summed into the mechanical and structural bands, subjects pooled as table() pools them."""
+    out = {}
+    for kind in ("mechanical", "structural"):
+        rows = [v for v in rules.values() if v["kind"] == kind]
+        if rows:
+            n, fixed = sum(v["judged"] for v in rows), sum(v["acted_on"] for v in rows)
+            out[kind] = {"judged": n, "acted_on": fixed, "share": round(fixed / n, 4) if n else None}
+    return out
+
+
 def table(scored: dict) -> str:
     """One row per rule, mechanical first. Every subject is accounted for in a column, since the
     denominator is the part a reader has to see: a share over two judged subjects and a share over
@@ -681,6 +728,22 @@ def table(scored: dict) -> str:
         elif totals:
             rows.append(f"\n{kind}: no subject the window could speak for.")
     return "\n".join(rows)
+
+
+def over_window(findings: list, repo: str, cutoff: str, horizon: int = HORIZON, seen: set = None) -> dict:
+    """What main() prints, as a record: the window's end, the outcome counts by rule, and the rules that
+    fired but are not scored. A window past the history is an `error`, as main() refuses it. With `seen`,
+    shared across one repository's cut-offs oldest first, a subject an earlier cut-off counted is a
+    REPEAT here (score())."""
+    end, rev = window(repo, cutoff, horizon)
+    if not rev:
+        return {"end": end, "error": f"the window would end {end}, past this history"}
+    from .harness import rev_at
+    after = After(repo, rev, cutoff, before_rev=rev_at(repo, cutoff) or "")
+    fired = {(f.get("rule") or {}).get("id") for f in findings} - {None}
+    scored = {name for name in RULES if name in fired or name.split("_mixed")[0] in fired}
+    return {"end": end, "after": rev, "findings": len(findings), "rules": counts(score(findings, after, seen)),
+            "unscored": sorted(fired - scored)}
 
 
 def _load(path: str) -> dict:
