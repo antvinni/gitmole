@@ -702,6 +702,17 @@ class CollectMeta(unittest.TestCase):
         self.assertEqual(sum(i.get("merges", 0) for i in meta["identities"]), meta["merges"], "the rows add up to git's count")
         self.assertEqual(meta["merges_by"], "identity")
 
+    def test_a_pair_repeated_among_an_identitys_aliases_counts_once(self):
+        # django: four identities listed their own name and address again among their aliases (the address
+        # differed only in case), so their merges counted twice and the rows summed to 606 against git's 591
+        from collections import Counter
+        ids = [{"name": "Hon", "email": "hon@x.example", "commits": 50, "aliases": [{"name": "Hon", "email": "Hon@X.example"}]},
+               {"name": "Ann", "email": "ann@x.example", "commits": 9, "aliases": [{"name": "Hon", "email": "hon@x.example"}]}]
+        run._merges_per_identity(ids, Counter({("Hon", "hon@x.example"): 29, ("Ann", "ann@x.example"): 1}))
+        self.assertEqual(ids[0]["merges"], 29, "its own pair, once")
+        self.assertEqual(ids[1]["merges"], 1, "a pair the first identity claimed is not counted again")
+        self.assertEqual(sum(i.get("merges", 0) for i in ids), 30, "the rows add up to git's count")
+
     def test_an_alias_of_a_declared_bot_is_a_bot_too(self):
         # fastapi: "github-actions <github-actions@github.com>" beside github-actions[bot]; same account, one declaration
         with tempfile.TemporaryDirectory() as d:
