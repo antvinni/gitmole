@@ -134,7 +134,26 @@ def summarise(record: dict, only=None) -> dict:
         out["large_seconds"] = _round(sum(r.get("seconds") or 0 for r in large), 1)
         out["large_peak_mb"] = max((r.get("peak_mb") or 0 for r in large), default=None)
         out["large_findings_median"] = metrics.median([r.get("findings") for r in large])
+    if only is None:
+        acted = _remediation(cost.values())   # the development set only: REMEDIATION_SETS
+        if acted:
+            out["remediation"] = acted
     return out
+
+
+def _remediation(recs) -> dict:
+    """The share acted on per rule, its outcome counts summed over the repositories and the cut-offs
+    (remediation.pooled), and the mechanical and structural bands; None when no record carries it. It is
+    remediation's lower bound as it stands: subjects named at several cut-offs count at each, and a file
+    moved or renamed counts as left the tree."""
+    from . import remediation
+    rows = [r["remediation"]["rules"] for r in recs if isinstance(r.get("remediation"), dict) and r["remediation"].get("rules") is not None]
+    if not rows:
+        return None
+    rules = remediation.pooled(rows)
+    cutoffs = [c for r in recs for c in ((r.get("remediation") or {}).get("cutoffs") or [])]
+    return {"repos": len(rows), "cutoffs": [sum(1 for c in cutoffs if "error" not in c), len(cutoffs)],
+            "rules": rules, "bands": remediation.bands(rules)}
 
 
 def _key(version: str):

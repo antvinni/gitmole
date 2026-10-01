@@ -165,8 +165,8 @@ def page(history: list, extras: dict) -> str:
               "curl, django, react and gitmole, so a repository joining the development set is not a move; the table "
               "and the dashboard use the whole set: cost over the development set, effectiveness over development and "
               "large, and well-kept where a release round ranked it. Robust counts every set a round ran, so its denominator is larger in a release round. "
-              "The first three graphs are the ones the README shows: is the "
-              "ranking right, are the findings worth acting on, does it run.", ""]
+              "The README shows the ranking graph and the findings graph; the useful and robustness graphs are "
+              "kept here, robustness summed up in the README as one line.", ""]
     if history:
         lines += current(history[-1], extras)
     return "\n".join(lines) + "\n"
@@ -199,6 +199,10 @@ def current(record: dict, extras: dict) -> list:
     if s.get("large_seconds") is not None:
         rows.append(("wall time and peak memory", "large", f"{_num(s.get('large_seconds'), '{:.0f}')} s, {_num(s.get('large_peak_mb'), '{:.0f}')} MB"))
     rows.append(("scored share of tracked files", "development", _pct(s.get("scored_share"))))
+    acted = s.get("remediation")
+    rows.append(("subjects the repository acted on within six months, mechanical and structural rules (a lower bound)", "development",
+                 "; ".join(f"{k} {_acted(b)}" for k, b in acted["bands"].items()) or "no scored rule fired"
+                 if acted else "not in this record"))
     clean = s.get("claims_clean")
     rows.append(("findings whose text agrees with their own numbers", "every set",
                  f"{clean[0]} of {clean[1]}" if clean else "not checked in this record"))
@@ -210,9 +214,37 @@ def current(record: dict, extras: dict) -> list:
     unexplained = sum(1 for checks in desc.values() for c in checks if c["agree"] is False and not c.get("explained"))
     rows.append(("unexplained description disagreements", "development", str(unexplained) if desc else "not run"))
     out += ["| | set | value |", "|---|---|---|"] + [f"| {a} | {b} | {c} |" for a, b, c in rows] + [""]
+    if acted:
+        out += _remediation(acted)
     if extras:
         out += _extras(extras)
     return out
+
+
+def _acted(row: dict) -> str:
+    """'n of m' acted on, with the share only from remediation.MIN_JUDGED judged subjects up: 1 of 1 is not 100%."""
+    from .remediation import MIN_JUDGED
+    if not row.get("judged"):
+        return "none the window could judge"
+    text = f"{row['acted_on']} of {row['judged']}"
+    return text + (f" ({_pct(row['share'])})" if row["judged"] >= MIN_JUDGED else "")
+
+
+def _remediation(acted: dict) -> list:
+    """The share acted on by rule: remediation's table pooled over the development set's cut-offs."""
+    good, total = acted.get("cutoffs") or (0, 0)
+    out = ["### Was it acted on? Remediation by rule, as the yardstick stands", "",
+           f"For each finding a release made at a ranking cut-off ({good} of {total} cut-offs over {acted['repos']} development "
+           "repositories), whether the thing it named was fixed in the tree six months later "
+           "(`gitmole/measure/remediation.py`). It is a lower bound and not precision: nobody acting may mean nobody ran "
+           "gitmole. As measured here a subject still named at several cut-offs counts at each, and a file moved or "
+           "renamed counts as having left the tree; \"left\" is acted on only for rules where deleting the file is the fix.", "",
+           "| rule | kind | acted on | still open | left the tree | left counts | can't say | gone before | share |",
+           "|---|---|---:|---:|---:|---|---:|---:|---:|"]
+    for name, r in sorted(acted["rules"].items(), key=lambda kv: (kv[1]["kind"] != "mechanical", kv[0])):
+        out.append(f"| {name} | {r['kind']} | {r['resolved']} | {r['open']} | {r['gone']} | {'yes' if r['gone_is_fix'] else 'no'} | "
+                   f"{r['unknown']} | {r['absent']} | {_acted(r)} |")
+    return out + [""]
 
 
 def _extras(x: dict) -> list:
