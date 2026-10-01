@@ -304,7 +304,15 @@ def misses(rank: dict, outcome: set, top: int = TOP) -> dict:
 
 def magnets_at(rank: dict, outcome: set) -> dict:
     """The findings backtest for bug magnets: of the files the rule named, how many were fixed again in
-    the horizon, against unnamed files in the same deciles of the list's own score (the pool's order)."""
+    the horizon, against unnamed files in the same deciles of the list's own score (the pool's order).
+
+    `matched` pools the unnamed files of every decile that holds a named one, so a decile with one magnet
+    and a decile with forty weigh by their unnamed files, not by the magnets. `observed` and `expected`
+    are the standardised comparison beside it: expected = Σ_d named_d · rate_d, rate_d being the unnamed
+    files' fix rate in decile d, so the control is weighted as the named files are spread (indirect
+    standardisation; observed / expected is Σ_d (named_d / named) · rate_d against the named rate). A
+    decile with named files and no unnamed one has no rate, so its named files are left out of both and
+    counted as `unmatched`. Neither comparison replaces the other: the record keeps both."""
     named = set(rank.get("magnets") or [])
     pool = rank["pool"]
     if rank.get("magnets") is None or not pool:
@@ -312,7 +320,17 @@ def magnets_at(rank: dict, outcome: set) -> dict:
     decile = {f: i * 10 // len(pool) for i, f in enumerate(pool)}
     used = {decile[f] for f in named if f in decile}
     matched = [f for f in pool if f not in named and decile[f] in used]
-    return {"named": len(named), "named_fixed": len(named & outcome), "matched": len(matched), "matched_fixed": sum(f in outcome for f in matched)}
+    observed, expected, unmatched = 0, 0.0, 0
+    for d in sorted(used):
+        ours = [f for f in named if decile.get(f) == d]
+        others = [f for f in pool if f not in named and decile[f] == d]
+        if not others:
+            unmatched += len(ours)
+            continue
+        observed += sum(f in outcome for f in ours)
+        expected += len(ours) * sum(f in outcome for f in others) / len(others)
+    return {"named": len(named), "named_fixed": len(named & outcome), "matched": len(matched), "matched_fixed": sum(f in outcome for f in matched),
+            "observed": observed, "expected": round(expected, 6), "unmatched": unmatched}
 
 
 def cutoff_windows(entry: dict, commits: list, labels: dict = None) -> list:

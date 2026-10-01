@@ -46,6 +46,21 @@ MEASURED = ("development", "large")   # the sets a release round ranks; the deve
 RANKED = (*MEASURED, "well-kept")   # well-kept adds to the effectiveness numbers only: chosen by an outside criterion, never tuned on
 
 
+def magnets_standardised(repo: dict):
+    """One repository's standardised bug-magnets ratio: the fixes among the files the rule named at every
+    cut-off, over the fixes expected had each named file been fixed at the rate of the unnamed files in
+    its own decile (harness.magnets_at), pooled over the repository's cut-offs. The pooled
+    bug_magnets_ratio adds every repository's six cut-offs together, so a repository with many magnets
+    weighs most and a file named at six cut-offs counts six times; this one is computed per repository,
+    and the dashboard takes the median, so each repository counts once. None for a record made before
+    the decile counts were kept, or where nothing was expected."""
+    mags = (repo.get("ranking") or {}).get("magnets") or []
+    if not mags or any("expected" not in m for m in mags):
+        return None
+    observed, expected = sum(m["observed"] for m in mags), sum(m["expected"] for m in mags)
+    return observed / expected if expected else None
+
+
 def summarise(record: dict, only=None) -> dict:
     """The dashboard numbers for one release, from its per-repository records. The cost keys (findings,
     report lines, wall time, memory, scored share) are the development set's, which the fast loop
@@ -82,6 +97,8 @@ def summarise(record: dict, only=None) -> dict:
     named, nf = sum(m["named"] for m in mags), sum(m["named_fixed"] for m in mags)
     matched, mf = sum(m["matched"] for m in mags), sum(m["matched_fixed"] for m in mags)
     out["bug_magnets_ratio"] = _round((nf / named) / (mf / matched)) if named and matched and mf else None
+    # beside it, never instead of it: the standardised ratio, one per repository, then their median
+    out["bug_magnets_standardised"] = _round(metrics.median([magnets_standardised(r) for r in pop.values()]))
     # information, never a decision (measurement.md, "Is a candidate better?"): how far the list sits above
     # the better simple list at each cut-off, and how many cut-offs had half their pool or more fixed
     cuts = [c for r in pop.values() for c in ((r.get("ranking") or {}).get("cutoffs") or []) if "hits" in c]
