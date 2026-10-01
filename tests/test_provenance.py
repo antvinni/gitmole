@@ -88,6 +88,26 @@ class Cohorts(unittest.TestCase):
         self.assertEqual(out["cohort"]["retouched"], 1, "a.py changed again two minutes after the helper commit")
         self.assertEqual(out["share"], 0.333)
 
+    def test_a_revert_with_a_rewritten_subject_counts_by_gits_body_line(self):
+        from gitmole import maat, run
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.commit("a.py", "1\n", "feat: start")
+            r.commit("a.py", "2\n", "feat: helper\n\nAssisted-by: SomeModel v2", date="2026-01-06T10:00:00")
+            helper = r.git("rev-parse", "HEAD").strip()
+            r.commit("b.py", "3\n", f"fix: back out the helper (#12)\n\nThis reverts commit {helper}.", date="2026-01-07T10:00:00")
+            argv = {s["name"]: s for s in run.plan(d, d)}["reverts"]["argv"]
+            with open(os.path.join(d, "reverts.txt"), "wb") as fh:
+                subprocess.run(argv, cwd=d, check=True, stdout=fh, env=dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null"))
+            reverts = maat.read_reverts(os.path.join(d, "reverts.txt"))
+            commits = provenance.read_commits(d)
+            inventory = provenance.trailers(commits)
+            by_subject = provenance.cohort(commits, inventory)
+            out = provenance.cohort(commits, inventory, reverts=reverts)
+        self.assertEqual(list(reverts.values()), [[helper]])
+        self.assertEqual(by_subject["cohort"]["reverted"], 0, "the subject alone does not say it")
+        self.assertEqual((out["cohort"]["reverted"], out["rest"]["reverted"]), (1, 0))
+
     def test_a_coding_tool_that_authored_a_commit_still_marks_the_commits_it_is_credited_on(self):
         # paperclip: the product agent authored 2 of its 2,054 commits, so the never-authoring test left all of them out
         with tempfile.TemporaryDirectory() as d:

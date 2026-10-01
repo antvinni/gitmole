@@ -247,6 +247,7 @@ def clear_outputs(out_dir: str) -> None:
             os.remove(path)
 
 
+REVERT_GREP = "^This reverts commit [0-9a-f]{7,40}"   # maat.REVERT_GREP; maat runs as a script and is not imported here
 LOG_FORMAT = "--%h--%ad--%aN--%s%x1f%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x1f)"   # the subject, then each co-author, unit-separated
 
 
@@ -294,7 +295,10 @@ def plan(repo_dir: str, out_dir: str, branch: str = "HEAD", age: bool = True, pl
         # re-indents a file is not a revision of it; HEAD, not --all: a backport on a release branch is not a second fix, and the
         # stash is not a commit
         {"name": "git-log", "argv": [*filetypes.GIT, "log", "HEAD", "--use-mailmap", "--numstat", "--date=iso-strict", f"--pretty=format:{LOG_FORMAT}", "-M", "-w", "--ignore-blank-lines", *scopes.pathspec(scope)], "stdout": log, "deps": []},
-        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json"), *revs_args], "stdout": None, "deps": ["git-log"]},
+        # the commits whose message carries git revert's own body line, "This reverts commit <sha>", with their bodies: a revert
+        # whose subject was rewritten (a squash merge, a conventional-commit prefix) is still one. Only those commits are printed.
+        {"name": "reverts", "argv": [*filetypes.GIT, "log", "HEAD", "-E", f"--grep={REVERT_GREP}", "--format=%H%x1f%b%x1e"], "stdout": o("reverts.txt"), "deps": []},
+        {"name": "change analysis", "argv": [sys.executable, MAAT_SCRIPT, log, out_dir, *type_args, *(["--now", now] if now else []), *(["--since", since] if since else []), "--aliases", o("meta.json"), *revs_args, "--reverts", o("reverts.txt")], "stdout": None, "deps": ["git-log", "reverts"]},
         {"name": "signing", "argv": [*module("signing"), out_dir], "stdout": None, "deps": []},   # the gpgsig headers, no keyring
         {"name": "hygiene", "argv": [*module("hygiene"), out_dir], "stdout": None, "deps": []},   # the Scorecard checks, from the clone
         {"name": "provenance", "argv": [*module("provenance"), out_dir], "stdout": None, "deps": ["scc", "change analysis"]},   # trailers, cohorts, agent files; the watch list for the hit rate

@@ -10,7 +10,7 @@ writes provenance.json:
 - cohort: the declared commits, those with an `Assisted-by` trailer, a never-authoring co-author or a coding
   tool (identity.tools over meta.json) as co-author, against the rest, which is every commit that declares
   nothing and so includes any agent use nobody disclosed (never "humans"): how many were reverted (by git's
-  own `Revert "subject"`), how many are fixes, and how many had a file
+  own `Revert "subject"`, or its body line `This reverts commit <sha>`), how many are fixes, and how many had a file
   changed again by another commit within two weeks. This repository against itself, with the share
   of commits the cohort covers beside it; no prior from elsewhere, since the best-controlled study
   found the spread between agents larger than the pooled difference.
@@ -41,11 +41,12 @@ import sys
 from collections import Counter, deque
 
 try:
-    from . import filetypes, identity, leaks
+    from . import filetypes, identity, leaks, maat
 except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
     import identity
     import leaks
+    import maat
 
 SEP, END = "\x1f", "\x1e"
 # a trailer key is hyphenated by convention (Co-authored-by, Signed-off-by, Change-Id); git's parser also
@@ -161,14 +162,17 @@ def marker(inventory: dict, tools=frozenset()):
     return marked
 
 
-def cohort(commits: list, inventory: dict, watch_files=None, tools=frozenset()) -> dict:
+def cohort(commits: list, inventory: dict, watch_files=None, tools=frozenset(), reverts: dict = None) -> dict:
     """The commits that declare a coding tool (an `Assisted-by` trailer, a never-authoring co-author or a coding
     tool as co-author: marker), against the rest. The rest is every commit that declares nothing, which includes
     any agent use nobody disclosed: it is not a group of people. With `watch_files`, how many of each touched a
-    file on the watch list. A commit is reverted when a later one is git's `Revert "<its subject>"`."""
+    file on the watch list. A commit is reverted when a later one is git's `Revert "<its subject>"`, or names its
+    hash in git's body line (`reverts`, maat.read_reverts), which survives a rewritten subject."""
     marked = marker(inventory, tools)
 
     reverted = {c["subject"][len('Revert "'):-1] for c in commits if c["subject"].startswith('Revert "') and c["subject"].endswith('"')}
+    named = {r.lower() for shas in (reverts or {}).values() for r in shas}
+    lengths = sorted({len(r) for r in named})
     by_file = {}
     for i, c in enumerate(commits):
         for f in c["files"]:
@@ -177,7 +181,7 @@ def cohort(commits: list, inventory: dict, watch_files=None, tools=frozenset()) 
     for i, c in enumerate(commits):
         s = stats[marked(c)]
         s["commits"] += 1
-        s["reverted"] += c["subject"] in reverted
+        s["reverted"] += c["subject"] in reverted or any(c["hash"][:n] in named for n in lengths)
         s["fixes"] += bool(re.match(r"^(fix|hotfix|bugfix)(\([^)]*\))?!?:", c["subject"], re.I) or re.search(r"\b(fix|fixes|fixed|bug)\b", c["subject"], re.I))
         again = False
         for f in c["files"]:   # the next commit to touch each file, by position: the list is in commit order
@@ -475,7 +479,8 @@ def main(argv=None) -> int:
         pass
     tools = tool_names(meta)
     marked = marker(inventory, tools)
-    result = {"trailers": inventory, "cohort": cohort(commits, inventory, watch_files, tools), "shape": shape(commits), "agents": agents(repo)}
+    reverts = maat.read_reverts(os.path.join(args[0], "reverts.txt"))
+    result = {"trailers": inventory, "cohort": cohort(commits, inventory, watch_files, tools, reverts), "shape": shape(commits), "agents": agents(repo)}
     if watch_files is not None:
         result["cohort"]["watch_top"] = WATCH_TOP
     if commits:

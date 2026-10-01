@@ -235,7 +235,7 @@ class Plan(unittest.TestCase):
         for absent in ["git-of-theseus", "theseus stack plot", "theseus survival plot"]:
             self.assertNotIn(absent, names, "plots are opt-in")
         by = {s["name"]: s for s in steps}
-        self.assertEqual(by["change analysis"]["deps"], ["git-log"])
+        self.assertEqual(by["change analysis"]["deps"], ["git-log", "reverts"], "the commits whose body says git reverted them")
         self.assertEqual(by["code age"]["deps"], ["git-log"])
         self.assertEqual(by["scc"]["deps"], [])
         self.assertIn("--date=iso-strict", by["git-log"]["argv"])
@@ -345,7 +345,7 @@ class Plan(unittest.TestCase):
         by = {s["name"]: s for s in run.plan("/r", "/o")}
         argv = by["change analysis"]["argv"]
         self.assertTrue(argv[1].endswith("gitmole/maat.py"), argv)
-        self.assertEqual(argv[2:], ["/o/log.txt", "/o", "--aliases", "/o/meta.json"])
+        self.assertEqual(argv[2:], ["/o/log.txt", "/o", "--aliases", "/o/meta.json", "--reverts", "/o/reverts.txt"])
 
     def test_the_repositorys_ignore_revs_files_reach_the_change_analysis(self):
         by = {s["name"]: s for s in run.plan("/r", "/o", ignore_revs=["/r/.git-blame-ignore-revs", "/r/tools/revs.txt"])}

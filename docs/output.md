@@ -36,7 +36,7 @@ in plain words, and what to do first. This page is the reference.
 ## The terminal report
 
 1. **Header**: commits, date span, identities, branch, size, top languages,
-   one line for the share of fix commits, the share that are reverts when
+   one line for the share of fix commits, the share that are reverts (git's `Revert "…"` subject or its `This reverts commit <sha>` body line) when
    there are any (the busiest weekday and hour are `--full`'s Activity
    table), the year most surviving code was written (or why the blame pass did not run), and the share of
    commits signed and by what (`51% of commits signed (gpg 49%, ssh 2%),
@@ -56,7 +56,8 @@ in plain words, and what to do first. This page is the reference.
    such as `PAP-10182:` (capitals, a hyphen and a number) that happens to
    end a message; then the declared commits, those an `Assisted-by` trailer, a co-author
    who never authors a commit or a coding tool marks,
-   against the rest (reverted, fixes, a file changed again within two
+   against the rest (reverted, by git's `Revert "…"` subject or its
+   `This reverts commit <sha>` body line; fixes; a file changed again within two
    weeks), with the share of the history they cover, and three neutral
    descriptors of how commits arrive (bursts of commits minutes apart,
    conventional-commit subjects, hours of the day). This
@@ -789,6 +790,7 @@ directory for a remote target:
 | `secrets.json` | betterleaks | secret-looking strings across HEAD's history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
 | `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record, and for a row from a pip requirement file its specifier and whether that pins one version); on each lock file, the workspace members it pins and the entry points declared there, and the directories compose files build from, the database date and a digest of that snapshot; or a status: no lock files, no local database |
 | `packages.json` | osv-scanner, with or without its database | every package the lock files pin, once per ecosystem, name and version, with the lock files that pin it and the licence a lock file declares; read by `--sbom`, not part of the report |
+| `reverts.txt` | git | the commits whose message carries git revert's body line `This reverts commit <sha>`, each hash with its message body: the change analysis and the cohort count them as reverts whatever their subject says |
 | `log.txt` | git | the numstat log export the change analysis reads, whitespace ignored, with each commit's `Co-authored-by` trailers behind its subject |
 | `maat-revisions.csv` | change analysis | change frequency per file |
 | `maat-coupling.csv` | change analysis | files that change together, over logical changes (a ticket's commits, or one author's day) |

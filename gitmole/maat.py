@@ -21,6 +21,7 @@ uninteresting in .git-blame-ignore-revs; activity.json lists them.
 """
 from __future__ import annotations
 
+import bisect
 import csv
 import datetime as dt
 import itertools
@@ -115,8 +116,45 @@ def is_fix(subject: str) -> bool:
 
 
 def is_revert(subject: str) -> bool:
-    """git's own revert subject: `Revert "..."`. Case-sensitive, the quote is not required."""
+    """git's own revert subject: `Revert "..."`. Case-sensitive, the quote is not required. A revert whose
+    subject was rewritten still carries git's body line (REVERT_BODY), which the reverts step reads."""
     return (subject or "").startswith("Revert ")
+
+
+# git revert's own body line, "This reverts commit <sha>." (sequencer.c), which survives a rewritten subject:
+# the pattern the reverts step greps for (git log -E --grep) and the one that reads the sha back out.
+REVERT_GREP = "^This reverts commit [0-9a-f]{7,40}"
+REVERT_BODY = re.compile(r"^This reverts commit ([0-9a-f]{7,40})\b", re.M)
+
+
+def read_reverts(path: str) -> dict:
+    """{revert commit's full hash: [the shas its body says it reverts]} from the reverts step's output
+    (`git log -E --grep=REVERT_GREP --format=%H%x1f%b%x1e`). A missing file (an output directory from
+    before the step) is {}, and the subject alone decides, as before."""
+    try:
+        with open(path, encoding="utf-8", errors="replace", newline="") as fh:
+            text = fh.read()
+    except OSError:
+        return {}
+    out = {}
+    for chunk in text.split("\x1e"):
+        h, _, body = chunk.strip("\n").partition("\x1f")
+        named = REVERT_BODY.findall(body)
+        if _SHA.match(h.strip().lower()) and named:
+            out[h.strip().lower()] = named
+    return out
+
+
+def by_prefix(short: list, full: list) -> set:
+    """The hashes of `short` (the log's abbreviated ones) that are a prefix of one in `full`, by a sorted
+    search rather than every pair: binutils-gdb's log has over a hundred thousand commits."""
+    full = sorted(f.lower() for f in full)
+    out = set()
+    for h in short:
+        i = bisect.bisect_left(full, h.lower())
+        if i < len(full) and full[i].startswith(h.lower()):
+            out.add(h)
+    return out
 
 
 def _revs(commits) -> Counter:
@@ -746,11 +784,12 @@ def is_tangled(c: dict) -> bool:
     return len(dirs) >= TANGLED_DIRS and clauses(c.get("subject", "")) >= TANGLED_CLAUSES
 
 
-def activity(commits: list, ignored: set = frozenset()) -> dict:
+def activity(commits: list, ignored: set = frozenset(), reverts: set = frozenset()) -> dict:
     """Commits by weekday (Mon=0) and hour, by month, and per-author totals, over every commit; plus
     the sweeping commits the tables leave out, each marked whether the repository declared it in
     .git-blame-ignore-revs, how many declared commits the log holds, the oversized fixes the fix pool
-    leaves out, the tangled-looking commits, and how many subjects end in a squash-merge suffix."""
+    leaves out, the tangled-looking commits, and how many subjects end in a squash-merge suffix. A revert is
+    git's subject (is_revert) or, in `reverts`, a commit whose body carries git's own revert line."""
     by_weekday, by_hour, by_month, net_by_year = [0] * 7, [0] * 24, Counter(), Counter()
     timeline, fix_commits = defaultdict(Counter), 0
     revert_commits, reverted = 0, Counter()
@@ -766,7 +805,7 @@ def activity(commits: list, ignored: set = frozenset()) -> dict:
         if stamp and len(when) > 10:
             by_hour[stamp.hour] += 1
         by_month[c["date"][:7]] += 1
-        is_rev = is_revert(c.get("subject", ""))
+        is_rev = is_revert(c.get("subject", "")) or c["hash"] in reverts
         net = 0
         for p, a, d in c["files"]:
             net += a - d
@@ -871,11 +910,12 @@ def validate_now(value: str) -> str:
 
 
 def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filetypes.DEFAULT, now: str = None, since: str = None, until: str = None,
-              ignore_revs: set = frozenset()) -> None:
+              ignore_revs: set = frozenset(), reverts: dict = None) -> None:
     """`now` (YYYY-MM-DD) is the reference date for file ages; default today. `since` and `until` bound every
     analysis except file ages and activity.json's `authors_all`, which describe the whole history.
     `ignore_revs` are the SHAs the repository declares uninteresting; they and the sweeping commits stay
-    out of every table but the activity totals."""
+    out of every table but the activity totals. `reverts` (read_reverts) are the commits whose body carries
+    git's revert line, counted as reverts whatever their subject says."""
     # newline="": keep a \r inside a subject as-is instead of turning it into a line break
     with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
         commits = parse_log(fh.read(), aliases_from_meta(aliases_path) if aliases_path else None, types,
@@ -895,7 +935,7 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filet
             w = csv.DictWriter(fh, fieldnames=header)
             w.writeheader()
             w.writerows(rows)
-    act = activity(windowed, ignored)
+    act = activity(windowed, ignored, by_prefix([c["hash"] for c in windowed], list(reverts or ())))
     # knowledge loss is a whole-history question, so it reads authors_all, not the windowed table
     act["authors_all"] = author_totals(commits)
     act["window"] = since
@@ -906,7 +946,7 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filet
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    aliases, types, now, since, until, ignore_paths = None, filetypes.DEFAULT, None, None, None, []
+    aliases, types, now, since, until, ignore_paths, reverts_path = None, filetypes.DEFAULT, None, None, None, [], None
     while "--ignore-revs" in args:
         i = args.index("--ignore-revs"); ignore_paths.append(args[i + 1]); del args[i:i + 2]
     while "--since" in args:
@@ -936,6 +976,8 @@ if __name__ == "__main__":
         i = args.index("--aliases")
         aliases = args[i + 1]
         del args[i:i + 2]
+    if "--reverts" in args:
+        i = args.index("--reverts"); reverts_path = args[i + 1]; del args[i:i + 2]
     if len(args) != 2:
-        sys.exit("usage: maat.py LOG OUT_DIR [--aliases META_JSON] [--types LIST|all] [--now YYYY-MM-DD] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--ignore-revs FILE]...")
-    write_all(args[0], args[1], aliases, types, now, since, until, read_ignore_revs(ignore_paths))
+        sys.exit("usage: maat.py LOG OUT_DIR [--aliases META_JSON] [--types LIST|all] [--now YYYY-MM-DD] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--ignore-revs FILE]... [--reverts FILE]")
+    write_all(args[0], args[1], aliases, types, now, since, until, read_ignore_revs(ignore_paths), read_reverts(reverts_path) if reverts_path else None)

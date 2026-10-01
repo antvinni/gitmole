@@ -806,3 +806,27 @@ class Companions(unittest.TestCase):
         self.assertEqual(rows, [{"entity": "core/small.py", "companion": "core/hub.py", "confidence": 100, "shared": 20}],
                          "20 of hub.py's 100 changes is 20%: not a companion that way; the symmetric degree would be 33% and drop both")
         self.assertEqual(maat.companions(commits[:19] + commits[20:]), [], "19 shared changes are too few")
+
+
+class RevertBody(unittest.TestCase):
+    """git revert's body line, "This reverts commit <sha>.", makes a commit a revert whatever its subject says."""
+
+    def test_the_reverts_file_is_read_by_hash_and_named_sha(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "reverts.txt")
+            with open(path, "w") as fh:
+                fh.write("a" * 40 + "\x1fThis reverts commit 1234567890abcdef1234567890abcdef12345678.\n\nWhy.\n\x1e\n"
+                         + "b" * 40 + "\x1fSee also: This reverts commit 1234567 in a sentence\n\x1e\n")
+            self.assertEqual(maat.read_reverts(path), {"a" * 40: ["1234567890abcdef1234567890abcdef12345678"]},
+                             "only the line git writes, at the start of a line")
+            self.assertEqual(maat.read_reverts(os.path.join(d, "missing.txt")), {})
+
+    def test_a_rewritten_subject_is_still_a_revert(self):
+        commits = [{"hash": "aaaaaaa", "date": "2024-01-02", "author": "A", "subject": "fix(api): back out the cache", "files": [("x.py", 1, 5)]},
+                   {"hash": "ccccccc", "date": "2024-01-01", "author": "A", "subject": "add the cache", "files": [("x.py", 5, 1)]}]
+        self.assertEqual(maat.activity(commits)["revert_commits"], 0)
+        found = maat.by_prefix([c["hash"] for c in commits], ["a" * 40])
+        self.assertEqual(found, {"aaaaaaa"})
+        act = maat.activity(commits, reverts=found)
+        self.assertEqual((act["revert_commits"], act["reverted"]), (1, {"x.py": 1}))
