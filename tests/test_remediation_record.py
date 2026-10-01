@@ -184,9 +184,11 @@ class InTheRound(unittest.TestCase):
             main.main(["run", "--only", "curl", "--remediation"])
         self.assertEqual(seen, [True, False, True])
 
-    def test_development_and_large_are_asked(self):
+    def test_the_development_set_is_asked(self):
         self.assertIn("remediation", self._rank({"set": "development"}))
-        self.assertIn("remediation", self._rank({"set": "large"}))
+
+    def test_the_large_set_is_not(self):
+        self.assertNotIn("remediation", self._rank({"set": "large"}), "the maintainer's decision: development only")
 
     def test_holdout_well_kept_and_fixtures_are_not(self):
         with mock.patch.object(harness, "labels_for", lambda *a: {}):
@@ -202,7 +204,7 @@ def _rec(rules, set_="development"):
 
 
 class Summary(unittest.TestCase):
-    def test_pooled_over_the_development_set_and_large_apart(self):
+    def test_pooled_over_the_development_set_only(self):
         record = {"version": "9.9.9", "repos": {
             "a": _rec({"unpinned_actions": {"resolved": 2, "open": 2}}),
             "b": _rec({"unpinned_actions": {"resolved": 1, "open": 5}, "brain_methods": {"gone": 3, "unknown": 1}}),
@@ -215,7 +217,7 @@ class Summary(unittest.TestCase):
         self.assertEqual((acted["rules"]["unpinned_actions"]["acted_on"], acted["rules"]["unpinned_actions"]["judged"]), (3, 10))
         self.assertEqual(acted["rules"]["brain_methods"]["judged"], 0)
         self.assertEqual(acted["bands"]["mechanical"]["share"], 0.3)
-        self.assertEqual(s["large_remediation"]["rules"]["unpinned_actions"]["acted_on"], 9)
+        self.assertFalse([k for k in s if "remediation" in k and k != "remediation"], "the large set is not asked")
 
     def test_a_record_without_it_has_no_key(self):
         rec = _rec({})

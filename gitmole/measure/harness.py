@@ -339,7 +339,8 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
 
 # --- was it acted on? remediation at the same cut-offs -------------------------------------------
 
-REMEDIATION_SETS = ("development", "large")   # where a release round asks remediation's question; never the holdout
+REMEDIATION_SETS = ("development",)   # where a release round asks remediation's question: the maintainer's decision (1 Oct 2026),
+# since six release runs per entry on the large set would add about 35 minutes for binutils-gdb alone; never the holdout
 
 
 def tree_at(clone: str, rev: str, dest: str) -> None:

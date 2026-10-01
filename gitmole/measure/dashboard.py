@@ -129,10 +129,9 @@ def summarise(record: dict, only=None) -> dict:
         out["large_peak_mb"] = max((r.get("peak_mb") or 0 for r in large), default=None)
         out["large_findings_median"] = metrics.median([r.get("findings") for r in large])
     if only is None:
-        for key, members in (("remediation", cost.values()), ("large_remediation", large)):
-            acted = _remediation(members)
-            if acted:
-                out[key] = acted
+        acted = _remediation(cost.values())   # the development set only: REMEDIATION_SETS
+        if acted:
+            out["remediation"] = acted
     return out
 
 

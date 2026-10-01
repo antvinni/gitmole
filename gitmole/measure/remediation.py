@@ -36,7 +36,7 @@ REPORT.json is a `--json` export made at the cut-off; the horizon picks the comm
 through harness.rev_at, main's first-parent commit, the way the rest of the harness picks one.
 
 A release round (`python -m gitmole.measure run --release`, or `run --remediation`) asks the same question
-at each of the ranking's cut-offs on the development and large repositories (harness.remediate_repo):
+at each of the ranking's cut-offs on the development repositories (harness.remediate_repo):
 the release's own export of the tree at the cut-off, scored here by over_window. The record keeps the
 outcome counts by rule; pooled() and bands() are the table's arithmetic over them.
 

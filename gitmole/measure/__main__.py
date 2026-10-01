@@ -46,7 +46,7 @@ def _error(e: Exception) -> dict:
 
 def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: int = JOBS, remediation: bool = False) -> dict:
     """One release over the sets. With `remediation` (every --release round), the untimed half also asks
-    remediation's question at each ranking cut-off of the development and large entries: a release run per
+    remediation's question at each ranking cut-off of the development entries: a release run per
     cut-off, the round's largest added cost, so the fast loop leaves it out unless asked."""
     src = harness.source(ref, root)
     version = harness.version_of(src)
@@ -101,7 +101,7 @@ def main(argv=None) -> int:
     r.add_argument("--release", action="store_true", help=f"a release round's sets: {RELEASE_SETS}")
     r.add_argument("--only", action="append", default=[], help="only these corpus entries")
     r.add_argument("--remediation", action="store_true",
-                   help="ask remediation's question at the ranking cut-offs (development and large); --release always does")
+                   help="ask remediation's question at the ranking cut-offs (development set); --release always does")
     r.add_argument("--merge", action="store_true", help="add these runs to the release's existing record instead of replacing it")
     r.add_argument("--jobs", type=int, default=JOBS, help=f"rankings computed side by side after the timed runs (default {JOBS}; 1 is sequential)")
     x = sub.add_parser("extras")
