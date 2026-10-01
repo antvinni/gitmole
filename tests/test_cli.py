@@ -316,7 +316,10 @@ class Budget(unittest.TestCase):
         import itertools
         import subprocess
         def once(extra, busy):
-            with tempfile.TemporaryDirectory() as d:
+            # fixed commit dates: the walk counts commits by committer time, so two commits that land in the same
+            # second on one call and in two seconds on the next would differ for a reason that is not the clock under test
+            dates = {"GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z", "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z"}
+            with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, dates):
                 _tiny_repo(d)
                 pathlib.Path(d, "a.py").write_text("x = 1\n")
                 subprocess.run(["git", "-C", d, "add", "a.py"], check=True)
