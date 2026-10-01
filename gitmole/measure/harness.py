@@ -112,6 +112,79 @@ def _env(src: str, reference: str, extra: dict = None) -> dict:
     return env
 
 
+def power_source():
+    """"AC" or "battery" from `pmset -g batt` on macOS, else None: a round on battery may be slower, and
+    is where idle sleep found the 0.43.0 round."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        text = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    first = text.splitlines()[0] if text else ""
+    return "AC" if "'AC Power'" in first else "battery" if "'Battery Power'" in first else None
+
+
+_AWAKE = None   # what keep_awake did, once per process
+
+
+def keep_awake() -> str:
+    """Hold off idle sleep for as long as this process lives: `caffeinate -i -w <pid>` (macOS). -i, not -s:
+    -s holds only on AC power, and the round that slept for 50 minutes ran on battery. A lid close still
+    sleeps; the records' wall-minus-monotonic gap shows it. Elsewhere, or with caffeinate missing, the round
+    goes on and says so once on stderr. Returns what was done, for the record."""
+    global _AWAKE
+    if _AWAKE is not None:
+        return _AWAKE
+    if sys.platform != "darwin":
+        _AWAKE = "not kept awake: caffeinate is macOS only"
+    else:
+        try:
+            subprocess.Popen(["caffeinate", "-i", "-w", str(os.getpid())], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _AWAKE = "caffeinate -i"
+            return _AWAKE
+        except OSError as e:
+            _AWAKE = f"not kept awake: caffeinate did not start ({type(e).__name__})"
+    print(f"measure: {_AWAKE}; a sleep shows as the gap between wall_seconds and seconds", file=sys.stderr, flush=True)
+    return _AWAKE
+
+
+LOAD_EVERY = 5   # seconds between load samples during a timed run
+
+
+class LoadSampler:
+    """os.getloadavg()'s one-minute figure every LOAD_EVERY seconds while a run lasts, from its start:
+    the single `load` taken at the start says what the run began under, this says what it ran under."""
+
+    def __init__(self, every: float = LOAD_EVERY):
+        import threading
+        self.every, self.samples, self._stop = every, [], threading.Event()
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+
+    def _loop(self):
+        while True:
+            self.samples.append(os.getloadavg()[0])
+            if self._stop.wait(self.every):
+                return
+
+    def __enter__(self):
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        self._thread.join()
+
+    def summary(self) -> dict:
+        s = sorted(self.samples)
+        if not s:
+            return None
+        mid = len(s) // 2
+        median = s[mid] if len(s) % 2 else (s[mid - 1] + s[mid]) / 2
+        return {"min": round(s[0], 2), "median": round(median, 2), "max": round(s[-1], 2), "samples": len(s)}
+
+
 def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool = False, timeout: float = MAIN_TIMEOUT, env_extra: dict = None) -> dict:
     """One ordinary run of the release on the clone: `gitmole CLONE --out OUT --json REPORT`, timed and
     measured. Returns status (ok, refused, crashed, timeout), the note, the files it left."""
@@ -123,8 +196,9 @@ def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool =
     if fail_on:
         argv += ["--fail-on", "critical"]
     with open(os.path.join(work, "stdout.txt"), "w") as so, open(os.path.join(work, "stderr.txt"), "w") as se:
-        load = os.getloadavg()[0]
-        killed = _spawn(argv, src, _env(src, reference, env_extra), so, se, timeout)
+        load, power = os.getloadavg()[0], power_source()
+        with LoadSampler() as sampler:
+            killed = _spawn(argv, src, _env(src, reference, env_extra), so, se, timeout)
     with open(os.path.join(work, "stderr.txt"), encoding="utf-8", errors="replace") as fh:
         err = fh.read()
     st = {}
@@ -132,7 +206,8 @@ def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool =
         with open(stats) as fh:
             st = json.load(fh)
     rc = st.get("rc")
-    rec = {"rc": rc, "seconds": st.get("seconds"), "peak_mb": st.get("peak_mb"), "load": round(load, 2), "out": out, "report": report}
+    rec = {"rc": rc, "seconds": st.get("seconds"), "peak_mb": st.get("peak_mb"), "load": round(load, 2), "out": out, "report": report,
+           "wall_seconds": st.get("wall_seconds"), "cpu_seconds": st.get("cpu_seconds"), "power": power, "load_sampled": sampler.summary()}
     if killed:
         rec.update(status="timeout", note=f"killed after {timeout:.0f}s")
     elif "Traceback (most recent call last)" in err:

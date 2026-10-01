@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from . import corpus, dashboard, harness
@@ -49,6 +50,9 @@ def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: in
     """One release over the sets. With `remediation` (every --release round), the untimed half also asks
     remediation's question at each ranking cut-off of the development entries: a release run per
     cut-off, the round's largest added cost, so the fast loop leaves it out unless asked."""
+    awake = harness.keep_awake()
+    started, wall = time.monotonic(), time.time()
+    power = harness.power_source()
     src = harness.source(ref, root)
     version = harness.version_of(src)
     reference = manifest["reference_date"]
@@ -81,7 +85,29 @@ def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: in
         rec["set"] = entry["set"]
         record["repos"][entry["name"]] = rec
     record["summary"] = dashboard.summarise(record)
+    record["round"] = round_times(record["repos"], time.monotonic() - started, time.time() - wall, power, awake)
     return record
+
+
+def round_times(repos: dict, monotonic: float, wall: float, power, awake: str) -> dict:
+    """The round's own clock: its wall seconds, and how much of them the machine slept, as the gap between
+    the wall clock and the monotonic one (which stops in sleep), over the whole round and inside the timed
+    runs alone. A timed run's `seconds` excludes a sleep; its neighbours' load and caches may not."""
+    timed = [r["wall_seconds"] - r["seconds"] for r in repos.values()
+             if isinstance(r.get("wall_seconds"), (int, float)) and isinstance(r.get("seconds"), (int, float))]
+    return {"wall_seconds": round(wall, 1), "slept_seconds": round(max(0.0, wall - monotonic), 1),
+            "timed_slept_seconds": round(sum(max(0.0, g) for g in timed), 1), "power": power, "awake": awake}
+
+
+def merge_round(old, new: dict) -> dict:
+    """--merge adds a round's runs to an earlier one's record: their clocks add, and a power source or
+    keep-awake that differed between them reads "mixed"."""
+    if not old:
+        return new
+    out = {k: round((old.get(k) or 0) + (new.get(k) or 0), 1) for k in ("wall_seconds", "slept_seconds", "timed_slept_seconds")}
+    for k in ("power", "awake"):
+        out[k] = new.get(k) if old.get(k) == new.get(k) else "mixed"
+    return out
 
 
 def positives_table(record: dict, sets: list) -> str:
@@ -140,6 +166,7 @@ def main(argv=None) -> int:
     manifest = corpus.load()
     root = corpus.workspace()
     if args.command == "run":
+        harness.keep_awake()   # before the first ref is extracted; held until this process exits
         for ref in args.ref or ["worktree"]:
             record = measure(ref, sets, manifest, root, set(args.only) or None, args.jobs, args.release or args.remediation)
             existing = os.path.join(RECORDS, f"{record['version']}.json")
@@ -149,6 +176,7 @@ def main(argv=None) -> int:
                 old["repos"].update(record["repos"])
                 old["sets"] = sorted(set(old.get("sets") or []) | set(record["sets"]))
                 old["summary"] = dashboard.summarise(old)
+                old["round"] = merge_round(old.get("round"), record["round"])
                 record = old
             print(write(record))
         return 0
