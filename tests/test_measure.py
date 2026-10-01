@@ -755,6 +755,30 @@ class SimpleLists(unittest.TestCase):
         self.assertIsNone(s["simple_lift"])
         self.assertIsNone(s["simple_wins_losses_ties"])
 
+    def test_size_alone_headroom_mirrors_churn_alone(self):
+        s = dashboard.summarise(self._rec(True))
+        self.assertAlmostEqual(s["size_headroom"], round(((7 - 3.75) / (10 - 3.75) + (4 - 3.75) / (10 - 3.75)) / 2, 3),
+                               msg="per repository over its cut-offs, then the median, as churn alone")
+        self.assertIsNone(dashboard.summarise(self._rec(False))["size_headroom"], "a record from before 0.38.0: a gap, not zero")
+
+    def test_size_alone_needs_every_repository_or_none(self):
+        rec = self._rec(True)
+        del rec["repos"]["b"]["ranking"]["cutoffs"][0]["size_hits"]
+        self.assertIsNone(dashboard.summarise(rec)["size_headroom"], "a median over a different population would not compare with churn's")
+
+    def test_the_ranking_graph_and_the_table_draw_size_alone_with_a_gap_before_it(self):
+        from gitmole.measure import report
+        old, new = self._rec(False), self._rec(True)
+        old["version"], new["version"] = "0.37.0", "0.38.0"
+        for r in (old, new):
+            r.update(summary=dashboard.summarise(r), reference_date="2026-09-17")
+        svg_ = report.graphs([old, new])["ranking.svg"]
+        self.assertIn("size alone", svg_)
+        self.assertIn("size alone from 0.38.0, the first record that stores it", svg_)
+        self.assertIn('stroke="#bf8700"', svg_)
+        rows = [l for l in report.page([old, new], None).splitlines() if l.startswith("| 0.3")]
+        self.assertEqual([l.split(" | ")[3] for l in rows], ["-", f"{new['summary']['size_headroom']:.2f}"])
+
     def test_saturated_cut_offs_are_counted(self):
         self.assertEqual(dashboard.summarise(self._rec(False))["saturated_cutoffs"], [1, 2], "25 of 40 fixed at b's cut-off")
 

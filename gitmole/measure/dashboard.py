@@ -18,8 +18,11 @@ def _repo_ranking(rec: dict):
         return None
     h, e, b, ch = (sum(r[k] for r in rows) for k in ("hits", "expected", "best", "churn_hits"))
     mean = lambda k: metrics.median([r[k] for r in rows])   # noqa: E731
+    # size alone is stored per cut-off from 0.38.0 on; a record without it at every cut-off has none, not zero
+    sh = sum(r["size_hits"] for r in rows) if all(r.get("size_hits") is not None for r in rows) else None
     return {"cutoffs": len(rows), "hits": h, "expected": round(e, 2), "best": b, "churn_hits": ch,
             "headroom": metrics.headroom(h, e, b), "churn_headroom": metrics.headroom(ch, e, b),
+            "size_stored": sh is not None, "size_headroom": None if sh is None else metrics.headroom(sh, e, b),
             "auc": mean("auc"), "churn_auc": mean("churn_auc"), "recall20": mean("recall20"), "churn_recall20": mean("churn_recall20"),
             "wins": sum(r["hits"] > r["churn_hits"] for r in rows), "losses": sum(r["hits"] < r["churn_hits"] for r in rows),
             "ties": sum(r["hits"] == r["churn_hits"] for r in rows)}
@@ -65,6 +68,9 @@ def summarise(record: dict, only=None) -> dict:
     out["headroom"] = _round(metrics.median([v["headroom"] for v in ranked.values()]))
     out["headroom_ci"] = [_round(x) for x in (metrics.bootstrap(per, metrics.median) or [])] or None
     out["churn_headroom"] = _round(metrics.median([v["churn_headroom"] for v in ranked.values()]))
+    # over the same repositories as churn alone, or not at all: a median over the few that stored it would not compare
+    sized = bool(ranked) and all(v["size_stored"] for v in ranked.values())
+    out["size_headroom"] = _round(metrics.median([v["size_headroom"] for v in ranked.values()])) if sized else None
     out["wins_losses_ties"] = [sum(v[k] for v in ranked.values()) for k in ("wins", "losses", "ties")] if ranked else None
     for k in ("auc", "churn_auc", "recall20", "churn_recall20"):
         out[k] = _round(metrics.median([v[k] for v in ranked.values()]))

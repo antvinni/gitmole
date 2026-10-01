@@ -63,8 +63,10 @@ def graphs(history: list) -> dict:
     out["ranking.svg"] = svg.chart("Is it right? The watch list's share of the gap from random to perfect (headroom at 15)", labels_, [
         {"label": "watch list", "values": col("headroom"), "band": [x.get("headroom_ci") for x in s]},
         {"label": "churn alone", "values": col("churn_headroom"), "dashed": True, "color": "#57606a"},
+        {"label": "size alone", "values": col("size_headroom"), "dashed": True, "color": "#bf8700"},
         {"label": "watch list, 13 held-out repositories", "values": [x.get("holdout_headroom") for x in whole], "color": "#bf3989"}], crashed, (0, 1), "%",
-        "curl, django, react and gitmole (every release), six cut-offs, fixes in the next six months; dots: independent labels, repositories never tuned on")
+        "curl, django, react and gitmole, six cut-offs, six months of fixes; size alone from 0.38.0, the first record that stores it; "
+        "dots: held out, never tuned on")
     out["useful.svg"] = svg.chart("Is it useful? Findings the default report spells out that one agent labelled actionable", labels_, [
         {"label": "labelled actionable", "values": [u.get("actionable_share") for u in useful]},
         {"label": "carrying a label at all", "values": [u.get("labelled_share") for u in useful], "dashed": True, "color": "#57606a"}], crashed, (0, 1), "%",
@@ -118,11 +120,12 @@ def page(history: list, extras: dict) -> str:
               "Headroom is (hits − random) / (perfect − random) at 15, the median over the development repositories "
               "(and the large ones, in a release round), "
               "with a bootstrap interval over repositories. ▲ or ▼ marks a release whose value left the previous "
-              "release's interval, the only move that counts. W/L/T is the watch list against churn alone at each "
+              "release's interval, the only move that counts. Churn and size are the headroom of the files ranked by churn alone and by "
+              "size alone; size from 0.38.0, the first record that stores it. W/L/T is the watch list against churn alone at each "
               "cut-off. Bug magnets is how much more often the files the rule named were fixed again than unnamed "
               "files in the same deciles of the list's own score.", "",
-              "| release | headroom | churn | W/L/T | AUC | recall 20% | stable | magnets | findings | lines | scored | robust | gate | seconds | MB | note |",
-              "|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
+              "| release | headroom | churn | size | W/L/T | AUC | recall 20% | stable | magnets | findings | lines | scored | robust | gate | seconds | MB | note |",
+              "|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     prev = None
     for r in history:
         s = r["summary"]
@@ -131,7 +134,7 @@ def page(history: list, extras: dict) -> str:
         if s.get("crashed"):
             note = "crashed: " + "; ".join(f"{k}: {_short(v)}" for k, v in sorted(s["crashed"].items()))
             note += f"; {sets_note}" if sets_note else ""
-            lines.append(f"| {r['version']} | crashed | | | | | | | | | | {_num(_share(s.get('robust')), '{:.0%}')} | | | | {note.replace('|', '/')} |")
+            lines.append(f"| {r['version']} | crashed | | | | | | | | | | | {_num(_share(s.get('robust')), '{:.0%}')} | | | | {note.replace('|', '/')} |")
             continue
         ci = s.get("headroom_ci")
         head = _num(s.get("headroom")) + (f" [{ci[0]:.2f}, {ci[1]:.2f}]" if ci and ci[0] != ci[1] else "")
@@ -142,7 +145,7 @@ def page(history: list, extras: dict) -> str:
         failed = [f"{n}: {_short(x.get('note') or x['status'])}" for n, x in sorted(r["repos"].items()) if x.get("status") not in ("ok", "refused")]
         failed += [f"{n}: {len(x['steps_failed'])} step(s) failed" for n, x in sorted(r["repos"].items()) if x.get("status") == "ok" and x.get("steps_failed")]
         failed += [sets_note] if sets_note else []
-        lines.append(f"| {r['version']} | {head} | {_num(s.get('churn_headroom'))} | {wlt} | {_num(s.get('auc'))} | {_pct(s.get('recall20'))} | "
+        lines.append(f"| {r['version']} | {head} | {_num(s.get('churn_headroom'))} | {_num(s.get('size_headroom'))} | {wlt} | {_num(s.get('auc'))} | {_pct(s.get('recall20'))} | "
                      f"{_num(s.get('stability_top15'))} | {_num(s.get('bug_magnets_ratio'))} | {_num(s.get('findings_median'), '{:g}')}/{_num(s.get('findings_p90'), '{:g}')} | "
                      f"{_num(s.get('report_lines'), '{:g}')} | {_pct(s.get('scored_share'))} | {robust} | {gate} | {_num(s.get('seconds'), '{:.0f}')} | "
                      f"{_num(s.get('peak_mb'), '{:.0f}')} | {'; '.join(failed).replace('|', '/')} |")
