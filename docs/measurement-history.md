@@ -90,6 +90,7 @@ Each release runs from its own source over the development set (medium repositor
 | wall time and peak memory | development | 320 s, 1016 MB |
 | wall time and peak memory | large | 482 s, 1144 MB |
 | scored share of tracked files | development | 35% |
+| subjects the repository acted on within six months, mechanical and structural rules (a lower bound) | development | not in this record |
 | findings whose text agrees with their own numbers | every set | 206 of 206 |
 | contradictions between a finding and the report's own facts | every set | 54 (secrets_headline 1, self_credit 51, unreferenced_named 2) |
 | unexplained description disagreements | development | not run |
