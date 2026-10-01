@@ -300,6 +300,32 @@ def ranking_at(src: str, clone: str, out: str, until: str, reference: str) -> di
     proc = subprocess.run([sys.executable, "-m", "gitmole.backtest", out, "--until", until, "--repo", clone], cwd=src, env=env, capture_output=True, timeout=1800)
     if proc.returncode != 0:
         return {"error": (proc.stderr.decode("utf-8", "replace").strip().split("\n") or ["backtest failed"])[-1][:200]}
+    return probe_at(src, out, reference)
+
+
+def run_backtest_until(out: str):
+    """The cut-off of the backtest the release's own run left in OUT/backtest, or None. The run's backtest
+    step is `gitmole.backtest OUT --until T` in the clone, the command ranking_at runs, over the same log
+    and meta.json, so at the same T it writes the same sub-report: every file the same bytes but scc's
+    size.json, whose order of files varies from one call to the next (two of ranking_at's own backtests
+    differ the same way), with the same numbers. Its date is the run's own (six months
+    before the run's last_date), which can differ from the harness's (the canonical log's last commit):
+    the caller compares, and only a T both name is taken from the run. Read before anything else writes
+    OUT/backtest: the run's meta.json says the step ran and to which date, the sub-report says which
+    date it holds now."""
+    try:
+        with open(os.path.join(out, "meta.json"), encoding="utf-8") as fh:
+            step = (json.load(fh) or {}).get("backtest") or {}
+        with open(os.path.join(out, "backtest", "meta.json"), encoding="utf-8") as fh:
+            held = (json.load(fh) or {}).get("now")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return held if step.get("status") == "run" and step.get("until") == held else None
+
+
+def probe_at(src: str, out: str, reference: str) -> dict:
+    """The release's own ranking over the backtest sub-report already in OUT/backtest."""
+    env = _env(src, reference)
     probe = subprocess.run([sys.executable, os.path.join(HERE, "probe.py"), "rank", os.path.join(out, "backtest")], cwd=src, env=env, capture_output=True, timeout=900)
     if probe.returncode != 0:
         return {"error": (probe.stderr.decode("utf-8", "replace").strip().split("\n") or ["probe failed"])[-1][:200]}
@@ -441,15 +467,29 @@ def cutoff_windows(entry: dict, commits: list, labels: dict = None) -> list:
 
 
 def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache: str, labels: dict = None) -> dict:
-    """The six cut-offs, the stability pair and the findings backtest for one repository."""
+    """The six cut-offs, the stability pair and the findings backtest for one repository.
+
+    The latest cut-off is the stability pair's first date too (both six months before the last commit),
+    and usually the date of the run's own backtest step, so its ranking is computed once: taken from the
+    run's backtest when that is at the same date (read before the first cut-off overwrites it), else
+    ranked at the cut-off, and reused for the stability pair. The same command over the same inputs gives
+    the same ranking, so the rows are those of ranking it three times."""
     commits = canonical_log(clone, cache)
     if not commits:
         return {"cutoffs": []}
     last = entry.get("end") or max(c["date"] for c in commits)[:10]
     earliest = min(c["date"] for c in commits)[:10]
+    t0 = maat.months_before(last, HORIZON)   # the latest cut-off (evaluate.cutoffs' first horizon) and the stability pair's start
+    latest = {}   # t0's ranking, once it has one
+    if t0 > earliest and run_backtest_until(out) == t0:
+        rank = probe_at(src, out, reference)
+        if "error" not in rank:
+            latest[t0] = rank
     rows, magnets = [], []
     for t, outcome in cutoff_windows(entry, commits, labels):
-        rank = ranking_at(src, clone, out, t, reference)
+        rank = latest.get(t) or ranking_at(src, clone, out, t, reference)
+        if t == t0 and "error" not in rank:
+            latest[t0] = rank
         if "error" in rank:
             rows.append({"cutoff": t, "error": rank["error"]})
             continue
@@ -463,11 +503,10 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
             magnets.append(m)
     stability = None
     ordered = sorted(commits, key=lambda c: (c["date"], c["hash"]))
-    t0 = maat.months_before(last, HORIZON)
     after = [c for c in ordered if c["date"][:10] > t0]
     if len(after) > STABILITY_COMMITS and t0 > earliest:
         t1 = after[STABILITY_COMMITS - 1]["date"][:10]
-        a, b = ranking_at(src, clone, out, t0, reference), ranking_at(src, clone, out, t1, reference)
+        a, b = latest.get(t0) or ranking_at(src, clone, out, t0, reference), ranking_at(src, clone, out, t1, reference)
         if "error" not in a and "error" not in b:
             stability = {"from": t0, "to": t1, "spearman": metrics.spearman(a["pool"], b["pool"]),
                          "top_jaccard": metrics.jaccard(a["pool"][:TOP], b["pool"][:TOP])}

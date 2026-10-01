@@ -505,6 +505,75 @@ class Round(unittest.TestCase):
                     self.assertFalse(self._overlap(a, b))
 
 
+class LatestCutOffOnce(unittest.TestCase):
+    """The latest cut-off, the stability pair's first date and (usually) the run's own backtest are one date:
+    rank_repo ranks it once, from the run's backtest when that is at the same date, and the rows are those of
+    ranking it every time."""
+
+    LAST = "2026-09-17"
+
+    def _commits(self):
+        import datetime as dt
+        start, out = dt.date(2022, 1, 1), []
+        for i in range(0, 1720, 2):   # a commit every two days up to the last date, a fix every third
+            day = (start + dt.timedelta(days=i)).isoformat()
+            out.append({"hash": f"{i:040x}", "date": day + "T12:00:00+00:00", "subject": "fix: a" if i % 3 == 0 else "change",
+                        "files": [("a.c", 1, 1), ("b.c", 1, 1)]})
+        out.append({"hash": "f" * 40, "date": self.LAST + "T12:00:00+00:00", "subject": "change", "files": [("a.c", 1, 1)]})
+        return out
+
+    def _rank_repo(self, run_until=None, held=None):
+        from unittest import mock
+        calls, probes = [], []
+        rank = {"pool": ["a.c", "b.c"], "revs": {"a.c": 3, "b.c": 2}, "lines": {"a.c": 10, "b.c": 5}, "total_code": 15}
+
+        def ranking_at(src, clone, out, until, reference):
+            calls.append(until)
+            return dict(rank)
+
+        def probe_at(src, out, reference):
+            probes.append(out)
+            return dict(rank)
+
+        with tempfile.TemporaryDirectory() as out:
+            if run_until is not None:
+                os.makedirs(os.path.join(out, "backtest"))
+                with open(os.path.join(out, "meta.json"), "w") as fh:
+                    json.dump({"backtest": {"status": "run", "until": run_until}}, fh)
+                with open(os.path.join(out, "backtest", "meta.json"), "w") as fh:
+                    json.dump({"now": held or run_until}, fh)
+            with mock.patch.object(harness, "canonical_log", lambda clone, cache: self._commits()), \
+                    mock.patch.object(harness, "ranking_at", ranking_at), mock.patch.object(harness, "probe_at", probe_at):
+                result = harness.rank_repo("/src", {"name": "x"}, "/clone", out, "2026-09-18", "/cache")
+        return result, calls, probes
+
+    def test_the_runs_backtest_at_the_latest_cut_off_is_probed_not_rebuilt(self):
+        result, calls, probes = self._rank_repo(run_until="2026-03-17")
+        dates = [r["cutoff"] for r in result["cutoffs"]]
+        self.assertEqual(dates[-1], "2026-03-17")
+        self.assertEqual(len(probes), 1, "the run's backtest is read once")
+        self.assertNotIn("2026-03-17", calls, "neither the latest cut-off nor the stability pair rebuilds it")
+        self.assertEqual(calls, dates[:-1] + [result["stability"]["to"]])
+        self.assertEqual(result["stability"]["from"], "2026-03-17")
+
+    def test_a_run_at_another_date_is_not_used_and_the_latest_is_ranked_once(self):
+        result, calls, probes = self._rank_repo(run_until="2026-03-16")
+        self.assertEqual(probes, [], "the run's backtest is at another date: what users get, not the cut-off")
+        self.assertEqual(calls.count("2026-03-17"), 1, "the latest cut-off and the stability pair share one ranking")
+        self.assertEqual(len(calls), len(result["cutoffs"]) + 1)
+
+    def test_a_sub_report_overwritten_since_the_run_is_not_the_runs(self):
+        _, calls, probes = self._rank_repo(run_until="2026-03-17", held="2026-03-20")
+        self.assertEqual(probes, [])
+        self.assertEqual(calls.count("2026-03-17"), 1)
+
+    def test_no_run_backtest_ranks_the_latest_once(self):
+        result, calls, probes = self._rank_repo()
+        self.assertEqual(probes, [])
+        self.assertEqual(calls.count("2026-03-17"), 1)
+        self.assertIsNotNone(result["stability"])
+
+
 class Signals(unittest.TestCase):
     def test_recent_revisions_times_lines_reorder_the_same_pool(self):
         from gitmole.measure import signals
