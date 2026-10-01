@@ -428,6 +428,57 @@ class Signals(unittest.TestCase):
         self.assertEqual(ranked["hcm3s x lines"][0], "core/parser.py", "1.0 x 800 beats 2.0 x 200")
         self.assertEqual(ranked["hcm1d"][0], "web/index.html")
 
+    def test_fix_count_rows_rank_the_same_pool_by_fixes_alone_and_decayed(self):
+        from gitmole import evaluate
+        from gitmole.measure import signals
+        from tests.test_watch import report
+
+        def fix(h, date, path):
+            return {"hash": h, "date": date, "author": "Ann", "subject": "fix crash", "files": [(path, 1, 1)]}
+        # util.py: one fix a month ago; parser.py: three fixes four years ago; a fix after the cut-off counts for nothing
+        commits = [fix("u1", "2026-08-01", "core/util.py"), fix("late", "2026-10-01", "web/index.html")]
+        commits += [fix(f"p{i}", "2022-08-01", "core/parser.py") for i in range(3)]
+        r = report()
+        ranked, _ = signals.variants(r, commits, "2026-09-01")
+        for row in signals.FIX_COUNT_ROWS:
+            self.assertEqual(sorted(ranked[row]), sorted(ranked["watch list"]), f"{row} ranks the one pool")
+        self.assertEqual(ranked["recent fixes"], evaluate.variants(r)["recent fixes"], "Rahman's naive order is evaluate's own, not a copy")
+        self.assertEqual(ranked["fixes"][0], "core/parser.py", "the report's whole-history fix count: 9 against 2")
+        self.assertEqual(signals.FIX_HALF_LIVES, (3, 6, 12, 24))
+        for h in signals.FIX_HALF_LIVES:
+            self.assertEqual(ranked[f"fix decay {h}m"][0], "core/util.py", "one fix a month old outweighs three four years old at every half-life on the grid")
+        self.assertEqual(ranked["fix decay 3m"][1:], ["core/parser.py", "web/index.html"], "index.html's only fix lands after the cut-off and weighs nothing")
+        self.assertEqual(set(signals.SZZ_ROWS) - set(ranked), set(), "every row scored on R-SZZ exists")
+
+    def test_the_szz_outcome_scores_the_fix_count_rows_beside_fix_locality(self):
+        from unittest import mock
+        from gitmole.measure import signals
+        from tests.test_watch import report
+        commits = [{"hash": "u1", "date": "2026-08-01", "author": "Ann", "subject": "fix crash", "files": [("core/util.py", 1, 1)]}]
+        entry = {"name": "r"}
+        with tempfile.TemporaryDirectory() as root:
+            out = os.path.join(root, "runs", "0.0.0", "r", "out")
+            os.makedirs(out)
+            with open(os.path.join(out, "meta.json"), "w") as fh:
+                json.dump({"last_date": "2026-09-20"}, fh)
+            open(os.path.join(out, "log.txt"), "w").close()
+            induced = []
+            with mock.patch.object(signals.maat, "parse_log", lambda *a: commits), \
+                    mock.patch.object(signals.evaluate, "cutoffs", lambda *a: ["2026-09-01"]), \
+                    mock.patch.object(signals.harness, "rev_at", lambda *a: "abc"), \
+                    mock.patch.object(signals.backtest, "snapshot_at", lambda *a: ("", [], [])), \
+                    mock.patch.object(signals.load, "parse_scc", lambda *a: report()["size"]), \
+                    mock.patch.object(signals.evaluate, "report_at", lambda *a: report()), \
+                    mock.patch.object(signals.evaluate, "induced_between", lambda *a, **k: induced.append(a[2]) or {"core/util.py", "nowhere.py"}):
+                plain = signals.measure(entry, "0.0.0", root, None, set())
+                both = signals.measure(entry, "0.0.0", root, None, set(), szz_outcome=True)
+                labelled = signals.measure(entry, "0.0.0", root, {"x": None}, set(), szz_outcome=True)
+        self.assertEqual(induced, ["2026-09-01"], "R-SZZ once, for the fix-locality run; never with labels")
+        self.assertEqual({k: v for k, v in both.items() if not k.endswith(signals.SZZ_SUFFIX)}, plain, "nothing existing moves")
+        self.assertEqual(sorted(k for k in both if k.endswith(signals.SZZ_SUFFIX)), sorted(v + signals.SZZ_SUFFIX for v in signals.SZZ_ROWS))
+        self.assertFalse(any(k.endswith(signals.SZZ_SUFFIX) for k in labelled))
+        self.assertEqual(both["fix decay 6m" + signals.SZZ_SUFFIX]["hits"], 1, "the induced file inside the pool, at the top of its list")
+
     def test_a_candidate_is_scored_on_the_records_measures_and_cannot_win_popt_by_naming_small_files(self):
         from gitmole.measure import signals
         from tests.test_watch import report
