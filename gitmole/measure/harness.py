@@ -112,12 +112,87 @@ def _env(src: str, reference: str, extra: dict = None) -> dict:
     return env
 
 
+def power_source():
+    """"AC" or "battery" from `pmset -g batt` on macOS, else None: a round on battery may be slower, and
+    is where idle sleep found the 0.43.0 round."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        text = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    first = text.splitlines()[0] if text else ""
+    return "AC" if "'AC Power'" in first else "battery" if "'Battery Power'" in first else None
+
+
+_AWAKE = None   # what keep_awake did, once per process
+
+
+def keep_awake() -> str:
+    """Hold off idle sleep for as long as this process lives: `caffeinate -i -w <pid>` (macOS). -i, not -s:
+    -s holds only on AC power, and the round that slept for 50 minutes ran on battery. A lid close still
+    sleeps; the records' wall-minus-monotonic gap shows it. Elsewhere, or with caffeinate missing, the round
+    goes on and says so once on stderr. Returns what was done, for the record."""
+    global _AWAKE
+    if _AWAKE is not None:
+        return _AWAKE
+    if sys.platform != "darwin":
+        _AWAKE = "not kept awake: caffeinate is macOS only"
+    else:
+        try:
+            subprocess.Popen(["caffeinate", "-i", "-w", str(os.getpid())], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _AWAKE = "caffeinate -i"
+            return _AWAKE
+        except OSError as e:
+            _AWAKE = f"not kept awake: caffeinate did not start ({type(e).__name__})"
+    print(f"measure: {_AWAKE}; a sleep shows as the gap between wall_seconds and seconds", file=sys.stderr, flush=True)
+    return _AWAKE
+
+
+LOAD_EVERY = 5   # seconds between load samples during a timed run
+
+
+class LoadSampler:
+    """os.getloadavg()'s one-minute figure every LOAD_EVERY seconds while a run lasts, from its start:
+    the single `load` taken at the start says what the run began under, this says what it ran under."""
+
+    def __init__(self, every: float = LOAD_EVERY):
+        import threading
+        self.every, self.samples, self._stop = every, [], threading.Event()
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+
+    def _loop(self):
+        while True:
+            self.samples.append(os.getloadavg()[0])
+            if self._stop.wait(self.every):
+                return
+
+    def __enter__(self):
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        self._thread.join()
+
+    def summary(self) -> dict:
+        s = sorted(self.samples)
+        if not s:
+            return None
+        mid = len(s) // 2
+        median = s[mid] if len(s) % 2 else (s[mid - 1] + s[mid]) / 2
+        return {"min": round(s[0], 2), "median": round(median, 2), "max": round(s[-1], 2), "samples": len(s)}
+
+
 CACHE_DIR = "cache"   # under a run's work directory: its own GITMOLE_CACHE, empty at the start, removed at the end
 
 
-def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool = False, timeout: float = MAIN_TIMEOUT, env_extra: dict = None) -> dict:
+def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool = False, timeout: float = MAIN_TIMEOUT, env_extra: dict = None,
+                extra_args=()) -> dict:
     """One ordinary run of the release on the clone: `gitmole CLONE --out OUT --json REPORT`, timed and
-    measured. Returns status (ok, refused, crashed, timeout), the note, the files it left.
+    measured. Returns status (ok, refused, crashed, timeout), the note, the files it left. `extra_args`
+    are options added after those: a run that is not the ordinary one (remediation's) says so there.
 
     Every run starts from an empty cache of its own (GITMOLE_CACHE, the structure step's parse cache and
     the feedback state beside it), removed when the run is over: a timed run's structure cost is a first
@@ -131,10 +206,12 @@ def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool =
     argv = [sys.executable, os.path.join(HERE, "wrap.py"), stats, "--", sys.executable, "-m", "gitmole", clone, "--out", out, "--json", report]
     if fail_on:
         argv += ["--fail-on", "critical"]
+    argv += list(extra_args)
     with open(os.path.join(work, "stdout.txt"), "w") as so, open(os.path.join(work, "stderr.txt"), "w") as se:
-        load = os.getloadavg()[0]
+        load, power = os.getloadavg()[0], power_source()
         try:
-            killed = _spawn(argv, src, _env(src, reference, {"GITMOLE_CACHE": cache, **(env_extra or {})}), so, se, timeout)
+            with LoadSampler() as sampler:
+                killed = _spawn(argv, src, _env(src, reference, {"GITMOLE_CACHE": cache, **(env_extra or {})}), so, se, timeout)
         finally:
             shutil.rmtree(cache, ignore_errors=True)   # our own directory under the run's, never the user's cache
     with open(os.path.join(work, "stderr.txt"), encoding="utf-8", errors="replace") as fh:
@@ -144,7 +221,8 @@ def run_release(src: str, clone: str, work: str, reference: str, fail_on: bool =
         with open(stats) as fh:
             st = json.load(fh)
     rc = st.get("rc")
-    rec = {"rc": rc, "seconds": st.get("seconds"), "peak_mb": st.get("peak_mb"), "load": round(load, 2), "out": out, "report": report}
+    rec = {"rc": rc, "seconds": st.get("seconds"), "peak_mb": st.get("peak_mb"), "load": round(load, 2), "out": out, "report": report,
+           "wall_seconds": st.get("wall_seconds"), "cpu_seconds": st.get("cpu_seconds"), "power": power, "load_sampled": sampler.summary()}
     if killed:
         rec.update(status="timeout", note=f"killed after {timeout:.0f}s")
     elif "Traceback (most recent call last)" in err:
@@ -414,12 +492,24 @@ def tree_at(clone: str, rev: str, dest: str) -> None:
     subprocess.run(["git", "checkout", "--quiet", "--detach", rev], cwd=dest, check=True, capture_output=True)
 
 
-def remediation_at(src: str, clone: str, work: str, cutoff: str, seen: set = None) -> dict:
+# What remediation's scans add to the ordinary run: no code age. Code age (the blame pass) feeds only the
+# rules about people, bus_factor and truck_factor through the surviving lines, and every rule about people
+# is in remediation.NOT_OBSERVABLE, so it cannot change a scored row; under its 60 s budget it ran or not
+# by the machine's load (0.43.0 skipped it in 10 of 42 cut-off scans). A negative --time-budget is one no
+# projection fits (projected seconds are never negative, and only --deep overrides the budget), so the
+# skip is decided by the option rather than the clock. An existing option, so a past release run with
+# `run --ref` and --remediation still parses it; the estimate stops after its first blame.
+REMEDIATION_ARGS = ("--time-budget", "-1")
+
+
+def remediation_at(src: str, clone: str, work: str, cutoff: str, seen: set = None, extra_args=REMEDIATION_ARGS) -> dict:
     """remediation's question for one cut-off, the design its docstring gives: the release's own --json
-    export of the tree at the cut-off (run as the timed run is, GITMOLE_NOW the cut-off), scored by this
-    tree's predicates against the tree HORIZON months later. The export is the release's, the yardstick
-    is the current one, as everywhere in the harness. The checkout and the run's output directory are
-    removed afterwards; the export (run/report.json) is kept, so the scoring can be repeated without a rerun."""
+    export of the tree at the cut-off (GITMOLE_NOW the cut-off), scored by this tree's predicates against
+    the tree HORIZON months later. Not run as the timed run is: `extra_args` (REMEDIATION_ARGS) turn code
+    age off, so its findings about people are not the timed run's, and none of those is scored. The
+    export is the release's, the yardstick is the current one, as everywhere in the harness. The checkout
+    and the run's output directory are removed afterwards; the export (run/report.json) is kept, so the
+    scoring can be repeated without a rerun."""
     from . import remediation
     started = time.monotonic()
     row = {"cutoff": cutoff}
@@ -431,7 +521,7 @@ def remediation_at(src: str, clone: str, work: str, cutoff: str, seen: set = Non
     tree, run_dir = os.path.join(work, "tree"), os.path.join(work, "run")
     try:
         tree_at(clone, rev, tree)
-        rec = run_release(src, tree, run_dir, cutoff)
+        rec = run_release(src, tree, run_dir, cutoff, extra_args=extra_args)
         row.update({k: rec.get(k) for k in ("status", "seconds", "peak_mb")})
         if rec.get("status") != "ok":
             row["error"] = f"{rec.get('status')}: {rec.get('note') or ''}".strip()[:200]
@@ -492,10 +582,12 @@ def needs_ranking(entry: dict, rec: dict) -> bool:
     return rec.get("status") == "ok" and entry["set"] in ("development", "large", "well-kept", "holdout") and not entry.get("fixture")
 
 
-def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labels_dir: str = None, remediation: bool = False) -> dict:
+def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labels_dir: str = None, remediation: bool = False,
+               not_asked: str = None) -> dict:
     """The untimed half: the ranking at cut-offs and the finding ids, read off the files the timed run
     left. Nothing here is measured, so entries' rankings may run side by side; each works in its own
-    run directory and log cache."""
+    run directory and log cache. `not_asked` is why a release round did not ask remediation's question:
+    an entry it would have asked records that, never a number."""
     name = entry["name"]
     started = time.monotonic()
     clone = rec.pop("clone", None) or corpus.clone(entry, root)
@@ -505,9 +597,12 @@ def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labe
             rec["ranking"] = {"error": "labels not found"}
         else:
             rec["ranking"] = rank_repo(src, entry, clone, rec["out"], reference, os.path.join(root, "logs", name + ".txt"), labels)
-    if remediation and entry["set"] in REMEDIATION_SETS and rec.get("status") == "ok" and not entry.get("fixture"):
-        rec["remediation"] = remediate_repo(src, entry, clone, os.path.join(root, "runs", version_of(src), name, "remediation"),
-                                            os.path.join(root, "logs", name + ".txt"))
+    if entry["set"] in REMEDIATION_SETS and rec.get("status") == "ok" and not entry.get("fixture"):
+        if remediation:
+            rec["remediation"] = remediate_repo(src, entry, clone, os.path.join(root, "runs", version_of(src), name, "remediation"),
+                                                os.path.join(root, "logs", name + ".txt"))
+        elif not_asked:
+            rec["remediation"] = {"asked": False, "reason": not_asked}
     if entry["set"] in hand_labels.LABELLED_SETS and rec.get("report"):   # for the actionable share, from the labels at report time
         rec["finding_ids"] = [{k: row[k] for k in ("id", "rule", "summary")} for row in hand_labels.id_rows(name, entry.get("commit"), rec["report"])]
     rec["measure_seconds"] = round((rec.get("measure_seconds") or 0) + time.monotonic() - started, 1)
