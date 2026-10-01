@@ -277,6 +277,31 @@ def score(rank: dict, outcome: set, top: int = TOP) -> dict:
             "top": pool[:top]}   # for the carry-over between consecutive cut-offs
 
 
+ABSENT = "absent at the cut-off"   # neither in the tree at T nor touched before it: new after T, or renamed after it
+BELOW = "in the pool below the top"
+
+
+def misses(rank: dict, outcome: set, top: int = TOP) -> dict:
+    """The account of what score() cannot see: it counts the outcome inside the pool only, so an outcome
+    file the pool never held vanishes from every number. Each outcome file is credited (in the top), in
+    the pool below the top, absent at the cut-off, or left out of the pool for the reason the release's
+    own classifier gives (probe.rank's left_out: generated, vendored, not in the tree, changed fewer than
+    twice, ...). Reported beside the score and never entering it. None for a release whose probe gave
+    no reasons."""
+    left = rank.get("left_out")
+    if left is None:
+        return None
+    pool = rank["pool"]
+    head, members = set(pool[:top]), set(pool)
+    causes = {}
+    for f in outcome:
+        if f in head:
+            continue
+        cause = BELOW if f in members else left.get(f, ABSENT)
+        causes[cause] = causes.get(cause, 0) + 1
+    return {"outcome": len(outcome), "credited": len(outcome & head), "missed": sum(causes.values()), "by_cause": dict(sorted(causes.items()))}
+
+
 def magnets_at(rank: dict, outcome: set) -> dict:
     """The findings backtest for bug magnets: of the files the rule named, how many were fixed again in
     the horizon, against unnamed files in the same deciles of the list's own score (the pool's order)."""
@@ -320,7 +345,11 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
         if "error" in rank:
             rows.append({"cutoff": t, "error": rank["error"]})
             continue
-        rows.append({"cutoff": t, **score(rank, outcome)})
+        row = {"cutoff": t, **score(rank, outcome)}
+        account = misses(rank, outcome)
+        if account is not None:
+            row["misses"] = account
+        rows.append(row)
         m = magnets_at(rank, outcome)
         if m:
             magnets.append(m)

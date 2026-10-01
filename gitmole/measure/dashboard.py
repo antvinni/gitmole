@@ -88,6 +88,16 @@ def summarise(record: dict, only=None) -> dict:
     lift = [c["hits"] - max(c["churn_hits"], c["size_hits"]) for c in cuts if c.get("size_hits") is not None]
     out["simple_lift"] = sum(lift) if lift else None
     out["simple_wins_losses_ties"] = [sum(x > 0 for x in lift), sum(x < 0 for x in lift), sum(x == 0 for x in lift)] if lift else None
+    # what the score cannot credit (harness.misses): the outcome's files by cause, summed over the cut-offs that
+    # carry the account; reported only, and absent from a record made before it, so an old summary keeps its keys
+    accounts = [c["misses"] for c in cuts if c.get("misses")]
+    if accounts:
+        causes = {}
+        for a in accounts:
+            for k, v in a["by_cause"].items():
+                causes[k] = causes.get(k, 0) + v
+        out["outcome_account"] = {"cutoffs": len(accounts), "outcome": sum(a["outcome"] for a in accounts),
+                                  "credited": sum(a["credited"] for a in accounts), "by_cause": dict(sorted(causes.items()))}
     out["saturated_cutoffs"] = [sum(1 for c in cuts if c.get("pool") and c["positives"] / c["pool"] >= SATURATED), len(cuts)] if cuts else None
     ok = [r for r in cost.values() if r["status"] == "ok"]
     out["findings_median"] = metrics.median([r.get("findings") for r in ok])

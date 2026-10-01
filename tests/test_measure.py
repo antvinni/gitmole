@@ -145,6 +145,47 @@ class SignFlip(unittest.TestCase):
                          "totals 0, 4/3, 2/3, 2/3 and 0 reach the observed 0: no float rounding decides the two ties")
 
 
+class OutcomeAccount(unittest.TestCase):
+    """harness.misses: every outcome file the score cannot credit, by cause, beside a score that does not move."""
+
+    RANK = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40,
+            "left_out": {"gen.c": "generated", "once.c": "changed fewer than twice", "gone.c": "not in the tree"}}
+
+    def test_each_outcome_file_is_credited_or_has_one_cause(self):
+        outcome = {"a", "c", "gen.c", "once.c", "gone.c", "new.c"}
+        m = harness.misses(self.RANK, outcome, top=2)
+        self.assertEqual(m["credited"], 1, "a is in the top two")
+        self.assertEqual(m["by_cause"], {harness.ABSENT: 1, "changed fewer than twice": 1, "generated": 1,
+                                         harness.BELOW: 1, "not in the tree": 1})
+        self.assertEqual(m["credited"] + m["missed"], m["outcome"], "the account adds up to the outcome")
+        self.assertEqual(m["credited"], harness.score(self.RANK, outcome, top=2)["hits"])
+
+    def test_the_score_does_not_move(self):
+        plain = {k: v for k, v in self.RANK.items() if k != "left_out"}
+        self.assertEqual(harness.score(self.RANK, {"a", "c", "gen.c", "new.c"}, top=2), harness.score(plain, {"a", "c", "gen.c", "new.c"}, top=2))
+
+    def test_a_probe_without_reasons_gives_no_account(self):
+        self.assertIsNone(harness.misses({k: v for k, v in self.RANK.items() if k != "left_out"}, {"a"}, top=2))
+
+    def test_the_summary_sums_the_account_and_an_old_record_has_none(self):
+        row = {"cutoff": "2025-01-01", **harness.score(self.RANK, {"a", "gen.c", "new.c"}, top=2)}
+        rec = {"version": "x", "repos": {"r": {"set": "development", "status": "ok", "ranking": {"cutoffs": [row]}}}}
+        self.assertNotIn("outcome_account", dashboard.summarise(rec), "a record from before the account keeps its keys")
+        row["misses"] = harness.misses(self.RANK, {"a", "gen.c", "new.c"}, top=2)
+        acc = dashboard.summarise(rec)["outcome_account"]
+        self.assertEqual(acc, {"cutoffs": 1, "outcome": 3, "credited": 1, "by_cause": {harness.ABSENT: 1, "generated": 1}})
+
+    def test_the_probe_gives_the_classifiers_reason_for_each_file_outside_the_pool(self):
+        from gitmole.measure import probe
+        report = {"meta": {"generated": ["gen.c"]},
+                  "size": {"files": {"a.c": {"code": 10}, "gen.c": {"code": 10}, "once.c": {"code": 10}}},
+                  "revisions": [{"entity": "a.c", "n-revs": 3}, {"entity": "gen.c", "n-revs": 4}, {"entity": "once.c", "n-revs": 1},
+                                {"entity": "gone.c", "n-revs": 2}]}
+        revisions = {r["entity"]: r["n-revs"] for r in report["revisions"]}
+        left = probe._left_out(report, [{"file": "a.c"}], revisions, report["size"]["files"])
+        self.assertEqual(left, {"gen.c": "generated", "once.c": "changed fewer than twice", "gone.c": "not in the tree"})
+
+
 class Scoring(unittest.TestCase):
     def test_one_cut_off_against_random_perfect_and_churn(self):
         rank = {"pool": ["a", "b", "c", "d"], "revs": {"a": 1, "b": 9, "c": 5, "d": 3}, "lines": {"a": 10, "b": 10, "c": 10, "d": 10}, "total_code": 40}
