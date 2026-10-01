@@ -1,6 +1,6 @@
 """python -m gitmole.measure: the measurement harness of docs/measurement.md.
 
-    python -m gitmole.measure run [--ref REF]... [--sets development,awkward,gate | --release] [--remediation]   # one or more releases
+    python -m gitmole.measure run [--ref REF]... [--sets development,awkward,gate | --release] [--[no-]remediation]   # one or more releases
     python -m gitmole.measure extras [--release]                                                 # the current tree's one-off checks
     python -m gitmole.measure report                                                             # docs/measurement-history.md and the graphs
     python -m gitmole.measure labels dump|score                                                  # the hand-label sheet and its verdicts
@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from . import corpus, dashboard, harness
@@ -45,16 +46,54 @@ def _error(e: Exception) -> dict:
     return {"status": "harness-error", "note": f"{type(e).__name__}: {e}"[:200]}
 
 
-def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: int = JOBS, remediation: bool = False) -> dict:
-    """One release over the sets. With `remediation` (every --release round), the untimed half also asks
-    remediation's question at each ranking cut-off of the development entries: a release run per
-    cut-off, the round's largest added cost, so the fast loop leaves it out unless asked."""
+def last_asked(version: str, directory: str = RECORDS):
+    """The latest record before `version` that carries remediation's table (its summary's `rules`): the
+    point a release round's trigger diffs from. A record that did not ask is skipped, so a run of
+    unchanged releases still compares with the one whose numbers stand."""
+    try:
+        history = dashboard.load_history(directory)
+    except OSError:
+        return None
+    earlier = [r for r in history if dashboard._key(r.get("version", "0")) < dashboard._key(version)
+               and isinstance((r.get("summary") or {}).get("remediation"), dict) and r["summary"]["remediation"].get("rules") is not None]
+    return earlier[-1] if earlier else None
+
+
+def remediation_decision(remediation, ref: str, commit: str, version: str, directory: str = RECORDS) -> dict:
+    """Whether this round asks remediation's question: {"asked", "reason", "changed"}. `remediation` is
+    True (--remediation: always), False (not asked, nothing recorded: the fast loop), "off"
+    (--no-remediation: not asked, and said so) or "auto" (--release: asked when a path in
+    remediation.ASKED_WHEN_CHANGED changed since the last record that asked it)."""
+    from . import remediation as rem
+    if remediation is True:
+        return {"asked": True, "reason": "--remediation", "changed": []}
+    if remediation == "off":
+        return {"asked": False, "reason": "--no-remediation", "changed": []}
+    if remediation != "auto":
+        return {"asked": False, "reason": None, "changed": []}
+    asked, reason, changed = rem.asked_since(corpus.ROOT, last_asked(version, directory), None if ref == "worktree" else commit)
+    return {"asked": asked, "reason": reason, "changed": changed}
+
+
+def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: int = JOBS, remediation=False) -> dict:
+    """One release over the sets. With `remediation` asked (remediation_decision), the untimed half also
+    asks remediation's question at each ranking cut-off of the development entries: a release run per
+    cut-off, the round's largest added cost, so the fast loop leaves it out, and a release round asks it
+    only when what it depends on changed."""
+    awake = harness.keep_awake()
+    started, wall = time.monotonic(), time.time()
+    power = harness.power_source()
     src = harness.source(ref, root)
     version = harness.version_of(src)
     reference = manifest["reference_date"]
     commit = subprocess.run(["git", "rev-parse", ref if ref != "worktree" else "HEAD"], cwd=corpus.ROOT, capture_output=True, text=True).stdout.strip()
     record = {"version": version, "ref": ref, "commit": commit, "measured": dt.date.today().isoformat(),
               "sets": sets, "reference_date": reference, "repos": {}}
+    decision = remediation_decision(remediation, ref, commit, version)
+    if decision["reason"]:
+        record["remediation_asked"] = decision
+        print(f"remediation: {'asked' if decision['asked'] else 'not asked'} ({decision['reason']})", file=sys.stderr, flush=True)
+    not_asked = None if decision["asked"] else decision["reason"]
     entries = [e for e in corpus.entries(manifest, sets) if not only or e["name"] in only]
     recs = {}
     for entry in entries:   # the timed half, strictly one at a time: nothing else may run while a release is being timed
@@ -70,7 +109,8 @@ def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: in
         futures = {}
         for entry in pending:
             print(f"rank: {version} {entry['name']}", file=sys.stderr, flush=True)
-            futures[entry["name"]] = pool.submit(harness.rank_entry, src, entry, root, reference, recs[entry["name"]], _labels_dir(), remediation)
+            futures[entry["name"]] = pool.submit(harness.rank_entry, src, entry, root, reference, recs[entry["name"]], _labels_dir(),
+                                                      decision["asked"], not_asked)
         for name, future in futures.items():
             try:
                 recs[name] = future.result()
@@ -81,7 +121,29 @@ def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: in
         rec["set"] = entry["set"]
         record["repos"][entry["name"]] = rec
     record["summary"] = dashboard.summarise(record)
+    record["round"] = round_times(record["repos"], time.monotonic() - started, time.time() - wall, power, awake)
     return record
+
+
+def round_times(repos: dict, monotonic: float, wall: float, power, awake: str) -> dict:
+    """The round's own clock: its wall seconds, and how much of them the machine slept, as the gap between
+    the wall clock and the monotonic one (which stops in sleep), over the whole round and inside the timed
+    runs alone. A timed run's `seconds` excludes a sleep; its neighbours' load and caches may not."""
+    timed = [r["wall_seconds"] - r["seconds"] for r in repos.values()
+             if isinstance(r.get("wall_seconds"), (int, float)) and isinstance(r.get("seconds"), (int, float))]
+    return {"wall_seconds": round(wall, 1), "slept_seconds": round(max(0.0, wall - monotonic), 1),
+            "timed_slept_seconds": round(sum(max(0.0, g) for g in timed), 1), "power": power, "awake": awake}
+
+
+def merge_round(old, new: dict) -> dict:
+    """--merge adds a round's runs to an earlier one's record: their clocks add, and a power source or
+    keep-awake that differed between them reads "mixed"."""
+    if not old:
+        return new
+    out = {k: round((old.get(k) or 0) + (new.get(k) or 0), 1) for k in ("wall_seconds", "slept_seconds", "timed_slept_seconds")}
+    for k in ("power", "awake"):
+        out[k] = new.get(k) if old.get(k) == new.get(k) else "mixed"
+    return out
 
 
 def positives_table(record: dict, sets: list) -> str:
@@ -113,8 +175,11 @@ def main(argv=None) -> int:
     r.add_argument("--sets", default=None, help=f"comma-separated (default: {DEFAULT_SETS}, the fast loop)")
     r.add_argument("--release", action="store_true", help=f"a release round's sets: {RELEASE_SETS}")
     r.add_argument("--only", action="append", default=[], help="only these corpus entries")
-    r.add_argument("--remediation", action="store_true",
-                   help="ask remediation's question at the ranking cut-offs (development set); --release always does")
+    asks = r.add_mutually_exclusive_group()
+    asks.add_argument("--remediation", action="store_true",
+                      help="ask remediation's question at the ranking cut-offs (development set), whatever changed")
+    asks.add_argument("--no-remediation", action="store_true",
+                      help="with --release: do not ask it, and record that it was not asked")
     r.add_argument("--merge", action="store_true", help="add these runs to the release's existing record instead of replacing it")
     r.add_argument("--jobs", type=int, default=JOBS, help=f"rankings computed side by side after the timed runs (default {JOBS}; 1 is sequential)")
     x = sub.add_parser("extras")
@@ -140,8 +205,10 @@ def main(argv=None) -> int:
     manifest = corpus.load()
     root = corpus.workspace()
     if args.command == "run":
+        harness.keep_awake()   # before the first ref is extracted; held until this process exits
         for ref in args.ref or ["worktree"]:
-            record = measure(ref, sets, manifest, root, set(args.only) or None, args.jobs, args.release or args.remediation)
+            asked = True if args.remediation else ("off" if args.no_remediation else "auto") if args.release else False
+            record = measure(ref, sets, manifest, root, set(args.only) or None, args.jobs, asked)
             existing = os.path.join(RECORDS, f"{record['version']}.json")
             if args.merge and os.path.exists(existing):
                 with open(existing, encoding="utf-8") as fh:
@@ -149,6 +216,7 @@ def main(argv=None) -> int:
                 old["repos"].update(record["repos"])
                 old["sets"] = sorted(set(old.get("sets") or []) | set(record["sets"]))
                 old["summary"] = dashboard.summarise(old)
+                old["round"] = merge_round(old.get("round"), record["round"])
                 record = old
             print(write(record))
         return 0

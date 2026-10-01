@@ -165,6 +165,11 @@ def summarise(record: dict, only=None) -> dict:
         acted = _remediation(cost.values())   # the development set only: REMEDIATION_SETS
         if acted:
             out["remediation"] = acted
+        else:   # a release round that did not ask: the gap and its reason, never a number from an earlier record
+            reasons = sorted({r["remediation"].get("reason") or "" for r in cost.values()
+                              if isinstance(r.get("remediation"), dict) and r["remediation"].get("asked") is False})
+            if reasons:
+                out["remediation"] = {"asked": False, "reason": "; ".join(reasons)}
     return out
 
 

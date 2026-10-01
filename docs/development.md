@@ -205,8 +205,10 @@ re-measured every past release tag was dropped at 0.39.0 as more machine time th
 it was worth, and the records it made stay as they are); it defaults to the
 fast loop's sets (development, awkward, gate), and `--release` runs a release
 round's instead (development, large, awkward, gate, well-kept), with remediation
-asked at the development set's six cut-offs (`--remediation` asks it without
-`--release`; about 15 to 20 minutes more wall time); `extras` runs the
+asked at the development set's six cut-offs when a path its answer depends on
+changed since the last record that asked it (`--remediation` asks it whatever
+changed and without `--release`, `--no-remediation` leaves it out; about 15 to 20
+minutes more wall time); `extras` runs the
 current tree's sensitivity sweep, description checks and hook replay over
 the development set (and the large set under `--release`) and its
 determinism check on curl and django (curl and react when django did not
@@ -218,7 +220,10 @@ system cleans by age: a cleaner that removes a clone's unread files leaves a
 clone that reads as "no commits yet". `GITMOLE_LABELS_DIR` points at ApacheJIT's
 `dataset/` for the holdout. The timed runs are sequential and share the
 machine with nothing, so the recorded times and memory are comparable, and
-each records the load average it ran under. The rankings at cut-offs are not
+each records the load average it ran under. The round holds off idle sleep
+with `caffeinate -i` for as long as it runs; plug in for comparable timings,
+and keep the lid open: a sleep still happens then, and shows as the record's
+`slept_seconds`. The rankings at cut-offs are not
 timed, so once every timed run is over they are computed side by side
 (`--jobs`, default 3; 1 is the old sequential round).
 

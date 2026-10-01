@@ -389,6 +389,33 @@ class Fixtures(unittest.TestCase):
         self.assertNotIn("TTY_INTERACTIVE", env)
         self.assertEqual((env["PYTHONPATH"], env["GITMOLE_NOW"], env["NO_COLOR"]), ("/src", "2026-09-17", "1"))
 
+    def _spawned(self, env_extra=None, inherited=None):
+        """run_release with the spawn replaced: the environment the release got, and whether the cache it was
+        given was still there afterwards."""
+        from unittest import mock
+        seen = {}
+
+        def spawn(argv, cwd, env, stdout, stderr, timeout):
+            seen["env"] = env
+            if env.get("GITMOLE_CACHE"):
+                os.makedirs(os.path.join(env["GITMOLE_CACHE"], "structure"), exist_ok=True)   # what a run leaves in it
+            return None
+
+        with tempfile.TemporaryDirectory() as work, mock.patch.object(harness, "_spawn", spawn), \
+                mock.patch.dict(os.environ, {"GITMOLE_CACHE": inherited} if inherited else {}):
+            harness.run_release("/src", "/clone", os.path.join(work, "run"), "2026-09-17", env_extra=env_extra)
+            cache = seen["env"].get("GITMOLE_CACHE")
+            return seen["env"], cache, work, os.path.exists(cache) if cache else None
+
+    def test_every_run_starts_from_an_empty_cache_of_its_own_and_leaves_none(self):
+        env, cache, work, left = self._spawned(inherited="/home/someone/.cache/gitmole")
+        self.assertEqual(cache, os.path.join(work, "run", harness.CACHE_DIR), "under the run's own directory, not the caller's cache")
+        self.assertFalse(left, "removed when the run is over")
+
+    def test_a_caller_may_name_another_cache(self):
+        env, cache, _, _ = self._spawned(env_extra={"GITMOLE_CACHE": "off"})
+        self.assertEqual(cache, "off")
+
     def test_the_manifest_names_every_set_and_pins_every_clone(self):
         m = corpus.load()
         self.assertLessEqual({e["set"] for e in m["repos"]}, {"development", "large", "holdout", "well-kept", "awkward", "gate"})
@@ -439,7 +466,7 @@ class Round(unittest.TestCase):
             span("run", entry["name"], 0.05)
             return {"status": "ok", "seconds": 1, "clone": "clone-" + entry["name"]}
 
-        def rank_entry(src, entry, root, reference, rec, labels_dir=None, remediation=False):
+        def rank_entry(src, entry, root, reference, rec, labels_dir=None, remediation=False, not_asked=None):
             span("rank", entry["name"], 0.2)
             rec.pop("clone")
             rec["ranking"] = {"cutoffs": []}
@@ -448,7 +475,8 @@ class Round(unittest.TestCase):
         manifest = {"reference_date": "2026-09-17", "repos": [{"name": n, "set": "development"} for n in "abc"]}
         with mock.patch.object(harness, "run_entry", run_entry), mock.patch.object(harness, "rank_entry", rank_entry), \
                 mock.patch.object(harness, "source", lambda ref, root: "/src"), mock.patch.object(harness, "version_of", lambda src: "9.9.9"), \
-                mock.patch.object(dashboard, "summarise", lambda record: {}):
+                mock.patch.object(dashboard, "summarise", lambda record: {}), \
+                mock.patch.object(harness, "keep_awake", lambda: "caffeinate -i"), mock.patch.object(harness, "power_source", lambda: "AC"):
             record = main.measure("worktree", ["development"], manifest, "/nowhere", jobs=jobs)
         return record, spans
 
@@ -475,6 +503,75 @@ class Round(unittest.TestCase):
             for b in spans:
                 if a is not b:
                     self.assertFalse(self._overlap(a, b))
+
+
+class LatestCutOffOnce(unittest.TestCase):
+    """The latest cut-off, the stability pair's first date and (usually) the run's own backtest are one date:
+    rank_repo ranks it once, from the run's backtest when that is at the same date, and the rows are those of
+    ranking it every time."""
+
+    LAST = "2026-09-17"
+
+    def _commits(self):
+        import datetime as dt
+        start, out = dt.date(2022, 1, 1), []
+        for i in range(0, 1720, 2):   # a commit every two days up to the last date, a fix every third
+            day = (start + dt.timedelta(days=i)).isoformat()
+            out.append({"hash": f"{i:040x}", "date": day + "T12:00:00+00:00", "subject": "fix: a" if i % 3 == 0 else "change",
+                        "files": [("a.c", 1, 1), ("b.c", 1, 1)]})
+        out.append({"hash": "f" * 40, "date": self.LAST + "T12:00:00+00:00", "subject": "change", "files": [("a.c", 1, 1)]})
+        return out
+
+    def _rank_repo(self, run_until=None, held=None):
+        from unittest import mock
+        calls, probes = [], []
+        rank = {"pool": ["a.c", "b.c"], "revs": {"a.c": 3, "b.c": 2}, "lines": {"a.c": 10, "b.c": 5}, "total_code": 15}
+
+        def ranking_at(src, clone, out, until, reference):
+            calls.append(until)
+            return dict(rank)
+
+        def probe_at(src, out, reference):
+            probes.append(out)
+            return dict(rank)
+
+        with tempfile.TemporaryDirectory() as out:
+            if run_until is not None:
+                os.makedirs(os.path.join(out, "backtest"))
+                with open(os.path.join(out, "meta.json"), "w") as fh:
+                    json.dump({"backtest": {"status": "run", "until": run_until}}, fh)
+                with open(os.path.join(out, "backtest", "meta.json"), "w") as fh:
+                    json.dump({"now": held or run_until}, fh)
+            with mock.patch.object(harness, "canonical_log", lambda clone, cache: self._commits()), \
+                    mock.patch.object(harness, "ranking_at", ranking_at), mock.patch.object(harness, "probe_at", probe_at):
+                result = harness.rank_repo("/src", {"name": "x"}, "/clone", out, "2026-09-18", "/cache")
+        return result, calls, probes
+
+    def test_the_runs_backtest_at_the_latest_cut_off_is_probed_not_rebuilt(self):
+        result, calls, probes = self._rank_repo(run_until="2026-03-17")
+        dates = [r["cutoff"] for r in result["cutoffs"]]
+        self.assertEqual(dates[-1], "2026-03-17")
+        self.assertEqual(len(probes), 1, "the run's backtest is read once")
+        self.assertNotIn("2026-03-17", calls, "neither the latest cut-off nor the stability pair rebuilds it")
+        self.assertEqual(calls, dates[:-1] + [result["stability"]["to"]])
+        self.assertEqual(result["stability"]["from"], "2026-03-17")
+
+    def test_a_run_at_another_date_is_not_used_and_the_latest_is_ranked_once(self):
+        result, calls, probes = self._rank_repo(run_until="2026-03-16")
+        self.assertEqual(probes, [], "the run's backtest is at another date: what users get, not the cut-off")
+        self.assertEqual(calls.count("2026-03-17"), 1, "the latest cut-off and the stability pair share one ranking")
+        self.assertEqual(len(calls), len(result["cutoffs"]) + 1)
+
+    def test_a_sub_report_overwritten_since_the_run_is_not_the_runs(self):
+        _, calls, probes = self._rank_repo(run_until="2026-03-17", held="2026-03-20")
+        self.assertEqual(probes, [])
+        self.assertEqual(calls.count("2026-03-17"), 1)
+
+    def test_no_run_backtest_ranks_the_latest_once(self):
+        result, calls, probes = self._rank_repo()
+        self.assertEqual(probes, [])
+        self.assertEqual(calls.count("2026-03-17"), 1)
+        self.assertIsNotNone(result["stability"])
 
 
 class Signals(unittest.TestCase):
@@ -934,3 +1031,114 @@ class PositiveShares(unittest.TestCase):
         from gitmole.measure import __main__ as main
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             main.main(["positives", "--sets", "holdout"])
+
+
+class AwakeRound(unittest.TestCase):
+    """The round keeps the machine awake, and records enough to show when it slept anyway: wall seconds beside
+    the monotonic ones, CPU seconds, the power source, and the load sampled through each timed run."""
+
+    def setUp(self):
+        harness._AWAKE = None
+
+    tearDown = setUp
+
+    def test_caffeinate_is_held_on_this_process_with_minus_i(self):
+        from unittest import mock
+        with mock.patch.object(harness.sys, "platform", "darwin"), mock.patch.object(harness.subprocess, "Popen") as popen:
+            self.assertEqual(harness.keep_awake(), "caffeinate -i")
+            self.assertEqual(harness.keep_awake(), "caffeinate -i")
+        popen.assert_called_once()
+        argv = popen.call_args[0][0]
+        self.assertEqual(argv, ["caffeinate", "-i", "-w", str(os.getpid())])
+        self.assertNotIn("-s", argv, "-s holds only on AC power")
+
+    def test_without_caffeinate_the_round_goes_on_and_says_so_once(self):
+        import contextlib
+        import io
+        from unittest import mock
+        err = io.StringIO()
+        with mock.patch.object(harness.sys, "platform", "darwin"), \
+                mock.patch.object(harness.subprocess, "Popen", side_effect=FileNotFoundError), contextlib.redirect_stderr(err):
+            self.assertTrue(harness.keep_awake().startswith("not kept awake"))
+            harness.keep_awake()
+        self.assertEqual(err.getvalue().count("not kept awake"), 1)
+        harness._AWAKE = None
+        err = io.StringIO()
+        with mock.patch.object(harness.sys, "platform", "linux"), mock.patch.object(harness.subprocess, "Popen") as popen, \
+                contextlib.redirect_stderr(err):
+            self.assertEqual(harness.keep_awake(), "not kept awake: caffeinate is macOS only")
+        popen.assert_not_called()
+        self.assertIn("macOS only", err.getvalue())
+
+    def test_the_power_source_is_read_from_pmset(self):
+        from unittest import mock
+        cases = {"Now drawing from 'AC Power'\n -InternalBattery-0 100%; charged;\n": "AC",
+                 "Now drawing from 'Battery Power'\n -InternalBattery-0 80%; discharging;\n": "battery", "": None}
+        for text, want in cases.items():
+            done = subprocess.CompletedProcess([], 0, stdout=text, stderr="")
+            with mock.patch.object(harness.sys, "platform", "darwin"), mock.patch.object(harness.subprocess, "run", return_value=done):
+                self.assertEqual(harness.power_source(), want)
+        with mock.patch.object(harness.sys, "platform", "linux"):
+            self.assertIsNone(harness.power_source())
+
+    def test_wrap_writes_wall_cpu_and_monotonic_seconds(self):
+        import sys
+        with tempfile.TemporaryDirectory() as tmp:
+            stats = os.path.join(tmp, "stats.json")
+            rc = subprocess.call([sys.executable, os.path.join(harness.HERE, "wrap.py"), stats, "--",
+                                  sys.executable, "-c", "import time; sum(range(2000000)); time.sleep(0.2)"])
+            with open(stats) as fh:
+                st = json.load(fh)
+        self.assertEqual(rc, 0)
+        self.assertEqual(sorted(st), ["cpu_seconds", "peak_mb", "rc", "seconds", "wall_seconds"])
+        self.assertGreaterEqual(st["seconds"], 0.2)
+        self.assertLessEqual(abs(st["wall_seconds"] - st["seconds"]), 0.2, "no sleep, so the clocks agree")
+        self.assertLessEqual(st["cpu_seconds"], st["seconds"] + 0.2)
+
+    def test_run_release_records_the_new_fields_beside_the_old(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            work = os.path.join(tmp, "work")
+
+            def spawn(argv, cwd, env, stdout, stderr, timeout):
+                with open(argv[2], "w") as fh:
+                    json.dump({"rc": 0, "seconds": 10.0, "wall_seconds": 70.0, "cpu_seconds": 8.5, "peak_mb": 100}, fh)
+                with open(argv[argv.index("--json") + 1], "w") as fh:
+                    json.dump({"findings": []}, fh)
+                stdout.write("one line\n")
+                return None
+
+            with mock.patch.object(harness, "_spawn", spawn), mock.patch.object(harness, "power_source", lambda: "battery"):
+                rec = harness.run_release("/src", "/clone", work, "2026-09-17")
+        self.assertEqual(rec["status"], "ok")
+        self.assertEqual((rec["seconds"], rec["wall_seconds"], rec["cpu_seconds"], rec["power"]), (10.0, 70.0, 8.5, "battery"))
+        self.assertIsInstance(rec["load"], float, "the start-of-run load stays as it was")
+        self.assertEqual(sorted(rec["load_sampled"]), ["max", "median", "min", "samples"])
+        self.assertGreaterEqual(rec["load_sampled"]["samples"], 1)
+
+    def test_the_sampler_takes_min_median_and_max(self):
+        from unittest import mock
+        import itertools
+        loads = itertools.cycle([(1.0,), (3.0,), (2.0,)])
+        with mock.patch.object(harness.os, "getloadavg", lambda: next(loads)):
+            sampler = harness.LoadSampler(every=0.01)
+            with sampler:
+                while len(sampler.samples) < 3:
+                    pass
+        sampler.samples = sampler.samples[:3]
+        self.assertEqual(sampler.summary(), {"min": 1.0, "median": 2.0, "max": 3.0, "samples": 3})
+
+    def test_the_round_sums_its_sleep_and_the_report_shows_it(self):
+        from gitmole.measure import __main__ as main, report
+        repos = {"a": {"seconds": 10.0, "wall_seconds": 40.0}, "b": {"seconds": 5.0, "wall_seconds": 5.1}, "c": {"status": "harness-error"}}
+        rnd = main.round_times(repos, 100.0, 160.0, "battery", "caffeinate -i")
+        self.assertEqual(rnd, {"wall_seconds": 160.0, "slept_seconds": 60.0, "timed_slept_seconds": 30.1, "power": "battery", "awake": "caffeinate -i"})
+        merged = main.merge_round(rnd, dict(rnd, power="AC"))
+        self.assertEqual((merged["wall_seconds"], merged["slept_seconds"], merged["power"], merged["awake"]), (320.0, 120.0, "mixed", "caffeinate -i"))
+        self.assertEqual(main.merge_round(None, rnd), rnd)
+        rec = _record({"a": "ok"})
+        rec["summary"] = dashboard.summarise(rec)
+        self.assertFalse([l for l in report.current(rec, None) if "asleep" in l], "an older record has no row")
+        rec["round"] = rnd
+        self.assertEqual([l for l in report.current(rec, None) if "asleep" in l],
+                         ["| the round's wall clock, and the machine asleep in it | every set | 160 s, 60 s asleep (30 s inside timed runs); power battery, caffeinate -i |"])
