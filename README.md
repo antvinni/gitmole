@@ -12,7 +12,7 @@ Free. Any stack. Local. Offline. Deterministic. Fast.
 - **Any stack.** It reads what every repository has: the git log, git blame and the files themselves.
 - **Local & Offline.** Everything runs against a clone on your machine. Nothing is uploaded, nothing phones home; the vulnerability database is a copy you download once. Once, on a run with a terminal, gitmole asks five yes/no questions about its own findings and writes your answers to a file it tells you how to send — it still uploads nothing, and `GITMOLE_NO_FEEDBACK=1` turns the question off for good.
 - **Deterministic.** No AI at runtime. Every finding is a plain rule over counts you can recompute by hand. The JSON export carries each finding's rule, the numbers it fired on and, where a rule rests on a paper, the citation. The same commit gives the same bytes: gitmole's own CI runs it twice on every commit, compares the exports and attests the report. One gitmole version is one toolchain, since the three tools are pinned and installed with it, and every report records the versions it ran.
-- **Fast.** A default run over a large repository takes a minute or two (the example reports below give their times). The expensive passes have budgets: code age is skipped when its blame pass is projected past a minute, and the report says so and how to force it (`--deep`).
+- **Fast.** A default run over a large repository takes a minute or two (the example reports below give their times). The expensive passes have budgets: code age is skipped when its blame pass is projected past a minute (projected from the history it walks, so the same commit decides the same way on any machine), and the report says so and how to force it (`--deep`).
 
 ## What it is for
 

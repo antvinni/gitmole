@@ -484,8 +484,9 @@ def _git(repo_dir: str, *args) -> str:
 
 def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int = 25, types=filetypes.DEFAULT,
                     budget: float = None, tracked: list = None, scope=()) -> dict:
-    """Cost of the blame passes: a timed projection for the HEAD pass (seconds, a lower bound when `partial`)
-    and tracked files times sampled commits for git-of-theseus (blames). `budget` lets the projection stop once it is over; `tracked` is blame.text_files()
+    """Cost of the blame passes: a projection for the HEAD pass from the commits its blames walk, priced at
+    the reference machine's rate (seconds, the same on any machine; a lower bound when `partial`), and
+    tracked files times sampled commits for git-of-theseus (blames). `budget` lets the projection stop once it is over; `tracked` is blame.text_files()
     already listed, so the index is not read again. `scope` is --path's directories: the files and the
     history under them."""
     files = len(_git(repo_dir, "ls-files", *scopes.pathspec(scope)).splitlines())
@@ -494,9 +495,11 @@ def estimate_blames(repo_dir: str, interval: int = MONTH, ignore=(), sample: int
     samples = min(len(times), span // interval + 1) if times else 0
     text = blame.drop_ignored(scopes.keep(tracked, scope), ignore) if tracked is not None else blame.text_files(repo_dir, ignore, scope)
     code = [f for f in text if filetypes.matches(f, types)]
-    projection = blame.estimate(repo_dir, files=code, sample=sample, types=types, budget=budget)
+    # a blame walks HEAD's whole history whatever --path says, so the log above is its history only unscoped
+    projection = blame.estimate(repo_dir, files=code, sample=sample, types=types, budget=budget,
+                                history=None if scope else sorted(times))
     return {"files": files, "samples": samples, "blames": files * samples,
-            "seconds": projection["seconds"], "code_files": projection["files"],
+            "seconds": projection["seconds"], "code_files": projection["files"], "commits_walked": projection["commits_walked"],
             **({"partial": True} if projection.get("partial") else {})}
 
 

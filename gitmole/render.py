@@ -1504,9 +1504,11 @@ def _envelope(out: dict) -> dict:
         if key in meta:
             env[key] = meta.pop(key)
     age = meta.get("age")
+    # The projection is priced from a count of work, the same for the same commit, but it stays in the
+    # envelope, where exports up to 0.43.0 put a timed one, so an export's shape does not change.
     if isinstance(age, dict) and "projected_seconds" in age:
         env["projected_seconds"] = age.pop("projected_seconds")
-    if isinstance(age, dict) and "projected_partial" in age:   # whether the sample stopped early is as load-dependent as the seconds
+    if isinstance(age, dict) and "projected_partial" in age:
         env["projected_partial"] = age.pop("projected_partial")
     struct = out.get("structure")
     if isinstance(struct, dict) and "cached" in struct:

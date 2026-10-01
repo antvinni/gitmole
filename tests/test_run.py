@@ -478,6 +478,24 @@ class EstimateBlames(unittest.TestCase):
             est = run.estimate_blames(d, interval=run.MONTH, sample=0, tracked=["f0.py", "g0.py"])
         self.assertEqual(est["code_files"], 2, "the list it was given, not a fresh read of the index (3 files)")
 
+    def test_the_history_it_already_read_prices_the_walks_as_a_fresh_read_would(self):
+        from gitmole import blame
+        with tempfile.TemporaryDirectory() as d:
+            def git(*args, date):
+                e = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x",
+                         GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x", GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date)
+                subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
+            git("init", "-q", date="2026-01-01T00:00:00")
+            for i, date in enumerate(["2026-01-01T00:00:00", "2026-02-01T00:00:00", "2026-03-01T00:00:00"]):
+                with open(os.path.join(d, f"f{i}.py"), "w") as fh:
+                    fh.write("x\n")
+                git("add", "-A", date=date)
+                git("commit", "-q", "-m", str(i), date=date)
+            est = run.estimate_blames(d, interval=run.MONTH)
+            fresh = blame.estimate(d, files=blame.code_files(d))
+        self.assertEqual(est["commits_walked"], 3 + 2 + 1)
+        self.assertEqual((est["commits_walked"], est["seconds"]), (fresh["commits_walked"], fresh["seconds"]))
+
 
 class Execute(unittest.TestCase):
     def test_respects_dependencies_and_reports_failures(self):

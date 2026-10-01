@@ -44,7 +44,7 @@ Where the output goes and how much a run may spend.
 | `--no-run` | Skip the tools and re-render the report from the output directory of an earlier run. **The target is that directory, not the clone**: `gitmole analysis-curl --no-run`. `--out` is not read here. Works with the exports, `--risk` and `--compare`. |
 | `--workers N` | How many tools run at once. Default 6. |
 | `--timeout SECONDS` | Seconds any single tool may run before it is killed. Default 900. A killed tool is marked in the report and the rest still renders. |
-| `--time-budget SECONDS` | Skip the code-age pass when its projected time exceeds this. Default 60. |
+| `--time-budget SECONDS` | Skip the code-age pass when its projected time exceeds this. The projection counts the history its blames walk and prices it at a fixed rate, so it is the same on any machine at any load ([Big repositories](#big-repositories)). Default 60. |
 | `--budget N` | Skip the plots above this many git blames. Default 50,000. |
 | `--deep` | Run code age and plots regardless of their budgets. |
 | `--plots` | Also draw the git-of-theseus code-age and survival charts. Needs `gitmole[plots]`. |
@@ -163,8 +163,9 @@ written with its keys sorted, rows come back in one order whatever order a
 parallel step wrote them in, and each secret's keyed hash (the key is made
 for one run) is replaced by a stable label, `v1`, `v2`, the same value
 getting the same label. What does differ from one run to the next sits in
-one top-level key, `envelope`: the blame pass's measured projection (and
-`projected_partial` when its sample stopped early, over the budget), the
+one top-level key, `envelope`: the blame pass's projection (and
+`projected_partial` when its sample stopped early, over the budget; both are
+the same for the same commit now, and stay there so the export keeps its shape), the
 output directory, the clone's path on this machine, the structure cache's
 hits, each step's wall time and peak memory, and the count of objects no ref
 reaches — a reflog, a dropped stash, whatever gc has not collected — which
@@ -607,11 +608,22 @@ Blame is the cost that scales with repo size. gitmole keeps it in check:
 - the code-age table comes from one `git blame` per tracked code file at
   HEAD, run on all but two CPU cores at low priority so the machine stays
   usable. That is all the table needs;
-- blame cost depends on file size and history depth, not file count, so
-  gitmole times a sample of 25 blames first and projects the whole pass. If
+- blame cost depends on history depth, not file count: a blame walks every
+  commit from HEAD back to the oldest one that still owns a line of the file.
+  gitmole runs a spread of 25 blames first, counts the commits each walks,
+  scales the count to every code file and prices it at a fixed rate measured
+  once on a reference machine (7.2 µs a commit on one core, 8 workers). If
   the projection exceeds `--time-budget` (default 60 seconds) the pass is
   skipped with a message, and the report shows net lines added per year from
-  the change log instead, labelled as an approximation;
+  the change log instead, labelled as an approximation. The projection is not
+  timed on your machine: the same commit gets the same decision, and the same
+  report, on a quiet laptop and a busy CI runner. Until 0.43.0 it was timed,
+  and a repository near the budget (django) ran code age on one run and not
+  the next. The rate is a typical one, not a promise: a repository can take
+  two or three times as long as projected (django is projected at 41 seconds
+  and its pass takes 80 to 100) or a fraction of it, and a slower machine takes
+  longer. Lower `--time-budget` to skip more, raise it or pass `--deep` to run
+  it regardless;
 - the plots need history, so `--plots` runs git-of-theseus with monthly
   sampling (tracked files × samples blames) on top, skipped above
   `--budget` (default 50,000 blames);

@@ -65,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_.add_argument("--workers", type=int, default=6, metavar="N", help="how many tools run at once (default 6)")
     run_.add_argument("--timeout", type=float, default=900, metavar="SECONDS", help="kill a tool after this long (default 900)")
     run_.add_argument("--time-budget", type=float, default=60, metavar="SECONDS",
-                      help="skip code age projected past this (default 60)")
+                      help="skip code age projected past this, from the history its blames walk (default 60)")
     run_.add_argument("--budget", type=int, default=50000, metavar="N", help="skip --plots over N blames (default 50000)")
     run_.add_argument("--deep", action="store_true", help="run code age and plots past budget")
     run_.add_argument("--plots", action="store_true", help="also draw the code-age and survival plots")
@@ -570,8 +570,10 @@ def _list_file_types(repo_dir: str, args, console: Console) -> int:
 
 
 def _budgets(args, estimate, ui) -> tuple[bool, bool, float]:
-    """Decide whether code age and plots fit their time budgets, printing a
-    skip notice for each one cut. The projected blame time comes back with them: meta.json records it."""
+    """Decide whether code age and plots fit their budgets, printing a skip notice for each one cut. Both
+    decisions read only counts of work (the commits the sampled blames walk, priced at a fixed rate; files
+    times samples), never a clock, so the same commit gets the same report on a quiet machine and a busy one.
+    The projected blame time comes back with them: meta.json records it."""
     projected = float(estimate.get("seconds", 0.0))
     age_ok = args.deep or projected <= args.time_budget
     plots_ok = args.plots and (args.deep or estimate["blames"] <= args.budget)
@@ -579,7 +581,9 @@ def _budgets(args, estimate, ui) -> tuple[bool, bool, float]:
         # a partial estimate stopped at the first value over the budget, so its number only restates the budget
         took = (f"more than the {args.time_budget:,.0f}s time budget" if estimate.get("partial")
                 else f"about {projected:,.0f}s, over the {args.time_budget:,.0f}s time budget")
-        ui.print(f"[yellow]code age skipped:[/yellow] a blame pass over {estimate.get('code_files', estimate['files']):,} files is projected "
+        walked = (f" (its blames walk {'at least' if estimate.get('partial') else 'about'} {estimate['commits_walked']:,} commits)"
+                  if estimate.get("commits_walked") else "")
+        ui.print(f"[yellow]code age skipped:[/yellow] a blame pass over {estimate.get('code_files', estimate['files']):,} files{walked} is projected "
                  f"to take {took}. Rerun with --deep to force it, raise --time-budget, or --ignore-data to shrink it.")
     if args.plots and not plots_ok:
         ui.print(f"[yellow]plots skipped:[/yellow] about {estimate['blames']:,} git blames "

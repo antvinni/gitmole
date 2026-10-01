@@ -19,6 +19,7 @@ that keys people by name, and matches the pair to its identity row.
 """
 from __future__ import annotations
 
+import bisect
 import datetime as dt
 import fnmatch
 import json
@@ -26,7 +27,6 @@ import os
 import re
 import subprocess
 import sys
-import time
 from collections import Counter
 from multiprocessing import Pool
 
@@ -167,28 +167,58 @@ def _job(args):
     return blame_file(*args)
 
 
-def estimate(repo: str, files: list = None, ignore=(), sample: int = 25, procs: int = None, timer=time.monotonic,
-             types=filetypes.DEFAULT, budget: float = None) -> dict:
-    """Project the wall time of the pass by timing a spread of `sample` blames single-threaded. With a
-    budget, sampling stops as soon as the time already spent proves the projection over it: the blames
-    left can only add to the total, so the skip is the one the whole sample would have decided, and
+# Blame's work is the history it walks: from HEAD back to the oldest commit that still owns a line of the
+# file, it visits every commit and asks whether the path changed. The count of those commits is a property of
+# the commit being analysed, the same on any machine at any load, where a stopwatch over a sample is not:
+# django's timed projection ran code age at load 2.4-2.7 and skipped it at 3.05, 7.29 and 8.05 (0.39.0-0.43.0).
+# The rate turns that count into seconds once, on the reference machine (10 cores, so 8 blame workers),
+# fitted over the 15 corpus clones' 25-file samples at load 2.6-4 on 1 Oct 2026: seconds on 8 workers =
+# 9.06e-7 x commits walked, least squares on the log error, rms 0.51 (yt-dlp 13 s against a timed 34,
+# binutils-gdb 947 against 1,639). It is a fixed exchange rate, not a measurement of this machine.
+SECONDS_PER_COMMIT_WALKED = 7.2e-6   # one core on the reference machine: 9.0e-7 s across its 8 workers
+REFERENCE_WORKERS = 8
+
+
+def history_times(repo: str) -> list:
+    """The committer times of every commit HEAD reaches, oldest first: what a blame of HEAD can walk."""
+    out = subprocess.run(["git", "log", "--format=%ct", "HEAD"], cwd=repo, capture_output=True, text=True)
+    return sorted(int(t) for t in out.stdout.split()) if out.returncode == 0 else []
+
+
+def commits_walked(repo: str, path: str, history: list) -> int:
+    """How many of HEAD's commits a blame of `path` walks: those no older than the oldest commit that still
+    owns one of its lines, where the walk can stop."""
+    proc = subprocess.run(["git", "blame", "--line-porcelain", "HEAD", "--", path], cwd=repo, capture_output=True, text=True, errors="replace")
+    oldest = min((int(line[15:]) for line in proc.stdout.split("\n") if line.startswith("committer-time ")), default=None) \
+        if proc.returncode == 0 else None
+    return 0 if oldest is None else len(history) - bisect.bisect_left(history, oldest)
+
+
+def estimate(repo: str, files: list = None, ignore=(), sample: int = 25, types=filetypes.DEFAULT, budget: float = None,
+             history: list = None) -> dict:
+    """Project the pass from the work a spread of `sample` blames does: the commits each walks
+    (commits_walked), scaled to every file and priced at the reference machine's rate. The same commit gives
+    the same projection on any machine at any load, so whether code age runs depends on the work alone.
+    With a budget, sampling stops as soon as the walks already counted prove the projection over it: the
+    blames left can only add to the total, so the skip is the one the whole sample would have decided, and
     `seconds` is then a lower bound (`partial`)."""
     files = code_files(repo, ignore, types) if files is None else files
-    procs = procs or default_procs()
     n = len(files)
     if not n or not sample:
-        return {"files": n, "seconds": 0.0, "sampled": 0}
+        return {"files": n, "seconds": 0.0, "sampled": 0, "commits_walked": 0}
+    history = history_times(repo) if history is None else history
     step = max(1, n // sample)
     picked = files[::step][:sample]
-    t0 = timer()
+    rate = SECONDS_PER_COMMIT_WALKED / REFERENCE_WORKERS
+    walked = 0
     for i, f in enumerate(picked, 1):
-        blame_file(repo, f)
+        walked += commits_walked(repo, f, history)
         if budget is not None and i < len(picked):
-            floor = (timer() - t0) / len(picked) * n / procs
+            floor = walked / len(picked) * n * rate
             if floor > budget:
-                return {"files": n, "seconds": floor, "sampled": i, "partial": True}
-    per_file = (timer() - t0) / len(picked)
-    return {"files": n, "seconds": per_file * n / procs, "sampled": len(picked)}
+                return {"files": n, "seconds": floor, "sampled": i, "commits_walked": round(walked / len(picked) * n), "partial": True}
+    total = walked / len(picked) * n
+    return {"files": n, "seconds": total * rate, "sampled": len(picked), "commits_walked": round(total)}
 
 
 def aliases_from_meta(path: str) -> dict:

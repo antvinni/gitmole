@@ -304,6 +304,40 @@ class Budget(unittest.TestCase):
         self.assertIn("projected to take about 390s, over the 60s time budget", " ".join(text.split()))
         self.assertNotIn("projected_partial", meta["age"])
 
+    def test_a_skip_names_the_commits_its_blames_walk(self):
+        _, text, _ = self._main([], dict(self.SLOW, commits_walked=433_000_000), [])
+        self.assertIn("(its blames walk about 433,000,000 commits) is projected to take about 390s", " ".join(text.split()))
+        _, text, _ = self._main([], dict(self.SLOW, seconds=60.02, partial=True, commits_walked=66_700_000), [])
+        self.assertIn("walk at least 66,700,000 commits", " ".join(text.split()))
+
+    def test_the_decision_is_the_same_whatever_the_clock_and_the_cores_say(self):
+        """The same commit gets the same report on a quiet machine and a busy one: the code-age decision
+        reads the work, not a stopwatch."""
+        import itertools
+        import subprocess
+        def once(extra, busy):
+            with tempfile.TemporaryDirectory() as d:
+                _tiny_repo(d)
+                pathlib.Path(d, "a.py").write_text("x = 1\n")
+                subprocess.run(["git", "-C", d, "add", "a.py"], check=True)
+                subprocess.run(["git", "-C", d, "-c", "user.name=T", "-c", "user.email=t@x.com", "commit", "-q", "-m", "a"], check=True)
+                slow = itertools.count(0.0, 1000.0)
+                patches = [mock.patch("time.monotonic", lambda: next(slow)), mock.patch("os.cpu_count", lambda: 1)] if busy else []
+                for p in patches:
+                    p.start()
+                try:
+                    cli.main([d, "--out", os.path.join(d, "out"), *extra], console=console(), tool_check=lambda **kw: [],
+                             planner=lambda repo, out, branch="HEAD", **kw: [{"name": "quick", "argv": ["sh", "-c", "true"], "stdout": None, "deps": []}],
+                             estimator=run.estimate_blames)
+                finally:
+                    for p in patches:
+                        p.stop()
+                with open(os.path.join(d, "out", "meta.json")) as fh:
+                    return json.load(fh)["age"]
+        for extra in ([], ["--time-budget", "0"]):
+            self.assertEqual(once(extra, busy=False), once(extra, busy=True), extra)
+        self.assertEqual(once(["--time-budget", "0"], busy=True)["status"], "skipped", "a one-file repository still walks a commit")
+
     def test_the_estimator_is_given_the_time_budget_unless_deep(self):
         seen = []
         def estimator(repo, interval, **kw):

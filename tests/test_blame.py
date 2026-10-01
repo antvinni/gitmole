@@ -71,34 +71,75 @@ class BlameFile(unittest.TestCase):
 
 
 class Estimate(unittest.TestCase):
-    def test_projects_wall_time_from_a_sample(self):
+    RATE = blame.SECONDS_PER_COMMIT_WALKED / blame.REFERENCE_WORKERS
+
+    def test_counts_the_commits_each_blame_walks(self):
         with tempfile.TemporaryDirectory() as d:
             make_repo(d)
-            est = blame.estimate(d, sample=1, procs=2, timer=iter([0.0, 0.5]).__next__)
-        # 2 code files, one sampled at 0.5s -> 1.0s single-core -> 0.5s on 2 workers
-        self.assertEqual(est["files"], 2)
-        self.assertAlmostEqual(est["seconds"], 0.5)
+            history = blame.history_times(d)
+            # a.py still has lines from the first commit, so its blame walks both; b.py's lines are all from the second
+            self.assertEqual(len(history), 2)
+            self.assertEqual(blame.commits_walked(d, "a.py", history), 2)
+            self.assertEqual(blame.commits_walked(d, "b.py", history), 1)
+            self.assertEqual(blame.commits_walked(d, "gone.py", history), 0, "nothing to blame walks nothing")
+
+    def test_projects_the_pass_from_the_work_at_the_reference_rate(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            est = blame.estimate(d, sample=1)
+            both = blame.estimate(d, sample=2)
+        # one file sampled (a.py, 2 commits walked) stands for both code files: 4 commits
+        self.assertEqual((est["files"], est["sampled"], est["commits_walked"]), (2, 1, 4))
+        self.assertAlmostEqual(est["seconds"], 4 * self.RATE)
+        self.assertEqual(both["commits_walked"], 3)
+        self.assertAlmostEqual(both["seconds"], 3 * self.RATE)
+
+    def test_the_projection_reads_no_clock_and_no_core_count(self):
+        """The decision to run code age must not depend on the machine or its load: django ran it at
+        load 2.4-2.7 and skipped it at 3.05 and 8.05 while it was timed."""
+        import itertools
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            quiet = blame.estimate(d, sample=2)
+            slow = itertools.count(0.0, 1000.0)   # every reading a thousand seconds after the last
+            with mock.patch("time.monotonic", lambda: next(slow)), mock.patch("time.perf_counter", lambda: next(slow)), \
+                    mock.patch("time.time", lambda: next(slow)), mock.patch("os.cpu_count", lambda: 1), \
+                    mock.patch("os.getloadavg", lambda: (50.0, 50.0, 50.0), create=True):
+                busy = blame.estimate(d, sample=2)
+                capped = blame.estimate(d, sample=2, budget=60.0)
+        self.assertEqual(quiet, busy)
+        self.assertEqual(quiet, capped)
+        import inspect
+        self.assertFalse({"timer", "procs"} & set(inspect.signature(blame.estimate).parameters),
+                         "a clock or a core count passed in would bring the machine back into the decision")
 
     def test_default_workers_leave_two_cores_free(self):
         self.assertEqual(blame.default_procs(cpu=10), 8)
         self.assertEqual(blame.default_procs(cpu=2), 1)
 
-    def test_stops_sampling_once_the_time_spent_proves_the_budget_exceeded(self):
+    def test_stops_sampling_once_the_work_counted_proves_the_budget_exceeded(self):
         with tempfile.TemporaryDirectory() as d:
             make_repo(d)
-            est = blame.estimate(d, sample=2, procs=1, budget=1.0, timer=iter([0.0, 5.0]).__next__)
-        # 2 code files, both picked; after the first, 5s spent is already 5/2 per file x 2 files = 5s > 1s
+            # after a.py, 2 commits walked per 2 picked x 2 files = 2 commits: over a budget of one commit's price
+            est = blame.estimate(d, sample=2, budget=1.5 * self.RATE)
         self.assertEqual(est["sampled"], 1)
         self.assertTrue(est["partial"])
-        self.assertAlmostEqual(est["seconds"], 5.0)
+        self.assertAlmostEqual(est["seconds"], 2 * self.RATE)
 
     def test_a_budget_it_stays_under_gives_the_same_projection_as_no_budget(self):
         with tempfile.TemporaryDirectory() as d:
             make_repo(d)
-            plain = blame.estimate(d, sample=2, procs=1, timer=iter([0.0, 1.0]).__next__)
-            capped = blame.estimate(d, sample=2, procs=1, budget=100.0, timer=iter([0.0, 0.5, 1.0]).__next__)
+            plain = blame.estimate(d, sample=2)
+            capped = blame.estimate(d, sample=2, budget=100.0)
         self.assertEqual(plain, capped)
         self.assertNotIn("partial", capped)
+
+    def test_a_history_given_is_used_rather_than_read_again(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_repo(d)
+            est = blame.estimate(d, sample=2, history=[0] * 10 + blame.history_times(d))
+        self.assertEqual(est["commits_walked"], 3, "only commits no older than the oldest line count")
 
 
 class WriteAll(unittest.TestCase):
