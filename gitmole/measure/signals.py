@@ -4,6 +4,7 @@ once, for the one variant chosen there, and never to pick between variants.
 
     python -m gitmole.measure.signals --release 0.27.0 --set development
     python -m gitmole.measure.signals --release 0.26.0 --set holdout --variant "revs 12m x lines"
+    python -m gitmole.measure.signals --release 0.42.0 --set development --szz
 
 Reads the run outputs a release left in the workspace (`run` or `history` first). Each variant ranks
 the watch list's pool; the outcome is fix locality on development and the ApacheJIT labels on the
@@ -12,7 +13,8 @@ medians of ROC-AUC, recall at 20% of the codebase's lines and of its complexity,
 cost drivers (lines, complexity, uniform — the last a pure rank measure, the size control), the
 initial false alarms capped at the top and uncapped, and the lines its top 15 holds: the numbers the
 record keeps for the watch list, churn and ManualUp (harness.score), so a candidate is judged on all
-of them and cannot win by naming small files."""
+of them and cannot win by naming small files. The fix-count rows (fix_counts) share their predictor
+with the development outcome, so --szz scores them against R-SZZ bug insertion as well."""
 from __future__ import annotations
 
 import argparse
@@ -22,7 +24,7 @@ import statistics
 import sys
 from datetime import date
 
-from .. import backtest, evaluate, load, maat, watch
+from .. import backtest, evaluate, filetypes, load, maat, watch
 from . import corpus, harness, metrics
 
 
@@ -63,7 +65,43 @@ def variants(report: dict, commits: list, t: str) -> tuple:
         out[f"revs {m}m x lines"] = order(lambda f, d=d: d.get(f, 0) * lines[f])
     for h, d in decay.items():
         out[f"decay {h}m x lines"] = order(lambda f, d=d: d.get(f, 0.0) * lines[f])
+    out.update(fix_counts(report, rows, commits, t))
     return out, lines
+
+
+# The half-lives, in months, of the decayed fix count: declared here before any run and never chosen by
+# looking at its output. Each is its own row; which (if any) is a candidate is the holdout's question, one
+# per read. The grid spans the recency weightings the literature used: Graves et al. (TSE 2000) damp past
+# changes exponentially, Kim et al.'s FixCache (ICSE 2007) favours the recently fixed, and Lewis et al.
+# (ICSE 2013) decay closed bugs over roughly six to eight months; 6 and 12 match the revisions decays above.
+FIX_HALF_LIVES = (3, 6, 12, 24)
+
+
+def fix_counts(report: dict, rows: list, commits: list, t: str) -> dict:
+    """The fix-count orders of the pool at `t`, size-blind, ties by revisions then name: Rahman et al.'s
+    naive model (FSE 2011) as `evaluate.variants` already ranks it ("recent fixes", the fixes of the last
+    six months), the same over the whole history before `t` ("fixes"), and each half-life of
+    FIX_HALF_LIVES ("fix decay Nm"). The fix pool is maat.fix_commits over the history before `t`, the
+    one report_at's fixes table counts, so the oversized percentile is the cut-off's. Their 20%-of-lines
+    cut is score()'s `recall20`: the naive model's own budget."""
+    out = {"recent fixes": evaluate.variants(report)["recent fixes"],
+           "fixes": watch.ranked_by(rows, lambda r: (r["fixes"], r["revs"]))}
+    weight = {h: {} for h in FIX_HALF_LIVES}
+    for c in maat.fix_commits(maat.in_window(maat.analysed(commits), None, t)):
+        age = _days(c["date"], t)
+        for p, _, _ in c["files"]:
+            for h, d in weight.items():
+                d[p] = d.get(p, 0.0) + 0.5 ** (age / (h * 30.44))
+    for h, d in weight.items():
+        out[f"fix decay {h}m"] = watch.ranked_by(rows, lambda r, d=d: (d.get(r["file"], 0.0), r["revs"]))
+    return out
+
+
+FIX_COUNT_ROWS = ("recent fixes", "fixes", *(f"fix decay {h}m" for h in FIX_HALF_LIVES))
+# Scored on R-SZZ as well with --szz: the fix-count rows, since their predictor and the development outcome
+# are both maat.is_fix and share its label noise (Herbold et al., EMSE 2022), and the lists they must beat.
+SZZ_ROWS = ("watch list", "churn", "size", *FIX_COUNT_ROWS)
+SZZ_SUFFIX = " / R-SZZ"
 
 
 def costs(report: dict, pool: list) -> dict:
@@ -104,7 +142,10 @@ def summarise(per_cutoff: list) -> dict:
     return out
 
 
-def measure(entry: dict, release: str, root: str, labels, keep: set) -> dict:
+def measure(entry: dict, release: str, root: str, labels, keep: set, szz_outcome: bool = False) -> dict:
+    """{variant: summary} for one repository. With `szz_outcome` (fix locality only, never labels), the
+    SZZ_ROWS are scored a second time against the R-SZZ outcome (evaluate.induced_between, with the
+    exclusions `evaluate --szz` uses), under the variant's name plus SZZ_SUFFIX."""
     name = entry["name"]
     out, clone = os.path.join(root, "runs", release, name, "out"), os.path.join(root, "clones", name)
     meta = load._read_json(out, "meta.json", {})
@@ -126,6 +167,13 @@ def measure(entry: dict, release: str, root: str, labels, keep: set) -> dict:
             if keep and v not in keep:
                 continue
             per.setdefault(v, []).append(score(order, outcome, cost))
+        if szz_outcome and labels is None:
+            vendor = tuple(vendored)
+            induced = evaluate.induced_between(clone, commits, t, end, exclude=lambda p: p in generated or filetypes.is_vendored(p, vendor)
+                                               or filetypes.is_sample_path(p)) & set(ranked["watch list"])
+            for v in SZZ_ROWS:
+                if v in ranked and (not keep or v in keep):
+                    per.setdefault(v + SZZ_SUFFIX, []).append(score(ranked[v], induced, cost))
     return {v: summarise(rows) for v, rows in per.items()}
 
 
@@ -139,7 +187,11 @@ def main(argv=None) -> int:
     p.add_argument("--release", required=True, help="whose run outputs to read, e.g. 0.27.0")
     p.add_argument("--set", default="development", choices=("development", "large", "holdout"))
     p.add_argument("--variant", action="append", default=[], help="only this variant, beside the watch list and churn (the holdout's one reading)")
+    p.add_argument("--szz", action="store_true", help="also score the fix-count rows and the lists they must beat against R-SZZ bug insertion "
+                   "(fix locality sets only; one git blame per fix and file: minutes)")
     args = p.parse_args(argv)
+    if args.szz and args.set == "holdout":
+        p.error("--szz is for the fix-locality sets: the holdout is scored on its labels")
     root, manifest = corpus.workspace(), corpus.load()
     keep = set(args.variant) | {"watch list", "churn"} if args.variant else set()
     labels_dir = os.environ.get("GITMOLE_LABELS_DIR") or ""
@@ -149,7 +201,7 @@ def main(argv=None) -> int:
         if entry.get("labels") and labels is None:
             print(f"signals: {entry['name']}: labels not found under GITMOLE_LABELS_DIR", file=sys.stderr)
             return 2
-        results[entry["name"]] = measure(entry, args.release, root, labels, keep)
+        results[entry["name"]] = measure(entry, args.release, root, labels, keep, args.szz)
         print(entry["name"], {v: r["hits"] for v, r in results[entry["name"]].items()}, file=sys.stderr, flush=True)
     json.dump(results, sys.stdout, indent=1)
     print()

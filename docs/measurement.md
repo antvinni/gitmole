@@ -179,6 +179,25 @@ term restored, windows and decays of recent revisions × lines) at the same
 cut-offs and scores every one on all of the measures above. It is for exploring
 on the development set.
 
+**Fix-count baselines.** The one ranking signal with long, consistent support
+is a file's prior fixes, weighted toward recent ones. `signals` carries it as
+rows, never as the list: Rahman et al.'s naive model (FSE 2011), the files by
+their count of fixes, as `evaluate` already ranks it (`recent fixes`, the last
+six months), the same over the whole history before the cut-off (`fixes`), and
+a fix count decayed exponentially (`fix decay Nm`, Graves et al., TSE 2000;
+Kim et al., ICSE 2007) at each half-life of a grid declared in the code before
+it was run (`FIX_HALF_LIVES`: 3, 6, 12 and 24 months) — swept, not tuned. The
+naive model's own cut, the files that fit in a fifth of the codebase's lines, is
+`recall20`. The predictor and the development outcome are the same thing —
+`maat.is_fix` — so on fix locality these rows share the outcome's label noise
+(about half of keyword-found fixes are not fixes, Herbold et al., EMSE 2022) and
+are flattered by it. `signals --szz` therefore scores them, and the watch list,
+churn and size they must beat, a second time against R-SZZ bug insertion
+(`evaluate.induced_between`), under `NAME / R-SZZ`. Development can only rank
+these candidates against each other; none of them is promoted without a
+release-tag holdout read, one candidate per read, as [Is a candidate
+better?](#is-a-candidate-better) sets out.
+
 ### Noise
 
 gitmole is deterministic, so two runs never differ; the noise is in the sample.
