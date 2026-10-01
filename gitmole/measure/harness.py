@@ -480,10 +480,12 @@ def needs_ranking(entry: dict, rec: dict) -> bool:
     return rec.get("status") == "ok" and entry["set"] in ("development", "large", "well-kept", "holdout") and not entry.get("fixture")
 
 
-def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labels_dir: str = None, remediation: bool = False) -> dict:
+def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labels_dir: str = None, remediation: bool = False,
+               not_asked: str = None) -> dict:
     """The untimed half: the ranking at cut-offs and the finding ids, read off the files the timed run
     left. Nothing here is measured, so entries' rankings may run side by side; each works in its own
-    run directory and log cache."""
+    run directory and log cache. `not_asked` is why a release round did not ask remediation's question:
+    an entry it would have asked records that, never a number."""
     name = entry["name"]
     started = time.monotonic()
     clone = rec.pop("clone", None) or corpus.clone(entry, root)
@@ -493,9 +495,12 @@ def rank_entry(src: str, entry: dict, root: str, reference: str, rec: dict, labe
             rec["ranking"] = {"error": "labels not found"}
         else:
             rec["ranking"] = rank_repo(src, entry, clone, rec["out"], reference, os.path.join(root, "logs", name + ".txt"), labels)
-    if remediation and entry["set"] in REMEDIATION_SETS and rec.get("status") == "ok" and not entry.get("fixture"):
-        rec["remediation"] = remediate_repo(src, entry, clone, os.path.join(root, "runs", version_of(src), name, "remediation"),
-                                            os.path.join(root, "logs", name + ".txt"))
+    if entry["set"] in REMEDIATION_SETS and rec.get("status") == "ok" and not entry.get("fixture"):
+        if remediation:
+            rec["remediation"] = remediate_repo(src, entry, clone, os.path.join(root, "runs", version_of(src), name, "remediation"),
+                                                os.path.join(root, "logs", name + ".txt"))
+        elif not_asked:
+            rec["remediation"] = {"asked": False, "reason": not_asked}
     if entry["set"] in hand_labels.LABELLED_SETS and rec.get("report"):   # for the actionable share, from the labels at report time
         rec["finding_ids"] = [{k: row[k] for k in ("id", "rule", "summary")} for row in hand_labels.id_rows(name, entry.get("commit"), rec["report"])]
     rec["measure_seconds"] = round((rec.get("measure_seconds") or 0) + time.monotonic() - started, 1)

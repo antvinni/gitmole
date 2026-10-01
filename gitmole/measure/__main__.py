@@ -1,6 +1,6 @@
 """python -m gitmole.measure: the measurement harness of docs/measurement.md.
 
-    python -m gitmole.measure run [--ref REF]... [--sets development,awkward,gate | --release] [--remediation]   # one or more releases
+    python -m gitmole.measure run [--ref REF]... [--sets development,awkward,gate | --release] [--[no-]remediation]   # one or more releases
     python -m gitmole.measure extras [--release]                                                 # the current tree's one-off checks
     python -m gitmole.measure report                                                             # docs/measurement-history.md and the graphs
     python -m gitmole.measure labels dump|score                                                  # the hand-label sheet and its verdicts
@@ -45,16 +45,51 @@ def _error(e: Exception) -> dict:
     return {"status": "harness-error", "note": f"{type(e).__name__}: {e}"[:200]}
 
 
-def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: int = JOBS, remediation: bool = False) -> dict:
-    """One release over the sets. With `remediation` (every --release round), the untimed half also asks
-    remediation's question at each ranking cut-off of the development entries: a release run per
-    cut-off, the round's largest added cost, so the fast loop leaves it out unless asked."""
+def last_asked(version: str, directory: str = RECORDS):
+    """The latest record before `version` that carries remediation's table (its summary's `rules`): the
+    point a release round's trigger diffs from. A record that did not ask is skipped, so a run of
+    unchanged releases still compares with the one whose numbers stand."""
+    try:
+        history = dashboard.load_history(directory)
+    except OSError:
+        return None
+    earlier = [r for r in history if dashboard._key(r.get("version", "0")) < dashboard._key(version)
+               and isinstance((r.get("summary") or {}).get("remediation"), dict) and r["summary"]["remediation"].get("rules") is not None]
+    return earlier[-1] if earlier else None
+
+
+def remediation_decision(remediation, ref: str, commit: str, version: str, directory: str = RECORDS) -> dict:
+    """Whether this round asks remediation's question: {"asked", "reason", "changed"}. `remediation` is
+    True (--remediation: always), False (not asked, nothing recorded: the fast loop), "off"
+    (--no-remediation: not asked, and said so) or "auto" (--release: asked when a path in
+    remediation.ASKED_WHEN_CHANGED changed since the last record that asked it)."""
+    from . import remediation as rem
+    if remediation is True:
+        return {"asked": True, "reason": "--remediation", "changed": []}
+    if remediation == "off":
+        return {"asked": False, "reason": "--no-remediation", "changed": []}
+    if remediation != "auto":
+        return {"asked": False, "reason": None, "changed": []}
+    asked, reason, changed = rem.asked_since(corpus.ROOT, last_asked(version, directory), None if ref == "worktree" else commit)
+    return {"asked": asked, "reason": reason, "changed": changed}
+
+
+def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: int = JOBS, remediation=False) -> dict:
+    """One release over the sets. With `remediation` asked (remediation_decision), the untimed half also
+    asks remediation's question at each ranking cut-off of the development entries: a release run per
+    cut-off, the round's largest added cost, so the fast loop leaves it out, and a release round asks it
+    only when what it depends on changed."""
     src = harness.source(ref, root)
     version = harness.version_of(src)
     reference = manifest["reference_date"]
     commit = subprocess.run(["git", "rev-parse", ref if ref != "worktree" else "HEAD"], cwd=corpus.ROOT, capture_output=True, text=True).stdout.strip()
     record = {"version": version, "ref": ref, "commit": commit, "measured": dt.date.today().isoformat(),
               "sets": sets, "reference_date": reference, "repos": {}}
+    decision = remediation_decision(remediation, ref, commit, version)
+    if decision["reason"]:
+        record["remediation_asked"] = decision
+        print(f"remediation: {'asked' if decision['asked'] else 'not asked'} ({decision['reason']})", file=sys.stderr, flush=True)
+    not_asked = None if decision["asked"] else decision["reason"]
     entries = [e for e in corpus.entries(manifest, sets) if not only or e["name"] in only]
     recs = {}
     for entry in entries:   # the timed half, strictly one at a time: nothing else may run while a release is being timed
@@ -70,7 +105,8 @@ def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: in
         futures = {}
         for entry in pending:
             print(f"rank: {version} {entry['name']}", file=sys.stderr, flush=True)
-            futures[entry["name"]] = pool.submit(harness.rank_entry, src, entry, root, reference, recs[entry["name"]], _labels_dir(), remediation)
+            futures[entry["name"]] = pool.submit(harness.rank_entry, src, entry, root, reference, recs[entry["name"]], _labels_dir(),
+                                                      decision["asked"], not_asked)
         for name, future in futures.items():
             try:
                 recs[name] = future.result()
@@ -113,8 +149,11 @@ def main(argv=None) -> int:
     r.add_argument("--sets", default=None, help=f"comma-separated (default: {DEFAULT_SETS}, the fast loop)")
     r.add_argument("--release", action="store_true", help=f"a release round's sets: {RELEASE_SETS}")
     r.add_argument("--only", action="append", default=[], help="only these corpus entries")
-    r.add_argument("--remediation", action="store_true",
-                   help="ask remediation's question at the ranking cut-offs (development set); --release always does")
+    asks = r.add_mutually_exclusive_group()
+    asks.add_argument("--remediation", action="store_true",
+                      help="ask remediation's question at the ranking cut-offs (development set), whatever changed")
+    asks.add_argument("--no-remediation", action="store_true",
+                      help="with --release: do not ask it, and record that it was not asked")
     r.add_argument("--merge", action="store_true", help="add these runs to the release's existing record instead of replacing it")
     r.add_argument("--jobs", type=int, default=JOBS, help=f"rankings computed side by side after the timed runs (default {JOBS}; 1 is sequential)")
     x = sub.add_parser("extras")
@@ -141,7 +180,8 @@ def main(argv=None) -> int:
     root = corpus.workspace()
     if args.command == "run":
         for ref in args.ref or ["worktree"]:
-            record = measure(ref, sets, manifest, root, set(args.only) or None, args.jobs, args.release or args.remediation)
+            asked = True if args.remediation else ("off" if args.no_remediation else "auto") if args.release else False
+            record = measure(ref, sets, manifest, root, set(args.only) or None, args.jobs, asked)
             existing = os.path.join(RECORDS, f"{record['version']}.json")
             if args.merge and os.path.exists(existing):
                 with open(existing, encoding="utf-8") as fh:

@@ -205,7 +205,9 @@ class InTheRound(unittest.TestCase):
             main.main(["run", "--release"])
             main.main(["run"])
             main.main(["run", "--only", "curl", "--remediation"])
-        self.assertEqual(seen, [True, False, True])
+            main.main(["run", "--release", "--remediation"])
+            main.main(["run", "--release", "--no-remediation"])
+        self.assertEqual(seen, ["auto", False, True, True, "off"], "a release round asks when what it depends on changed; --remediation forces it")
 
     def test_the_development_set_is_asked(self):
         self.assertIn("remediation", self._rank({"set": "development"}))

@@ -36,7 +36,8 @@ REPORT.json is a `--json` export made at the cut-off; the horizon picks the comm
 through harness.rev_at, main's first-parent commit, the way the rest of the harness picks one.
 
 A release round (`python -m gitmole.measure run --release`, or `run --remediation`) asks the same question
-at each of the ranking's cut-offs on the development repositories (harness.remediate_repo):
+at each of the ranking's cut-offs on the development repositories (harness.remediate_repo), a release
+round only when a path in ASKED_WHEN_CHANGED changed since the last record that asked it:
 the release's own export of the tree at the cut-off, scored here by over_window. The record keeps the
 outcome counts by rule; pooled() and bands() are the table's arithmetic over them.
 
@@ -556,6 +557,64 @@ def unscored(fired: set) -> str:
         if names:
             out.append(f"\n{heading}\n\n" + "".join(f"- **{n}** — {reasons[n]}\n" for n in names))
     return "".join(out)
+
+
+
+# --- when a release round asks remediation's question ----------------------------------------------
+
+# Every path a release's remediation rows depend on, from the repository's root, in one place. A
+# --release round asks the question only when one of these changed since the last record that asked
+# it (asked_since); otherwise its entries carry {"asked": False, "reason": ...} and the summary shows
+# a gap, never a value copied forward. The list errs toward running: a module is here when the scan
+# that makes the cut-off exports reaches it, unless it plainly cannot touch a finding (the banner, the
+# installer, the SARIF writer...; tests/test_remediation_trigger.py names each one left out and holds
+# every module under gitmole/ to one side or the other).
+ASKED_WHEN_CHANGED = {
+    "the scored rules' predicates": ("gitmole/measure/remediation.py",),
+    "the file classifier": ("gitmole/classify.py", "gitmole/filetypes.py"),
+    "the code behind the scored findings": (
+        "gitmole/findings.py", "gitmole/load.py", "gitmole/render.py", "gitmole/cli.py", "gitmole/__main__.py",
+        "gitmole/run.py", "gitmole/launch.py", "gitmole/stepstat.py", "gitmole/tools.py", "gitmole/userdirs.py",
+        "gitmole/scope.py", "gitmole/identity.py", "gitmole/textfmt.py",
+        "gitmole/maat.py", "gitmole/blame.py", "gitmole/functions.py", "gitmole/structure.py", "gitmole/imports.py",
+        "gitmole/hygiene.py", "gitmole/locks.py", "gitmole/deps.py", "gitmole/licences.py", "gitmole/leaks.py",
+        "gitmole/provenance.py", "gitmole/signing.py", "gitmole/trend.py", "gitmole/backtest.py", "gitmole/watch.py",
+        "gitmole/hotspots.py", "gitmole/coupling.py", "gitmole/knowledge.py", "gitmole/loss.py", "gitmole/osps.py",
+        "gitmole/gate.py",
+        "pyproject.toml",   # the grammars' versions: what structure parses
+    ),
+    "the scans at the cut-offs and their pooling": ("gitmole/measure/harness.py", "gitmole/measure/corpus.py", "gitmole/measure/wrap.py",
+                                                    "gitmole/measure/dashboard.py", "measure/corpus.json"),
+}
+
+
+def watched_paths() -> list:
+    return sorted({p for paths in ASKED_WHEN_CHANGED.values() for p in paths})
+
+
+def changed_since(root: str, since: str, commit: str = None) -> list:
+    """The watched paths that differ between `since` and `commit` in the gitmole checkout at `root`; with
+    no `commit`, between `since` and the working tree, uncommitted edits included (a `run` of the worktree).
+    Raises CalledProcessError when git cannot tell (an unknown commit): the caller then runs."""
+    argv = [*GIT, "diff", "--name-only", "--no-renames", since, *([commit] if commit else []), "--", *watched_paths()]
+    out = subprocess.run(argv, cwd=root, check=True, capture_output=True, text=True).stdout
+    return sorted(line for line in out.splitlines() if line)
+
+
+def asked_since(root: str, previous: dict, commit: str = None) -> tuple:
+    """(asked, reason, changed) for a release round: asked when no earlier record asked the question, when
+    git cannot compare against that record's commit, or when a watched path changed since it. `previous`
+    is the latest earlier record whose summary carries remediation's table. Errs toward asking."""
+    if not previous or not previous.get("commit"):
+        return True, "no earlier record asked it", []
+    since, version = previous["commit"], previous.get("version", "?")
+    try:
+        changed = changed_since(root, since, commit)
+    except (subprocess.CalledProcessError, OSError):
+        return True, f"cannot compare with {version}'s commit {since[:12]}", []
+    if changed:
+        return True, f"{len(changed)} watched path{'s' if len(changed) != 1 else ''} changed since {version}", changed
+    return False, f"the paths it depends on are unchanged since {version} ({since[:12]})", []
 
 
 def _present_at_cutoff(subject, after: After) -> bool:

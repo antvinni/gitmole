@@ -320,6 +320,24 @@ detection (limit pinned) and judged at its new path, and counts as *moved*,
 never as fixed; a subject still named at several cut-offs of one repository is
 counted once, at the first, and the later ones as repeats.
 
+A release round asks the question only when its answer can change: when, since
+the commit of the last record that asked it, a path its rows depend on changed —
+the predicates (`gitmole/measure/remediation.py`), the file classifier
+(`classify.py`, `filetypes.py`), the code behind the scored findings and the
+scans at the cut-offs. `remediation.ASKED_WHEN_CHANGED` lists those paths in one
+place and errs toward asking; a test holds every module under `gitmole/` to that
+list or to a short one left out with a reason (the banner, the installer, the
+SARIF writer). The diff is mechanical, `git diff --name-only` over the named
+paths. Otherwise each development entry records
+`remediation: {"asked": false, "reason": ...}`, the summary keeps the gap and its
+reason, and the history page prints "not asked (reason)": a number is never
+carried forward from an earlier record. `run --remediation` asks it whatever
+changed, and `run --release --no-remediation` records it as not asked. The
+record's `remediation_asked` says which way the round went and which watched
+paths changed. In the releases from 0.36.0 to 0.43.0 `findings.py` changed in
+every one, so the question would have been asked each time: the saving is the
+rounds of a release whose changes lie elsewhere.
+
 ## Description accuracy
 
 Unit tests prove the arithmetic on synthetic input. They cannot prove that the

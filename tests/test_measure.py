@@ -439,7 +439,7 @@ class Round(unittest.TestCase):
             span("run", entry["name"], 0.05)
             return {"status": "ok", "seconds": 1, "clone": "clone-" + entry["name"]}
 
-        def rank_entry(src, entry, root, reference, rec, labels_dir=None, remediation=False):
+        def rank_entry(src, entry, root, reference, rec, labels_dir=None, remediation=False, not_asked=None):
             span("rank", entry["name"], 0.2)
             rec.pop("clone")
             rec["ranking"] = {"cutoffs": []}
