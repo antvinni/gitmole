@@ -273,7 +273,18 @@ was the thing a finding named fixed within a fixed window after it — the actio
 pinned, the binary gone, the dependency dropped. That is "the repository acted
 on this", never precision, and a biased lower bound, since mechanical advice is
 taken far more readily than structural advice; its docstring says which rules
-it can and cannot score.
+it can and cannot score. A release round asks it at the ranking's own six cut-offs
+on the development repositories (not the large ones, by the maintainer's
+decision: binutils-gdb alone would add about 35 minutes): the release's
+`--json` export of the tree at each cut-off, scored against the tree six
+months later. That is one release run per cut-off, about six times the
+development set's run time, in the untimed half beside the rankings: roughly
+15 to 20 minutes more wall time per release round. The record
+keeps the outcome counts by rule (`remediation` on each entry), the summary
+pools them over the development set, and the history page prints the table.
+As it stands it counts a subject still named at several cut-offs at each, and
+a file moved or renamed as having left the tree; those are changes to the
+yardstick, and this table is their before.
 
 ## Description accuracy
 

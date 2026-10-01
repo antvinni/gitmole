@@ -18,8 +18,11 @@ def _repo_ranking(rec: dict):
         return None
     h, e, b, ch = (sum(r[k] for r in rows) for k in ("hits", "expected", "best", "churn_hits"))
     mean = lambda k: metrics.median([r[k] for r in rows])   # noqa: E731
+    # size alone is stored per cut-off from 0.38.0 on; a record without it at every cut-off has none, not zero
+    sh = sum(r["size_hits"] for r in rows) if all(r.get("size_hits") is not None for r in rows) else None
     return {"cutoffs": len(rows), "hits": h, "expected": round(e, 2), "best": b, "churn_hits": ch,
             "headroom": metrics.headroom(h, e, b), "churn_headroom": metrics.headroom(ch, e, b),
+            "size_stored": sh is not None, "size_headroom": None if sh is None else metrics.headroom(sh, e, b),
             "auc": mean("auc"), "churn_auc": mean("churn_auc"), "recall20": mean("recall20"), "churn_recall20": mean("churn_recall20"),
             "wins": sum(r["hits"] > r["churn_hits"] for r in rows), "losses": sum(r["hits"] < r["churn_hits"] for r in rows),
             "ties": sum(r["hits"] == r["churn_hits"] for r in rows)}
@@ -65,6 +68,9 @@ def summarise(record: dict, only=None) -> dict:
     out["headroom"] = _round(metrics.median([v["headroom"] for v in ranked.values()]))
     out["headroom_ci"] = [_round(x) for x in (metrics.bootstrap(per, metrics.median) or [])] or None
     out["churn_headroom"] = _round(metrics.median([v["churn_headroom"] for v in ranked.values()]))
+    # over the same repositories as churn alone, or not at all: a median over the few that stored it would not compare
+    sized = bool(ranked) and all(v["size_stored"] for v in ranked.values())
+    out["size_headroom"] = _round(metrics.median([v["size_headroom"] for v in ranked.values()])) if sized else None
     out["wins_losses_ties"] = [sum(v[k] for v in ranked.values()) for k in ("wins", "losses", "ties")] if ranked else None
     for k in ("auc", "churn_auc", "recall20", "churn_recall20"):
         out[k] = _round(metrics.median([v[k] for v in ranked.values()]))
@@ -128,6 +134,10 @@ def summarise(record: dict, only=None) -> dict:
         out["large_seconds"] = _round(sum(r.get("seconds") or 0 for r in large), 1)
         out["large_peak_mb"] = max((r.get("peak_mb") or 0 for r in large), default=None)
         out["large_findings_median"] = metrics.median([r.get("findings") for r in large])
+    if only is None:
+        acted = _remediation(cost.values())   # the development set only: REMEDIATION_SETS
+        if acted:
+            out["remediation"] = acted
     return out
 
 
@@ -146,6 +156,21 @@ def positive_shares(record: dict, sets=("development",)) -> list:
                 columns.setdefault(i, {})[name] = c["positives"] / c["pool"]
     return [{"index": i, "median": _round(metrics.median(list(v.values()))), "repos": {n: _round(x) for n, x in v.items()}}
             for i, v in sorted(columns.items())]
+
+
+def _remediation(recs) -> dict:
+    """The share acted on per rule, its outcome counts summed over the repositories and the cut-offs
+    (remediation.pooled), and the mechanical and structural bands; None when no record carries it. It is
+    remediation's lower bound as it stands: subjects named at several cut-offs count at each, and a file
+    moved or renamed counts as left the tree."""
+    from . import remediation
+    rows = [r["remediation"]["rules"] for r in recs if isinstance(r.get("remediation"), dict) and r["remediation"].get("rules") is not None]
+    if not rows:
+        return None
+    rules = remediation.pooled(rows)
+    cutoffs = [c for r in recs for c in ((r.get("remediation") or {}).get("cutoffs") or [])]
+    return {"repos": len(rows), "cutoffs": [sum(1 for c in cutoffs if "error" not in c), len(cutoffs)],
+            "rules": rules, "bands": remediation.bands(rules)}
 
 
 def _key(version: str):
