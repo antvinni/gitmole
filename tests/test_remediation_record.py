@@ -255,11 +255,12 @@ class InTheRound(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(main, "measure", measure), \
                 mock.patch.object(main, "write", lambda record: os.path.join(tmp, "9.9.9.json")), \
                 mock.patch.object(main.corpus, "load", lambda: {}), mock.patch.object(main.corpus, "workspace", lambda: tmp), \
-                contextlib.redirect_stdout(io.StringIO()):
+                mock.patch.object(main.harness, "keep_awake") as awake, contextlib.redirect_stdout(io.StringIO()):
             main.main(["run", "--release"])
             main.main(["run"])
             main.main(["run", "--only", "curl", "--remediation"])
         self.assertEqual(seen, [True, False, True])
+        self.assertEqual(awake.call_count, 3, "every run keeps the machine awake")
 
     def test_the_development_set_is_asked(self):
         self.assertIn("remediation", self._rank({"set": "development"}))

@@ -89,6 +89,15 @@ What a release produces is scored by the current tree's definitions, not its
 own, so the yardstick does not move with the tool. The rankings at cut-offs are
 not timed and run side by side once the timed runs are over.
 
+The round keeps the machine awake while it runs (`caffeinate -i -w` on its own
+process, macOS; elsewhere it says once that it does not). Plug in for timings
+that compare: each run records the power source it started on. A closed lid
+still sleeps the machine, and the record shows it: every run keeps its wall-clock
+seconds beside the monotonic ones, which stop in sleep, and the round records its
+own wall seconds and the seconds it spent asleep. The 0.43.0 round spent about
+fifty of its 87 minutes in idle sleep on battery, which nothing in its record
+could show.
+
 ### Threshold sensitivity
 
 `extras` moves every numeric keyword threshold of every rule by 10, 25 and 50%
@@ -496,7 +505,9 @@ release round, curl and react otherwise. The metric is binary and should stay at
 one.
 
 **Runtime.** Every run records its wall time, peak memory, the load average and
-the seconds of each step, since step-level numbers say which step to look at.
+the seconds of each step (and, from the first round after 0.43.0, its wall-clock seconds, CPU
+seconds, power source and the load sampled through the run: minimum, median,
+maximum), since step-level numbers say which step to look at.
 The ceilings are the last release's record; jscpd's memory behaviour was the
 documented hazard until it was retired at 0.39.0.
 
