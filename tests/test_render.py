@@ -287,8 +287,8 @@ class Report(unittest.TestCase):
         block = _section_text(rendered(r, [], width=200, full=True), "Trailers")
         self.assertRegex(block, r"Co-authored-by\s+40\s+11%")
         caption = render.trailers_section(r)["caption"]
-        self.assertIn("marked commits (an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool): 35, 10% of the history; "
-                      "reverted 6% against 1% for the rest, fixes 11% against 18%, a file changed again within two weeks 57% against 46%", caption)
+        self.assertIn("declared commits (an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool): 35, 10% of the history; "
+                      "reverted 6% against 1% for the rest (every commit that declares nothing, undisclosed agent use included), fixes 11% against 18%, a file changed again within two weeks 57% against 46%", caption)
         self.assertIn("12% of commits land in bursts of five or more within ten minutes; 80% have conventional-commit subjects; commits come in 20 hours of the day", caption)
         self.assertIn("## Trailers", render.markdown(r, []))
 
@@ -1724,7 +1724,7 @@ class ChangedLines(unittest.TestCase):
         sec = render.lines_section(rep)
         self.assertEqual(sec["rows"][0], ["last year (2025-01-01 to 2026-01-01)", "10", "200", "10.0%", "5.0%"])
         self.assertEqual(sec["rows"][1][3:], ["-", "-"])
-        self.assertEqual([r[0] for r in sec["rows"][2:]], ["marked commits, both years", "the rest, both years"])
+        self.assertEqual([r[0] for r in sec["rows"][2:]], ["declared commits, both years", "the rest, both years"])
         self.assertIn("lines", render.FULL_ONLY)
         self.assertIn("touched a file on the watch list's top 15 50% against 25%", render.trailers_section(rep)["caption"] or render.trailers_section(rep)["note"] or "")
 

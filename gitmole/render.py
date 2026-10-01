@@ -635,8 +635,8 @@ def trailers_section(report: dict, full: bool = True, width=None) -> dict:
         def pair(key):
             return f"{_pct(marked.get(key, 0), marked['commits'])} against {_pct(rest.get(key, 0), rest.get('commits') or 0)}"
         watch_part = f", touched a file on the watch list's top {co['watch_top']} {pair('watch')}" if co.get("watch_top") else ""
-        notes.append(f"marked commits ({co.get('definition')}): {marked['commits']:,}, {round(100 * co.get('share', 0))}% of the history; "
-                     f"reverted {pair('reverted')} for the rest, fixes {pair('fixes')}, a file changed again within two weeks {pair('retouched')}{watch_part}")
+        notes.append(f"declared commits ({co.get('definition')}): {marked['commits']:,}, {round(100 * co.get('share', 0))}% of the history; "
+                     f"reverted {pair('reverted')} for the rest (every commit that declares nothing, undisclosed agent use included), fixes {pair('fixes')}, a file changed again within two weeks {pair('retouched')}{watch_part}")
     if sh:
         notes.append(f"{round(100 * sh.get('burst_share', 0))}% of commits land in bursts of five or more within ten minutes; "
                      f"{round(100 * sh.get('conventional_share', 0))}% have conventional-commit subjects; commits come in {sh.get('hours_used', 0)} hours of the day")
@@ -645,7 +645,8 @@ def trailers_section(report: dict, full: bool = True, width=None) -> dict:
 
 def lines_section(report: dict, full: bool = True, width=None) -> dict:
     """Lines added to code files in the last year and the year before, the share git marks as moved and
-    the share deleted again within two weeks, and the same for the marked cohort against the rest:
+    the share deleted again within two weeks, and the same for the declared commits against the rest (which is not
+    "humans": it holds any agent use nobody declared):
     --full and Markdown only. A direction for this repository, not a score."""
     ln = (report.get("provenance") or {}).get("lines") or {}
 
@@ -656,11 +657,13 @@ def lines_section(report: dict, full: bool = True, width=None) -> dict:
     co = ln.get("cohort") or {}
     if (co.get("marked") or {}).get("commits"):
         rows += [(label, c["commits"], c["added"], share(c.get("moved_share")), share(c.get("churn_share")))
-                 for label, c in (("marked commits, both years", co["marked"]), ("the rest, both years", co["rest"]))]
+                 for label, c in (("declared commits, both years", co["marked"]), ("the rest, both years", co["rest"]))]
     columns = [("period", {"overflow": "fold"}), ("commits", RIGHT), ("lines added", RIGHT), ("moved", RIGHT), (f"churned in {ln.get('churn_days', 14)} days", RIGHT)]
     return _section("Changed lines", columns, rows, note=None if rows else "no history in the last two years",
                     caption="code files only; moved: lines git's moved-code detection marks (--color-moved=blocks); churned: deleted again "
-                            "within two weeks from the same file with the same text" if rows else None)
+                            "within two weeks from the same file with the same text"
+                            + ("; the rest is every commit that declares no coding tool, undisclosed agent use included" if (co.get("marked") or {}).get("commits") else "")
+                    if rows else None)
 
 
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:

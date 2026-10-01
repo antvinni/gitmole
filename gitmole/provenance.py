@@ -7,9 +7,10 @@ writes provenance.json:
 - trailers: every trailer key and how many commits carry it; the co-authors who never author a commit
   here (a structural fact about the repository, no list of products); sign-offs by such identities,
   which the Linux kernel's policy on coding assistants forbids an agent to add.
-- cohort: commits with an `Assisted-by` trailer, a never-authoring co-author or a coding tool (identity.tools
-  over meta.json) as co-author, against the rest: how
-  many were reverted (by git's own `Revert "subject"`), how many are fixes, and how many had a file
+- cohort: the declared commits, those with an `Assisted-by` trailer, a never-authoring co-author or a coding
+  tool (identity.tools over meta.json) as co-author, against the rest, which is every commit that declares
+  nothing and so includes any agent use nobody disclosed (never "humans"): how many were reverted (by git's
+  own `Revert "subject"`), how many are fixes, and how many had a file
   changed again by another commit within two weeks. This repository against itself, with the share
   of commits the cohort covers beside it; no prior from elsewhere, since the best-controlled study
   found the spread between agents larger than the pooled difference.
@@ -161,8 +162,10 @@ def marker(inventory: dict, tools=frozenset()):
 
 
 def cohort(commits: list, inventory: dict, watch_files=None, tools=frozenset()) -> dict:
-    """The commits an `Assisted-by` trailer, a never-authoring co-author or a coding tool marks (marker), against
-    the rest; with `watch_files`, how many of each touched a file on the watch list."""
+    """The commits that declare a coding tool (an `Assisted-by` trailer, a never-authoring co-author or a coding
+    tool as co-author: marker), against the rest. The rest is every commit that declares nothing, which includes
+    any agent use nobody disclosed: it is not a group of people. With `watch_files`, how many of each touched a
+    file on the watch list. A commit is reverted when a later one is git's `Revert "<its subject>"`."""
     marked = marker(inventory, tools)
 
     reverted = {c["subject"][len('Revert "'):-1] for c in commits if c["subject"].startswith('Revert "') and c["subject"].endswith('"')}

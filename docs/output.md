@@ -54,14 +54,15 @@ in plain words, and what to do first. This page is the reference.
    case as git matches them (`Co-authored-by` and `Co-Authored-By` are one
    row, under the more common spelling), and never an issue reference
    such as `PAP-10182:` (capitals, a hyphen and a number) that happens to
-   end a message; then the commits an `Assisted-by` trailer, a co-author
+   end a message; then the declared commits, those an `Assisted-by` trailer, a co-author
    who never authors a commit or a coding tool marks,
    against the rest (reverted, fixes, a file changed again within two
    weeks), with the share of the history they cover, and three neutral
    descriptors of how commits arrive (bursts of commits minutes apart,
    conventional-commit subjects, hours of the day). This
    repository against itself, with no prior from elsewhere, and nothing is
-   labelled: every descriptor has an ordinary cause. With `--full`, and always in Markdown, a coverage
+   labelled: every descriptor has an ordinary cause. The rest is every commit that declares
+   nothing, which includes any agent use nobody disclosed; it is never a group of people. With `--full`, and always in Markdown, a coverage
    line counts the tracked text files by why they are out of the scored
    pool: `4,512 files: 582 scored · 13 generated · 2,680 test files · 139
    example code · 3 release files · 1,095 not a source type`, and a file of
@@ -811,5 +812,5 @@ directory for a remote target:
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave; a property of this clone, so the `--json` export carries the counts in its `envelope` |
 | `structure.json` | structure step, Python 3.10 or newer | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports and which of those only after it loads (`deferred`) — resolved for Python (from a root), JavaScript and TypeScript (relative paths), C and C++ (quoted includes), Ruby (`require_relative`, and `require` of a tracked file) and Go (an import path against the `module` and relative `replace` lines of the go.mod files in the tree; a Go import names a package, so it is an edge to every file of that directory the build compiles into it, `_test.go` and `package main` aside), while Rust, Java, C# and PHP imports stay unresolved — its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
-| `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the marked cohort against the rest (with each side's watch-list hit rate), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
+| `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the declared commits against the rest (with each side's watch-list hit rate; the JSON keeps the keys `cohort` and `marked`), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
 | `run.log` | gitmole | every command run and its stderr |
