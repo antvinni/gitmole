@@ -1,6 +1,6 @@
 """python -m gitmole.measure: the measurement harness of docs/measurement.md.
 
-    python -m gitmole.measure run [--ref REF]... [--sets development,awkward,gate | --release]   # one or more releases
+    python -m gitmole.measure run [--ref REF]... [--sets development,awkward,gate | --release] [--remediation]   # one or more releases
     python -m gitmole.measure extras [--release]                                                 # the current tree's one-off checks
     python -m gitmole.measure report                                                             # docs/measurement-history.md and the graphs
     python -m gitmole.measure labels dump|score                                                  # the hand-label sheet and its verdicts
@@ -44,7 +44,10 @@ def _error(e: Exception) -> dict:
     return {"status": "harness-error", "note": f"{type(e).__name__}: {e}"[:200]}
 
 
-def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: int = JOBS) -> dict:
+def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: int = JOBS, remediation: bool = False) -> dict:
+    """One release over the sets. With `remediation` (every --release round), the untimed half also asks
+    remediation's question at each ranking cut-off of the development entries: a release run per
+    cut-off, the round's largest added cost, so the fast loop leaves it out unless asked."""
     src = harness.source(ref, root)
     version = harness.version_of(src)
     reference = manifest["reference_date"]
@@ -66,7 +69,7 @@ def measure(ref: str, sets: list, manifest: dict, root: str, only=None, jobs: in
         futures = {}
         for entry in pending:
             print(f"rank: {version} {entry['name']}", file=sys.stderr, flush=True)
-            futures[entry["name"]] = pool.submit(harness.rank_entry, src, entry, root, reference, recs[entry["name"]], _labels_dir())
+            futures[entry["name"]] = pool.submit(harness.rank_entry, src, entry, root, reference, recs[entry["name"]], _labels_dir(), remediation)
         for name, future in futures.items():
             try:
                 recs[name] = future.result()
@@ -97,6 +100,8 @@ def main(argv=None) -> int:
     r.add_argument("--sets", default=None, help=f"comma-separated (default: {DEFAULT_SETS}, the fast loop)")
     r.add_argument("--release", action="store_true", help=f"a release round's sets: {RELEASE_SETS}")
     r.add_argument("--only", action="append", default=[], help="only these corpus entries")
+    r.add_argument("--remediation", action="store_true",
+                   help="ask remediation's question at the ranking cut-offs (development set); --release always does")
     r.add_argument("--merge", action="store_true", help="add these runs to the release's existing record instead of replacing it")
     r.add_argument("--jobs", type=int, default=JOBS, help=f"rankings computed side by side after the timed runs (default {JOBS}; 1 is sequential)")
     x = sub.add_parser("extras")
@@ -120,7 +125,7 @@ def main(argv=None) -> int:
     root = corpus.workspace()
     if args.command == "run":
         for ref in args.ref or ["worktree"]:
-            record = measure(ref, sets, manifest, root, set(args.only) or None, args.jobs)
+            record = measure(ref, sets, manifest, root, set(args.only) or None, args.jobs, args.release or args.remediation)
             existing = os.path.join(RECORDS, f"{record['version']}.json")
             if args.merge and os.path.exists(existing):
                 with open(existing, encoding="utf-8") as fh:
