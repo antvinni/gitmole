@@ -765,3 +765,26 @@ class SimpleLists(unittest.TestCase):
         rows = [l for l in report.current(rec, None) if l.startswith("| top-15 hits above the better of churn and size") or l.startswith("| saturated cut-offs")]
         self.assertEqual(rows, ["| top-15 hits above the better of churn and size, summed over cut-offs (information) | development | 0 over 2 cut-offs (1 ahead, 1 behind, 0 level) |",
                                 "| saturated cut-offs, half the pool or more fixed (information) | development | 1 of 2 |"])
+
+
+class PositiveShares(unittest.TestCase):
+    def test_each_cut_offs_share_of_the_pool_in_the_outcome_by_position(self):
+        record = {"version": "9.9.9", "repos": {
+            "a": {"set": "development", "ranking": {"cutoffs": [{"pool": 10, "positives": 2}, {"pool": 10, "positives": 1}]}},
+            "b": {"set": "development", "ranking": {"cutoffs": [{"cutoff": "x", "error": "boom"}, {"pool": 4, "positives": 2}, {"pool": 5, "positives": 0}]}},
+            "c": {"set": "large", "ranking": {"cutoffs": [{"pool": 1, "positives": 1}]}},
+            "d": {"set": "development", "ranking": None}}}
+        shares = dashboard.positive_shares(record)
+        self.assertEqual(shares, [{"index": 0, "median": 0.35, "repos": {"a": 0.2, "b": 0.5}},
+                                  {"index": 1, "median": 0.05, "repos": {"a": 0.1, "b": 0.0}}])
+        self.assertEqual(dashboard.positive_shares(record, ("large",))[0]["repos"], {"c": 1.0})
+        from gitmole.measure import __main__ as main
+        table = main.positives_table(record, ["development"])
+        self.assertIn("| 1 | 0.35 | 0.20 | 0.50 |", table)
+
+    def test_the_holdout_is_not_a_set_it_reads(self):
+        import contextlib
+        import io
+        from gitmole.measure import __main__ as main
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            main.main(["positives", "--sets", "holdout"])
