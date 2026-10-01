@@ -291,6 +291,16 @@ unnamed files compared are those in the same decile of revisions × lines of
 code, the watch list's own score. A ratio above one means the rule knows
 something the watch list does not; near one, it is naming files at random.
 
+The ratio is printed two ways, side by side, and neither is preferred. The
+pooled one adds every decile's unnamed files into one control and every
+repository's six cut-offs into one sum, so the deciles weigh by their unnamed
+files, a repository with many magnets dominates, and a file named at six
+cut-offs counts six times. The standardised one expects each named file to be
+fixed at the rate of the unnamed files in its own decile, Σ_d (named_d / named)
+· rate_d, takes observed over expected per repository, and reports the median
+over repositories, so each counts once. A decile the named files fill alone has
+no rate and is left out of the standardised one, and counted.
+
 `python -m gitmole.measure.remediation` asks the other question git can answer:
 was the thing a finding named fixed within a fixed window after it — the action
 pinned, the binary gone, the dependency dropped. That is "the repository acted

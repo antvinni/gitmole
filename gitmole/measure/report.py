@@ -123,9 +123,11 @@ def page(history: list, extras: dict) -> str:
               "release's interval, the only move that counts. Churn and size are the headroom of the files ranked by churn alone and by "
               "size alone; size from 0.38.0, the first record that stores it. W/L/T is the watch list against churn alone at each "
               "cut-off. Bug magnets is how much more often the files the rule named were fixed again than unnamed "
-              "files in the same deciles of the list's own score.", "",
-              "| release | headroom | churn | size | W/L/T | AUC | recall 20% | stable | magnets | findings | lines | scored | robust | gate | seconds | MB | note |",
-              "|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
+              "files in the same deciles of the list's own score, pooled over every repository and cut-off; std. "
+              "beside it weights each decile's unnamed files as the named files are spread and counts each "
+              "repository once (the median of their ratios). Neither replaces the other.", "",
+              "| release | headroom | churn | size | W/L/T | AUC | recall 20% | stable | magnets | std. | findings | lines | scored | robust | gate | seconds | MB | note |",
+              "|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     prev = None
     for r in history:
         s = r["summary"]
@@ -146,7 +148,7 @@ def page(history: list, extras: dict) -> str:
         failed += [f"{n}: {len(x['steps_failed'])} step(s) failed" for n, x in sorted(r["repos"].items()) if x.get("status") == "ok" and x.get("steps_failed")]
         failed += [sets_note] if sets_note else []
         lines.append(f"| {r['version']} | {head} | {_num(s.get('churn_headroom'))} | {_num(s.get('size_headroom'))} | {wlt} | {_num(s.get('auc'))} | {_pct(s.get('recall20'))} | "
-                     f"{_num(s.get('stability_top15'))} | {_num(s.get('bug_magnets_ratio'))} | {_num(s.get('findings_median'), '{:g}')}/{_num(s.get('findings_p90'), '{:g}')} | "
+                     f"{_num(s.get('stability_top15'))} | {_num(s.get('bug_magnets_ratio'))} | {_num(s.get('bug_magnets_standardised'))} | {_num(s.get('findings_median'), '{:g}')}/{_num(s.get('findings_p90'), '{:g}')} | "
                      f"{_num(s.get('report_lines'), '{:g}')} | {_pct(s.get('scored_share'))} | {robust} | {gate} | {_num(s.get('seconds'), '{:.0f}')} | "
                      f"{_num(s.get('peak_mb'), '{:.0f}')} | {'; '.join(failed).replace('|', '/')} |")
     lines.append("")

@@ -615,7 +615,9 @@ def group(rows: list) -> list:
     """One entry per distinct secret value (placeholders left out): its rule, the files and commits it
     appears in, the number of distinct places (commit, file, line), whether every place is a test
     file or inline test code (and `test_code_files`, the files where every sighting is inside a Rust test
-    module), whether every place is a documentation file, and the repository's declaration of it, if any. The strongest come first, since a finding
+    module), whether every place is a documentation file, the repository's declaration of it, if any, and
+    `at_head`: True when HEAD still holds the value in a file it was found in, False when HEAD holds it in
+    none (it lives in history only), None when the run did not record it (leaks.annotate). The strongest come first, since a finding
     names the first three: the scanner's highest grade, then a provider's rule before a generic one,
     then values that appear in source, then the most widespread (devlake's critical led with a form
     label's `password: 'Enter Password'` and never named the GitHub token graded high)."""
@@ -626,7 +628,8 @@ def group(rows: list) -> list:
         key = r.get("value") or ("row", i)
         if key not in groups:
             groups[key] = {"value": r.get("value"), "rule": r["rule"], "files": [], "commits": [], "_places": set(), "test": True, "docs": True,
-                           "confidence": None, "declared": None, "local": False, "_remote": False, "_inline": set(), "_outside": set()}
+                           "confidence": None, "declared": None, "local": False, "_remote": False, "_inline": set(), "_outside": set(),
+                           "at_head": None}
             order.append(key)
         g = groups[key]
         if r["file"] not in g["files"]:
@@ -645,6 +648,8 @@ def group(rows: list) -> list:
         g["test"] = g["test"] and (filetypes.is_test_path(r["file"]) or bool(r.get("test_code")))
         g["docs"] = g["docs"] and filetypes.is_doc_path(r["file"])
         g["_inline" if r.get("test_code") else "_outside"].add(r["file"])
+        if isinstance(r.get("at_head"), bool):   # still at HEAD if any sighting is; history-only when every judged one is not
+            g["at_head"] = bool(g["at_head"]) or r["at_head"]
     out = []
     for key in order:
         g = groups[key]
