@@ -540,7 +540,17 @@ in plain words, and what to do first. This page is the reference.
    creating a file, and the code-age pass credits its surviving lines to
    nobody (they still count for their year). A note names it with its
    share, since the knowledge tables then read differently from a plain
-   git blame. A commit's `Co-authored-by` trailers (git's own trailer,
+   git blame. The rule counts code files, so the note labels them and
+   gives the commit's own totals beside them (`313 code files of 722;
+   40,853 lines of code of 83,997`), the vendored directory everything it
+   added sits under when there is one (`node_modules/`, `vendor/`,
+   `third_party/`), and the binary files it carried. An import nothing of
+   which is tracked any more, because the log shows every file it brought
+   in deleted since, changes no table about the tree: it is no finding,
+   and one line under the knowledge map says which commit removed most
+   of it; `activity.imports` in the JSON keeps the row (`in_tree`,
+   `removed_in`). What an import brought in is read from the log, as the
+   paths it added to that no earlier commit touched. A commit's `Co-authored-by` trailers (git's own trailer,
    which GitHub adds to a squash merge and pair programmers add by hand)
    name people who count as its authors too: in the People table,
    credited with the commits they are named on, through `.mailmap` and the

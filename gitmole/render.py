@@ -918,6 +918,9 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     elif not shown:
         columns, rows = _keep(columns, rows, [c[0] for c in columns[:-1]])
     notes = [c for c in (_more(len(areas), limit), hidden_note) if c]
+    from .findings import imports_gone_note
+    if (left := imports_gone_note(report)):   # an import that is gone is no finding: said here, where ownership is read
+        notes.append(left)
     if shown:
         notes.append("agents: the lines trailers credit to coding tools, told by their no-reply address (identity.tools)")
     if gone:
@@ -1626,7 +1629,7 @@ def dumps_json(report: dict, findings: list, risk: dict = None, compare: dict = 
 
 
 def to_json(report: dict, findings: list, risk: dict = None, compare: dict = None) -> dict:
-    out = {**{k: v for k, v in report.items() if k not in ("backtest", "tree")}, "findings": findings,   # the sub-report is a report of its own; the listing is the clone's
+    out = {**{k: v for k, v in report.items() if k not in ("backtest", "tree", "imported")}, "findings": findings,   # the sub-report is a report of its own; the listing is the clone's
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
     out["watch_by_component"] = [{"component": g["component"], "share": round(g["share"], 3), "files": [x["file"] for x in g["files"]]}

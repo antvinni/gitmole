@@ -218,6 +218,13 @@ def is_vendor_path(path: str) -> bool:
     return bool(_VENDOR_PATH.search(path))
 
 
+def vendor_root(path: str):
+    """The path up to and including its first conventionally vendored directory, ending in `/`
+    (`skills/x/node_modules/` for `skills/x/node_modules/ws/index.js`), or None when it sits under none."""
+    m = _VENDOR_PATH.search(path)
+    return path[:m.end()] if m and path[m.end() - 1:m.end()] == "/" else None
+
+
 _PACKAGES_DIR = re.compile(r"^([^/]+)/packages/")
 
 

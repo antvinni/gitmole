@@ -260,6 +260,64 @@ class ParseFixHistory(unittest.TestCase):
         self.assertEqual(h["src/a.py"]["recent"], ["c1", "c3"])
 
 
+class ParseImports(unittest.TestCase):
+    """superpowers' 7446c84: node_modules committed (313 code files of 722) and deleted two days later."""
+    LOG = "\n".join([
+        "--c1--2026-03-12T10:00:00+00:00--Ann--later work",
+        "3\t1\tsrc/a.js", "",
+        "--c2--2026-03-11T10:00:00+00:00--Ann--remove the rest",
+        "0\t40\tlib/node_modules/ws/index.js", "0\t9\tlib/node_modules/ws/moved.js", "0\t30\tlib/node_modules/ws/README.md",
+        "-\t-\tlib/node_modules/ws/logo.png", "0\t0\tlib/node_modules/ws/empty.js", "",
+        "--c3--2026-03-10T12:00:00+00:00--Ann--remove one",
+        "0\t5\tlib/node_modules/ms/index.js", "",
+        "--c4--2026-03-10T10:00:00+00:00--Ann--move one",
+        "0\t0\tlib/node_modules/ws/{util.js => moved.js}", "",
+        "--c5--2026-03-09T10:00:00+00:00--Ann--bundle the dependencies",
+        "40\t0\tlib/node_modules/ws/index.js", "9\t0\tlib/node_modules/ws/util.js", "5\t0\tlib/node_modules/ms/index.js",
+        "30\t0\tlib/node_modules/ws/README.md", "-\t-\tlib/node_modules/ws/logo.png", "0\t0\tlib/node_modules/ws/empty.js",
+        "2\t0\t.gitignore", "0\t5\tsrc/a.js", "",
+        "--c6--2026-03-01T10:00:00+00:00--Ann--start",
+        "10\t0\tsrc/a.js", "1\t0\t.gitignore", ""])
+    ROW = {"hash": "c5", "files": 3, "added": 54, "deleted": 5}
+    HEAD = frozenset({"src/a.js", ".gitignore"})
+
+    def test_the_raw_totals_the_directory_and_the_commit_that_removed_it(self):
+        rows, paths = load.parse_imports(self.LOG, [self.ROW], self.HEAD)
+        self.assertEqual(rows, [{**self.ROW, "files_all": 8, "added_all": 86, "binaries": 1, "under": "lib/node_modules/", "in_tree": 0,
+                                 "removed_in": {"hash": "c2", "date": "2026-03-11", "commits": 2}}])
+        self.assertIn("lib/node_modules/ws/moved.js", paths, "under every name a path has had since")
+        self.assertIn(".gitignore", paths)
+        self.assertNotIn("src/a.js", paths, "it only took lines out of that one")
+
+    def test_a_file_the_import_only_changed_is_not_its_survivor(self):
+        # .gitignore was there before (c6) and is still tracked: the import added two lines to it, it did not bring it in
+        [row], _ = load.parse_imports(self.LOG, [self.ROW], self.HEAD)
+        self.assertEqual(row["in_tree"], 0)
+
+    def test_what_is_still_tracked_is_counted_its_renames_followed(self):
+        [row], _ = load.parse_imports(self.LOG, [self.ROW], self.HEAD | {"lib/node_modules/ws/moved.js"})
+        self.assertEqual((row["in_tree"], "removed_in" in row), (1, False))
+
+    def test_gone_is_said_only_when_the_log_shows_every_file_deleted(self):
+        # a subtree's squashed history: the paths are the other repository's, never tracked here, and are changed, not deleted
+        log = "\n".join(["--s2--2026-03-11T10:00:00+00:00--Ann--Squashed 'deps/x/' changes", "3\t1\tsrc/arena.js", "",
+                          "--s1--2026-03-09T10:00:00+00:00--Ann--Squashed 'deps/x/' content", "40\t0\tsrc/arena.js", "9\t0\tsrc/never.js", ""])
+        [row], _ = load.parse_imports(log, [{"hash": "s1"}], frozenset({"deps/x/src/arena.js"}))
+        self.assertNotIn("in_tree", row)
+        self.assertNotIn("removed_in", row)
+
+    def test_the_commit_named_is_the_one_that_removed_most_of_it(self):
+        # a file the import only changed goes a year later: that commit did not remove the import
+        log = "\n".join(["--late--2027-03-09T10:00:00+00:00--Ann--drop the ignore file", "0\t3\t.gitignore", ""]) + "\n" + self.LOG
+        [row], _ = load.parse_imports(log, [self.ROW], frozenset({"src/a.js"}))
+        self.assertEqual(row["removed_in"], {"hash": "c2", "date": "2026-03-11", "commits": 3})
+
+    def test_without_a_tree_listing_or_the_commit_nothing_is_claimed(self):
+        [row], _ = load.parse_imports(self.LOG, [self.ROW], None)
+        self.assertEqual((row["files_all"], "in_tree" in row), (8, False))
+        self.assertEqual(load.parse_imports(self.LOG, [{"hash": "zz"}], frozenset()), ([{"hash": "zz"}], frozenset()))
+
+
 class Authored(unittest.TestCase):
     """An older run counted a Co-authored-by credit as a commit and kept no `authored`; the trailer inventory
     says which identities only ever appear in trailers."""
