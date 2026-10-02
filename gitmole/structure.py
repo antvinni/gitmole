@@ -1316,25 +1316,32 @@ def printable(value):
     return value
 
 
-def collect(repo: str, procs: int = None, vendored=(), scope=()) -> dict:
+def collect(repo: str, procs: int = None, vendored=(), scope=(), scripts: dict = None) -> dict:
     """The tree-sitter metrics and the import graph. With `scope` (--path's directories) the whole tree is
     still parsed and resolved, and only the result is narrowed: an import from outside the directories
-    still counts, so a file only the rest of the repository imports is not called unreferenced."""
+    still counts, so a file only the rest of the repository imports is not called unreferenced.
+    `scripts` ({path: file type}, filetypes.scripts) are the executables whose interpreter line names the
+    language: each is parsed with that type's grammar, and each is an entry point, started by name."""
+    scripts = scripts or {}
+
     def inside(p):
         return not scope or any(p.startswith(d + "/") for d in scope)
+
+    def ext_of(p):
+        return f".{scripts[p]}" if p in scripts else os.path.splitext(p)[1].lower()
     tracked = filetypes.git_paths(repo, "ls-files")
-    paths = [p for p in tracked if os.path.splitext(p)[1].lower() in GRAMMARS
+    paths = [p for p in tracked if ext_of(p) in GRAMMARS
              and not filetypes.is_vendored(p, vendored) and "node_modules/" not in p]
     skipped = []
     blobs = _blobs(repo, paths, skipped)
     cache = cache_root()
-    items = [(p, sha, os.path.splitext(p)[1].lower(), data, cache) for p, (sha, data) in sorted(blobs.items())]
+    items = [(p, sha, ext_of(p), data, cache) for p, (sha, data) in sorted(blobs.items())]
     files, languages, missing, cached = {}, Counter(), Counter(), 0
     if items:
         with Pool(procs or max(1, (os.cpu_count() or 2) - 2)) as pool:
             for path, result, hit in pool.imap_unordered(_job, items, chunksize=16):
                 if result is None:
-                    missing[GRAMMARS[os.path.splitext(path)[1].lower()][0]] += 1
+                    missing[GRAMMARS[ext_of(path)][0]] += 1
                     continue
                 files[path] = result
                 languages[result["language"]] += 1
@@ -1345,7 +1352,7 @@ def collect(repo: str, procs: int = None, vendored=(), scope=()) -> dict:
                               and not filetypes.is_vendored(p, vendored)])
     aliases = ts_aliases({p: data.decode("utf-8", "replace") for p, (_, data) in tsconfigs.items()})
     edges, eager, resolved = _resolve(files, modules, aliases)   # one pass: the second walk cost the step twice its resolution on a large clone
-    entries, known = entry_points(repo, set(tracked)), documented(repo, set(tracked), files, vendored)
+    entries, known = entry_points(repo, set(tracked)) | set(scripts), documented(repo, set(tracked), files, vendored)
     known |= path_references(repo, set(tracked), unreferenced(files, edges, resolved, entries, known, loud=False))
     orphans = [p for p in unreferenced(files, edges, resolved, entries, known) if inside(p)]
     functions = []
@@ -1391,7 +1398,7 @@ def main(argv=None) -> int:
             with open(meta_path, encoding="utf-8") as fh:
                 meta = json.load(fh)
         vendored = filetypes.vendor_dirs({"meta": meta})
-        result = collect(os.getcwd(), procs, vendored, meta.get("scope") or [])
+        result = collect(os.getcwd(), procs, vendored, meta.get("scope") or [], meta.get("scripts") or {})
     with open(os.path.join(out_dir, "structure.json"), "w", encoding="utf-8") as fh:
         json.dump(printable(result), fh)
     return 0

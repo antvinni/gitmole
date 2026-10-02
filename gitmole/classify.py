@@ -26,7 +26,7 @@ class Classifier:
         meta = report.get("meta") or {}
         # a run records its --file-types spec (None for the default list); a run from before that record
         # was measured unfiltered and is classified unfiltered, as load.load_report filters scc
-        self.types = filetypes.parse(meta["file_types"]) if "file_types" in meta else None
+        self.types = filetypes.for_meta(meta, unrecorded=None)   # with the run's scripts: source by shape (filetypes.scripts)
         self.tree = (report.get("size") or {}).get("files") or {}
         self.generated = set(meta.get("generated") or [])
         self.test_doubles = set(meta.get("test_doubles") or [])   # Cargo bins only the tests start (filetypes.test_doubles)

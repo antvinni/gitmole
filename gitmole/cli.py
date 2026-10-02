@@ -562,7 +562,7 @@ def _list_file_types(repo_dir: str, args, console: Console) -> int:
     except ValueError as e:
         console.print(f"[red]{e}[/red]", soft_wrap=True)
         return 2
-    rows = [(k, n, "yes" if inc else "no") for k, n, inc in filetypes.discover(repo_dir, filetypes.parse(args.file_types), args.path)]
+    rows = [(k, n, "yes" if inc else "no") for k, n, inc in filetypes.discover(repo_dir, filetypes.with_scripts(filetypes.parse(args.file_types), filetypes.scripts(repo_dir)), args.path)]
     sec = render._section("File types", [("type", {}), ("files", render.RIGHT), ("code", {})], rows, note="no tracked files",
                           caption="code = analysed for hotspots, coupling and code age")
     render.print_section(console, sec)
@@ -593,7 +593,7 @@ def _budgets(args, estimate, ui) -> tuple[bool, bool, float]:
 
 
 def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, projected: float,
-                  tracked: list = None) -> tuple[dict, str | None]:
+                  tracked: list = None, scripts: dict = None) -> tuple[dict, str | None]:
     """Collect this run's meta.json: repo facts plus a planned status record for every optional step.
     Raises NoCommits when --since leaves no commits to analyse."""
     types_spec = _types_spec(args.file_types)
@@ -603,6 +603,9 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     meta["gone_months"] = args.gone
     tracked = blame.text_files(repo_dir) if tracked is None else tracked   # every tracked text file: --ignore shapes blame and functions, never what a file is
+    scripts = filetypes.scripts(repo_dir, among=tracked) if scripts is None else scripts
+    if scripts:   # source by shape: mode 100755 and an interpreter line. Absent when there is none, so such a run's meta.json is the one it always was
+        meta["scripts"] = scripts
     attrs = filetypes.attributes(repo_dir, tracked)   # one git check-attr pass, shared by the two lists below
     meta["generated"] = filetypes.generated_files(repo_dir, tracked, attrs=attrs)   # hidden from the tables, out of the findings
     meta["vendored"] = filetypes.vendored_paths(repo_dir, tracked, attrs=attrs)    # somebody else's code, by the licence it carries or the attribute it declares
@@ -682,11 +685,12 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
 
     ignore = list(run.DATA_IGNORES if args.ignore_data else []) + list(args.ignore)
     tracked = blame.text_files(repo_dir)   # read the index once: the steps below do not change it
-    estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.parse(args.file_types),
+    scripts = filetypes.scripts(repo_dir, among=tracked)   # the executables with an interpreter line, which no extension names as source
+    estimate = estimator(repo_dir, run.MONTH, ignore=ignore, types=filetypes.with_scripts(filetypes.parse(args.file_types), scripts),
                          budget=None if args.deep else args.time_budget, tracked=tracked, **({"scope": args.path} if args.path else {}))
     age_ok, plots_ok, projected = _budgets(args, estimate, ui)
 
-    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected, tracked=tracked)
+    meta, cut = _meta_for_run(repo_dir, args, estimate, age_ok, plots_ok, projected, tracked=tracked, scripts=scripts)
     types_spec = meta["file_types"]
     if run.is_shallow(repo_dir):
         meta["shallow"] = True   # the history stops at the graft

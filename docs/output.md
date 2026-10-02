@@ -705,7 +705,25 @@ in plain words, and what to do first. This page is the reference.
 
    Size, hotspots, coupling, ownership, code age and the watch list analyse
    source files: a built-in list of code extensions plus names like Makefile
-   and Dockerfile (`--file-types all` counts everything). In the default
+   and Dockerfile (`--file-types all` counts everything), and every file
+   that is source by its shape rather than its name: a tracked file with
+   the executable bit (mode 100755 in the commit's tree) whose first line
+   is `#!interpreter`, such as `hooks/session-start`, `bin/tool` or a
+   `scripts/` file with no extension. The interpreter's name gives the
+   language (`sh`, `bash`, `python3`, `node`, `ruby`, `perl` and the like;
+   `env` hands over to the command it runs), so `--file-types py` keeps an
+   executable `#!/usr/bin/env python3` and not a shell hook; an
+   interpreter gitmole does not know is still a script, sized when scc has
+   a language for it. Mode and first line are read from the analysed
+   commit, never from the checkout, and the run lists what it found under
+   `scripts` in `meta.json`. A path is judged as it is at that commit: one
+   that is such a script at HEAD is source for its whole history under
+   that path, and a path no longer in the tree, whose mode at each old
+   commit would cost a tree read per commit, keeps the extension rule (the
+   backtest reads its cut-off's own tree, so a script deleted since counts
+   there). A rename is followed as for any file: the commit that renames
+   `session-start.sh` to `session-start` and everything after it are the
+   new path's revisions, and what came before stays with the old name. In the default
    report, the complex functions table hides test files and generated
    files (a file whose first five lines say it was generated or must not be
    edited, or, below a licence header and within forty lines, carries a
@@ -783,7 +801,7 @@ directory for a remote target:
 
 | File | From | What it is |
 |---|---|---|
-| `meta.json` | git | name, branch, commit count, merge-commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`, its wall time under `step_seconds` and the peak memory of its largest process under `step_peak_mb` (the `--json` export moves these two into its `envelope`, since they vary between runs); what produced the run under `run` (the commit, gitmole's version, every tool's version under `tools`, the versions gitmole pins under `tools_pinned` and any tool that is not at its pinned one under `tools_moved`, and the options); the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists |
+| `meta.json` | git | name, branch, commit count, merge-commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`, its wall time under `step_seconds` and the peak memory of its largest process under `step_peak_mb` (the `--json` export moves these two into its `envelope`, since they vary between runs); what produced the run under `run` (the commit, gitmole's version, every tool's version under `tools`, the versions gitmole pins under `tools_pinned` and any tool that is not at its pinned one under `tools_moved`, and the options); the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists, and `scripts`, the executables with an interpreter line that are source by shape, each with the file type its interpreter gives it (absent when there are none) |
 | `gitmole-feedback.json` | you | written only when you answer the five questions (`--feedback`): each answer's rule id, severity, whether it was true and whether you would act on it, plus gitmole's version and three bands (main language, file count, commit count). Nothing else, and nothing is sent |
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, the import commits left out with the history's total lines added, and how many declared commits the log holds; the oversized fixes left out of the fix counts, the tangled commits with a sample, and how many subjects end in a squash-merge suffix |
 | `size.json` | scc | lines per language, COCOMO estimate |
