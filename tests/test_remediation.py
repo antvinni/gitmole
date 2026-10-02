@@ -217,7 +217,6 @@ class Scoring(unittest.TestCase):
 
     def test_a_subject_the_cutoff_tree_did_not_hold_is_not_an_act(self):
         """curl's specimen values named paths deleted years before the cut-off; absent then is not fixed now."""
-        from collections import Counter
         class Cut(Tree):
             at_cutoff = {"live.yml"}
         findings = [{"rule": {"id": "unpinned_actions"},
