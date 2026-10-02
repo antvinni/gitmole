@@ -1170,6 +1170,21 @@ class KnowledgeMap(unittest.TestCase):
         self.assertNotIn("historical", km)
 
 
+    def test_a_tied_top_share_is_shared_and_names_no_owner(self):
+        # superpowers' .hermes-plugin/: one squash commit credited twelve people equally, and the map named the
+        # first two by alphabet as main owner and second
+        area = {"area": "plugin/", "lines": 96, "owners": [(n, 8) for n in "ABCDEFGHIJKL"]}
+        self.assertEqual(render._owner_cells(area, set()), ["shared by 12 (8%)", "-"])
+        area = {"area": "tools/", "lines": 431, "owners": [("Ann", 87), ("Bob", 86), ("Cat", 86), ("Dan", 86), ("Eve", 86)]}
+        self.assertEqual(render._owner_cells(area, {"Ann"}), ["Ann (gone) (20%)", "shared by 4 (20%)"], "a second place held equally is counted too")
+        area = {"area": "core/", "lines": 100, "owners": [("Ann", 60), ("Bob", 30), ("Cat", 10)]}
+        self.assertEqual(render._owner_cells(area, {"Bob"}), ["Ann (60%)", "Bob (gone) (30%)"])
+        self.assertEqual(render._owner_cells({"area": "x/", "lines": 5, "owners": [("Ann", 5)]}, set()), ["Ann (100%)", "-"])
+        r = sample_report()
+        r["ownership"] += [{"entity": "plugin/p.json", "author": who, "added": 8, "deleted": 0} for who in ("Zed", "Ann", "Bob")]
+        row = next(x for x in render.knowledge_section(r, full=True)["rows"] if x[0] == "plugin/")
+        self.assertEqual(row[4:6], ["shared by 3 (33%)", "-"])
+
     def test_the_tools_part_of_an_area_is_its_own_column_and_nobody_s_ownership(self):
         r = sample_report()   # load.py has already taken the tools' rows out of the ownership table
         r["tools"] = {"names": ["Model A"], "commits": 5, "added": {"static/a.html": 250, "tests/t.py": 1}, "surviving": 0}

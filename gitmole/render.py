@@ -841,6 +841,24 @@ def _where(f: dict) -> str:
     return f"{f['file']}:{f['start']}" if _nameless(f) else f["file"]
 
 
+def _owner_cells(area: dict, gone: set) -> list:
+    """The main owner and the second of an area, as the knowledge map prints them. When several people hold
+    exactly the top share there is no main owner to name and no second: the cell counts them and gives the
+    share each of them holds ("shared by 12 (8%)", short enough for the column at 80), since the name the
+    sort put first is the alphabet's. A second place that several hold equally is counted the same way."""
+    held = area["owners"]
+
+    def cell(at):
+        if at >= len(held):
+            return "-"
+        level = knowledge.tied(held, at)
+        name, n = held[at]
+        if level > 1:
+            return f"shared by {level} ({_pct(n, area['lines'])})"
+        return f"{name}{' (gone)' if name in gone else ''} ({_pct(n, area['lines'])})"
+    return [cell(0), "-" if knowledge.tied(held) > 1 else cell(1)]
+
+
 def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     """Ownership by area of the tree: who wrote most of each directory, gone owners marked."""
     months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
@@ -864,7 +882,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         assisted = {e: n for e, n in assisted.items() if e in tree}
     rows, shares, outrank = [], [], False
     for a in areas[:limit]:
-        owners = [f"{name}{' (gone)' if name in gone else ''} ({_pct(n, a['lines'])})" for name, n in a["owners"][:2]] + ["-"]
+        owners = _owner_cells(a, gone)
         lost = f"{100 * a['lost_share']:.0f}%" if a["lines"] else "-"
         theirs = sum(n for e, n in assisted.items() if knowledge.in_area(e, a["area"], base))
         shares.append(round(100 * theirs / (a["lines"] + theirs)) if a["lines"] + theirs else 0)

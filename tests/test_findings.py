@@ -268,6 +268,17 @@ class BusFactor(unittest.TestCase):
         self.assertNotIn("Ann", f["advice"])
         self.assertIn("Have Bob, who holds the most surviving code among the people still here", f["advice"])
 
+    def test_people_still_here_who_hold_equally_much_are_counted_and_none_is_named(self):
+        own = [{"entity": "core/a.py", "author": "Ann", "added": 900, "deleted": 0},
+               {"entity": "core/b.py", "author": "Bob", "added": 50, "deleted": 0},
+               {"entity": "core/c.py", "author": "Cat", "added": 50, "deleted": 0}]
+        [f] = findings.bus_factor(report(theseus_authors={"Ann": 79, "Bob": 21}, ownership=own, **self.GONE))
+        self.assertEqual(f["advice"], "Give core/ an owner; the 2 people still here who wrote the most of it wrote equally much.",
+                         "Bob before Cat is the alphabet's order")
+        self.assertIsNone(f["evidence"]["ask"])
+        [f] = findings.bus_factor(report(theseus_authors={"Ann": 80, "Bob": 10, "Cat": 10}, **self.GONE))
+        self.assertEqual(f["advice"], "Give what they wrote owners; the 2 people still here who hold the most surviving code hold equally much.")
+
 
 class SweepingCommits(unittest.TestCase):
     def sweep(self, h, files, declared=False, subject="Reformat with black"):
@@ -942,6 +953,10 @@ class KnowledgeIslands(unittest.TestCase):
         [f] = findings.knowledge_islands(r)
         self.assertIn("core/ (Ann (gone) 95%)", f["detail"])
         self.assertEqual(f["advice"], "Have Bob, its largest author still here, own core/ first; it is the largest at 1,000 lines.")
+        r["ownership"] = self.OWN + [{"entity": "core/c.py", "author": "Cat", "added": 50, "deleted": 0}]
+        [f] = findings.knowledge_islands(r)
+        self.assertEqual(f["advice"], "Give core/ an owner first; it is the largest at 1,050 lines and the 2 people still here who wrote the most of it "
+                                      "wrote equally much.", "Bob and Cat wrote 50 lines each: neither is its largest author still here")
 
     def test_info_when_islands_are_a_minority(self):
         own = self.OWN + [{"entity": "web/k.html", "author": "Dan", "added": 3000, "deleted": 0}]
@@ -1657,6 +1672,14 @@ class TruckFactor(unittest.TestCase):
         self.assertIn("have no author left. For those marked gone it already has.", f["detail"])
         self.assertIn("core/ (Cat (gone))", f["detail"])
         self.assertEqual(f["advice"], "Pair someone with Bob first; they author the most files among the people still here.")
+
+    def test_people_still_here_who_author_equally_many_files_are_counted_and_none_is_named(self):
+        doa = ([self.row(f"core/a{i}.py", "Cat") for i in range(20)] + [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+               + [self.row(f"lib/c{i}.py", "Ann") for i in range(8)])
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa, theseus_authors={"Ann": 50, "Bob": 50}))}["truck_factor"]
+        self.assertEqual(f["advice"], "Those named are gone, and the 2 people still here who author the most files author equally many; "
+                                      "give the files owners, starting with the ones changed most.")
+        self.assertIn("The surviving code's largest share, 50%, is held by 2 people equally, which the bus-factor finding reads.", f["detail"])
 
     def test_the_area_named_in_the_advice_is_the_named_persons_own(self):
         doa = [self.row(f"a{i}.py", "Ann") for i in range(20)] + [self.row(f"core/b{i}.py", "Bob") for i in range(10)]

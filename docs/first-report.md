@@ -27,7 +27,8 @@ are merged, and a coding tool credited by `Co-authored-by` trailers is left out;
 
 **Knowledge map.** Each top-level area, how many lines were added there, and who wrote most of them.
 `(gone)` marks an owner with no commits in the twelve months before the last commit (`--gone` changes
-the twelve). Lines a `Co-authored-by` trailer credits to a coding tool are not anyone's to own: an
+the twelve). When several people hold exactly the top share, as the co-authors of one squash commit do,
+no owner is named: the cell reads `shared by 12 (8%)`, twelve people with 8% each. Lines a `Co-authored-by` trailer credits to a coding tool are not anyone's to own: an
 `agents` column shows their share of the area instead.
 
 **Timeline.** Commits per person per month over the last year: who is active now.
