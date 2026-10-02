@@ -1,3 +1,3 @@
 """gitmole: offline git repository analysis with a terminal report."""
 
-__version__ = "0.43.1"
+__version__ = "0.44.0"
