@@ -688,7 +688,10 @@ class FromTheSuperpowersExport(unittest.TestCase):
         own = [{"entity": "plugin/a.py", "author": "Ann", "added": 50}, {"entity": "plugin/b.py", "author": "Bo", "added": 50},
                {"entity": "src/a.py", "author": "Bo", "added": 500}]
         f = finding("knowledge_islands", evidence={"islands": [{"area": "plugin/", "owner": "Bo"}]})
-        self.assertEqual(checks(report(ownership=own, findings=[f])), ["tied_owner", "tied_owner"], "the finding, and the map gitmole draws of the same rows")
+        self.assertEqual(checks(report(ownership=own, findings=[f])), ["tied_owner"],
+                         "the finding; the map gitmole draws of the same rows now reads \"shared by 2\" and names no owner")
+        tied = {"columns": ["area", "lines added", "main owner", "second"], "rows": [["plugin/", "100", "Ann (50%)", "Bo (50%)"]]}
+        self.assertEqual(self.drawn(None, report(ownership=own), tied).count("tied_owner"), 1, "a drawn map that still names a tied owner")
         own[1]["added"] = 60
         self.assertEqual(checks(report(ownership=own, findings=[f])), [])
 
