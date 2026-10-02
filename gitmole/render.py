@@ -464,6 +464,22 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
     return _section("Size by language", columns, rows, caption=_more(len(langs), limit))
 
 
+def _tools_left_out(report: dict, tools: set) -> str:
+    """'coding tools left out: 7 names on 1 no-reply address': what the rows kept out of the People table
+    are, counted as what git records. They are names, and several names on one vendor address are one
+    assistant signing each model version differently, so "4 coding tools" for four rows on one address
+    counted spellings as tools. Every spelling counts, the ones merged into a row too."""
+    names, addresses = set(), set()
+    for i in report["meta"].get("identities") or []:
+        if i["name"] in tools:
+            for v in [i, *(i.get("aliases") or [])]:
+                names.add(v.get("name"))
+                if identity.NO_REPLY_MAILBOX.match(v.get("email") or ""):
+                    addresses.add(v["email"].lower())
+    on = f" on {len(addresses)} no-reply address{'es' if len(addresses) != 1 else ''}" if addresses else ""
+    return f"coding tools left out: {len(names)} name{'s' if len(names) != 1 else ''}{on}"
+
+
 def people_section(report: dict, full: bool = True, width=None) -> dict:
     tools = set((report.get("tools") or {}).get("names") or [])   # load.py keeps them out of the tables about people
     ids = [i for i in report["meta"].get("identities") or [] if i["name"] not in tools]
@@ -496,7 +512,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if merges:
         notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
     more = _more(len(ids), limit)
-    left = f"{apart} coding tool{'s' if apart != 1 else ''} (told by their no-reply address) left out" if apart else None
+    left = _tools_left_out(report, tools) if apart else None
     if more or left:
         notes.append("; ".join(x for x in (more, left) if x))
     bots = report["meta"].get("bots") or []
@@ -841,6 +857,24 @@ def _where(f: dict) -> str:
     return f"{f['file']}:{f['start']}" if _nameless(f) else f["file"]
 
 
+def _owner_cells(area: dict, gone: set) -> list:
+    """The main owner and the second of an area, as the knowledge map prints them. When several people hold
+    exactly the top share there is no main owner to name and no second: the cell counts them and gives the
+    share each of them holds ("shared by 12 (8%)", short enough for the column at 80), since the name the
+    sort put first is the alphabet's. A second place that several hold equally is counted the same way."""
+    held = area["owners"]
+
+    def cell(at):
+        if at >= len(held):
+            return "-"
+        level = knowledge.tied(held, at)
+        name, n = held[at]
+        if level > 1:
+            return f"shared by {level} ({_pct(n, area['lines'])})"
+        return f"{name}{' (gone)' if name in gone else ''} ({_pct(n, area['lines'])})"
+    return [cell(0), "-" if knowledge.tied(held) > 1 else cell(1)]
+
+
 def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     """Ownership by area of the tree: who wrote most of each directory, gone owners marked."""
     months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
@@ -850,6 +884,11 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     areas = loss.areas(rows_all, gone, base)
     hidden_note = None
     tree = (report.get("size") or {}).get("files") or {}
+    # the two views count different files, and tests/ at 9,568 lines here and 10,765 there read as a
+    # contradiction until the heading says which: the default keeps the files HEAD still has, --full every
+    # file the history (or the --since window) changed. In the heading, so the report is no line longer.
+    since = report["meta"].get("since")
+    counted = "files in the tree now" if full is not True and tree else f"every file in the history{f' since {since}' if since else ''}"
     if full is not True and tree:
         # a directory the history knows but HEAD does not is a layout that no longer exists; the rows are
         # filtered before the areas are built so a vanished layout cannot hide that one directory now dominates
@@ -864,7 +903,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         assisted = {e: n for e, n in assisted.items() if e in tree}
     rows, shares, outrank = [], [], False
     for a in areas[:limit]:
-        owners = [f"{name}{' (gone)' if name in gone else ''} ({_pct(n, a['lines'])})" for name, n in a["owners"][:2]] + ["-"]
+        owners = _owner_cells(a, gone)
         lost = f"{100 * a['lost_share']:.0f}%" if a["lines"] else "-"
         theirs = sum(n for e, n in assisted.items() if knowledge.in_area(e, a["area"], base))
         shares.append(round(100 * theirs / (a["lines"] + theirs)) if a["lines"] + theirs else 0)
@@ -884,7 +923,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     if gone:
         notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
                      + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))
-    return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
+    return _section(f"Knowledge map ({counted})" if rows else "Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
 
 
 def osps_section(report: dict, full: bool = True, width=None) -> dict:

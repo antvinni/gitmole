@@ -285,8 +285,17 @@ def _who(name: str, gone: set) -> str:
 
 
 def _still_here(owners, gone: set):
-    """The first of (name, lines) owners, most first, who is not gone, or None when nobody active holds any."""
-    return next((n for n, x in owners if n not in gone and x > 0), None)
+    """The first of (name, lines) owners, most first, who is not gone, or None when nobody active holds any
+    or when several of them hold exactly as much (_tied_here): the first of those is the alphabet's choice,
+    and advice to hand an area to that one person would rest on the spelling of a name."""
+    here = [(n, x) for n, x in owners if n not in gone and x > 0]
+    return here[0][0] if here and _tied_here(owners, gone) == 1 else None
+
+
+def _tied_here(owners, gone: set) -> int:
+    """How many of the people still here hold exactly the most that anyone still here holds: 0 when nobody
+    active holds any, 1 when one person leads, more when the lead is shared."""
+    return knowledge.tied([(n, x) for n, x in owners if n not in gone and x > 0])
 
 
 def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> list:
@@ -318,11 +327,15 @@ def bus_factor(report: dict, threshold: float = 0.7, min_lines: int = 200) -> li
     elif theirs:   # they have left: the one to ask is whoever still here wrote the most of what they owned
         area = theirs[0][0]
         ask = _still_here(owners_of[area], gone)
+        level = _tied_here(owners_of[area], gone)
         advice = (f"Have {ask}, its largest author still here, own {area} first." if ask
+                  else f"Give {area} an owner; the {level} people still here who wrote the most of it wrote equally much." if level > 1
                   else f"Nobody still here has written any of {area}; give it an owner.")
     else:
-        ask = _still_here(sorted(shares.items(), key=lambda kv: (-kv[1], kv[0])), gone)
+        ranked = sorted(shares.items(), key=lambda kv: (-kv[1], kv[0]))
+        ask, level = _still_here(ranked, gone), _tied_here(ranked, gone)
         advice = (f"Have {ask}, who holds the most surviving code among the people still here, take over what they wrote." if ask
+                  else f"Give what they wrote owners; the {level} people still here who hold the most surviving code hold equally much." if level > 1
                   else "Nobody still here holds any of the code; give it owners.")
     return [_f("warning", "Bus factor of one", f"{_who(name, gone)} wrote {_pct(lines, total)} of the code that survives today.", advice,
                rule={"id": "bus_factor", "threshold": threshold, "min_lines": min_lines},
@@ -391,7 +404,9 @@ def import_commits(report: dict) -> list:
     listed = "; ".join(one(c) for c in rows[:3])
     return [_f("info", "Imports left out of ownership",
                f"{_plural(len(rows), 'commit')} brought code in without changing any: {listed}. "
-               "Ownership, authorship, the truck factor and the churn counts leave it out, and the code-age pass credits its surviving lines to nobody.",
+               # the measures every report has; the truck factor reads authorship and is not computed for a small pool,
+               # so naming it promised a number superpowers' report (17 scored files) never showed
+               "Ownership, authorship and the churn counts leave it out, and the code-age pass credits its surviving lines to nobody.",
                "Read the knowledge tables as who has worked on the code since; git blame still names the importer for every untouched line.",
                rule={"id": "import_commits", "share": maat.IMPORT_SHARE, "min_files": maat.IMPORT_MIN_FILES, "deleted": maat.IMPORT_DELETED},
                evidence={"commits": [{"hash": c["hash"], "date": c["date"], "author": c["author"], "files": c["files"], "added": c["added"],
@@ -722,9 +737,11 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
     if largest["owner"] not in gone:
         advice = f"Pair someone with {largest['owner']} on {largest['area']} first; {at}."
     else:   # its author has left: the one to ask is whoever still here wrote the most of the rest of it
-        ask = _still_here(next(a["owners"] for a in areas if a["area"] == largest["area"]), gone)
-        advice = (f"Have {ask}, its largest author still here, own {largest['area']} first; {at}."
-                  if ask else f"Give {largest['area']} an owner first; {at} and nobody still here has written any of it.")
+        held = next(a["owners"] for a in areas if a["area"] == largest["area"])
+        ask, level = _still_here(held, gone), _tied_here(held, gone)
+        advice = (f"Have {ask}, its largest author still here, own {largest['area']} first; {at}." if ask
+                  else f"Give {largest['area']} an owner first; {at} and the {level} people still here who wrote the most of it wrote equally much." if level > 1
+                  else f"Give {largest['area']} an owner first; {at} and nobody still here has written any of it.")
     return [_f(sev, "Knowledge islands",
                f"{len(islands)} area(s) with at least {min_lines} lines were written almost entirely by one person: {listed}{more}. "
                f"That is {_pct(covered, total)} of all lines added.",
@@ -1808,6 +1825,9 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
     shares = report.get("theseus_authors") or {}
     whole = sum(shares.values())
     top, lines = max(shares.items(), key=lambda kv: kv[1]) if shares else (None, 0)
+    level = sum(1 for n in shares.values() if n == lines)   # how many hold exactly the largest share
+    if level > 1 and shares.get(removed[0]) == lines:
+        top = removed[0]   # one of several with the largest share: theirs is still the largest, so nothing differs
     lead = names(removed)
     if tf == 1 and top == removed[0] and 2 * lines <= whole:
         # one departure orphans most files while the lines are split: the two measures differ, so the share is said where the name is
@@ -1825,11 +1845,14 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
         statement += f" With knowledge halving every five months it is {tf_d} ({names(removed_d)})."
     if lone:
         statement += " Areas with a truck factor of one: " + ", ".join(f"{a} ({_who(w, gone)})" for a, w, _, _ in lone[:5]) + (f" and {len(lone) - 5} more" if len(lone) > 5 else "") + "."
-    if shares and top != removed[0]:
+    if shares and top != removed[0] and level > 1:   # no one name to give: the first in the table would be an accident of its order
+        statement += f" The surviving code's largest share, {_pct(lines, whole)}, is held by {level} people equally, which the bus-factor finding reads."
+    elif shares and top != removed[0]:
         statement += (f" The surviving code's largest share is {top}'s ({_pct(lines, whole)}), which the bus-factor finding reads." if top not in gone else
                       f" The surviving code's largest share, {_pct(lines, whole)}, belongs to {top} (gone), which the bus-factor finding reads.")
     # the person to pair with is the first named who is still here, on an area that is theirs
     ask = next((p for p in removed if p not in gone), None)
+    shared = 0
     if ask is None:
         counts = {}
         for a in authored.values():
@@ -1837,8 +1860,14 @@ def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> lis
                 if p not in gone:
                     counts[p] = counts.get(p, 0) + 1
         ask = min(counts, key=lambda p: (-counts[p], p)) if counts else None
+        shared = sum(1 for n in counts.values() if n == counts[ask]) if counts else 0
+        if shared > 1:
+            ask = None   # several author equally many files: the first by name is no more the one to pair with than the rest
     first_area = next((a for a, w, _, _ in lone if w == ask), None)   # lone is ordered by files at stake
-    if ask is None:
+    if ask is None and shared > 1:
+        advice = (f"Those named are gone, and the {shared} people still here who author the most files author equally many; "
+                  "give the files owners, starting with the ones changed most.")
+    elif ask is None:
         advice = "Everyone who authors these files has stopped committing; give the files owners, starting with the ones changed most."
     else:
         why = ("they author most of what would be left without an author" if ask == removed[0] else

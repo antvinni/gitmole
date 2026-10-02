@@ -87,6 +87,16 @@ def _aggregate(rows: list, depth: int, base: int = 0) -> list:
     return out
 
 
+def tied(owners: list, at: int = 0) -> int:
+    """How many of an area's (name, lines) owners, most first, hold exactly the lines of the one at `at`:
+    1 when that one stands alone. _aggregate orders equal counts by name, so the first of several is the
+    alphabet's choice and not an owner: a squash commit that credits twelve co-authors gives each a twelfth
+    of its lines, and whoever sorts first is then no more the area's owner than the other eleven."""
+    if at >= len(owners):
+        return 0
+    return sum(1 for _, n in owners if n == owners[at][1])
+
+
 def areas(ownership_rows: list, dominant: float = 0.8, base: int = 0) -> list:
     """Areas of the tree by lines added, with per-author ownership.
 
