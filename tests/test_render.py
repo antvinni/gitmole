@@ -1181,6 +1181,36 @@ class KnowledgeMap(unittest.TestCase):
         self.assertNotIn("historical", km)
 
 
+    def test_the_heading_says_which_files_each_view_counts(self):
+        # superpowers: tests/ 9,568 lines in the default map and 10,765 under --full, .opencode/ 13% and 59%
+        r = sample_report()
+        self.assertEqual(render.knowledge_section(r, full=False)["title"], "Knowledge map (files in the tree now)")
+        self.assertEqual(render.knowledge_section(r, full="markdown")["title"], "Knowledge map (files in the tree now)")
+        self.assertEqual(render.knowledge_section(r, full=True)["title"], "Knowledge map (every file in the history)")
+        self.assertEqual(render._base_title(render.knowledge_section(r, full=True)["title"]), "Knowledge map", "the symbol and the key column still find it")
+        r["size"]["files"] = {}
+        self.assertEqual(render.knowledge_section(r, full=False)["title"], "Knowledge map (every file in the history)",
+                         "with no listing of HEAD nothing is filtered")
+        r["meta"]["since"] = "2026-01-01"
+        self.assertEqual(render.knowledge_section(r, full=True)["title"], "Knowledge map (every file in the history since 2026-01-01)")
+        r["ownership"] = []
+        self.assertEqual(render.knowledge_section(r, full=True)["title"], "Knowledge map", "an empty map counts nothing")
+
+    def test_a_tied_top_share_is_shared_and_names_no_owner(self):
+        # superpowers' .hermes-plugin/: one squash commit credited twelve people equally, and the map named the
+        # first two by alphabet as main owner and second
+        area = {"area": "plugin/", "lines": 96, "owners": [(n, 8) for n in "ABCDEFGHIJKL"]}
+        self.assertEqual(render._owner_cells(area, set()), ["shared by 12 (8%)", "-"])
+        area = {"area": "tools/", "lines": 431, "owners": [("Ann", 87), ("Bob", 86), ("Cat", 86), ("Dan", 86), ("Eve", 86)]}
+        self.assertEqual(render._owner_cells(area, {"Ann"}), ["Ann (gone) (20%)", "shared by 4 (20%)"], "a second place held equally is counted too")
+        area = {"area": "core/", "lines": 100, "owners": [("Ann", 60), ("Bob", 30), ("Cat", 10)]}
+        self.assertEqual(render._owner_cells(area, {"Bob"}), ["Ann (60%)", "Bob (gone) (30%)"])
+        self.assertEqual(render._owner_cells({"area": "x/", "lines": 5, "owners": [("Ann", 5)]}, set()), ["Ann (100%)", "-"])
+        r = sample_report()
+        r["ownership"] += [{"entity": "plugin/p.json", "author": who, "added": 8, "deleted": 0} for who in ("Zed", "Ann", "Bob")]
+        row = next(x for x in render.knowledge_section(r, full=True)["rows"] if x[0] == "plugin/")
+        self.assertEqual(row[4:6], ["shared by 3 (33%)", "-"])
+
     def test_the_tools_part_of_an_area_is_its_own_column_and_nobody_s_ownership(self):
         r = sample_report()   # load.py has already taken the tools' rows out of the ownership table
         r["tools"] = {"names": ["Model A"], "commits": 5, "added": {"static/a.html": 250, "tests/t.py": 1}, "surviving": 0}
@@ -1406,7 +1436,7 @@ class Layout(unittest.TestCase):
         self.assertEqual(hot["title"], "Hotspots")
         self.assertEqual(hot["columns"], ["file", "revs", "lines", "fixes", "authors", "trend"])
         self.assertEqual(secs["Change coupling"]["columns"], ["file", "changes with", "degree"])
-        self.assertEqual(secs["Knowledge map"]["columns"], ["area", "lines added", "main owner", "second"])
+        self.assertEqual(secs["Knowledge map (files in the tree now)"]["columns"], ["area", "lines added", "main owner", "second"])
 
     def test_full_restores_every_column_and_row(self):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=True)}
@@ -1545,7 +1575,7 @@ class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report(), full=True)
         titles = [x["title"] for x in secs]
-        self.assertEqual(titles[:6], ["Watch list", "Watch list by component", "Size by language", "People", "Knowledge map", "Activity"])
+        self.assertEqual(titles[:6], ["Watch list", "Watch list by component", "Size by language", "People", "Knowledge map (every file in the history)", "Activity"])
         self.assertTrue(titles[6].startswith("Timeline"))
         self.assertTrue(titles[7].startswith("Hotspots"))
         self.assertEqual(titles[-2], "Complex functions")
@@ -1802,7 +1832,16 @@ class PeopleMerges(unittest.TestCase):
         sec = render.people_section(rep, full=False)
         self.assertEqual([r[0] for r in sec["rows"]], ["Dee"])
         self.assertNotIn("co-authored", sec["columns"])
-        self.assertIn("2 coding tools (told by their no-reply address) left out", sec["caption"])
+        self.assertIn("coding tools left out: 2 names on 1 no-reply address", sec["caption"],
+                      "two spellings on one address are not two tools: the caption counts what git records")
+        rep["meta"]["identities"][0]["aliases"] = [{"name": "Model A (1M)", "email": "noreply@v.example", "commits": 5},
+                                                   {"name": "Model A", "email": "no-reply@w.example", "commits": 1}]
+        self.assertIn("coding tools left out: 3 names on 2 no-reply addresses", render.people_section(rep, full=False)["caption"],
+                      "a spelling merged into a row is a name too")
+        rep = {"meta": {"identities": [{"name": "Tool", "email": "", "commits": 9, "authored": 0}, {"name": "Dee", "email": "d@x", "commits": 30, "authored": 30}]},
+               "tools": {"names": ["Tool"], "commits": 9, "added": {}, "surviving": 0}}
+        self.assertIn("coding tools left out: 1 name", render.people_section(rep, full=False)["caption"])
+        self.assertNotIn("no-reply", render.people_section(rep, full=False)["caption"], "no address is not a no-reply address")
 
     def test_rows_sharing_a_name_keep_their_own_surviving_code_and_no_row_goes_negative(self):
         rep = {"meta": {"identities": [{"name": "Dev", "email": "dev@home.example", "commits": 30, "authored": 30, "merges": 4},

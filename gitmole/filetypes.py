@@ -8,6 +8,7 @@ import os
 import posixpath
 import re
 import subprocess
+import tempfile
 from collections import Counter
 
 # git quotes paths with non-ASCII, quote, backslash or control characters unless told not to;
@@ -685,11 +686,143 @@ def matches(path: str, types) -> bool:
     if types is None:
         return True
     k = key(path)
-    return k in types or k in NAMES and types is DEFAULT
+    if k in types or k in NAMES and (types is DEFAULT or getattr(types, "default", False)):
+        return True
+    return path in getattr(types, "scripts", ())
+
+
+# --- source by shape: an executable with an interpreter line ---------------------------------------------------
+# A tracked file whose mode is 100755 and whose first line is `#!interpreter` is a program the repository runs,
+# whatever its name: a hook, a bin/ launcher, a build script. The kernel's own rule for what is a script
+# (execve(2), "Interpreter scripts") read from what git records, the mode in the tree and the first bytes of the
+# blob. The interpreter's basename says which language, by the command name each runtime installs itself under;
+# one this table does not know is still a script (SCRIPT), counted when scc has a language for it.
+# A path is judged as it is at the analysed commit: a script at HEAD is source for its whole history under that
+# path, and a path no longer in the tree keeps the extension rule, since its mode at each old commit would cost
+# a tree read per commit of the log. The backtest reads its cut-off's own tree.
+SCRIPT = "script"
+INTERPRETERS = {
+    "sh": "sh", "dash": "sh", "ash": "sh", "ksh": "sh", "bash": "bash", "zsh": "zsh", "fish": "fish",
+    "python": "py", "pypy": "py", "node": "js", "nodejs": "js", "ruby": "rb", "perl": "pl", "php": "php", "lua": "lua",
+    "rscript": "r", "pwsh": "ps1", "groovy": "groovy", "scala": "scala", "swift": "swift", "julia": "jl", "elixir": "exs",
+    "escript": "erl", "runhaskell": "hs", "runghc": "hs", "ocaml": "ml", "dart": "dart",
+}
+SHEBANG_BYTES = 256   # the first line's worth: Linux reads at most 256 bytes of it (BINPRM_BUF_SIZE)
+_ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_VERSION_SUFFIX = re.compile(r"[\d.]+$")
+
+
+def interpreter(head: bytes):
+    """The command a file's first line hands it to, lowercased and without its version (`python3.11` is
+    python): the basename of the path after `#!`, or of the first argument that is no option or assignment
+    when that path is `env`. None when the bytes do not open with `#!`, name nothing, or hold a NUL."""
+    if not head.startswith(b"#!"):
+        return None
+    line = head[2:SHEBANG_BYTES].split(b"\n", 1)[0]
+    words = line.decode("utf-8", "replace").split()
+    if not words or b"\0" in line:   # a binary that happens to open with the two bytes names no command
+        return None
+    name = words[0].rsplit("/", 1)[-1]
+    if name == "env":
+        name = next((w.rsplit("/", 1)[-1] for w in words[1:] if not w.startswith("-") and not _ENV_ASSIGNMENT.match(w)), "")
+    name = _VERSION_SUFFIX.sub("", name.lower()) or name.lower()
+    return name or None
+
+
+def script_key(head: bytes):
+    """The file type an interpreter line gives a file, as a key of DEFAULT (`#!/usr/bin/env python3` is py),
+    SCRIPT for an interpreter INTERPRETERS does not list, None for bytes that open with no interpreter line."""
+    name = interpreter(head)
+    return None if name is None else INTERPRETERS.get(name, SCRIPT)
+
+
+def scripts(repo: str, rev: str = "HEAD", among=None) -> dict:
+    """{path: file type} for the files of `rev`'s tree that are source by shape and not by name: mode 100755,
+    a first line `#!interpreter` (script_key), and no extension or name DEFAULT already takes. The mode is the
+    tree's and the bytes are the blob's, through one `git ls-tree -r` and one `git cat-file --batch`, so the
+    answer belongs to the commit and not to the checkout (a filesystem without modes, an uncommitted chmod).
+    `among`, when given, are the only paths considered: the caller's list of text files, so no binary is read.
+    A git that fails finds none."""
+    out = subprocess.run([*GIT, "ls-tree", "-r", "-z", rev], cwd=repo, capture_output=True)
+    if out.returncode != 0:
+        return {}
+    among = None if among is None else set(among)
+    wanted = []
+    for entry in out.stdout.split(b"\0"):
+        info, tab, raw = entry.partition(b"\t")
+        fields = info.split()
+        if not tab or len(fields) != 3 or fields[0] != b"100755":
+            continue
+        path = raw.decode("utf-8", "surrogateescape")
+        if (among is None or path in among) and not matches(path, DEFAULT):
+            wanted.append((path, fields[2]))
+    if not wanted:
+        return {}
+    found = {}
+    with tempfile.TemporaryFile() as names:   # a file, not a pipe: git reads the ids at its own pace while the blobs are read here
+        names.write(b"".join(sha + b"\n" for _, sha in wanted))
+        names.seek(0)
+        proc = subprocess.Popen(["git", "cat-file", "--batch"], cwd=repo, stdin=names, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        try:
+            for path, _ in wanted:
+                header = proc.stdout.readline().split()
+                if len(header) != 3 or not header[2].isdigit():
+                    break   # "<id> missing": nothing after it can be matched to its path
+                left = int(header[2]) + 1   # the blob, then git's newline
+                head = proc.stdout.read(min(left, SHEBANG_BYTES))
+                left -= len(head)
+                while left > 0:   # the rest is read and dropped, never held
+                    chunk = proc.stdout.read(min(left, 1 << 20))
+                    if not chunk:
+                        break
+                    left -= len(chunk)
+                kind = script_key(head) if header[1] == b"blob" else None
+                if kind:
+                    found[path] = kind
+        finally:
+            proc.stdout.close()
+            proc.wait()
+    return dict(sorted(found.items()))
+
+
+class Types(frozenset):
+    """A set of file types together with the paths that are source by shape (scripts): what matches() reads.
+    `default` says the set is DEFAULT, whose extensionless names (NAMES) count too."""
+    scripts = frozenset()
+    default = False
+
+
+def with_scripts(types, found):
+    """`types` (as parse gives it) widened by a run's scripts ({path: file type}, filetypes.scripts): every one
+    under the default list, and under a --file-types list those whose type the list names (`--file-types py`
+    keeps an executable `#!/usr/bin/env python3`, not a shell hook). No filter, or no scripts, is `types` itself."""
+    if types is None or not found:
+        return types
+    default = types is DEFAULT or getattr(types, "default", False)
+    paths = frozenset(p for p, kind in found.items() if default or kind in types) | getattr(types, "scripts", frozenset())
+    if not paths:
+        return types
+    out = Types(types)
+    out.scripts, out.default = paths, default
+    return out
+
+
+def for_meta(meta: dict, unrecorded=DEFAULT):
+    """The types a run's meta.json says it analysed: its --file-types (None recorded for the default list)
+    with the scripts it found. `unrecorded` is what a run from before the record gets."""
+    types = parse(meta["file_types"]) if "file_types" in meta else unrecorded
+    return with_scripts(types, meta.get("scripts") or {})
+
+
+def scripts_from_meta(path: str) -> dict:
+    """The scripts a run recorded in its meta.json, for the steps that run as scripts and are handed the file."""
+    with open(path, encoding="utf-8") as fh:
+        return dict(json.load(fh).get("scripts") or {})
 
 
 def discover(repo: str, types=DEFAULT, paths=()) -> list:
-    """[(key, file count, included)] over the index (under `paths`, --path's directories, when given), most common first."""
-    counts = Counter(key(p) for p in git_paths(repo, "ls-files", *(["--", *(":(literal)" + d for d in paths)] if paths else [])))
-    rows = [(k, n, matches(f"x.{k}" if k not in NAMES else k, types)) for k, n in counts.items()]
+    """[(key, file count, included)] over the index (under `paths`, --path's directories, when given), most common first.
+    A key some of whose files are source by shape and some not (a `.in` template beside an executable one) is two rows."""
+    counts = Counter((key(p), matches(p, types)) for p in git_paths(repo, "ls-files", *(["--", *(":(literal)" + d for d in paths)] if paths else [])))
+    rows = [(k, n, included) for (k, included), n in counts.items()]   # per file, so a script (with_scripts) counts under its own name
     return sorted(rows, key=lambda r: (-r[1], r[0]))

@@ -176,7 +176,6 @@ class ParseSecrets(unittest.TestCase):
         ])
 
     def test_a_report_from_before_the_wrapper_is_hashed_on_load_and_never_keeps_the_value(self):
-        from gitmole import leaks
         version = "5.0.0-" + "1667386184.dfbbb54"   # built at runtime so secret scanners do not flag this file
         text = json.dumps([{"RuleID": "generic-api-key", "File": "web/package.json", "Commit": "d2d2d2d", "StartLine": 21,
                             "Secret": version, "Match": "x"}])

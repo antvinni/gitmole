@@ -287,7 +287,7 @@ def parse_fix_history(text: str, fixes: list, meta: dict, activity: dict, now: s
     if not rows:
         return {}
     activity = activity or {}
-    commits = maat.parse_log(text, None, filetypes.parse(meta.get("file_types")))
+    commits = maat.parse_log(text, None, filetypes.for_meta(meta))
     left_out = {c.get("hash") for key in ("sweeping", "imports") for c in activity.get(key) or []}
     kept = [c for c in maat.in_window(commits, activity.get("window"), activity.get("until")) if c["hash"] not in left_out]
     total, recent = {e: 0 for e in rows}, {e: [] for e in rows}
@@ -618,7 +618,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "tree": parse_tree(out_dir, meta),   # every path at HEAD, binaries too; None before 0.39
         # a run records its --file-types spec (None for the default list); a run from before that record
         # was measured unfiltered, so it is re-rendered unfiltered rather than with a guessed list
-        "size": parse_scc(_read(out_dir, "size.json"), filetypes.parse(meta["file_types"]) if "file_types" in meta else None, scopes.of(meta)),
+        "size": parse_scc(_read(out_dir, "size.json"), filetypes.for_meta(meta, unrecorded=None), scopes.of(meta)),
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "plumbing": parse_maat_csv(_read(out_dir, "maat-plumbing.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),

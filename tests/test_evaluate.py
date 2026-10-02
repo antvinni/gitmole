@@ -1,9 +1,8 @@
-import os
 import subprocess
 import tempfile
 import unittest
 
-from gitmole import evaluate, maat, watch
+from gitmole import evaluate, maat
 from tests.test_szz import make_repo
 
 

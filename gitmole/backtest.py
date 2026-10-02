@@ -75,7 +75,9 @@ def main(argv=None) -> int:
         return 2
     sub = os.path.join(args.out, "backtest")
     os.makedirs(sub, exist_ok=True)
-    types = filetypes.parse(meta.get("file_types"))
+    # source by shape is read at the cut-off's own commit, as its tree is: a script deleted since was one then
+    scripts = filetypes.scripts(args.repo, rev)
+    types = filetypes.with_scripts(filetypes.parse(meta.get("file_types")), scripts)
     maat.write_all(log_path, sub, os.path.join(args.out, "meta.json") if "aliases" in meta else None, types, now=until, until=until)
     try:
         size, generated, vendored = snapshot_at(args.repo, rev, args.out)
@@ -87,7 +89,8 @@ def main(argv=None) -> int:
         fh.write(size)
     with open(os.path.join(sub, "meta.json"), "w", encoding="utf-8") as fh:
         json.dump({"now": until, "last_date": until, "file_types": meta.get("file_types"), "aliases": meta.get("aliases", {}),
-                   "generated": generated, "vendored": vendored, **({"scope": meta["scope"]} if meta.get("scope") else {})}, fh)
+                   "generated": generated, "vendored": vendored, **({"scripts": scripts} if scripts else {}),
+                   **({"scope": meta["scope"]} if meta.get("scope") else {})}, fh)
     return 0
 
 

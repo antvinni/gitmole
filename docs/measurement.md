@@ -474,6 +474,32 @@ vulnerable lead only devDependencies reach while a runtime row waits),
 **silent_precondition** (a rule advertising a test that did not run, silently) and
 **trailer_case** (trailer keys split by case, or an issue id read as one).
 
+The 0.43.1 report of obra/superpowers, a plugin of Markdown skills and
+extensionless scripts where 17 of 229 tracked files were scored, added ten. What
+gitmole scored it scored correctly; the defects were in what it said about the
+rest and in what it left unsaid, so five of these read the default report as a
+reader sees it, drawn at 80 columns from the export: **lock_declares_nothing** (a
+"manifest without a lock file" on a package.json, composer.json, Cargo.toml,
+Gemfile or Pipfile that declares no dependency of any kind), **contributing_heading**
+("no contribution guide" while a root document has a heading about contributing),
+**tied_owner** (a "main owner" whose printed share the second equals, or an area
+owner in a finding whom the ownership rows tie with someone else),
+**unscored_executable** (a tracked file with mode 100755 and a `#!` first line that
+has no size row and no revisions row, outside test, vendored, example and generated
+paths), **dead_import** (an import commit none of whose added paths is in the tree,
+described as having surviving lines or not as removed), **overrun_span** (any row of
+the default Complex functions table whose lines are over twice the structure step's
+span of that function; suspect_lead reads only the first row), **silent_measure**
+(no truck factor on a scored pool under the rule's floor of 20 files while one
+person authored half the commits, or a backtest that did not run, with no sentence
+in the default report saying so), **coverage_unsaid** (the files no table carries —
+"not a source type" and "not counted by scc" in the run's coverage — outnumber the
+scored ones and the default report has no line about unscored files or lines),
+**fix_episode** (a bug magnet whose recent fixes all fall in fewer than three ISO
+weeks; information recorded ahead of a rule that counts episodes, not a
+contradiction of the rule as it stands) and **plural_one** ("1 packages", "1 files",
+over the closed list of nouns gitmole counts).
+
 As with claims, a complaint is a defect and the number to want is zero; the
 dashboard reads it as *contradictions between a finding and the report's own
 facts*, by check. `python -m gitmole.measure consistency` re-checks a round

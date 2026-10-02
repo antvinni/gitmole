@@ -56,8 +56,26 @@ agent. Each decides by its own reading of the export or the clone, never by aski
   says what became of it.
 - trailer_case: trailer keys split by case, or an issue id read as a key.
 
-tree_claim, sweeping_evidence, the second set but agent_owner, merge_total and the paperclip checks named above
-that read files need the clone, read at the commit the
+A fifth set came from ten reviewers reading the 0.43.1 report of obra/superpowers, a plugin of Markdown skills
+and extensionless scripts where 17 of 229 tracked files were scored. Again each reads the export, the default
+report as a reader sees it, or the clone, and none asks the function it judges:
+
+- lock_declares_nothing: a "manifest without a lock file" on a manifest that declares no dependency of any kind.
+- contributing_heading: "no contribution guide" while a root document has a heading about contributing.
+- tied_owner: a "main owner" whose share the second owner equals, in the knowledge map or an ownership finding.
+- unscored_executable: a tracked file with the executable bit and a `#!` line that no table of the run carries.
+- dead_import: an import commit none of whose paths is at the analysed commit, described as surviving.
+- overrun_span: any Complex functions row whose lines are over twice the structure step's span of that function.
+- silent_measure: no truck factor on a pool under its floor that one identity dominates, or a backtest that
+  did not run, with no sentence in the default report saying so.
+- coverage_unsaid: the files no table carries outnumber the scored ones and the default report never says so.
+- fix_episode: a bug magnet whose recent fixes all fall in fewer than three ISO weeks. Information for a rule
+  that counts episodes; the rule does not exist yet.
+- plural_one: "1 packages", "1 files" in the default report.
+
+tree_claim, sweeping_evidence, the second set but agent_owner, merge_total, the paperclip checks named above
+that read files, and lock_declares_nothing, contributing_heading, unscored_executable, dead_import and
+fix_episode need the clone, read at the commit the
 run recorded and never checked out; the rest need nothing but the JSON export. A complaint is a defect, not a score - the number to
 want is zero.
 
@@ -490,7 +508,7 @@ def _declared_generated(clone: str, commit: str, head: set) -> set:
     return out
 
 
-def _heads(clone: str, commit: str, paths: list, lines: int = 20) -> dict:
+def _heads(clone: str, commit: str, paths: list, lines: int = 20, size_limit: int = 8192) -> dict:
     """The first `lines` lines of many files at one commit, through one `git cat-file --batch` rather than a
     process per file: an area can hold thousands."""
     if not paths:
@@ -509,7 +527,7 @@ def _heads(clone: str, commit: str, paths: list, lines: int = 20) -> dict:
         size = int(header[2])
         body = data[pos:pos + size]
         pos += size + 1
-        out[p] = "\n".join(body[:8192].decode("utf-8", "replace").splitlines()[:lines])
+        out[p] = "\n".join(body[:size_limit].decode("utf-8", "replace").splitlines()[:lines])
     return out
 
 
@@ -1273,12 +1291,382 @@ def trailer_case(report: dict, found: list) -> list:
     return out
 
 
+# --- the checks the 0.43.1 review of a plugin of Markdown skills added (obra/superpowers) --------------------
+#
+# 17 of its 229 tracked files were scored. What gitmole scored it scored correctly; the defects were in what it
+# said about the rest, and in what it left unsaid.
+
+_NPM_DECLARES = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "bundledDependencies",
+                 "bundleDependencies", "workspaces")
+_CARGO_DECLARES = re.compile(r"(?m)^\s*\[(?:[^\]\n]*\.)?(?:dev-|build-)?dependencies(?:\.[^\]\n]*)?\]|^\s*\[workspace[.\]]")
+
+
+def _toml_section_empty(text: str, names: tuple) -> bool:
+    """No `key = value` line under any of the named top-level tables of a TOML file."""
+    inside = False
+    for line in text.splitlines():
+        bare = line.split("#", 1)[0].strip()
+        if bare.startswith("["):
+            inside = bare.strip("[]").strip() in names
+        elif inside and "=" in bare:
+            return False
+    return True
+
+
+def _declares_nothing(name: str, text: str):
+    """Whether a manifest's text declares no dependency of any kind, by the manifest's own format; None for a
+    format not read here (go.mod is lock_without_require's) or a file that does not parse."""
+    if not text.strip():
+        return None
+    if name in ("package.json", "composer.json"):
+        try:
+            declared = json.loads(text)
+        except ValueError:
+            return None
+        if not isinstance(declared, dict):
+            return None
+        keys = _NPM_DECLARES if name == "package.json" else ("require", "require-dev")
+        return not any(declared.get(k) for k in keys)
+    if name == "Cargo.toml":
+        return not _CARGO_DECLARES.search(text)
+    if name == "Gemfile":
+        return not re.search(r"(?m)^\s*(?:gem|gemspec)\b", text)
+    if name == "Pipfile":
+        return _toml_section_empty(text, ("packages", "dev-packages"))
+    return None
+
+
+def lock_declares_nothing(report: dict, found: list, clone: str, commit: str) -> list:
+    """"Manifest without a lock file" on a manifest that declares no dependency of any kind: there is nothing
+    for a lock file to pin. superpowers' root package.json holds a name, a version and a `main`; the finding
+    cost it an OSPS-QA-02.01 gap. lock_without_require is the same complaint for a go.mod."""
+    out = []
+    for f in found:
+        if (f.get("rule") or {}).get("id") != "lockfile_missing":
+            continue
+        for row in (f.get("evidence") or {}).get("missing") or []:
+            manifest = row.get("manifest") if isinstance(row, dict) else row
+            if manifest and _declares_nothing(os.path.basename(manifest), _blob(clone, commit, manifest)):
+                out.append(_complaint("lock_declares_nothing", f, f"{manifest} declares no dependencies"))
+    return out
+
+
+_DOC_EXT = (".md", ".markdown", ".mdx", ".rst", ".txt", ".adoc", "")
+_NOT_A_GUIDE = re.compile(r"(?i)change|release|history|news")   # a changelog's heading about contributors is not a guide
+_ABOUT_CONTRIBUTING = r"[^\n]*\bcontribut(?:ing|ions?\b|e\b|or guid)[^\n]*"
+_CONTRIBUTING_HEADING = re.compile(r"(?im)^ {0,3}(?:#{1,6}|=+)[ \t]+" + _ABOUT_CONTRIBUTING + r"$"          # Markdown, AsciiDoc
+                                   r"|^" + _ABOUT_CONTRIBUTING + r"\n[ \t]*(?:={3,}|-{3,}|~{3,})[ \t]*$")   # setext, reStructuredText
+
+
+def _says_no_guide(report: dict, found: list):
+    """The finding that says there is no contribution guide, or True when only the OSPS table does."""
+    for f in found:
+        if re.search(r"(?i)\bno (?:a )?contribut", f.get("detail") or ""):
+            return f
+    for c in (report.get("osps") or {}).get("controls") or []:
+        if c.get("control") == "OSPS-GV-03.01" and c.get("result") == "gap":
+            return True
+    return None
+
+
+def contributing_heading(report: dict, found: list, clone: str, commit: str) -> list:
+    """The report says there is no contribution guide (a policy finding, or the OSPS-GV-03.01 gap) while a
+    document at the root has a heading about contributing: superpowers' README has "## Contributing" and the
+    process below it. Root documents only, a README first, changelogs and release notes left out."""
+    said = _says_no_guide(report, found)
+    if not said:
+        return []
+    done = _git(clone, "ls-tree", "-z", "--name-only", commit)
+    docs = [p for p in done.stdout.split("\0") if p and os.path.splitext(p)[1].lower() in _DOC_EXT
+            and (os.path.splitext(p)[1] or p.upper().startswith("README")) and not _NOT_A_GUIDE.search(p)]
+    docs.sort(key=lambda p: (not p.upper().startswith("README"), p))
+    for path, text in _heads(clone, commit, docs, lines=100_000, size_limit=1_000_000).items():
+        m = _CONTRIBUTING_HEADING.search(text)
+        if m:
+            heading = m.group(0).splitlines()[0].strip()
+            return [_complaint("contributing_heading", said if isinstance(said, dict) else None, f"{path} has the heading '{heading[:60]}'")]
+    return []
+
+
+_SHARE_CELL = re.compile(r"^(.*?)(?: \(gone\))? \((\d+)%\)$")
+
+
+def tied_owner(report: dict, found: list) -> list:
+    """A "main owner" who owns no more than the next person: the knowledge map's main owner and second print the
+    same share (superpowers' `.hermes-plugin/  Ada Sen (8%)  Caio Lopes (8%)`, twelve co-authors of one squash
+    commit in alphabetical order), or an ownership finding names an area's owner while the export's own
+    ownership rows give someone else as many lines there."""
+    out = []
+    km = _render(report, "knowledge_section", full=False)
+    a, b = (_column(km, "main owner"), _column(km, "second")) if km else (None, None)
+    if a is not None and b is not None:
+        for row in km.get("rows") or []:
+            first, second = _SHARE_CELL.match(str(row[a])), _SHARE_CELL.match(str(row[b]))
+            if first and second and first.group(2) == second.group(2):
+                out.append(_complaint("tied_owner", None, f"knowledge map: {row[0]} {first.group(1)} and {second.group(1)}, both {first.group(2)}%"))
+    rows_all = report.get("ownership") or []
+    for f in found:
+        if (f.get("rule") or {}).get("id") not in _OWNERSHIP_RULES:
+            continue
+        ev = f.get("evidence") or {}
+        for row in (ev.get("islands") or []) + (ev.get("areas") or []):
+            area, who = (row.get("area"), row.get("owner") or row.get("author")) if isinstance(row, dict) else (None, None)
+            if not area or not area.endswith("/") or not who:
+                continue
+            lines = {}
+            for r in rows_all:
+                if (r.get("entity") or "").startswith(area):
+                    lines[r.get("author")] = lines.get(r.get("author"), 0) + (r.get("added") or 0)
+            rival = sorted(n for n, v in lines.items() if n != who and v == lines.get(who) and v)
+            if rival:
+                out.append(_complaint("tied_owner", f, f"{area}: {who} and {rival[0]}, both {lines[who]:,} lines"))
+    return out
+
+
+_ASIDE_SEGMENTS = frozenset({"test", "tests", "__tests__", "testing", "spec", "specs", "e2e", "fixtures", "__fixtures__", "testdata", "testsuite",
+                             "vendor", "vendored", "third_party", "third-party", "node_modules", "examples", "example", "samples",
+                             "dist", "build", "generated"})
+_TEST_NAME = re.compile(r"(?i)(?:^|[._-])tests?(?:[._-]|$)")
+
+
+def _set_aside(path: str, declared: list) -> bool:
+    """A test, vendored, example or generated path by the ecosystem's conventions, or one the run lists as
+    generated or vendored."""
+    parts = path.split("/")
+    return bool(_ASIDE_SEGMENTS & {s.lower() for s in parts[:-1]}) or bool(_TEST_NAME.search(parts[-1])) \
+        or any(path == d or path.startswith(d.rstrip("/") + "/") for d in declared)
+
+
+def unscored_executable(report: dict, found: list, clone: str, commit: str) -> list:
+    """A tracked file with the executable bit (mode 100755) and a `#!` first line that the run has no size row
+    and no revisions row for, outside test, vendored, example and generated paths: the repository runs it, and
+    no table can show it. superpowers' hooks/session-start (31 commits, run at every session start) and five
+    extensionless skills/*/scripts/ files were "not a source type"."""
+    size = (report.get("size") or {}).get("files")
+    if not size:
+        return []
+    meta = report.get("meta") or {}
+    declared = [p for key in ("generated", "vendored") for p in meta.get(key) or [] if isinstance(p, str)]
+    known = set(size) | {r.get("entity") for r in report.get("revisions") or []}
+    done = _git(clone, "ls-tree", "-r", "-z", commit)
+    paths = []
+    for rec in done.stdout.split("\0"):
+        head, _, path = rec.partition("\t")
+        if head.startswith("100755 ") and path not in known and not _set_aside(path, declared):
+            paths.append(path)
+    firsts = _heads(clone, commit, sorted(paths), lines=1, size_limit=256)
+    return [_complaint("unscored_executable", None, f"{p}: executable, starts {firsts[p][:40]!r}, in no table")
+            for p in sorted(paths) if firsts.get(p, "").startswith("#!")]
+
+
+_SAYS_REMOVED = re.compile(r"(?i)\bremoved\b|\bno longer\b|\bnothing (?:of it )?(?:survives|is left|remains)\b|\bdeleted\b")
+
+
+def dead_import(report: dict, found: list, clone: str, commit: str) -> list:
+    """An import the analysed commit holds nothing of: every path the import commit added is absent from the
+    tree, and the finding still speaks of its surviving lines or never says it was removed. superpowers'
+    7446c84 bundled a node_modules that 7619570 removed two days later; "credits its surviving lines to nobody"
+    described zero lines."""
+    head, out = None, []
+    for f in found:
+        if (f.get("rule") or {}).get("id") != "import_commits":
+            continue
+        detail = f.get("detail") or ""
+        if _SAYS_REMOVED.search(detail) and "surviving" not in detail:
+            continue
+        for c in (f.get("evidence") or {}).get("commits") or []:
+            done = _git(clone, "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "-z", "--diff-filter=A", str(c.get("hash") or ""))
+            added = [p for p in done.stdout.split("\0") if p] if done.returncode == 0 and c.get("hash") else []
+            if not added:
+                continue
+            head = head if head is not None else _in_head(clone, commit)
+            if head and not any(p in head for p in added):
+                why = "the text speaks of surviving lines" if "surviving" in detail else "the text does not say it was removed"
+                out.append(_complaint("dead_import", f, f"{c['hash']}: none of the {len(added):,} paths it added is in the tree; {why}"))
+    return out
+
+
+def overrun_span(report: dict, found: list) -> list:
+    """Any row the default Complex functions table prints whose line count is over twice the span the structure
+    step measured for the function starting on the same line of the same file: lizard ran past the function's
+    end (superpowers' extractAndStripFrontmatter, 339 lines printed for a function of 36). suspect_lead reads
+    only the first row; a reader reads them all."""
+    table = _render(report, "functions_section", full=False)
+    spans = {(s.get("file"), s.get("start")): _span(s) for s in (report.get("structure") or {}).get("functions") or [] if s.get("end")}
+    funcs = report.get("functions") or []
+    out = []
+    for row in (table or {}).get("rows") or [] if spans else []:
+        name, where, ccn, lines = str(row[0]), str(row[1]), str(row[2]).rstrip("?+"), str(row[3]).replace(",", "")
+        file, _, line = where.rpartition(":") if re.search(r":\d+$", where) else (where, "", "")
+        if not lines.isdigit():
+            continue
+        for rec in funcs:
+            if rec.get("file") == file and str(rec.get("ccn")) == ccn and (str(rec.get("start")) == line if line else rec.get("function") == name):
+                span = spans.get((file, rec.get("start")))
+                if span and int(lines) > 2 * span:
+                    out.append(_complaint("overrun_span", None, f"{name} in {file}: {lines} lines printed, {span} to the structure step"))
+                    break
+    return out
+
+
+_DEFAULT = (None, None)   # the last report rendered and its lines: five checks read the same default report
+
+
+def _default_report(report: dict, found: list):
+    """The default terminal report at 80 columns as a reader sees it, as lines; None when it cannot be drawn."""
+    global _DEFAULT
+    if _DEFAULT[0] is report:
+        return _DEFAULT[1]
+    lines = None
+    try:
+        import io
+
+        from rich.console import Console
+
+        from .. import render
+        buf = io.StringIO()
+        render.report({"out_dir": "", **report}, found, Console(file=buf, width=80, color_system=None, force_terminal=False), full=False)
+        lines = buf.getvalue().splitlines()
+    except Exception:   # an export the renderer cannot read is not these checks' to judge
+        lines = None
+    _DEFAULT = (report, lines)
+    return lines
+
+
+def _running(lines: list) -> str:
+    """The whole report as one line of running text, box characters dropped: a sentence a panel wrapped reads
+    as a sentence again."""
+    return " ".join(re.sub(r"[│╭╮╰╯─]", " ", " ".join(lines)).split())
+
+
+def _chunks(lines: list) -> list:
+    """The report as the pieces a count phrase can sit in: the panels' text and the footer each as running text
+    (both wrap mid-sentence), every table line on its own (joining rows would put one row's last number before
+    the next row's first word)."""
+    panel = [l.strip("│ ") for l in lines if l.startswith("│")]
+    at = next((i for i, l in enumerate(lines) if l.startswith("Secrets:")), len(lines))
+    rest = [l for l in lines[:at] if not l.startswith(("│", "╭", "╰"))]
+    return [" ".join(" ".join(panel).split()), " ".join(" ".join(lines[at:]).split())] + rest
+
+
+TRUCK_MIN_FILES = 20   # the floor the truck factor's rule documents (findings.truck_factor's min_files), stated here and not imported
+_TRUCK_FACTOR_GIVEN = re.compile(r"(?i)truck factor (?:of |is )?\d")
+_TRUCK_FACTOR_UNSAID = re.compile(r"(?i)\b(?:no|without a) truck factor\b|truck factor[^.]{0,120}?\b(?:not (?:computed|measured|calculated|run)|"
+                                  r"needs|too few|fewer than|under \d+)")
+
+
+def _dominant(report: dict):
+    """(name, share) of the person with the most authored commits, tools left out; None without identities."""
+    tools = harness_tools(report)
+    counts = {}
+    for i in (report.get("meta") or {}).get("identities") or []:
+        if i.get("name") not in tools:
+            n = i.get("authored") if i.get("authored") is not None else i.get("commits") or 0
+            counts[i.get("name")] = counts.get(i.get("name"), 0) + n
+    total = sum(counts.values())
+    if not total:
+        return None
+    name = max(sorted(counts), key=lambda k: counts[k])
+    return name, counts[name] / total
+
+
+def silent_measure(report: dict, found: list) -> list:
+    """A measure the report did not compute and does not mention. The truck factor: no finding gives one, the
+    scored pool is under the rule's floor of 20 files, one person authored half the commits or more (the case
+    the measure exists for), and no sentence of the default report says it was not computed; superpowers had 17
+    scored files and one author of 78% of the commits. The backtest: the run records that it did not run and
+    the default report never uses the word. The bug magnets' size test is silent_precondition's."""
+    lines = _default_report(report, found)
+    if lines is None:
+        return []
+    text = _running(lines)
+    out = []
+    scored = ((report.get("meta") or {}).get("coverage") or {}).get("scored")
+    top = _dominant(report)
+    given = any((f.get("rule") or {}).get("id") == "truck_factor" or _TRUCK_FACTOR_GIVEN.search(f.get("detail") or "") for f in found)
+    if not given and scored and scored < TRUCK_MIN_FILES and top and top[1] >= 0.5 and not _TRUCK_FACTOR_UNSAID.search(text):
+        out.append(_complaint("silent_measure", None, f"truck factor: not computed ({scored} scored files, needs {TRUCK_MIN_FILES}) and not said; "
+                                                      f"{top[0]} authored {top[1]:.0%} of the commits"))
+    backtest = (report.get("meta") or {}).get("backtest") or {}
+    if backtest.get("status") and backtest["status"] != "run" and "backtest" not in text.lower():
+        out.append(_complaint("silent_measure", None, f"backtest: {backtest['status']} ({backtest.get('reason') or 'no reason recorded'}) and not said"))
+    return out
+
+
+_NO_TABLE = ("not a source type", "not counted by scc")   # the coverage buckets no table of the report carries, hidden or shown
+_COVERAGE_SAID = re.compile(r"(?i)\b(?:un|not[- ])scored\b|\bnot (?:a )?source\b|\bscored?:? [\d,]+ of [\d,]+|\b[\d,]+ (?:of [\d,]+ )?(?:files|lines) scored\b")
+
+
+def coverage_unsaid(report: dict, found: list) -> list:
+    """The tracked files no table carries (the run's own coverage count of "not a source type" and "not counted
+    by scc"; test, vendored and generated files are in the tables, hidden) outnumber the files it scored, and
+    the default report has no line naming unscored or not-scored files or lines. superpowers: 120 against 17,
+    under a header that read "10,442 lines in 71 files"."""
+    cov = (report.get("meta") or {}).get("coverage") or {}
+    scored, unseen = cov.get("scored") or 0, sum(cov.get(k) or 0 for k in _NO_TABLE)
+    if unseen <= scored:
+        return []
+    lines = _default_report(report, found)
+    if lines is None or _COVERAGE_SAID.search(_running(lines)):
+        return []
+    return [_complaint("coverage_unsaid", None, f"{unseen:,} tracked files are in no table, {scored:,} are scored; the default report does not say so")]
+
+
+def fix_episode(report: dict, found: list, clone: str, commit: str) -> list:
+    """A bug magnet whose recent fixes all fall in fewer than three distinct ISO weeks, by the author dates git
+    has for the fix commits the export lists (fix_history): one episode of work, a fix and its follow-ups, read
+    as a file that keeps breaking. superpowers' three magnets were fixed over one three-day stretch. Information
+    for a rule that counts episodes, recorded before that rule is written; skipped when the export lists no
+    fix commits."""
+    history = report.get("fix_history") or {}
+    named = []
+    for f in found:
+        if (f.get("rule") or {}).get("id") == "bug_magnets":
+            named += [(f, r.get("file")) for r in (f.get("evidence") or {}).get("files") or [] if isinstance(r, dict)]
+    hashes = sorted({h for _, path in named for h in (history.get(path) or {}).get("recent") or []})
+    if not hashes:
+        return []
+    done = _git(clone, "log", "--no-walk=unsorted", "--format=%H %ad", "--date=format:%G-W%V", *hashes)
+    if done.returncode != 0:
+        return []
+    weeks = dict(l.split(" ", 1) for l in done.stdout.splitlines() if " " in l)
+    out = []
+    for f, path in named:
+        recent = (history.get(path) or {}).get("recent") or []
+        when = [next((w for full, w in weeks.items() if full.startswith(h)), None) for h in recent]
+        if len(recent) >= 3 and all(when) and len(set(when)) < 3:
+            out.append(_complaint("fix_episode", f, f"{path}: {len(recent)} recent fixes in {len(set(when))} week(s) ({', '.join(sorted(set(when)))})"))
+    return out
+
+
+# the nouns gitmole counts in the default report; a closed list, so a table cell beside a word is not a phrase
+_COUNTED = ("packages", "lock files", "files", "commits", "identities", "authors", "people", "functions", "lines", "areas", "pairs",
+            "manifests", "workflows", "places", "values", "hits", "notes", "warnings", "criticals", "spans", "tools", "coding tools",
+            "months", "times", "steps", "directories", "contributors", "findings", "secrets", "dependencies")
+_PLURAL_ONE = re.compile(r"(?<![\w,.\-/:])1 (" + "|".join(sorted(_COUNTED, key=len, reverse=True)) + r")\b")
+
+
+def plural_one(report: dict, found: list) -> list:
+    """A count of one before a plural, in a phrase gitmole writes into the default report: superpowers'
+    "osv-scanner checked 1 packages in 1 lock file", twice."""
+    lines = _default_report(report, found)
+    if lines is None:
+        return []
+    seen = []
+    for chunk in _chunks(lines):
+        for m in _PLURAL_ONE.finditer(chunk):
+            seen.append(m.group(0))
+    return [_complaint("plural_one", None, f"'{phrase}' ({seen.count(phrase)}x)") for phrase in sorted(set(seen))]
+
+
 FINDING_CHECKS = (gone_people, wrong_area, growth_window, secrets_headline, sarif_gate, trailer_author, agent_owner,
                   start_area, sarif_rows, doc_lock, tool_person,
-                  tool_owner, merge_rows, suspect_lead, silent_precondition, trailer_case)
+                  tool_owner, merge_rows, suspect_lead, silent_precondition, trailer_case,
+                  tied_owner, overrun_span, silent_measure, coverage_unsaid, plural_one)
 CLONE_CHECKS = (tree_claim, sweeping_evidence, magnet_gone, hygiene_misread, lock_workspace, unreferenced_named, self_credit, declared_critical,
                 generated_owner, agent_pointer, structure_skipped, dependency_floor,
-                merge_total, test_double_lead, test_path_secret, peer_unused, declared_reference, lock_without_require, dev_only_vuln_lead)
+                merge_total, test_double_lead, test_path_secret, peer_unused, declared_reference, lock_without_require, dev_only_vuln_lead,
+                lock_declares_nothing, contributing_heading, unscored_executable, dead_import, fix_episode)
 
 
 def over(report: dict, clone: str = None) -> dict:

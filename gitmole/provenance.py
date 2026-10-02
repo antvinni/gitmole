@@ -202,11 +202,11 @@ def cohort(commits: list, inventory: dict, watch_files=None, tools=frozenset(), 
             "cohort": dict(stats[True]) or {"commits": 0}, "rest": dict(stats[False]) or {"commits": 0}}
 
 
-def _code_path(path: str, generated: set, vendored) -> bool:
-    return filetypes.matches(path, filetypes.DEFAULT) and path not in generated and not filetypes.is_vendored(path, vendored)
+def _code_path(path: str, generated: set, vendored, types=filetypes.DEFAULT) -> bool:
+    return filetypes.matches(path, types) and path not in generated and not filetypes.is_vendored(path, vendored)
 
 
-def lines(repo: str, end: int, marked_hashes: set, generated=frozenset(), vendored=()) -> dict:
+def lines(repo: str, end: int, marked_hashes: set, generated=frozenset(), vendored=(), types=filetypes.DEFAULT) -> dict:
     """Added, moved and churned lines in code files over the two years before `end` (a timestamp), from
     one `git log -p` with git's moved-code colouring. A line is churned when a later commit, within two
     weeks, deletes a line with the same text from the same file; blank lines and lines without three
@@ -242,7 +242,7 @@ def lines(repo: str, end: int, marked_hashes: set, generated=frozenset(), vendor
         if line.startswith("diff --git "):
             plain = _ANSI.sub("", line)   # git ends even an uncoloured header with a reset
             path = filetypes.unquote(plain.rsplit(" b/", 1)[-1]) if " b/" in plain else None
-            keep = bool(path) and _code_path(path, generated, vendored)
+            keep = bool(path) and _code_path(path, generated, vendored, types)
             continue
         if not keep:
             continue
@@ -658,7 +658,7 @@ def main(argv=None) -> int:
         result["cohort"]["watch_top"] = WATCH_TOP
     if commits:
         result["lines"] = lines(repo, commits[-1]["time"], {c["hash"] for c in commits if marked(c)}, set(meta.get("generated") or []),
-                                filetypes.vendor_dirs({"meta": meta}))
+                                filetypes.vendor_dirs({"meta": meta}), filetypes.with_scripts(filetypes.DEFAULT, meta.get("scripts") or {}))
     with open(os.path.join(args[0], "provenance.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh)
     return 0

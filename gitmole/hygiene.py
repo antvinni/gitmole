@@ -964,14 +964,14 @@ def _script(c: str) -> str:
         return ""
 
 
-def trojan_source(repo: str, generated=frozenset(), scope=()) -> dict:
+def trojan_source(repo: str, generated=frozenset(), scope=(), types=filetypes.DEFAULT) -> dict:
     """Bidirectional control characters in source files (CVE-2021-42574: code that reads one way and
     compiles another), and identifiers that mix Latin with a confusable script's look-alike letters (a
     Cyrillic о inside `process`; a Greek μ before a unit reads as itself, and is not one). Source files only, tests, examples, documentation and vendored code left out, so the
     false-positive rate stays near zero; a whole word in one script is prose, not a trick."""
     bidi, mixed, files = [], [], 0
     for path in _tracked(repo):
-        if not filetypes.matches(path, filetypes.DEFAULT) or _aside(path) or filetypes.is_doc_path(path) or path in generated or not _inside(path, scope):
+        if not filetypes.matches(path, types) or _aside(path) or filetypes.is_doc_path(path) or path in generated or not _inside(path, scope):
             continue   # a generated file's bytes (a protobuf descriptor) are the generator's, not a reviewer's trap
         data = _read(repo, path)
         if data is None or b"\0" in data[:8000]:
@@ -1011,18 +1011,19 @@ def main(argv=None) -> int:
         print("usage: hygiene.py OUT_DIR", file=sys.stderr)
         return 2
     repo, out = os.getcwd(), {}
-    generated, scope = set(), []
+    generated, scope, types = set(), [], filetypes.DEFAULT
     try:
         with open(os.path.join(args[0], "meta.json"), encoding="utf-8") as fh:
             meta = json.load(fh)
         generated = set(meta.get("generated") or [])   # the run's own classification, written before the steps
         scope = list(meta.get("scope") or [])
+        types = filetypes.with_scripts(filetypes.DEFAULT, meta.get("scripts") or {})   # an executable with an interpreter line is source too
     except (OSError, ValueError):
         pass
     for key, check in CHECKS.items():
         extra = {"scope": scope} if scope and key in SCOPED else {}
         try:
-            out[key] = check(repo, generated, **extra) if key == "trojan" else check(repo, **extra)
+            out[key] = check(repo, generated, types=types, **extra) if key == "trojan" else check(repo, **extra)
         except (OSError, subprocess.SubprocessError, ValueError) as e:   # one check failing leaves the others standing
             print(f"hygiene.py: {key}: {e}", file=sys.stderr)
             out[key] = None

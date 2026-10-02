@@ -667,6 +667,197 @@ class WithThePaperclipRepository(unittest.TestCase):
         self.assertEqual(self.over(findings=[f]), [])
 
 
+class FromTheSuperpowersExport(unittest.TestCase):
+    """The superpowers review's checks that need the export and the default report drawn from it. The report
+    and its tables are handed in as drawn, as the paperclip tests hand in a People table."""
+
+    def drawn(self, lines, r=None, table=None):
+        with mock.patch.object(consistency, "_default_report", return_value=lines), \
+                mock.patch.object(consistency, "_render", return_value=table):
+            return checks(r or report())
+
+    def test_a_main_owner_tied_with_the_second(self):
+        """superpowers: `.hermes-plugin/  Ada Sen (8%)  Caio Lopes (8%)`, alphabetical among twelve co-authors."""
+        table = {"columns": ["area", "lines added", "main owner", "second"],
+                 "rows": [["plugin/", "96", "Ann (8%)", "Bo (8%)"], ["src/", "900", "Bo (60%)", "Ann (gone) (30%)"], ["hooks/", "75", "Bo (100%)", "-"]]}
+        self.assertEqual(self.drawn(None, table=table), ["tied_owner"])
+        table["rows"][0][2] = "Ann (9%)"
+        self.assertEqual(self.drawn(None, table=table), [])
+
+    def test_a_finding_whose_area_owner_is_tied(self):
+        own = [{"entity": "plugin/a.py", "author": "Ann", "added": 50}, {"entity": "plugin/b.py", "author": "Bo", "added": 50},
+               {"entity": "src/a.py", "author": "Bo", "added": 500}]
+        f = finding("knowledge_islands", evidence={"islands": [{"area": "plugin/", "owner": "Bo"}]})
+        self.assertEqual(checks(report(ownership=own, findings=[f])), ["tied_owner"],
+                         "the finding; the map gitmole draws of the same rows now reads \"shared by 2\" and names no owner")
+        tied = {"columns": ["area", "lines added", "main owner", "second"], "rows": [["plugin/", "100", "Ann (50%)", "Bo (50%)"]]}
+        self.assertEqual(self.drawn(None, report(ownership=own), tied).count("tied_owner"), 1, "a drawn map that still names a tied owner")
+        own[1]["added"] = 60
+        self.assertEqual(checks(report(ownership=own, findings=[f])), [])
+
+    def test_a_row_lizard_ran_past_the_end_of(self):
+        """superpowers: extractAndStripFrontmatter, 339 lines printed for the 36 the function spans, on the fifth row."""
+        funcs = [{"file": "a.js", "function": "handle", "ccn": 16, "nloc": 43, "params": 2, "start": 5, "end": 50},
+                 {"file": "b.js", "function": "strip", "ccn": 11, "nloc": 339, "params": 1, "start": 33, "end": 382}]
+        table = {"columns": ["function", "file", "ccn", "lines", "params"], "rows": [["handle", "a.js", "16", "43", "2"], ["strip", "b.js", "11?", "339", "1"]]}
+        spans = {"functions": [{"file": "a.js", "name": "handle", "start": 5, "end": 50}, {"file": "b.js", "name": "strip", "start": 33, "end": 68}]}
+        self.assertEqual(self.drawn(None, report(functions=funcs, structure=spans), table).count("overrun_span"), 1)
+        spans["functions"][1]["end"] = 300
+        self.assertNotIn("overrun_span", self.drawn(None, report(functions=funcs, structure=spans), table))
+
+    SMALL = {"coverage": {"scored": 17, "not a source type": 12}, "identities": [{"name": "Ann", "email": "ann@x.org", "commits": 80, "authored": 80},
+                                                                               {"name": "Bo", "email": "bo@x.org", "commits": 20, "authored": 20}]}
+
+    def test_a_truck_factor_not_computed_and_not_mentioned(self):
+        """superpowers: 17 scored files under the floor of 20, one author of 78% of the commits, not a word."""
+        r = report(meta=self.SMALL)
+        self.assertEqual(self.drawn(["│ The truck factor and the churn counts leave the import out. │"], r), ["silent_measure"])
+        self.assertEqual(self.drawn(["Truck factor not computed: 17 scored files, it needs 20"], r), [])
+
+    def test_a_truck_factor_nobody_would_expect(self):
+        spread = {**self.SMALL, "identities": [{"name": n, "email": n + "@x.org", "commits": 30, "authored": 30} for n in ("Ann", "Bo", "Cy")]}
+        self.assertEqual(self.drawn(["nothing"], report(meta=spread)), [], "nobody authored half")
+        self.assertEqual(self.drawn(["nothing"], report(meta={**self.SMALL, "coverage": {"scored": 40}})), [], "the pool is over the floor")
+        f = finding("truck_factor", "Truck factor 1: without Bo, 9 files have no author left.", evidence={"removed": ["Bo"]})
+        self.assertEqual(self.drawn(["nothing"], report(meta=self.SMALL, findings=[f])), [], "it was computed")
+
+    def test_a_backtest_that_did_not_run_and_is_not_mentioned(self):
+        r = report(meta={"backtest": {"status": "skipped", "reason": "too little history to backtest"}})
+        self.assertEqual(self.drawn(["◎ Watch list", "  nothing to watch"], r), ["silent_measure"])
+        self.assertEqual(self.drawn(["◎ Watch list", "  too little history to backtest"], r), [])
+        self.assertEqual(self.drawn(["◎ Watch list"], report(meta={"backtest": {"status": "run", "until": "2026-03-01"}})), [])
+
+    def test_most_of_the_tree_unscored_and_unsaid(self):
+        """superpowers: 120 files of no source type against 17 scored, under "10,442 lines in 71 files"."""
+        r = report(meta={"coverage": {"scored": 17, "not a source type": 120, "test file": 87}})
+        self.assertEqual(self.drawn(["│ 10,442 lines in 71 files │"], r), ["coverage_unsaid"])
+        self.assertEqual(self.drawn(["│ 10,442 lines in 71 files  ·  120 files not │", "│ scored (Markdown) │"], r), [], "wrapped, and still said")
+        tests = report(meta={"coverage": {"scored": 17, "not a source type": 12, "test file": 87}})
+        self.assertEqual(self.drawn(["│ 10,442 lines in 71 files │"], tests), [], "test files are in the tables")
+
+    def test_one_followed_by_a_plural(self):
+        """superpowers: "osv-scanner checked 1 packages in 1 lock file", in the findings panel and the footer."""
+        lines = ["│   osv-scanner checked 1 packages in 1 lock file against the local database   │", "",
+                 "  author   commits", "  Ann           11", "  files and commits leave out merges", "",
+                 "Secrets: none found", "Dependencies: 1 ", "packages in 1 lock file, none vulnerable"]
+        subjects = [c["subject"] for c in self.complaints(lines)]
+        self.assertEqual(subjects, ["'1 packages' (2x)"])
+        fine = ["│ 1 package in 1 lock file; 21 files, 1,001 commits, 0.1 lines, v1 files │", "  Ann   1", "  files hidden"]
+        self.assertEqual(self.complaints(fine), [], "a row's last number is not the next line's count")
+
+    def complaints(self, lines):
+        with mock.patch.object(consistency, "_default_report", return_value=lines):
+            return consistency.plural_one(report(), [])
+
+    def test_the_default_report_is_drawn_from_an_export(self):
+        """The text checks read gitmole's own default report: an export render.report can draw gives lines, one
+        it cannot gives None and the checks say nothing."""
+        self.assertIsNone(consistency._default_report(report(), []))
+        self.assertEqual(checks(report(meta={"backtest": {"status": "skipped"}})), [])
+
+
+class WithTheSuperpowersRepository(WithThePaperclipRepository):
+    """The superpowers review's checks that read the clone."""
+
+    test_the_merge_total_against_git = test_a_cargo_binary_only_the_tests_run = test_a_secret_in_test_code = None
+    test_an_unused_dependency_the_lock_records_as_a_peer = test_an_unreferenced_file_a_package_declares = None
+    test_a_go_module_that_requires_nothing = test_a_vulnerable_lead_only_dev_dependencies_reach = None
+
+    def missing(self, *manifests):
+        return finding("lockfile_missing", evidence={"missing": [{"manifest": m, "expected": ["x.lock"]} for m in manifests]})
+
+    def test_a_manifest_that_declares_nothing(self):
+        """superpowers' root package.json: a name, a version and a `main`."""
+        self.write("package.json", '{"name": "x", "version": "1.0.0", "main": "index.js", "dependencies": {}}')
+        self.write("app/package.json", '{"name": "app", "devDependencies": {"left-pad": "^1"}}')
+        self.write("ws/package.json", '{"name": "ws", "workspaces": ["packages/*"]}')
+        self.write("tool/Cargo.toml", '[package]\nname = "tool"\n')
+        self.write("svc/Cargo.toml", '[package]\nname = "svc"\n\n[target.x.dev-dependencies]\nserde = "1"\n')
+        self.write("empty/Gemfile", 'source "https://rubygems.org"\n')
+        self.write("web/Gemfile", 'source "https://rubygems.org"\ngem "rack"\n')
+        self.write("py/Pipfile", "[packages]\n\n[requires]\npython_version = \"3\"\n")
+        self.write("php/composer.json", '{"require": {"monolog/monolog": "^3"}}')
+        self.write("broken/package.json", "{not json")
+        self.assertEqual(self.over(findings=[self.missing("package.json", "tool/Cargo.toml", "empty/Gemfile", "py/Pipfile")]), ["lock_declares_nothing"] * 4)
+        declared = self.missing("app/package.json", "ws/package.json", "svc/Cargo.toml", "web/Gemfile", "php/composer.json", "broken/package.json", "gone/package.json")
+        self.assertEqual(self.over(findings=[declared]), [])
+
+    GAP = {"controls": [{"control": "OSPS-GV-03.01", "result": "gap", "evidence": "no contribution guide"}]}
+
+    def test_a_readme_heading_about_contributing(self):
+        """superpowers: OSPS-GV-03.01 a gap, and "## Contributing" at line 375 of the README."""
+        self.write("README.md", "# X\n" + "filler\n" * 2000 + "\n## Contributing\n\nOpen a pull request.\n")
+        self.assertEqual(self.over(osps=self.GAP), ["contributing_heading"])
+        self.assertEqual(self.over(osps={"controls": [{"control": "OSPS-GV-03.01", "result": "met"}]}), [], "the report did not say so")
+
+    def test_a_finding_that_says_so_and_an_rst_heading(self):
+        self.write("HACKING.rst", "Hacking\n=======\n\nHow to contribute\n-----------------\n\nSend patches.\n")
+        f = finding("repo_policy", "No contribution guide (CONTRIBUTING.md).")
+        head = self.commit()
+        one = consistency.over(report(meta={"run": {"commit": head}}, findings=[f]), self.repo)
+        self.assertEqual([(c["check"], c["rule"]) for c in one["complaints"]], [("contributing_heading", "repo_policy")])
+
+    def test_mentions_of_contributors_are_not_a_guide(self):
+        self.write("README.md", "# X\n\n## Contributors\n\nThanks to everyone who contributed. See contributing notes elsewhere.\n")
+        self.write("CHANGELOG.md", "# Changes\n\n## Contributing guide rewritten\n")
+        self.write("docs/guide.md", "# Contributing\n")
+        self.assertEqual(self.over(osps=self.GAP), [], "a thanks list, a changelog entry and a file below the root")
+
+    def script(self, path, text, executable=True):
+        self.write(path, text)
+        if executable:
+            os.chmod(os.path.join(self.repo, path), 0o755)
+
+    def test_an_executable_script_no_table_carries(self):
+        """superpowers: hooks/session-start, mode 755, `#!/usr/bin/env bash`, no extension, 31 commits, in no table."""
+        self.script("hooks/session-start", "#!/usr/bin/env bash\necho hi\n")
+        self.script("scripts/build.sh", "#!/bin/sh\nmake\n")                      # scored: the size step has it
+        self.script("tests/run-all", "#!/bin/sh\n")                                # a test path
+        self.script("vendor/tool/run", "#!/bin/sh\n")                              # vendored
+        self.script("gen/out", "#!/bin/sh\n")                                      # the run lists it as generated
+        self.script("bin/blob", "\x7fELF not a script\n")                          # executable, no #!
+        self.script("notes/plan", "#!/bin/sh\n", executable=False)                 # a #! without the bit
+        r = {"size": {"files": {"scripts/build.sh": {"code": 2}}}, "meta": {"generated": ["gen/out"]}}
+        self.assertEqual(self.over(**r), ["unscored_executable"])
+        r["revisions"] = [{"entity": "hooks/session-start", "n-revs": 31}]
+        self.assertEqual(self.over(**r), [], "the history tables have it")
+
+    IMPORT = ("1 commit brought code in without changing any: {h} by Ann (2 files). Ownership leaves it out, "
+              "and the code-age pass credits its surviving lines to nobody.")
+
+    def test_an_import_nothing_survives_of(self):
+        """superpowers: 7446c84 bundled node_modules, 7619570 removed it two days later."""
+        self.write("index.js", "z\n")
+        self.commit("first")
+        self.write("node_modules/a/index.js", "x\n")
+        self.write("node_modules/b/index.js", "y\n")
+        imported = self.commit("bundle")
+        f = finding("import_commits", self.IMPORT.format(h=imported[:7]), evidence={"commits": [{"hash": imported[:7], "files": 2}]})
+        self.assertEqual(self.over(findings=[f]), [], "still in the tree")
+        git(self.repo, "rm", "-q", "-r", "node_modules/a", env=self.env)
+        self.assertEqual(self.over(findings=[f]), [], "half of it is still in the tree")
+        git(self.repo, "rm", "-q", "-r", "node_modules", env=self.env)
+        self.assertEqual(self.over(findings=[f]), ["dead_import"])
+        f["detail"] = f"1 commit brought code in: {imported[:7]} by Ann (2 files), removed since; nothing of it is in the tree."
+        self.assertEqual(self.over(findings=[f]), [], "the text says so")
+
+    def fix(self, path, n, date):
+        self.write(path, f"{n}\n")
+        git(self.repo, "add", "-A", env=self.env)
+        git(self.repo, "commit", "-q", "-m", f"fix {n}", env={**self.env, "GIT_AUTHOR_DATE": date + "T12:00:00", "GIT_COMMITTER_DATE": date + "T12:00:00"})
+        return git(self.repo, "rev-parse", "--short", "HEAD")
+
+    def test_fixes_that_are_one_episode(self):
+        """superpowers: stop-server.sh's four recent fixes all in ISO week 24."""
+        self.write("c.sh", "c\n")
+        burst = [self.fix("a.sh", n, d) for n, d in enumerate(["2026-06-08", "2026-06-09", "2026-06-10", "2026-06-16"])]
+        spread = [self.fix("b.sh", n, d) for n, d in enumerate(["2026-06-08", "2026-06-17", "2026-07-01"])]
+        f = finding("bug_magnets", evidence={"files": [{"file": "a.sh", "recent_fixes": 4}, {"file": "b.sh", "recent_fixes": 3}, {"file": "c.sh", "recent_fixes": 3}]})
+        history = {"a.sh": {"recent": burst}, "b.sh": {"recent": spread}}
+        self.assertEqual(self.over(findings=[f], fix_history=history), ["fix_episode"], "a.sh: two weeks; b.sh: three; c.sh: no commits listed")
+        self.assertEqual(self.over(findings=[f]), [], "an export that lists no fix commits is not judged")
+
+
 class Totals(unittest.TestCase):
     def test_clean_counts_findings_and_tables_are_apart(self):
         f = finding("minor_contributors", "x.py.", "Have Ann review it.", {"files": [{"owner": "Ann"}]})

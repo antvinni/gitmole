@@ -22,12 +22,36 @@ except ImportError:  # run as a script: the package directory is sys.path[0]
     import filetypes
 
 
-def select_files(repo: str, ignore=(), types_spec: str = None, paths=()) -> list:
+def select_files(repo: str, ignore=(), types_spec: str = None, paths=(), scripts: dict = None) -> list:
     """Tracked text files lizard can parse. Without --file-types that is every language lizard
-    knows (a superset of gitmole's default code list, e.g. Fortran); with it, the intersection."""
-    types = filetypes.parse(types_spec)
+    knows (a superset of gitmole's default code list, e.g. Fortran); with it, the intersection.
+    `scripts` ({path: file type}, filetypes.scripts) are the executables whose interpreter line names the
+    language their name does not: each is read as a file of that type (ScriptAnalyzer)."""
+    scripts = scripts or {}
+    types = filetypes.with_scripts(filetypes.parse(types_spec), scripts)
     files = blame.text_files(repo, ignore, paths) if types_spec is None else blame.code_files(repo, ignore, types, paths)
-    return [f for f in files if lizard.get_reader_for(f) is not None]
+    return [f for f in files if lizard.get_reader_for(as_typed(f, scripts)) is not None]
+
+
+def as_typed(path: str, scripts: dict) -> str:
+    """The name lizard picks a reader by: the path, with a script's file type as its extension."""
+    return f"{path}.{scripts[path]}" if path in scripts else path
+
+
+class ScriptAnalyzer(lizard.FileAnalyzer):
+    """lizard's per-file analysis, choosing a script's reader by the type its interpreter line gave it (lizard
+    goes by extension, and bin/tool has none) and reporting it under its own path."""
+
+    def __init__(self, exts, scripts):
+        super().__init__(exts)
+        self.scripts = dict(scripts or {})
+
+    def analyze_source_code(self, filename, code):
+        if filename not in self.scripts:
+            return super().analyze_source_code(filename, code)
+        info = super().analyze_source_code(as_typed(filename, self.scripts), code)
+        info.filename = filename
+        return info
 
 
 NAME_CAP = 200        # a deeply nested fixture gives lizard a dotted name of megabytes; nobody reads past this
@@ -137,12 +161,12 @@ def extensions() -> list:
     return [keep_newlines if e is lizard.preprocessing else e for e in lizard.get_extensions([])]
 
 
-def analyze(files: list, procs: int, exts: list):
+def analyze(files: list, procs: int, exts: list, scripts: dict = None):
     """lizard.analyze_files without its extension bookkeeping: per-file analysis over `procs` workers."""
-    return lizard.map_files_to_analyzer(files, lizard.FileAnalyzer(exts), procs)
+    return lizard.map_files_to_analyzer(files, ScriptAnalyzer(exts, scripts) if scripts else lizard.FileAnalyzer(exts), procs)
 
 
-def measure(repo: str, files: list, out: str, procs: int) -> int:
+def measure(repo: str, files: list, out: str, procs: int, scripts: dict = None) -> int:
     """Stream functions.csv while lizard runs. Returns 0, or 1 when lizard gave up on a file (whatever
     was measured by then stays on disk)."""
     exts = extensions()
@@ -153,7 +177,7 @@ def measure(repo: str, files: list, out: str, procs: int) -> int:
         with open(os.path.join(out, "functions.csv"), "w", encoding="utf-8", newline="") as fh:
             writer = csv.writer(fh, quoting=csv.QUOTE_NONNUMERIC)
             try:
-                for info in analyze(files, procs, exts):
+                for info in analyze(files, procs, exts, scripts):
                     lines = _lines(info.filename) if info.function_list else []
                     for fn in info.function_list:
                         writer.writerow(csv_row(info, fn, lines))
@@ -175,8 +199,12 @@ def main(argv=None) -> int:
     p.add_argument("--types", default=None, help="file types spec as for gitmole --file-types")
     p.add_argument("--path", action="append", default=[], help="only the files under this directory (repeatable), as gitmole --path")
     args = p.parse_args(argv)
-    files = select_files(args.repo, args.ignore, args.types, args.path)
-    return measure(os.path.abspath(args.repo), files, os.path.abspath(args.out), max(1, args.procs))
+    try:   # the run's meta.json, written before the steps: the files it found to be source by shape
+        scripts = filetypes.scripts_from_meta(os.path.join(args.out, "meta.json"))
+    except (OSError, ValueError):
+        scripts = {}
+    files = select_files(args.repo, args.ignore, args.types, args.path, scripts)
+    return measure(os.path.abspath(args.repo), files, os.path.abspath(args.out), max(1, args.procs), scripts)
 
 
 if __name__ == "__main__":

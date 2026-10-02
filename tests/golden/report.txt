@@ -34,7 +34,7 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
   Bob Example              3    38% ▰▰▰                       36%
   aliases merged for Bob Example; a .mailmap makes that permanent
 
-⌂ Knowledge map
+⌂ Knowledge map (files in the tree now)
   area           lines added   main owner           second
   ───────────────────────────────────────────────────────────────────
   app/                    19   Ann Example (79%)    Bob Example (21%)
