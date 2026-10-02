@@ -119,7 +119,7 @@ def measure(repo: str, rev: str, files: list, out_dir: str) -> dict:
 
 def top_files(out_dir: str, n: int) -> list:
     meta = json.loads(load._read(out_dir, "meta.json") or "{}")
-    size = load.parse_scc(load._read(out_dir, "size.json"), filetypes.parse(meta["file_types"]) if "file_types" in meta else None, scope.of(meta))
+    size = load.parse_scc(load._read(out_dir, "size.json"), filetypes.for_meta(meta, unrecorded=None), scope.of(meta))
     revisions = load.parse_maat_csv(load._read(out_dir, "maat-revisions.csv"))
     ranked = hotspots.ranked({"size": size, "revisions": revisions})
     return [h["entity"] for h in ranked if h["code"] is not None][:n]

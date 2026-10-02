@@ -280,6 +280,8 @@ if __name__ == "__main__":
         i = args.index("--aliases"); aliases = args[i + 1]; del args[i:i + 2]
     while "--ignore" in args:
         i = args.index("--ignore"); ignore.append(args[i + 1]); del args[i:i + 2]
+    if aliases:   # the files the run found to be source by shape (filetypes.scripts) count as the types do
+        types = filetypes.with_scripts(types, filetypes.scripts_from_meta(aliases))
     if len(args) != 2:
         sys.exit("usage: blame.py REPO OUT_DIR [--procs N] [--ignore GLOB]... [--aliases META_JSON] [--types LIST|all] [--log LOG] [--path DIR]...")
     print(json.dumps(write_all(args[0], args[1], ignore, aliases, procs, types, log_path, paths)))

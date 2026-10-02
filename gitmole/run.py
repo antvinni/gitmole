@@ -12,6 +12,7 @@ import signal
 import subprocess
 import sys
 import threading
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 from . import blame, filetypes, identity, scope as scopes, userdirs
@@ -591,8 +592,6 @@ def collect_meta(repo_dir: str, since: str = None, scope=()) -> dict:
     trailers name are identities too, credited with the commits they are named on; a bot named only
     in a trailer is nobody. With `scope` (--path's directories) every count is over the commits that
     touch them, as the change log is, and meta records the scope."""
-    from collections import Counter
-
     from .load import parse_authors_log
 
     lines = _git(repo_dir, "log", "HEAD", "--use-mailmap", "--format=%ad\t%aN\t%aE%x1f%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x1f)",

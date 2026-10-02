@@ -520,6 +520,22 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
     return _section("Size by language", columns, rows, caption=_more(len(langs), limit))
 
 
+def _tools_left_out(report: dict, tools: set) -> str:
+    """'coding tools left out: 7 names on 1 no-reply address': what the rows kept out of the People table
+    are, counted as what git records. They are names, and several names on one vendor address are one
+    assistant signing each model version differently, so "4 coding tools" for four rows on one address
+    counted spellings as tools. Every spelling counts, the ones merged into a row too."""
+    names, addresses = set(), set()
+    for i in report["meta"].get("identities") or []:
+        if i["name"] in tools:
+            for v in [i, *(i.get("aliases") or [])]:
+                names.add(v.get("name"))
+                if identity.NO_REPLY_MAILBOX.match(v.get("email") or ""):
+                    addresses.add(v["email"].lower())
+    on = f" on {len(addresses)} no-reply address{'es' if len(addresses) != 1 else ''}" if addresses else ""
+    return f"coding tools left out: {len(names)} name{'s' if len(names) != 1 else ''}{on}"
+
+
 def people_section(report: dict, full: bool = True, width=None) -> dict:
     tools = set((report.get("tools") or {}).get("names") or [])   # load.py keeps them out of the tables about people
     ids = [i for i in report["meta"].get("identities") or [] if i["name"] not in tools]
@@ -552,7 +568,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if merges:
         notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
     more = _more(len(ids), limit)
-    left = f"{apart} coding tool{'s' if apart != 1 else ''} (told by their no-reply address) left out" if apart else None
+    left = _tools_left_out(report, tools) if apart else None
     if more or left:
         notes.append("; ".join(x for x in (more, left) if x))
     bots = report["meta"].get("bots") or []
@@ -897,6 +913,24 @@ def _where(f: dict) -> str:
     return f"{f['file']}:{f['start']}" if _nameless(f) else f["file"]
 
 
+def _owner_cells(area: dict, gone: set) -> list:
+    """The main owner and the second of an area, as the knowledge map prints them. When several people hold
+    exactly the top share there is no main owner to name and no second: the cell counts them and gives the
+    share each of them holds ("shared by 12 (8%)", short enough for the column at 80), since the name the
+    sort put first is the alphabet's. A second place that several hold equally is counted the same way."""
+    held = area["owners"]
+
+    def cell(at):
+        if at >= len(held):
+            return "-"
+        level = knowledge.tied(held, at)
+        name, n = held[at]
+        if level > 1:
+            return f"shared by {level} ({_pct(n, area['lines'])})"
+        return f"{name}{' (gone)' if name in gone else ''} ({_pct(n, area['lines'])})"
+    return [cell(0), "-" if knowledge.tied(held) > 1 else cell(1)]
+
+
 def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     """Ownership by area of the tree: who wrote most of each directory, gone owners marked."""
     months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
@@ -906,6 +940,11 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     areas = loss.areas(rows_all, gone, base)
     hidden_note = None
     tree = (report.get("size") or {}).get("files") or {}
+    # the two views count different files, and tests/ at 9,568 lines here and 10,765 there read as a
+    # contradiction until the heading says which: the default keeps the files HEAD still has, --full every
+    # file the history (or the --since window) changed. In the heading, so the report is no line longer.
+    since = report["meta"].get("since")
+    counted = "files in the tree now" if full is not True and tree else f"every file in the history{f' since {since}' if since else ''}"
     if full is not True and tree:
         # a directory the history knows but HEAD does not is a layout that no longer exists; the rows are
         # filtered before the areas are built so a vanished layout cannot hide that one directory now dominates
@@ -920,7 +959,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         assisted = {e: n for e, n in assisted.items() if e in tree}
     rows, shares, outrank = [], [], False
     for a in areas[:limit]:
-        owners = [f"{name}{' (gone)' if name in gone else ''} ({_pct(n, a['lines'])})" for name, n in a["owners"][:2]] + ["-"]
+        owners = _owner_cells(a, gone)
         lost = f"{100 * a['lost_share']:.0f}%" if a["lines"] else "-"
         theirs = sum(n for e, n in assisted.items() if knowledge.in_area(e, a["area"], base))
         shares.append(round(100 * theirs / (a["lines"] + theirs)) if a["lines"] + theirs else 0)
@@ -940,7 +979,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     if gone:
         notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
                      + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))
-    return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
+    return _section(f"Knowledge map ({counted})" if rows else "Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
 
 
 def osps_section(report: dict, full: bool = True, width=None) -> dict:
@@ -949,6 +988,46 @@ def osps_section(report: dict, full: bool = True, width=None) -> dict:
     rows = [(r["control"], r["requirement"], r["result"], r["evidence"]) for r in osps.coverage(report, findings.evaluate(report))]
     return _section("OSPS Baseline", [("control", {"no_wrap": True}), ("asks", {"overflow": "fold", "ratio": 2}), ("result", {}), ("evidence", {"overflow": "fold", "ratio": 3})],
                     rows, caption=f"the controls a clone can show evidence for, from the {osps.BASELINE}; access control and most of vulnerability management need the forge")
+
+
+def agent_surface_section(report: dict, full: bool = True, width=None):
+    """What the tree declares for coding agents (provenance.agents), listed and not judged: the instruction files,
+    the skills by the directory that holds them, each hook command with the tracked script it runs, and the plugin
+    manifests by their directory. --full and Markdown only; None, and so no section, for a tree that declares none."""
+    ag = (report.get("provenance") or {}).get("agents") or {}
+    rows = []
+    for r in ag.get("instructions") or []:
+        if r.get("kind") == "skill":
+            continue   # counted with the skills below
+        what = f"last changed {r['last']}, {r['commits_behind']:,} commit{'' if r['commits_behind'] == 1 else 's'} before the last"
+        rows.append((r.get("kind") or "instructions", r["file"], what + (f"; points at {textfmt.join_and(r['points_to'])}" if r.get("points_to") else "")))
+    skills = ag.get("skills") or {}
+    homes = {}
+    for path in skills.get("files") or []:
+        home, name = path.rsplit("/", 2)[0], path.rsplit("/", 2)[1]
+        homes.setdefault(home, []).append(name)
+    listed = sum(len(v) for v in homes.values())
+    for home, names in sorted(homes.items()):
+        rows.append(("skills", home + "/", f"{len(names)} with a name and a description: {', '.join(names[:5])}" + (f" and {len(names) - 5} more" if len(names) > 5 else "")))
+    if skills.get("count", 0) > listed:
+        rows.append(("skills", "", f"and {skills['count'] - listed:,} more"))
+    for h in ag.get("hooks") or []:
+        chain = "".join(f" → {h[k]}" for k in ("script", "runs") if h.get(k)) or (f" (names {h['names']})" if h.get("names") else "")
+        rows.append(("hook", h["file"], f"{h['event'] or 'hook'}: {h['command']}{chain}"))
+    if ag.get("hooks_count", 0) > len(ag.get("hooks") or []):
+        rows.append(("hook", "", f"and {ag['hooks_count'] - len(ag['hooks']):,} more"))
+    plugins = {}
+    for path in ag.get("plugin_manifests") or []:
+        plugins.setdefault(path.split("/", 1)[0], []).append(path.split("/", 1)[1])
+    rows += [("plugin manifest", home + "/", ", ".join(names)) for home, names in sorted(plugins.items())]
+    if not rows:
+        return None
+    counts = [(sum(1 for r in ag.get("instructions") or [] if not r.get("kind")), "instruction file"), (skills.get("count", 0), "skill"),
+              (ag.get("hooks_count", 0), "hook command"), (ag.get("plugin_manifests_count", len(ag.get("plugin_manifests") or [])), "plugin manifest")]
+    caption = (", ".join(f"{n:,} {word}{'' if n == 1 else 's'}" for n, word in counts if n)
+               + "; read from the tree by path convention and shape, listed and not judged"
+               + ("; → names the tracked script a hook command runs, and the one that script hands over to" if any(h.get("script") for h in ag.get("hooks") or []) else ""))
+    return _section("Agent surface", [("kind", {"no_wrap": True}), ("where", {"overflow": "fold", "ratio": 1}), ("what", {"overflow": "fold", "ratio": 2})], rows, caption=caption)   # a path here folds whole rather than losing its middle: the list is what the section is for
 
 
 def _tally_words(counts: dict) -> str:
@@ -998,10 +1077,11 @@ def compare_section(result: dict) -> dict:
 
 
 BUILDERS = [watch_section, documents_section, watch_by_component_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
-            hotspots_section, coupling_section, signing_section, trailers_section, lines_section, age_section, functions_section, osps_section]
+            hotspots_section, coupling_section, signing_section, trailers_section, lines_section, age_section, functions_section, agent_surface_section,
+            osps_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
 # do next; Hotspots ranks the files the watch list already leads with, by the same product.
-FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "lines", "watch_by_component", "osps"}
+FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "lines", "watch_by_component", "agent_surface", "osps"}
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
@@ -1014,7 +1094,7 @@ def sections(report: dict, full: bool = True, width=None) -> list:
         if full is False and sid in FULL_ONLY:
             continue
         sec = b(report, full, width)
-        if sec is None:   # a section that exists only for some repositories (documents_section)
+        if sec is None:   # a section that exists only for some repositories (documents_section, agent_surface)
             continue
         sec["id"] = sid
         out.append(sec)
@@ -1088,8 +1168,16 @@ def secrets_pass(report: dict):
 
 
 def _dependency_files(scan: dict) -> str:
-    """'61 lock files', or '58 lock files and 3 requirement files': osv-scanner reads both, and only one locks."""
-    return deps.files_phrase(s.get("path") or "" for s in scan.get("sources") or [])
+    """'61 lock files', or '58 lock files and 3 requirement files': osv-scanner reads both, and only one locks.
+    A single file is named ('1 lock file (tests/server/package-lock.json)'): superpowers' report said "1 lock
+    file" beside a finding that package.json had none, and nothing said which lock was meant."""
+    paths = {s.get("path") or "" for s in scan.get("sources") or []}
+    only = next(iter(paths)) if len(paths) == 1 else ""
+    return deps.files_phrase(paths) + (f" ({only})" if only else "")
+
+
+def _packages(n: int) -> str:
+    return f"{n:,} package{'' if n == 1 else 's'}"
 
 
 def dependencies_pass(report: dict):
@@ -1097,7 +1185,7 @@ def dependencies_pass(report: dict):
     deps = report.get("dependencies") or {}
     if deps.get("status") != "scanned" or deps.get("vulnerable") or not deps.get("packages"):
         return None
-    detail = f"osv-scanner checked {deps['packages']:,} packages in {_dependency_files(deps)} against the local database"
+    detail = f"osv-scanner checked {_packages(deps['packages'])} in {_dependency_files(deps)} against the local database"
     if deps.get("database_date"):
         detail += f" from {deps['database_date']}"
     return "No known vulnerabilities in dependencies", detail
@@ -1128,7 +1216,7 @@ def dependencies_line(report: dict):
     if status == "scanned":
         rows = deps.get("vulnerable") or []
         bad = len({r.get("name") for r in rows})
-        line = f"Dependencies: {deps.get('packages', 0):,} packages in {_dependency_files(deps)}, "
+        line = f"Dependencies: {_packages(deps.get('packages', 0))} in {_dependency_files(deps)}, "
         line += (f"{bad} vulnerable" + (f" in {len(rows)} places" if len(rows) != bad else "")) if bad else "none vulnerable"
         notes = deps.get("informational") or []
         if notes:   # RustSec's unmaintained, unsound and notice advisories: said, not counted as vulnerable

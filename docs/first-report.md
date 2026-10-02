@@ -29,11 +29,16 @@ too small for, so its absence is not read as a pass.
 
 **People.** Who commits, their share of the commits, and how much of the code in the tree today each
 wrote (`surviving code`, from git blame). Bots and merges are counted apart, aliases of one person
-are merged, and a coding tool credited by `Co-authored-by` trailers is left out; the caption counts it.
+are merged, and a coding tool credited by `Co-authored-by` trailers is left out; the caption counts the names
+left out and the no-reply addresses they sit on (several names on one address are one assistant's model versions).
 
 **Knowledge map.** Each top-level area, how many lines were added there, and who wrote most of them.
+The heading says which files are counted: the default map counts the `files in the tree now`, so a
+directory that was moved or deleted does not make its author an owner of what remains, and `--full`
+counts `every file in the history`; an area's lines and shares differ between the two for that reason.
 `(gone)` marks an owner with no commits in the twelve months before the last commit (`--gone` changes
-the twelve). Lines a `Co-authored-by` trailer credits to a coding tool are not anyone's to own: an
+the twelve). When several people hold exactly the top share, as the co-authors of one squash commit do,
+no owner is named: the cell reads `shared by 12 (8%)`, twelve people with 8% each. Lines a `Co-authored-by` trailer credits to a coding tool are not anyone's to own: an
 `agents` column shows their share of the area instead.
 
 **Timeline.** Commits per person per month over the last year: who is active now.

@@ -156,7 +156,13 @@ in plain words, and what to do first. This page is the reference.
    the account the `origin` remote says the repository lives under, and
    either before GitHub's own `actions/`); a manifest whose last commit is newer than its lock file's, by
    commit time (a warning), and a manifest of an ecosystem that locks by
-   convention with no lock file in its directory or above it (a note); the
+   convention with no lock file in its directory or above it (a note),
+   unless it declares nothing a lock would pin: a `go.mod` with no
+   `require`, a `package.json` with no dependency of any kind and no
+   `workspaces`, a `Cargo.toml` with no entry in a dependency table and no
+   `[workspace]`, a `composer.json` requiring only the platform (`php`,
+   `ext-*`), a `Pipfile` with empty package tables (`lockfiles.nothing_to_lock`
+   in `hygiene.json` names them; a `Gemfile` is Ruby and is not read); the
    ecosystems with a tracked lock file that `dependabot.yml` does not cover,
    or no update tool at all (Renovate covers every manager by itself); no
    licence file, no `SECURITY.md` (at the root, in `.github/` or `docs/`,
@@ -208,7 +214,11 @@ in plain words, and what to do first. This page is the reference.
    `rule.osps`, and SARIF tags the rule with it. The OSPS Baseline section
    (`--full`, Markdown and `osps` in the JSON) lists the controls a
    clone can show: secrets in version control, the licence file and its
-   licence, sign-off on every commit, a contribution guide, security
+   licence, sign-off on every commit, a contribution guide (a
+   `CONTRIBUTING` file, or a heading about contributing in the README or
+   the docs' index; a pull request template is recorded in
+   `presence.pull_request_template` and named beside a gap, and is not a
+   guide), security
    contacts, a dependency list, executables and binaries in version
    control, and known-vulnerable dependencies. Each gets a result here:
    met, gap, not seen (sign-off on too few commits, where a contributor
@@ -330,7 +340,19 @@ in plain words, and what to do first. This page is the reference.
    `.claude/skills/*/SKILL.md`, `.codex/agents/`, `.agents/skills/*/SKILL.md`),
    which the note leaves out, and none of these files under a template,
    fixture, example or test directory, where they are a product's data or a
-   test's input. A `Signed-off-by` from an identity that
+   test's input. Three more parts of that surface are told by shape and only
+   listed, never a finding: the hook commands any tracked JSON declares (an
+   object with a `command` below a `hooks` key), each with its event, the
+   tracked script the command names once a `${VAR}/` or `./` prefix is
+   stripped (the command's own first word, or a file git records
+   executable or that opens with `#!`; any other tracked file it names is
+   recorded as `names`, not as something that runs), and the tracked file
+   that script hands over to with `exec` (one hop; YAML is not read); the manifests in a root dot-directory whose
+   name ends `-plugin`; and every `skills/<name>/SKILL.md` whose frontmatter
+   has a `name:` and a `description:`. `--full` and Markdown print them as
+   the Agent surface section, when there is anything to list
+   (`provenance.agents` in the JSON: `hooks`, `plugin_manifests`,
+   `skills`). A `Signed-off-by` from an identity that
    co-authors commits but never authors one is a note: the Linux kernel's
    policy forbids an agent to add the Developer Certificate of Origin.
 
@@ -740,7 +762,25 @@ in plain words, and what to do first. This page is the reference.
 
    Size, hotspots, coupling, ownership, code age and the watch list analyse
    source files: a built-in list of code extensions plus names like Makefile
-   and Dockerfile (`--file-types all` counts everything). In the default
+   and Dockerfile (`--file-types all` counts everything), and every file
+   that is source by its shape rather than its name: a tracked file with
+   the executable bit (mode 100755 in the commit's tree) whose first line
+   is `#!interpreter`, such as `hooks/session-start`, `bin/tool` or a
+   `scripts/` file with no extension. The interpreter's name gives the
+   language (`sh`, `bash`, `python3`, `node`, `ruby`, `perl` and the like;
+   `env` hands over to the command it runs), so `--file-types py` keeps an
+   executable `#!/usr/bin/env python3` and not a shell hook; an
+   interpreter gitmole does not know is still a script, sized when scc has
+   a language for it. Mode and first line are read from the analysed
+   commit, never from the checkout, and the run lists what it found under
+   `scripts` in `meta.json`. A path is judged as it is at that commit: one
+   that is such a script at HEAD is source for its whole history under
+   that path, and a path no longer in the tree, whose mode at each old
+   commit would cost a tree read per commit, keeps the extension rule (the
+   backtest reads its cut-off's own tree, so a script deleted since counts
+   there). A rename is followed as for any file: the commit that renames
+   `session-start.sh` to `session-start` and everything after it are the
+   new path's revisions, and what came before stays with the old name. In the default
    report, the complex functions table hides test files and generated
    files (a file whose first five lines say it was generated or must not be
    edited, or, below a licence header and within forty lines, carries a
@@ -818,7 +858,7 @@ directory for a remote target:
 
 | File | From | What it is |
 |---|---|---|
-| `meta.json` | git | name, branch, commit count, merge-commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`, its wall time under `step_seconds` and the peak memory of its largest process under `step_peak_mb` (the `--json` export moves these two into its `envelope`, since they vary between runs); what produced the run under `run` (the commit, gitmole's version, every tool's version under `tools`, the versions gitmole pins under `tools_pinned` and any tool that is not at its pinned one under `tools_moved`, and the options); the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists |
+| `meta.json` | git | name, branch, commit count, merge-commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`, its wall time under `step_seconds` and the peak memory of its largest process under `step_peak_mb` (the `--json` export moves these two into its `envelope`, since they vary between runs); what produced the run under `run` (the commit, gitmole's version, every tool's version under `tools`, the versions gitmole pins under `tools_pinned` and any tool that is not at its pinned one under `tools_moved`, and the options); the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists, and `scripts`, the executables with an interpreter line that are source by shape, each with the file type its interpreter gives it (absent when there are none) |
 | `gitmole-feedback.json` | you | written only when you answer the five questions (`--feedback`): each answer's rule id, severity, whether it was true and whether you would act on it, plus gitmole's version and three bands (main language, file count, commit count). Nothing else, and nothing is sent |
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, the import commits left out with the history's total lines added, and how many declared commits the log holds; the oversized fixes left out of the fix counts, the tangled commits with a sample, and how many subjects end in a squash-merge suffix |
 | `size.json` | scc | lines per language, COCOMO estimate |
@@ -849,5 +889,5 @@ directory for a remote target:
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave; a property of this clone, so the `--json` export carries the counts in its `envelope` |
 | `structure.json` | structure step, Python 3.10 or newer | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports and which of those only after it loads (`deferred`) — resolved for Python (from a root), JavaScript and TypeScript (relative paths), C and C++ (quoted includes), Ruby (`require_relative`, and `require` of a tracked file) and Go (an import path against the `module` and relative `replace` lines of the go.mod files in the tree; a Go import names a package, so it is an edge to every file of that directory the build compiles into it, `_test.go` and `package main` aside), while Rust, Java, C# and PHP imports stay unresolved — its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
-| `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the declared commits against the rest (with each side's watch-list hit rate; the JSON keeps the keys `cohort` and `marked`), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
+| `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the declared commits against the rest (with each side's watch-list hit rate; the JSON keeps the keys `cohort` and `marked`), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values, hook commands with their scripts, plugin manifests, skills) |
 | `run.log` | gitmole | every command run and its stderr |

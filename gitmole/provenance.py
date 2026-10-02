@@ -28,7 +28,10 @@ writes provenance.json:
   symlink, `@path` or a link, as far as the newest file it points at), the hook files that declare
   guardrails, tracked personal settings, settings that turn approval prompts off, and MCP server
   declarations whose environment carries literal values rather than references. Values are never
-  written."""
+  written. Three more parts of the surface are told by shape and only listed, never judged: the hook
+  commands any tracked JSON declares (a `hooks` key over an object with a `command`), each with its event
+  and the tracked script it runs; the manifests in a root dot-directory whose name ends `-plugin`; and
+  every `skills/<name>/SKILL.md` whose frontmatter names and describes it."""
 from __future__ import annotations
 
 import bisect
@@ -36,6 +39,7 @@ import datetime as dt
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 from collections import Counter, deque
@@ -198,11 +202,11 @@ def cohort(commits: list, inventory: dict, watch_files=None, tools=frozenset(), 
             "cohort": dict(stats[True]) or {"commits": 0}, "rest": dict(stats[False]) or {"commits": 0}}
 
 
-def _code_path(path: str, generated: set, vendored) -> bool:
-    return filetypes.matches(path, filetypes.DEFAULT) and path not in generated and not filetypes.is_vendored(path, vendored)
+def _code_path(path: str, generated: set, vendored, types=filetypes.DEFAULT) -> bool:
+    return filetypes.matches(path, types) and path not in generated and not filetypes.is_vendored(path, vendored)
 
 
-def lines(repo: str, end: int, marked_hashes: set, generated=frozenset(), vendored=()) -> dict:
+def lines(repo: str, end: int, marked_hashes: set, generated=frozenset(), vendored=(), types=filetypes.DEFAULT) -> dict:
     """Added, moved and churned lines in code files over the two years before `end` (a timestamp), from
     one `git log -p` with git's moved-code colouring. A line is churned when a later commit, within two
     weeks, deletes a line with the same text from the same file; blank lines and lines without three
@@ -238,7 +242,7 @@ def lines(repo: str, end: int, marked_hashes: set, generated=frozenset(), vendor
         if line.startswith("diff --git "):
             plain = _ANSI.sub("", line)   # git ends even an uncoloured header with a reset
             path = filetypes.unquote(plain.rsplit(" b/", 1)[-1]) if " b/" in plain else None
-            keep = bool(path) and _code_path(path, generated, vendored)
+            keep = bool(path) and _code_path(path, generated, vendored, types)
             continue
         if not keep:
             continue
@@ -407,6 +411,170 @@ def pointer_targets(repo: str, path: str, tracked: set) -> list:
     return targets
 
 
+CAP = 50   # rows kept per inventory list: the count says how many there were
+COMMAND_SHOWN = 200   # characters of a hook command kept
+HOOK_FILE_BYTES = 1_000_000   # a hook declaration is a small file; a larger JSON is data
+# a skill by the layout the tools share, wherever the repository keeps it: skills/<name>/SKILL.md whose YAML
+# frontmatter gives a `name:` and a `description:` (what a tool reads to decide when to load it)
+SKILL_FILE = re.compile(r"(^|/)skills/[^/]+/SKILL\.md$")
+_FRONTMATTER = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
+# a manifest in a root dot-directory named <tool>-plugin: where a tool that installs the repository as a plugin
+# looks for what it provides
+PLUGIN_MANIFEST = re.compile(r"^\.[^/]+-plugin/[^/]+\.(?:json|ya?ml|toml)$")
+_VAR_PREFIX = re.compile(r"^(?:\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%)[/\\]")
+_EXEC_LINE = re.compile(r"^\s*exec\s+(.+)$", re.M)
+_ASSIGNMENT = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*=)(\S+)")
+
+
+def _aside(path: str) -> bool:
+    """Where an agent file is a product's data or a test's input, not the repository's own surface."""
+    return bool(_SHIPPED.search(path)) or "node_modules/" in path or filetypes.is_test_path(path) or filetypes.is_sample_path(path) \
+        or filetypes.is_vendor_path(path)
+
+
+def is_declared_skill(repo: str, path: str) -> bool:
+    """Whether a skills/<name>/SKILL.md opens with frontmatter that has both `name:` and `description:`, and its
+    skills/ directory is not under a template, fixture, example, test or vendored one. The directory under skills/
+    is the skill's name, not a path convention: skills/test-driven-development/ is a skill about tests, not a test."""
+    if _aside(path[:SKILL_FILE.search(path).start(0)] + "/SKILL.md"):
+        return False
+    try:
+        with open(os.path.join(repo, path), encoding="utf-8", errors="replace") as fh:
+            front = _FRONTMATTER.match(fh.read(8192))
+    except OSError:
+        return False
+    return bool(front) and all(re.search(rf"^{key}:[ \t]*\S", front.group(1), re.M) for key in ("name", "description"))
+
+
+def hook_commands(doc) -> list:
+    """(event, command) for every object with a `command` (a string, or a list of strings) below a `hooks` key
+    of a parsed JSON document. The event is the object's own `event` when it has one, else the nearest key
+    above it under `hooks` that is not itself `hooks`:
+
+        {"hooks": {"SessionStart": [{"matcher": "startup", "hooks": [{"type": "command", "command": "x"}]}]}}
+        {"hooks": {"sessionStart": [{"command": "x"}]}}
+        {"contributes": {"hooks": [{"event": "SessionStart", "command": ["sh", "x"]}]}}
+
+    all give ("SessionStart" or "sessionStart", x). An MCP server's `command` is under no `hooks` and is not one."""
+    out = []
+
+    def walk(node, event, inside):
+        if isinstance(node, list):
+            for item in node:
+                walk(item, event, inside)
+        elif isinstance(node, dict):
+            command = node.get("command")
+            if inside and (isinstance(command, str) or (isinstance(command, list) and command and all(isinstance(c, str) for c in command))):
+                out.append((node["event"] if isinstance(node.get("event"), str) else event, command))
+            for key, value in node.items():
+                if key == "hooks":
+                    walk(value, event, True)
+                else:
+                    walk(value, key if inside else event, inside)
+    walk(doc, None, False)
+    return out
+
+
+def _tracked_path(token: str, bases: list, tracked: set):
+    """A command's word as the tracked file it names, or None: a `${VAR}/`, `$VAR/` or `./` prefix is stripped (the
+    variable is where the tool put the repository), and what is left is tried against each base directory. A bare
+    word (`node`, `test`) is a program, not a path, unless it had such a prefix, holds a slash or ends in an extension."""
+    word = token.strip("\"'")
+    path = _VAR_PREFIX.sub("", word)
+    while path.startswith("./"):
+        path = path[2:]
+    if not path or not (path != word or "/" in path or re.search(r"\.\w+$", path)):
+        return None
+    for base in bases:
+        cand = os.path.normpath(os.path.join(base, path))
+        if cand in tracked:
+            return cand
+    return None
+
+
+def _words(command) -> list:
+    if isinstance(command, list):
+        return command
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return command.split()
+
+
+def _is_script(repo: str, path: str) -> bool:
+    """A tracked file that runs: git records it executable (mode 100755, which a checkout on a filesystem without
+    the bit still has in the index), or it opens with `#!`."""
+    mode = subprocess.run([*filetypes.GIT, "ls-files", "-s", "--", path], cwd=repo, capture_output=True, text=True).stdout[:6]
+    if mode == "100755":
+        return True
+    try:
+        with open(os.path.join(repo, path), "rb") as fh:
+            return fh.read(2) == b"#!"
+    except OSError:
+        return False
+
+
+def hook_script(repo: str, command, file: str, tracked: set) -> dict:
+    """What a hook command points at in the tree, from the root and then from the declaring file's directory:
+
+    - {"script"}: the first word naming a tracked file that runs: the command's own first word, or a file git
+      records executable or that opens with `#!` (_is_script);
+    - {"runs"}: the tracked file that script hands over to. It has an `exec` line, and either that line names the
+      file or one of the command's later words does, read from the script's own directory (a wrapper called as
+      `run-hook.cmd session-start` that ends `exec bash "${DIR}/${NAME}"`). One hop only, and only through
+      `exec`: what a script sources or calls is not followed;
+    - {"names"}: with no script, the first tracked file the command names (`cat .claude/instructions.md`,
+      `node scripts/check.js`): a file it reads or passes to a program, which is not said to run."""
+    words = _words(command)
+    bases = ["", os.path.dirname(file)]
+    named = [(i, t) for i, w in enumerate(words) for t in [_tracked_path(w, bases, tracked)] if t]
+    at, script = next(((i, t) for i, t in named if i == 0 or _is_script(repo, t)), (None, None))
+    if not script:
+        return {"names": named[0][1]} if named else {}
+    out = {"script": script}
+    try:
+        with open(os.path.join(repo, script), encoding="utf-8", errors="replace") as fh:
+            execs = _EXEC_LINE.findall(fh.read(65536))
+    except OSError:
+        execs = []
+    if execs:
+        here = [os.path.dirname(script), ""]
+        handed = [t for line in execs for w in _words(line) for t in [_tracked_path(w, here, tracked)] if t]
+        # a later word of the command is the script's argument: a file beside the script when it names one
+        handed += [t for w in words[at + 1:] for t in [_tracked_path("./" + w.strip("\"'"), here[:1], tracked)] if t]
+        runs = next((t for t in handed if t != script), None)
+        if runs:
+            out["runs"] = runs
+    return out
+
+
+def _shown(command) -> str:
+    """A hook command as one line, cut to COMMAND_SHOWN characters, with the value of any NAME=value word that
+    could be a credential (_literal_secret) replaced: the inventory names commands, never values."""
+    text = command if isinstance(command, str) else " ".join(command)
+    text = _ASSIGNMENT.sub(lambda m: m.group(1) + "***" if _literal_secret(m.group(2).strip("\"'")) else m.group(0), " ".join(text.split()))
+    return text if len(text) <= COMMAND_SHOWN else text[:COMMAND_SHOWN - 1] + "…"
+
+
+def hooks(repo: str, tracked: set) -> list:
+    """Every hook command a tracked JSON file declares (hook_commands), as {file, event, command} with what it
+    points at in the tree (hook_script: script and runs, or names):
+    one `git grep` names the files holding both words, and only those are parsed. YAML is not read (no parser is
+    a dependency), nor a file under a template, fixture, example, test or vendored directory."""
+    proc = subprocess.run([*filetypes.GIT, "grep", "-l", "-z", "-I", "--all-match", "-F", "-e", '"hooks"', "-e", '"command"', "--", "*.json"],
+                          cwd=repo, capture_output=True)
+    rows = []
+    for path in sorted(p for p in proc.stdout.decode("utf-8", "surrogateescape").split("\0") if p in tracked and not _aside(p)):
+        try:
+            if os.path.getsize(os.path.join(repo, path)) > HOOK_FILE_BYTES:
+                continue
+        except OSError:
+            continue
+        for event, command in hook_commands(_json(repo, path)):
+            rows.append({"file": path, "event": event, "command": _shown(command), **hook_script(repo, command, path, tracked)})
+    return rows
+
+
 def _last_change(repo: str, path: str):
     """(commit, day, commit time) of the last commit that touched `path`, or None."""
     last = subprocess.run(["git", *filetypes.RENAMES, "log", "-1", "--format=%H%x1f%cs%x1f%ct", "--", path], cwd=repo, capture_output=True, text=True).stdout.strip()
@@ -454,8 +622,13 @@ def agents(repo: str) -> dict:
         literal = [{"server": name, "key": key} for name, spec in sorted(servers.items()) if isinstance(spec, dict)
                    for key, value in sorted((spec.get("env") or {}).items()) if _literal_secret(value)]
         mcp.append({"file": path, "servers": len(servers), "literal_env": literal})
+    declared = hooks(repo, tracked)
+    skills = sorted(p for p in tracked if SKILL_FILE.search(p) and is_declared_skill(repo, p))
+    manifests = sorted(p for p in tracked if PLUGIN_MANIFEST.match(p))
     return {"instructions": instructions, "head_commits": head_count, "guardrails": guard, "approval_disabled": disabled,
-            "local_settings": sorted(p for p in tracked if p in LOCAL or p.endswith("/.claude/settings.local.json")), "mcp": mcp}
+            "local_settings": sorted(p for p in tracked if p in LOCAL or p.endswith("/.claude/settings.local.json")), "mcp": mcp,
+            "hooks": declared[:CAP], "hooks_count": len(declared), "plugin_manifests": manifests[:CAP], "plugin_manifests_count": len(manifests),
+            "skills": {"count": len(skills), "files": skills[:CAP]}}
 
 
 def main(argv=None) -> int:
@@ -485,7 +658,7 @@ def main(argv=None) -> int:
         result["cohort"]["watch_top"] = WATCH_TOP
     if commits:
         result["lines"] = lines(repo, commits[-1]["time"], {c["hash"] for c in commits if marked(c)}, set(meta.get("generated") or []),
-                                filetypes.vendor_dirs({"meta": meta}))
+                                filetypes.vendor_dirs({"meta": meta}), filetypes.with_scripts(filetypes.DEFAULT, meta.get("scripts") or {}))
     with open(os.path.join(args[0], "provenance.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh)
     return 0

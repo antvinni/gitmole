@@ -58,7 +58,7 @@ Which history and which files the analysis reads.
 | `--since WHEN` | Bound the history by author date: `2y`, `18m`, `90d` or a `YYYY-MM-DD` date. People, activity, timeline, hotspots and coupling then describe the current team rather than the founders. File ages and code age always cover the whole history, identity aliases are still merged over all of it, and an empty window is an error. |
 | `--path DIR` | Describe only the files under DIR, a directory of the tree at HEAD relative to the repository root. Repeatable. The header says the scope and what stays repository-wide; the output directory is `analysis-<repo>-<dir>`, so a scoped run never replaces the whole repository's. See [One part of a repository](#one-part-of-a-repository). |
 | `--gone MONTHS` | How long without a commit counts as gone, measured before the last commit. Default 12. |
-| `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile. |
+| `--file-types LIST` | Which extensions count as code, comma-separated, or `all`. The default is a built-in source list plus names like Makefile and Dockerfile, and any executable file whose first line is `#!interpreter`; with a list, such a script counts when its interpreter's type is listed (`py` keeps an executable `#!/usr/bin/env python3`). |
 | `--ignore-data` | Exclude data-like files (csv, json, lock files, minified and vendored assets) from code age, function metrics and plots. Never changes what a file is: the classifier reads every tracked file. |
 | `--ignore GLOB` | An extra ignore pattern for the same steps. Repeatable. |
 

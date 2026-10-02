@@ -174,6 +174,78 @@ class Agents(unittest.TestCase):
                           ".codex/agents/runner.toml": "subagent", "AGENTS.md": None, "pkg/AGENTS.md": None, "web/.claude/agents/ui.md": "subagent"})
 
 
+    def test_hook_commands_plugin_manifests_and_skills_are_listed_by_shape(self):
+        """superpowers: hooks/hooks.json and hooks-cursor.json run a wrapper that execs hooks/session-start, a plugin
+        manifest declares a third hook as a list, nine manifests sit in root .<tool>-plugin/ directories and fifteen
+        skills under skills/, one of them named test-driven-development. None of it was in any inventory."""
+        skill = "---\nname: {0}\ndescription: Use when {0}\n---\n\n# {0}\n"
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.commit("hooks/hooks.json", json.dumps({"hooks": {"SessionStart": [{"matcher": "startup", "hooks": [
+                {"type": "command", "command": '"${TOOL_PLUGIN_ROOT}/hooks/run-hook.cmd" session-start'}]}]}}), "hooks")
+            r.commit("hooks/hooks-other.json", json.dumps({"version": 1, "hooks": {"sessionStart": [{"command": "./hooks/run-hook.cmd session-start"}],
+                                                                                  "stop": [{"command": "TOKEN=" + "s3cr3t" * 4 + " notify --done"}]}}), "hooks")
+            r.commit("hooks/run-hook.cmd", '#!/bin/sh\nDIR="$(dirname "$0")"\nNAME="$1"\nshift\nexec bash "${DIR}/${NAME}" "$@"\n', "wrapper")
+            r.commit("hooks/session-start", "#!/bin/bash\necho hi\n", "script")
+            r.commit(".acme-plugin/plugin.json", json.dumps({"name": "x", "contributes": {"hooks": [
+                {"id": "start", "event": "SessionStart", "command": ["sh", "hooks/session-start"], "timeoutMs": 5000}]}}), "manifest")
+            r.commit(".acme-plugin/marketplace.json", "{}", "manifest")
+            r.commit(".other-plugin/plugin.yaml", "name: x\n", "manifest")
+            r.commit(".other-plugin/__init__.py", "x = 1\n", "code, not a manifest")
+            r.commit("pkg/.acme-plugin/plugin.json", "{}", "not at the root")
+            r.commit(".mcp.json", json.dumps({"mcpServers": {"db": {"command": "npx db-server"}}}), "a command under no hooks key")
+            r.commit("package.json", json.dumps({"husky": {"hooks": {"pre-commit": "lint-staged"}}, "scripts": {"command": "x"}}), "a hook that is a string")
+            r.commit("tests/fixtures/hooks.json", json.dumps({"hooks": {"Stop": [{"command": "./x.sh"}]}}), "a test's input")
+            for name in ("brainstorming", "test-driven-development"):
+                r.commit(f"skills/{name}/SKILL.md", skill.format(name), f"skill {name}")
+            r.commit("skills/draft/SKILL.md", "# no frontmatter\n", "not declared")
+            r.commit("skills/half/SKILL.md", "---\nname: half\n---\n", "no description")
+            r.commit("skills/brainstorming/notes.md", "x\n", "not a skill file")
+            r.commit("tests/fixtures/skills/fake/SKILL.md", skill.format("fake"), "a test's input")
+            r.commit(".claude/skills/fix/SKILL.md", skill.format("fix"), "the tool's own layout")
+            out = provenance.agents(d)
+        self.assertEqual(out["hooks"], [
+            {"file": ".acme-plugin/plugin.json", "event": "SessionStart", "command": "sh hooks/session-start", "script": "hooks/session-start"},
+            {"file": "hooks/hooks-other.json", "event": "sessionStart", "command": "./hooks/run-hook.cmd session-start",
+             "script": "hooks/run-hook.cmd", "runs": "hooks/session-start"},
+            {"file": "hooks/hooks-other.json", "event": "stop", "command": "TOKEN=*** notify --done"},
+            {"file": "hooks/hooks.json", "event": "SessionStart", "command": '"${TOOL_PLUGIN_ROOT}/hooks/run-hook.cmd" session-start',
+             "script": "hooks/run-hook.cmd", "runs": "hooks/session-start"}])
+        self.assertEqual(out["hooks_count"], 4)
+        self.assertNotIn("s3cr3t", json.dumps(out), "a value that could be a credential is never written")
+        self.assertEqual(out["plugin_manifests"], [".acme-plugin/marketplace.json", ".acme-plugin/plugin.json", ".other-plugin/plugin.yaml"])
+        self.assertEqual(out["skills"], {"count": 3, "files": [".claude/skills/fix/SKILL.md", "skills/brainstorming/SKILL.md", "skills/test-driven-development/SKILL.md"]},
+                         "the directory under skills/ is the skill's name, not a test directory")
+        self.assertEqual([x["file"] for x in out["instructions"]], [".claude/skills/fix/SKILL.md"],
+                         "only the tools' own layouts are dated as instruction files; the rest are counted")
+
+    def test_a_hook_command_is_any_command_below_a_hooks_key_with_the_nearest_event(self):
+        self.assertEqual(provenance.hook_commands({"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "a"}, {"command": ["b", "c"]}]}],
+                                                             "Stop": {"command": "d", "event": "OnStop"}}, "command": "not under hooks",
+                                                   "servers": {"x": {"command": "e"}}}),
+                         [("PreToolUse", "a"), ("PreToolUse", ["b", "c"]), ("OnStop", "d")])
+        self.assertEqual(provenance.hook_commands({"hooks": "./hooks/hooks.json"}), [], "a pointer to the file that declares them")
+        self.assertEqual(provenance.hook_commands({"hooks": {"x": [{"command": 3}, {"command": []}]}}), [])
+        self.assertEqual(provenance.hook_commands([1, "x", None]), [])
+
+    def test_a_bare_word_is_a_program_and_only_an_exec_line_is_followed(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.commit("test", "x\n", "a file named like a program's argument")
+            r.commit("scripts/run.sh", "#!/bin/sh\n. ./lib.sh\nnode scripts/server.js\n", "calls, does not exec")
+            r.commit("scripts/server.js", "x\n", "server")
+            r.commit("scripts/wrap.sh", '#!/bin/sh\nexec node "$ROOT/scripts/server.js"\n', "execs a tracked file by name")
+            tracked = set(provenance.filetypes.git_paths(d, "ls-files"))
+            self.assertEqual(provenance.hook_script(d, "npm test", "hooks.json", tracked), {})
+            self.assertEqual(provenance.hook_script(d, "bash scripts/run.sh scripts/server.js", "hooks.json", tracked), {"script": "scripts/run.sh"},
+                             "a #! line makes it a script; it calls the server and does not exec it")
+            self.assertEqual(provenance.hook_script(d, "node scripts/server.js --check", "hooks.json", tracked), {"names": "scripts/server.js"},
+                             "a file handed to a program is named, not said to run")
+            self.assertEqual(provenance.hook_script(d, "scripts/server.js", "hooks.json", tracked), {"script": "scripts/server.js"}, "the command itself")
+            self.assertEqual(provenance.hook_script(d, "$ROOT/scripts/wrap.sh", "hooks.json", tracked), {"script": "scripts/wrap.sh", "runs": "scripts/server.js"})
+            self.assertEqual(provenance.hook_script(d, "./run.sh", "scripts/hooks.json", tracked), {"script": "scripts/run.sh"}, "from the declaring file's directory")
+            self.assertEqual(provenance.hook_script(d, 'echo "unbalanced', "hooks.json", tracked), {})
+
     def test_a_pointer_is_dated_by_the_file_it_points_at(self):
         # brew and prometheus: CLAUDE.md is "@AGENTS.md"; hindsight: AGENTS.md is "See [CLAUDE.md](./CLAUDE.md) for ..."
         with tempfile.TemporaryDirectory() as d:

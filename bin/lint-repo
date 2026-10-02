@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""The two checks of CI's lint job that no existing linter does on this repository's own terms.
+
+    bin/lint-repo data     every tracked *.json, *.jsonl, *.yml and *.yaml parses
+    bin/lint-repo shell    shellcheck over the tracked shell scripts and the composite action's run blocks
+
+Both read `git ls-files`, so what is checked is what is committed, and both print what they counted:
+a check that looked at nothing says so rather than passing quietly. YAML needs PyYAML (CI pins it; see
+docs/development.md), and only its safe loader is used. Nothing is rewritten.
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SHELLS = ("sh", "bash")
+SEVERITY = "warning"   # errors and warnings: shellcheck's info and style notes are advice, not mistakes (ci.yml sets the same for actionlint)
+EXPRESSION = re.compile(r"\$\{\{.*?\}\}", re.S)
+
+
+def tracked(root=ROOT):
+    out = subprocess.run(["git", "-C", root, "ls-files", "-z"], check=True, capture_output=True).stdout
+    return sorted(p for p in out.decode("utf-8", "surrogateescape").split("\0") if p)
+
+
+def _yaml():
+    try:
+        import yaml
+    except ImportError:
+        sys.exit("lint-repo: PyYAML is not installed, so no YAML can be checked; install the version ci.yml pins")
+    return yaml
+
+
+def json_errors(text):
+    """The reasons `text` is not one JSON document, as (line, message); empty when it is."""
+    try:
+        json.loads(text)
+    except ValueError as e:
+        return [(getattr(e, "lineno", 0), str(e))]
+    return []
+
+
+def jsonl_errors(text):
+    """One JSON document per line. A blank line is an error: a reader that splits on newlines chokes on it."""
+    errors = []
+    for n, line in enumerate(text.split("\n"), 1):
+        if not line.strip():
+            if n <= text.count("\n"):   # the empty string after the final newline is not a line
+                errors.append((n, "blank line"))
+            continue
+        try:
+            json.loads(line)
+        except ValueError as e:
+            errors.append((n, str(e)))
+    return errors
+
+
+def yaml_errors(text):
+    yaml = _yaml()
+    try:
+        for _ in yaml.safe_load_all(text):
+            pass
+    except yaml.YAMLError as e:
+        mark = getattr(e, "problem_mark", None)
+        return [(mark.line + 1 if mark else 0, " ".join(str(e).split()))]
+    return []
+
+
+CHECKS = ((".json", "JSON", json_errors), (".jsonl", "JSON Lines", jsonl_errors),
+          (".yml", "YAML", yaml_errors), (".yaml", "YAML", yaml_errors))
+
+
+def data(root=ROOT, out=sys.stdout):
+    """Parse every tracked data file; returns the number that did not parse."""
+    counts, failed = {}, 0
+    for path in tracked(root):
+        for ext, kind, check in CHECKS:
+            if not path.endswith(ext):
+                continue
+            counts[kind] = counts.get(kind, 0) + 1
+            try:
+                with open(os.path.join(root, path), encoding="utf-8") as f:
+                    errors = check(f.read())
+            except (OSError, UnicodeDecodeError) as e:
+                errors = [(0, str(e))]
+            for line, message in errors:
+                print(f"{path}:{line}: {message}", file=out)
+            failed += bool(errors)
+    for kind in ("JSON", "JSON Lines", "YAML"):
+        print(f"{kind}: {counts.get(kind, 0)} tracked files parsed", file=out)
+    print(f"{failed} files failed", file=out)
+    return failed
+
+
+def shebang_shell(path):
+    """The shell a script's first line names, when it is one shellcheck reads; None otherwise."""
+    try:
+        with open(path, "rb") as f:
+            first = f.readline(200).decode("utf-8", "replace")
+    except OSError:
+        return None
+    m = re.match(r"#!\s*(\S+)(?:\s+(\S+))?", first)
+    if not m:
+        return None
+    name = os.path.basename(m.group(1))
+    if name == "env":
+        name = os.path.basename(m.group(2) or "")
+    return name if name in SHELLS else None
+
+
+def _mapping(node):
+    """A YAML mapping node as {key: value node}; {} for anything else."""
+    return {k.value: v for k, v in getattr(node, "value", []) if hasattr(k, "value")} if getattr(node, "id", "") == "mapping" else {}
+
+
+def composite_runs(text):
+    """A composite action's run blocks: (step number, name, shell, script padded to the file's own line numbers).
+
+    The script is preceded by as many blank lines as the YAML has above it, so shellcheck's line is the
+    action file's line, and each `${{ }}` becomes underscores of the same length, as actionlint does for a
+    workflow: an expression is not shell, and its value is not known here.
+    """
+    yaml = _yaml()
+    runs = _mapping(_mapping(yaml.compose(text, Loader=yaml.SafeLoader)).get("runs"))
+    using = runs.get("using")
+    if using is None or using.value != "composite":
+        return []
+    found = []
+    for n, step in enumerate(getattr(runs.get("steps"), "value", []), 1):
+        fields = _mapping(step)
+        if "run" not in fields:
+            continue
+        run = fields["run"]
+        name = fields["name"].value if "name" in fields else f"step {n}"
+        shell = fields["shell"].value if "shell" in fields else ""
+        # a block scalar's text starts on the line after its `|`; a plain one on the line of its key
+        above = run.start_mark.line + (1 if run.style in ("|", ">") else 0)
+        script = EXPRESSION.sub(lambda m: "_" * len(m.group(0)), run.value)
+        found.append((n, name, shell, "\n" * above + script))
+    return found
+
+
+def shell(root=ROOT, out=sys.stdout):
+    """shellcheck every tracked shell script and every composite run block; returns the number that failed."""
+    scripts, blocks, unchecked = [], [], []
+    with tempfile.TemporaryDirectory() as tmp:
+        for path in tracked(root):
+            full = os.path.join(root, path)
+            if os.path.basename(path) in ("action.yml", "action.yaml"):
+                with open(full, encoding="utf-8") as f:
+                    for n, name, sh, script in composite_runs(f.read()):
+                        label = f"{path} step {n} ({name})"
+                        if sh.split(" ")[0] not in SHELLS:
+                            unchecked.append(f"{label}: shell {sh or 'not given'}")
+                            continue
+                        # named after the action file, so a finding reads as action.yml:LINE
+                        target = os.path.join(tmp, f"{len(blocks)}", path)
+                        os.makedirs(os.path.dirname(target), exist_ok=True)
+                        with open(target, "w", encoding="utf-8") as g:
+                            g.write(script)
+                        blocks.append((label, sh.split(" ")[0], target))
+            elif path.endswith(".sh") or (os.path.isfile(full) and not os.path.islink(full) and shebang_shell(full)):
+                scripts.append((path, shebang_shell(full) or "bash", full))
+        failed = 0
+        for label, sh, target in scripts + blocks:
+            try:
+                done = subprocess.run(["shellcheck", f"--shell={sh}", f"--severity={SEVERITY}", "--color=never", target], capture_output=True, text=True)
+            except FileNotFoundError:
+                sys.exit("lint-repo: shellcheck is not on PATH, so no shell was checked")
+            if done.returncode:
+                failed += 1
+                print(f"--- {label}", file=out)
+                print((done.stdout + done.stderr).replace(os.path.dirname(target) + os.sep, "").rstrip(), file=out)
+    print(f"shell scripts: {len(scripts)} tracked (*.sh or a sh/bash first line)", file=out)
+    print(f"composite action run blocks: {len(blocks)} checked, {len(unchecked)} not checked", file=out)
+    for line in unchecked:
+        print(f"  not checked: {line}", file=out)
+    print(f"{failed} failed", file=out)
+    return failed
+
+
+def main(argv):
+    if len(argv) != 1 or argv[0] not in ("data", "shell"):
+        sys.exit(__doc__.strip())
+    return 1 if (data() if argv[0] == "data" else shell()) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -63,12 +63,17 @@ def coverage(report: dict, found: list) -> list:
                      else ("no secret in source in HEAD's history; " + "; ".join(lesser) if lesser else "the secrets scan of HEAD's history found none")
                      if report.get("secrets_scanned") else "the secrets step did not run"))
 
-    for control, key, what in (("OSPS-GV-03.01", "contributing", "a contribution guide"), ("OSPS-VM-02.01", "security_policy", "a security policy"),
-                               ("OSPS-LE-03.01", "license", "a licence file")):
+    for control, key, what in (("OSPS-GV-03.01", "contributing", "contribution guide"), ("OSPS-VM-02.01", "security_policy", "security policy"),
+                               ("OSPS-LE-03.01", "license", "licence file")):
         if not presence:
             rows.append(_row(control, "not checked", "the hygiene step did not run"))
         else:
-            rows.append(_row(control, "met" if presence.get(key) else "gap", presence.get(key) or f"no {what} at the root, in .github/ or in docs/"))
+            where = "at the root, in .github/ or in docs/"
+            if key == "contributing":   # a heading counts (hygiene._heading_contributing); a pull request template is named, and is not a guide
+                where += ", and no heading about contributing in the README"
+                if presence.get("pull_request_template"):
+                    where += f" ({presence['pull_request_template']} is a template, not a guide)"
+            rows.append(_row(control, "met" if presence.get(key) else "gap", presence.get(key) or f"no {what} {where}"))
 
     trailers = (report.get("provenance") or {}).get("trailers") or {}
     if trailers.get("commits"):
@@ -101,6 +106,10 @@ def coverage(report: dict, found: list) -> list:
         rows.append(_row("OSPS-QA-02.01", "gap", "; ".join(f["title"] for f in fired)))
     elif lf.get("pairs"):
         rows.append(_row("OSPS-QA-02.01", "met", f"{lf['pairs']} manifest{'s' if lf['pairs'] != 1 else ''} with a lock file at least as new"))
+    elif lf.get("nothing_to_lock"):   # a manifest is there, and declares no dependency: nothing for a list to account for
+        named = lf["nothing_to_lock"]
+        rows.append(_row("OSPS-QA-02.01", "not applicable", f"{', '.join(named[:3])}{f' and {len(named) - 3} more' if len(named) > 3 else ''} "
+                                                            f"{'declares' if len(named) == 1 else 'declare'} no dependency to lock"))
     else:
         rows.append(_row("OSPS-QA-02.01", "not applicable", "no manifest of an ecosystem that locks"))
 

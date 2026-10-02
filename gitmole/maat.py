@@ -978,6 +978,8 @@ if __name__ == "__main__":
         del args[i:i + 2]
     if "--reverts" in args:
         i = args.index("--reverts"); reverts_path = args[i + 1]; del args[i:i + 2]
+    if aliases:   # the files the run found to be source by shape (filetypes.scripts) count as the types do
+        types = filetypes.with_scripts(types, filetypes.scripts_from_meta(aliases))
     if len(args) != 2:
         sys.exit("usage: maat.py LOG OUT_DIR [--aliases META_JSON] [--types LIST|all] [--now YYYY-MM-DD] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--ignore-revs FILE]... [--reverts FILE]")
     write_all(args[0], args[1], aliases, types, now, since, until, read_ignore_revs(ignore_paths), read_reverts(reverts_path) if reverts_path else None)

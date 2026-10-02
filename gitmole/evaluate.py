@@ -274,7 +274,7 @@ def main(argv=None) -> int:
     if not meta.get("last_date") or not os.path.exists(log_path):
         print("evaluate: a finished output directory is needed (meta.json with last_date, and log.txt)", file=sys.stderr)
         return 2
-    types = filetypes.parse(meta.get("file_types"))
+    types = filetypes.for_meta(meta)   # the pool the run scored: its file types and the scripts it found at HEAD
     aliases = maat.aliases_from_meta(os.path.join(args.out, "meta.json")) if "aliases" in meta else None
     with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
         commits = maat.parse_log(fh.read(), aliases, types)

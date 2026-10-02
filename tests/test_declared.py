@@ -257,7 +257,7 @@ class OspsCoverage(unittest.TestCase):
         rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
         self.assertEqual(set(rows), set(osps.CONTROLS))
         self.assertEqual(rows["OSPS-BR-07.01"][0], "met")
-        self.assertEqual(rows["OSPS-VM-02.01"][0], "gap")
+        self.assertEqual(rows["OSPS-VM-02.01"], ("gap", "no security policy at the root, in .github/ or in docs/"))
         self.assertEqual(rows["OSPS-GV-03.01"], ("met", "CONTRIBUTING.md"))
         self.assertEqual(rows["OSPS-LE-01.01"][0], "met")
         self.assertEqual(rows["OSPS-LE-02.01"], ("met", "MIT"))
@@ -290,6 +290,22 @@ class OspsCoverage(unittest.TestCase):
         rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
         self.assertEqual(rows["OSPS-BR-07.01"], ("met", "no secret in source in HEAD's history; 1 distinct value only in test, example, vendored, "
                                                         "generated or documentation files"))
+
+    def test_a_manifest_that_declares_nothing_is_not_applicable_and_says_which(self):
+        r = self._report()
+        r["hygiene"]["lockfiles"] = {"pairs": 0, "missing": [], "drift": [], "nothing_to_lock": ["package.json"]}
+        rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
+        self.assertEqual(rows["OSPS-QA-02.01"], ("not applicable", "package.json declares no dependency to lock"))
+
+    def test_a_pull_request_template_is_named_beside_the_gap_and_a_heading_meets_the_control(self):
+        r = self._report()
+        r["hygiene"]["presence"] = {"license": "LICENSE", "security_policy": None, "contributing": None, "pull_request_template": ".github/PULL_REQUEST_TEMPLATE.md"}
+        rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
+        self.assertEqual(rows["OSPS-GV-03.01"], ("gap", "no contribution guide at the root, in .github/ or in docs/, and no heading about contributing "
+                                                        "in the README (.github/PULL_REQUEST_TEMPLATE.md is a template, not a guide)"))
+        r["hygiene"]["presence"]["contributing"] = "README.md#Contributing"
+        rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
+        self.assertEqual(rows["OSPS-GV-03.01"], ("met", "README.md#Contributing"))
 
     def test_nothing_run_is_not_checked_rather_than_met(self):
         r = report()
