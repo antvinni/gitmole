@@ -114,3 +114,21 @@ class InTreeIndex(unittest.TestCase):
         self.assertFalse(knowledge.in_tree("tests/", tree))
         tree["tests/test_a.py"] = {}
         self.assertTrue(knowledge.in_tree("tests/", tree), "a file back in the tree brings its area back")
+
+
+class Tied(unittest.TestCase):
+    """Equal line counts are ordered by name, so the first of several is not an owner."""
+
+    def test_counts_the_owners_level_with_the_one_asked_about(self):
+        owners = [("Ann", 8), ("Bob", 8), ("Cat", 8), ("Dan", 3), ("Eve", 3), ("Fay", 1)]
+        self.assertEqual(knowledge.tied(owners), 3)
+        self.assertEqual(knowledge.tied(owners, 3), 2)
+        self.assertEqual(knowledge.tied(owners, 5), 1)
+        self.assertEqual(knowledge.tied(owners, 6), 0, "nobody there")
+        self.assertEqual(knowledge.tied([]), 0)
+
+    def test_a_squash_commit_split_evenly_has_no_first_owner(self):
+        rows = [{"entity": "plugin/a.json", "author": who, "added": 8} for who in ("Zed", "Ann", "Bob")]
+        [area] = knowledge.areas(rows)
+        self.assertEqual(area["owners"][0][0], "Ann", "the alphabet's choice")
+        self.assertEqual(knowledge.tied(area["owners"]), 3)
