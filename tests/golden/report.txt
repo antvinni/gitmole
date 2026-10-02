@@ -46,11 +46,6 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
   Ann Example     1     ·     ·     ·     ·     ·     1     ·     ·     1     ·     ·
   Bob Example     ·     ·     ·     1     ·     ·     ·     ·     ·     ·     ·     1
 
-⟷ Change coupling
-  file          changes with   degree
-  ───────────────────────────────────
-  app/main.py   app/util.py       83%
-
 λ Complex functions: nothing over complexity 10 (2 functions measured)
 
 Secrets: none found; no unreachable objects (a fresh clone fetches only what a ref reaches)
