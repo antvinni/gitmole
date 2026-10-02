@@ -43,12 +43,12 @@ MONTH_WIDTH, INDENT, FLOOR, NAME_FLOOR = 6, 2, 3, 8
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
            "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
-           "Change risk": "◈", "Since last report": "⇄"}
+           "Change risk": "◈", "Since last report": "⇄", "Most-changed documents": "✎"}
 # the one column to read first in each table; the rest are dimmed
 KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "revs", "Change coupling": "degree",
               "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
               "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "ccn",
-              "Watch list": "why", "Change risk": "risk"}
+              "Watch list": "why", "Change risk": "risk", "Most-changed documents": "revisions"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
@@ -56,7 +56,7 @@ PATH = {"overflow": "fold", "no_wrap": False, "kind": "path"}   # "kind" (and "s
 
 # rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own. Hotspots has
 # no entry: it is `--full`/Markdown only now, so its row count is never decided by this table.
-CAPS = {"People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
+CAPS = {"Most-changed documents": 5, "People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
 # The default report's rows about a person need this many commits, the rest are counted in "and N more": the
 # floor the coupling table and the sum of coupling already use for "enough commits to say anything" (five
@@ -406,6 +406,62 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     return _section("Watch list", columns, rows, note=None if rows else watch.why_empty(report), caption=caption if rows else None)
 
 
+def scored_phrase(report: dict):
+    """'17 of 227 files scored', when the files no table carries outnumber the scored ones (classify.unseen)
+    or hold more lines (classify.unranked); None otherwise. It opens the header's coverage line when there is
+    one and otherwise closes the tally, a line that is already there and always short: curl's 1,095 files of
+    other types against 581 scored cost its report no line."""
+    cov = report.get("coverage") or {}
+    files = cov.get("files") or {}
+    if not files or not (cov.get("unranked") or classify.unseen(files)):
+        return None
+    return f"{files.get('scored', 0):,} of {sum(files.values()):,} files scored"
+
+
+def coverage_phrases(report: dict) -> list:
+    """What the header adds when the files the type filter left out hold more lines than the scored ones
+    (classify.unranked): what share of the tree's lines is documentation or other types nothing ranks, and how
+    many commits, and fixes, changed only files that are not scored. The last is the population label:
+    "N% of commits are fixes" is over every commit, the bug magnets over scored files. [] otherwise, which
+    is most repositories."""
+    cov = report.get("coverage") or {}
+    if not cov.get("unranked"):
+        return []
+    lines = cov["lines"]
+    out = []
+    doc, other = lines["documentation"], lines["other_types"]
+    what = (f"{_pct(doc, lines['tracked'])} of tracked lines are documentation, not ranked" if doc >= other
+            else f"{_pct(doc + other, lines['tracked'])} of tracked lines are in file types that are not ranked")
+    out += [what, "--file-types all includes them"]   # two facts: together they are longer than an 80-column header line
+    c = cov.get("commits") or {}
+    if c.get("commits"):
+        fixes = f" and {_pct(c['fixes_outside'], c['fixes'])} of fixes" if c.get("fixes") else ""
+        out.append(f"{_pct(c['outside'], c['commits'])} of commits{fixes} change only unscored files")
+    return out
+
+
+def documents_section(report: dict, full: bool = True, width=None):
+    """The most-revised documents, when documentation is most of the tree's lines and none of it is ranked:
+    a count from the log, not a score, a ranking claim or a finding. None otherwise, and no section."""
+    docs = (report.get("coverage") or {}).get("documents") or []
+    if not docs:
+        return None
+    limit = _limit("Most-changed documents", full)
+    rows = [(d["file"], d["revisions"]) for d in docs[:limit]]
+    since = report["meta"].get("since")
+    notes = ["by revisions alone: documentation is not scored, so this says where it changed most, not where a fix is likely"
+             + (f"; commits since {since}" if since else "")]
+    return _section("Most-changed documents", [("document", PATH), ("revisions", RIGHT)], rows, caption="\n".join(notes))
+
+
+def not_computed_line(report: dict):
+    """'truck factor not computed: 17 source files, needs 20', or None: the measures that have no section of
+    their own to say why they are missing. The backtest's reason stays under the watch list it would judge."""
+    from . import findings
+    parts = [f"{a['label']} not computed: {a['reason']}" for a in findings.not_computed(report) if not a.get("said")]
+    return "; ".join(parts) or None
+
+
 def sweeps_note(report: dict):
     """'2 sweeping commits and 3 declared in .git-blame-ignore-revs are left out of every count', or
     None when the change analysis left nothing out (or predates the record)."""
@@ -695,10 +751,10 @@ def lines_section(report: dict, full: bool = True, width=None) -> dict:
 
 
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
-    """Change frequency times size, Tornhill-style. Files no longer in the tree sort last. Drawn
-    under `--full` and in the Markdown export only; the default terminal report leaves it to the
-    watch list, which ranks the same files. Built only for those two, it has no row cap of its
-    own outside Markdown's."""
+    """Change frequency times size, Tornhill-style. Drawn under `--full` and in the Markdown export
+    only; the default terminal report leaves it to the watch list, which ranks the same files. Built
+    only for those two, it has no row cap of its own outside Markdown's. Files no longer in the tree
+    have nothing to score: Markdown hides them like any hidden row, `--full` counts them in one line."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     minors = {a["entity"]: a.get("minor", 0) for a in report.get("authors") or []}
     partners = {a["entity"]: a.get("partners", 0) for a in report.get("soc") or []}
@@ -711,6 +767,18 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     scored, generated_note = _hide_generated(scored, lambda h: h["entity"], report, full, classifier=cls)
     scored, release_note = _hide_by(scored, lambda h: h["entity"], full, cls, {"release file"}, "release file")
     hidden_note = _join_hidden(hidden_note, deleted_note, generated_note, release_note)
+    removed_note = None
+    tracked = report.get("tree") or (report.get("size") or {}).get("files") or {}
+    if full is True and tracked:
+        # --full hides nothing, but a file that is no longer tracked has no lines, no complexity and no score:
+        # its row is three dashes. superpowers spent 412 of 483 rows on them, 318 from an import later removed.
+        removed = [h for h in scored if h["code"] is None and h["entity"] not in tracked]
+        if removed:
+            scored = [h for h in scored if not (h["code"] is None and h["entity"] not in tracked)]
+            imported = report.get("imported") or ()
+            brought = sum(1 for h in removed if h["entity"] in imported)
+            removed_note = (f"{len(removed):,} removed file{'s' if len(removed) != 1 else ''} not listed"
+                            + (f", {brought:,} from left-out imports" if brought else "") + " (maat-revisions.csv has them)")
     title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
     series = (report.get("trend") or {}).get("files") or {}
@@ -732,7 +800,7 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     if full is not True:
         columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
     note = None if rows else _empty_note(None, hidden_note, "no source hotspots")
-    notes = [c for c in (_more(len(scored), limit), None if note else hidden_note) if c]
+    notes = [c for c in (_more(len(scored), limit), None if note else hidden_note, removed_note) if c]
     if series:
         notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
     return _section(title, columns, rows, note=note, caption="; ".join(notes) or None)
@@ -957,6 +1025,9 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     elif not shown:
         columns, rows = _keep(columns, rows, [c[0] for c in columns[:-1]])
     notes = [c for c in (_more(len(areas), limit), hidden_note) if c]
+    from .findings import imports_gone_note
+    if (left := imports_gone_note(report)):   # an import that is gone is no finding: said here, where ownership is read
+        notes.append(left)
     if shown:
         notes.append("agents: the lines trailers credit to coding tools, told by their no-reply address (identity.tools)")
     if gone:
@@ -1059,7 +1130,7 @@ def compare_section(result: dict) -> dict:
     return _section("Since last report", columns, rows, note=note, caption="\n".join(lines))
 
 
-BUILDERS = [watch_section, watch_by_component_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
+BUILDERS = [watch_section, documents_section, watch_by_component_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
             hotspots_section, coupling_section, signing_section, trailers_section, lines_section, age_section, functions_section, agent_surface_section,
             osps_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
@@ -1077,7 +1148,7 @@ def sections(report: dict, full: bool = True, width=None) -> list:
         if full is False and sid in FULL_ONLY:
             continue
         sec = b(report, full, width)
-        if sec is None:   # a section with nothing to list and nothing to say about why (agent_surface), or one another table already gives (coupling)
+        if sec is None:   # a section that exists only for some repositories (documents_section, agent_surface), or one another table already gives (coupling)
             continue
         sec["id"] = sid
         out.append(sec)
@@ -1269,14 +1340,20 @@ def header(report: dict, findings: list = (), full: bool = False, width=None) ->
     if s["scope"]:
         body.append(scope.label(s["scope"]), style="bold yellow")
         body.append(f"  ·  {scope.REPOSITORY_WIDE}\n", style="dim")
+    scored = None if full and s["coverage"] else scored_phrase(report)   # --full's coverage line counts every bucket
     _facts(body, [(f"{s['lines']:,} lines in {s['files']} files", ""), (", ".join(s["languages"]) or "unknown", "")], "  ·  ", inner)
     if full and s["coverage"]:
         _facts(body, [(part, "dim") for part in classify.coverage_line(s["coverage"]).split(" · ")], " · ", inner)
+    unranked = coverage_phrases(report)
+    if unranked:   # not dim: the tables below describe the smaller part of this tree
+        _facts(body, [(part, "") for part in ([scored] if scored else []) + unranked], "  ·  ", inner)
     if s["pulse"]:
         _facts(body, [(part, "dim") for part in s["pulse"]], "  ·  ", inner)
     tally = textfmt.tally(list(findings))
     worst = next((f["severity"] for f in findings), None)
     body.append(tally, style=SEVERITY_STYLE.get(worst, "green"))
+    if scored and not unranked:   # what the tally is a tally of
+        body.append(f"  ·  {scored}")
     return Panel(body, title=f"[bold]{s['name']}[/bold]", title_align="left", border_style="blue")
 
 
@@ -1291,7 +1368,8 @@ def unjudged_line(findings: list) -> str:
 
 def findings_panel(findings: list, report: dict = None, full: bool = True) -> Panel:
     passed = checks_passed(report or {}, footer=bool(full) or not footer_said(report or {}))
-    if not findings and not passed:
+    absent = not_computed_line(report) if report else None
+    if not findings and not passed and not absent:
         return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
     unjudged = [] if full else [f for f in findings if f.get("unjudged")]
     shown = [f for f in findings if f not in unjudged]
@@ -1308,11 +1386,12 @@ def findings_panel(findings: list, report: dict = None, full: bool = True) -> Pa
         grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
     if unjudged:
         grid.add_row(Text("·", style="dim"), Text(unjudged_line(unjudged), style="dim"))
-    if passed:   # last: problems first, then the checks that passed
-        if not findings:
-            grid.add_row(Text(""), Text("Nothing flagged.", style="green"))
-        for title, detail in passed:
-            grid.add_row(Text("✔", style="green"), Text(title, style="green").append(f"\n{detail}", style="dim"))
+    if (passed or absent) and not findings:
+        grid.add_row(Text(""), Text("Nothing flagged.", style="green"))
+    for title, detail in passed:   # problems first, then the checks that passed
+        grid.add_row(Text("✔", style="green"), Text(title, style="green").append(f"\n{detail}", style="dim"))
+    if absent:   # last: what was found, what passed, then what was never measured, so its silence is not a pass
+        grid.add_row(Text("·", style="dim"), Text(absent, style="dim"))
     title = f"Findings ({len(findings)})" if findings else "Findings"
     return Panel(grid, title=title, title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]] if findings else "green")
 
@@ -1592,6 +1671,9 @@ def _md_findings(findings: list, report: dict = None) -> list:
         out.append(line)
     for title, detail in checks_passed(report or {}):
         out.append(f"- **ok** {title} — {detail}")
+    absent = not_computed_line(report) if report else None
+    if absent:
+        out.append(f"- **not computed** {absent}")
     return out
 
 
@@ -1611,13 +1693,15 @@ def _md_section(sec: dict) -> list:
 
 def markdown(report: dict, findings: list, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> str:
     s = summary(report)
+    unranked = coverage_phrases(report)
     out = [f"# {s['name']}", "",
            f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
            + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}"
            + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "  ",
            *([f"{scope.label(s['scope'])} · {scope.REPOSITORY_WIDE}  "] if s["scope"] else []),
            f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["coverage"] or s["pulse"] else ""),
-           *([classify.coverage_line(s["coverage"]) + ("  " if s["pulse"] else "")] if s["coverage"] else []),
+           *([classify.coverage_line(s["coverage"]) + ("  " if s["pulse"] or unranked else "")] if s["coverage"] else []),
+           *([" · ".join(unranked) + ("  " if s["pulse"] else "")] if unranked else []),
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
            "## Findings", ""]
     out += _md_findings(findings, report)
@@ -1683,13 +1767,15 @@ def dumps_json(report: dict, findings: list, risk: dict = None, compare: dict = 
 
 
 def to_json(report: dict, findings: list, risk: dict = None, compare: dict = None) -> dict:
-    out = {**{k: v for k, v in report.items() if k not in ("backtest", "tree")}, "findings": findings,   # the sub-report is a report of its own; the listing is the clone's
+    out = {**{k: v for k, v in report.items() if k not in ("backtest", "tree", "imported")}, "findings": findings,   # the sub-report is a report of its own; the listing is the clone's
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
     out["watch_by_component"] = [{"component": g["component"], "share": round(g["share"], 3), "files": [x["file"] for x in g["files"]]}
                                  for g in watch.by_component(watch.risks(report), base=scope.report_base(report))]
     from . import osps
     out["osps"] = {"baseline": osps.BASELINE, "controls": osps.coverage(report, findings)}
+    from . import findings as rules
+    out["not_computed"] = rules.not_computed(report)   # the measures the run could not make, each with why
     bt = watch.backtest(report)
     if bt is not None:
         out["watch_backtest"] = bt

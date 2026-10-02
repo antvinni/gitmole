@@ -55,7 +55,7 @@ def parse_scc(text: str, types=None, scope=()) -> dict:
     set, or None for everything) keeps only the code files, so the size matches the other tables;
     `scope` (a run's --path directories) keeps only the files under them. scc itself always measures the
     whole tree: the backtest's tree at its cut-off is narrowed here too, from the scope its meta records."""
-    rows = _json_or(text, [])
+    rows = _json_or(text, []) if isinstance(text, str) else text   # a caller that parsed the file already passes its rows
     if not isinstance(rows, list):
         rows = []
     if types is not None or scope:
@@ -84,6 +84,18 @@ def parse_scc(text: str, types=None, scope=()) -> dict:
         "total_files": sum(r["files"] for r in languages),
         "files": files,
     }
+
+
+def all_code(rows, scope=()) -> dict:
+    """{path: scc's code lines} for every file scc counted, whatever its type: what the type filter left out
+    is measured against this (classify.lines). Under --path, the files below its directories."""
+    out = {}
+    for r in rows if isinstance(rows, list) else []:
+        for f in (r.get("Files") or []) if isinstance(r, dict) else []:
+            path = _rel(f.get("Location", ""))
+            if scopes.within(path, scope):
+                out[path] = f.get("Code", 0)
+    return out
 
 
 NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs",
@@ -178,11 +190,16 @@ def cross_check(functions: list, structure: dict) -> list:
     the structure step's, the lines its line count, and the complexity stays lizard's, which is then a
     floor, since it counted only the part it read; lizard's own end and lines stay under `lizard_span`.
     Or it runs on past the end: when it also counted more lines of code than SPAN_RATIO times the lines
-    the function has at all, it counted what follows as the function's, and the row is marked suspect, as
-    the function step's own checks mark the swallowed spans they catch. A span that ran on over a comment
-    or into functions lizard listed on their own (paperclip's passesFilter: 21 lines of code over 61, of
-    a 25-line function; brew's audit_deps) keeps its counts, which are the function's. Both need the
-    spans to differ by more than SPAN_RATIO; nothing is ever unmarked."""
+    the function has at all, it counted what follows as the function's (superpowers'
+    extractAndStripFrontmatter: 33-382 and 339 lines to lizard, 33-68 to tree-sitter). The span and the
+    lines become the structure step's here too, lizard's own staying under `lizard_overrun`, and the row is
+    marked suspect, as the function step's own checks mark the swallowed spans they catch: the complexity
+    is still lizard's, counted over what follows as well, so it is a ceiling nobody should rank or flag
+    by. A row the function step already marked keeps its reason and is corrected the same way. A span
+    that ran on over a comment or into functions lizard listed on their own (paperclip's passesFilter: 21
+    lines of code over 61, of a 25-line function; brew's audit_deps) keeps its counts, which are the
+    function's. Both need the spans to differ by more than SPAN_RATIO; nothing is ever unmarked by an
+    over-run."""
     theirs = {}
     for s in (structure or {}).get("functions") or []:
         if not isinstance(s, dict) or not isinstance(s.get("start"), int) or not isinstance(s.get("end"), int):
@@ -204,8 +221,10 @@ def cross_check(functions: list, structure: dict) -> list:
         if real > SPAN_RATIO * ours:
             f["lizard_span"] = {"end": f["end"], "nloc": f["nloc"]}
             f.update(end=s["end"], nloc=real, suspect="")
-        elif ours > SPAN_RATIO * real and f["nloc"] > SPAN_RATIO * real and not f["suspect"]:
-            f["suspect"] = f"{f['nloc']} lines of code in a function the structure step ends after {real} lines, at line {s['end']}"
+        elif ours > SPAN_RATIO * real and f["nloc"] > SPAN_RATIO * real:
+            f["suspect"] = f["suspect"] or f"{f['nloc']} lines of code in a function the structure step ends after {real} lines, at line {s['end']}"
+            f["lizard_overrun"] = {"end": f["end"], "nloc": f["nloc"]}
+            f.update(end=s["end"], nloc=real)
     return functions
 
 
@@ -338,6 +357,158 @@ def _fix_history(out_dir: str, fixes: list, meta: dict, activity: dict) -> dict:
     import datetime as dt
     with open(path, encoding="utf-8", errors="replace", newline="") as fh:
         return parse_fix_history(fh.read(), fixes, meta, activity, meta.get("now") or dt.date.today().isoformat())
+
+
+def parse_imports(text: str, imports: list, tree) -> tuple:
+    """What log.txt says about each import commit the change analysis found (activity.json's `imports`,
+    which counts code files only): (the rows with these keys added, every path an import put something in,
+    under every name it has had since).
+
+    `files_all`, `added_all` and `binaries` are the commit's raw totals, as `git show --stat` gives them: every
+    file, every added line, and the binary rows numstat writes as `-`. `under` is the conventionally
+    vendored directory (filetypes.vendor_root) that every path the import brought in sits under, when they
+    share one. `in_tree` is how many of those paths, their renames followed, the analysed commit still
+    tracks, known only with a tree listing; it is 0 only when the log shows the rest deleted, and then
+    `removed_in` is the commit that deleted the most of them, with how many commits it took.
+
+    numstat has no status letter, so what the import brought in is read from the log: a path it added
+    lines or a binary to that no older commit touched. A path an older commit touched is one the import
+    changed (superpowers' .gitignore, two lines added beside 720 files of node_modules) and is not counted
+    as its survivor; the cost is an import that brings back files deleted before it, whose survivors would
+    be missed if everything new in it were gone. Gone is said only when the log shows it going: every
+    path it brought in is untracked, and the last commit to touch each only took lines out. A subtree's squashed history names its files by their paths in the other repository
+    (redis: deps/jemalloc/ arrives as src/arena.c), so none is ever tracked under that name, and the next
+    squash changes them without deleting any: nothing is claimed of it.
+
+    One pass over the log's lines, made only when there is an import to look up."""
+    wanted = {c.get("hash") for c in imports}
+    lines = text.split("\n")
+    heads = [(i, line.split("--", 4)) for i, line in enumerate(lines) if line.startswith("--")]
+    heads = [(i, parts[1], parts[2][:10]) for i, parts in heads if len(parts) > 3]
+    at = {h: k for k, (_, h, _) in enumerate(heads) if h in wanted}
+
+    def rows(k):
+        end = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
+        for line in lines[heads[k][0] + 1:end]:
+            parts = line.split("\t", 2)
+            if len(parts) == 3:
+                yield parts[0], filetypes.unquote(parts[2])
+
+    out, every = [], set()
+    for c in imports:
+        k = at.get(c.get("hash"))
+        if k is None:
+            out.append(c)
+            continue
+        mine = list(rows(k))
+        touched = {p for a, p in mine if " => " not in p and a != "0"}   # it put something there: lines, or a binary
+        fresh = set(touched)
+        for j in range(k + 1, len(heads)):   # the older commits: a path one of them touched was here before
+            if not fresh:
+                break
+            for _, p in rows(j):
+                fresh.discard(maat._renamed_to(p))
+        roots = {filetypes.vendor_root(p) for p in fresh}
+        row = {**c, "files_all": len(mine), "added_all": sum(int(a) for a, _ in mine if a.isdigit()),
+               "binaries": sum(1 for a, _ in mine if a == "-")}
+        if len(roots) == 1 and None not in roots:
+            row["under"] = roots.pop()
+        alive = {p: (p in fresh, None, False) for p in touched}   # the name now -> (brought in, the newest commit to touch it, which only took out)
+        every |= touched
+        for j in range(k - 1, -1, -1):   # the newer commits, oldest first
+            for a, p in rows(j):
+                if " => " in p:
+                    old, new = _renamed_from(p), maat._renamed_to(p)
+                    if old in alive and old != new:
+                        alive[new] = (alive.pop(old)[0], j, False)
+                        every.add(new)
+                elif p in alive:
+                    alive[p] = (alive[p][0], j, a in ("0", "-"))   # no line added: a deletion, as far as numstat shows one
+        if tree is not None and fresh:
+            held = sum(1 for p, (brought, _, _) in alive.items() if brought and p in tree)
+            went = [t for p, t in alive.items() if p not in tree]
+            if held or all(t[2] for t in went if t[0]):
+                row["in_tree"] = held
+            if not held and "in_tree" in row:
+                # The commit that deleted the most of what it added to, the newest of them on a tie. Not simply
+                # the newest: a file the import only changed may be deleted years later (yt-dlp's 3ca3f77f9
+                # brought youtube_dl/ back for five months; one file it touched went in 2024).
+                by = Counter(t[1] for t in went if t[2])
+                j = min(by, key=lambda j: (-by[j], j))
+                row["removed_in"] = {"hash": heads[j][1], "date": heads[j][2], "commits": len(by)}
+        out.append(row)
+    return out, frozenset(every)
+
+
+def _imports(out_dir: str, activity, tree) -> frozenset:
+    """parse_imports over the directory's log.txt, written into activity's rows; the paths the imports
+    added to. Nothing when there is no import or no log (the backtest's sub-report)."""
+    rows = activity.get("imports") if isinstance(activity, dict) else None
+    path = os.path.join(out_dir, "log.txt")
+    if not rows or not os.path.isfile(path):
+        return frozenset()
+    with open(path, encoding="utf-8", errors="replace", newline="") as fh:
+        activity["imports"], paths = parse_imports(fh.read(), rows, tree)
+    return paths
+
+
+DOCUMENTS_KEPT = 15   # the most-changed documents a report keeps: the list shows five, --full and the JSON these
+
+
+def parse_unscored_history(text: str, activity: dict, scored, documents=frozenset()) -> dict:
+    """What the log says about the files nothing ranks, read from log.txt, which holds every path whatever
+    its type: {"commits": {commits, fixes, outside, fixes_outside}, "revisions": {document: n}}.
+
+    `outside` counts the commits that changed files and none that is scored (`scored(path)`), `fixes_outside`
+    the fix commits among them: the header's "N% of commits are fixes" is over every commit, the bug magnets
+    over scored files only, and these two say how far apart the populations are. Both are over the commits
+    the header counts (the window), merges included in the total and, having no file list, never outside.
+    `revisions` counts each of `documents` the way the change analysis counts a source file: in the window,
+    less the sweeps and imports activity.json lists."""
+    activity = activity or {}
+    commits = maat.in_window(maat.parse_log(text), activity.get("window"), activity.get("until"))
+    left_out = {c.get("hash") for key in ("sweeping", "imports") for c in activity.get(key) or []}
+    counts, revisions = {"commits": len(commits), "fixes": 0, "outside": 0, "fixes_outside": 0}, Counter()
+    for c in commits:
+        fix = maat.is_fix(c.get("subject", ""))
+        counts["fixes"] += fix
+        if c["files"] and not any(scored(path) for path, _, _ in c["files"]):
+            counts["outside"] += 1
+            counts["fixes_outside"] += fix
+        if documents and c["hash"] not in left_out:
+            revisions.update(path for path, _, _ in c["files"] if path in documents)
+    return {"commits": counts, "revisions": dict(revisions)}
+
+
+def _coverage(out_dir: str, report: dict, code: dict) -> dict:
+    """What the report ranks and what it leaves out by type: {files, lines, unranked} and, when the files the
+    type filter left out hold more lines than the scored ones (classify.unranked), {commits} and, when
+    documentation is most of the tree (classify.DOC_MAJORITY), {documents}: its most-revised files. {} for
+    a run that recorded no coverage (an older one, or one whose steps did not finish). The log is read
+    only for a repository the line is shown on, so the others pay for a pass over the tree listing and
+    nothing else."""
+    from . import classify
+    files = report["meta"].get("coverage") or {}
+    tree = report.get("tree")
+    if tree is not None:   # scc counts the working directory: an untracked file there (an --out inside the
+        tracked = set(tree)   # clone, written while scc runs) is not the repository's, and differs run to run
+        code = {p: n for p, n in code.items() if p in tracked}
+    if not files or not code:
+        return {}
+    cls = classify.Classifier(report)
+    lines = classify.lines(cls, code)
+    out = {"files": files, "lines": lines, "unranked": classify.unranked(lines)}
+    path = os.path.join(out_dir, "log.txt")
+    if not out["unranked"] or not os.path.isfile(path):
+        return out
+    documents = classify.documents(cls, code) if classify.documents_lead(lines) else frozenset()
+    with open(path, encoding="utf-8", errors="replace", newline="") as fh:
+        history = parse_unscored_history(fh.read(), report.get("activity"), lambda p: cls.reason(p) is None, documents)
+    out["commits"] = history["commits"]
+    if documents:
+        ranked = sorted(((p, n) for p, n in history["revisions"].items() if n >= 2), key=lambda kv: (-kv[1], kv[0]))
+        out["documents"] = [{"file": p, "revisions": n} for p, n in ranked[:DOCUMENTS_KEPT]]
+    return out
 
 
 def _read(out_dir: str, name: str) -> str:
@@ -612,13 +783,16 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
     structure = _read_json(out_dir, "structure.json", {}) or {}   # tree-sitter metrics (structure.py); {} without gitmole[structure]
     if not isinstance(structure, dict):
         structure = {}
-    return {
+    tree = parse_tree(out_dir, meta)
+    scc_rows = _json_or(_read(out_dir, "size.json"), [])   # parsed once: the size tables read the code files, the coverage every file
+    report = {
         "out_dir": out_dir,
         "meta": meta,
-        "tree": parse_tree(out_dir, meta),   # every path at HEAD, binaries too; None before 0.39
+        "tree": tree,   # every path at HEAD, binaries too; None before 0.39
+        "imported": _imports(out_dir, activity, tree),   # the paths the import commits added to; the rows themselves are in activity
         # a run records its --file-types spec (None for the default list); a run from before that record
         # was measured unfiltered, so it is re-rendered unfiltered rather than with a guessed list
-        "size": parse_scc(_read(out_dir, "size.json"), filetypes.for_meta(meta, unrecorded=None), scopes.of(meta)),
+        "size": parse_scc(scc_rows, filetypes.for_meta(meta, unrecorded=None), scopes.of(meta)),
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "plumbing": parse_maat_csv(_read(out_dir, "maat-plumbing.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
@@ -656,3 +830,6 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "provenance": provenance,   # trailers, cohorts, commit shape, agent files; {} before 0.17   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
         "backtest": _nested(out_dir) if nested else None,
     }
+    # what is ranked and what the type filter left out; {} before the run recorded its coverage
+    report["coverage"] = _coverage(out_dir, report, all_code(scc_rows, scopes.of(meta)))
+    return report

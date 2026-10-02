@@ -1776,13 +1776,36 @@ class ImportCommits(unittest.TestCase):
                             "subject": "Candidate release of source code."}], "added_total": 6648513}
         f = findings.import_commits(report(activity=act))
         self.assertEqual(f[0]["rule"]["id"], "import_commits")
-        self.assertIn("79d8f164f8 by Dan (12,449 files, 2,800,751 lines, 42% of every line the history adds", f[0]["detail"])
+        self.assertIn("79d8f164f8 by Dan (12,449 code files; 2,800,751 lines of code, 42% of all the code the history adds", f[0]["detail"])
+        self.assertIn("1 commit adds code and changes almost none: ", f[0]["detail"], "the rule allows deletions up to 1%")
         self.assertIn("Ownership, authorship and the churn counts leave it out", f[0]["detail"])
         self.assertNotIn("truck factor", f[0]["detail"], "a report with too few files to compute one must not be told it left the import out")
         self.assertEqual(findings.import_commits(report(activity={})), [])
         act["authors_all"] = {"Dan": {"last": "2019-03-26"}}
         f = findings.import_commits(report(activity=act, meta={"name": "r", "commits": 100, "identities": [], "last_date": "2026-09-01"}))
-        self.assertIn("79d8f164f8 by Dan (gone, 12,449 files", f[0]["detail"])
+        self.assertIn("79d8f164f8 by Dan (gone, 12,449 code files", f[0]["detail"])
+
+    ROW = {"hash": "7446c84", "date": "2026-03-09", "author": "Ann", "files": 313, "added": 40853, "deleted": 5, "subject": "Bundle the dependencies",
+           "files_all": 722, "added_all": 83997, "binaries": 1, "under": "skills/x/node_modules/"}
+
+    def test_the_counts_are_labelled_code_files_beside_the_commits_raw_totals(self):
+        f = findings.import_commits(report(activity={"imports": [{**self.ROW, "in_tree": 12}], "added_total": 69000}))
+        self.assertIn("7446c84 by Ann (313 code files of 722; 40,853 lines of code of 83,997, 59% of all the code the history adds, "
+                      "all under skills/x/node_modules/, 1 binary file; 2026-03-09, Bundle the dependencies)", f[0]["detail"])
+        self.assertEqual({k: f[0]["evidence"]["commits"][0][k] for k in ("files_all", "added_all", "binaries", "under", "in_tree")},
+                         {"files_all": 722, "added_all": 83997, "binaries": 1, "under": "skills/x/node_modules/", "in_tree": 12})
+
+    def test_an_import_nothing_of_which_is_in_the_tree_is_a_note_not_a_finding(self):
+        gone = {**self.ROW, "in_tree": 0, "removed_in": {"hash": "7619570", "date": "2026-03-11", "commits": 2}}
+        rep = report(activity={"imports": [gone], "added_total": 69000})
+        self.assertEqual(findings.import_commits(rep), [])
+        self.assertEqual(findings.imports_gone_note(rep),
+                         "1 import left out of ownership (7446c84, 313 code files under skills/x/node_modules/, removed in 7619570): nothing of it is in the tree")
+        both = report(activity={"imports": [gone, {**self.ROW, "hash": "aaa1111", "in_tree": 3}], "added_total": 69000})
+        [f] = findings.import_commits(both)
+        self.assertTrue(f["detail"].startswith("1 commit adds code"), f["detail"])
+        self.assertEqual([c["hash"] for c in f["evidence"]["commits"]], ["aaa1111"])
+        self.assertIsNone(findings.imports_gone_note(report(activity={"imports": [self.ROW]})), "no tree listing, nothing claimed")
 
 
 class SecretsDeclared(unittest.TestCase):

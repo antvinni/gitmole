@@ -385,32 +385,68 @@ def sweeping_commits(report: dict) -> list:
                                                              "deleted": c.get("deleted"), "subject": c.get("subject", "")} for c in swept[:10]]})]
 
 
+def imports_gone(report: dict) -> list:
+    """The import commits nothing of which is in the tree any more: every path they brought in, its renames
+    followed, is untracked at the analysed commit and the log shows it deleted (load.parse_imports; known only
+    with a tree listing)."""
+    return [c for c in (report.get("activity") or {}).get("imports") or [] if c.get("in_tree") == 0]
+
+
+def imports_gone_note(report: dict):
+    """'1 import left out of ownership (7446c84, 313 code files under x/node_modules/, removed in 7619570): nothing
+    of it is in the tree', or None: what the report says of an import that is no finding (import_commits)."""
+    gone = imports_gone(report)
+    if not gone:
+        return None
+
+    def one(c):
+        where = f" under {c['under']}" if c.get("under") else ""
+        rm = c.get("removed_in")
+        return f"{c['hash']}, {c['files']:,} code file{'s' if c['files'] != 1 else ''}{where}" + (f", removed in {rm['hash']}" if rm else "")
+    listed = "; ".join(one(c) for c in gone[:3]) + (f" and {len(gone) - 3} more" if len(gone) > 3 else "")
+    return f"{_plural(len(gone), 'import')} left out of ownership ({listed}): nothing of {'it' if len(gone) == 1 else 'them'} is in the tree"
+
+
 def import_commits(report: dict) -> list:
-    """Commits that brought a codebase in rather than changed it (maat.importing): add-only, a hundred
-    files or more, a twentieth or more of every line the history adds. The change analysis leaves them out
-    of ownership and authorship, and the code-age pass credits the lines they wrote to nobody, so the
-    person who committed an import is not made the owner of everything in it. Said, since the knowledge
-    tables then read differently from a plain git blame."""
+    """Commits that brought a codebase in rather than changed it (maat.importing): a hundred code files
+    or more, a twentieth or more of every line of code the history adds, deleting at most a hundredth of
+    what they add. The change analysis leaves them out of ownership and authorship, and the code-age pass
+    credits the lines they wrote to nobody, so the person who committed an import is not made the owner of
+    everything in it. Said, since the knowledge tables then read differently from a plain git blame.
+
+    The rule counts code files; the commit's raw totals stand beside them where log.txt gave them
+    (load.parse_imports), with the vendored directory everything it brought sits under and the binaries
+    it carried. An import nothing of which is still tracked changes no table about the tree: it is no
+    finding, and a note under the knowledge map says where it went (imports_gone_note)."""
     act = report.get("activity") or {}
-    rows = act.get("imports") or []
+    dead = {c["hash"] for c in imports_gone(report)}
+    rows = [c for c in act.get("imports") or [] if c["hash"] not in dead]
     if not rows:
         return []
     total = act.get("added_total") or 0
     gone = _gone(report)
 
     def one(c):
-        share = f", {100 * c['added'] / total:.0f}% of every line the history adds" if total else ""
-        return f"{c['hash']} by {c['author']} ({'gone, ' if c['author'] in gone else ''}{c['files']:,} files, {c['added']:,} lines{share}, {c['date']}, {textfmt.cut(c.get('subject', ''), 50)})"
+        raw = "files_all" in c
+        files = f"{c['files']:,} code files of {c['files_all']:,}" if raw else f"{c['files']:,} code files"
+        lines = f"{c['added']:,} lines of code of {c['added_all']:,}" if raw else f"{c['added']:,} lines of code"
+        share = f", {100 * c['added'] / total:.0f}% of all the code the history adds" if total else ""
+        where = f", all under {c['under']}" if c.get("under") else ""
+        binaries = f", {c['binaries']:,} binary file{'s' if c['binaries'] != 1 else ''}" if c.get("binaries") else ""
+        return (f"{c['hash']} by {c['author']} ({'gone, ' if c['author'] in gone else ''}{files}; {lines}{share}{where}{binaries}; "
+                f"{c['date']}, {textfmt.cut(c.get('subject', ''), 50)})")
     listed = "; ".join(one(c) for c in rows[:3])
     return [_f("info", "Imports left out of ownership",
-               f"{_plural(len(rows), 'commit')} brought code in without changing any: {listed}. "
+               f"{_plural(len(rows), 'commit')} {'adds' if len(rows) == 1 else 'add'} code and {'changes' if len(rows) == 1 else 'change'} almost none: {listed}. "
                # the measures every report has; the truck factor reads authorship and is not computed for a small pool,
                # so naming it promised a number superpowers' report (17 scored files) never showed
-               "Ownership, authorship and the churn counts leave it out, and the code-age pass credits its surviving lines to nobody.",
+               "Ownership, authorship and the churn counts leave it out; code age credits its surviving lines to nobody.",
                "Read the knowledge tables as who has worked on the code since; git blame still names the importer for every untouched line.",
                rule={"id": "import_commits", "share": maat.IMPORT_SHARE, "min_files": maat.IMPORT_MIN_FILES, "deleted": maat.IMPORT_DELETED},
                evidence={"commits": [{"hash": c["hash"], "date": c["date"], "author": c["author"], "files": c["files"], "added": c["added"],
-                                      "deleted": c["deleted"], "subject": c.get("subject", "")} for c in rows[:10]], "added_total": total})]
+                                      "deleted": c["deleted"], "subject": c.get("subject", ""),
+                                      **{k: c[k] for k in ("files_all", "added_all", "binaries", "under", "in_tree") if k in c}}
+                                     for c in rows[:10]], "added_total": total})]
 
 
 def tangled_commits(report: dict, min_share: float = 0.02, min_count: int = 5) -> list:
@@ -1783,7 +1819,46 @@ def _authors_of(report: dict, files: list, key: str = "is_author") -> dict:
 TRUCK_FACTOR_MEASURED = "exact on 71.4% of 35 systems, 30% of those at truck factor 2 to 5 (Ferreira, Valente and Ferreira, ICPC 2017)"
 
 
-def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> list:
+TRUCK_MIN_FILES = 20   # under this many source files a truck factor is a statement about a handful of files
+
+
+def truck_factor_absent(report: dict, min_files: int = TRUCK_MIN_FILES):
+    """Why truck_factor() has nothing to say when that is not "nobody is a risk": too few source files, or a
+    pool most of which has no author on record. None when it was computed, or when there is no file listing
+    or no degree of authorship to compute it from (a step that did not finish, which the header names)."""
+    if not _tree(report):
+        return None
+    files = _pool_files(report)
+    if len(files) < min_files:
+        return {"measure": "truck_factor", "label": "truck factor", "files": len(files), "min_files": min_files,
+                "reason": f"{len(files)} source file{'s' if len(files) != 1 else ''}, needs {min_files}"}
+    if not report.get("doa"):
+        return None
+    orphans = sum(1 for a in _authors_of(report, files).values() if not a)
+    if 2 * orphans > len(files):   # knowledge.truck_factor's own stop: more than half orphaned before anyone leaves
+        return {"measure": "truck_factor", "label": "truck factor", "files": len(files), "orphaned": orphans,
+                "reason": f"{orphans} of the {len(files)} source files have no author on record"}
+    return None
+
+
+def not_computed(report: dict) -> list:
+    """The measures this run could not make, each with why: a rule that stays silent because its precondition
+    failed reads as a rule that found nothing. The truck factor below its file floor, and the backtest
+    without the history (or after a failed step), which the watch list's caption already says (`said`).
+    The bug magnets' size test says so inside its own finding."""
+    out = []
+    truck = truck_factor_absent(report)
+    if truck:
+        out.append(truck)
+    bt = (report.get("meta") or {}).get("backtest") or {}
+    if bt.get("status") == "skipped" and bt.get("reason"):
+        out.append({"measure": "backtest", "label": "backtest", "reason": bt["reason"], "said": "watch list"})
+    elif bt.get("status") in ("failed", "timeout"):
+        out.append({"measure": "backtest", "label": "backtest", "reason": f"the step {'timed out' if bt['status'] == 'timeout' else 'failed'}", "said": "watch list"})
+    return out
+
+
+def truck_factor(report: dict, min_files: int = TRUCK_MIN_FILES, area_files: int = 10) -> list:
     """Avelino et al.'s truck factor over the degree of authorship: how many people have to leave before
     more than half the source files have no author. One is a warning, two a note. Changes rather than
     lines, and a creator's bonus, so it can disagree with the surviving-code share, which the bus-factor

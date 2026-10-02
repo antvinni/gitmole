@@ -260,6 +260,64 @@ class ParseFixHistory(unittest.TestCase):
         self.assertEqual(h["src/a.py"]["recent"], ["c1", "c3"])
 
 
+class ParseImports(unittest.TestCase):
+    """superpowers' 7446c84: node_modules committed (313 code files of 722) and deleted two days later."""
+    LOG = "\n".join([
+        "--c1--2026-03-12T10:00:00+00:00--Ann--later work",
+        "3\t1\tsrc/a.js", "",
+        "--c2--2026-03-11T10:00:00+00:00--Ann--remove the rest",
+        "0\t40\tlib/node_modules/ws/index.js", "0\t9\tlib/node_modules/ws/moved.js", "0\t30\tlib/node_modules/ws/README.md",
+        "-\t-\tlib/node_modules/ws/logo.png", "0\t0\tlib/node_modules/ws/empty.js", "",
+        "--c3--2026-03-10T12:00:00+00:00--Ann--remove one",
+        "0\t5\tlib/node_modules/ms/index.js", "",
+        "--c4--2026-03-10T10:00:00+00:00--Ann--move one",
+        "0\t0\tlib/node_modules/ws/{util.js => moved.js}", "",
+        "--c5--2026-03-09T10:00:00+00:00--Ann--bundle the dependencies",
+        "40\t0\tlib/node_modules/ws/index.js", "9\t0\tlib/node_modules/ws/util.js", "5\t0\tlib/node_modules/ms/index.js",
+        "30\t0\tlib/node_modules/ws/README.md", "-\t-\tlib/node_modules/ws/logo.png", "0\t0\tlib/node_modules/ws/empty.js",
+        "2\t0\t.gitignore", "0\t5\tsrc/a.js", "",
+        "--c6--2026-03-01T10:00:00+00:00--Ann--start",
+        "10\t0\tsrc/a.js", "1\t0\t.gitignore", ""])
+    ROW = {"hash": "c5", "files": 3, "added": 54, "deleted": 5}
+    HEAD = frozenset({"src/a.js", ".gitignore"})
+
+    def test_the_raw_totals_the_directory_and_the_commit_that_removed_it(self):
+        rows, paths = load.parse_imports(self.LOG, [self.ROW], self.HEAD)
+        self.assertEqual(rows, [{**self.ROW, "files_all": 8, "added_all": 86, "binaries": 1, "under": "lib/node_modules/", "in_tree": 0,
+                                 "removed_in": {"hash": "c2", "date": "2026-03-11", "commits": 2}}])
+        self.assertIn("lib/node_modules/ws/moved.js", paths, "under every name a path has had since")
+        self.assertIn(".gitignore", paths)
+        self.assertNotIn("src/a.js", paths, "it only took lines out of that one")
+
+    def test_a_file_the_import_only_changed_is_not_its_survivor(self):
+        # .gitignore was there before (c6) and is still tracked: the import added two lines to it, it did not bring it in
+        [row], _ = load.parse_imports(self.LOG, [self.ROW], self.HEAD)
+        self.assertEqual(row["in_tree"], 0)
+
+    def test_what_is_still_tracked_is_counted_its_renames_followed(self):
+        [row], _ = load.parse_imports(self.LOG, [self.ROW], self.HEAD | {"lib/node_modules/ws/moved.js"})
+        self.assertEqual((row["in_tree"], "removed_in" in row), (1, False))
+
+    def test_gone_is_said_only_when_the_log_shows_every_file_deleted(self):
+        # a subtree's squashed history: the paths are the other repository's, never tracked here, and are changed, not deleted
+        log = "\n".join(["--s2--2026-03-11T10:00:00+00:00--Ann--Squashed 'deps/x/' changes", "3\t1\tsrc/arena.js", "",
+                          "--s1--2026-03-09T10:00:00+00:00--Ann--Squashed 'deps/x/' content", "40\t0\tsrc/arena.js", "9\t0\tsrc/never.js", ""])
+        [row], _ = load.parse_imports(log, [{"hash": "s1"}], frozenset({"deps/x/src/arena.js"}))
+        self.assertNotIn("in_tree", row)
+        self.assertNotIn("removed_in", row)
+
+    def test_the_commit_named_is_the_one_that_removed_most_of_it(self):
+        # a file the import only changed goes a year later: that commit did not remove the import
+        log = "\n".join(["--late--2027-03-09T10:00:00+00:00--Ann--drop the ignore file", "0\t3\t.gitignore", ""]) + "\n" + self.LOG
+        [row], _ = load.parse_imports(log, [self.ROW], frozenset({"src/a.js"}))
+        self.assertEqual(row["removed_in"], {"hash": "c2", "date": "2026-03-11", "commits": 3})
+
+    def test_without_a_tree_listing_or_the_commit_nothing_is_claimed(self):
+        [row], _ = load.parse_imports(self.LOG, [self.ROW], None)
+        self.assertEqual((row["files_all"], "in_tree" in row), (8, False))
+        self.assertEqual(load.parse_imports(self.LOG, [{"hash": "zz"}], frozenset()), ([{"hash": "zz"}], frozenset()))
+
+
 class Authored(unittest.TestCase):
     """An older run counted a Co-authored-by credit as a commit and kept no `authored`; the trailer inventory
     says which identities only ever appear in trailers."""
@@ -648,15 +706,25 @@ class CrossCheck(unittest.TestCase):
         self.assertEqual((rows[0]["end"], rows[0]["nloc"], rows[0]["ccn"], rows[0]["suspect"]), (26572, 6394, 55, ""))
         self.assertEqual(rows[0]["lizard_span"], {"end": 20446, "nloc": 222})
 
-    def test_a_span_lizard_ran_past_the_end_of_is_marked_suspect(self):
+    def test_a_span_lizard_ran_past_the_end_of_takes_the_structure_steps_span_and_stays_marked(self):
         rows = load.cross_check([_fn("safeMilestoneText", 144, 234, 84)], _structure(_st("safeMilestoneText", 144, 175)))
         self.assertEqual(rows[0]["suspect"], "84 lines of code in a function the structure step ends after 32 lines, at line 175")
-        self.assertNotIn("lizard_span", rows[0])
+        self.assertEqual((rows[0]["end"], rows[0]["nloc"], rows[0]["ccn"]), (175, 32, 20), "the lines are the structure step's, the complexity lizard's")
+        self.assertEqual(rows[0]["lizard_overrun"], {"end": 234, "nloc": 84})
+        self.assertNotIn("lizard_span", rows[0], "not a floor: lizard counted too much, not too little")
         # a span that ran on over a doc comment: 21 lines of code over 61, of a 25-line function; the counts are the function's
         over = load.cross_check([_fn("passesFilter", 89, 149, 21)], _structure(_st("passesFilter", 89, 113)))
         self.assertEqual((over[0]["suspect"], over[0]["end"], over[0]["nloc"]), ("", 149, 21))
-        kept = load.cross_check([_fn("f", 1, 100, 50, suspect="opens a block at line 8 no deeper than its own start")], _structure(_st("f", 1, 10)))
-        self.assertEqual(kept[0]["suspect"], "opens a block at line 8 no deeper than its own start", "the function step's own reason stays")
+        self.assertNotIn("lizard_overrun", over[0])
+
+    def test_an_over_run_the_function_step_already_marked_is_corrected_and_keeps_its_reason(self):
+        # superpowers: extractAndStripFrontmatter 33-382, 339 lines to lizard; 33-68 to the structure step
+        why = "opens a block at line 116 no deeper than its own start"
+        kept = load.cross_check([_fn("extractAndStripFrontmatter", 33, 382, 339, ccn=11, suspect=why)], _structure(_st("extractAndStripFrontmatter", 33, 68)))
+        self.assertEqual((kept[0]["suspect"], kept[0]["end"], kept[0]["nloc"], kept[0]["ccn"]), (why, 68, 36, 11))
+        self.assertEqual(kept[0]["lizard_overrun"], {"end": 382, "nloc": 339})
+        errors = load.cross_check([_fn("f", 33, 382, 339, suspect=why)], _structure(_st("f", 33, 68), errors=True))
+        self.assertEqual((errors[0]["end"], errors[0]["nloc"]), (382, 339), "only where tree-sitter parsed the file cleanly")
 
     def test_spans_within_twice_each_other_are_left_alone(self):
         rows = load.cross_check([_fn("f", 10, 59, 40), _fn("g", 100, 199, 90)], _structure(_st("f", 10, 109), _st("g", 100, 150)))

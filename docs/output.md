@@ -68,6 +68,24 @@ in plain words, and what to do first. This page is the reference.
    pool: `4,512 files: 582 scored · 13 generated · 2,680 test files · 139
    example code · 3 release files · 1,095 not a source type`, and a file of
    a type scc does not classify counts as `not counted by scc`.
+
+   The default header says what it ranks when that is the smaller part. When
+   the files no table carries (`not a source type`, `not counted by scc`)
+   outnumber the scored ones, the header's last line, the tally, ends
+   `581 of 4,512 files scored`. When the files the type filter left out
+   also hold more lines than the scored ones, the count opens a line of
+   its own instead: `17 of 227 files scored · 69% of tracked lines are
+   documentation, not ranked · --file-types all includes them · 83% of
+   commits and 72% of fixes change only unscored files`. The lines are
+   scc's code lines, the unit of the header's own count; documentation is
+   prose formats and anything under `docs/`; a tree where other types hold
+   more reads `37% of tracked lines are in file types that are not ranked`.
+   The last phrase labels the populations: `25% of commits are fixes` is
+   over every commit, the bug magnets and the watch list over scored files,
+   and it says how many commits, and how many fix commits, changed files
+   and none that is scored. A tree with more test files than source files
+   gets none of this: tests are in the tables, hidden, and `--full` shows
+   them. The counts are under `coverage` in the JSON.
 2. **Findings**: anything the heuristics flagged, worst first. Findings of
    the same kind are grouped into one entry with a list, and every finding
    ends with a next step that names the file, area or person to start with,
@@ -540,7 +558,17 @@ in plain words, and what to do first. This page is the reference.
    creating a file, and the code-age pass credits its surviving lines to
    nobody (they still count for their year). A note names it with its
    share, since the knowledge tables then read differently from a plain
-   git blame. A commit's `Co-authored-by` trailers (git's own trailer,
+   git blame. The rule counts code files, so the note labels them and
+   gives the commit's own totals beside them (`313 code files of 722;
+   40,853 lines of code of 83,997`), the vendored directory everything it
+   added sits under when there is one (`node_modules/`, `vendor/`,
+   `third_party/`), and the binary files it carried. An import nothing of
+   which is tracked any more, because the log shows every file it brought
+   in deleted since, changes no table about the tree: it is no finding,
+   and one line under the knowledge map says which commit removed most
+   of it; `activity.imports` in the JSON keeps the row (`in_tree`,
+   `removed_in`). What an import brought in is read from the log, as the
+   paths it added to that no earlier commit touched. A commit's `Co-authored-by` trailers (git's own trailer,
    which GitHub adds to a squash merge and pair programmers add by hand)
    name people who count as its authors too: in the People table,
    credited with the commits they are named on, through `.mailmap` and the
@@ -666,6 +694,23 @@ in plain words, and what to do first. This page is the reference.
    JSON's `watch_backtest`. Repositories with under a year of history say
    `too little history to backtest`.
 
+   When documentation is more than half the tree's lines and none of it is
+   ranked, a short list follows the watch list: **Most-changed documents**,
+   the five most-revised documents with their revision counts (fifteen
+   with `--full` and in the JSON's `coverage.documents`). It is a count
+   from the log the run already has, taken the way a source file's
+   revisions are (in the window, without the sweeping and import commits),
+   over the documents that are out of the pool for their type alone. It is
+   by revisions alone: not a score, not a finding, and no claim that a fix
+   is likelier there.
+
+   A measure the run could not make says so in one dim line that closes the
+   findings: `truck factor not computed: 17 source files, needs 20`, or
+   that more than half the source files have no author on record. Without
+   it a missing truck factor reads as nobody being a risk. The backtest's
+   reason stays under the watch list, and the bug magnets' size test inside
+   that finding; all of them are listed under `not_computed` in the JSON.
+
    That line is one cut-off on one repository. How the list does over six
    cut-offs on curl, django and react, next to lists ranked by churn alone,
    by size alone and by the factor product the list used to rank by, is in
@@ -714,7 +759,9 @@ in plain words, and what to do first. This page is the reference.
    exists, and shows a directory whose files all change together (generated
    tables, one file per version) as one row with the file count and the
    weakest degree; the caption counts both and `--full` shows every pair.
-   Hotspots hide files no longer in the tree the same way. Hotspots carry a `trend` column, sampled for the
+   Hotspots hide files no longer in the tree the same way; `--full`, which hides nothing else, gives them one
+   line (`412 removed files not listed, 312 from left-out imports`), since a file that is gone has no lines,
+   complexity or score to show, and `maat-revisions.csv` still lists every one. Hotspots carry a `trend` column, sampled for the
    top hotspots: the change in complexity over the last year from scc on
    the file at sampled commits, `-` when no sample is a year old (`--full`
    shows the whole series as a sparkline), and under `--full` a `minors` column (contributors with a
@@ -805,7 +852,12 @@ in plain words, and what to do first. This page is the reference.
    forty or more lines are code, or it has no name and nothing near its
    start line opens a function, as with a JSX ternary read as one), the
    caption says how many, and such spans are left out of the brain
-   methods finding. Activity and the
+   methods finding. Where the structure step parsed the file cleanly and
+   ends the same function less than half as far on, the row's lines are
+   the structure step's (a 36-line function no longer reads as 339); the
+   complexity is still lizard's, counted over what it swallowed, and the
+   `?` stays; `lizard_overrun` in the JSON keeps lizard's own end and
+   lines. Activity and the
    timeline cover the whole history.
    The default report collapses what says little, by counts and never by
    a repository's size. A People or Timeline row needs five commits (in

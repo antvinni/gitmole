@@ -263,10 +263,11 @@ class Report(unittest.TestCase):
         text = rendered(r, [], full=True)
         text = text[text.index("◆ Hotspots"):]
         lines = [l.strip() for l in text.splitlines() if l.strip().startswith(("static/", "gone.py"))]
-        # index.html: 51 x 4000 = 204,000 beats metadata.json: 128 x 800 = 102,400; deleted gone.py sorts last
+        # index.html: 51 x 4000 = 204,000 beats metadata.json: 128 x 800 = 102,400; deleted gone.py has no score and no row
         self.assertTrue(lines[0].startswith("static/index.html"), lines)
         self.assertTrue(lines[1].startswith("static/apps-metadata.json"), lines)
-        self.assertTrue(lines[2].startswith("gone.py"), lines)
+        self.assertFalse([l for l in lines if l.startswith("gone.py")], lines)
+        self.assertIn("1 removed file not listed (maat-revisions.csv has them)", " ".join(text.split()))
         self.assertRegex(lines[0], r"51\s+4,000\s+12")
         self.assertIn("score", text)
         self.assertIn("fixes", text)
@@ -792,8 +793,20 @@ class Report(unittest.TestCase):
         self.assertNotIn("src/sizes/old.go", hot)
         self.assertIn("1 deleted file hidden; --full shows them", hot)
         full = _section_text(rendered(r, [], width=200, full=True), "◆ Hotspots")
-        self.assertIn("src/sizes/old.go", full)
         self.assertNotIn("hidden", full)
+
+    def test_full_hotspots_count_the_removed_files_in_one_line_and_say_how_many_an_import_brought(self):
+        # superpowers: 412 of 483 rows were files no longer tracked, three dashes each, 312 of them a removed import's
+        r = sample_report()
+        r["revisions"] += [{"entity": f"lib/node_modules/ws/f{i}.js", "n-revs": 1} for i in range(3)] + [{"entity": "src/sizes/old.go", "n-revs": 40}]
+        r["imported"] = frozenset(f"lib/node_modules/ws/f{i}.js" for i in range(3))
+        full = " ".join(_rendered_section(render.hotspots_section(r, full=True, width=200), width=200).split())
+        self.assertNotIn("old.go", full)
+        self.assertNotIn("node_modules/ws/f1.js", full)
+        self.assertIn("static/index.html", full)
+        self.assertIn("4 removed files not listed, 3 from left-out imports (maat-revisions.csv has them)", full)
+        r["tree"] = frozenset({"src/sizes/old.go", "static/index.html"})   # tracked, but scc has no language for it: still a row
+        self.assertIn("old.go", _rendered_section(render.hotspots_section(r, full=True, width=200), width=200))
 
     def test_hotspots_without_a_tree_listing_hide_nothing(self):
         r = sample_report()
@@ -801,6 +814,8 @@ class Report(unittest.TestCase):
         hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
         self.assertIn("static/index.html", hot)
         self.assertNotIn("deleted", hot)
+        r["revisions"].append({"entity": "src/sizes/old.go", "n-revs": 40})
+        self.assertIn("old.go", _rendered_section(render.hotspots_section(r, full=True, width=200), width=200))
 
     def test_default_coupling_collapses_a_directory_that_changes_as_one(self):
         r = sample_report()

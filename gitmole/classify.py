@@ -87,3 +87,55 @@ def coverage_line(cov: dict) -> str:
     order = ["scored", *REASONS[:-1], "not counted by scc"]
     parts = [f"{cov[k]:,} {_NOUNS[k][0 if cov[k] == 1 else 1]}" for k in order if cov.get(k)]
     return f"{sum(cov.values()):,} files: " + " · ".join(parts)
+
+
+DOC_MAJORITY = 0.5   # documentation holding more than this share of the tree's lines is what the repository is made of
+
+
+def lines(classifier: Classifier, code: dict) -> dict:
+    """{tracked, scored, documentation, other_types}: scc's code lines over every file it counted (`code`,
+    load.all_code), those of the scored pool, and those the type filter left out, documentation
+    (filetypes.is_doc_path) apart from the rest. A file of a type that is not ranked counts there wherever
+    it sits: a README under tests/ is documentation the filter left out before it is a test file. The
+    unit is the header's own, so the shares can be checked against its line count."""
+    out = {"tracked": 0, "scored": 0, "documentation": 0, "other_types": 0}
+    for path, n in code.items():
+        out["tracked"] += n
+        if classifier.reason(path) is None:
+            out["scored"] += n
+        elif not filetypes.matches(path, classifier.types):
+            out["documentation" if filetypes.is_doc_path(path) else "other_types"] += n
+    return out
+
+
+def unranked(lines: dict) -> bool:
+    """Whether the files the type filter left out hold more lines than the scored ones: the report then
+    ranks the smaller part of what `--file-types all` would, and its header says so. Lines, not files, and
+    the type filter alone: a tree with more test files than source files is ranked as it was meant to be,
+    which is most trees."""
+    return lines["documentation"] + lines["other_types"] > lines["scored"]
+
+
+NO_TABLE = ("not a source type", "not counted by scc")   # the coverage buckets no table carries, hidden or shown
+
+
+def unseen(files: dict) -> bool:
+    """Whether the tracked files no table carries outnumber the scored ones, by the run's own coverage count:
+    a test, a vendored or a generated file is in the tables, hidden, and --full shows it; a file of a type
+    that is not ranked is in none. The header then says how many files are scored."""
+    return sum(files.get(k) or 0 for k in NO_TABLE) > (files.get("scored") or 0)
+
+
+def documents_lead(lines: dict) -> bool:
+    """Whether documentation the type filter left out is most of the tree's lines (DOC_MAJORITY)."""
+    return lines["tracked"] > 0 and lines["documentation"] > DOC_MAJORITY * lines["tracked"]
+
+
+def documents(classifier: Classifier, code: dict) -> frozenset:
+    """The documents at HEAD that are out of the pool for their type and for nothing else: a generated
+    page, a vendored README or a test's fixture has its own reason, and the list of most-changed
+    documents is not about those. `code` is the tree at HEAD, so "not in the tree", which the classifier
+    says of every file its type-filtered listing lacks, is not a reason here."""
+    def only_its_type(path):
+        return [r for r in classifier.reasons(path) if r != "not in the tree"] == ["not a source type"]
+    return frozenset(p for p in code if filetypes.is_doc_path(p) and only_its_type(p))

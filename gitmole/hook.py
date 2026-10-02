@@ -93,7 +93,7 @@ def summary(risk: dict, threshold=None) -> list:
             where = f"rank {r['rank']} of {risk.get('pool', '?')}" + (", on the watch list" if r.get("watched") else "")
             line = f"{r['file']}: {r['score']:.1f}% of the repository's revisions × lines of code ({where}); " + "; ".join(r["reasons"])
         else:
-            line = f"{r['file']}: not scored ({r['reason']})"
+            line = f"{r['file']}: {unscored_words(r)}"
         imported = watch.dependents_phrase(r.get("dependents"))
         lines.append(f"{line}; {imported}" if imported else line)
     gaps = risk.get("coupling_gaps") or []
@@ -103,8 +103,21 @@ def summary(risk: dict, threshold=None) -> list:
     total = f"total {risk['total']:.1f}%"
     if threshold is not None:
         total += f", over the {threshold:g}% threshold" if risk["total"] > threshold else f", under the {threshold:g}% threshold"
+    if risk["files"] and not any(r.get("rank") for r in risk["files"]):   # a 0 that was never counted is not a safe change
+        total += "; none of these files is scored, so the total says nothing about this change"
     lines.append(total)
     return lines
+
+
+def unscored_words(r: dict) -> str:
+    """Why a file has no score. Documentation is out by its type, which says nothing about how often it
+    changes or breaks, so the line says the type is not ranked rather than naming a reason that reads as
+    "safe"; one of the most-changed documents also gets its revision count."""
+    from . import filetypes, textfmt
+    if r.get("reason") == "not a source type" and filetypes.is_doc_path(r["file"]):
+        said = "not scored: documentation is not ranked"
+        return said + (f"; changed {textfmt.times(r['revisions'])}, one of the most-changed documents" if r.get("revisions") else "")
+    return f"not scored ({r['reason']})"
 
 
 def incomplete_line(missing: str, out_dir: str) -> str:
