@@ -58,7 +58,10 @@ checked, and it prints what it counted. For `action.yml` it writes each
 numbers, with every `${{ }}` replaced by underscores as actionlint does, so a
 finding reads `action.yml line N`.
 
-The actionlint binary is the release archive for linux_amd64, checked against
+shellcheck reports errors and warnings only (`--severity=warning`, which
+the job also gives actionlint through `SHELLCHECK_OPTS`; set that variable
+when running `actionlint` yourself): its info and style notes are advice,
+not mistakes. The actionlint binary is the release archive for linux_amd64, checked against
 the sha256 its release publishes before it is unpacked. shellcheck is the one
 the runner image carries, so its version is the image's and is printed in the
 job's first step. Not covered: the Python inside a workflow's or the
