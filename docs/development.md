@@ -34,6 +34,40 @@ what keeps that report stable. gitmole validates it, announces it at the
 start of a run, and records it in `meta.json`, so a forgotten export cannot
 silently skew a real report.
 
+## Lint
+
+The `lint` job in CI runs only the linters that catch a real mistake in what
+the repository holds; nothing in it judges style, formatting or line length
+(the long lines are deliberate). It runs on every pull request and push, next
+to the tests, and the release job does not wait for it. Each check runs even
+when an earlier one failed, so one run shows everything. The versions are
+pinned in the job's `env` in `.github/workflows/ci.yml`; move them there.
+
+| check | what it catches | locally |
+| --- | --- | --- |
+| [actionlint](https://github.com/rhysd/actionlint) over `.github/workflows/*.yml` | a workflow GitHub would reject or run wrongly: an unknown key, a bad expression, a job that `needs` nothing that exists; with shellcheck on PATH, shell bugs in every `run:` block | `brew install actionlint shellcheck`, then `actionlint` |
+| shellcheck over the action's run blocks and any tracked shell script | the same shell bugs in `action.yml`, which actionlint does not read (it is not a workflow), and in any `*.sh` or file whose first line names `sh` or `bash` | `python bin/lint-repo shell` |
+| ruff, rules `E9` and `F` only | a file that does not compile, an undefined name, an import or variable nothing uses, a redefinition | `ruff check --select E9,F --no-cache gitmole tests bin/*` |
+| every tracked `*.json`, `*.jsonl`, `*.yml`, `*.yaml` parses | a hand-edited record or label file that no longer loads; each line of a `.jsonl` is its own document | `python bin/lint-repo data` |
+
+`bin/lint-repo` needs PyYAML (`pip install PyYAML` at the version the job
+pins, in your own environment; it is not a dependency of gitmole) and uses
+its safe loader only. It reads `git ls-files`, so an untracked file is not
+checked, and it prints what it counted. For `action.yml` it writes each
+`shell: bash` step to a temporary file padded to the action's own line
+numbers, with every `${{ }}` replaced by underscores as actionlint does, so a
+finding reads `action.yml line N`.
+
+The actionlint binary is the release archive for linux_amd64, checked against
+the sha256 its release publishes before it is unpacked. shellcheck is the one
+the runner image carries, so its version is the image's and is printed in the
+job's first step. Not covered: the Python inside a workflow's or the
+action's heredocs (`python - <<'PY'`), which no linter here reads, and a
+composite step whose shell is neither `sh` nor `bash` (there is none; the
+job would list it as not checked). When ruff reports an import that is there
+on purpose, a re-export or a probe for an optional module, mark that line
+`# noqa: F401` with the reason rather than widening the configuration.
+
 ## Rules
 
 gitmole has no model; its judgement is the rules in `filetypes.py`,
@@ -175,7 +209,8 @@ empty catch blocks, addresses in literals, commented-out code), `provenance.py`
 trailers, cohorts, commit shape and the agent files, `szz.py` finds
 bug-inducing commits by R-SZZ for the backtest, and `render.py` draws the report.
 `bin/gitmole` is a thin launcher. `bin/render-banner` regenerates
-`docs/banner.svg` from the banner code.
+`docs/banner.svg` from the banner code. `bin/lint-repo` is the lint job's two
+own checks ([Lint](#lint)).
 `bin/render-examples` clones the repositories listed in the script under
 `$TMPDIR/gitmole-examples/`, pins each to its recorded commit, runs gitmole
 with the recorded reference date and writes `docs/examples/<repo>.md`; for

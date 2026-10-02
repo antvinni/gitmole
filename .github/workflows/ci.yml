@@ -159,6 +159,51 @@ jobs:
       - name: Test
         run: brew test antvinni/gitmole/gitmole
 
+  # Only the linters that catch a real mistake in what this repository holds: a workflow that would not
+  # run, a shell bug, a Python name that does not exist or an import nothing uses, a data file that does
+  # not parse. No style, no formatting, no line length. Each tool is pinned and each check runs even
+  # when an earlier one failed, so one run shows everything. The release does not wait for this job.
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8   # actionlint_1.7.12_linux_amd64.tar.gz, from the release's checksums file
+      RUFF_VERSION: 0.16.10
+      PYYAML_VERSION: 6.0.3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install the pinned linters
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet "ruff==${RUFF_VERSION}" "PyYAML==${PYYAML_VERSION}"
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/lint-bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/lint-bin" actionlint
+          echo "$RUNNER_TEMP/lint-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/lint-bin/actionlint" -version
+          shellcheck --version   # the runner image's own; actionlint runs it over every run block it finds
+          ruff --version
+      - name: The workflows (actionlint, with shellcheck on their run blocks)
+        if: ${{ !cancelled() }}
+        run: actionlint -color
+      - name: The shell scripts and the action's run blocks (shellcheck)
+        if: ${{ !cancelled() }}
+        run: python bin/lint-repo shell
+      - name: Python errors only (ruff E9 and F)
+        if: ${{ !cancelled() }}
+        run: ruff check --select E9,F --no-cache --output-format=concise gitmole tests bin/*
+      - name: Every tracked JSON, JSON Lines and YAML file parses
+        if: ${{ !cancelled() }}
+        run: python bin/lint-repo data
+
   release:
     name: release
     if: startsWith(github.ref, 'refs/tags/v')
