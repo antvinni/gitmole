@@ -21,6 +21,12 @@ were on it, next to a random list and the most changed files, so you can see how
 With under a year of history it says *too little history to backtest* instead: there is no list from six
 months back to replay yet, so nothing here says how far to trust the ranking.
 
+In a repository that is mostly documentation the header says so (*17 of 227 files scored*, *69% of tracked
+lines are documentation, not ranked*) and a short **Most-changed documents** list follows: the watch list
+ranks source files only, and that list is a plain count of revisions, not a ranking of risk. A dim last line
+in the findings (*truck factor not computed: 17 source files, needs 20*) names a measure the repository is
+too small for, so its absence is not read as a pass.
+
 **People.** Who commits, their share of the commits, and how much of the code in the tree today each
 wrote (`surviving code`, from git blame). Bots and merges are counted apart, aliases of one person
 are merged, and a coding tool credited by `Co-authored-by` trailers is left out; the caption counts it.

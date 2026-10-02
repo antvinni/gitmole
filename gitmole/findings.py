@@ -1768,7 +1768,46 @@ def _authors_of(report: dict, files: list, key: str = "is_author") -> dict:
 TRUCK_FACTOR_MEASURED = "exact on 71.4% of 35 systems, 30% of those at truck factor 2 to 5 (Ferreira, Valente and Ferreira, ICPC 2017)"
 
 
-def truck_factor(report: dict, min_files: int = 20, area_files: int = 10) -> list:
+TRUCK_MIN_FILES = 20   # under this many source files a truck factor is a statement about a handful of files
+
+
+def truck_factor_absent(report: dict, min_files: int = TRUCK_MIN_FILES):
+    """Why truck_factor() has nothing to say when that is not "nobody is a risk": too few source files, or a
+    pool most of which has no author on record. None when it was computed, or when there is no file listing
+    or no degree of authorship to compute it from (a step that did not finish, which the header names)."""
+    if not _tree(report):
+        return None
+    files = _pool_files(report)
+    if len(files) < min_files:
+        return {"measure": "truck_factor", "label": "truck factor", "files": len(files), "min_files": min_files,
+                "reason": f"{len(files)} source file{'s' if len(files) != 1 else ''}, needs {min_files}"}
+    if not report.get("doa"):
+        return None
+    orphans = sum(1 for a in _authors_of(report, files).values() if not a)
+    if 2 * orphans > len(files):   # knowledge.truck_factor's own stop: more than half orphaned before anyone leaves
+        return {"measure": "truck_factor", "label": "truck factor", "files": len(files), "orphaned": orphans,
+                "reason": f"{orphans} of the {len(files)} source files have no author on record"}
+    return None
+
+
+def not_computed(report: dict) -> list:
+    """The measures this run could not make, each with why: a rule that stays silent because its precondition
+    failed reads as a rule that found nothing. The truck factor below its file floor, and the backtest
+    without the history (or after a failed step), which the watch list's caption already says (`said`).
+    The bug magnets' size test says so inside its own finding."""
+    out = []
+    truck = truck_factor_absent(report)
+    if truck:
+        out.append(truck)
+    bt = (report.get("meta") or {}).get("backtest") or {}
+    if bt.get("status") == "skipped" and bt.get("reason"):
+        out.append({"measure": "backtest", "label": "backtest", "reason": bt["reason"], "said": "watch list"})
+    elif bt.get("status") in ("failed", "timeout"):
+        out.append({"measure": "backtest", "label": "backtest", "reason": f"the step {'timed out' if bt['status'] == 'timeout' else 'failed'}", "said": "watch list"})
+    return out
+
+
+def truck_factor(report: dict, min_files: int = TRUCK_MIN_FILES, area_files: int = 10) -> list:
     """Avelino et al.'s truck factor over the degree of authorship: how many people have to leave before
     more than half the source files have no author. One is a warning, two a note. Changes rather than
     lines, and a creator's bonus, so it can disagree with the surviving-code share, which the bus-factor

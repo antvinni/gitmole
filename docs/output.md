@@ -68,6 +68,24 @@ in plain words, and what to do first. This page is the reference.
    pool: `4,512 files: 582 scored · 13 generated · 2,680 test files · 139
    example code · 3 release files · 1,095 not a source type`, and a file of
    a type scc does not classify counts as `not counted by scc`.
+
+   The default header says what it ranks when that is the smaller part. When
+   the files no table carries (`not a source type`, `not counted by scc`)
+   outnumber the scored ones, the header's last line, the tally, ends
+   `581 of 4,512 files scored`. When the files the type filter left out
+   also hold more lines than the scored ones, the count opens a line of
+   its own instead: `17 of 227 files scored · 69% of tracked lines are
+   documentation, not ranked · --file-types all includes them · 83% of
+   commits and 72% of fixes change only unscored files`. The lines are
+   scc's code lines, the unit of the header's own count; documentation is
+   prose formats and anything under `docs/`; a tree where other types hold
+   more reads `37% of tracked lines are in file types that are not ranked`.
+   The last phrase labels the populations: `25% of commits are fixes` is
+   over every commit, the bug magnets and the watch list over scored files,
+   and it says how many commits, and how many fix commits, changed files
+   and none that is scored. A tree with more test files than source files
+   gets none of this: tests are in the tables, hidden, and `--full` shows
+   them. The counts are under `coverage` in the JSON.
 2. **Findings**: anything the heuristics flagged, worst first. Findings of
    the same kind are grouped into one entry with a list, and every finding
    ends with a next step that names the file, area or person to start with,
@@ -643,6 +661,23 @@ in plain words, and what to do first. This page is the reference.
    the pool, its fixed files, the list's length and its hits, all in the
    JSON's `watch_backtest`. Repositories with under a year of history say
    `too little history to backtest`.
+
+   When documentation is more than half the tree's lines and none of it is
+   ranked, a short list follows the watch list: **Most-changed documents**,
+   the five most-revised documents with their revision counts (fifteen
+   with `--full` and in the JSON's `coverage.documents`). It is a count
+   from the log the run already has, taken the way a source file's
+   revisions are (in the window, without the sweeping and import commits),
+   over the documents that are out of the pool for their type alone. It is
+   by revisions alone: not a score, not a finding, and no claim that a fix
+   is likelier there.
+
+   A measure the run could not make says so in one dim line that closes the
+   findings: `truck factor not computed: 17 source files, needs 20`, or
+   that more than half the source files have no author on record. Without
+   it a missing truck factor reads as nobody being a risk. The backtest's
+   reason stays under the watch list, and the bug magnets' size test inside
+   that finding; all of them are listed under `not_computed` in the JSON.
 
    That line is one cut-off on one repository. How the list does over six
    cut-offs on curl, django and react, next to lists ranked by churn alone,

@@ -520,7 +520,12 @@ scores them like `--risk`, prints one line per file with what imports it and
 the companions the edit left untouched, and exits 0. When the output
 directory's scc, log or change analysis did not complete, every file scores
 0, and the summary ends by saying so, so a 0 that was never counted does
-not read as a safe file.
+not read as a safe file. A document is out of the ranking by its type, which
+says nothing about how often it changes: its line reads `not scored:
+documentation is not ranked`, with `changed 50 times, one of the most-changed
+documents` when it is on that list, and a change that touches no scored file
+ends `total 0.0%; none of these files is scored, so the total says nothing
+about this change`.
 
 The hook never blocks the agent; it is context. Up to 0.42.0 it exited 2,
 which every one of these hooks reads as "block", when the total was over
