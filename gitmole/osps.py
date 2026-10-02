@@ -68,7 +68,12 @@ def coverage(report: dict, found: list) -> list:
         if not presence:
             rows.append(_row(control, "not checked", "the hygiene step did not run"))
         else:
-            rows.append(_row(control, "met" if presence.get(key) else "gap", presence.get(key) or f"no {what} at the root, in .github/ or in docs/"))
+            where = "at the root, in .github/ or in docs/"
+            if key == "contributing":   # a heading counts (hygiene._heading_contributing); a pull request template is named, and is not a guide
+                where += ", and no heading about contributing in the README"
+                if presence.get("pull_request_template"):
+                    where += f" ({presence['pull_request_template']} is a template, not a guide)"
+            rows.append(_row(control, "met" if presence.get(key) else "gap", presence.get(key) or f"no {what} {where}"))
 
     trailers = (report.get("provenance") or {}).get("trailers") or {}
     if trailers.get("commits"):

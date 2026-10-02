@@ -595,7 +595,33 @@ def _heading_security(repo: str, tracked: list):
     return None
 
 
+# a heading about contributing ("Contributing", "How to contribute", "Contribution guidelines"); "Contributors"
+# heads a list of people, which explains no process
+_CONTRIBUTING_HEADING = re.compile(r"^#{1,6}\s+(.*\bcontribut(?!ors?\b).*?)\s*#*\s*$", re.I | re.M)
+_GUIDE_HOSTS = (r"^readme(\.md|\.markdown)?$", r"^docs/(readme|index)(\.md|\.markdown)?$")   # the README, or the docs' index
+_PR_TEMPLATE = re.compile(r"^(?:\.github/|docs/)?pull_request_template(?:\.md|\.txt|/[^/]+\.md)?$", re.I)   # where GitHub reads one
+
+
+def _heading_contributing(repo: str, tracked: list):
+    """`README.md#Contributing` when the README, or the docs' index, has a Markdown heading about contributing:
+    the project explaining its contribution process where it chose to, as _heading_security reads a policy.
+    superpowers' README has "## Contributing" with the steps of a pull request and no CONTRIBUTING file, and
+    OSPS-GV-03.01 read as a gap."""
+    for pattern in _GUIDE_HOSTS:
+        host = next((p for p in tracked if re.match(pattern, p, re.I)), None)
+        if not host:
+            continue
+        heading = _CONTRIBUTING_HEADING.search(_text(repo, host))
+        if heading:
+            return f"{host}#{heading.group(1).strip()}"
+    return None
+
+
 def presence(repo: str) -> dict:
+    """The policy files, each by its conventional name at the root, in .github/ or in docs/, or by the heading
+    that stands in for it (_heading_security, _heading_contributing). `pull_request_template` is recorded as
+    evidence only: a template says what a pull request must contain, not how to contribute, so it does not make
+    `contributing` true."""
     tracked = _tracked(repo)
     roots = ("", ".github/", "docs/")
 
@@ -608,7 +634,8 @@ def presence(repo: str) -> dict:
     licence = next((p for p in tracked if "/" not in p and re.match(r"^(licen[cs]e|copying)(\.|-|$)", p, re.I)), None) \
         or next(("LICENSES/" for p in tracked if p.startswith("LICENSES/")), None)   # the REUSE layout
     policy = first(r"^security(\.md|\.txt|\.rst)?$") or _heading_security(repo, tracked)
-    contributing = first(r"^contributing(\.md|\.txt|\.rst|\.adoc)?$")
+    contributing = first(r"^contributing(\.md|\.txt|\.rst|\.adoc)?$") or _heading_contributing(repo, tracked)
+    template = next((p for p in sorted(tracked) if _PR_TEMPLATE.match(p)), None)
     owners = first(r"^codeowners$")
     missing = []
     if owners:
@@ -619,7 +646,8 @@ def presence(repo: str) -> dict:
             pattern = line.split()[0]
             if not _codeowners_matches(pattern, tracked):
                 missing.append(pattern)
-    return {"license": licence, "security_policy": policy, "contributing": contributing, "codeowners": owners, "codeowners_missing": missing[:CAP]}
+    return {"license": licence, "security_policy": policy, "contributing": contributing, "codeowners": owners, "codeowners_missing": missing[:CAP],
+            "pull_request_template": template}
 
 
 # --- dependency confusion -----------------------------------------------------------------------

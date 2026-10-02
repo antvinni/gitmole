@@ -196,7 +196,11 @@ in plain words, and what to do first. This page is the reference.
    `rule.osps`, and SARIF tags the rule with it. The OSPS Baseline section
    (`--full`, Markdown and `osps` in the JSON) lists the controls a
    clone can show: secrets in version control, the licence file and its
-   licence, sign-off on every commit, a contribution guide, security
+   licence, sign-off on every commit, a contribution guide (a
+   `CONTRIBUTING` file, or a heading about contributing in the README or
+   the docs' index; a pull request template is recorded in
+   `presence.pull_request_template` and named beside a gap, and is not a
+   guide), security
    contacts, a dependency list, executables and binaries in version
    control, and known-vulnerable dependencies. Each gets a result here:
    met, gap, not seen (sign-off on too few commits, where a contributor

@@ -297,6 +297,16 @@ class OspsCoverage(unittest.TestCase):
         rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
         self.assertEqual(rows["OSPS-QA-02.01"], ("not applicable", "package.json declares no dependency to lock"))
 
+    def test_a_pull_request_template_is_named_beside_the_gap_and_a_heading_meets_the_control(self):
+        r = self._report()
+        r["hygiene"]["presence"] = {"license": "LICENSE", "security_policy": None, "contributing": None, "pull_request_template": ".github/PULL_REQUEST_TEMPLATE.md"}
+        rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
+        self.assertEqual(rows["OSPS-GV-03.01"], ("gap", "no contribution guide at the root, in .github/ or in docs/, and no heading about contributing "
+                                                        "in the README (.github/PULL_REQUEST_TEMPLATE.md is a template, not a guide)"))
+        r["hygiene"]["presence"]["contributing"] = "README.md#Contributing"
+        rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
+        self.assertEqual(rows["OSPS-GV-03.01"], ("met", "README.md#Contributing"))
+
     def test_nothing_run_is_not_checked_rather_than_met(self):
         r = report()
         rows = {x["control"]: x["result"] for x in osps.coverage(r, findings.evaluate(r))}

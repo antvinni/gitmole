@@ -337,7 +337,8 @@ class Presence(unittest.TestCase):
             r.write("docs/guide.md", "x\n")
             r.commit()
             out = hygiene.presence(d)
-        self.assertEqual(out, {"license": "LICENSE", "security_policy": None, "contributing": None, "codeowners": ".github/CODEOWNERS", "codeowners_missing": ["/gone/"]})
+        self.assertEqual(out, {"license": "LICENSE", "security_policy": None, "contributing": None, "codeowners": ".github/CODEOWNERS", "codeowners_missing": ["/gone/"],
+                               "pull_request_template": None})
 
 
     def test_a_readme_heading_about_security_is_the_policy_the_project_points_to(self):
@@ -361,6 +362,33 @@ class Presence(unittest.TestCase):
             r.write("CONTRIBUTING.md", "# contributing\n\n## Security\n\nTo report a vulnerability, use private reporting.\n")
             r.commit()
             self.assertEqual(hygiene.presence(d)["security_policy"], "CONTRIBUTING.md#Security")
+
+    def test_a_readme_heading_about_contributing_is_the_guide_and_a_pull_request_template_is_only_evidence(self):
+        """superpowers: README.md has "## Contributing" with the steps, .github/PULL_REQUEST_TEMPLATE.md, no CONTRIBUTING."""
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("README.md", "# tool\n\nWe welcome contributions.\n\n## Contributors\n\nAnn\n\n## Contributing\n\n1. Fork\n2. Open a pull request\n")
+            r.write(".github/PULL_REQUEST_TEMPLATE.md", "## What\n")
+            r.commit()
+            out = hygiene.presence(d)
+        self.assertEqual(out["contributing"], "README.md#Contributing", "not the list of contributors, and not the sentence")
+        self.assertEqual(out["pull_request_template"], ".github/PULL_REQUEST_TEMPLATE.md")
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("README.md", "# tool\n\nWe welcome contributions.\n\n## Contributors\n\nAnn\n")
+            r.write(".github/PULL_REQUEST_TEMPLATE/feature.md", "## What\n")
+            r.write("docs/index.md", "# Docs\n\n### How to contribute ###\n\nSend a patch.\n")
+            r.commit()
+            out = hygiene.presence(d)
+            self.assertEqual(out["contributing"], "docs/index.md#How to contribute", "the docs' index is read after the README")
+            self.assertEqual(out["pull_request_template"], ".github/PULL_REQUEST_TEMPLATE/feature.md")
+            r.git("rm", "-q", "docs/index.md")
+            r.write("CONTRIBUTING.rst", "x\n")
+            r.commit("guide")
+            self.assertEqual(hygiene.presence(d)["contributing"], "CONTRIBUTING.rst", "the file by its name comes first")
+            r.git("rm", "-q", "CONTRIBUTING.rst")
+            r.commit("gone")
+            self.assertIsNone(hygiene.presence(d)["contributing"], "a template alone is not a guide")
 
     def test_the_readme_wins_when_both_name_one(self):
         with tempfile.TemporaryDirectory() as d:
