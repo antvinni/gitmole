@@ -433,6 +433,34 @@
   (#201); `--help` in groups and a first-report page (#187); the usefulness graph says its labels are one
   agent's (#193).
 
+- **0.44.0 is the superpowers release: every change answers what ten reviewers checked in 0.43.1's report on
+  obra/superpowers**, a plugin whose product is Markdown and whose code runs at an agent's session start (nine
+  "conditionally", one "no"; its maintainer's tally 2 act, 1 ignore, 1 false of 4). The harness gained ten checks
+  first (#261): the 0.43.1 runs read 227 contradictions under them (54 recorded), superpowers 15. This round reads
+  104: unscored_executable 106 -> 0, dead_import 5 -> 0, coverage_unsaid 3 -> 0, with self_credit 51 and the two
+  older residuals as before. What is left of the new checks is recorded, not fixed: fix_episode 21 (bug-magnet
+  files whose recent fixes sit in fewer than three weeks; the rule change was deferred), plural_one 19 and
+  silent_measure 9 on the one-commit fixtures ("1 commits", a backtest not run and not said), tied_owner 1.
+- **Findings and reading fell or held; effectiveness is 0.43.1's.** Findings median 10, 90th percentile 16.9 -> 16.2
+  (yt-dlp 16 -> 15: an import with nothing left in the tree is a line, not a finding; coredns and prometheus lose one
+  each for the same reason), report lines 197.5 -> 195, development 345 -> 325 s and 1,017 -> 1,014 MB, large time
+  510 -> 495 s. The scored share rises 0.351 -> 0.368: an executable file with an interpreter line is source whatever
+  its name (#264; curl 581 -> 601 files), and headroom, W/L/T and AUC did not move with it.
+- **One ceiling rises, decided by the maintainer on 2 October:** large peak 1,143 -> 1,153 MB (ghidra, at load 11;
+  its betterleaks step read 655 -> 798 MB), within the 1,131-1,153 of recent rounds. The round took 25 minutes on AC
+  and did not sleep; it ran without a vulnerability database, on example seeds rebuilt after the /tmp cleaner.
+- **A determinism bug was caught before release.** #266's coverage line summed scc's lines over the working
+  directory, untracked files included, so an --out inside the clone changed the count from run to run; CI's
+  two-runs job failed on it and the count now keeps to tracked files.
+- **Since 0.43.1, besides the measurement:** the header says how much of the tree is scored when most is not, a
+  most-changed documents list (by revisions alone) follows the watch list when documentation is most of the lines,
+  a measure not computed is named with its reason, and --hook no longer answers 0.0% for an unranked file (#266);
+  executable scripts are source (#264); a manifest that declares nothing needs no lock, the lone lock is named, a
+  README "Contributing" heading meets the control, and --full lists the agent surface: skills, hook commands with the
+  scripts they run, plugin manifests (#265); tied owners read "shared by N", the knowledge map names its population,
+  tools are counted per address (#262); imports say what they counted, over-run spans take the structure step's
+  length, --full drops rows for files no longer in the tree (#267); low-information sections collapse by count rules
+  (#268); CI gains a lint job: actionlint, shellcheck, ruff's error rules, JSON and YAML validity (#263).
 - **0.43.1 is a patch: code age runs by the history its blames walk, not by a stopwatch (#258), and the round got
   shorter.** A debate on the 0.43.0 round's 87 minutes found about 50 of them were the laptop asleep on battery. The
   round now keeps the machine awake and records wall, CPU, power and load per run and the seconds it slept (#253);
