@@ -724,7 +724,9 @@ in plain words, and what to do first. This page is the reference.
    exists, and shows a directory whose files all change together (generated
    tables, one file per version) as one row with the file count and the
    weakest degree; the caption counts both and `--full` shows every pair.
-   Hotspots hide files no longer in the tree the same way. Hotspots carry a `trend` column, sampled for the
+   Hotspots hide files no longer in the tree the same way; `--full`, which hides nothing else, gives them one
+   line (`412 removed files not listed, 312 from left-out imports`), since a file that is gone has no lines,
+   complexity or score to show, and `maat-revisions.csv` still lists every one. Hotspots carry a `trend` column, sampled for the
    top hotspots: the change in complexity over the last year from scc on
    the file at sampled commits, `-` when no sample is a year old (`--full`
    shows the whole series as a sparkline), and under `--full` a `minors` column (contributors with a
