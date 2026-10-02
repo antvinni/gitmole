@@ -487,8 +487,7 @@ class Sweeping(unittest.TestCase):
             maat.write_all(log, d, ignore_revs={"decl0000000000000000000000000000000000000"})
             with open(os.path.join(d, "maat-revisions.csv")) as fh:
                 revs = dict(line.strip().split(",") for line in fh.readlines()[1:])
-            with open(os.path.join(d, "maat-authors.csv")) as fh:
-                authors = {line.split(",")[0]: line.strip().split(",") for line in fh.readlines()[1:]}
+            self.assertTrue(os.path.exists(os.path.join(d, "maat-authors.csv")))   # written, though nothing here reads it
             with open(os.path.join(d, "activity.json")) as fh:
                 act = json.load(fh)
         self.assertEqual(revs["src/a.py"], "200", "the declared commit's revision is gone")

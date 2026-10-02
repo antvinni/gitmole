@@ -1,9 +1,7 @@
 """When a release round asks remediation's question: only when a path its rows depend on
 (remediation.ASKED_WHEN_CHANGED) changed since the last record that asked it. Otherwise the record says
 "not asked" and why, and never carries a number forward."""
-import contextlib
 import glob
-import io
 import json
 import os
 import subprocess

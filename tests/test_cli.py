@@ -366,7 +366,7 @@ class Budget(unittest.TestCase):
 
 class Interrupt(unittest.TestCase):
     def test_keyboard_interrupt_kills_steps_and_exits_130(self):
-        import threading, time, signal
+        import threading, time
         with tempfile.TemporaryDirectory() as d:
             _tiny_repo(d)
             marker = os.path.join(d, "finished")
@@ -1605,7 +1605,6 @@ class InstallTools(unittest.TestCase):
         def installer(names, say=print, **kw):
             seen.append(signal.getsignal(signal.SIGINT))
             return list(names)
-        before = signal.getsignal(signal.SIGINT)
         cli.main(["--install-tools"], console=console(), installer=installer)
         self.assertEqual(seen, [signal.default_int_handler])
         self.assertIs(signal.getsignal(signal.SIGINT), cli.interrupt, "main() sets its own handler and does not restore what it found; _interruptible restores main()'s")
