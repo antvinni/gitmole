@@ -433,6 +433,26 @@
   (#201); `--help` in groups and a first-report page (#187); the usefulness graph says its labels are one
   agent's (#193).
 
+- **0.43.1 is a patch: code age runs by the history its blames walk, not by a stopwatch (#258), and the round got
+  shorter.** A debate on the 0.43.0 round's 87 minutes found about 50 of them were the laptop asleep on battery. The
+  round now keeps the machine awake and records wall, CPU, power and load per run and the seconds it slept (#253);
+  remediation's scans skip code age by option (#255) and are asked only when a path they depend on changed (#256;
+  asked here, eight changed); the latest cut-off is ranked once (#254); every scan starts from an empty cache (#257).
+  This round: 27 minutes on AC, 0 s asleep, plus a 4.5-minute re-run of two entries.
+- **Every finding, report and effectiveness number is 0.43.0's**, remediation's shares included (25% mechanical, 23%
+  structural), which is #255's receipt at full scale. Development time 352 -> 345 s. The structure step's median reads
+  0.7 -> 1.3 s: a first run's cost now, as #257 said it would.
+- **Three ceilings rise, decided by the maintainer on 2 October.** Large-set time 425 -> 510 s: django runs code age
+  again (33 -> 116 s, 209 -> 207 lines), the answer #258 fixes at any load and the one 0.41.0 and 0.42.0 recorded.
+  Large peak 1,135 -> 1,143 MB (ghidra; 0.42.0 read 1,144) and development peak 1,014 -> 1,017 MB (brew), within
+  earlier records' range, at loads of 5 to 14 not the round's.
+- **Two rounds were thrown away first.** The overnight one stretched over 18 hours of lid-closed sleep (63,648 of 65,440
+  s, which the new fields showed), during which the /tmp cleaner emptied the curl, django, react and gitmole clones.
+  Restored offline at their pins, curl and gitmole then read two extra secrets findings each: with their remote refs
+  gone, objects once reachable had become unreachable (2,276 and 1,505), and the unreachable-object scan found secrets
+  in them. Both were rebuilt with `git clone --no-local` (0 unreachable) and run again into the record
+  (`--only ... --merge`), after one more failed try when a `brew upgrade` removed the Python the run had started with.
+  The round ran without a vulnerability database.
 - **0.43.0 is the research-directions release: mostly the yardstick, measured before any rule it judges.** A
   ten-reviewer debate on the maintainer's report found it right to put measurement first and stale about the code
   (several of its gaps already existed), and settled on these harness changes, each its own PR recorded against the
