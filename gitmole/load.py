@@ -389,6 +389,10 @@ def _coverage(out_dir: str, report: dict, code: dict) -> dict:
     nothing else."""
     from . import classify
     files = report["meta"].get("coverage") or {}
+    tree = report.get("tree")
+    if tree is not None:   # scc counts the working directory: an untracked file there (an --out inside the
+        tracked = set(tree)   # clone, written while scc runs) is not the repository's, and differs run to run
+        code = {p: n for p, n in code.items() if p in tracked}
     if not files or not code:
         return {}
     cls = classify.Classifier(report)

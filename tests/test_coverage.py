@@ -133,6 +133,16 @@ class Loaded(unittest.TestCase):
         self.assertIsNone(render.documents_section(report, False))
         self.assertNotIn("documents", [s["id"] for s in render.sections(report, full=False)])
 
+    def test_a_file_scc_counted_that_git_does_not_track_is_not_the_repositorys(self):
+        """scc reads the working directory: with --out inside the clone it counted the run's own output while it
+        was being written, and the documentation lines differed from one run of a commit to the next."""
+        with tempfile.TemporaryDirectory() as d:
+            _out(d, {**DOCS, "analysis/report.md": ("Markdown", 7000)}, {"scored": 1, "not a source type": 3, "test file": 1})
+            with open(os.path.join(d, "tree.txt"), "wb") as fh:
+                fh.write(b"\0".join(p.encode() for p in DOCS) + b"\0")
+            cov = load.load_report(d)["coverage"]
+        self.assertEqual(cov["lines"], {"tracked": 1000, "scored": 100, "documentation": 850, "other_types": 50})
+
     def test_a_run_that_recorded_no_coverage_has_none(self):
         with tempfile.TemporaryDirectory() as d:
             _out(d, DOCS, {})
