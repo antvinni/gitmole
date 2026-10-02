@@ -1344,7 +1344,6 @@ def _structure(report: dict) -> dict:
 
 
 def _scored_top(report: dict, n: int = 10) -> list:
-    from . import classify
     cls = classify.Classifier(report)
     return [h["entity"] for h in hotspots.ranked(report) if h["code"] is not None and cls.reason(h["entity"]) is None][:n]
 
@@ -1749,7 +1748,6 @@ def signoff_by_co_author(report: dict, min_commits: int = 2) -> list:
 
 def _pool_files(report: dict) -> list:
     """The source files still in the tree that no classifier reason sets aside."""
-    from . import classify
     cls = classify.Classifier(report)
     return sorted(f for f in _tree(report) if cls.reason(f) is None)
 
