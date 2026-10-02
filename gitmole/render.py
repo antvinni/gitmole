@@ -464,6 +464,22 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
     return _section("Size by language", columns, rows, caption=_more(len(langs), limit))
 
 
+def _tools_left_out(report: dict, tools: set) -> str:
+    """'coding tools left out: 7 names on 1 no-reply address': what the rows kept out of the People table
+    are, counted as what git records. They are names, and several names on one vendor address are one
+    assistant signing each model version differently, so "4 coding tools" for four rows on one address
+    counted spellings as tools. Every spelling counts, the ones merged into a row too."""
+    names, addresses = set(), set()
+    for i in report["meta"].get("identities") or []:
+        if i["name"] in tools:
+            for v in [i, *(i.get("aliases") or [])]:
+                names.add(v.get("name"))
+                if identity.NO_REPLY_MAILBOX.match(v.get("email") or ""):
+                    addresses.add(v["email"].lower())
+    on = f" on {len(addresses)} no-reply address{'es' if len(addresses) != 1 else ''}" if addresses else ""
+    return f"coding tools left out: {len(names)} name{'s' if len(names) != 1 else ''}{on}"
+
+
 def people_section(report: dict, full: bool = True, width=None) -> dict:
     tools = set((report.get("tools") or {}).get("names") or [])   # load.py keeps them out of the tables about people
     ids = [i for i in report["meta"].get("identities") or [] if i["name"] not in tools]
@@ -496,7 +512,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if merges:
         notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
     more = _more(len(ids), limit)
-    left = f"{apart} coding tool{'s' if apart != 1 else ''} (told by their no-reply address) left out" if apart else None
+    left = _tools_left_out(report, tools) if apart else None
     if more or left:
         notes.append("; ".join(x for x in (more, left) if x))
     bots = report["meta"].get("bots") or []

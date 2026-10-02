@@ -1789,7 +1789,16 @@ class PeopleMerges(unittest.TestCase):
         sec = render.people_section(rep, full=False)
         self.assertEqual([r[0] for r in sec["rows"]], ["Dee"])
         self.assertNotIn("co-authored", sec["columns"])
-        self.assertIn("2 coding tools (told by their no-reply address) left out", sec["caption"])
+        self.assertIn("coding tools left out: 2 names on 1 no-reply address", sec["caption"],
+                      "two spellings on one address are not two tools: the caption counts what git records")
+        rep["meta"]["identities"][0]["aliases"] = [{"name": "Model A (1M)", "email": "noreply@v.example", "commits": 5},
+                                                   {"name": "Model A", "email": "no-reply@w.example", "commits": 1}]
+        self.assertIn("coding tools left out: 3 names on 2 no-reply addresses", render.people_section(rep, full=False)["caption"],
+                      "a spelling merged into a row is a name too")
+        rep = {"meta": {"identities": [{"name": "Tool", "email": "", "commits": 9, "authored": 0}, {"name": "Dee", "email": "d@x", "commits": 30, "authored": 30}]},
+               "tools": {"names": ["Tool"], "commits": 9, "added": {}, "surviving": 0}}
+        self.assertIn("coding tools left out: 1 name", render.people_section(rep, full=False)["caption"])
+        self.assertNotIn("no-reply", render.people_section(rep, full=False)["caption"], "no address is not a no-reply address")
 
     def test_rows_sharing_a_name_keep_their_own_surviving_code_and_no_row_goes_negative(self):
         rep = {"meta": {"identities": [{"name": "Dev", "email": "dev@home.example", "commits": 30, "authored": 30, "merges": 4},

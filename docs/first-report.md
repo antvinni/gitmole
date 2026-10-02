@@ -23,7 +23,8 @@ months back to replay yet, so nothing here says how far to trust the ranking.
 
 **People.** Who commits, their share of the commits, and how much of the code in the tree today each
 wrote (`surviving code`, from git blame). Bots and merges are counted apart, aliases of one person
-are merged, and a coding tool credited by `Co-authored-by` trailers is left out; the caption counts it.
+are merged, and a coding tool credited by `Co-authored-by` trailers is left out; the caption counts the names
+left out and the no-reply addresses they sit on (several names on one address are one assistant's model versions).
 
 **Knowledge map.** Each top-level area, how many lines were added there, and who wrote most of them.
 The heading says which files are counted: the default map counts the `files in the tree now`, so a
