@@ -322,7 +322,19 @@ in plain words, and what to do first. This page is the reference.
    `.claude/skills/*/SKILL.md`, `.codex/agents/`, `.agents/skills/*/SKILL.md`),
    which the note leaves out, and none of these files under a template,
    fixture, example or test directory, where they are a product's data or a
-   test's input. A `Signed-off-by` from an identity that
+   test's input. Three more parts of that surface are told by shape and only
+   listed, never a finding: the hook commands any tracked JSON declares (an
+   object with a `command` below a `hooks` key), each with its event, the
+   tracked script the command names once a `${VAR}/` or `./` prefix is
+   stripped (the command's own first word, or a file git records
+   executable or that opens with `#!`; any other tracked file it names is
+   recorded as `names`, not as something that runs), and the tracked file
+   that script hands over to with `exec` (one hop; YAML is not read); the manifests in a root dot-directory whose
+   name ends `-plugin`; and every `skills/<name>/SKILL.md` whose frontmatter
+   has a `name:` and a `description:`. `--full` and Markdown print them as
+   the Agent surface section, when there is anything to list
+   (`provenance.agents` in the JSON: `hooks`, `plugin_manifests`,
+   `skills`). A `Signed-off-by` from an identity that
    co-authors commits but never authors one is a note: the Linux kernel's
    policy forbids an agent to add the Developer Certificate of Origin.
 
@@ -824,5 +836,5 @@ directory for a remote target:
 | `hygiene.json` | hygiene step | each hygiene check's raw result: unpinned actions, lock-file drift, update coverage, policy files, dependency confusion shapes, install scripts, binaries, submodules, symlinks, Trojan Source, the declared licences, the declared dependencies nothing imports |
 | `unreachable.json` | secrets step | objects no ref reaches, the blobs among them, how many were scanned and how many findings they gave; a property of this clone, so the `--json` export carries the counts in its `envelope` |
 | `structure.json` | structure step, Python 3.10 or newer | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports and which of those only after it loads (`deferred`) — resolved for Python (from a root), JavaScript and TypeScript (relative paths), C and C++ (quoted includes), Ruby (`require_relative`, and `require` of a tracked file) and Go (an import path against the `module` and relative `replace` lines of the go.mod files in the tree; a Go import names a package, so it is an edge to every file of that directory the build compiles into it, `_test.go` and `package main` aside), while Rust, Java, C# and PHP imports stay unresolved — its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
-| `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the declared commits against the rest (with each side's watch-list hit rate; the JSON keeps the keys `cohort` and `marked`), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values) |
+| `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the declared commits against the rest (with each side's watch-list hit rate; the JSON keeps the keys `cohort` and `marked`), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values, hook commands with their scripts, plugin manifests, skills) |
 | `run.log` | gitmole | every command run and its stderr |

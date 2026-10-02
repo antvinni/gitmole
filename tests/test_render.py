@@ -1509,6 +1509,38 @@ class ReviewFixes(unittest.TestCase):
         self.assertIn("- **ok** No secrets in history", md, "each repository says when its scan came back clean")
 
 
+class AgentSurface(unittest.TestCase):
+    AGENTS = {"instructions": [{"file": "AGENTS.md", "last": "2026-09-01", "commits_behind": 1},
+                               {"file": ".claude/skills/fix/SKILL.md", "last": "2026-09-01", "commits_behind": 0, "kind": "skill"}],
+              "hooks": [{"file": "hooks/hooks.json", "event": "SessionStart", "command": "./hooks/run-hook.cmd session-start",
+                         "script": "hooks/run-hook.cmd", "runs": "hooks/session-start"}], "hooks_count": 1,
+              "plugin_manifests": [".acme-plugin/marketplace.json", ".acme-plugin/plugin.json", ".other-plugin/plugin.yaml"], "plugin_manifests_count": 3,
+              "skills": {"count": 3, "files": [".claude/skills/fix/SKILL.md", "skills/a/SKILL.md", "skills/b/SKILL.md"]}}
+
+    def test_the_inventory_is_a_full_only_section_and_no_finding(self):
+        r = sample_report()
+        r["provenance"] = {**(r.get("provenance") or {}), "agents": self.AGENTS}
+        self.assertNotIn("Agent surface", rendered(r, []), "the default report does not move")
+        text = " ".join(rendered(r, [], width=200, full=True).split())
+        self.assertIn("Agent surface", text)
+        self.assertIn("instructions AGENTS.md last changed 2026-09-01, 1 commit before the last", text)
+        self.assertIn("skills .claude/skills/ 1 with a name and a description: fix", text)
+        self.assertIn("skills skills/ 2 with a name and a description: a, b", text)
+        self.assertIn("hook hooks/hooks.json SessionStart: ./hooks/run-hook.cmd session-start → hooks/run-hook.cmd → hooks/session-start", text)
+        self.assertIn("plugin manifest .acme-plugin/ marketplace.json, plugin.json", text)
+        self.assertIn("1 instruction file, 3 skills, 1 hook command, 3 plugin manifests; read from the tree by path convention and shape, listed and not judged", text)
+        self.assertIn("agent_surface", render.FULL_ONLY)
+        from gitmole import findings
+        self.assertEqual([f["rule"]["id"] for f in findings.evaluate(r)], [f["rule"]["id"] for f in findings.evaluate(sample_report())])
+
+    def test_a_tree_that_declares_nothing_has_no_section(self):
+        r = sample_report()
+        self.assertNotIn("Agent surface", rendered(r, [], full=True))
+        r["provenance"] = {**(r.get("provenance") or {}), "agents": {"instructions": [], "guardrails": [], "mcp": []}}   # a run from before the inventory
+        self.assertNotIn("Agent surface", rendered(r, [], full=True))
+        self.assertNotIn("Agent surface", render.markdown(r, [], full=True))
+
+
 class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report(), full=True)
