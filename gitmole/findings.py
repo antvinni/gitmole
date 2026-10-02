@@ -404,7 +404,9 @@ def import_commits(report: dict) -> list:
     listed = "; ".join(one(c) for c in rows[:3])
     return [_f("info", "Imports left out of ownership",
                f"{_plural(len(rows), 'commit')} brought code in without changing any: {listed}. "
-               "Ownership, authorship, the truck factor and the churn counts leave it out, and the code-age pass credits its surviving lines to nobody.",
+               # the measures every report has; the truck factor reads authorship and is not computed for a small pool,
+               # so naming it promised a number superpowers' report (17 scored files) never showed
+               "Ownership, authorship and the churn counts leave it out, and the code-age pass credits its surviving lines to nobody.",
                "Read the knowledge tables as who has worked on the code since; git blame still names the importer for every untouched line.",
                rule={"id": "import_commits", "share": maat.IMPORT_SHARE, "min_files": maat.IMPORT_MIN_FILES, "deleted": maat.IMPORT_DELETED},
                evidence={"commits": [{"hash": c["hash"], "date": c["date"], "author": c["author"], "files": c["files"], "added": c["added"],

@@ -1777,6 +1777,8 @@ class ImportCommits(unittest.TestCase):
         f = findings.import_commits(report(activity=act))
         self.assertEqual(f[0]["rule"]["id"], "import_commits")
         self.assertIn("79d8f164f8 by Dan (12,449 files, 2,800,751 lines, 42% of every line the history adds", f[0]["detail"])
+        self.assertIn("Ownership, authorship and the churn counts leave it out", f[0]["detail"])
+        self.assertNotIn("truck factor", f[0]["detail"], "a report with too few files to compute one must not be told it left the import out")
         self.assertEqual(findings.import_commits(report(activity={})), [])
         act["authors_all"] = {"Dan": {"last": "2019-03-26"}}
         f = findings.import_commits(report(activity=act, meta={"name": "r", "commits": 100, "identities": [], "last_date": "2026-09-01"}))
