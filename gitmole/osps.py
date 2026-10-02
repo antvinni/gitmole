@@ -63,8 +63,8 @@ def coverage(report: dict, found: list) -> list:
                      else ("no secret in source in HEAD's history; " + "; ".join(lesser) if lesser else "the secrets scan of HEAD's history found none")
                      if report.get("secrets_scanned") else "the secrets step did not run"))
 
-    for control, key, what in (("OSPS-GV-03.01", "contributing", "a contribution guide"), ("OSPS-VM-02.01", "security_policy", "a security policy"),
-                               ("OSPS-LE-03.01", "license", "a licence file")):
+    for control, key, what in (("OSPS-GV-03.01", "contributing", "contribution guide"), ("OSPS-VM-02.01", "security_policy", "security policy"),
+                               ("OSPS-LE-03.01", "license", "licence file")):
         if not presence:
             rows.append(_row(control, "not checked", "the hygiene step did not run"))
         else:

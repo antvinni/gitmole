@@ -1030,8 +1030,16 @@ def secrets_pass(report: dict):
 
 
 def _dependency_files(scan: dict) -> str:
-    """'61 lock files', or '58 lock files and 3 requirement files': osv-scanner reads both, and only one locks."""
-    return deps.files_phrase(s.get("path") or "" for s in scan.get("sources") or [])
+    """'61 lock files', or '58 lock files and 3 requirement files': osv-scanner reads both, and only one locks.
+    A single file is named ('1 lock file (tests/server/package-lock.json)'): superpowers' report said "1 lock
+    file" beside a finding that package.json had none, and nothing said which lock was meant."""
+    paths = {s.get("path") or "" for s in scan.get("sources") or []}
+    only = next(iter(paths)) if len(paths) == 1 else ""
+    return deps.files_phrase(paths) + (f" ({only})" if only else "")
+
+
+def _packages(n: int) -> str:
+    return f"{n:,} package{'' if n == 1 else 's'}"
 
 
 def dependencies_pass(report: dict):
@@ -1039,7 +1047,7 @@ def dependencies_pass(report: dict):
     deps = report.get("dependencies") or {}
     if deps.get("status") != "scanned" or deps.get("vulnerable") or not deps.get("packages"):
         return None
-    detail = f"osv-scanner checked {deps['packages']:,} packages in {_dependency_files(deps)} against the local database"
+    detail = f"osv-scanner checked {_packages(deps['packages'])} in {_dependency_files(deps)} against the local database"
     if deps.get("database_date"):
         detail += f" from {deps['database_date']}"
     return "No known vulnerabilities in dependencies", detail
@@ -1070,7 +1078,7 @@ def dependencies_line(report: dict):
     if status == "scanned":
         rows = deps.get("vulnerable") or []
         bad = len({r.get("name") for r in rows})
-        line = f"Dependencies: {deps.get('packages', 0):,} packages in {_dependency_files(deps)}, "
+        line = f"Dependencies: {_packages(deps.get('packages', 0))} in {_dependency_files(deps)}, "
         line += (f"{bad} vulnerable" + (f" in {len(rows)} places" if len(rows) != bad else "")) if bad else "none vulnerable"
         notes = deps.get("informational") or []
         if notes:   # RustSec's unmaintained, unsound and notice advisories: said, not counted as vulnerable

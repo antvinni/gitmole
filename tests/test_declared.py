@@ -257,7 +257,7 @@ class OspsCoverage(unittest.TestCase):
         rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
         self.assertEqual(set(rows), set(osps.CONTROLS))
         self.assertEqual(rows["OSPS-BR-07.01"][0], "met")
-        self.assertEqual(rows["OSPS-VM-02.01"][0], "gap")
+        self.assertEqual(rows["OSPS-VM-02.01"], ("gap", "no security policy at the root, in .github/ or in docs/"))
         self.assertEqual(rows["OSPS-GV-03.01"], ("met", "CONTRIBUTING.md"))
         self.assertEqual(rows["OSPS-LE-01.01"][0], "met")
         self.assertEqual(rows["OSPS-LE-02.01"], ("met", "MIT"))

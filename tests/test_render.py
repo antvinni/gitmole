@@ -131,6 +131,17 @@ class Report(unittest.TestCase):
         self.assertIn("osv-scanner checked 151 packages in 2 lock files and 1 requirement file against", text)
         self.assertIn("Dependencies: 151 packages in 2 lock files and 1 requirement file, none vulnerable", text)
 
+    def test_one_lock_file_is_named_and_one_package_is_singular(self):
+        """superpowers: "1 packages in 1 lock file" beside "package.json has no package-lock.json"; the lock was a test's."""
+        r = sample_report()
+        r["dependencies"].update(packages=1, sources=[{"path": "tests/server/package-lock.json", "packages": 1}])
+        text = " ".join(rendered(r, []).split())
+        self.assertIn("osv-scanner checked 1 package in 1 lock file (tests/server/package-lock.json) against the local database", text)
+        self.assertIn("Dependencies: 1 package in 1 lock file (tests/server/package-lock.json), none vulnerable", text)
+        self.assertNotIn("1 packages", text)
+        r["dependencies"].update(sources=[{"path": "requirements.txt", "packages": 1}])
+        self.assertIn("Dependencies: 1 package in 1 requirement file (requirements.txt), none vulnerable", " ".join(rendered(r, []).split()))
+
     def test_the_footer_says_why_dependencies_were_not_scanned(self):
         r = sample_report()
         r["dependencies"] = {"status": "no-sources"}
