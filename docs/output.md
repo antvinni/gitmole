@@ -815,7 +815,12 @@ in plain words, and what to do first. This page is the reference.
    forty or more lines are code, or it has no name and nothing near its
    start line opens a function, as with a JSX ternary read as one), the
    caption says how many, and such spans are left out of the brain
-   methods finding. Activity and the
+   methods finding. Where the structure step parsed the file cleanly and
+   ends the same function less than half as far on, the row's lines are
+   the structure step's (a 36-line function no longer reads as 339); the
+   complexity is still lizard's, counted over what it swallowed, and the
+   `?` stays; `lizard_overrun` in the JSON keeps lizard's own end and
+   lines. Activity and the
    timeline cover the whole history.
 6. **Footer**: where the files and plots are. `--full` and Markdown close
    with a Run line above it: what produced the report, gitmole's version,

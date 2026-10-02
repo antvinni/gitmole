@@ -706,15 +706,25 @@ class CrossCheck(unittest.TestCase):
         self.assertEqual((rows[0]["end"], rows[0]["nloc"], rows[0]["ccn"], rows[0]["suspect"]), (26572, 6394, 55, ""))
         self.assertEqual(rows[0]["lizard_span"], {"end": 20446, "nloc": 222})
 
-    def test_a_span_lizard_ran_past_the_end_of_is_marked_suspect(self):
+    def test_a_span_lizard_ran_past_the_end_of_takes_the_structure_steps_span_and_stays_marked(self):
         rows = load.cross_check([_fn("safeMilestoneText", 144, 234, 84)], _structure(_st("safeMilestoneText", 144, 175)))
         self.assertEqual(rows[0]["suspect"], "84 lines of code in a function the structure step ends after 32 lines, at line 175")
-        self.assertNotIn("lizard_span", rows[0])
+        self.assertEqual((rows[0]["end"], rows[0]["nloc"], rows[0]["ccn"]), (175, 32, 20), "the lines are the structure step's, the complexity lizard's")
+        self.assertEqual(rows[0]["lizard_overrun"], {"end": 234, "nloc": 84})
+        self.assertNotIn("lizard_span", rows[0], "not a floor: lizard counted too much, not too little")
         # a span that ran on over a doc comment: 21 lines of code over 61, of a 25-line function; the counts are the function's
         over = load.cross_check([_fn("passesFilter", 89, 149, 21)], _structure(_st("passesFilter", 89, 113)))
         self.assertEqual((over[0]["suspect"], over[0]["end"], over[0]["nloc"]), ("", 149, 21))
-        kept = load.cross_check([_fn("f", 1, 100, 50, suspect="opens a block at line 8 no deeper than its own start")], _structure(_st("f", 1, 10)))
-        self.assertEqual(kept[0]["suspect"], "opens a block at line 8 no deeper than its own start", "the function step's own reason stays")
+        self.assertNotIn("lizard_overrun", over[0])
+
+    def test_an_over_run_the_function_step_already_marked_is_corrected_and_keeps_its_reason(self):
+        # superpowers: extractAndStripFrontmatter 33-382, 339 lines to lizard; 33-68 to the structure step
+        why = "opens a block at line 116 no deeper than its own start"
+        kept = load.cross_check([_fn("extractAndStripFrontmatter", 33, 382, 339, ccn=11, suspect=why)], _structure(_st("extractAndStripFrontmatter", 33, 68)))
+        self.assertEqual((kept[0]["suspect"], kept[0]["end"], kept[0]["nloc"], kept[0]["ccn"]), (why, 68, 36, 11))
+        self.assertEqual(kept[0]["lizard_overrun"], {"end": 382, "nloc": 339})
+        errors = load.cross_check([_fn("f", 33, 382, 339, suspect=why)], _structure(_st("f", 33, 68), errors=True))
+        self.assertEqual((errors[0]["end"], errors[0]["nloc"]), (382, 339), "only where tree-sitter parsed the file cleanly")
 
     def test_spans_within_twice_each_other_are_left_alone(self):
         rows = load.cross_check([_fn("f", 10, 59, 40), _fn("g", 100, 199, 90)], _structure(_st("f", 10, 109), _st("g", 100, 150)))

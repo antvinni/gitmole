@@ -178,11 +178,16 @@ def cross_check(functions: list, structure: dict) -> list:
     the structure step's, the lines its line count, and the complexity stays lizard's, which is then a
     floor, since it counted only the part it read; lizard's own end and lines stay under `lizard_span`.
     Or it runs on past the end: when it also counted more lines of code than SPAN_RATIO times the lines
-    the function has at all, it counted what follows as the function's, and the row is marked suspect, as
-    the function step's own checks mark the swallowed spans they catch. A span that ran on over a comment
-    or into functions lizard listed on their own (paperclip's passesFilter: 21 lines of code over 61, of
-    a 25-line function; brew's audit_deps) keeps its counts, which are the function's. Both need the
-    spans to differ by more than SPAN_RATIO; nothing is ever unmarked."""
+    the function has at all, it counted what follows as the function's (superpowers'
+    extractAndStripFrontmatter: 33-382 and 339 lines to lizard, 33-68 to tree-sitter). The span and the
+    lines become the structure step's here too, lizard's own staying under `lizard_overrun`, and the row is
+    marked suspect, as the function step's own checks mark the swallowed spans they catch: the complexity
+    is still lizard's, counted over what follows as well, so it is a ceiling nobody should rank or flag
+    by. A row the function step already marked keeps its reason and is corrected the same way. A span
+    that ran on over a comment or into functions lizard listed on their own (paperclip's passesFilter: 21
+    lines of code over 61, of a 25-line function; brew's audit_deps) keeps its counts, which are the
+    function's. Both need the spans to differ by more than SPAN_RATIO; nothing is ever unmarked by an
+    over-run."""
     theirs = {}
     for s in (structure or {}).get("functions") or []:
         if not isinstance(s, dict) or not isinstance(s.get("start"), int) or not isinstance(s.get("end"), int):
@@ -204,8 +209,10 @@ def cross_check(functions: list, structure: dict) -> list:
         if real > SPAN_RATIO * ours:
             f["lizard_span"] = {"end": f["end"], "nloc": f["nloc"]}
             f.update(end=s["end"], nloc=real, suspect="")
-        elif ours > SPAN_RATIO * real and f["nloc"] > SPAN_RATIO * real and not f["suspect"]:
-            f["suspect"] = f"{f['nloc']} lines of code in a function the structure step ends after {real} lines, at line {s['end']}"
+        elif ours > SPAN_RATIO * real and f["nloc"] > SPAN_RATIO * real:
+            f["suspect"] = f["suspect"] or f"{f['nloc']} lines of code in a function the structure step ends after {real} lines, at line {s['end']}"
+            f["lizard_overrun"] = {"end": f["end"], "nloc": f["nloc"]}
+            f.update(end=s["end"], nloc=real)
     return functions
 
 
