@@ -58,6 +58,12 @@ PATH = {"overflow": "fold", "no_wrap": False, "kind": "path"}   # "kind" (and "s
 # no entry: it is `--full`/Markdown only now, so its row count is never decided by this table.
 CAPS = {"People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
+# The default report's rows about a person need this many commits, the rest are counted in "and N more": the
+# floor the coupling table and the sum of coupling already use for "enough commits to say anything" (five
+# shared revisions). Absolute, since a share of the commits would cut rows on a large repository that a
+# reader came for; and never fewer than ROWS_KEPT rows, so a three-person repository still shows its people.
+ROW_MIN_COMMITS = 5
+ROWS_KEPT = 3
 TREND_TOP = 10   # the trend step's own --top default: only those files have samples
 WATCH_CAP = 5   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
 WATCH_FULL = watch.WATCH_TOP   # tied to watch's own cap: the --compare before side is sliced by what to_json wrote
@@ -499,9 +505,12 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     mine = report.get("surviving_by_identity")
     lines_of = (lambda i: mine.get(identity.row_label(i), 0)) if mine is not None else (lambda i: surviving.get(i["name"], 0))
     limit = _limit("People", full)
-    credited = any(credit(i) for i in ids[:limit])   # a column only when a row shown has any
+    listed = ids[:limit]
+    if full is False:   # a row for two commits says little: under the floor they are counted, not listed
+        listed = [i for n, i in enumerate(listed) if n < ROWS_KEPT or own(i) >= ROW_MIN_COMMITS]
+    credited = any(credit(i) for i in listed)   # a column only when a row shown has any
     rows = [(i["name"], i["email"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
-             _pct(own(i), total_commits), _pct(lines_of(i), total_lines)) for i in ids[:limit]]
+             _pct(own(i), total_commits), _pct(lines_of(i), total_lines)) for i in listed]
     columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold", "spare": True}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
                *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving code", RIGHT)]
     if full is not True:
@@ -511,7 +520,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     notes = [f"commits since {since}; surviving code is for the whole tree"] if since else []
     if merges:
         notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
-    more = _more(len(ids), limit)
+    more = f"and {len(ids) - len(listed)} more" if len(ids) > len(listed) else None
     left = _tools_left_out(report, tools) if apart else None
     if more or left:
         notes.append("; ".join(x for x in (more, left) if x))
@@ -601,9 +610,12 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
         ranked = active(span)
     columns = [("author", {"no_wrap": True})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
     room = width - INDENT - MONTH_WIDTH * len(span) if width else None
-    rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in ranked[:limit]]
+    listed = ranked[:limit]
+    if full is False:   # as the People table: a row needs ROW_MIN_COMMITS commits in the months shown, the top ROWS_KEPT stay
+        listed = [a for n, a in enumerate(listed) if n < ROWS_KEPT or sum(tl[a].get(m, 0) for m in span) >= ROW_MIN_COMMITS]
+    rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in listed]
     months_shown = _month_label(span[0]) if len(span) == 1 else f"{_month_label(span[0])} → {_month_label(span[-1])}"
-    return _section(f"Timeline ({months_shown})", columns, rows, caption=_more(len(ranked), limit))
+    return _section(f"Timeline ({months_shown})", columns, rows, caption=f"and {len(ranked) - len(listed)} more" if len(ranked) > len(listed) else None)
 
 
 def signing_section(report: dict, full: bool = True, width=None) -> dict:
@@ -757,7 +769,21 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     caveat = coupling.regime(report)[1]   # what a pair means here: a pull request under squash merging, an edit otherwise
     if rows and caveat:
         notes.append(caveat)
+    # A table of one pair that the watch list's rows already give, with its degree, says nothing twice. Only
+    # test pairs may have been hidden on the way: a count of historical or vendored pairs is said nowhere else.
+    if full is False and not groups and not gone_note and len(pairs) == 1 and _watch_shows(report, pairs[0]):
+        return None
     return _section("Change coupling", columns, rows, note=note, caption="; ".join(notes) or None)
+
+
+def _watch_shows(report: dict, pair: dict) -> bool:
+    """Whether the default watch list already prints this coupled pair: one of its files is a row shown there
+    and a reason shown on that row is that it changes with the other."""
+    for r in watch.risks(report)[:WATCH_CAP]:
+        other = pair["coupled"] if r["file"] == pair["entity"] else pair["entity"] if r["file"] == pair["coupled"] else None
+        if other and any(reason.startswith(f"changes with {other} (") for reason in r["reasons"][:watch.REASONS_SHOWN]):
+            return True
+    return False
 
 
 def age_section(report: dict, full: bool = True, width=None) -> dict:
@@ -833,8 +859,21 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
                            f"nothing over complexity {CCN_FLOOR} in source files {counted}")
     else:
         note = None
+    if rows and full is False and len(funcs) <= (limit or 0):
+        from .findings import brain_rows
+        if not brain_rows(report):
+            # No function is both long and complex by the brain-methods rule itself, and the whole list fits the
+            # table, so nothing lies behind an "and N more": one line, naming the most complex it would lead with.
+            # A longer list stays a table whatever the rule says of it: gitmole's own has 166 functions at 10 or
+            # over, led by one of complexity 55 in 89 lines, and no brain method.
+            top = next((f for f in funcs if not f.get("suspect")), funcs[0])
+            mark = "at most " if top.get("suspect") else "at least " if top.get("lizard_span") else ""
+            note = (f"no long, complex functions; highest complexity {mark}{top['ccn']} "
+                    f"({_where(top) if _nameless(top) else top['function']})"
+                    + (f"; {partial}" if partial else "") + f"; --full lists {len(funcs)} at {CCN_FLOOR} or over")
+            rows = []
     caption = "; ".join(c for c in (_more(len(funcs), limit), None if note else hidden_note, partial, suspect_note, cut_note) if c) or None
-    return _section("Complex functions", columns, rows, note=note, caption=caption)
+    return _section("Complex functions", columns, rows, note=note, caption=caption if rows else None)
 
 
 SUSPECT_MARK = "?"
@@ -1038,7 +1077,7 @@ def sections(report: dict, full: bool = True, width=None) -> list:
         if full is False and sid in FULL_ONLY:
             continue
         sec = b(report, full, width)
-        if sec is None:   # a section with nothing to list and nothing to say about why (agent_surface)
+        if sec is None:   # a section with nothing to list and nothing to say about why (agent_surface), or one another table already gives (coupling)
             continue
         sec["id"] = sid
         out.append(sec)
@@ -1089,12 +1128,7 @@ def secrets_line(report: dict) -> str:
     skipped = leaks.placeholders(rows)
     if skipped:
         line += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
-    loose = report.get("unreachable") or {}
-    if loose and not loose.get("objects"):
-        line += "; no unreachable objects" + ("" if groups else " (a fresh clone fetches only what a ref reaches)")
-    elif loose.get("scanned"):
-        line += f"; {loose['scanned']:,} unreachable blob{'s' if loose['scanned'] != 1 else ''} scanned too"
-    return line
+    return line + _unreachable_words(report, bool(groups))
 
 
 def secrets_pass(report: dict):
@@ -1147,9 +1181,31 @@ def run_line(report: dict):
     return " · ".join(parts + ([" ".join(flags)] if flags else []))
 
 
-def checks_passed(report: dict) -> list:
-    """The checks that ran and passed, secrets first: said out loud rather than left to silence."""
-    return [p for p in (secrets_pass(report), dependencies_pass(report)) if p]
+def checks_passed(report: dict, footer: bool = True) -> list:
+    """The checks that ran and passed, secrets first: said out loud rather than left to silence. Without
+    the footer's two lines (footer_said) the secrets line also carries what only the footer said, the
+    unreachable sweep."""
+    passed = [p for p in (secrets_pass(report), dependencies_pass(report)) if p]
+    if not footer and passed:
+        passed[0] = (passed[0][0], passed[0][1] + _unreachable_words(report, True))
+    return passed
+
+
+def _unreachable_words(report: dict, short: bool) -> str:
+    """'; no unreachable objects…' or '; 3 unreachable blobs scanned too', or '' for a run without the sweep."""
+    loose = report.get("unreachable") or {}
+    if loose and not loose.get("objects"):
+        return "; no unreachable objects" + ("" if short else " (a fresh clone fetches only what a ref reaches)")
+    if loose.get("scanned"):
+        return f"; {loose['scanned']:,} unreachable blob{'s' if loose['scanned'] != 1 else ''} scanned too"
+    return ""
+
+
+def footer_said(report: dict) -> bool:
+    """Whether the Findings panel's two ✔ lines already say everything the footer's Secrets and Dependencies
+    lines would: both scans ran and found nothing, and no package carries an informational advisory, which
+    only the footer names. The default report then leaves the two lines out."""
+    return bool(secrets_pass(report) and dependencies_pass(report) and not (report.get("dependencies") or {}).get("informational"))
 
 
 def dependencies_line(report: dict):
@@ -1234,7 +1290,7 @@ def unjudged_line(findings: list) -> str:
 
 
 def findings_panel(findings: list, report: dict = None, full: bool = True) -> Panel:
-    passed = checks_passed(report or {})
+    passed = checks_passed(report or {}, footer=bool(full) or not footer_said(report or {}))
     if not findings and not passed:
         return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
     unjudged = [] if full else [f for f in findings if f.get("unjudged")]
@@ -1505,10 +1561,11 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
         if risk is not None and sec["id"] == "watch":
             print_section(console, risk_section(risk, base, full))   # the change, right under the list it is scored against
     console.print(Text(""))
-    console.print(Text(secrets_line(report), style="red" if leaks.group(report.get("secrets") or []) else "green"))
-    deps_line = dependencies_line(report)
-    if deps_line:
-        console.print(Text(deps_line[0], style=deps_line[1]))
+    if full or not footer_said(report):   # the default report does not repeat what the two ✔ lines said
+        console.print(Text(secrets_line(report), style="red" if leaks.group(report.get("secrets") or []) else "green"))
+        deps_line = dependencies_line(report)
+        if deps_line:
+            console.print(Text(deps_line[0], style=deps_line[1]))
     if full and (line := run_line(report)):
         console.print(Text(line, style="dim"), soft_wrap=True)
     console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)

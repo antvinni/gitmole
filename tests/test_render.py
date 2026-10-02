@@ -106,8 +106,33 @@ class Report(unittest.TestCase):
         text = rendered(sample_report(), [])
         self.assertIn("✔ No known vulnerabilities in dependencies", text)
         self.assertIn("osv-scanner checked 151 packages in 2 lock files against the local database from 2026-09-16", text)
-        self.assertIn("Dependencies: 151 packages in 2 lock files, none vulnerable (database from 2026-09-16)", text)
+        self.assertIn("Dependencies: 151 packages in 2 lock files, none vulnerable (database from 2026-09-16)", rendered(sample_report(), [], full=True))
         self.assertLess(text.index("No secrets in history"), text.index("No known vulnerabilities"), "secrets first")
+
+    def test_the_default_report_does_not_repeat_two_clean_scans_in_the_footer(self):
+        r = sample_report()
+        r["unreachable"] = {"objects": 4, "scanned": 3}
+        text = rendered(r, [])
+        self.assertNotIn("Secrets: none found", text)
+        self.assertNotIn("Dependencies: ", text)
+        self.assertIn("betterleaks scanned every commit HEAD reaches; 3 unreachable blobs scanned too", text, "what only the footer said moves up")
+        self.assertIn("Full results and plots in", text)
+        full = rendered(r, [], full=True)
+        self.assertIn("Secrets: none found; 3 unreachable blobs scanned too", full)
+        self.assertNotIn("HEAD reaches; 3 unreachable", full, "--full keeps the footer, so the line above it stays as it was")
+        self.assertIn("Secrets: none found", render.markdown(r, []))
+
+    def test_the_footer_stays_when_either_scan_has_more_to_say(self):
+        r = sample_report()
+        r["dependencies"]["informational"] = [{"name": "paste", "version": "1.0.15", "kinds": ["unmaintained"]}]
+        text = " ".join(rendered(r, []).split())
+        self.assertIn("Secrets: none found", text)
+        self.assertIn("1 with an informational advisory (paste 1.0.15, unmaintained)", text)
+        r = sample_report()
+        r["dependencies"] = {"status": "no-sources"}
+        text = rendered(r, [])
+        self.assertIn("Secrets: none found", text)
+        self.assertIn("Dependencies: no lock files found", text)
 
     def test_vulnerable_packages_drop_the_pass_line_and_count_in_the_footer(self):
         r = sample_report()
@@ -127,7 +152,7 @@ class Report(unittest.TestCase):
     def test_a_requirement_file_is_not_counted_as_a_lock_file(self):
         r = sample_report()
         r["dependencies"]["sources"].append({"path": "tools/requirements.txt", "packages": 3})
-        text = rendered(r, [])
+        text = rendered(r, [], full=True)
         self.assertIn("osv-scanner checked 151 packages in 2 lock files and 1 requirement file against", text)
         self.assertIn("Dependencies: 151 packages in 2 lock files and 1 requirement file, none vulnerable", text)
 
@@ -135,12 +160,13 @@ class Report(unittest.TestCase):
         """superpowers: "1 packages in 1 lock file" beside "package.json has no package-lock.json"; the lock was a test's."""
         r = sample_report()
         r["dependencies"].update(packages=1, sources=[{"path": "tests/server/package-lock.json", "packages": 1}])
-        text = " ".join(rendered(r, []).split())
+        text = " ".join(rendered(r, [], full=True).split())   # --full: the default report leaves the footer's two lines out when both scans are clean
         self.assertIn("osv-scanner checked 1 package in 1 lock file (tests/server/package-lock.json) against the local database", text)
         self.assertIn("Dependencies: 1 package in 1 lock file (tests/server/package-lock.json), none vulnerable", text)
         self.assertNotIn("1 packages", text)
+        self.assertIn("osv-scanner checked 1 package in 1 lock file (tests/server/package-lock.json)", " ".join(rendered(r, []).split()))
         r["dependencies"].update(sources=[{"path": "requirements.txt", "packages": 1}])
-        self.assertIn("Dependencies: 1 package in 1 requirement file (requirements.txt), none vulnerable", " ".join(rendered(r, []).split()))
+        self.assertIn("Dependencies: 1 package in 1 requirement file (requirements.txt), none vulnerable", " ".join(rendered(r, [], full=True).split()))
 
     def test_the_footer_says_why_dependencies_were_not_scanned(self):
         r = sample_report()
@@ -960,6 +986,28 @@ class ComplexFunctions(unittest.TestCase):
         sec = next(x for x in render.sections(r, full=False) if x["title"] == "Complex functions")
         self.assertEqual(sec["caption"], "and 2 more; partial: function metrics timed out")
 
+    def test_the_default_report_gives_one_line_when_no_function_is_both_long_and_complex(self):
+        # superpowers: five rows topping at complexity 16 in 43 lines, none a brain method (15 or more over 100 lines or more)
+        r = sample_report()
+        r["functions"] = [{"file": "a.py", "function": "handle", "ccn": 16, "nloc": 43, "params": 2, "start": 1, "end": 43, "suspect": ""},
+                          {"file": "a.py", "function": "swallowed", "ccn": 40, "nloc": 36, "params": 1, "start": 50, "end": 86, "suspect": "ran on"},
+                          {"file": "b.py", "function": "long_only", "ccn": 11, "nloc": 300, "params": 0, "start": 1, "end": 300, "suspect": ""}]
+        sec = next(x for x in render.sections(r, full=False) if x["title"] == "Complex functions")
+        self.assertEqual((sec["rows"], sec["caption"]), ([], None))
+        self.assertEqual(sec["note"], "no long, complex functions; highest complexity 16 (handle); --full lists 3 at 10 or over")
+        self.assertEqual(len(next(x for x in render.sections(r, full=True) if x["title"] == "Complex functions")["rows"]), 3)
+        self.assertTrue(next(x for x in render.sections(r, full="markdown") if x["title"] == "Complex functions")["rows"], "Markdown keeps the table")
+        r["functions"].append({"file": "c.py", "function": "brain", "ccn": 15, "nloc": 100, "params": 0, "start": 1, "end": 100, "suspect": ""})
+        sec = next(x for x in render.sections(r, full=False) if x["title"] == "Complex functions")
+        self.assertEqual(len(sec["rows"]), 4, "one function meets the rule: the table is back, every row of it")
+
+    def test_a_list_longer_than_the_table_stays_a_table_without_a_brain_method(self):
+        # gitmole's own: 166 functions at 10 or over, led by complexity 55 in 89 lines; the rows behind "and N more" are information
+        r = sample_report()
+        r["functions"] = [{"file": f"f{i}.py", "function": f"fn{i}", "ccn": 55 - i, "nloc": 89, "params": 0, "start": 1, "end": 89, "suspect": ""} for i in range(9)]
+        sec = next(x for x in render.sections(r, full=False) if x["title"] == "Complex functions")
+        self.assertEqual((len(sec["rows"]), sec["caption"]), (8, "and 1 more"))
+
     def test_long_paths_are_elided_like_every_other_table(self):
         r = sample_report()
         r["functions"] = [{"file": "static/javascript/components/deeply/nested/directory/structure/app.js", "function": "render",
@@ -991,7 +1039,7 @@ class ComplexFunctions(unittest.TestCase):
         self.assertNotIn("simple", text)
         self.assertIn("Complex functions: nothing over complexity 10 (1 function measured)", text)
         r["functions"].append({"file": "a.py", "function": "twisty", "ccn": 10, "nloc": 20, "params": 0, "start": 1, "end": 20})
-        text = rendered(r, [])
+        text = rendered(r, [], full=True)
         self.assertRegex(text, r"twisty\s+a.py\s+10\s+20")
         self.assertNotIn("simple", text)
         self.assertNotIn("more", text, "the caption counts only functions over the floor")
@@ -1800,6 +1848,68 @@ class ChangedLines(unittest.TestCase):
         self.assertEqual([r[0] for r in sec["rows"][2:]], ["declared commits, both years", "the rest, both years"])
         self.assertIn("lines", render.FULL_ONLY)
         self.assertIn("touched a file on the watch list's top 15 50% against 25%", render.trailers_section(rep)["caption"] or render.trailers_section(rep)["note"] or "")
+
+
+class SmallRepository(unittest.TestCase):
+    """superpowers: a 124-line report for four notes, a quarter of it rows that said little (count rules, never a repository's size)."""
+
+    def people(self, *commits):
+        r = sample_report()
+        r["meta"]["identities"] = [{"name": f"P{n}", "email": f"p{n}@x.com", "commits": c} for n, c in enumerate(commits)]
+        return r
+
+    def test_people_rows_need_five_commits_and_the_rest_are_counted(self):
+        sec = render.people_section(self.people(512, 86, 8, 3, 3, 2, 1, 1), full=False)
+        self.assertEqual([row[0] for row in sec["rows"]], ["P0", "P1", "P2"])
+        self.assertIn("and 5 more", sec["caption"])
+        self.assertEqual(len(render.people_section(self.people(512, 86, 8, 3, 3, 2, 1, 1), full=True)["rows"]), 8)
+        self.assertEqual(len(render.people_section(self.people(512, 86, 8, 3, 3, 2, 1, 1), full="markdown")["rows"]), 8)
+
+    def test_the_top_three_people_stay_whatever_they_committed(self):
+        sec = render.people_section(self.people(4, 2, 1, 1), full=False)
+        self.assertEqual([row[0] for row in sec["rows"]], ["P0", "P1", "P2"])
+        self.assertIn("and 1 more", sec["caption"])
+        sec = render.people_section(self.people(900, 800, 700, 600, 500, 400, 300), full=False)
+        self.assertEqual(len(sec["rows"]), 6, "a large repository's rows are all over the floor: the cap decides, as before")
+        self.assertIn("and 1 more", sec["caption"])
+
+    def test_timeline_rows_need_five_commits_in_the_months_shown(self):
+        r = sample_report()
+        r["activity"]["timeline"] = {"Ann": {"2026-08": 12, "2026-09": 7}, "Bob": {"2026-09": 5}, "Cy": {"2026-09": 4}, "Di": {"2026-07": 2, "2026-09": 2},
+                                     "Ed": {"2026-09": 1}, "Old": {"2019-01": 400}}
+        sec = render.timeline_section(r, full=False)
+        self.assertEqual([row[0] for row in sec["rows"]], ["Ann", "Bob", "Cy"], "Cy is third: the top three stay")
+        self.assertEqual(sec["caption"], "and 2 more")
+        self.assertEqual(len(render.timeline_section(r, full=True)["rows"]), 5)
+
+    def coupled(self):
+        r = sample_report()
+        r["size"]["files"].update({"src/a.py": {"code": 500, "complexity": 9}, "src/b.py": {"code": 300, "complexity": 4}})
+        r["revisions"] = [{"entity": "src/a.py", "n-revs": 40}, {"entity": "src/b.py", "n-revs": 30}]
+        r["coupling"] = [{"entity": "src/a.py", "coupled": "src/b.py", "degree": 80, "average-revs": 12}]
+        return r
+
+    def test_one_coupled_pair_the_watch_list_already_shows_is_no_table(self):
+        r = self.coupled()
+        text = rendered(r, [])
+        self.assertIn("changes with src/b.py (80%)", " ".join(text.split()))
+        self.assertNotIn("Change coupling", text)
+        self.assertIn("Change coupling", rendered(r, [], full=True))
+        self.assertIn("## Change coupling", render.markdown(r, []))
+
+    def test_the_coupling_table_stays_when_it_says_more_than_the_watch_list(self):
+        r = self.coupled()
+        r["coupling"].append({"entity": "src/a.py", "coupled": "static/index.html", "degree": 60, "average-revs": 9})
+        self.assertIn("Change coupling", rendered(r, []), "two pairs")
+        r = self.coupled()
+        r["coupling"].append({"entity": "src/a.py", "coupled": "src/gone.py", "degree": 60, "average-revs": 9})
+        self.assertIn("1 historical pair hidden", rendered(r, []), "a hidden count that is said nowhere else")
+        r = self.coupled()
+        r["revisions"] = []   # nothing ranked, so the watch list has no row to show the pair on
+        self.assertIn("Change coupling", rendered(r, []))
+        r = sample_report()
+        r["coupling"] = []
+        self.assertIn("Change coupling: no pairs with 5+ shared revisions", rendered(r, []), "an empty table's note is kept: it says there is none")
 
 
 class PeopleMerges(unittest.TestCase):

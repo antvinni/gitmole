@@ -807,7 +807,26 @@ in plain words, and what to do first. This page is the reference.
    caption says how many, and such spans are left out of the brain
    methods finding. Activity and the
    timeline cover the whole history.
-6. **Footer**: where the files and plots are. `--full` and Markdown close
+   The default report collapses what says little, by counts and never by
+   a repository's size. A People or Timeline row needs five commits (in
+   the months shown, for the timeline), the floor the coupling table
+   already uses for "enough commits to say anything"; the rest are counted
+   as `and N more`, and the top three rows stay whatever they hold. The
+   change coupling table is left out when it would be one pair that a
+   watch-list row already shows with its degree and nothing but test
+   pairs was hidden. The complex functions table is one line (`no long,
+   complex functions; highest complexity 16 (handleRequest); --full lists
+   5 at 10 or over`) when no function meets the brain-methods rule itself,
+   complexity 15 or more over 100 lines or more, and the whole list fits
+   the table's eight rows; a longer list stays a table. `--full` and the
+   Markdown export keep every one of these tables whole.
+6. **Footer**: a `Secrets:` line and a `Dependencies:` line with each
+   scan's totals, then where the files and plots are. The default report
+   leaves the two lines out when both scans found nothing and the two ✔
+   lines in the findings panel already say so (the secrets ✔ line then
+   also carries what only the footer said, the sweep of unreachable
+   objects); a value, a vulnerable package, an informational advisory or
+   a scan that did not run keeps them. `--full` and Markdown close
    with a Run line above it: what produced the report, gitmole's version,
    every tool's and the `--ignore`, `--ignore-data` and `--deep` options,
    read from the run manifest `meta.run` (the commit, the versions, the

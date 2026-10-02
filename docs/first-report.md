@@ -35,14 +35,20 @@ the twelve). When several people hold exactly the top share, as the co-authors o
 no owner is named: the cell reads `shared by 12 (8%)`, twelve people with 8% each. Lines a `Co-authored-by` trailer credits to a coding tool are not anyone's to own: an
 `agents` column shows their share of the area instead.
 
-**Timeline.** Commits per person per month over the last year: who is active now.
+**Timeline.** Commits per person per month over the last year: who is active now. A row needs five
+commits in the months shown; the rest are counted under the table (`and 32 more`), and the top three
+are listed whatever they committed. The People table keeps its rows the same way.
 
 **Change coupling.** Pairs of files that change together, and the share of changes they share
-(`degree`). A pair with no obvious link is often a hidden dependency or copied code.
+(`degree`). A pair with no obvious link is often a hidden dependency or copied code. When there is
+one pair and the watch list already shows it (`changes with … (59%)`), the table is left out.
 
 **Complex functions.** The functions with the most branches (`ccn`, cyclomatic complexity), with their
 length and parameters. A `?` marks a span the parser may have misread, and `<anonymous>` a function
-with no name of its own (a callback, a lambda): its file column gives the line to find it by.
+with no name of its own (a callback, a lambda): its file column gives the line to find it by. When no
+function is both long and complex (complexity 15 or more over 100 lines or more, the brain-methods
+rule) and the list is short enough to fit the table, the section is one line naming the highest
+complexity, and `--full` has the table.
 
 In a narrow terminal a long path keeps its file name and loses directories (`backend/…/routers/app.py`),
 and a table too wide for the terminal leaves its rightmost columns out and says which under it;
