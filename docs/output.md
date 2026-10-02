@@ -138,7 +138,13 @@ in plain words, and what to do first. This page is the reference.
    the account the `origin` remote says the repository lives under, and
    either before GitHub's own `actions/`); a manifest whose last commit is newer than its lock file's, by
    commit time (a warning), and a manifest of an ecosystem that locks by
-   convention with no lock file in its directory or above it (a note); the
+   convention with no lock file in its directory or above it (a note),
+   unless it declares nothing a lock would pin: a `go.mod` with no
+   `require`, a `package.json` with no dependency of any kind and no
+   `workspaces`, a `Cargo.toml` with no entry in a dependency table and no
+   `[workspace]`, a `composer.json` requiring only the platform (`php`,
+   `ext-*`), a `Pipfile` with empty package tables (`lockfiles.nothing_to_lock`
+   in `hygiene.json` names them; a `Gemfile` is Ruby and is not read); the
    ecosystems with a tracked lock file that `dependabot.yml` does not cover,
    or no update tool at all (Renovate covers every manager by itself); no
    licence file, no `SECURITY.md` (at the root, in `.github/` or `docs/`,

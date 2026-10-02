@@ -171,7 +171,7 @@ class Lockfiles(unittest.TestCase):
             r.write("package-lock.json", '{"lockfileVersion": 3}\n')
             r.write("api/pyproject.toml", "[project]\nname='api'\n")
             r.write("api/uv.lock", "version = 1\n")
-            r.write("lib/Cargo.toml", "[package]\nname='lib'\n")
+            r.write("lib/Cargo.toml", "[package]\nname='lib'\n\n[dependencies]\nserde = '1'\n")
             r.write("packages/inner/package.json", '{"name": "inner"}\n')   # a workspace member: the root lockfile covers it
             r.commit(date="2026-01-01T00:00:00")
             r.write("package.json", '{"name": "x", "dependencies": {"left-pad": "1"}}\n')
@@ -193,6 +193,38 @@ class Lockfiles(unittest.TestCase):
             r.commit()
             out = hygiene.lockfiles(d)
         self.assertEqual([m["manifest"] for m in out["missing"]], ["one/go.mod", "tool/go.mod"])
+        self.assertEqual(out["nothing_to_lock"], ["shim/go.mod"])
+
+    def test_a_manifest_that_declares_nothing_to_lock_is_not_missing_a_lock(self):
+        """superpowers' root package.json: a name, a version and a `main`, no dependency of any kind. The report said
+        "package.json has no package-lock.json" and OSPS-QA-02.01 read as a gap; there is nothing to pin."""
+        declares_nothing = {
+            "package.json": '{"name": "x", "version": "1.0.0", "main": "x.js", "dependencies": {}, "scripts": {"test": "node t.js"}}\n',
+            "crate/Cargo.toml": "[package]\nname = 'x'\nversion = '0.1.0'\nedition = '2021'\n\n[dependencies]\n# none yet\n\n[features]\ndefault = []\n",
+            "php/composer.json": '{"name": "a/b", "require": {"php": ">=8.1", "ext-json": "*"}}\n',
+            "py/Pipfile": "[[source]]\nurl = 'https://pypi.org/simple'\n\n[packages]\n\n[dev-packages]\n\n[requires]\npython_version = '3.12'\n",
+        }
+        declares = {
+            "a/package.json": '{"name": "a", "devDependencies": {"left-pad": "1"}}\n',
+            "b/package.json": '{"name": "b", "peerDependencies": {"react": "*"}}\n',
+            "c/package.json": '{"name": "c", "workspaces": ["packages/*"]}\n',
+            "d/package.json": '{"name": "d", ',   # does not parse: says nothing about what it declares
+            "e/Cargo.toml": "[package]\nname = 'e'\n\n[dev-dependencies]\ntempfile = '3'\n",
+            "f/Cargo.toml": "[workspace]\nmembers = ['x']\n",
+            "g/Cargo.toml": "[package]\nname = 'g'\n\n[target.'cfg(unix)'.dependencies]\nlibc = '0.2'\n",
+            "h/composer.json": '{"require": {"php": ">=8.1", "monolog/monolog": "^3"}}\n',
+            "i/Pipfile": "[packages]\nrequests = '*'\n",
+            "j/Gemfile": "source 'https://rubygems.org'\n",   # Ruby, not data: not read
+        }
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            for path, text in {**declares_nothing, **declares}.items():
+                r.write(path, text)
+            r.commit()
+            out = hygiene.lockfiles(d)
+        self.assertEqual(out["nothing_to_lock"], sorted(declares_nothing))
+        self.assertEqual([m["manifest"] for m in out["missing"]], sorted(declares))
+        self.assertEqual(out["pairs"], 0)
 
     def test_a_change_the_lock_does_not_record_is_not_drift(self):
         # devlake's backend/go.mod "changed on 2026-09-02, after go.sum": the module rename, one line

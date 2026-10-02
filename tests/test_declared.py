@@ -291,6 +291,12 @@ class OspsCoverage(unittest.TestCase):
         self.assertEqual(rows["OSPS-BR-07.01"], ("met", "no secret in source in HEAD's history; 1 distinct value only in test, example, vendored, "
                                                         "generated or documentation files"))
 
+    def test_a_manifest_that_declares_nothing_is_not_applicable_and_says_which(self):
+        r = self._report()
+        r["hygiene"]["lockfiles"] = {"pairs": 0, "missing": [], "drift": [], "nothing_to_lock": ["package.json"]}
+        rows = {x["control"]: (x["result"], x["evidence"]) for x in osps.coverage(r, findings.evaluate(r))}
+        self.assertEqual(rows["OSPS-QA-02.01"], ("not applicable", "package.json declares no dependency to lock"))
+
     def test_nothing_run_is_not_checked_rather_than_met(self):
         r = report()
         rows = {x["control"]: x["result"] for x in osps.coverage(r, findings.evaluate(r))}

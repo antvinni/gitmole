@@ -422,11 +422,59 @@ def _workspace_root(repo: str, path: str, tracked: set, seen: dict):
     return None
 
 
+_NPM_DECLARES = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "workspaces")
+_CARGO_OWN = ("package", "workspace.package")   # the tables whose name and version the lock records for the crate itself
+_PIPFILE_PACKAGES = ("packages", "dev-packages")
+
+
 def _requires_nothing(repo: str, path: str) -> bool:
-    """A go.mod whose locked part has no `require`: go.sum holds the checksums of required modules, so a
-    module that requires none has nothing to put in one, and `go mod tidy` writes none."""
-    part = _locked_part("go.mod", _read(repo, path))
-    return part is not None and not any(line == "require" or line.startswith(("require ", "require(")) for line in part)
+    """A manifest that declares nothing a lock file would pin, told by the shape of what it declares, so
+    the missing lock is not a gap (superpowers' root package.json: a name, a version and a `main`):
+
+    - go.mod with no `require` in its locked part: go.sum holds the checksums of required modules, so a
+      module that requires none has nothing to put in one, and `go mod tidy` writes none;
+    - package.json whose dependencies, devDependencies, optionalDependencies and peerDependencies are all
+      absent or empty and which declares no `workspaces` (a workspace root locks its members');
+    - Cargo.toml whose lock-relevant lines (_cargo_locked) are only the crate's own name and version: no
+      dependency table has an entry, and there is no [workspace], [patch] or [replace];
+    - composer.json whose `require` and `require-dev` name no package: a key without a slash (php,
+      ext-json, lib-curl) is a platform requirement, which composer.lock does not pin;
+    - Pipfile whose [packages] and [dev-packages] have no entry.
+
+    A Gemfile is Ruby, not data, and is not read: it is reported as before. A file that does not parse
+    declares something as far as this can tell."""
+    name = path.rsplit("/", 1)[-1]
+    data = _read(repo, path)
+    if data is None:
+        return False
+    if name == "go.mod":
+        part = _locked_part("go.mod", data)
+        return part is not None and not any(line == "require" or line.startswith(("require ", "require(")) for line in part)
+    text = data.decode("utf-8", "replace")
+    if name in ("package.json", "composer.json"):
+        try:
+            doc = json.loads(text)
+        except ValueError:
+            return False
+        if not isinstance(doc, dict):
+            return False
+        if name == "package.json":
+            return not any(doc.get(k) for k in _NPM_DECLARES)
+        sections = [doc.get(k) for k in ("require", "require-dev")]
+        return all(not s or (isinstance(s, dict) and all("/" not in k for k in s)) for s in sections)
+    if name == "Cargo.toml":
+        return all(line.split("|", 1)[0] in _CARGO_OWN for line in _cargo_locked(text))
+    if name == "Pipfile":
+        table = ""
+        for raw in text.splitlines():
+            line = _toml_code(raw)
+            header = _CARGO_HEADER.match(line) if line else None
+            if header:
+                table = header.group(1)
+            elif line and (table in _PIPFILE_PACKAGES or (not table and re.match(r"(dev-)?packages\b", line))):
+                return False
+        return True
+    return False
 
 
 def lockfiles(repo: str) -> dict:
@@ -441,9 +489,10 @@ def lockfiles(repo: str) -> dict:
     whose only change is its `module` line, a package.json whose only change is its scripts, is not
     behind); each drift names those changes, newest first, so the findings can leave out a sweeping
     commit. Missing is a manifest of an ecosystem that locks by convention with no lock file anywhere
-    above it, except a go.mod that requires no module (_requires_nothing)."""
+    above it, except one that declares nothing a lock would pin (_requires_nothing), which is named in
+    `nothing_to_lock` instead."""
     tracked = set(_tracked(repo))
-    drift, missing, pairs, workspaces = [], [], 0, {}
+    drift, missing, pairs, workspaces, nothing = [], [], 0, {}, []
     for path in sorted(tracked):
         name = path.rsplit("/", 1)[-1]
         if name not in LOCKS or _aside(path):
@@ -464,7 +513,9 @@ def lockfiles(repo: str) -> dict:
                 break
             d = os.path.dirname(d)
         if not lock:
-            if name in LOCK_EXPECTED and not (name == "go.mod" and _requires_nothing(repo, path)):
+            if name in LOCK_EXPECTED and _requires_nothing(repo, path):
+                nothing.append(path)
+            elif name in LOCK_EXPECTED:
                 missing.append({"manifest": path, "expected": LOCKS[name][:1] if name != "package.json" else ["package-lock.json"]})
             continue
         pairs += 1
@@ -474,7 +525,8 @@ def lockfiles(repo: str) -> dict:
             if changes:
                 drift.append({"manifest": path, "lockfile": lock, "manifest_date": _day(changes[0][1]), "lockfile_date": _day(l),
                               "changes": [{"commit": h, "date": _day(t)} for h, t in changes], **({"more": True} if more else {})})
-    return {"drift": drift[:CAP], "drift_count": len(drift), "missing": missing[:CAP], "missing_count": len(missing), "pairs": pairs}
+    return {"drift": drift[:CAP], "drift_count": len(drift), "missing": missing[:CAP], "missing_count": len(missing), "pairs": pairs,
+            "nothing_to_lock": nothing[:CAP]}
 
 
 # --- dependency update tooling ------------------------------------------------------------------
