@@ -868,6 +868,11 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     areas = loss.areas(rows_all, gone, base)
     hidden_note = None
     tree = (report.get("size") or {}).get("files") or {}
+    # the two views count different files, and tests/ at 9,568 lines here and 10,765 there read as a
+    # contradiction until the heading says which: the default keeps the files HEAD still has, --full every
+    # file the history (or the --since window) changed. In the heading, so the report is no line longer.
+    since = report["meta"].get("since")
+    counted = "files in the tree now" if full is not True and tree else f"every file in the history{f' since {since}' if since else ''}"
     if full is not True and tree:
         # a directory the history knows but HEAD does not is a layout that no longer exists; the rows are
         # filtered before the areas are built so a vanished layout cannot hide that one directory now dominates
@@ -902,7 +907,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     if gone:
         notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
                      + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))
-    return _section("Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
+    return _section(f"Knowledge map ({counted})" if rows else "Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
 
 
 def osps_section(report: dict, full: bool = True, width=None) -> dict:

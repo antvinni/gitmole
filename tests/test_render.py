@@ -1170,6 +1170,21 @@ class KnowledgeMap(unittest.TestCase):
         self.assertNotIn("historical", km)
 
 
+    def test_the_heading_says_which_files_each_view_counts(self):
+        # superpowers: tests/ 9,568 lines in the default map and 10,765 under --full, .opencode/ 13% and 59%
+        r = sample_report()
+        self.assertEqual(render.knowledge_section(r, full=False)["title"], "Knowledge map (files in the tree now)")
+        self.assertEqual(render.knowledge_section(r, full="markdown")["title"], "Knowledge map (files in the tree now)")
+        self.assertEqual(render.knowledge_section(r, full=True)["title"], "Knowledge map (every file in the history)")
+        self.assertEqual(render._base_title(render.knowledge_section(r, full=True)["title"]), "Knowledge map", "the symbol and the key column still find it")
+        r["size"]["files"] = {}
+        self.assertEqual(render.knowledge_section(r, full=False)["title"], "Knowledge map (every file in the history)",
+                         "with no listing of HEAD nothing is filtered")
+        r["meta"]["since"] = "2026-01-01"
+        self.assertEqual(render.knowledge_section(r, full=True)["title"], "Knowledge map (every file in the history since 2026-01-01)")
+        r["ownership"] = []
+        self.assertEqual(render.knowledge_section(r, full=True)["title"], "Knowledge map", "an empty map counts nothing")
+
     def test_a_tied_top_share_is_shared_and_names_no_owner(self):
         # superpowers' .hermes-plugin/: one squash commit credited twelve people equally, and the map named the
         # first two by alphabet as main owner and second
@@ -1410,7 +1425,7 @@ class Layout(unittest.TestCase):
         self.assertEqual(hot["title"], "Hotspots")
         self.assertEqual(hot["columns"], ["file", "revs", "lines", "fixes", "authors", "trend"])
         self.assertEqual(secs["Change coupling"]["columns"], ["file", "changes with", "degree"])
-        self.assertEqual(secs["Knowledge map"]["columns"], ["area", "lines added", "main owner", "second"])
+        self.assertEqual(secs["Knowledge map (files in the tree now)"]["columns"], ["area", "lines added", "main owner", "second"])
 
     def test_full_restores_every_column_and_row(self):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=True)}
@@ -1517,7 +1532,7 @@ class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report(), full=True)
         titles = [x["title"] for x in secs]
-        self.assertEqual(titles[:6], ["Watch list", "Watch list by component", "Size by language", "People", "Knowledge map", "Activity"])
+        self.assertEqual(titles[:6], ["Watch list", "Watch list by component", "Size by language", "People", "Knowledge map (every file in the history)", "Activity"])
         self.assertTrue(titles[6].startswith("Timeline"))
         self.assertTrue(titles[7].startswith("Hotspots"))
         self.assertEqual(titles[-2], "Complex functions")
