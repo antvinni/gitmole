@@ -252,6 +252,7 @@ def change_risk(report: dict, files: list, stats: dict = None, ranked: list = No
     revs = {r["entity"]: r["n-revs"] for r in report.get("revisions") or []}
     touched = set(files)
     graph = _importers(report)
+    documents = {d["file"]: d["revisions"] for d in (report.get("coverage") or {}).get("documents") or []}
     rows, gaps = [], []
     for f in files:
         r = by_file.get(f)
@@ -267,6 +268,8 @@ def change_risk(report: dict, files: list, stats: dict = None, ranked: list = No
         rows.append({"file": f, "score": 0, "reasons": [why], "reason": why, "watched": False,
                      "rank": None, "recent_fixes": 0, "fixes": 0, "owner": None, "owner_share": 0.0, "minor": 0,
                      "dependents": dependents(report, f, graph)})   # a file the list does not score can still be imported everywhere
+        if f in documents:   # one of the most-changed documents (load._coverage): not scored, and not quiet either
+            rows[-1]["revisions"] = documents[f]
     rows.sort(key=lambda r: (-r["score"], r["file"]))
     gaps.sort(key=lambda g: (-g["degree"], g["file"], g["companion"]))
     out = {"files": rows, "total": float(sum(r["score"] for r in rows)), "watched": sum(r["watched"] for r in rows),

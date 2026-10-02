@@ -55,7 +55,7 @@ def parse_scc(text: str, types=None, scope=()) -> dict:
     set, or None for everything) keeps only the code files, so the size matches the other tables;
     `scope` (a run's --path directories) keeps only the files under them. scc itself always measures the
     whole tree: the backtest's tree at its cut-off is narrowed here too, from the scope its meta records."""
-    rows = _json_or(text, [])
+    rows = _json_or(text, []) if isinstance(text, str) else text   # a caller that parsed the file already passes its rows
     if not isinstance(rows, list):
         rows = []
     if types is not None or scope:
@@ -84,6 +84,18 @@ def parse_scc(text: str, types=None, scope=()) -> dict:
         "total_files": sum(r["files"] for r in languages),
         "files": files,
     }
+
+
+def all_code(rows, scope=()) -> dict:
+    """{path: scc's code lines} for every file scc counted, whatever its type: what the type filter left out
+    is measured against this (classify.lines). Under --path, the files below its directories."""
+    out = {}
+    for r in rows if isinstance(rows, list) else []:
+        for f in (r.get("Files") or []) if isinstance(r, dict) else []:
+            path = _rel(f.get("Location", ""))
+            if scopes.within(path, scope):
+                out[path] = f.get("Code", 0)
+    return out
 
 
 NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs",
@@ -440,6 +452,65 @@ def _imports(out_dir: str, activity, tree) -> frozenset:
     return paths
 
 
+DOCUMENTS_KEPT = 15   # the most-changed documents a report keeps: the list shows five, --full and the JSON these
+
+
+def parse_unscored_history(text: str, activity: dict, scored, documents=frozenset()) -> dict:
+    """What the log says about the files nothing ranks, read from log.txt, which holds every path whatever
+    its type: {"commits": {commits, fixes, outside, fixes_outside}, "revisions": {document: n}}.
+
+    `outside` counts the commits that changed files and none that is scored (`scored(path)`), `fixes_outside`
+    the fix commits among them: the header's "N% of commits are fixes" is over every commit, the bug magnets
+    over scored files only, and these two say how far apart the populations are. Both are over the commits
+    the header counts (the window), merges included in the total and, having no file list, never outside.
+    `revisions` counts each of `documents` the way the change analysis counts a source file: in the window,
+    less the sweeps and imports activity.json lists."""
+    activity = activity or {}
+    commits = maat.in_window(maat.parse_log(text), activity.get("window"), activity.get("until"))
+    left_out = {c.get("hash") for key in ("sweeping", "imports") for c in activity.get(key) or []}
+    counts, revisions = {"commits": len(commits), "fixes": 0, "outside": 0, "fixes_outside": 0}, Counter()
+    for c in commits:
+        fix = maat.is_fix(c.get("subject", ""))
+        counts["fixes"] += fix
+        if c["files"] and not any(scored(path) for path, _, _ in c["files"]):
+            counts["outside"] += 1
+            counts["fixes_outside"] += fix
+        if documents and c["hash"] not in left_out:
+            revisions.update(path for path, _, _ in c["files"] if path in documents)
+    return {"commits": counts, "revisions": dict(revisions)}
+
+
+def _coverage(out_dir: str, report: dict, code: dict) -> dict:
+    """What the report ranks and what it leaves out by type: {files, lines, unranked} and, when the files the
+    type filter left out hold more lines than the scored ones (classify.unranked), {commits} and, when
+    documentation is most of the tree (classify.DOC_MAJORITY), {documents}: its most-revised files. {} for
+    a run that recorded no coverage (an older one, or one whose steps did not finish). The log is read
+    only for a repository the line is shown on, so the others pay for a pass over the tree listing and
+    nothing else."""
+    from . import classify
+    files = report["meta"].get("coverage") or {}
+    tree = report.get("tree")
+    if tree is not None:   # scc counts the working directory: an untracked file there (an --out inside the
+        tracked = set(tree)   # clone, written while scc runs) is not the repository's, and differs run to run
+        code = {p: n for p, n in code.items() if p in tracked}
+    if not files or not code:
+        return {}
+    cls = classify.Classifier(report)
+    lines = classify.lines(cls, code)
+    out = {"files": files, "lines": lines, "unranked": classify.unranked(lines)}
+    path = os.path.join(out_dir, "log.txt")
+    if not out["unranked"] or not os.path.isfile(path):
+        return out
+    documents = classify.documents(cls, code) if classify.documents_lead(lines) else frozenset()
+    with open(path, encoding="utf-8", errors="replace", newline="") as fh:
+        history = parse_unscored_history(fh.read(), report.get("activity"), lambda p: cls.reason(p) is None, documents)
+    out["commits"] = history["commits"]
+    if documents:
+        ranked = sorted(((p, n) for p, n in history["revisions"].items() if n >= 2), key=lambda kv: (-kv[1], kv[0]))
+        out["documents"] = [{"file": p, "revisions": n} for p, n in ranked[:DOCUMENTS_KEPT]]
+    return out
+
+
 def _read(out_dir: str, name: str) -> str:
     path = os.path.join(out_dir, name)
     if not os.path.exists(path):
@@ -713,14 +784,15 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
     if not isinstance(structure, dict):
         structure = {}
     tree = parse_tree(out_dir, meta)
-    return {
+    scc_rows = _json_or(_read(out_dir, "size.json"), [])   # parsed once: the size tables read the code files, the coverage every file
+    report = {
         "out_dir": out_dir,
         "meta": meta,
         "tree": tree,   # every path at HEAD, binaries too; None before 0.39
         "imported": _imports(out_dir, activity, tree),   # the paths the import commits added to; the rows themselves are in activity
         # a run records its --file-types spec (None for the default list); a run from before that record
         # was measured unfiltered, so it is re-rendered unfiltered rather than with a guessed list
-        "size": parse_scc(_read(out_dir, "size.json"), filetypes.for_meta(meta, unrecorded=None), scopes.of(meta)),
+        "size": parse_scc(scc_rows, filetypes.for_meta(meta, unrecorded=None), scopes.of(meta)),
         "revisions": parse_maat_csv(_read(out_dir, "maat-revisions.csv")),
         "plumbing": parse_maat_csv(_read(out_dir, "maat-plumbing.csv")),
         "coupling": parse_maat_csv(_read(out_dir, "maat-coupling.csv")),
@@ -758,3 +830,6 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "provenance": provenance,   # trailers, cohorts, commit shape, agent files; {} before 0.17   # tree-sitter metrics (structure.py); {} without gitmole[structure]   # what the secrets step found outside reachable history
         "backtest": _nested(out_dir) if nested else None,
     }
+    # what is ranked and what the type filter left out; {} before the run recorded its coverage
+    report["coverage"] = _coverage(out_dir, report, all_code(scc_rows, scopes.of(meta)))
+    return report

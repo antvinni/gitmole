@@ -15,6 +15,7 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 │   ↳ Add a LICENSE; without one nobody may reuse the code.                                        │
 │ ✔ No secrets in history                                                                          │
 │   betterleaks scanned every commit HEAD reaches                                                  │
+│ · truck factor not computed: 3 source files, needs 20                                            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 ◎ Watch list
