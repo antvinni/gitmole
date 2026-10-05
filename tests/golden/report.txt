@@ -8,8 +8,8 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ● Files that always change together                                                              │
-│   1 pair changes together at least 80% of the time: app/main.py + app/util.py (83%)              │
-│   ↳ Review app/main.py and app/util.py first: a shared layout or a hidden dependency links them. │
+│   1 pair changes together 80% of the time or more: main.py and util.py in app/, 83%              │
+│   ↳ Look for a shared layout or a hidden dependency between the two.                             │
 │ ● Repository policy files                                                                        │
 │   No licence file at the root; no security policy (SECURITY.md)                                  │
 │   ↳ Add a LICENSE; without one nobody may reuse the code.                                        │
