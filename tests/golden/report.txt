@@ -3,12 +3,12 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 ╭─ demo ───────────────────────────────────────────────────────────────────────────────────────────╮
 │ 8 commits  ·  2024-01-10 → 2025-05-30  ·  2 identities  ·  branch main @ b310579c                │
 │ 10 lines in 3 files  ·  Python, Makefile                                                         │
-│ 12% of commits are fixes  ·  82% of surviving code from 2024  ·  no commits signed               │
+│ 12% of commits are fixes  ·  82% of surviving code from 2024, by blame  ·  no commits signed     │
 │ 2 notes                                                                                          │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
 │ ● Files that always change together                                                              │
-│   1 pair changes together at least 80% of the time, e.g. app/main.py + app/util.py (83%)         │
+│   1 pair changes together at least 80% of the time: app/main.py + app/util.py (83%)              │
 │   ↳ Review app/main.py and app/util.py first: a shared layout or a hidden dependency links them. │
 │ ● Repository policy files                                                                        │
 │   No licence file at the root; no security policy (SECURITY.md)                                  │
@@ -34,6 +34,7 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
   Ann Example              5    62% ▰▰▰▰▰▰                    64%
   Bob Example              3    38% ▰▰▰                       36%
   aliases merged for Bob Example; a .mailmap makes that permanent
+  surviving code is counted by blame
 
 ⌂ Knowledge map (files in the tree now)
   area           lines added   main owner           second
@@ -51,4 +52,4 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 
 Secrets: none found; no unreachable objects (a fresh clone fetches only what a ref reaches)
 Dependencies: no lock files found
-Full results and plots in <out>
+Full results in <out>
