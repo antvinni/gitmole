@@ -1590,14 +1590,37 @@ def _running(lines: list) -> str:
     return " ".join(re.sub(r"[│╭╮╰╯─]", " ", " ".join(lines)).split())
 
 
+_SUPPLY_CHAIN = re.compile(r"^(?:\S+ )?Supply chain\s*$")   # the section's title line, behind its pictogram or without one
+_GRID_LABEL = re.compile(r"^ {2}\S")                        # a row of its label grid starts two in; what a row wraps to starts further in
+
+
 def _chunks(lines: list) -> list:
     """The report as the pieces a count phrase can sit in: the panels' text and the footer each as running text
     (both wrap mid-sentence), every table line on its own (joining rows would put one row's last number before
-    the next row's first word)."""
+    the next row's first word).
+
+    The footer is read in either drawing. Until the output plan's item A10 it is the lines from "Secrets:" to
+    the end, one running text. From A10 it is a titled Supply chain section, last in the report: a label grid,
+    each row of which wraps under its own label and is a chunk of its own (a row that ends in a number is not
+    counting the next row's label, "dependencies"), then a blank line and the closing lines, which are one
+    running text."""
     panel = [l.strip("│ ") for l in lines if l.startswith("│")]
-    at = next((i for i, l in enumerate(lines) if l.startswith("Secrets:")), len(lines))
+    old = next((i for i, l in enumerate(lines) if l.startswith("Secrets:")), None)
+    new = next((i for i, l in enumerate(lines) if _SUPPLY_CHAIN.match(l)), None)
+    at = old if old is not None else new if new is not None else len(lines)
     rest = [l for l in lines[:at] if not l.startswith(("│", "╭", "╰"))]
-    return [" ".join(" ".join(panel).split()), " ".join(" ".join(lines[at:]).split())] + rest
+    said = [" ".join(" ".join(panel).split())]
+    if old is None and new is not None:
+        tail = lines[at + 1:]
+        end = next((i for i, l in enumerate(tail) if not l.strip()), len(tail))
+        rows = []
+        for l in tail[:end]:
+            if _GRID_LABEL.match(l) or not rows:
+                rows.append([l])
+            else:
+                rows[-1].append(l)
+        return said + [" ".join(" ".join(row).split()) for row in rows] + [" ".join(" ".join(tail[end:]).split())] + rest
+    return said + [" ".join(" ".join(lines[at:]).split())] + rest
 
 
 TRUCK_MIN_FILES = 20   # the floor the truck factor's rule documents (findings.truck_factor's min_files), stated here and not imported
