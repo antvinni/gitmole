@@ -1,6 +1,6 @@
 import unittest
 
-from gitmole import findings, structure
+from gitmole import findings, hygiene, structure
 
 
 def report(**overrides):
@@ -1032,11 +1032,53 @@ class ComplexityGrowth(unittest.TestCase):
         f = findings.complexity_growth(self._report([3, 3, 3, 0, 0]))
         self.assertEqual(f[0]["severity"], "warning", "core/f0.py is the top hotspot and grew")
         self.assertEqual(f[0]["title"], "Hotspots getting more complex")
-        self.assertIn("3 of the 5 top source hotspots grew by 25% or more in a year: core/f0.py (+30%), core/f1.py (+30%), core/f2.py (+30%)", f[0]["detail"])
-        self.assertEqual(f[0]["advice"], "Split core/f0.py before the next change; its complexity grew 30% in a year.")
+        self.assertIn("3 of the 5 top source hotspots grew by 25% or more in summed complexity in a year: "
+                      "core/f0.py (+30%, code +0%), core/f1.py (+30%, code +0%), core/f2.py (+30%, code +0%)", f[0]["detail"])
+        self.assertEqual(f[0]["advice"], "Split core/f0.py before the next change; its complexity per line rose 30% in a year.")
         f = findings.complexity_growth(self._report([0, 3, 3, 3, 0]))
         self.assertEqual(f[0]["severity"], "info")
-        self.assertEqual(f[0]["advice"], "Split core/f1.py before the next change; its complexity grew 30% in a year.")
+        self.assertEqual(f[0]["advice"], "Split core/f1.py before the next change; its complexity per line rose 30% in a year.")
+
+    def _sized(self, rows):
+        """rows: (complexity then, code then, complexity now, code now) per top hotspot, in rank order."""
+        r = self._report([0] * 5)
+        r["trend"]["files"] = {f"core/f{i}.py": [["2025-09-10", c0, n0], ["2026-09-10", c1, n1]] for i, (c0, n0, c1, n1) in enumerate(rows)}
+        return r
+
+    def test_split_goes_to_the_first_file_that_grew_denser_not_the_one_that_only_grew_longer(self):
+        # f0 is univer's doc-skeleton.ts: 279 -> 1446 summed, 1042 -> 4858 lines, so +418% summed and +11% per line.
+        # f1 grew past the floor per line as well as in sum: it is the file to split.
+        f = findings.complexity_growth(self._sized([(279, 1042, 1446, 4858), (20, 100, 40, 120), (10, 100, 20, 200),
+                                                    (10, 100, 10, 100), (10, 100, 10, 100)]))
+        self.assertIn("core/f0.py (+418%, code +366%)", f[0]["detail"])
+        self.assertEqual(f[0]["advice"], "Split core/f1.py before the next change; its complexity per line rose 67% in a year.")
+        self.assertEqual(f[0]["evidence"]["split"], "core/f1.py")
+        self.assertEqual(f[0]["evidence"]["grown"][0], {"file": "core/f0.py", "growth_pct": 418, "code_pct": 366, "per_line_pct": 11})
+        self.assertEqual(f[0]["rule"]["split_min_per_line_pct"], 25, "the borrowed floor is named, not a new threshold")
+        self.assertIn("GROWTH_FLOOR", f[0]["rule"]["split_floor_from"])
+        self.assertEqual(f[0]["severity"], "warning", "the top hotspot still grew: the severity is about the growth, not the split")
+
+    def test_density_exactly_at_the_floor_keeps_split_and_just_under_it_does_not(self):
+        at = findings.complexity_growth(self._sized([(100, 100, 250, 200), (10, 100, 20, 200), (10, 100, 20, 200),
+                                                     (10, 100, 10, 100), (10, 100, 10, 100)]))
+        self.assertEqual(at[0]["advice"], "Split core/f0.py before the next change; its complexity per line rose 25% in a year.")
+        under = findings.complexity_growth(self._sized([(100, 100, 248, 200), (10, 100, 20, 200), (10, 100, 20, 200),
+                                                        (10, 100, 10, 100), (10, 100, 10, 100)]))
+        self.assertFalse(under[0]["advice"].startswith("Split"), under[0]["advice"])
+
+    def test_files_that_grew_only_with_their_size_get_no_split(self):
+        f = findings.complexity_growth(self._sized([(10, 100, 20, 200), (10, 100, 30, 300), (10, 100, 15, 140),
+                                                    (10, 100, 10, 100), (10, 100, 10, 100)]))
+        self.assertEqual(len(f), 1, "the sums still grew: the finding stands")
+        self.assertEqual(f[0]["advice"], "Each grew with its size: no file's complexity per line rose 25% or more in a year.")
+        self.assertIsNone(f[0]["evidence"]["split"])
+        self.assertNotIn("Split", f[0]["detail"])
+
+    def test_a_file_with_no_code_a_year_ago_shows_no_code_change_and_is_not_split(self):
+        f = findings.complexity_growth(self._sized([(10, 0, 20, 200), (10, 100, 20, 100), (10, 100, 20, 200),
+                                                    (10, 100, 10, 100), (10, 100, 10, 100)]))
+        self.assertIn("core/f0.py (+100%), core/f1.py (+100%, code +0%)", f[0]["detail"])
+        self.assertEqual(f[0]["evidence"]["split"], "core/f1.py")
 
     def test_a_growing_test_file_is_neither_counted_nor_named(self):
         r = self._report([3, 3, 3, 0, 0])
@@ -1167,6 +1209,43 @@ class Hygiene(unittest.TestCase):
         f = self.by_id(self.h(actions={"unpinned": unpinned[:2], "unpinned_count": 2, "pinned": 0, "origin": {"host": "github.com", "owner": "apache"}}))["unpinned_actions"]
         self.assertTrue(f["advice"].startswith("Pin apache/skywalking-eyes@main "), "the repository's own owner still comes before GitHub's")
 
+    def test_within_an_owner_tier_a_branch_ref_then_a_step_handed_secrets_or_a_write_token_comes_first(self):
+        # univer: codecov@v7 led the advice while jikkai/sync-gitee@main, a branch handed two secrets, sat at row 19
+        def row(uses, ref="version", secrets=False, grants=False, file=".github/workflows/ci.yml"):
+            return {"file": file, "uses": uses, "line": 1, "ref": ref, "secrets": secrets, "grants": grants}
+        unpinned = [row("actions/checkout@v7", secrets=True), row("codecov/codecov-action@v7", secrets=True),
+                    row("pnpm/setup@v2", grants=True), row("o/plain@v1"), row("dream-num/own@main", ref="branch", secrets=True),
+                    row("jikkai/sync-gitee@main", ref="branch", secrets=True, file=".github/workflows/sync.yml")]
+        f = self.by_id(self.h(actions={"unpinned": unpinned, "unpinned_count": 6, "pinned": 0, "origin": {"host": "github.com", "owner": "dream-num"}}))["unpinned_actions"]
+        self.assertTrue(f["advice"].startswith("Pin jikkai/sync-gitee@main "), f["advice"])
+        self.assertEqual([u["uses"] for u in f["evidence"]["unpinned"]],
+                         ["jikkai/sync-gitee@main", "codecov/codecov-action@v7", "pnpm/setup@v2", "o/plain@v1", "dream-num/own@main", "actions/checkout@v7"],
+                         "owner first, then the branch, then a secret or a write grant, then the file order")
+        self.assertEqual(f["rule"]["order"], findings.ACTION_ORDER)
+        quiet = [row("o/first@v1"), row("o/second@v1", grants=True), row("o/third@v1", secrets=True)]
+        f = self.by_id(self.h(actions={"unpinned": quiet, "unpinned_count": 3, "pinned": 0}))["unpinned_actions"]
+        self.assertTrue(f["advice"].startswith("Pin o/second@v1 "), "a write token outranks an earlier step handed nothing")
+
+    def test_the_evidence_names_each_action_once_per_file_up_to_the_hygiene_cap(self):
+        rows = [{"file": f".github/workflows/w{i % 30}.yml", "uses": "actions/checkout@v7", "line": i, "ref": "version", "secrets": False, "grants": False}
+                for i in range(120)]
+        f = self.by_id(self.h(actions={"unpinned": rows, "unpinned_count": 120, "pinned": 0}))["unpinned_actions"]
+        named = [(u["file"], u["uses"]) for u in f["evidence"]["unpinned"]]
+        self.assertEqual((len(named), len(set(named))), (30, 30), "four checkouts in a file are one subject")
+        many = [{**r, "file": f".github/workflows/w{i}.yml"} for i, r in enumerate(rows)]
+        f = self.by_id(self.h(actions={"unpinned": many, "unpinned_count": 120, "pinned": 0}))["unpinned_actions"]
+        self.assertEqual(len(f["evidence"]["unpinned"]), hygiene.CAP)
+
+    def test_rows_from_before_the_step_context_keep_their_order_and_evidence(self):
+        # a saved 0.44.0 output directory: no ref, secrets or grants, so the finding renders as it did
+        unpinned = [{"file": ".github/workflows/a.yml", "uses": "actions/checkout@v7"}] * 4 + \
+                   [{"file": f".github/workflows/w{i}.yml", "uses": f"o{i}/x@v1"} for i in range(9)] + \
+                   [{"file": ".github/workflows/z.yml", "uses": "jikkai/sync-gitee@main"}]
+        f = self.by_id(self.h(actions={"unpinned": unpinned, "unpinned_count": 14, "pinned": 0}))["unpinned_actions"]
+        self.assertTrue(f["advice"].startswith("Pin o0/x@v1 "), "the first of the tie, as before")
+        self.assertEqual(f["evidence"]["unpinned"], unpinned[:10])
+        self.assertNotIn("order", f["rule"])
+
     def test_a_pwn_request_is_a_warning_naming_the_job_line_and_field(self):
         row = {"file": ".github/workflows/preview.yml", "job": "build", "line": 14, "key": "ref", "field": "github.event.pull_request.head.sha",
                "triggers": ["pull_request_target"]}
@@ -1223,6 +1302,11 @@ class Hygiene(unittest.TestCase):
         self.assertIn("dependabot.yml covers npm but not gomod and pip", f["detail"])
         f = self.by_id(self.h(updates={"tool": None, "covered": [], "uncovered": ["npm"]}))["dependency_updates"]
         self.assertIn("No dependency update tool is declared for npm", f["detail"])
+        f = self.by_id(self.h(updates={"tool": "dependabot", "covered": ["npm"], "uncovered": ["github-actions"]}))["dependency_updates"]
+        self.assertIn("dependabot.yml covers npm but not github-actions, whose actions the workflows here use.", f["detail"])
+        self.assertIn("package-ecosystem entry for github-actions", f["advice"])
+        f = self.by_id(self.h(updates={"tool": "dependabot", "covered": ["npm"], "uncovered": ["gomod", "github-actions"]}))["dependency_updates"]
+        self.assertIn("dependabot.yml covers npm but not gomod, which have lock files here, nor github-actions, whose actions the workflows here use.", f["detail"])
 
     def test_policy_files(self):
         f = self.by_id(self.h(presence={"license": None, "security_policy": None, "codeowners": ".github/CODEOWNERS", "codeowners_missing": ["/gone/"]}))["repo_policy"]

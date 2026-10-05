@@ -101,29 +101,65 @@ def origin_owner(repo: str):
     return {"host": host.lower(), "owner": owner}
 
 
-def actions_pinning(repo: str) -> dict:
-    """Every `uses:` in the tracked workflows: pinned to a full commit SHA, a local action or a docker
-    image (neither), or unpinned (a tag or a branch the action's owner can move). `origin` is the
-    account the clone's origin remote names, so the advice can put another owner's actions first. Each
-    unpinned row carries the line of its `uses:`, where SARIF places it. The same walk reads each
-    workflow's two dangerous shapes (workflow_shapes): `pwn_request` and `injection`."""
-    unpinned, pinned, local, pwn, injection = [], 0, 0, [], []
-    for path in _tracked(repo):
-        if not re.match(r"^\.github/workflows/[^/]+\.ya?ml$", path):
+_WORKFLOW = re.compile(r"^\.github/workflows/[^/]+\.ya?ml$")
+_ACTION_FILE = re.compile(r"(?:^|/)action\.ya?ml$")
+_COMPOSITE = re.compile(r"""^\s+using:\s*['"]?composite['"]?\s*(?:#.*)?$""", re.M)
+
+
+def _actions_files(repo: str, tracked: list):
+    """(path, text, is_workflow) for each tracked workflow and each composite action outside the test, sample
+    and vendored paths: an action.yml whose runs: uses composite, whose steps run inside the workflow that
+    calls it. A JavaScript or Docker action.yml has no steps."""
+    for path in tracked:
+        workflow = bool(_WORKFLOW.match(path))
+        if not workflow and not (_ACTION_FILE.search(path) and not _aside(path)):
             continue
         text = _text(repo, path)
+        if workflow or _COMPOSITE.search(text):
+            yield path, text, workflow
+
+
+def _remote(uses: str) -> bool:
+    """A `uses:` that names another repository's action: a local path, a docker image and a path without @ref
+    (curl writes $/.github/...) are not one."""
+    return not (uses.startswith("./") or uses.startswith("docker://") or "@" not in uses)
+
+
+def _keep_ranked(rows: list) -> list:
+    """The unpinned rows kept: every one on a branch-shaped ref, handed a secret or a token that can write (what
+    the advice ranks first, wherever it sits in the files), then the rest in file order up to CAP; file order
+    throughout. A cap in file order alone hid univer's sync-gitee step had it sat past the fiftieth row."""
+    marked = {i for i, u in enumerate(rows) if u["ref"] == "branch" or u["secrets"] or u["grants"]}
+    rest = [i for i in range(len(rows)) if i not in marked][:max(0, CAP - len(marked))]
+    return [rows[i] for i in sorted(marked.union(rest))]
+
+
+def actions_pinning(repo: str) -> dict:
+    """Every `uses:` in the tracked workflows and composite actions (_actions_files): pinned to a full commit
+    SHA, a local action or a docker image (neither), or unpinned (a tag or a branch the action's owner can
+    move). `origin` is the account the clone's origin remote names, so the advice can put another owner's
+    actions first. Each unpinned row carries the line of its `uses:`, where SARIF places it, and what the step
+    is handed (_step_context): the shape of its ref, whether it reads a secret, whether its token can write.
+    The same walk reads each workflow's two dangerous shapes (workflow_shapes): `pwn_request` and
+    `injection`; a composite action has no trigger or job of its own, so it has neither."""
+    unpinned, pinned, local, pwn, injection = [], 0, 0, [], []
+    for path, text, workflow in _actions_files(repo, _tracked(repo)):
+        lines = text.split("\n")
+        jobs = _jobs(lines)
         for m in _USES.finditer(text):
             ref = m.group(1)
-            if ref.startswith("./") or ref.startswith("docker://") or "@" not in ref:   # a remote action always names its ref
+            if not _remote(ref):
                 local += 1
-            elif "@" in ref and _SHA.match(ref.rsplit("@", 1)[1]):
+            elif _SHA.match(ref.rsplit("@", 1)[1]):
                 pinned += 1
             else:
-                unpinned.append({"file": path, "uses": ref, "line": text.count("\n", 0, m.start(1)) + 1})
-        shapes = workflow_shapes(path, text)
-        pwn += shapes["pwn_request"]
-        injection += shapes["injection"]
-    return {"unpinned": unpinned[:CAP], "unpinned_count": len(unpinned), "pinned": pinned, "local": local, "origin": origin_owner(repo),
+                line = text.count("\n", 0, m.start(1)) + 1
+                unpinned.append({"file": path, "uses": ref, "line": line, **_step_context(lines, jobs, line - 1, ref)})
+        if workflow:
+            shapes = workflow_shapes(path, text)
+            pwn += shapes["pwn_request"]
+            injection += shapes["injection"]
+    return {"unpinned": _keep_ranked(unpinned), "unpinned_count": len(unpinned), "pinned": pinned, "local": local, "origin": origin_owner(repo),
             "pwn_request": pwn[:CAP], "pwn_request_count": len(pwn), "injection": injection[:CAP], "injection_count": len(injection)}
 
 
@@ -258,6 +294,67 @@ def workflow_shapes(path: str, text: str) -> dict:
         for m in _DIRECT.finditer(ln):
             injection.append({"file": path, "job": job_of(i), "line": i + 1, "field": m.group(1)})
     return {"pwn_request": pwn, "injection": injection}
+
+
+# What an unpinned step is handed, so the advice can put first the pin whose move would cost the most. Read off the
+# lines like the shapes above:
+# - ref: "version" when the ref is shaped like a release (v7, 1.2.3), else "branch" (main, release/v1, a short sha):
+#   a branch moves with every push to it, a tag only when someone retags it.
+# - secrets: the step's with: or env:, or the env: of its job or workflow it inherits, reads a repository secret
+#   (`secrets.<NAME>`); for a job that calls a reusable workflow, its with: or secrets: reads one, or it has
+#   `secrets: inherit`, which passes them all. `secrets.GITHUB_TOKEN` is the job's own token, the same as
+#   `github.token`, so neither counts here: what that token can do is `grants`.
+# - grants: the permissions: of its job, or of the workflow when the job declares none (a job's own replaces the
+#   workflow's), hold id-token: write, contents: write or write-all: a token that can mint cloud credentials or push.
+_VERSION_REF = re.compile(r"^v?\d+(?:\.\d+)*$")
+_SECRET = re.compile(r"\bsecrets\.(?!(?i:github_token)\b)\w")
+_WRITE_GRANT = re.compile(r"""(?:^|[\s{,])(?:id-token|contents)\s*:\s*['"]?write\b|\bwrite-all\b""")
+
+
+def _key_col(m) -> int:
+    return len(m.group(1)) + len(m.group(2) or "")
+
+
+def _value(lines: list, lo: int, hi: int, col, name: str):
+    """The text of the key `name` written at column col between lo and hi (the rest of its line and the code lines
+    of its block), or None when no such key is there."""
+    for i in range(lo, hi):
+        m = _KEY.match(lines[i])
+        if m and _code(lines[i]) and _key_col(m) == col and m.group(3).strip("\"'") == name:
+            out, j = [m.group(4)], i + 1
+            while j < hi and (not _code(lines[j]) or _indent(lines[j]) > col):
+                if _code(lines[j]):
+                    out.append(lines[j])
+                j += 1
+            return "\n".join(out)
+    return None
+
+
+def _secret(text) -> bool:
+    return bool(text and _SECRET.search(text))
+
+
+def _step_context(lines: list, jobs: list, i: int, uses: str) -> dict:
+    """ref, secrets and grants (above) for the `uses:` on line index i."""
+    m = _KEY.match(lines[i])
+    col = _key_col(m) if m else _indent(lines[i])
+    job = next(((lo, hi) for _, lo, hi in jobs if lo <= i < hi), None)
+    lo, hi = (job[0] + 1, job[1]) if job else (0, len(lines))
+    jcol = next((_indent(lines[k]) for k in range(lo, hi) if _code(lines[k])), None) if job else None
+    if job and col == jcol:   # the job itself calls a reusable workflow
+        passed = _value(lines, lo, hi, col, "secrets") or ""
+        secrets = bool(re.match(r"\s*['\"]?inherit\b", passed) or _secret(passed) or _secret(_value(lines, lo, hi, col, "with")))
+    else:
+        end, dash = _step_end(lines, i, hi)
+        secrets = any(_secret(_value(lines, dash, end, col, k)) for k in ("with", "env"))
+    if job:
+        secrets = secrets or _secret(_value(lines, lo, hi, jcol, "env"))
+    secrets = secrets or _secret(_value(lines, 0, len(lines), 0, "env"))
+    perms = _value(lines, lo, hi, jcol, "permissions") if job else None
+    if perms is None:
+        perms = _value(lines, 0, len(lines), 0, "permissions")
+    return {"ref": "version" if _VERSION_REF.match(uses.rsplit("@", 1)[1]) else "branch", "secrets": secrets,
+            "grants": bool(perms and _WRITE_GRANT.search(perms))}
 
 
 # --- lock files ---------------------------------------------------------------------------------
@@ -554,9 +651,16 @@ _RENOVATE = {"renovate.json", "renovate.json5", ".renovaterc", ".renovaterc.json
 _ECOSYSTEM_LINE = re.compile(r"""package-ecosystem:\s*['"]?([\w-]+)""")
 
 
+ACTIONS_ECOSYSTEM = "github-actions"
+
+
 def dependency_updates(repo: str) -> dict:
     """Which update bot the repository declares, and the ecosystems with a tracked lock file it does not
-    cover. Renovate discovers every manager by itself, so under Renovate nothing is uncovered."""
+    cover. Renovate discovers every manager by itself, so under Renovate nothing is uncovered. A
+    dependabot.yml that leaves out github-actions while a workflow or composite action uses another
+    repository's action (pinned or not: a SHA pin goes stale too) leaves that ecosystem uncovered, after the
+    lock files' ones. With no update tool at all, github-actions is not added: the lock files' ecosystems
+    already say no tool is declared."""
     tracked = _tracked(repo)
     present = sorted({ECOSYSTEMS[p.rsplit("/", 1)[-1]] for p in tracked if p.rsplit("/", 1)[-1] in ECOSYSTEMS and not _aside(p)})
     if any(p in _RENOVATE for p in tracked):
@@ -564,8 +668,13 @@ def dependency_updates(repo: str) -> dict:
     config = next((p for p in (".github/dependabot.yml", ".github/dependabot.yaml") if p in tracked), None)
     if not config:
         return {"tool": None, "covered": [], "uncovered": present}
-    declared = sorted({_ALIASES.get(e, e) for e in _ECOSYSTEM_LINE.findall(_text(repo, config))})
-    return {"tool": "dependabot", "covered": declared, "uncovered": [e for e in present if e not in declared]}
+    text = "\n".join(ln for ln in _text(repo, config).split("\n") if not ln.lstrip().startswith("#"))   # not a commented-out entry
+    declared = sorted({_ALIASES.get(e, e) for e in _ECOSYSTEM_LINE.findall(text)})
+    uncovered = [e for e in present if e not in declared]
+    if ACTIONS_ECOSYSTEM not in declared and any(_remote(m.group(1)) for _, text, _ in _actions_files(repo, tracked)
+                                                 for m in _USES.finditer(text)):
+        uncovered.append(ACTIONS_ECOSYSTEM)
+    return {"tool": "dependabot", "covered": declared, "uncovered": uncovered}
 
 
 # --- licence, security policy, CODEOWNERS -------------------------------------------------------

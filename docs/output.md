@@ -141,7 +141,11 @@ in plain words, and what to do first. This page is the reference.
      whatever the counts, since raw fix counts mostly follow file size;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
-   - hotspots getting more complex, a warning when the top one did;
+   - hotspots getting more complex, a warning when the top one did; each
+     file's summed complexity (scc's count, which grows with the lines)
+     stands beside the change in its code, and the advice to split goes to
+     the first one whose complexity per line also rose 25% or more in the
+     year, or says they grew with their size;
    - tightly coupled file pairs; a file and its test are expected to change
      together, so those pairs are left out;
    - vulnerable dependencies (see below);
@@ -150,11 +154,20 @@ in plain words, and what to do first. This page is the reference.
 
    Repository hygiene is read from the clone alone, the checks OpenSSF
    Scorecard and the OSPS Baseline otherwise make through the GitHub API,
-   each rule naming the Scorecard check it stands in for: workflow steps
-   that use an action by tag or branch rather than a full commit SHA (a
+   each rule naming the Scorecard check it stands in for: workflow steps,
+   and the steps of a composite action (an `action.yml` whose `runs:` uses
+   `composite`), that use an action by tag or branch rather than a full commit SHA (a
    warning, whose advice names another account's action before one from
    the account the `origin` remote says the repository lives under, and
-   either before GitHub's own `actions/`); a manifest whose last commit is newer than its lock file's, by
+   either before GitHub's own `actions/`; within each, a branch-shaped ref
+   such as `@main` before a release-shaped one (`@v7`, `@1.2.3`), then a
+   step handed a secret (`secrets.` in its `with:` or `env:`, or the
+   `env:` it inherits; `secrets.GITHUB_TOKEN` is the job's own token, like
+   `github.token`, and counts only by what it may do) or a token that can write (`id-token: write`,
+   `contents: write` or `write-all` in its job's `permissions:`, else the
+   workflow's) before one that is not, each row in `hygiene.json` saying
+   which as `ref`, `secrets` and `grants`; the evidence names each action
+   once per file, up to 50); a manifest whose last commit is newer than its lock file's, by
    commit time (a warning), and a manifest of an ecosystem that locks by
    convention with no lock file in its directory or above it (a note),
    unless it declares nothing a lock would pin: a `go.mod` with no
@@ -164,6 +177,8 @@ in plain words, and what to do first. This page is the reference.
    `ext-*`), a `Pipfile` with empty package tables (`lockfiles.nothing_to_lock`
    in `hygiene.json` names them; a `Gemfile` is Ruby and is not read); the
    ecosystems with a tracked lock file that `dependabot.yml` does not cover,
+   and `github-actions` when it leaves that out while a workflow or composite
+   action uses another repository's action, pinned or not,
    or no update tool at all (Renovate covers every manager by itself); no
    licence file, no `SECURITY.md` (at the root, in `.github/` or `docs/`,
    or a heading about security in the README or CONTRIBUTING, such as
@@ -637,7 +652,8 @@ in plain words, and what to do first. This page is the reference.
    owner, the minor contributors (people with a small share of the file's
    commits each), the most complex function lizard found (a nameless one
    by its line; a span marked `?` in the complex functions table is passed
-   over) and, when its complexity grew in a year, by how much (the trend is
+   over) and, when its summed complexity grew in a year, by how much and
+   how much its code grew beside it (the trend is
    sampled for the top hotspots only, so a file further down the list may
    have none), the files it always changes with, and how many files it
    changes with when it is weakly coupled to many (Tornhill's sum of

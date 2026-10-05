@@ -56,6 +56,27 @@ def change_over_year(series: list, last_date: str) -> str:
     return f"{pct:+d}%"
 
 
+def _pct_change(then, now):
+    return round(100 * (now - then) / then) if then else None
+
+
+def year_change(series: list, last_date: str):
+    """Over the same year as change_over_year (the last sample at or before a year ago to the latest):
+    the percent change of the summed complexity, of the lines of code, and of the complexity per line,
+    each None where its base is zero. None with no sample a year back. A file whose summed complexity
+    grew with its lines - more code of the same kind - shows it in `per_line`: a sum grows with size,
+    a density does not."""
+    if len(series) < 2:
+        return None
+    year_ago = maat.months_before(last_date, 12)
+    before = [s for s in series if s[0] <= year_ago]
+    if not before:
+        return None
+    (_, c0, n0), (_, c1, n1) = before[-1][:3], series[-1][:3]
+    return {"complexity": _pct_change(c0, c1), "code": _pct_change(n0, n1),
+            "per_line": _pct_change(c0 / n0, c1 / n1) if n0 and n1 else None}
+
+
 def sparkline(series: list) -> str:
     """One block per sample, scaled between the smallest and the largest. Fewer than two samples
     draw nothing: a single block would read as a flat trend nobody measured."""
