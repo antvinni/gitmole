@@ -138,7 +138,16 @@ in plain words, and what to do first. This page is the reference.
      are magnets, and the severity, are the six months' counts. With less
      than twelve months of history the test does not run (it would test
      the window's own counts again); the finding says so, and is a note
-     whatever the counts, since raw fix counts mostly follow file size;
+     whatever the counts, since raw fix counts mostly follow file size.
+     A translation file named for its locale is not a magnet: a fix that
+     adds a message adds it to every locale. The name needs a letter region
+     (`ru-RU.ts`, `zh-Hant-TW.json`, `pt_BR.po`) anywhere, or, directly in
+     a `locale/`, `locales/`, `i18n/` or `po/` directory (or in gettext's
+     `<lang>/LC_MESSAGES/` below one), a numeric region or none
+     (`es-419.json`, `de.json`, `po/fr.po`). A lower-case region
+     (`en-us.ts`) and a file named for its domain in a directory named for
+     its locale (`fr/LC_MESSAGES/django.po`) are not known. A translation
+     file still counts in the test's rate for files of its size;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
    - hotspots getting more complex, a warning when the top one did; each
@@ -849,8 +858,9 @@ in plain words, and what to do first. This page is the reference.
    out), and the change coupling table hides pairs
    with a test file, pairs of release plumbing (two version files, a
    manifest and its lock file, changelogs), header pairs (a C-family
-   source file and its own header) and pairs with a vendored file on
-   either side; the captions show how many are hidden, and
+   source file and its own header), locale pairs (two translation files
+   named for their locales, as the bug magnets know them) and pairs with a
+   vendored file on either side; the captions show how many are hidden, and
    `--full` shows them. Release plumbing is also hidden from the hotspots
    table and left out of the watch list, the churn-dominance and the
    bug-magnet findings: a version file or a manifest changes on every

@@ -438,6 +438,37 @@ class ReleasePlumbing(unittest.TestCase):
         self.assertNotIn("package.json", f[0]["detail"])
 
 
+class LocaleMagnets(unittest.TestCase):
+    """univer at 0.44.0: 82 of 287 bug-magnet rows were translation files, every locale fixed as often as the
+    busiest one because a fix that adds a message adds it to all of them."""
+
+    FIXES = [{"entity": p, "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5} for p in (
+        "packages/ui/src/locale/ru-RU.ts", "packages/ui/src/locale/zh-Hant-TW.json", "po/es_419.po",
+        "messages/pt-BR.json", "packages/x/src/locales/de.ts", "packages/y/src/Locale/en.ts",
+        "packages/ui/src/locale/index.ts", "packages/core/src/set.ts", "packages/core/src/api.ts",
+        "packages/i18n/src/api.ts", "packages/core/src/app_100.ts")]
+
+    def test_a_translation_file_is_not_a_magnet_row(self):
+        rows = sorted(f["entity"] for f in findings.magnet_rows(report(fixes=self.FIXES)))
+        self.assertEqual(rows, ["packages/core/src/api.ts", "packages/core/src/app_100.ts", "packages/core/src/set.ts",
+                                "packages/i18n/src/api.ts", "packages/ui/src/locale/index.ts"])
+
+    def test_the_finding_counts_and_names_only_the_code(self):
+        f = findings.bug_magnets(report(fixes=self.FIXES))
+        self.assertEqual(f[0]["evidence"]["count"], 5)
+        self.assertIn("set.ts", f[0]["detail"])
+        self.assertNotIn("ru-RU", f[0]["detail"])
+
+    def test_the_size_test_still_pools_the_translations(self):
+        """fix_prone's pool and strata are the repository's rate: leaving the locales out of it would move which
+        files are fixed beyond their size (univer: numfmt.editor.controller.ts out, two others in)."""
+        r = report(fixes=self.FIXES)
+        r["revisions"] = [{"entity": f["entity"], "n-revs": 20} for f in self.FIXES]
+        prone = findings.fix_prone(r, findings._magnet_keep(r))
+        self.assertIn("packages/ui/src/locale/ru-RU.ts", prone["counts"])
+        self.assertEqual(prone["files"], len(self.FIXES))
+
+
 class Dormant(unittest.TestCase):
     def test_a_year_without_commits_is_a_warning_that_dates_the_last_one(self):
         r = report()
