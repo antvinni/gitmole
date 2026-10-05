@@ -29,10 +29,10 @@ def gone(report: dict, months: int = DEFAULT_MONTHS) -> list:
     return sorted(out, key=lambda g: g["name"])
 
 
-def areas(rows: list, gone_names, base: int = 0) -> list:
+def areas(rows: list, gone_names, base: int = 0, dated: bool = False) -> list:
     """knowledge.areas over the given ownership rows, each row with `lost` lines and `lost_share`."""
     out = []
-    for a in knowledge.areas(rows, base=base):
+    for a in knowledge.areas(rows, base=base, dated=dated):
         lost = sum(n for name, n in a["owners"] if name in gone_names)
         out.append({**a, "lost": lost, "lost_share": lost / a["lines"] if a["lines"] else 0.0})
     return out

@@ -773,6 +773,9 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
             continue
         surviving[key] = surviving.get(key, 0) + lines
     ownership = [r for r in parse_maat_csv(_read(out_dir, "maat-entity-ownership.csv")) if not is_bot(r.get("author") or "")]
+    for r in ownership:   # a blank `recent` is 0, and the key is kept only where there is a count (meta's ownership_recent says it was counted)
+        if "recent" in r and not r["recent"]:
+            del r["recent"]
     fixes = parse_maat_csv(_read(out_dir, "maat-fixes.csv"))
     activity = _read_json(out_dir, "activity.json", {})
     provenance = _read_json(out_dir, "provenance.json", {}) or {}

@@ -602,6 +602,7 @@ def _meta_for_run(repo_dir: str, args, estimate, age_ok: bool, plots_ok: bool, p
     meta["run"] = run.manifest(repo_dir, args)   # what produced this report: commit, gitmole and tool versions, the options
     meta["file_types"] = types_spec   # the loader filters scc's size data the way every other step was filtered
     meta["gone_months"] = args.gone
+    meta["ownership_recent"] = True   # the change analysis counts each author's commits in the --gone window (`recent`, written only when above 0); absent before 0.45
     tracked = blame.text_files(repo_dir) if tracked is None else tracked   # every tracked text file: --ignore shapes blame and functions, never what a file is
     scripts = filetypes.scripts(repo_dir, among=tracked) if scripts is None else scripts
     if scripts:   # source by shape: mode 100755 and an interpreter line. Absent when there is none, so such a run's meta.json is the one it always was

@@ -1866,7 +1866,8 @@ TRUCK_MIN_FILES = 20   # under this many source files a truck factor is a statem
 # How an area is dated: the run's own --gone window, so "new" means what "gone" means, measured from the last commit.
 AREA_AGE_RULE = {"new_months": "the run's --gone months before the last commit",
                  "renamed": "no age when any of the area's files arrived by a rename (git -M, single hop); "
-                            "a move below -M's similarity reads as an added file"}
+                            "a move below -M's similarity reads as an added file, and a rename inside a new area "
+                            "(a.ts to b.ts within it) withholds its age too, since the old path is not kept"}
 
 
 def new_areas(report: dict, areas: dict) -> dict:

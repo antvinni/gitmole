@@ -183,7 +183,8 @@ class Ownership(unittest.TestCase):
     def test_recent_counts_the_commits_on_or_after_the_window_start(self):
         rows = {(r["entity"], r["author"]): r for r in maat.entity_ownership(maat.parse_log(LOG), recent_since="2026-03-12")}
         self.assertEqual(rows[("src/a.py", "Ann")]["recent"], 3, "d4, e5 and f6; a1 and c3 are before the window")
-        self.assertEqual((rows[("src/a.py", "Bob")]["recent"], rows[("src/a.py", "Cat")]["recent"]), (0, 1))
+        self.assertNotIn("recent", rows[("src/a.py", "Bob")], "none in the window: no key, the CSV cell is blank")
+        self.assertEqual(rows[("src/a.py", "Cat")]["recent"], 1)
 
 
 class Arrivals(unittest.TestCase):
@@ -225,7 +226,7 @@ class Arrivals(unittest.TestCase):
         self.assertEqual(rows["src/a.py"], "src/a.py,2025-01-01,0")
         self.assertEqual(own[0], "entity,author,added,deleted,commits,recent")
         self.assertIn("fresh/a.py,Cat,10,0,1,1", own, "the window is the meta's gone months back from the last commit")
-        self.assertIn("src/a.py,Ann,600,200,200,0", own)
+        self.assertIn("src/a.py,Ann,600,200,200,", own, "0 is written as a blank")
 
 
 class Types(unittest.TestCase):

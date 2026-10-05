@@ -755,9 +755,10 @@ def entity_ownership(commits: list, recent_since: str = None) -> list:
                 n[(p, who)] += 1
                 recent[(p, who)] += late
     rows = [{"entity": p, "author": who, "added": added[(p, who)], "deleted": deleted[(p, who)], "commits": n[(p, who)]} for (p, who) in added]
-    if recent_since is not None:
+    if recent_since is not None:   # only where there is one: the run's meta says the column was counted, so a blank is 0
         for r in rows:
-            r["recent"] = recent[(r["entity"], r["author"])]
+            if recent[(r["entity"], r["author"])]:
+                r["recent"] = recent[(r["entity"], r["author"])]
     rows.sort(key=lambda r: (r["entity"], r["author"]))
     return rows
 

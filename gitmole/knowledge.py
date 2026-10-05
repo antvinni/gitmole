@@ -73,12 +73,12 @@ def present_rows(rows: list, tree: dict) -> list:
     return [r for r in rows if r["entity"] in tree]
 
 
-def _aggregate(rows: list, depth: int, base: int = 0) -> list:
-    """Per area: lines added, authors, owners most first, and, when the rows carry the change analysis's
-    `recent` commits (0.45 on), `recent`: how many of those authors committed to it inside the run's --gone
-    window. A count, never a name: who is active in an area is not a ranking of them."""
+def _aggregate(rows: list, depth: int, base: int = 0, dated: bool = False) -> list:
+    """Per area: lines added, authors, owners most first, and, when `dated` (the run's meta says the change
+    analysis counted each author's `recent` commits, 0.45 on; a row without one has none), `recent`: how many of
+    those authors committed to it inside the run's --gone window. A count, never a name: who is active in an
+    area is not a ranking of them."""
     lines, per_author, active = Counter(), defaultdict(Counter), defaultdict(set)
-    dated = any("recent" in r for r in rows)
     for r in rows:
         a = _area(r["entity"], depth, base)
         lines[a] += r["added"]
@@ -103,7 +103,7 @@ def tied(owners: list, at: int = 0) -> int:
     return sum(1 for _, n in owners if n == owners[at][1])
 
 
-def areas(ownership_rows: list, dominant: float = 0.8, base: int = 0) -> list:
+def areas(ownership_rows: list, dominant: float = 0.8, base: int = 0, dated: bool = False) -> list:
     """Areas of the tree by lines added, with per-author ownership.
 
     Top-level directories, unless one of them holds `dominant` of all lines
@@ -111,10 +111,10 @@ def areas(ownership_rows: list, dominant: float = 0.8, base: int = 0) -> list:
     rows = [r for r in ownership_rows if r.get("added", 0) > 0]
     if not rows:
         return []
-    top = _aggregate(rows, 1, base)
+    top = _aggregate(rows, 1, base, dated)
     total = sum(a["lines"] for a in top)
     if top[0]["area"] != ROOT and top[0]["lines"] >= dominant * total:
-        return _aggregate(rows, 2, base)
+        return _aggregate(rows, 2, base, dated)
     return top
 
 

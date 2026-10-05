@@ -1313,7 +1313,11 @@ class KnowledgeMap(unittest.TestCase):
         before = render.knowledge_section(r, full=True)
         self.assertNotIn("recent", before["columns"], "rows from before 0.45 carry no count, and the map is the one it was")
         for row in r["ownership"]:
-            row["recent"] = 2 if row["author"] == "Ann" else 0
+            if row["author"] == "Ann":
+                row["recent"] = 2
+        self.assertEqual([row[2] for row in render.knowledge_section(r, full=True)["rows"]], ["2", "1"],
+                         "the meta, not the rows, says the count was made: authors stay a plain count")
+        r["meta"]["ownership_recent"] = True
         r["ownership"].append({"entity": "static/b.css", "author": "Cat", "added": 1, "deleted": 0, "commits": 1, "recent": 1})
         km = render.knowledge_section(r, full=True)
         self.assertEqual(km["columns"], before["columns"], "a count in the authors cell, not a column: the owners keep their width")
@@ -1321,6 +1325,12 @@ class KnowledgeMap(unittest.TestCase):
         self.assertEqual(by["static/"][2], "2/3", "Ann and Cat committed there in the window; Bob did not")
         self.assertIn(f"authors = recent/all; recent = a commit to the area in the 12 months before {r['meta']['last_date']}", km["caption"])
         self.assertNotIn("recent", render.knowledge_section(r, full=False)["caption"] or "", "the default map does not show it")
+
+    def test_the_json_export_leaves_the_arrivals_out(self):
+        # their one reader is the truck factor, whose evidence carries new_since; a re-render without them dates nothing
+        r = sample_report()
+        r["arrivals"] = [{"entity": "static/a.html", "first": "2026-01-01", "renamed": 0}]
+        self.assertNotIn("arrivals", render.to_json(r, []))
 
     def test_an_owner_named_like_the_project_is_captioned_and_nothing_else_moves(self):
         # univer: "Univer" owns 55% of engine-render/ and the root package.json is named "univer"
