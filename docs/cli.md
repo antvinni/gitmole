@@ -273,8 +273,9 @@ the rows every `--json` export carries, so an older baseline works as it
 is; one that lacks a rule's rows (written before the structure step ran,
 say) is judged for that rule by its rule id alone, as every rule but
 secrets and vulnerable dependencies was until 0.42.0.
-The hygiene step keeps 50 unpinned actions per run, so one past the
-fiftieth is not seen.
+The hygiene step keeps every unpinned action on a branch, handed a secret
+or a token that can write, and the others up to 50 per run, so a plain
+tag-pinned one past the fiftieth is not seen.
 Findings in the baseline carry `"baseline": "in the baseline"` in the JSON
 (`"new"` otherwise) and `baselineState` `unchanged` or `new` in the SARIF;
 stderr names the ones that did not count. `--baseline` does not change the

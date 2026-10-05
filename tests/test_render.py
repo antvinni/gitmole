@@ -1304,6 +1304,23 @@ class KnowledgeMap(unittest.TestCase):
         self.assertIn(f"authors = recent/all; recent = a commit to the area in the 12 months before {r['meta']['last_date']}", km["caption"])
         self.assertNotIn("recent", render.knowledge_section(r, full=False)["caption"] or "", "the default map does not show it")
 
+    def test_an_owner_named_like_the_project_is_captioned_and_nothing_else_moves(self):
+        # univer: "Univer" owns 55% of engine-render/ and the root package.json is named "univer"
+        r = sample_report()
+        plain = render.knowledge_section(r, full=False)
+        self.assertNotIn("named like the project", plain["caption"] or "")
+        r["meta"]["declared"] = {"name": "ann", "file": "package.json", "field": "name"}
+        km = render.knowledge_section(r, full=False)
+        self.assertIn('Ann is named like the project (package.json "name": "ann"); git does not record whether one person '
+                      "or several commit under it", km["caption"])
+        self.assertEqual(km["rows"], plain["rows"], "a caption, not a number")
+        r["meta"]["declared"] = {"name": "demo", "file": "go.mod", "field": "module"}
+        r["meta"]["identities"] = [{"name": "Demo", "email": "d@x.example", "commits": 1}]
+        self.assertNotIn("named like the project", render.knowledge_section(r, full=False)["caption"] or "",
+                         "an identity the map does not show as an owner is not captioned")
+        self.assertEqual(render._declared_text({"name": "demo", "file": "go.mod", "field": "module"}), "go.mod module …/demo")
+        self.assertEqual(render._declared_text({"name": "demo", "file": "Cargo.toml", "field": "name"}), 'Cargo.toml name = "demo"')
+
 
 class Timeline(unittest.TestCase):
     def test_last_twelve_months_per_author_with_dots_for_zero(self):

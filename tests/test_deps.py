@@ -156,6 +156,7 @@ class Declarations(unittest.TestCase):
             self.write(repo, "web/package.json", json.dumps({"name": "w", "workspaces": ["packages/*", "!packages/skip"]}))
             self.write(repo, "web/packages/cli/package.json", json.dumps({"name": "c", "bin": {"c": "cli.js"}}))
             self.write(repo, "web/packages/skip/package.json", json.dumps({"name": "s", "bin": "s.js"}))
+            self.write(repo, "web/packages/lint/package.json", json.dumps({"name": "l", "private": True, "bin": {"l": "l.js"}}))
             self.write(repo, "lib/package.json", json.dumps({"name": "lib", "main": "index.js"}))
             self.write(repo, "rs/Cargo.toml", '[package]\nname = "x"\n\n[[bin]]\nname = "x"\n')
             self.write(repo, "deploy/docker-compose.yml", "services:\n  api:\n    build:\n      context: ../api\n      dockerfile: Dockerfile\n  web:\n    build: ../web\n  db:\n    image: postgres\n")
@@ -166,7 +167,7 @@ class Declarations(unittest.TestCase):
         src = {s["path"]: s for s in result["sources"]}
         self.assertEqual(src["uv.lock"]["members"], ["api", "libs/core"], "an excluded member is not one")
         self.assertEqual(src["uv.lock"]["entry_points"], ["api/pyproject.toml [project.scripts]"])
-        self.assertEqual(src["web/package-lock.json"]["entry_points"], ["web/packages/cli/package.json bin"])
+        self.assertEqual(src["web/package-lock.json"]["entry_points"], ["web/packages/cli/package.json bin"], "a private toolbox's bin is a command for its developers, not a program")
         self.assertNotIn("entry_points", src["lib/package-lock.json"], "a library declares no program")
         self.assertEqual(src["rs/Cargo.lock"]["entry_points"], ["rs/Cargo.toml [[bin]]"])
         self.assertEqual(result["compose_builds"], ["api", "web"])

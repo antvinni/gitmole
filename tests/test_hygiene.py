@@ -42,8 +42,10 @@ class ActionsPinning(unittest.TestCase):
             r.write(".github/workflows/release.yaml", "jobs:\n  r:\n    steps:\n      - uses: softprops/action-gh-release@" + "b" * 64 + "\n")
             r.commit()
             out = hygiene.actions_pinning(d)
-        self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4", "line": 4},
-                                           {"file": ".github/workflows/ci.yml", "uses": "org/repo@main", "line": 8}], "each at the line of its uses:")
+        handed = {"secrets": False, "grants": False}
+        self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4", "line": 4, "ref": "version", **handed},
+                                           {"file": ".github/workflows/ci.yml", "uses": "org/repo@main", "line": 8, "ref": "branch", **handed}],
+                         "each at the line of its uses:")
         self.assertEqual(out["pinned"], 2)
         self.assertEqual(out["local"], 3, "a local action, a docker image and a path without @ref (curl writes $/.github/...) are neither")
         self.assertIsNone(out["origin"], "no origin remote")
@@ -59,6 +61,150 @@ class ActionsPinning(unittest.TestCase):
                 Repo(d)
                 subprocess.run(["git", "remote", "add", "origin", url], cwd=d, check=True, capture_output=True)
                 self.assertEqual(hygiene.origin_owner(d), expected, url)
+
+    def rows(self, text):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write(".github/workflows/w.yml", text)
+            r.commit()
+            return {u["line"]: (u["uses"], u["ref"], u["secrets"], u["grants"]) for u in hygiene.actions_pinning(d)["unpinned"]}
+
+    def test_a_ref_is_a_version_only_when_shaped_like_one(self):
+        refs = ["v7", "1.2.3", "v1.0.0", "main", "release/v1", "stable", "v2-beta", "a1b2c3d"]
+        got = self.rows("jobs:\n  t:\n    steps:\n" + "".join(f"      - uses: o/a@{r}\n" for r in refs))
+        self.assertEqual([got[n + 4][1] for n in range(len(refs))], ["version"] * 3 + ["branch"] * 5,
+                         "@v7, @1.2.3 and @v1.0.0 are release-shaped; a branch, a path-like ref, a suffix and a short sha are not")
+
+    def test_a_step_is_handed_secrets_through_its_own_with_or_env_or_the_env_it_inherits(self):
+        got = self.rows("""jobs:
+  own:
+    steps:
+      - name: with
+        uses: o/with@v1
+        with:
+          token: ${{ secrets.TOKEN }}
+      - uses: o/env@v1
+        env:
+          TOKEN: ${{ secrets.TOKEN }}
+      - uses: o/plain@v1
+        with:
+          token: ${{ github.token }}
+        if: ${{ secrets.TOKEN != '' }}
+      # with: ${{ secrets.TOKEN }}
+  inherited:
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+    steps:
+      - uses: o/job-env@v1
+  caller:
+    uses: o/repo/.github/workflows/r.yml@main
+    secrets: inherit
+  quiet-caller:
+    uses: o/repo/.github/workflows/q.yml@main
+    with:
+      level: 1
+""")
+        self.assertEqual({v[0]: v[2] for v in got.values()},
+                         {"o/with@v1": True, "o/env@v1": True, "o/plain@v1": False, "o/job-env@v1": True,
+                          "o/repo/.github/workflows/r.yml@main": True, "o/repo/.github/workflows/q.yml@main": False},
+                         "an if: or a comment that names a secret hands the action nothing")
+        workflow_env = self.rows("env:\n  TOKEN: ${{ secrets.TOKEN }}\njobs:\n  t:\n    steps:\n      - uses: o/a@v1\n")
+        self.assertTrue(workflow_env[6][2], "the workflow's env: is inherited too")
+
+    def test_the_jobs_own_token_is_not_a_handed_secret_however_it_is_written(self):
+        got = self.rows("""jobs:
+  t:
+    steps:
+      - uses: o/ctx@v1
+        with:
+          token: ${{ github.token }}
+      - uses: o/secret-ctx@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: o/lower@v1
+        env:
+          GH: ${{ secrets.github_token }}
+      - uses: o/longer@v1
+        env:
+          GH: ${{ secrets.GITHUB_TOKEN_PAT }}
+  caller:
+    uses: o/repo/.github/workflows/r.yml@main
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+  passes:
+    uses: o/repo/.github/workflows/p.yml@main
+    secrets:
+      npm: ${{ secrets.NPM_TOKEN }}
+""")
+        self.assertEqual({v[0]: v[2] for v in got.values()},
+                         {"o/ctx@v1": False, "o/secret-ctx@v1": False, "o/lower@v1": False, "o/longer@v1": True,
+                          "o/repo/.github/workflows/r.yml@main": False, "o/repo/.github/workflows/p.yml@main": True},
+                         "secrets.GITHUB_TOKEN is github.token; what it can do is grants")
+
+    def test_every_branch_or_secret_row_is_kept_past_the_cap(self):
+        text = "jobs:\n  t:\n    steps:\n" + "".join(f"      - uses: o/tag{i}@v1\n" for i in range(60)) + \
+               "      - uses: o/x@main\n        with:\n          token: ${{ secrets.DEPLOY }}\n"
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write(".github/workflows/w.yml", text)
+            r.commit()
+            out = hygiene.actions_pinning(d)
+        self.assertEqual(out["unpinned_count"], 61)
+        self.assertEqual(len(out["unpinned"]), hygiene.CAP)
+        self.assertEqual(out["unpinned"][-1]["uses"], "o/x@main", "row 61 is kept, a tag-pinned row gives way")
+        self.assertEqual([u["uses"] for u in out["unpinned"][:-1]], [f"o/tag{i}@v1" for i in range(hygiene.CAP - 1)], "file order")
+
+    def test_a_token_that_can_write_comes_from_the_job_or_else_the_workflow(self):
+        got = self.rows("""permissions:
+  contents: write
+jobs:
+  inherits:
+    steps:
+      - uses: o/inherits@v1
+  narrows:
+    permissions:
+      contents: read
+    steps:
+      - uses: o/narrows@v1
+  oidc:
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: o/oidc@v1
+  all:
+    permissions: write-all
+    steps:
+      - uses: o/all@v1
+  comments:
+    permissions: { pull-requests: write }
+    steps:
+      - uses: o/comments@v1
+""")
+        self.assertEqual({v[0]: v[3] for v in got.values()},
+                         {"o/inherits@v1": True, "o/narrows@v1": False, "o/oidc@v1": True, "o/all@v1": True, "o/comments@v1": False},
+                         "a job's own permissions replace the workflow's; pull-requests: write can neither push nor mint a cloud token")
+        self.assertEqual({v[3] for v in self.rows("jobs:\n  t:\n    steps:\n      - uses: o/a@v1\n").values()}, {False},
+                         "no permissions declared: what the token can do is the repository's setting, which the files do not say")
+
+    def test_a_composite_action_is_read_like_a_workflow_and_other_action_files_are_not(self):
+        composite = ("name: setup\nruns:\n  using: composite\n  steps:\n    - uses: pnpm/setup@v2\n      with:\n        install: false\n"
+                     "    - uses: actions/cache/restore@" + "c" * 40 + "\n    - run: echo ${{ github.event.issue.title }}\n      shell: bash\n")
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write(".github/workflows/ci.yml", "jobs:\n  t:\n    steps:\n      - uses: ./.github/actions/setup\n")
+            r.write(".github/actions/setup/action.yml", composite)
+            r.write("action.yaml", composite.replace("pnpm/setup@v2", "o/root@main"))
+            r.write("js/action.yml", "name: js\nruns:\n  using: node20\n  main: index.js\nuses: o/never@v1\n")
+            r.write("tests/fixtures/action.yml", composite.replace("pnpm/setup@v2", "o/fixture@v1"))
+            r.write("docs/action.yml.md", composite)
+            r.commit()
+            out = hygiene.actions_pinning(d)
+        self.assertEqual([(u["file"], u["uses"], u["line"], u["ref"]) for u in out["unpinned"]],
+                         [(".github/actions/setup/action.yml", "pnpm/setup@v2", 5, "version"), ("action.yaml", "o/root@main", 5, "branch")],
+                         "a JavaScript action has no steps; a test fixture is a specimen")
+        self.assertEqual((out["pinned"], out["local"]), (2, 1))
+        self.assertEqual(out["injection_count"], 0, "workflow_shapes reads workflows only: a composite action has no trigger of its own")
 
 
 PWN = """name: preview
@@ -383,6 +529,38 @@ class DependencyUpdates(unittest.TestCase):
             r.commit()
             self.assertEqual(hygiene.dependency_updates(d), {"tool": None, "covered": [], "uncovered": ["gomod", "npm", "pip"]})
 
+    def test_github_actions_is_uncovered_only_when_a_dependabot_yml_leaves_it_out(self):
+        # univer: dependabot.yml declares npm alone while eight workflows and a composite action use remote actions
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
+            r.write(".github/workflows/ci.yml", "jobs:\n  t:\n    steps:\n      - uses: ./.github/actions/setup\n      - uses: docker://alpine:3\n")
+            r.write(".github/dependabot.yml", "version: 2\nupdates:\n  - package-ecosystem: npm\n    directory: /\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], [], "a local action and a docker image are not github-actions'")
+            r.write(".github/actions/setup/action.yml", "runs:\n  using: composite\n  steps:\n    - uses: actions/cache@" + "a" * 40 + "\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d), {"tool": "dependabot", "covered": ["npm"], "uncovered": ["github-actions"]},
+                             "a SHA pin in a composite action needs updating too")
+            r.write("go.sum", "\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], ["gomod", "github-actions"], "after the lock files' ecosystems")
+            r.write(".github/dependabot.yml", "version: 2\nupdates:\n  - package-ecosystem: npm\n  # - package-ecosystem: github-actions\n"
+                                              "  - package-ecosystem: gomod # github-actions later\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], ["github-actions"], "a commented-out entry declares nothing")
+            r.write(".github/dependabot.yml", "version: 2\nupdates:\n  - package-ecosystem: npm\n  - package-ecosystem: 'github-actions'\n  - package-ecosystem: gomod\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], [])
+            r.write("renovate.json", "{}\n")
+            r.git("rm", "-q", ".github/dependabot.yml")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], [], "renovate's github-actions manager is on by default")
+            r.git("rm", "-q", "renovate.json")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d), {"tool": None, "covered": [], "uncovered": ["gomod", "npm"]},
+                             "with no tool at all the lock files already say so; github-actions is not added")
+
 
 class Presence(unittest.TestCase):
     def test_security_policy_codeowners_and_licence_with_the_codeowners_paths_checked(self):
@@ -611,6 +789,63 @@ class TrojanSource(unittest.TestCase):
         self.assertEqual(out["bidi"], [{"file": "src/a.py", "line": 2, "char": "U+202E"}, {"file": "src/a.py", "line": 3, "char": "U+2066"}])
         self.assertEqual(out["mixed_script"], [{"file": "src/b.py", "line": 2, "token": "pr\u043ecess", "scripts": ["CYRILLIC", "LATIN"]}])
         self.assertEqual(out["files"], 4, "source files scanned; the doc and the test fixture are not")
+
+    def test_a_regex_class_range_and_prose_in_a_literal_are_not_spoofed_identifiers(self):
+        # The three univer 0.44.0 shapes: the joint `zА` of two ranges in a character class, and a mixed token
+        # (ZТЕСТ, a Latin Z before Cyrillic) inside a string that is Russian prose.
+        prose = "Возвращает значение"   # Возвращает значение
+        z_test = "ZТЕСТ"   # ZТЕСТ
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/tools.ts", "const ok = /^[A-Za-zА-Яа-яЁё_]/.test(name);\n")
+            r.write("src/ru-RU.ts", f"export default {{\n    description: '{prose} (μ0) {z_test} {prose}',\n"
+                                    f"    abstract: \"{prose} {z_test}\",\n    tpl: `{prose} ${{x}} {z_test}`,\n}};\n")
+            r.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual(out["mixed_script"], [])
+
+    def test_a_look_alike_still_fires_in_code_in_a_lone_string_and_in_template_code(self):
+        a = "а"   # Cyrillic а
+        prose = "значение"   # значение
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/a.py", f"p{a}ssword = 1\n")
+            r.write("src/b.py", f'if role == "{a}dmin":\n    pass\n')
+            r.write("src/c.ts", f"const s = `{prose} ${{p{a}ssword}}`;\n")   # ${…} is code, not the literal's text
+            r.write("src/d.ts", f"const s = '{prose}'; p{a}ssword();\n")   # prose in another literal on the line
+            r.write("src/e.ts", f"const m = /[{a}dmin]/;\n")   # a class with no range keeps its letters
+            r.write("src/f.ts", f"const s = 'x' + \"{prose}\" + '{a}dmin';\n")
+            r.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual([(x["file"], x["token"]) for x in out["mixed_script"]],
+                         [("src/a.py", f"p{a}ssword"), ("src/b.py", f"{a}dmin"), ("src/c.ts", f"p{a}ssword"),
+                          ("src/d.ts", f"p{a}ssword"), ("src/e.ts", f"{a}dmin"), ("src/f.ts", f"{a}dmin")])
+
+    def test_a_quote_from_a_comment_or_regex_and_an_index_expression_do_not_hide_a_look_alike(self):
+        # The PR #273 review's probes: a stray quote in a comment or a regex makes a "span" over code, and the `-` of
+        # an index expression is arithmetic, not a class range.
+        a, r, s = "а", "р", "с"   # Cyrillic а р с
+        hello, world = "Привет", "мир"   # Привет мир
+        cases = {
+            "block_comment.ts": f"/* it's */ let p{a}ss = 1; /* {hello}' */",
+            "line_comment.ts": f'x = /"/; let p{a}ss = 1; // {hello} "',
+            "index_digit.ts": f"y = x[len{a}-1];",
+            "index_letters.ts": f"y = x[a{r}-{s}];",
+            "prose_then_code.ts": f'log("{hello}"); let p{a}ss = 1;',
+            "template_tail.ts": f"{world} {hello}`; const p{a}ss = 1; f(`",
+            "hash.py": f"p{a}ss = 1  # it's",
+            "far_prose.ts": f"const t = '{hello} {world} one two p{a}ss';",
+            # A quote after a letter or a `/` cannot open a string (the re-review's probes).
+            "regex_quote.ts": f"ok = /'/.test({hello} + p{a}ss) || /'/",
+            "jsx_text.tsx": f"<p>it's {{{hello} + p{a}ss}} '</p>",
+        }
+        with tempfile.TemporaryDirectory() as d:
+            repo = Repo(d)
+            for name, line in cases.items():
+                repo.write(f"src/{name}", line + "\n")
+            repo.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual(sorted(x["file"] for x in out["mixed_script"]), sorted(f"src/{k}" for k in cases))
 
 
 class Step(unittest.TestCase):
