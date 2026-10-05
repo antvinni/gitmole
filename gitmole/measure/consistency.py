@@ -307,10 +307,39 @@ def agent_owner(report: dict, found: list) -> list:
     for row in section.get("rows") or []:
         area, owners = row[0], [c for c in row[2:] if isinstance(c, str)]
         for cell in owners:
-            name = re.sub(r"(?: \(gone\))? \(\d+%\)$", "", cell)
-            if name in tools:
+            for name in sorted(_owner_names(cell) & tools):
                 out.append(_complaint("agent_owner", None, f"{area}: {name}"))
     return out
+
+
+_GONE = " gone"   # the word after a name whose person has stopped committing, in the drawing that prints the share in its own column
+
+
+def _owner_names(cell: str) -> set:
+    """The names a knowledge-map owner cell may hold, in either drawing of the map: the name with its share in
+    brackets after it ("Ann (30%)", "Ann (gone) (30%)"), or the name alone with the share in the column beside
+    it ("Ann", "Ann gone"). A name that itself ends in " gone" cannot be told from a gone "Ann" by the cell, so
+    both readings are returned and the caller keeps the one it knows."""
+    bare = re.sub(r"(?: \(gone\))? \(\d+%\)$", "", cell)
+    return {bare, bare[:-len(_GONE)]} if bare.endswith(_GONE) else {bare}
+
+
+def _owner_share(km: dict, row: list, role: str):
+    """(name, share) of the `role` cell ("main owner", "second") of a drawn knowledge-map row, the share as the
+    digits printed; None when the cell names nobody with a share. Reads both drawings (_owner_names): the share
+    in the cell's brackets, or in a column headed "share" directly to the right of the role's."""
+    cols = km.get("columns") or []
+    at = cols.index(role) if role in cols else None
+    if at is None or at >= len(row):
+        return None
+    cell = str(row[at])
+    inline = _SHARE_CELL.match(cell)
+    if inline:
+        return inline.group(1), inline.group(2)
+    beside = str(row[at + 1]).strip() if at + 1 < len(cols) and cols[at + 1] == "share" and at + 1 < len(row) else ""
+    if not re.fullmatch(r"\d+%", beside):
+        return None
+    return (cell[:-len(_GONE)] if cell.endswith(_GONE) else cell), beside[:-1]
 
 
 def _in_head(clone: str, commit: str) -> set:
@@ -781,8 +810,7 @@ def tool_owner(report: dict, found: list) -> list:
             at = _column(km, role)
             held = {}
             for row in km.get("rows") or [] if at is not None else []:
-                name = re.sub(r"(?: \(gone\))? \(\d+%\)$", "", row[at])
-                if name in tools:
+                for name in sorted(_owner_names(str(row[at])) & tools):
                     held.setdefault(name, []).append(row[0])
             for name, areas in sorted(held.items()):
                 out.append(_complaint("tool_owner", None, f"knowledge map: {name} is {role} of {len(areas)} area(s), e.g. {areas[0]}"))
@@ -791,7 +819,7 @@ def tool_owner(report: dict, found: list) -> list:
             for name in sorted((_people(f.get("evidence")) | set((f.get("evidence") or {}).get("area_authors") or [])) & tools):
                 out.append(_complaint("tool_owner", f, f"names {name} as an owner"))
     people = _render(report, "people_section")
-    at = _column(people, "surviving code") if people else None
+    at = (_column(people, "surviving code") if _column(people, "surviving code") is not None else _column(people, "surviving")) if people else None   # the column under either head
     if at is not None:
         for name in sorted({row[0] for row in people["rows"] if row[0] in tools and row[at] not in ("0%", "-")}):
             share = next(row[at] for row in people["rows"] if row[0] == name and row[at] not in ("0%", "-"))
@@ -817,7 +845,7 @@ def merge_total(report: dict, found: list, clone: str, commit: str) -> list:
     """The People caption's merge total against the merges git has at the analysed commit, bots' merges left
     out as the table leaves bots out (paperclip: "725 in all" against 376)."""
     people = _render(report, "people_section")
-    m = re.search(r"counted apart \(([\d,]+) in all\)", (people or {}).get("caption") or "")
+    m = _MERGES_IN_ALL.search((people or {}).get("caption") or "")
     meta = report.get("meta") or {}
     if not m or (meta.get("paths") or meta.get("path")):
         return []
@@ -827,8 +855,12 @@ def merge_total(report: dict, found: list, clone: str, commit: str) -> list:
     if done.returncode != 0:
         return []
     real = sum(1 for l in done.stdout.splitlines() if l and not (set(l.split("\0")) & bots or l.split("\0")[0].endswith("[bot]")))
-    shown = int(m.group(1).replace(",", ""))
+    shown = int((m.group(1) or m.group(2)).replace(",", ""))
     return [_complaint("merge_total", None, f"People says {shown:,} merges in all; git has {real:,} not by a bot")] if shown != real else []
+
+
+# the People caption's merge total, in either wording: "merges, which are counted apart (5,019 in all)" or "5,019 merges in all"
+_MERGES_IN_ALL = re.compile(r"counted apart \(([\d,]+) in all\)|(?<![\w,.])([\d,]+) merges? in all\b")
 
 
 def _span(f: dict) -> int:
@@ -1418,12 +1450,11 @@ def tied_owner(report: dict, found: list) -> list:
     ownership rows give someone else as many lines there."""
     out = []
     km = _render(report, "knowledge_section", full=False)
-    a, b = (_column(km, "main owner"), _column(km, "second")) if km else (None, None)
-    if a is not None and b is not None:
+    if km and _column(km, "main owner") is not None and _column(km, "second") is not None:
         for row in km.get("rows") or []:
-            first, second = _SHARE_CELL.match(str(row[a])), _SHARE_CELL.match(str(row[b]))
-            if first and second and first.group(2) == second.group(2):
-                out.append(_complaint("tied_owner", None, f"knowledge map: {row[0]} {first.group(1)} and {second.group(1)}, both {first.group(2)}%"))
+            first, second = _owner_share(km, row, "main owner"), _owner_share(km, row, "second")
+            if first and second and first[1] == second[1]:
+                out.append(_complaint("tied_owner", None, f"knowledge map: {row[0]} {first[0]} and {second[0]}, both {first[1]}%"))
     rows_all = report.get("ownership") or []
     for f in found:
         if (f.get("rule") or {}).get("id") not in _OWNERSHIP_RULES:
