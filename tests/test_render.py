@@ -94,7 +94,7 @@ class Report(unittest.TestCase):
         self.assertIn("Nothing flagged", rendered(sample_report(), []))
 
     def test_a_clean_secrets_scan_is_said_once_in_the_supply_chain_section(self):
-        """It was a ✔ line of the Findings box and, in --full, a footer line saying the same."""
+        """It was a ✔ line of the Findings and, in --full, a footer line saying the same."""
         text = rendered(sample_report(), [])
         self.assertIn("secrets none found: betterleaks scanned every commit HEAD reaches", _supply(text))
         self.assertNotIn("✔", text)
@@ -102,7 +102,7 @@ class Report(unittest.TestCase):
         self.assertEqual(text.count("betterleaks scanned every commit HEAD reaches"), 1)
         f = [{"severity": "warning", "title": "Bus factor of one", "detail": "Ann wrote 79% of the code."}]
         text = rendered(sample_report(), f)
-        self.assertIn("─ Findings · 1 warning ▲ ─", text, "a scan that came back clean is not a finding and is not counted")
+        self.assertIn("\nFindings · 1 warning ▲\n", text, "a scan that came back clean is not a finding and is not counted")
         self.assertLess(text.index("Bus factor of one"), text.index("none found: betterleaks"), "the findings first, the section last")
         self.assertIn("- **ok** No secrets in history", render.markdown(sample_report(), []), "the Markdown export keeps its line")
 
@@ -245,7 +245,7 @@ class Report(unittest.TestCase):
         r["signing"] = {"commits": 100, "signed": 46, "mechanisms": {"gpg": 40, "ssh": 6}, "last_year": {"commits": 50, "signed": 40, "forge_signed": 33},
                         "forge": {"commits": 40, "signed": 39, "mechanisms": {"gpg": 39}}}
         text = rendered(r, [], width=80)
-        self.assertNotIn("│ signing", text)
+        self.assertNotIn("signing", text.split("\n\n")[0], "no signing row in the header block")
         self.assertNotIn("signing", dict(render.header_rows(r)))
         self.assertIn("  signing       7% of commits signed by their authors (signatures not verified)", text, "one line: the share, and that nothing was verified")
         whole = "signing 7% of commits signed by their authors (ssh 6%, gpg 1%), 14% of the last year's; 39% signed by the forge on merge (signatures not verified)"
@@ -329,7 +329,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["meta"]["identities"] = r["meta"]["identities"][:1]
         text = rendered(r, [])
-        self.assertIn("1 identity ", text)
+        self.assertIn("· 1 identity\n", text)
         self.assertNotIn("1 identities", text)
 
     def test_header_mentions_reverts_only_when_there_are_any(self):
@@ -425,7 +425,7 @@ class Report(unittest.TestCase):
         for full in (False, True):
             text = rendered(r, [], full=full)
             self.assertEqual(text.count("sweeping commit"), 1, "in the header and in no caption")
-            self.assertRegex(text, r"│ left out +1 sweeping commit and 3 declared")
+            self.assertRegex(text, r"(?m)^  left out +1 sweeping commit and 3 declared")
         r["activity"]["sweeping"] = [{"hash": "a", "files": 40, "date": "2026-01-05", "declared": False}, {"hash": "c", "files": 41, "date": "2026-01-07", "declared": False}]
         r["activity"]["ignored_revs"] = 0
         self.assertEqual(dict(render.header_rows(r))["left out"][0][0], "2 sweeping commits, not counted in churn, coupling or ownership")
@@ -485,11 +485,12 @@ class Report(unittest.TestCase):
     def test_the_last_text_cell_is_cut_at_its_end_after_the_path_has_lost_its_directories(self):
         sec = render._section("Watch list", [("file", render.PATH), ("changes", render.RIGHT), ("top author", render.WHOLE), ("look at first", render.TAIL)],
                               [("storage/remote/otlptranslator/prometheusremotewrite/helper.go", 1234, "23% gone", "writePostingsToTmpFiles() complexity 26")])
-        self.assertEqual(render.fit(sec, 82)["rows"][0], ("storage/…/helper.go", "1,234", "23% gone", "writePostingsToTmpFiles() complexity 26"),
+        self.assertEqual(render.fit(sec, 84)["rows"][0], ("storage/…/helper.go", "1,234", "23% gone", "writePostingsToTmpFiles() complexity 26"),
                          "the path gives its middle directories first")
         self.assertEqual(render.fit(sec, 80)["rows"][0], ("…/helper.go", "1,234", "23% gone", "writePostingsToTmpFiles() complexity 26"), "all of them before anything else is cut")
-        fitted = render.fit(sec, 60)
+        fitted = render.fit(sec, 62)
         self.assertEqual(fitted["rows"][0], ("…/helper.go", "1,234", "23% gone", "writePostingsToTmpFiles()…"), "then the last text cell, at its end; no number is cut")
+        self.assertEqual(fitted["columns"], ["file", "changes", "top author", "look at first"], "and no head: a head of two words is not put on two lines to make room")
         text = _rendered_section(sec, width=60)
         self.assertEqual([line.split()[0] for line in text.splitlines() if "helper.go" in line or "…" in line], ["…/helper.go"], "one line for the row")
         for line in text.splitlines():
@@ -699,7 +700,7 @@ class Report(unittest.TestCase):
         r["meta"]["steps"] = {"code age": "run"}
         self.assertIn("76% of surviving code from 2025, by blame", render.pulse(r))
         self.assertIn("surviving = blame share at HEAD", _section_text(rendered(r, []), "People"))
-        self.assertRegex(rendered(r, []), r"│ code +5,421 lines · HTML, Python · 76% surviving from 2025, by blame")
+        self.assertRegex(rendered(r, []), r"(?m)^  code +5,421 lines · HTML, Python · 76% surviving from 2025, by blame$")
         self.assertIn("76% of surviving code from 2025, by blame", render.markdown(r, []))
         r["meta"]["steps"]["git-of-theseus"] = "run"
         self.assertIn("76% of surviving code from 2025, by git-of-theseus", render.pulse(r), "--plots ran after the blame pass, into the same files")
@@ -1476,14 +1477,14 @@ class FullOnlySections(unittest.TestCase):
         r = sample_report()
         r["activity"]["fix_commits"] = 58
         text = rendered(r, [])
-        self.assertRegex(text, r"│ commits +25% are fixes +│")
-        self.assertRegex(text, r"│ code +5,421 lines · HTML, Python · 76% surviving from 2025 +│")
+        self.assertRegex(text, r"(?m)^  commits +25% are fixes$")
+        self.assertRegex(text, r"(?m)^  code +5,421 lines · HTML, Python · 76% surviving from 2025$")
         self.assertNotIn("most commits on", text, "the busiest weekday and hour are trivia for the header; --full's Activity table has them")
         self.assertIn("busiest hour 10:00", rendered(r, [], full=True))
         r["activity"] = {}
         r["cohorts"] = {}
         self.assertNotIn("are fixes", rendered(r, []))
-        self.assertNotIn("│ commits", rendered(r, []), "a row with nothing to say is not there")
+        self.assertNotIn("\n  commits", rendered(r, []), "a row with nothing to say is not there")
 
     def test_header_line_says_when_code_age_did_not_run(self):
         # the age table is --full only now, so the header is where the timeout has to show
@@ -1504,7 +1505,7 @@ class FullOnlySections(unittest.TestCase):
             r["meta"]["structure"] = {"status": status}
             self.assertIn(phrase, rendered(r, []), status)
             self.assertIn(phrase, render.markdown(r, []), status)
-            self.assertLess(rendered(r, []).index(phrase), rendered(r, []).index("│ files"), "a missing step is said before the numbers that may miss it")
+            self.assertLess(rendered(r, []).index(phrase), rendered(r, []).index("\n  files"), "a missing step is said before the numbers that may miss it")
         r["meta"]["structure"] = {"status": "skipped", "install": "the grammars need Python 3.10 or newer; reinstall gitmole on 3.10+"}
         self.assertNotIn("structure checks", rendered(r, []), "a skip is the interpreter's, said at install time: the report must not differ by Python version")
         r["meta"]["structure"] = {"status": "run"}
@@ -1527,7 +1528,7 @@ class FullOnlySections(unittest.TestCase):
         r["meta"]["steps"] = {"scc": "timeout", "osv-scanner": "failed", "change analysis": "skipped", "betterleaks": "run", "trend": "failed",
                               "git-sizer": "failed"}   # a retired step an old meta.json still names is not a core one
         text = rendered(r, [], width=160)
-        self.assertRegex(text, r"│ steps +size timed out · change analysis skipped · dependency scan failed +│")
+        self.assertRegex(text, r"(?m)^  steps +size timed out · change analysis skipped · dependency scan failed$")
         self.assertNotIn("trend failed", text[:text.index("Findings")], "the optional steps say so in their own sections and in the closing steps line")
         self.assertNotIn("repo health", text)
         self.assertIn("size timed out · change analysis skipped", render.markdown(r, []))
@@ -1545,8 +1546,8 @@ class FullOnlySections(unittest.TestCase):
         r = sample_report()
         r["meta"]["coverage"] = {"scored": 3900, "test file": 610, "generated": 120}
         line = "4,630 files: 3,900 scored · 120 generated · 610 test files"
-        self.assertRegex(rendered(r, [], full=True), r"│ files +4,630 tracked · 35 with code · 3,900 scored · 120 generated · 610 test files +│")
-        self.assertRegex(rendered(r, []), r"│ files +4,630 tracked · 35 with code · 3,900 scored \(source: not test, example, generated or vendored\) +│",
+        self.assertRegex(rendered(r, [], full=True), r"(?m)^  files +4,630 tracked · 35 with code · 3,900 scored · 120 generated · 610 test files$")
+        self.assertRegex(rendered(r, []), r"(?m)^  files +4,630 tracked · 35 with code · 3,900 scored \(source: not test, example, generated or vendored\)$",
                          "the default header relates the three counts and leaves the buckets to --full")
         self.assertIn(line, render.markdown(r, []))
         r["meta"].pop("coverage")
@@ -1765,7 +1766,7 @@ class Timeline(unittest.TestCase):
         r["meta"]["bots"] = [{"name": "renovate[bot]", "commits": 940}, {"name": "github-actions[bot]", "commits": 195}]
         r["activity"]["timeline"]["renovate[bot]"] = {"2026-08": 30, "2026-09": 40}
         text = rendered(r, [], width=120)
-        self.assertNotIn("renovate[bot]", text.split("◉ People")[0], "the panel and findings do not mention bots")
+        self.assertNotIn("renovate[bot]", text.split("◉ People")[0], "the header and the findings do not mention bots")
         full = rendered(r, [], width=120, full=True)
         self.assertRegex(full, r"Ann\s+3(\s+0){9}\s+12\s+7")
         self.assertNotIn("renovate[bot]", _section_text(full, "▦ Timeline"), "no timeline row for a bot")
@@ -1852,9 +1853,9 @@ class Layout(unittest.TestCase):
         f = [{"severity": "warning", "title": "Bus factor of one", "detail": "Ann wrote 79% of the code."},
              {"severity": "info", "title": "x", "detail": "y."}]
         text = rendered(sample_report(), f)
-        self.assertIn("╭─ Findings · 1 warning ▲ · 1 note ● ─", text, "the tally is where the findings are, each word beside its mark")
+        self.assertIn("\n\nFindings · 1 warning ▲ · 1 note ●\n▲ Bus factor of one\n", text, "the tally is where the findings are, each word beside its mark; a blank line above, none below")
         self.assertNotIn("1 warning, 1 note", text, "and not in the header")
-        self.assertIn("╭─ Findings ─", rendered(sample_report(), []))
+        self.assertIn("\n\nFindings\n", rendered(sample_report(), []))
         self.assertIn("Nothing flagged.", rendered(sample_report(), []))
         self.assertEqual(render.tally_title([{"severity": "critical"}, {"severity": "critical"}, {"severity": "info"}]), "Findings · 2 critical ✖ · 1 note ●")
 
@@ -1909,13 +1910,14 @@ class Layout(unittest.TestCase):
         self.assertNotIn("▰", _section_text(text, "◉ People"))
         self.assertNotIn("▰", _section_text(text, "⌂ Knowledge map"), "two share columns, and no bar on either")
 
-    def test_grades(self):
-        self.assertEqual(render.cell_style("share", "64%"), "bold #ff5cc8")
-        self.assertEqual(render.cell_style("share", "25%"), "#ff9ee0")
-        self.assertIsNone(render.cell_style("share", "3%"))
-        self.assertEqual(render.cell_style("together", "95%"), "bold #ff5cc8", "the coupling table's head, the JSON's degree")
-        self.assertEqual(render.cell_style("fixes", "5"), "bold #ff5cc8")
-        self.assertEqual(render.cell_style("fixes", "1,204"), "bold #ff5cc8", "a count with its separator is still a count")
+    def test_no_value_is_marked_by_a_colour(self):
+        """A share over a half, a pair at 95% and a file fixed 1,204 times were pink, a share over a fifth a lighter
+        pink: a row's only style now is its bold first cell, whatever its numbers."""
+        sec = render._section("T", [("file", render.PATH), ("share", render.RIGHT), ("together", render.RIGHT), ("fixes", render.RIGHT)],
+                              [("a.py", "64%", "95%", 1204), ("b.py", "3%", "70%", 2)])
+        sec["bars"] = False
+        for row in render.table_lines(sec)["rows"]:
+            self.assertEqual([(span.start, span.end, str(span.style)) for span in row.spans if str(span.style)], [(2, 6, "bold")], row.plain)
 
     def test_default_columns_are_the_ones_you_read(self):
         secs = {render._base_title(x["title"]): x for x in render.sections(sample_report(), full=False)}
@@ -1952,10 +1954,12 @@ class Layout(unittest.TestCase):
     # same "elided, not folded" behaviour is already pinned for Complex functions, which stays in
     # the default report, by test_long_paths_are_elided_like_every_other_table above.
 
-    def test_threshold_styles(self):
-        self.assertIsNone(render.cell_style("degree", "70%"))
-        self.assertIsNone(render.cell_style("fixes", "2"))
-        self.assertIsNone(render.cell_style("file", "5"))
+    def test_column_heads_and_the_rule_are_dim_and_nothing_else_in_a_table_is(self):
+        sec = render._section("T", [("file", render.PATH), ("fixes", render.RIGHT)], [("a.py", 2)])
+        table = render.table_lines(sec)
+        self.assertEqual({str(span.style) for span in table["head"].spans if str(span.style)}, {"dim"})
+        self.assertEqual({str(span.style) for span in table["rule"].spans if str(span.style)}, {"dim"})
+        self.assertNotIn("dim", {str(span.style) for row in table["rows"] for span in row.spans}, "no column is dimmed to send the eye to another")
 
 
 class ReviewFixes(unittest.TestCase):
@@ -2016,8 +2020,9 @@ class ReviewFixes(unittest.TestCase):
         md = render.markdown(sample_report(), f)
         self.assertIn("_Consider a shallow clone for CI; the history is the cost._ _Move large files to Git LFS or rewrite them out of history._", md)
 
-    def test_fixes_threshold_has_no_dead_recent_branch(self):
-        self.assertIsNone(render.cell_style("recent", "9"))
+    def test_no_threshold_decides_a_style(self):
+        self.assertFalse(hasattr(render, "cell_style"), "a value past a threshold is a finding's to say, not a colour's")
+        self.assertFalse(hasattr(render, "KEY_METRIC"), "and no column is dimmed for not being the one to read first")
 
     def test_portfolio_markdown_groups_findings_like_the_report(self):
         rep = sample_report()
@@ -2103,7 +2108,7 @@ class Markdown(unittest.TestCase):
         self.assertIn("| HTML | 28 | 4,783 |", md)
         self.assertIn("static/apps-metadata.json", md)
         self.assertIn("Secrets: none found", md)
-        self.assertNotIn("╭", md)
+        self.assertNotIn("◎", md, "no pictogram: the export is not the terminal's drawing")
 
     def test_markdown_escapes_pipes_and_notes_empty_tables(self):
         r = sample_report()
@@ -2163,23 +2168,24 @@ class ChangeRisk(unittest.TestCase):
         caption = render.risk_section(risk, "main", full=False)["caption"]
         self.assertIn("touches 3 files across 2 directories, 1 commit; adds 20 lines to 800 (2%), removes 4", caption)
         self.assertIn("not touched: core/ast.py, which moved in 72% of core/parser.py's changes, and core/lexer.py (55%)", caption)
-        self.assertEqual(sec["columns"], ["file", "risk", "why"])
-        self.assertEqual(sec["rows"][0], ["core/parser.py", "▰▰▰▰▰▰▰▰▰▰", "changed 40 times · fixed 5 times in 6 months"])
+        self.assertEqual(sec["columns"], ["file", "risk"])
+        self.assertEqual(sec["rows"][0], ["core/parser.py", "▰▰▰▰▰▰▰▰▰▰"])
+        self.assertEqual((sec["under_head"], sec["under"][0]), ("why", "changed 40 times · fixed 5 times in 6 months"), "the reasons are under the row, whole, and a column in Markdown")
         self.assertEqual(sec["rows"][1][1], "▰▰")
         self.assertEqual(sec["rows"][2][1], "")
         self.assertEqual(sec["caption"], "total 3.6% of the repository's changes × lines of code; 2 of these files are on the watch list")
 
-    def test_the_why_column_says_what_imports_the_file(self):
+    def test_the_reasons_under_a_row_say_what_imports_the_file(self):
         risk = {"files": [{"file": "core/util.py", "score": 0.6, "reasons": ["changed 30 times"], "watched": True,
                            "dependents": {"direct": 2, "all": 5, "files": ["core/lexer.py", "core/parser.py"]}},
                           {"file": "core/new.py", "score": 0, "reasons": ["changed once"], "watched": False,
                            "dependents": {"direct": 1, "all": 1, "files": ["core/util.py"]}},
                           {"file": "main.py", "score": 0, "reasons": ["changed once"], "watched": False, "dependents": None}],
                 "total": 0.6, "watched": 1, "max_score": 3.0}
-        rows = render.risk_section(risk, "main", full=False)["rows"]
-        self.assertEqual(rows[0][2], "changed 30 times · imported by 2 files, 5 counting what imports them")
-        self.assertEqual(rows[1][2], "changed once · imported by core/util.py", "a file the list does not score can still be imported")
-        self.assertEqual(rows[2][2], "changed once")
+        why = render.risk_section(risk, "main", full=False)["under"]
+        self.assertEqual(why[0], "changed 30 times · imported by 2 files, 5 counting what imports them")
+        self.assertEqual(why[1], "changed once · imported by core/util.py", "a file the list does not score can still be imported")
+        self.assertEqual(why[2], "changed once")
 
     def test_one_watched_file_reads_as_one_file(self):
         risk = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times"], "watched": True}],
@@ -2261,7 +2267,7 @@ class Excerpt(unittest.TestCase):
 
     def test_prints_header_and_watch_list(self):
         text = self._text()
-        self.assertIn("demo", text)                     # header panel title
+        self.assertIn("demo", text)                     # the header's title line
         self.assertIn("363 commits", text)
         self.assertIn("Watch list", text)
         self.assertIn("static/apps-metadata.json", text)   # both scored files fit under the excerpt's cap of 5
@@ -2418,10 +2424,6 @@ class PeopleMerges(unittest.TestCase):
         self.assertEqual(heads["hotspots"][:4], ["file", "changes", "lines", "complexity"])
         for name in ("ccn", "cplx", "revs", "avg revs", "degree", "revisions"):
             self.assertFalse([sid for sid, cols in heads.items() if name in cols], name)
-        for title, key in render.KEY_METRIC.items():
-            sec = next((s for s in render.sections(r, full=True) if s["title"].split(" (")[0] == title), None)
-            if sec and sec["rows"]:
-                self.assertIn(key, sec["columns"], f"{title}: the column read first is looked up by its printed head")
         fn = next(s for s in render.sections(r, full=False) if s["id"] == "functions")
         self.assertTrue(fn["caption"].endswith("complexity = cyclomatic: the function's branch points plus 1"), "the renamed head is defined once, under its table")
         watch = [w for w in render.dumps_json(r, []).splitlines() if '"revs"' in w or '"ccn"' in w or '"degree"' in w]
@@ -2476,14 +2478,14 @@ class SummaryLine(unittest.TestCase):
         mk = lambda rid, sev, title: {"severity": sev, "title": title, "detail": f"{title} detail", "advice": "act", "rule": {"id": rid}}   # noqa: E731
         return [mk("secrets_in_source", "critical", "1 secret(s) in history"), mk("bug_magnets", "warning", "Bug magnets")]
 
-    def _text(self, panel):
+    def _text(self, block):
         out = io.StringIO()
-        Console(file=out, width=200, color_system=None).print(panel)
+        render.show(Console(file=out, width=200, color_system=None), block)
         return out.getvalue()
 
     def test_the_default_report_has_no_seldom_acted_on_line(self):
         """The rules it named were retired at 0.39.0 (findings.SUMMARISED is empty)."""
-        text = self._text(render.findings_panel(self._findings(), {}, full=False))
+        text = self._text(render.findings_block(self._findings(), {}, full=False))
         self.assertIn("Bug magnets detail", text)
         self.assertNotIn("seldom acted on", text)
         self.assertFalse(hasattr(render, "summary_line"))
@@ -2495,35 +2497,39 @@ class SummaryLine(unittest.TestCase):
                     {"severity": "info", "title": "Debt in hotspots", "detail": "debt in two of them. Ticket it.", "advice": "Ticket it.",
                      "rule": {"id": "debt_in_hotspots"}, "summary": True, "unjudged": True}]
         found = self._findings() + unjudged
-        text = self._text(render.findings_panel(found, {}, full=False))
-        lines = [line.strip("│ ").rstrip() for line in text.splitlines()]
+        text = self._text(render.findings_block(found, {}, full=False))
+        lines = text.splitlines()
         self.assertNotIn("more from the structure step", text)
         self.assertNotIn("--full lists them", text)
         self.assertEqual(sum(line.startswith("▲ ") for line in lines), 2, "the title's 2 warnings are two marks")
         self.assertEqual(sum(line.startswith(("✖ ", "▲ ", "● ")) for line in lines), len(found))
         at = lines.index("▲ Deep nesting (not measured yet)")
-        self.assertEqual(lines[at + 1:at + 3], ["deep", "↳ Flatten it."], "a warning is an entry like any other, with its step")
+        self.assertEqual(lines[at + 1:at + 3], ["  deep", "  ↳ Flatten it."], "a warning is an entry like any other, with its step, both at column 3")
         self.assertIn("● Debt in hotspots (not measured yet): debt in two of them", lines, "a note is title, tag and statement, and no step")
         self.assertNotIn("Ticket it.", text)
         self.assertIn("Findings · 1 critical ✖ · 2 warnings ▲ · 1 note ● · 2 by rules not measured for precision yet", text.splitlines()[0])
-        full = self._text(render.findings_panel(found, {}, full=True))
+        full = self._text(render.findings_block(found, {}, full=True))
         self.assertIn("▲ Deep nesting (not measured yet)", full)
-        self.assertIn("● Debt in hotspots (not measured yet)\n", full.replace(" │", "").replace("  \n", "\n").replace(" \n", "\n") + "\n" if False else "\n".join(x.strip("│ ").rstrip() for x in full.splitlines()) + "\n")
+        self.assertIn("\n● Debt in hotspots (not measured yet)\n", full)
         self.assertIn("↳ Ticket it.", full, "--full keeps the step")
         self.assertIn("2 by rules not measured for precision yet", full.splitlines()[0])
 
-    def test_the_title_glosses_the_tag_in_fewer_words_when_the_box_would_cut_it(self):
+    def test_the_title_glosses_the_tag_in_fewer_words_when_the_line_is_too_short_for_it(self):
         mk = lambda sev, unjudged=False: {"severity": sev, "title": "T", "detail": "d", "rule": {"id": "r"}, **({"unjudged": True} if unjudged else {})}   # noqa: E731
         found = [mk("warning")] * 4 + [mk("info")] * 6 + [mk("info", True)] * 4 + [mk("warning", True)]
         self.assertEqual(render.tally_title(found), "Findings · 5 warnings ▲ · 10 notes ●", "the bare tally, as the README's excerpt prints it")
         self.assertEqual(render.tally_title(found, gloss=True), "Findings · 5 warnings ▲ · 10 notes ● · 5 by rules not measured for precision yet")
-        self.assertEqual(render.tally_title(found, gloss=True, width=80), "Findings · 5 warnings ▲ · 10 notes ● · 5 not measured for precision yet")
+        whole = "Findings · 5 warnings ▲ · 10 notes ● · 5 by rules not measured for precision yet"
+        self.assertEqual((len(whole), render.tally_title(found, gloss=True, width=80)), (80, whole), "the whole gloss at 80 columns, now that no border takes six of them")
+        self.assertEqual(render.tally_title(found, gloss=True, width=79), "Findings · 5 warnings ▲ · 10 notes ● · 5 not measured for precision yet")
         self.assertEqual(render.tally_title([mk("critical")] + found, gloss=True, width=80), "Findings · 1 critical ✖ · 5 warnings ▲ · 10 notes ● · 5 not measured yet")
         self.assertEqual(render.tally_title(found[:10], gloss=True, width=80), "Findings · 4 warnings ▲ · 6 notes ●", "nothing to gloss")
         for width in (60, 80, 100, 160):
             out = io.StringIO()
-            Console(file=out, width=width, color_system=None).print(render.findings_panel([mk("critical")] + found, {}, full=False, width=width))
-            self.assertNotIn("…", out.getvalue().splitlines()[0], width)
+            render.show(Console(file=out, width=width, color_system=None), render.findings_block([mk("critical")] + found, {}, full=False, width=width))
+            first = out.getvalue().splitlines()[0]
+            self.assertNotIn("…", first, width)
+            self.assertLessEqual(len(first), width, "and a title still too long wraps under itself")
 
 
 class Fit(unittest.TestCase):
@@ -2607,11 +2613,16 @@ class Fit(unittest.TestCase):
         self.assertIs(render.fit(sec, 80), sec)
         self.assertIs(render.fit(sec, None), sec, "Markdown fits nothing")
 
-    def test_a_header_wraps_at_its_spaces_before_a_name_is_cut(self):
+    def test_a_head_is_never_wrapped_or_cut_and_the_name_gives_way(self):
+        """A head of two words used to go on two lines to spare a name; a table's heads are one line now, as
+        its rows are, so the name loses its middle."""
         sec = render._section("T", [("owner", {}), ("surviving code", render.RIGHT)], [("x" * 60, "63%")])
         fitted = render.fit(sec, 76)
-        self.assertEqual(fitted["rows"][0][0], "x" * 60)
-        self.assertLess(fitted["col_opts"][1]["width"], len("surviving code"))
+        self.assertEqual(fitted["col_opts"][1]["width"], len("surviving code"))
+        self.assertEqual(fitted["rows"][0], ("x" * 29 + "…" + "x" * 28, "63%"))
+        table = render.table_lines(fitted)
+        self.assertEqual(table["head"].plain, "  owner" + " " * 55 + "surviving code")
+        self.assertEqual(len(table["head"].plain), 76)
 
     def test_full_hotspots_are_one_line_a_row_with_the_left_out_columns_named(self):
         r = sample_report()
@@ -2632,8 +2643,10 @@ class Fit(unittest.TestCase):
         r["meta"]["identities"] = [{"name": f"p{i}", "email": f"{i}@x", "commits": 1} for i in range(87)]
         r["meta"]["branch"] = "main-with-a-longer-name"
         text = rendered(r, [], width=80)
-        self.assertIn("╭─ demo · branch main-with-a-longer-name @ eef0e230 ─", text, "the title line: the repository, its branch and commit")
+        self.assertEqual(text.splitlines()[0], "demo · branch main-with-a-longer-name @ eef0e230", "the title line: the repository, its branch and commit")
         r["meta"]["branch"] = "feature/" + "x" * 44
+        self.assertEqual(rendered(r, [], width=80).splitlines()[0], "demo · branch feature/" + "x" * 44 + " @ eef0e230", "77 characters: it fits a line no border shortens")
+        r["meta"]["branch"] = "feature/" + "x" * 50
         text = rendered(r, [], width=80)
-        self.assertIn("╭─ demo ─", text, "a title the border would cut gives the branch a row")
-        self.assertRegex(text, r"│ branch +feature/x{44} @ eef0e230 +│")
+        self.assertEqual(text.splitlines()[0], "demo", "a title longer than the line (83 characters) gives the branch a row")
+        self.assertRegex(text, r"(?m)^  branch +feature/x{50} @ eef0e230$")

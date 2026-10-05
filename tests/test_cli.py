@@ -438,7 +438,7 @@ class Export(unittest.TestCase):
             text = c.export_text()
         self.assertEqual(rc, 0)
         self.assertTrue(text.startswith("# demo"), text[:40])
-        self.assertNotIn("╭", text)
+        self.assertNotIn("◎ Watch list", text, "no terminal report beside the export")
         self.assertNotIn("███╗", text, "no banner when piping an export to stdout")
 
     def test_sarif_export_to_file_and_to_stdout_with_a_scope(self):

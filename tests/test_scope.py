@@ -255,7 +255,7 @@ class CommandLine(unittest.TestCase):
         self.assertEqual(meta["scope"], ["svc"])
         self.assertEqual(meta["commits"], 4)
         self.assertIn("path svc", text)
-        self.assertIn(scope.REPOSITORY_WIDE, " ".join(text.replace("│", " ").split()), "on the header's scope row, wrapped under its label")
+        self.assertIn(scope.REPOSITORY_WIDE, " ".join(text.split()), "on the header's scope row, wrapped under its label")
 
     def test_the_default_run_passes_no_scope(self):
         with tempfile.TemporaryDirectory() as d:

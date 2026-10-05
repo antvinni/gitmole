@@ -22,9 +22,10 @@ def _text(f, report=None, width=74, printed=None):
     return "\n".join(s["statement"] + ["  " + x for x in s["subjects"]] + (["↳ " + "\n  ".join(s["step"])] if s["step"] else []))
 
 
-def _panel(found, report=None, full=False, width=80, printed=None):
+def _block(found, report=None, full=False, width=80, printed=None):
+    """The Findings as the report prints them: the title line, then an entry a finding."""
     out = io.StringIO()
-    Console(file=out, width=width, color_system=None).print(render.findings_panel(found, report or {}, full=full, width=width, printed=printed))
+    render.show(Console(file=out, width=width, color_system=None), render.findings_block(found, report or {}, full=full, width=width, printed=printed))
     return out.getvalue()
 
 
@@ -311,8 +312,8 @@ class Vulnerable(unittest.TestCase):
                                "↳ Upgrade example.org/own/module to 0.311.2-0.…-07c6232d159b in compliance/go.mod first; it scores CVSS 7.5. "
                                "One that does not apply to this code can be ignored in osv-scanner.toml.")
         self.assertEqual(f, before, "the finding the JSON, the Markdown and --full read is not written to")
-        self.assertIn("0.311.2-0.20260410083055-07c6232d159b", _panel([f], r, full=True, width=200))
-        self.assertNotIn("20260410083055", _panel([f], r, full=False, width=200))
+        self.assertIn("0.311.2-0.20260410083055-07c6232d159b", _block([f], r, full=True, width=200))
+        self.assertNotIn("20260410083055", _block([f], r, full=False, width=200))
 
     def test_the_note_for_example_lock_files_is_one_sentence_and_no_step(self):
         rows = [self.row("google.golang.org/grpc", "1.82.1", "documentation/examples/remote_storage/go.mod", score=8.7, fixed="1.82.2"),
@@ -322,7 +323,7 @@ class Vulnerable(unittest.TestCase):
         s = brief.short(f, r, 74)
         self.assertEqual(s, {"statement": ["2 packages in documentation/examples/remote_storage/go.mod. Highest:",
                                            "google.golang.org/grpc 1.82.1 (CVE-2026-1), CVSS 8.7, fixed in 1.82.2"], "subjects": [], "step": []})
-        self.assertEqual(len(_panel([f], r).splitlines()), 2 + 3, "its own entry in three lines")
+        self.assertEqual(len(_block([f], r).splitlines()), 1 + 3, "its own entry in three lines, under the title line")
 
     def test_no_fix_a_requirement_range_and_a_finding_without_its_report(self):
         r = self.report([self.row("left-pad", "1.0.0", "package-lock.json", score=None, fixed=None, imported=False)])
@@ -573,29 +574,31 @@ class Unmeasured(unittest.TestCase):
         self.assertEqual(brief.compact(self.f("x", "internationalisation matters.", "Act.", {}), {}, 40, 35), ["", "internationalisation matters"],
                          "a first word that does not fit beside the title starts under it")
 
-    def test_the_panel_prints_a_note_compact_and_a_warning_whole(self):
+    def test_the_findings_print_a_note_compact_and_a_warning_whole(self):
         note = self.f("unreferenced_files", "3 files are imported by nothing in the tree and are no entry point: discovery/install/install.go, b.ts and c.ts.",
                       "Check discovery/install/install.go before anything else.", {"count": 3, "files": ["discovery/install/install.go", "b.ts", "c.ts"]}, title="Possibly unreferenced files")
-        text = [line.strip("│ ").rstrip() for line in _panel([note], {}).splitlines()]
-        self.assertEqual(text[1:3], ["● Possibly unreferenced files (not measured yet): 3 files imported by", "nothing in the tree; first discovery/install/install.go"])
+        text = _block([note], {}).splitlines()
+        self.assertEqual(text[1:3], ["● Possibly unreferenced files (not measured yet): 3 files imported by nothing in", "  the tree; first discovery/install/install.go"],
+                         "the mark at column 1, the statement on the title's line and wrapped to column 3")
         self.assertNotIn("↳", " ".join(text))
         measured = {k: v for k, v in note.items() if k != "unjudged"}
-        text = " ".join(_panel([measured], {}).split())
+        text = " ".join(_block([measured], {}).split())
         self.assertNotIn("not measured yet", text)
         self.assertIn("↳ Check discovery/install/install.go before anything else.", text, "a rule that has been measured prints as any other")
 
 
-class Panel(unittest.TestCase):
+class Block(unittest.TestCase):
     def found(self):
         return [BugMagnets().finding(fix_rate={"above_rate": []}), SeeSection().brain()]
 
     def test_the_default_report_is_short_and_full_keeps_the_enumeration(self):
         found = self.found()
         before = copy.deepcopy(found)
-        default, full = _panel(found), _panel(found, full=True)
+        default, full = _block(found), _block(found, full=True)
         self.assertIn("7 at 5 or more: promql/engine.go 10", default)
-        self.assertIn("│     7 at 5 or more", default, "subject lines at column 5")
-        self.assertIn("│   ↳ Review promql/engine.go", default)
+        self.assertIn("\n    7 at 5 or more", default, "subject lines at column 5")
+        self.assertIn("\n  ↳ Review promql/engine.go", default, "the step at column 3")
+        self.assertIn("\n● A title\n  18 files", default, "the mark at column 1, the statement at column 3")
         self.assertNotIn("7 at 5 or more", full)
         self.assertIn("62 functions are both long and complex: a; b; c; d; e and 57 more", full)
         self.assertIn("a long list", full)
@@ -607,23 +610,24 @@ class Panel(unittest.TestCase):
                "Build the pull request in a workflow on pull_request, which gets no secrets, and hand its results to the privileged one as an artifact it reads as data; "
                "or drop the ref: in .github/workflows/ci.yml so the checkout is the base branch.", severity="warning")
         for width in (60, 80, 100, 160):
-            lines = _panel(self.found() + [f], width=width).splitlines()
-            self.assertTrue(all(len(x) == width for x in lines), width)
-        text = _panel([f], width=80)
-        self.assertIn("│   ↳ Build the pull request in a workflow on pull_request, which gets no", text)
-        self.assertIn("│     secrets, and hand its results", text)
-        self.assertLessEqual(sum(1 for x in text.splitlines() if "↳" in x or x.startswith("│     ")), 3)
-        wide = _panel(self.found(), width=200).splitlines()
-        self.assertLessEqual(max(len(x.rstrip("│ ")) for x in wide if x.startswith("│")), 100 + 4, "prose stays within 100 characters on a wide terminal")
+            lines = _block(self.found() + [f], width=width).splitlines()
+            self.assertTrue(all(len(x) <= width for x in lines), width)
+            self.assertTrue(all(x == x.rstrip() for x in lines), "no line is padded: there is no border to reach")
+        text = _block([f], width=80)
+        self.assertIn("\n  ↳ Build the pull request in a workflow on pull_request, which gets no secrets,", text)
+        self.assertIn("\n    and hand its results", text)
+        self.assertLessEqual(sum(1 for x in text.splitlines() if "↳" in x or x.startswith("    ")), 3)
+        wide = _block(self.found(), width=200).splitlines()
+        self.assertLessEqual(max(len(x) for x in wide), 100 + 2, "prose stays within 100 characters on a wide terminal")
 
     def test_findings_sharing_a_title_show_three_and_count_the_rest(self):
         same = [_f("placeholder_identity", f"\"user{i} <user{i}@localhost>\" made 30 commits (3%).", "Set user.name and user.email.", severity="warning", title="Unconfigured git identity")
                 for i in range(5)]
-        text = _panel(same)
+        text = _block(same)
         self.assertIn("Unconfigured git identity (5)", text)
         self.assertIn("user2 <user2@localhost>", text)
         self.assertNotIn("user3", text)
-        self.assertIn("│   and 2 more", text)
+        self.assertIn("\n  and 2 more\n", text)
         self.assertEqual(text.count("↳"), 1, "the same step once")
 
 

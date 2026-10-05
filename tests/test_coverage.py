@@ -158,12 +158,12 @@ class Rendered(unittest.TestCase):
                              ["85% of tracked lines are documentation, not ranked", "--file-types all includes them",
                               "40% of commits and 50% of fixes change only unscored files"])
             text = _text(report)
-            self.assertRegex(text, r"│ files +1 with code · 1 of 5 files scored \(source: not test, example, generated or vendored\) +│")
-            self.assertRegex(text, r"│ code +100 lines · Shell · 85% of tracked lines are documentation, not ranked · +│\n│ +--file-types all includes them +│",
+            self.assertRegex(text, r"(?m)^  files +1 with code · 1 of 5 files scored \(source: not test, example, generated or vendored\)$")
+            self.assertRegex(text, r"(?m)^  code +100 lines · Shell · 85% of tracked lines are documentation, not ranked · --file-types all\n +includes them$",
                              "the flag is not parted from its argument")
-            self.assertRegex(text, r"│ commits +(\d+% are fixes · )?40% of commits and 50% of fixes change only unscored files +│", "each fact on the row its label describes")
+            self.assertRegex(text, r"(?m)^  commits +(\d+% are fixes · )?40% of commits and 50% of fixes change only unscored files$", "each fact on the row its label describes")
             full = _text(report, full=True)
-            self.assertRegex(full, r"│ files +5 tracked · 1 with code · 1 scored · 1 test file · 3 not a source type +│")
+            self.assertRegex(full, r"(?m)^  files +5 tracked · 1 with code · 1 scored · 1 test file · 3 not a source type$")
             self.assertNotIn("1 of 5 files scored", full, "--full's own coverage line counts the files")
             self.assertIn("85% of tracked lines are documentation", full)
             self.assertIn("85% of tracked lines are documentation", render.markdown(report, []))
@@ -184,7 +184,7 @@ class Rendered(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             loaded = load.load_report(_out(d, {"app/main.py": ("Python", 900), "a.md": ("Markdown", 100), "b.md": ("Markdown", 100)},
                                            {"scored": 1, "not a source type": 2}))
-        self.assertRegex(_text(loaded, width=80), r"│ files +1 with code · 1 of 3 files scored \(source: not test, example, +│", "on the files row: no line of its own")
+        self.assertRegex(_text(loaded, width=80), r"(?m)^  files +1 with code · 1 of 3 files scored \(source: not test, example,$", "on the files row: no line of its own")
         files["scored"] = 1200
         self.assertFalse(classify.unseen(files), "tests are in the tables, hidden: they are not what is unseen")
         self.assertIsNone(render.scored_phrase(report))
@@ -239,7 +239,7 @@ class NotComputed(unittest.TestCase):
         r["meta"]["backtest"] = {"status": "timeout"}
         self.assertEqual(findings.not_computed(r)[0]["reason"], "the step timed out")
 
-    def test_the_line_closes_the_findings_panel_and_the_markdown_list(self):
+    def test_the_line_closes_the_findings_and_the_markdown_list(self):
         with tempfile.TemporaryDirectory() as d:
             report = _docs_report(d)
             text = _text(report)

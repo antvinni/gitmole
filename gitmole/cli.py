@@ -157,8 +157,12 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     if threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGINT, interrupt)
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    console = console or Console()
-    err = Console(stderr=True) if console.file is sys.stdout else console
+    # highlight=False: rich would colour every number, path and URL of a message in cyan, magenta and blue,
+    # and the report's palette is bold, dim, yellow and red (render.SEVERITY_STYLE)
+    console = console or Console(highlight=False)
+    err = Console(stderr=True, highlight=False) if console.file is sys.stdout else console
+    from . import render
+    render.carry(console), render.carry(err)   # a stream that cannot carry a mark is written to through its ASCII substitute, chosen here once
     rc = _check_args(args, err)
     if rc is not None:
         return rc
@@ -173,7 +177,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
         return _clean(args, console, ask)
     # When an export goes to stdout, everything else (banner, progress, report) moves to stderr.
     quiet = "-" in (args.json, args.markdown, args.sarif, args.sbom)
-    ui = Console(stderr=True) if quiet else console
+    ui = render.carry(Console(stderr=True, highlight=False)) if quiet else console
 
     rc, now = _resolve_time(args, err, ui)
     if rc is not None:
@@ -830,7 +834,7 @@ def _execute(steps, log_path, repo_dir, workers, console, timeout=None, stats: d
             live.update(view())
             worker.join(0.1)
         live.update(Group(banner.neon(version=__version__), Text("")) if console.is_terminal else Text(""))
-    console.print(f"[dim]{len(steps)} steps in {time.monotonic() - started:.1f}s[/dim]\n")
+    console.print(Text(f"{len(steps)} steps in {time.monotonic() - started:.1f}s\n", style="dim"))   # as text: a string would have its numbers coloured
     return results
 
 
@@ -983,7 +987,7 @@ def _feedback(report: dict, found: list, args, console: Console, err: Console, a
             else os.path.abspath(feedback.FILE_NAME)
         feedback.write(target, feedback.payload(answers, report, today, __version__))
         for line in feedback.how_to_send(target, __version__):
-            err.print(f"[dim]{line}[/dim]", soft_wrap=True)
+            err.print(Text(line, style="dim"), soft_wrap=True)   # as text: a path or an address in it is not markup, and is not coloured
     except (EOFError, KeyboardInterrupt):
         pass          # no terminal after all, or the reader pressed ctrl-c: the run is already done
     except Exception:   # noqa: BLE001 - a question is never worth breaking a finished run over

@@ -36,6 +36,37 @@ in plain words, and what to do first. This page is the reference.
 
 ## The terminal report
 
+One layout for every part, and no box anywhere: a title line at column 1,
+then what the part holds two columns in. A table is its column heads, a rule
+exactly as wide as its columns, a row a line and its caption; the header,
+the Supply chain section and Since last report are grids of labelled rows,
+a value that does not fit wrapped under its own start; the Findings are
+entries, each with its mark at column 1, its statement at column 3, its
+subject lines at column 5 and its step under `↳`. One blank line between
+two parts, none inside one, and no line ends in a space.
+
+The colours are four styles and no more: bold (a part's name, a table's
+first column, and in the header the commit count and a `--since` window or
+`--path` scope), dim (labels, column heads, rules, captions, the closing
+lines, the `(not measured yet)` tag), yellow for a warning and red for a
+critical, on the finding's mark and title and on a scan's verdict in the
+Supply chain section. A note has no colour, and neither has a statement, a step or a
+number, so the report reads the same on a light theme as on a dark one.
+(The logo banner keeps its own colours and is only drawn on a terminal.)
+Without colour (`NO_COLOR`, a pipe, a file) the report is the same bytes
+with the escapes left out.
+
+Every mark has an ASCII form for a stream whose encoding cannot carry it
+(`PYTHONIOENCODING=ascii`, a legacy code page), chosen per mark, so a
+Latin-1 stream keeps its `·`: `✖` `x`, `▲` `!`, `●` `*`, `↳` `>`, the rule
+`-`, a section's pictogram `#`, `·` `-`, `×` `x`, `…` `...`, `→` `->` and
+`≥` `>=`. The report then has the same lines; a line that holds one of the
+last three is a character or two longer, so a table row with an elided path
+is that much out of its columns. Any other character the stream cannot
+carry, in a name or a path, prints as `?`. Columns are counted as a
+terminal counts cells; one that draws an East Asian ambiguous-width
+character two cells wide will show its rows one cell out.
+
 One format for numbers and one word per column, in the terminal and in
 Markdown: a count of 1,000 or more has its thousands separator, in the
 header, every table and every caption; zero prints as 0 (a month without a
@@ -68,11 +99,15 @@ Knowledge map, People. `--full`'s own sections sit in their groups (the watch
 list by component and Hotspots after the Watch list, Size by language after
 Change coupling, the Timeline after People, then Activity, Surviving code by
 year, Changed lines, Trailers, Signing by year, Agent surface and the OSPS
-Baseline). The width of the terminal changes how a cell is elided and how a
-caption wraps, and nothing else: no rows, no order, no month window, and no
-two tables side by side. When a row does not fit, a path loses its middle
-directories first (`prompb/…/client/decoder.go`), then the last text cell is
-cut with `…`; a number is never cut. The word `gone` has one form in every
+Baseline). The width of the terminal changes how a cell is elided and how
+prose wraps, and nothing else: no rows, no order, no month window (the
+Timeline's twelve months need 70 columns), and no two tables side by side.
+A cell is never wrapped onto a second line, and neither is a column head.
+When a row does not fit, a path loses its middle directories first
+(`prompb/…/client/decoder.go`), then the last text cell is cut with `…`; a
+number and a head are never cut, and columns that still do not fit are left
+out and named under the table. In a finding a path, a package and a version
+are always whole: one longer than the line has a line to itself. The word `gone` has one form in every
 table: after what it qualifies, one space, no brackets (`23% gone`, `Fabian
 Reinartz gone`, `2019-01 gone`); blank means active.
 
@@ -228,7 +263,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    report and in `--full`, and the Findings title says once what the tag
    means and how many carry it: `· 5 by rules not measured for precision
    yet`, or in fewer words (`5 not measured for precision yet`, `5 not
-   measured yet`) where the box's border would cut the title. A warning
+   measured yet`) where the title would be longer than the line. A warning
    or a critical from such a rule is an entry like any other. A note from
    one is compact in the default report: the title, the tag, a colon and
    one statement, three lines at most and no step (`● Possibly
@@ -559,7 +594,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    `--no-run` points at an output directory without its file, the row says
    `not scanned` where the verdict would be. The Markdown export carries
    the two passes as `**ok**` lines under its findings. Until 0.44.0 the
-   terminal report had them as two green ✔ lines closing the Findings box.
+   terminal report had them as two green ✔ lines closing the Findings.
 
    Vulnerable dependencies come from osv-scanner over the lock files,
    offline against the local copy of the OSV database (see
@@ -800,7 +835,9 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    Someone credited only by trailers, who never commits, is a person and
    counts as one.
 3. **Since last report**: with `--compare BEFORE.json`, what changed
-   against an earlier `--json` export of the same clone. Findings are
+   against an earlier `--json` export of the same clone, as a grid of
+   labelled rows on a terminal (the change, then what changed, wrapped
+   under its own start) and a two-column table in Markdown. Findings are
    matched by their rule id, and for a rule that emits one finding per row
    by the rule id with the mailbox (unconfigured identity), or the metric
    for an export from before 0.39.0 that still has git-sizer's repo health; each one is listed as new, resolved or
@@ -879,7 +916,8 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    them all.
    With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
-   score as a bar and the reasons, or why it has none: the first reason that
+   score as a bar and, on the lines under its row, the reasons whole (a last
+   column, `why`, in Markdown), or why it has none: the first reason that
    applies of `generated`, `vendored`, `test file`, `example code`,
    `release file`, `amalgamation`, `not a source type` and `not in the
    tree`, the last covering a file the change deleted and, under `--no-run`,

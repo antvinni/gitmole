@@ -7,29 +7,23 @@ from __future__ import annotations
 import json
 import os
 
-from rich import box
-from rich.console import Console, Group
-from rich.markup import escape
-from rich.padding import Padding
-from rich.panel import Panel
-from rich.table import Table
+from rich.console import Console
 from rich.text import Text
 
 from . import brief, classify, coupling, deps, filetypes, hotspots, identity, knowledge, leaks, loss, provenance, scope, textfmt, trend, watch
 
-SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
+# The report's whole palette: bold, dim, yellow for a warning and red for a critical, and nothing else. The
+# default render of prometheus held 23 different escape sequences, among them a truecolour blue, purple and pink
+# and a near-black row background, which is unreadable on a light theme and noise in a CI log. Yellow and red
+# are a severity's and go on a finding's mark and title (and a scan's verdict) only; a note has no colour; a
+# section title and a table's first column are bold; captions, rules, column heads and labels are dim; a
+# statement, a step and every number are in the terminal's own foreground. The logo banner (banner.py) keeps
+# its own colours: it is not the report.
+BOLD, DIM = "bold", "dim"
+SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": ""}
 
-# section styling: the banner's palette carried into the tables
-ACCENT = "#5ad0ff"          # section titles
-HEADER = "bold #c86cff"     # column headers
-BAR = "#5ad0ff"             # inline share bars
-HOT = "bold #ff5cc8"        # values past a threshold
-WARM = "#ff9ee0"            # values worth a glance
-ROW_STYLES = ["", "on #1c2230"]
-
-# the Timeline's month columns: each is 3 characters wide plus the 2 of GAP between every pair of columns
-# (verified against rich.table.Table._calculate_column_widths, whose "n columns - 1" extra width cancels the
-# gap saved on the last column, leaving a clean 5 per month). The section itself is indented by 2. The twelve
+# the Timeline's month columns: each is 3 characters wide plus the 2 of GAP in front of it, a clean 5 per
+# month. The section itself is indented by 2. The twelve
 # months are the table at every width: when a name leaves them no room the name gives way, cut to what is left,
 # and NAME_FLOOR is the fewest characters of it still shown before the ellipsis (eight keeps most short names,
 # and the start of longer ones, recognisable). The year needs INDENT + NAME_FLOOR + 12 × MONTH_WIDTH = 70 columns.
@@ -39,18 +33,19 @@ SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timel
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
            "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
            "Change risk": "◈", "Since last report": "⇄", "Most-changed documents": "✎", "Supply chain": "◧"}
-# the one column to read first in each table; the rest are dimmed
-# keyed on the head as printed: "changes", "together" and "complexity" are the report's words for what the JSON calls revs, degree and ccn
-KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "changes", "Change coupling": "together",
-              "Knowledge map": "added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
-              "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "complexity",
-              "Watch list": "changes", "Change risk": "risk", "Most-changed documents": "changes"}
+SECTION_MARK = "•"   # in front of the title of a section with no pictogram of its own
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
+STEP_MARK = "↳"
+RULE_MARK = "─"
+BAR_MARK, BLOCK_MARK = "▰", "█"
+# How a column lies and how it gives way when a row does not fit (fit): "justify" right for a number, and a
+# "kind" of path (it loses middle directories), tail (the last text cell: cut at its end with an ellipsis once
+# every path has given its directories) or fixed (never cut). A column with a "ratio" is prose, which gives way
+# as a tail does. No cell is ever wrapped onto a second line.
 RIGHT = {"justify": "right"}
-FOLD = {"overflow": "fold"}
-PATH = {"overflow": "fold", "no_wrap": False, "kind": "path"}   # "kind" (and "spare") are fit()'s, not rich's
+PATH = {"kind": "path"}
 WHOLE = {"kind": "fixed"}   # a short text cell that is never cut, as a number is not: a share with "gone" after it
-TAIL = {"kind": "tail", "no_wrap": True}   # the last text cell of a row: cut at its end with an ellipsis once every path has given its directories
+TAIL = {"kind": "tail"}
 
 # rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own. Hotspots has
 # no entry: it is `--full`/Markdown only now, so its row count is never decided by this table.
@@ -75,7 +70,7 @@ def _pct(part, whole) -> str:
 
 
 def _bar(part, whole, width=30) -> str:
-    return "█" * int(width * part / whole) if whole else ""
+    return BLOCK_MARK * int(width * part / whole) if whole else ""
 
 
 def _number(c) -> str:
@@ -85,17 +80,15 @@ def _number(c) -> str:
     return f"{c:,}" if isinstance(c, int) and not isinstance(c, bool) else str(c)
 
 
-def _section(title, columns, rows, note=None, caption=None, under=None, loose=False) -> dict:
-    """columns: list of (name, rich column options). rows: lists of cells, a count as an int (see _number).
-    `caption` is one paragraph a line, each wrapped at its separators when it is drawn. `under` is one line of
-    text per row, drawn indented beneath it on a terminal and as a last column in Markdown ("under_head" names
-    it). `loose` keeps the drawing from before the default report's grid (LOOSE_GAP)."""
+def _section(title, columns, rows, note=None, caption=None, under=None) -> dict:
+    """columns: list of (name, column options: RIGHT, PATH, WHOLE, TAIL). rows: lists of cells, a count as an
+    int (see _number). `caption` is one paragraph a line, each wrapped at its separators when it is drawn.
+    `under` is one line of text per row, drawn indented beneath it on a terminal and as a last column in
+    Markdown ("under_head" names it)."""
     sec = {"title": title, "columns": [c[0] for c in columns], "col_opts": [c[1] for c in columns],
            "rows": [[_number(c) for c in r] for r in rows], "note": note, "caption": caption}
     if under is not None:
         sec["under"] = list(under)
-    if loose:
-        sec["loose"] = True
     return sec
 
 
@@ -615,16 +608,24 @@ def not_computed_line(report: dict):
 RISK_CAP = 15
 
 
+RISK_WHY = "why"   # the Markdown column for what a terminal prints under a Change risk row
+
+
 def risk_section(risk: dict, base: str, full=True) -> dict:
-    """The files a change touches, each with its watch score as a bar scaled to the repo's worst file."""
+    """The files a change touches, each with its watch score as a bar scaled to the repo's worst file and, under
+    its row, why it scores: the reasons the watch list gives the file, whole. They were a third column that
+    wrapped inside its cell, in a drawing of its own (gaps of three, the caption as wide as the table); a cell
+    never wraps now, and cut to its column a file's reasons would be a dozen words of some thirty. Under the row
+    is where --full's watch list puts the same reasons. Markdown keeps them as its last column."""
     rows_all = risk["files"]
     limit = _limit("Change risk", full, cap=RISK_CAP)
     top = risk["max_score"] or 1.0
-    rows = []
+    rows, why = [], []
     for r in rows_all[:limit]:
         imported = watch.dependents_phrase(r.get("dependents"))
-        rows.append((r["file"], "▰" * round(10 * r["score"] / top) if r["score"] else "", " · ".join(r["reasons"] + ([imported] if imported else []))))
-    columns = [("file", PATH), ("risk", {}), ("why", {"overflow": "fold", "ratio": 3})]
+        rows.append((r["file"], BAR_MARK * round(10 * r["score"] / top) if r["score"] else ""))
+        why.append(" · ".join(r["reasons"] + ([imported] if imported else [])))
+    columns = [("file", PATH), ("risk", {})]
     watched = risk["watched"]
     notes = [f"total {risk['total']:.1f}% of the repository's changes × lines of code; "
              f"{watched:,} of these files {'is' if watched == 1 else 'are'} on the watch list"] if rows else []
@@ -637,10 +638,10 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
     gaps = risk.get("coupling_gaps") or []
     if rows and gaps:
         notes.append(gaps_line(gaps))
-    # loose: this section's drawing is stored in tests/golden/strings.txt with the hook's and the gate's words,
-    # which the watch list's columns (A5) do not touch; it takes the grid when that copy is next regenerated
-    return _section(f"Change risk ({len(rows_all):,} files since {base})", columns, rows,
-                    note=None if rows else f"no files changed since {base}", caption="\n".join(notes) or None, loose=True)
+    sec = _section(f"Change risk ({len(rows_all):,} files since {base})", columns, rows,
+                   note=None if rows else f"no files changed since {base}", caption="\n".join(notes) or None, under=why if rows else None)
+    sec["under_head"] = RISK_WHY
+    return sec
 
 
 def gaps_line(gaps: list) -> str:
@@ -772,7 +773,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
 
 def activity_section(report: dict, full: bool = True, width=None) -> dict:
     act = report.get("activity") or {}
-    columns = [("weekday", {}), ("commits", RIGHT), ("share", RIGHT), ("", {"style": "blue"})]
+    columns = [("weekday", {}), ("commits", RIGHT), ("share", RIGHT), ("", {})]
     if not act.get("by_weekday"):
         return _section("Activity", columns, [], note="no activity data")
     total = sum(act["by_weekday"])
@@ -846,7 +847,7 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     listed = ranked[:_limit("Timeline", full)]
     part = _part_month(report, span[-1])
     heads = [MONTHS[int(m[5:7]) - 1] + (PART_MARK if part and m == span[-1] else "") for m in span]
-    columns = [("author", {"no_wrap": True})] + [(head, RIGHT) for head in heads]
+    columns = [("author", {})] + [(head, RIGHT) for head in heads]
     room = width - INDENT - MONTH_WIDTH * len(span) - (len(PART_MARK) if part else 0) if width else None
     # a month without a commit is 0, as zero is in every table: the dot it used to be is the report's separator
     rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or 0 for m in span]) for a in listed]
@@ -885,7 +886,7 @@ def watch_by_component_section(report: dict, full: bool = True, width=None) -> d
     groups = watch.by_component(watch.risks(report), base=scope.report_base(report))
     rows = [(g["component"], f"{g['share']:.0f}%", " · ".join(x["file"] for x in g["files"]))
             for g in groups]
-    columns = [("component", PATH), ("share", RIGHT), ("top files", {"overflow": "fold", "ratio": 3})]
+    columns = [("component", PATH), ("share", RIGHT), ("top files", TAIL)]
     return _section("Watch list by component", columns, rows, note=None if rows else "no component holds 5% of the list's score",
                     caption="each component's share of the watch list's changes × lines of code, and its own top files" if rows else None)
 
@@ -927,7 +928,7 @@ def lines_section(report: dict, full: bool = True, width=None) -> dict:
     if (co.get("marked") or {}).get("commits"):
         rows += [(label, c["commits"], c["added"], share(c.get("moved_share")), share(c.get("churn_share")))
                  for label, c in (("declared commits, both years", co["marked"]), ("the rest, both years", co["rest"]))]
-    columns = [("period", {"overflow": "fold"}), ("commits", RIGHT), ("lines added", RIGHT), ("moved", RIGHT), (f"churned in {ln.get('churn_days', 14)} days", RIGHT)]
+    columns = [("period", {}), ("commits", RIGHT), ("lines added", RIGHT), ("moved", RIGHT), (f"churned in {ln.get('churn_days', 14)} days", RIGHT)]
     return _section("Changed lines", columns, rows, note=None if rows else "no history in the last 2 years",
                     caption="code files only; moved: lines git's moved-code detection marks (--color-moved=blocks); churned: deleted again "
                             "within 2 weeks from the same file with the same text"
@@ -1055,7 +1056,7 @@ def age_section(report: dict, full: bool = True, width=None) -> dict:
         return age_fallback_section(report)
     total = sum(cohorts.values())
     rows = [(label.replace("Code added in ", ""), f"{lines:,}", _pct(lines, total), _bar(lines, total)) for label, lines in cohorts.items()]
-    return _section("Surviving code by year written", [("year", {}), ("lines", RIGHT), ("share", RIGHT), ("", {"style": "blue"})], rows,
+    return _section("Surviving code by year written", [("year", {}), ("lines", RIGHT), ("share", RIGHT), ("", {})], rows,
                     note=None if rows else "no age data", caption=f"counted{_by_source(report)[1:]}" if rows and _by_source(report) else None)
 
 
@@ -1067,10 +1068,10 @@ def age_fallback_section(report: dict) -> dict:
     if net:
         total = sum(v for v in net.values() if v > 0)
         rows = [(y, f"{v:,}", _pct(v, total) if v > 0 else "-", _bar(v, total) if v > 0 else "") for y, v in net.items()]
-        return _section("Net lines added by year", [("year", {}), ("net lines", RIGHT), ("share", RIGHT), ("", {"style": "blue"})], rows,
+        return _section("Net lines added by year", [("year", {}), ("net lines", RIGHT), ("share", RIGHT), ("", {})], rows,
                         caption=f"{reason}; approximation from the log, not a blame")
     last = report["meta"].get("last_date") or ""
-    columns = [("year", {}), ("paths", RIGHT), ("share", RIGHT), ("", {"style": "blue"})]
+    columns = [("year", {}), ("paths", RIGHT), ("share", RIGHT), ("", {})]
     try:
         end_year, end_month = int(last[:4]), int(last[5:7])
     except ValueError:
@@ -1107,7 +1108,7 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     cut = sum(1 for f in shown if f.get("lizard_span"))
     cut_note = (f"{FLOOR_MARK} = lizard ended the function early ({cut:,}): its lines are the structure step's, "
                 f"its complexity what lizard counted before it stopped") if cut else None
-    columns = [("function", {"overflow": "fold"}), ("file", PATH), ("complexity", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
+    columns = [("function", {}), ("file", PATH), ("complexity", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
     status = (report["meta"].get("functions") or {}).get("status", "skipped" if not measured else "run")
     reason = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)",
               "skipped": "no function metrics (install lizard)"}.get(status, "function metrics did not complete")
@@ -1298,7 +1299,7 @@ def osps_section(report: dict, full: bool = True, width=None) -> dict:
     """The OSPS Baseline controls a clone can show, each with its result here: --full and Markdown only."""
     from . import findings, osps
     rows = [(r["control"], r["requirement"], r["result"], r["evidence"]) for r in osps.coverage(report, findings.evaluate(report))]
-    return _section("OSPS Baseline", [("control", {"no_wrap": True}), ("asks", {"overflow": "fold", "ratio": 2}), ("result", {}), ("evidence", {"overflow": "fold", "ratio": 3})],
+    return _section("OSPS Baseline", [("control", WHOLE), ("asks", TAIL), ("result", WHOLE), ("evidence", TAIL)],
                     rows, caption=f"the controls a clone can show evidence for, from the {osps.BASELINE}; access control and most of vulnerability management need the forge")
 
 
@@ -1339,7 +1340,7 @@ def agent_surface_section(report: dict, full: bool = True, width=None):
     caption = (", ".join(f"{n:,} {word}{'' if n == 1 else 's'}" for n, word in counts if n)
                + "; read from the tree by path convention and shape, listed and not judged"
                + ("; → names the tracked script a hook command runs, and the one that script hands over to" if any(h.get("script") for h in ag.get("hooks") or []) else ""))
-    return _section("Agent surface", [("kind", {"no_wrap": True}), ("where", {"overflow": "fold", "ratio": 1}), ("what", {"overflow": "fold", "ratio": 2})], rows, caption=caption)   # a path here folds whole rather than losing its middle: the list is what the section is for
+    return _section("Agent surface", [("kind", WHOLE), ("where", PATH), ("what", TAIL)], rows, caption=caption)
 
 
 def _tally_words(counts: dict) -> str:
@@ -1382,11 +1383,16 @@ def compare_section(result: dict) -> dict:
         lines.append(f"the vulnerability database changed between the runs ({db.get('before') or '?'} to {db.get('after') or '?'}), "
                      "so a dependency finding can move with no change to the code")
     lines.append(f"{against}, {before.get('date') or '?'} · {_tally_words(result['tally']['before'])} → {_tally_words(result['tally']['after'])}")
-    columns = [("change", {}), ("what", {"overflow": "fold", "ratio": 3})]
+    columns = [("change", {}), ("what", TAIL)]
     # an empty section prints heading + note and drops the caption (section_block, _md_section), so when
     # there is nothing to show, the caption's own lines fold into the note instead of vanishing with it
     note = None if rows else "; ".join(["nothing changed"] + lines)
-    return _section("Since last report", columns, rows, note=note, caption="\n".join(lines))
+    sec = _section("Since last report", columns, rows, note=note, caption="\n".join(lines))
+    # A terminal draws it as a label grid, the change as the label and what changed wrapped under its own start:
+    # a persisting finding's title with the counts that moved is longer than a cell at 80 columns, a cell never
+    # wraps, and cut at its end the row would lose the counts it is there for. Markdown keeps the two columns.
+    sec["grid"] = True
+    return sec
 
 
 # One order in the default report, --full and Markdown: the code (what to read first, then what is hard to change
@@ -1887,24 +1893,23 @@ def supply_chain_rows(report: dict, found: list = (), full: bool = False, width=
     return out
 
 
-def supply_chain_block(report: dict, found: list = (), full: bool = False, width=None):
+def supply_chain_block(report: dict, found: list = (), full: bool = False, width=None) -> Text:
     """The titled section: a label grid like the header's, the labels padded to the longest and a value that
     does not fit wrapped under its own start. A row carries no status mark; the first words of a scan's row
     are its verdict, in the colour of the worst finding behind it and in none when no finding is."""
     pad = max(len(label) for label in SUPPLY_CAPS) + LABEL_GAP
-    rows = supply_chain_rows(report, found, full, width - INDENT - pad if width else None)
-    body = Text()
-    for n, (label, lines, style) in enumerate(rows):
+    grid = []
+    for label, lines, style in supply_chain_rows(report, found, full, width - INDENT - pad if width else None):
+        pieces = []
         for i, line in enumerate(lines):
-            body.append(f"{label if i == 0 else '':<{pad}}", style="dim")
             piece = Text(line)
             if style and label == "dependencies" and not lines[0].startswith(NOT_SCANNED):
                 piece.highlight_regex(r"[\d,]+ vulnerable\b", style)   # the scan's size comes first on this row; the verdict is the count
             elif style and i == 0:
                 piece.stylize(style, 0, len(line.split(SEP)[0].rstrip(" ·")))
-            body.append_text(piece)
-            body.append("\n" if n < len(rows) - 1 or i < len(lines) - 1 else "")
-    return Group(heading({"title": SUPPLY_TITLE}), Padding(body, (0, 0, 0, INDENT)))
+            pieces.append(piece)
+        grid.append((label, pieces))
+    return _lines([heading({"title": SUPPLY_TITLE})] + _grid_lines(grid, pad))
 
 
 # What gates a step that a run may leave out, and what the step gives: --plots draws the two plots and runs the
@@ -1994,9 +1999,117 @@ def closing_lines(report: dict, width=None) -> list:
     return lines + [RERENDER]
 
 
-# --- rich ------------------------------------------------------------------
+# --- the terminal's drawing --------------------------------------------------
+#
+# One grammar for every block, and no box anywhere: a title line at column 1, then what the block holds two
+# columns in. A table is column heads, a rule exactly as wide as its columns, a row a line and its caption; a
+# block without columns (the header, the Supply chain section, Since last report) is a label grid; the
+# Findings are entries, each with its mark at column 1. One blank line between two blocks and none inside one.
+# prometheus's report had three grammars (two boxes, open tables, bare footer lines), 55 of its 213 lines
+# ended in padding, and a box broke a path in two at its border.
+#
+# Every block is built as lines of text and printed as they are (_lines, show): the console wraps nothing,
+# cuts nothing and pads nothing, so the colour render with its escapes stripped is the plain render byte for
+# byte, and no line of either ends in a space. The width of the terminal decides only where prose wraps and
+# which cells are elided (fit); it never changes a row, an order or a window of months. Alignment is counted
+# as the terminal counts cells for a wide character and as one cell for every other; a terminal that draws an
+# East Asian ambiguous-width character two cells wide will show those rows one cell out.
 
-PANEL_EDGES = 4   # a panel's two borders and its padding of one either side
+
+def _lines(lines) -> Text:
+    """`lines` (text or styled text) as one block that prints as it is: no line wrapped, cut or padded by the
+    console, and none ending in a space."""
+    out = Text(no_wrap=True, overflow="ignore")
+    for n, line in enumerate(lines):
+        piece = line.copy() if isinstance(line, Text) else Text(line)
+        piece.rstrip()
+        if n:
+            out.append("\n")
+        out.append_text(piece)
+    return out
+
+
+def _wrap_styled(text: Text, width, hang: int = 0) -> list:
+    """A styled line as the lines it wraps to at `width` (wrapped), each piece keeping its style and the
+    lines after the first indented by `hang`: a title longer than a narrow terminal."""
+    plain = text.plain
+    if width is None or len(plain) <= width:
+        return [text]
+    out, at = [], 0
+    for n, line in enumerate(wrapped(plain, width, hang)):
+        start = plain.find(line, at)
+        piece = text[start:start + len(line)] if start >= 0 else Text(line)
+        at = start + len(line) if start >= 0 else at
+        out.append(piece if n == 0 else Text(" " * hang).append_text(piece))
+    return out
+
+
+def show(console: Console, block) -> None:
+    """Print a block: soft-wrapped, so a line longer than the terminal (a path that cannot be broken) is left
+    whole for the terminal to wrap, where a copy still pastes as one path."""
+    console.print(block, soft_wrap=True)
+
+
+# --- marks a stream may not be able to carry -------------------------------------------------------------------
+#
+# Every mark the report prints, with the ASCII it becomes on a stream whose encoding cannot carry it
+# (PYTHONIOENCODING=ascii, a legacy code page). Chosen once per stream (carry), one mark at a time, so a
+# Latin-1 stream keeps its "·" and "×". The severity marks, the step, the rule and the pictograms are one
+# character each, so the finding grid and every rule keep their columns; "…", "→" and "≥" have no honest
+# one-character ASCII form, so a line holding one is a character or two longer than its UTF-8 twin, never a
+# line more. A character that is not a mark (a name, a path) prints as "?" where the stream cannot carry it:
+# prometheus's report raised nothing under LANG=C only because Python reads that locale as UTF-8.
+ASCII_MARKS = {
+    SEVERITY_MARK["critical"]: "x", SEVERITY_MARK["warning"]: "!", SEVERITY_MARK["info"]: "*", STEP_MARK: ">",
+    textfmt.ELLIPSIS: "...", "→": "->", "·": "-", RULE_MARK: "-", "≥": ">=", "×": "x", "—": "-", brief.NBSP: " ",
+    **{symbol: "#" for symbol in list(SYMBOLS.values()) + [SECTION_MARK]},   # every pictogram: "# Watch list"
+    BAR_MARK: "#", BLOCK_MARK: "#", **{block: str(level) for level, block in enumerate(trend.BLOCKS[:-1], 1)},   # a sparkline as its levels, 1 to 7 and "#"
+    "═": "=", "║": "|", "╔": "+", "╗": "+", "╚": "+", "╝": "+", "▀": "#",   # the banner's, should a terminal that cannot carry them be given it
+}
+
+
+def substitutes(encoding) -> dict:
+    """The marks `encoding` cannot carry, each with its ASCII substitute: {} for one that carries them all,
+    for a stream that names no encoding (a string buffer) and for an encoding Python does not know."""
+    if not encoding:
+        return {}
+    out = {}
+    for mark, plain in ASCII_MARKS.items():
+        try:
+            mark.encode(encoding)
+        except UnicodeEncodeError:
+            out[mark] = plain
+        except LookupError:
+            return {}
+    return out
+
+
+class _Substituting:
+    """A stream written to through the substitutes: each mark it cannot carry becomes its ASCII form and any
+    other character it cannot carry a "?", so writing to it raises nothing. Everything else is the stream's."""
+
+    def __init__(self, stream, table: dict, encoding: str):
+        self._stream, self._table, self._encoding = stream, str.maketrans(table), encoding
+
+    def write(self, text: str):
+        return self._stream.write(text.translate(self._table).encode(self._encoding, "replace").decode(self._encoding))
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
+def carry(console: Console) -> Console:
+    """Make `console` safe for its stream's encoding, once: when the encoding cannot carry a mark, the console
+    writes through the substitutes from then on. A UTF-8 stream is left as it is."""
+    stream = console.file
+    if not isinstance(stream, _Substituting):
+        encoding = getattr(stream, "encoding", None)
+        table = substitutes(encoding)
+        if table:
+            console.file = _Substituting(stream, table, encoding)
+    return console
+
+
 SCORED_GLOSS = "source: not test, example, generated or vendored"   # what "scored" means, said where the count is
 
 
@@ -2011,10 +2124,11 @@ def _glue(text: str) -> str:
     return text.replace(" = ", f"{brief.NBSP}={brief.NBSP}")
 
 
-def wrapped(text: str, width) -> list:
+def wrapped(text: str, width, hang: int = 0) -> list:
     """`text` as lines of at most `width`: broken at spaces, a separator kept at the end of the line before it,
-    and never between a number and its noun or a term and its "=" (_glue). `width` None is one line."""
-    return [text] if width is None else brief.wrap(_glue(text), max(width, 20))
+    and never between a number and its noun or a term and its "=" (_glue). `width` None is one line. With
+    `hang`, the lines after the first are that much shorter, for the indent they are printed with."""
+    return [text] if width is None else brief.wrap(_glue(text), max(width, 20), max(width - hang, 20) if hang else None)
 
 
 def _fix_share(report: dict):
@@ -2052,13 +2166,13 @@ def header_rows(report: dict, full: bool = False) -> list:
     tree and the history say about provenance is; prometheus's report had it in four places."""
     s = summary(report)
     rows = []
-    history = [(f"{s['commits']:,} commits", "bold"), (f"{s['first_date']} → {s['last_date']}", "")]
+    history = [(f"{s['commits']:,} commits", BOLD), (f"{s['first_date']} → {s['last_date']}", "")]
     if s["since"]:
-        history.append((f"since {s['since']}", "yellow"))
+        history.append((f"since {s['since']}", BOLD))   # bold, as the scope is: it changes what every count below is of, and yellow is a warning's
     history.append((textfmt.count(s["identities"], "identity", "identities"), ""))
     rows.append(("history", history))
     if s["scope"]:
-        rows.append(("scope", [(scope.label(s["scope"]), "bold yellow"), (scope.REPOSITORY_WIDE, "dim")]))
+        rows.append(("scope", [(scope.label(s["scope"]), BOLD), (scope.REPOSITORY_WIDE, DIM)]))
     unfinished = _unfinished(report)
     if unfinished:
         rows.append(("steps", [(part, "") for part in unfinished]))
@@ -2100,43 +2214,55 @@ def header_rows(report: dict, full: bool = False) -> list:
 LABEL_GAP = 2   # between a header label and its value
 
 
-def header(report: dict, findings: list = (), full: bool = False, width=None) -> Panel:
+def _grid_lines(rows: list, pad: int) -> list:
+    """A label grid as lines: `rows` is [(label, the value's lines)], the label dim and padded to `pad`, two
+    columns in, and the lines a value wraps to under the value's own start."""
+    return [Text.assemble(" " * INDENT, (f"{label:<{pad}}", DIM), line) if i == 0 else Text.assemble(" " * (INDENT + pad), line)
+            for label, lines in rows for i, line in enumerate(lines)]
+
+
+def _title(title: str, symbol: str = None) -> Text:
+    """A block's title line: its name bold (behind its pictogram, when it has one) and what qualifies it, the
+    count and the ranking key, in the plain foreground."""
+    name = _base_title(title)
+    return Text.assemble((f"{symbol} {name}" if symbol else name, BOLD), title[len(name):])
+
+
+def header(report: dict, findings: list = (), full: bool = False, width=None) -> Text:
     """The header: a title line (the repository, its branch and commit) and header_rows as a label grid, the
     labels padded to the longest and a value that does not fit wrapped with a hanging indent. The finding
     tally is the Findings title's (tally_title). `findings` is not read; it stays for the callers that pass it."""
     s = summary(report)
-    inner = width - PANEL_EDGES if width else None
     rows = header_rows(report, full)
     branch = f"branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else "")
-    title = f"[bold]{escape(s['name'])}[/bold]{SEP}{escape(branch)}"
-    if inner is not None and len(s["name"]) + len(SEP) + len(branch) > inner - 2:   # a title the border would cut: the branch is a row
-        title = f"[bold]{escape(s['name'])}[/bold]"
+    title = Text.assemble((s["name"], BOLD), f"{SEP}{branch}")
+    if width is not None and len(title.plain) > width:   # a title longer than the line: the branch is a row
+        title = Text(s["name"], style=BOLD)
         rows.insert(0, ("branch", [(branch[len("branch "):], "")]))
     pad = max(len(label) for label, _ in rows) + LABEL_GAP
-    body = Text()
-    for n, (label, facts) in enumerate(rows):
-        lines = wrapped(SEP.join(text for text, _ in facts), inner - pad if inner is not None else None)
-        for i, line in enumerate(lines):
+    grid = []
+    for label, facts in rows:
+        pieces = []
+        for line in wrapped(SEP.join(text for text, _ in facts), width - INDENT - pad if width is not None else None):
             piece = Text(line)
             for text, style in facts:
                 if style:
                     piece.highlight_words([text], style)
-            body.append(f"{label if i == 0 else '':<{pad}}", style="dim")
-            body.append_text(piece)
-            body.append("\n" if n < len(rows) - 1 or i < len(lines) - 1 else "")
-    return Panel(body, title=title, title_align="left", border_style="blue")
+            pieces.append(piece)
+        grid.append((label, pieces))
+    return _lines([title] + _grid_lines(grid, pad))
 
 
 UNMEASURED_GLOSSES = ("by rules not measured for precision yet", "not measured for precision yet", "not measured yet")
-PANEL_TITLE_EDGES = 6   # what a panel's border takes beside its title: a corner, a dash and a space either side
 
 
 def tally_title(findings: list, gloss: bool = False, width: int = None) -> str:
     """'Findings · 4 warnings ▲ · 10 notes ● · 5 by rules not measured for precision yet': the tally where the
     findings are, each word beside the mark the entries below carry, so the marks can be counted against it.
     'Findings' alone when there are none. With `gloss`, the last part counts the findings that carry
-    brief.UNMEASURED_TAG after their title and says once what the tag means; in a title the border of an
-    80-column box would cut, it says so in fewer words (UNMEASURED_GLOSSES, the first that fits `width`)."""
+    brief.UNMEASURED_TAG after their title and says once what the tag means; in a title longer than `width`
+    it says so in fewer words (UNMEASURED_GLOSSES, the first that fits). prometheus's title fits 80 columns
+    whole now that no border takes six of them."""
     counts = {sev: sum(1 for f in findings if f["severity"] == sev) for sev in SEVERITY_MARK}
     words = {"critical": lambda n: f"{n:,} critical", "warning": lambda n: textfmt.count(n, "warning"), "info": lambda n: textfmt.count(n, "note")}
     parts = [f"{words[sev](n)} {SEVERITY_MARK[sev]}" for sev, n in counts.items() if n]
@@ -2144,7 +2270,7 @@ def tally_title(findings: list, gloss: bool = False, width: int = None) -> str:
     unmeasured = sum(1 for f in findings if f.get("unjudged")) if gloss else 0
     if not unmeasured:
         return title
-    fits = [g for g in UNMEASURED_GLOSSES if width is None or len(title) + len(SEP) + len(f"{unmeasured:,} {g}") <= width - PANEL_TITLE_EDGES]
+    fits = [g for g in UNMEASURED_GLOSSES if width is None or len(title) + len(SEP) + len(f"{unmeasured:,} {g}") <= width]
     return f"{title}{SEP}{unmeasured:,} {fits[0] if fits else UNMEASURED_GLOSSES[-1]}"
 
 
@@ -2154,96 +2280,92 @@ def _unmeasured(g: dict) -> bool:
 
 
 def _titled(g: dict, style: str) -> Text:
-    """An entry's title, in its severity's colour, and the dim tag after it when its rule is not measured yet:
-    the colour ends with the title."""
-    body = Text(g["title"], style=style)
-    if _unmeasured(g):
-        body.append(f" {brief.UNMEASURED_TAG}", style="dim")
-    return body
+    """An entry's mark and title, in its severity's colour (a note's in none), and the dim tag after the title
+    when its rule is not measured yet: the colour ends with the title."""
+    return Text.assemble((f"{SEVERITY_MARK[g['severity']]} {g['title']}", style), (f" {brief.UNMEASURED_TAG}", DIM) if _unmeasured(g) else "")
 
 
-def _short_entry(g: dict, report: dict, width: int, printed: dict, style: str, found: list = None) -> Text:
-    """One entry of the default report's Findings: the title, then each finding's short form (brief.short):
-    the statement, its subject lines indented two, and the step under ↳ with its continuation indented two.
-    The lines come wrapped, so a path or a version is never split. An entry holding several findings of one
-    title shows brief.SUBJECT_LINES of them and counts the rest.
+def _step(lines: list) -> list:
+    """A step's lines as printed: led by its mark, the lines it wraps to two further in."""
+    return [f"{STEP_MARK} {lines[0]}"] + [f"  {line}" for line in lines[1:]] if lines else []
 
-    A note from a rule not measured yet takes the compact shape instead: title, tag, ': ' and the statement
-    in the default foreground, brief.COMPACT_LINES lines at most and no step (brief.compact). prometheus's
-    report folded five such findings, one of them a warning, into a closing line, so its title counted a
-    warning no ▲ stood for; now every finding owns one mark. A warning from such a rule is an entry like any
-    other, with the tag after its title."""
+
+def _short_entry(g: dict, report: dict, width: int, printed: dict, style: str, found: list = None) -> list:
+    """One entry of the default report's Findings as its lines, the mark and title first: then each finding's short
+    form (brief.short), the statement, its subject lines indented two, and the step under its mark with its
+    continuation indented two. The lines come wrapped, so a path or a version is never split. An entry
+    holding several findings of one title shows brief.SUBJECT_LINES of them and counts the rest.
+
+    A note from a rule not measured yet takes the compact shape instead: title, tag, ': ' and the statement,
+    brief.COMPACT_LINES lines at most and no step (brief.compact). prometheus's report folded five such
+    findings, one of them a warning, into a closing line, so its title counted a warning no ▲ stood for; now
+    every finding owns one mark. A warning from such a rule is an entry like any other, with the tag after
+    its title. Only the title carries the severity's colour: the statement, the subjects and the step are in
+    the terminal's own foreground, where prometheus's were dim yellow and dim italic yellow."""
     body = _titled(g, style)
     if _unmeasured(g) and g["severity"] == "info" and len(g["findings"]) == 1:
         lead = len(g["title"]) + 1 + len(brief.UNMEASURED_TAG) + 2
         lines = brief.compact(g["findings"][0], report, width, lead, printed, found)
         body.append(":" + (f" {lines[0]}" if lines[0] else ""))
-        for line in lines[1:]:
-            body.append(f"\n{line}")
-        return body
+        return [body] + lines[1:]
     shorts = [brief.short(f, report, width, printed, found) for f in g["findings"]]
-    steps = []
+    out, steps = [body], []
     for s in shorts[:brief.SUBJECT_LINES]:
-        for line in s["statement"]:
-            body.append(f"\n{line}", style="dim" if len(shorts) == 1 else "")
-        for line in s["subjects"]:
-            body.append(f"\n  {line}", style="dim" if len(shorts) == 1 else "")
+        out += s["statement"] + [f"  {line}" for line in s["subjects"]]
         if s["step"] and s["step"] not in steps:
             steps.append(s["step"])
     if len(shorts) > brief.SUBJECT_LINES:
-        body.append(f"\nand {len(shorts) - brief.SUBJECT_LINES:,} more")
+        out.append(f"and {len(shorts) - brief.SUBJECT_LINES:,} more")
     for step in steps:
-        body.append("\n↳ " + "\n  ".join(step), style="dim italic")
-    return body
+        out += _step(step)
+    return out
+
+
+def _long_entry(g: dict, width: int, style: str) -> list:
+    """One entry of --full's Findings as its lines: the title, every statement whole and every step, wrapped at
+    spaces only, so a path, a package or a version is never broken (the box put the last letter of prometheus's
+    web/ui/mantine-ui/src/pages/service-discovery/ServiceDiscoveryPoolsList.tsx on the next line). One longer
+    than the line has a line to itself."""
+    out = [_titled(g, style)]
+    for item in g["items"]:
+        out += brief.wrap(item, width)
+    for advice in g["advice"]:
+        out += _step(brief.wrap(advice, width - 2))
+    return out
 
 
 PROSE_WIDTH = 100   # a finding's lines are no longer than this on a terminal wider than it
+ENTRY_INDENT = 2    # a finding's mark and the space after it: what its title, statement and step start behind
 
 
-def findings_panel(findings: list, report: dict = None, full: bool = True, width: int = None, printed: dict = None) -> Panel:
-    """The Findings box. `full` False is the default report: each finding in its short form (brief.py), for
-    which `width` is the terminal's and `printed` the report's sections by id, so a "(see Section)" pointer
-    names only a table that is there. `full` True spells every finding out, as the Markdown export does.
-    Either way every finding is an entry with its own mark, and one from a rule not measured yet has the tag
-    after its title, which the box's title glosses (tally_title)."""
+def findings_block(findings: list, report: dict = None, full: bool = True, width: int = None, printed: dict = None) -> Text:
+    """The Findings: a title line with the tally, then an entry a finding, its mark at column 1, its title on
+    the mark's line and its statement at column 3. `full` False is the default report: each finding in its
+    short form (brief.py), for which `width` is the terminal's and `printed` the report's sections by id, so
+    a "(see Section)" pointer names only a table that is there. `full` True spells every finding out, as the
+    Markdown export does. Either way every finding is an entry with its own mark, and one from a rule not
+    measured yet has the tag after its title, which the title line glosses (tally_title). It was a box: its
+    two borders took four columns from every line, so prometheus's Bug magnets named six of its seven files
+    and counted the seventh."""
     absent = not_computed_line(report) if report else None
+    inner = min((width or PROSE_WIDTH + ENTRY_INDENT) - ENTRY_INDENT, PROSE_WIDTH)   # less the mark and its gap
     if not findings and not absent:   # a scan that came back clean is a row of the Supply chain section, not a line here
-        return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
-    grid = Table.grid(padding=(0, 1))
-    grid.add_column(no_wrap=True)
-    grid.add_column(overflow="fold")
-    inner = min((width or PROSE_WIDTH + PANEL_EDGES + 2) - PANEL_EDGES - 2, PROSE_WIDTH)   # less the box, the mark and its gap
+        return _lines([_title("Findings"), " " * ENTRY_INDENT + NOTHING_FLAGGED])
+    lines = _wrap_styled(_title(tally_title(findings, gloss=True, width=width)), width, ENTRY_INDENT)
     for g in textfmt.group_findings(findings):
         style = SEVERITY_STYLE[g["severity"]]
-        if not full:
-            grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), _short_entry(g, report or {}, inner, printed, style, findings))
-            continue
-        body = _titled(g, style)
-        for item in g["items"]:
-            body.append(f"\n{item}", style="dim" if len(g["items"]) == 1 else "")
-        for advice in g["advice"]:
-            body.append(f"\n↳ {advice}", style="dim italic")
-        grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
+        entry = _long_entry(g, inner, style) if full else _short_entry(g, report or {}, inner, printed, style, findings)
+        lines += _wrap_styled(entry[0], inner + ENTRY_INDENT, ENTRY_INDENT)   # the mark at column 1; a title longer than the line wraps to column 3
+        lines += [Text.assemble(" " * ENTRY_INDENT, line) for line in entry[1:]]
     if absent and not findings:
-        grid.add_row(Text(""), Text("Nothing flagged.", style="green"))
+        lines.append(" " * ENTRY_INDENT + NOTHING_FLAGGED)
     if absent:   # last: what was found, then what was never measured, so its silence is not a pass
-        grid.add_row(Text("·", style="dim"), Text(absent, style="dim"))
-    return Panel(grid, title=tally_title(findings, gloss=True, width=width), title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]] if findings else "green")
+        said = brief.wrap(absent, inner)
+        lines += [Text(f"· {said[0]}", style=DIM)] + [Text(" " * ENTRY_INDENT + line, style=DIM) for line in said[1:]]
+    return _lines(lines)
 
 
-def cell_style(column: str, value: str):
-    """A style for values that crossed a threshold, or None."""
-    try:
-        if column == "share":
-            n = int(value.rstrip("%"))
-            return HOT if n >= 50 else (WARM if n >= 20 else None)
-        if column == "together" and int(value.rstrip("%")) >= 90:   # the coupling table's share, the JSON's `degree`
-            return HOT
-        if column == "fixes" and int(value.replace(",", "")) >= 5:
-            return HOT
-    except ValueError:
-        pass
-    return None
+NOTHING_FLAGGED = "Nothing flagged."
 
 
 def _base_title(title: str) -> str:
@@ -2252,32 +2374,23 @@ def _base_title(title: str) -> str:
     return title.split(" · ")[0].split(" (")[0]
 
 
-def _cell(column: str, value: str, bars: bool) -> Text:
-    style = cell_style(column, value) or ""
+def _cell(column: str, value: str, bars: bool) -> str:
+    """A cell as printed: itself, or a share with its bar after it in a table that draws them."""
     if bars and column == "share" and value.endswith("%"):
         n = int(value[:-1])
-        return Text(f"{value:>4} ", style=style) + Text("▰" * max(1, n // 10) if n else "", style=BAR)
-    return Text(value, style=style)
+        return (f"{value:>4} " + BAR_MARK * (max(1, n // 10) if n else 0)).rstrip()
+    return value
 
 
-# fit(): how far a column may give way before anything else does. A path keeps its file name whole (the directories
-# go first, textfmt.shorten_path), a name or label keeps NAME_KEEP characters, prose wraps at words down to
-# PROSE_FLOOR; only then are names and file names cut in the middle, never below CUT_FLOOR.
-# Columns are left out only when even less does not fit: a file name cut at PATH_LEAST, a name at NAME_LEAST, prose
-# folded at PROSE_FLOOR; a column marked "spare" goes first, then the rightmost.
-# Prose keeps PROSE_KEEP characters before a path loses a directory, so a long path does not squeeze the reasons
-# beside it into a column of single words.
-# A "tail" column is the last text cell of a row (the watch list's "look at first"): it is cut at its end with an
-# ellipsis, and only once every path has given up its directories, so a table's overflow has one order: a path loses
-# middle directories, then the last text cell is cut, and a number never is.
-NAME_KEEP, PROSE_KEEP, PROSE_FLOOR, CUT_FLOOR, PATH_LEAST, NAME_LEAST = 32, 40, 20, 12, 24, 16
-GAP = 2         # between two columns: one of padding after a cell and the SIMPLE_HEAD box's divider
-LOOSE_GAP = 3   # the drawing before the grid, padding either side: the Change risk section's, whose stored copy
-                # (tests/golden/strings.txt) the watch list's change leaves byte for byte
-
-
-def _gap(sec: dict) -> int:
-    return LOOSE_GAP if sec.get("loose") else GAP
+# fit(): how far a column may give way, in the one order every table follows. A path loses its middle directories
+# first and keeps its file name whole (textfmt.shorten_path), and a name keeps NAME_KEEP characters; then the
+# last text cell of the row (a "tail", or prose) is cut at its end with an ellipsis, down to CUT_FLOOR (prose
+# to PROSE_FLOOR); only then are names and file names cut in the middle, never below CUT_FLOOR. A number and a
+# column head are never cut, and no cell and no head is ever wrapped onto a second line.
+# Columns are left out only when even that does not fit: a file name cut at PATH_LEAST, a name at NAME_LEAST;
+# a column marked "spare" goes first, then the rightmost.
+NAME_KEEP, PROSE_FLOOR, CUT_FLOOR, PATH_LEAST, NAME_LEAST = 32, 20, 12, 24, 16
+GAP = 2         # between two columns
 
 
 def _bars(sec: dict) -> bool:
@@ -2287,8 +2400,8 @@ def _bars(sec: dict) -> bool:
 
 
 def _kind(name: str, opts: dict) -> str:
-    """How a column may give way: "path" (directories elided), "name" (cut in the middle), "prose" (wraps at
-    words) or "fixed" (a number, a bar: never cut)."""
+    """How a column may give way: "path" (directories elided), "name" (cut in the middle), "tail" and "prose"
+    (cut at the end) or "fixed" (a number, a bar: never cut)."""
     if opts.get("kind"):
         return opts["kind"]
     if opts.get("justify") == "right" or name == "":
@@ -2332,13 +2445,22 @@ def _shortest(text: str) -> str:
 
 
 def _fit_cell(kind: str, text: str, width: int, others=()) -> str:
-    if len(text) <= width:
+    """A cell in at most `width` cells of the terminal, cut as its kind is cut. The cuts count characters, so
+    a cell of characters two cells wide is cut again until it fits."""
+    from rich.cells import cell_len
+    if cell_len(text) <= width:
         return text
-    if kind == "path":
-        return _cut_braced(text, width) if _braced(text) else textfmt.cut_path(text, width, others)
-    if kind == "tail":
-        return textfmt.cut(text, width)
-    return textfmt.cut_middle(text, width)
+
+    def cut(to):
+        if kind == "path":
+            return _cut_braced(text, to) if _braced(text) else textfmt.cut_path(text, to, others)
+        return textfmt.cut(text, to) if kind in ("tail", "prose") else textfmt.cut_middle(text, to)
+    to = width
+    out = cut(to)
+    while cell_len(out) > width and to > 1:
+        to -= 1
+        out = cut(to)
+    return out
 
 
 def _base(cell: str) -> str:
@@ -2360,12 +2482,12 @@ def _namesakes(sec: dict, i: int) -> list:
 
 
 def fit(sec: dict, width) -> dict:
-    """The section with its columns sized to `width` from their content, so that no cell is split across
-    lines: a name, an identifier, a path or a number stays on one line. When the columns do not fit, the
-    table gives way in this order: prose columns wrap at words, a header of several words wraps at its
-    spaces, paths lose directories and long names their middle (widest column first), and last the
-    rightmost columns are left out, which the caption says. Rows and captions are otherwise unchanged; a
-    table that fits is returned as it came. `width` None (Markdown) fits nothing."""
+    """The section with its columns sized to `width` from their content, every row on one line: a cell is
+    never wrapped, and neither is a column head. When the columns do not fit, the table gives way in one
+    order: paths lose directories and long names their middle (widest column first), then the row's last text
+    cell is cut at its end, and last the rightmost columns are left out, which the caption says. A number and
+    a head are never cut. Rows and captions are otherwise unchanged; a table that fits is returned as it
+    came. `width` None (Markdown) fits nothing."""
     from rich.cells import cell_len
     if width is None or not sec["rows"]:
         return sec
@@ -2373,19 +2495,15 @@ def fit(sec: dict, width) -> dict:
     bars = _bars(sec)
     kinds = [_kind(c, o) for c, o in zip(cols, opts)]
     rows = sec["rows"]
-    cells = [max(_cell(c, r[i], bars).cell_len for r in rows) for i, c in enumerate(cols)]
+    cells = [max(cell_len(_cell(c, r[i], bars)) for r in rows) for i, c in enumerate(cols)]
     heads = [cell_len(c) for c in cols]
-    head_word = [max((cell_len(w) for w in c.split()), default=0) for c in cols]
     want = [max(a, b) for a, b in zip(cells, heads)]
 
     def room(keep):
-        return width - INDENT - _gap(sec) * (len(keep) - 1)
+        return width - INDENT - GAP * (len(keep) - 1)
     keep = list(range(len(cols)))
     if sum(want) <= room(keep):
         return sec
-
-    def longest_word(i):
-        return max(cell_len(w) for r in rows for w in (r[i].split() or [""]))
 
     # the paths a cut path must not read as; they change what a cell shows within its width, never the widths,
     # so keeping two files apart costs no column its room and no row a line
@@ -2393,18 +2511,18 @@ def fit(sec: dict, width) -> dict:
 
     def name_floor(i):   # what a column keeps before anything is cut: whole file names, NAME_KEEP of a name
         if kinds[i] == "path":
-            return min(want[i], max(head_word[i], max(cell_len(_shortest(r[i])) for r in rows)))
-        return min(want[i], max(head_word[i], NAME_KEEP))
+            return min(want[i], max(heads[i], max(cell_len(_shortest(r[i])) for r in rows)))
+        return min(want[i], max(heads[i], NAME_KEEP))
 
-    # the least each column can take: a number whole, a name or path cut to CUT_FLOOR, prose folded at PROSE_FLOOR
-    least = [min(want[i], max(head_word[i], PROSE_FLOOR if k == "prose" else CUT_FLOOR)) if k != "fixed" else max(cells[i], head_word[i])
+    # the least each column can take: a number and a head whole, a name or path cut to CUT_FLOOR, prose to PROSE_FLOOR
+    least = [min(want[i], max(heads[i], PROSE_FLOOR if k == "prose" else CUT_FLOOR)) if k != "fixed" else want[i]
              for i, k in enumerate(kinds)]
-    tails = [i for i, k in enumerate(kinds) if k == "tail"]
+    ends = [i for i, k in enumerate(kinds) if k in ("tail", "prose")]
 
     def needs(i):   # what a column must have to stay in the table
         if kinds[i] == "path":
-            return min(name_floor(i), max(head_word[i], PATH_LEAST))
-        return min(want[i], max(head_word[i], NAME_LEAST)) if kinds[i] == "name" else least[i]
+            return min(name_floor(i), max(heads[i], PATH_LEAST))
+        return min(want[i], max(heads[i], NAME_LEAST)) if kinds[i] == "name" else least[i]
     dropped = []
     while len(keep) > 1 and sum(needs(i) for i in keep) > room(keep):
         spare = [i for i in keep[1:] if opts[i].get("spare")]
@@ -2412,39 +2530,24 @@ def fit(sec: dict, width) -> dict:
         keep.remove(gone)
         dropped.append(gone)
     dropped = [cols[i] for i in sorted(dropped)]
-    floor = []   # what each column keeps before anything is cut: prose wraps at words, file names and NAME_KEEP of a name stay whole
-    for i, k in enumerate(kinds):
-        if k == "prose":
-            floor.append(min(want[i], max(PROSE_FLOOR, longest_word(i), head_word[i])))
-        elif k in ("path", "name"):
-            floor.append(name_floor(i))
-        elif k == "tail":
-            floor.append(want[i])   # whole until the paths have given what they can
-        else:
-            floor.append(least[i])
+    # what each column keeps before anything is cut: file names and NAME_KEEP of a name; a tail is whole until the paths have given what they can
+    floor = [name_floor(i) if k in ("path", "name") else want[i] if k in ("tail", "prose") else least[i] for i, k in enumerate(kinds)]
     widths = {i: want[i] for i in keep}
 
     def excess():
         return sum(widths.values()) - room(keep)
-    for i in keep:   # prose first, down to PROSE_KEEP; then headers; then the columns that are cut; then prose again
-        if kinds[i] == "prose" and excess() > 0:
-            widths[i] = max(floor[i], min(want[i], PROSE_KEEP), widths[i] - excess())
-    for i in sorted(keep, key=lambda i: cells[i] - heads[i]):   # a header wider than its cells wraps at its spaces
-        if kinds[i] != "prose" and heads[i] > cells[i] and excess() > 0:
-            widths[i] = max(cells[i], head_word[i], widths[i] - excess())
-            floor[i] = min(floor[i], widths[i])
     # a column of directories (the knowledge map's areas) is cut below its names only after every other column
     # has given what it can: an area is the row's subject, an owner's name is its detail
     dirs = {i for i in keep if kinds[i] == "path" and any(r[i].endswith("/") for r in rows)
             and all(r[i].endswith("/") or "/" not in r[i] for r in rows)}   # "(root files)" sits among them
-    for floors, give, among in ((floor, ("path", "name"), keep), (floor, ("prose",), keep), (least, ("tail",), [i for i in keep if i in tails]),
-                                (least, ("path", "name", "prose"), [i for i in keep if i not in dirs]), (least, ("path",), dirs)):
+    for floors, give, among in ((floor, ("path", "name"), keep), (least, ("tail", "prose"), [i for i in keep if i in ends]),
+                                (least, ("path", "name"), [i for i in keep if i not in dirs]), (least, ("path",), dirs)):
         while excess() > 0:
             cand = [i for i in among if kinds[i] in give and widths[i] > floors[i]]
             if not cand:
                 break
             widths[max(cand, key=lambda i: widths[i])] -= 1
-    fitted = [tuple(_fit_cell(kinds[i], r[i], widths[i], namesakes[i][n] if i in namesakes else ()) if kinds[i] in ("path", "name", "tail") else r[i] for i in keep)
+    fitted = [tuple(_fit_cell(kinds[i], r[i], widths[i], namesakes[i][n] if i in namesakes else ()) if kinds[i] != "fixed" else r[i] for i in keep)
               for n, r in enumerate(rows)]
     col_opts = [dict(opts[i], width=widths[i]) for i in keep]
     caption = sec.get("caption")
@@ -2454,61 +2557,37 @@ def fit(sec: dict, width) -> dict:
     return dict(sec, columns=[cols[i] for i in keep], col_opts=col_opts, rows=fitted, caption=caption)
 
 
-def rich_table(sec: dict):
-    """A table for a section: no title (the caller prints the heading) and no caption (section_block prints it
-    under the table, so a table is as wide as its columns and never as wide as its caption), coloured headers,
-    bold key column, dimmed secondary columns, zebra rows, threshold colours. A `loose` section keeps the
-    drawing from before the grid: wider gaps and the caption inside the table."""
-    key = KEY_METRIC.get(_base_title(sec["title"]))
-    kw = {}
-    if sec.get("loose"):
-        if sec.get("caption"):
-            kw = {"caption": escape(sec["caption"]), "caption_justify": "left", "caption_style": CAPTION_STYLE}   # a name like renovate[bot] is not markup
-        kw["min_width"] = max((len(line) for line in (sec.get("caption") or "").split("\n")), default=0)
-    else:
-        kw["padding"] = (0, 1, 0, 0)   # with the box's divider, GAP between two columns
+def table_lines(sec: dict) -> dict:
+    """A section's table as lines, {"head": line, "rule": line, "rows": [line]}, each two columns in: the
+    column heads, dim and lying as their cells do (text left, numbers right); a dim rule exactly as wide as
+    the columns, so its right edge is the last column's; and a row a line, its first cell bold and the rest
+    in the terminal's own foreground. Two spaces between columns. No colour marks a value, no row has a
+    background and nothing is padded on the right: prometheus's tables had a near-black stripe on every other
+    row, pink on a share over a fifth and a caption that stretched the table to the width of its sentence."""
+    from rich.cells import cell_len
     bars = _bars(sec)
-    t = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, header_style=HEADER,
-              row_styles=ROW_STYLES, border_style="#3a4150", **kw)
-    for i, (name, opts) in enumerate(zip(sec["columns"], sec["col_opts"])):
-        o = {k: v for k, v in opts.items() if k not in ("kind", "spare")}   # fit()'s, not rich's
-        o.setdefault("style", "bold" if i == 0 else ("" if name in (key, "share", "") else "dim"))
-        if bars and name == "share":
-            o["justify"] = "left"   # the percentage is padded to four characters, so the bars line up
-        t.add_column(name, **o)
-    for row in sec["rows"]:
-        t.add_row(*[_cell(col, cell, bars) for col, cell in zip(sec["columns"], row)])
-    return t
+    cols = sec["columns"]
+    left = [not (o.get("justify") == "right") or (bars and c == "share") for c, o in zip(cols, sec["col_opts"])]   # a share with its bar starts where the bars do
+    cells = [[_cell(c, v, bars) for c, v in zip(cols, row)] for row in sec["rows"]]
+    widths = [max([cell_len(c)] + [cell_len(r[i]) for r in cells]) for i, c in enumerate(cols)]
+    shown = [i for i, w in enumerate(widths) if w]   # a column with no head and no cell (a bar column of zeroes) is not there
+
+    def line(values, first=None) -> Text:
+        out = Text(" " * INDENT)
+        for n, i in enumerate(shown):
+            pad = " " * max(widths[i] - cell_len(values[i]), 0)
+            out.append((" " * GAP if n else "") + ("" if left[i] else pad))
+            out.append(values[i], style=first if n == 0 else None)   # the first cell's style stops with the cell, before its padding
+            out.append(pad if left[i] else "")
+        out.rstrip()
+        return out
+    head = line(cols)
+    head.stylize(DIM, INDENT)
+    rule = Text(" " * INDENT).append(RULE_MARK * (sum(widths[i] for i in shown) + GAP * (len(shown) - 1)), style=DIM)
+    return {"head": head, "rule": rule, "rows": [line(r, BOLD) for r in cells]}
 
 
-CAPTION_STYLE = "dim italic"
 UNDER_INDENT = 2   # a row's line of detail, in from the row's first cell
-
-
-class _Under:
-    """A table with one line of text under each of its rows (the watch list's remaining reasons in --full),
-    indented and wrapped at its separators. The table is drawn first and its lines are passed through with the
-    detail put after each row's, which a row that is one line makes exact: the rows come after the rule under
-    the column heads, and fit() lets no cell of these tables wrap."""
-
-    def __init__(self, table, under: list):
-        self.table, self.under = table, under
-
-    def __rich_measure__(self, console, options):
-        from rich.measure import Measurement
-        return Measurement.get(console, options, self.table)
-
-    def __rich_console__(self, console, options):
-        from rich.segment import Segment
-        lines = console.render_lines(self.table, options, pad=False)
-        rule = next((i for i, line in enumerate(lines) if (text := "".join(seg.text for seg in line).strip()) and set(text) <= set("─ ")), -1)
-        for i, line in enumerate(lines):
-            yield from line
-            yield Segment.line()
-            n = i - rule - 1
-            if rule >= 0 and 0 <= n < len(self.under) and self.under[n]:
-                for part in brief.wrap(self.under[n], max(options.max_width - UNDER_INDENT, 20)):
-                    yield from console.render(Text(" " * UNDER_INDENT + part, style="dim"), options)
 
 
 def caption_lines(sec: dict, width=None) -> list:
@@ -2521,70 +2600,100 @@ def caption_lines(sec: dict, width=None) -> list:
     return [line for par in paragraphs for line in wrapped(par, width - INDENT)]
 
 
+def _captions(sec: dict, width=None) -> list:
+    """A section's caption as printed: dim, two columns in."""
+    return [Text.assemble(" " * INDENT, (line, DIM)) for line in caption_lines(sec, width)]
+
+
 def heading(sec: dict) -> Text:
-    symbol = SYMBOLS.get(_base_title(sec["title"]), "•")
-    return Text(f"{symbol} ", style=ACCENT) + Text(sec["title"], style=f"bold {ACCENT}")
+    """A section's title line, behind its pictogram."""
+    return _title(sec["title"], SYMBOLS.get(_base_title(sec["title"]), SECTION_MARK))
 
 
-def section_block(sec: dict, width=None):
-    """Heading plus table plus caption, or heading plus a dim note for an empty section. With a `width`, the
-    table is fitted to it first (fit) and the caption wrapped to it."""
+def _note_lines(sec: dict, width=None) -> list:
+    """A section with no rows: its title, a colon and its note, dim, wrapped under two columns of indent."""
+    return _wrap_styled(heading(sec).append(f": {sec['note']}", style=DIM), width, INDENT)
+
+
+def section_lines(sec: dict, width=None) -> list:
+    """A section as its lines: the title, then the column heads, the rule and a row a line, with a row's
+    `under` text wrapped beneath it, then the caption, dim; a section with no rows is its title and note; a
+    `grid` section (Since last report) is a label grid, its first column the labels. With a `width`, the
+    table is fitted to it first (fit) and the prose wrapped to it."""
     if not sec["rows"] and sec["note"]:
-        return heading(sec) + Text(f": {sec['note']}", style="dim")
+        return _note_lines(sec, width)
+    if sec.get("grid") and len(sec["columns"]) == 2:
+        pad = max(len(r[0]) for r in sec["rows"]) + LABEL_GAP
+        rows = [(r[0], [Text(line) for line in wrapped(r[1], width - INDENT - pad if width is not None else None)]) for r in sec["rows"]]
+        return _wrap_styled(heading(sec), width, INDENT) + _grid_lines(rows, pad) + _captions(sec, width)
     fitted = fit(sec, width)
-    table = rich_table(fitted)
-    if fitted.get("loose"):
-        return Group(heading(sec), Padding(table, (0, 0, 0, INDENT)))
-    if fitted.get("under") and any(fitted["under"]):
-        table = _Under(table, fitted["under"])
-    parts = [heading(sec), Padding(table, (0, 0, 0, INDENT))]
-    lines = caption_lines(fitted, width)
-    if lines:
-        parts.append(Padding(Text("\n".join(lines), style=CAPTION_STYLE), (0, 0, 0, INDENT)))
-    return Group(*parts)
+    table = table_lines(fitted)
+    out = _wrap_styled(heading(sec), width, INDENT) + [table["head"], table["rule"]]
+    under = fitted.get("under") or []
+    for n, row in enumerate(table["rows"]):
+        out.append(row)
+        if n < len(under) and under[n]:
+            deep = INDENT + UNDER_INDENT
+            out += [" " * deep + part for part in ([under[n]] if width is None else brief.wrap(under[n], max(width - deep, 20)))]
+    return out + _captions(fitted, width)
+
+
+def section_block(sec: dict, width=None) -> Text:
+    """A section ready to print (section_lines)."""
+    return _lines(section_lines(sec, width))
 
 
 def print_section(console: Console, sec: dict) -> None:
-    """Blank line, then the section's heading and table (or note), fitted to the console's width."""
+    """Blank line, then the section's title and table (or note), fitted to the console's width."""
+    carry(console)
     console.print(Text(""))
-    console.print(section_block(sec, console.width))
+    show(console, section_block(sec, console.width))
+
+
+def _dim(console: Console, line: str) -> None:
+    """One of the report's closing lines: dim, and left whole whatever its length (a path must paste)."""
+    show(console, Text(line, style=DIM))
 
 
 def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> None:
-    console.print(header(report, findings, full=full, width=console.width))
+    carry(console)
+    show(console, header(report, findings, full=full, width=console.width))
     secs = [s for s in sections(report, full=full, width=console.width) if not _said_by_finding(s, findings)]
     by_id = {s["id"]: s for s in secs}
-    console.print(findings_panel(findings, report, full=full, width=console.width, printed=by_id))   # a short finding may point at its table below
+    console.print(Text(""))
+    show(console, findings_block(findings, report, full=full, width=console.width, printed=by_id))   # a short finding may point at its table below
     if compare is not None:
         print_section(console, compare_section(compare))
     # One section under another at every width: small tables used to sit side by side from 100 columns, which
     # changed the order of the lines with the terminal and put two tables on every copied line. A wider terminal
-    # un-wraps cells and un-elides paths, and changes nothing else.
+    # un-elides paths and re-wraps prose, and changes nothing else.
     for sec in secs:
         print_section(console, sec)
         if risk is not None and sec["id"] == "watch":
             print_section(console, risk_section(risk, base, full))   # the change, right under the list it is scored against
     console.print(Text(""))
-    console.print(supply_chain_block(report, findings, full=full, width=console.width))
+    show(console, supply_chain_block(report, findings, full=full, width=console.width))
     steps = steps_line(report)
     console.print(Text(""))
     if full:
         if steps:
-            console.print(Text(steps, style="dim"), soft_wrap=True)
+            _dim(console, steps)
         if (line := run_line(report)):
-            console.print(Text(line, style="dim"), soft_wrap=True)
-        console.print(Text(results_line(report), style="dim"), soft_wrap=True)
+            _dim(console, line)
+        _dim(console, results_line(report))
         return
     for line in closing_lines(report, console.width):
-        console.print(Text(line, style="dim"), soft_wrap=True)
-    console.print(Text(report.get("out_dir") or "", style="dim"), soft_wrap=True)   # the results path, alone on the last line
+        _dim(console, line)
+    _dim(console, report.get("out_dir") or "")   # the results path, alone on the last line
 
 
 def excerpt(report: dict, findings: list, console: Console, full: bool = False) -> None:
     """The report's opening on its own: the header, the Findings title, whose tally counts the findings, and
     the watch list. What the README's text block shows; the findings themselves are in the full report."""
-    console.print(header(report, findings, width=console.width))
-    console.print(Text(tally_title(list(findings)), style="bold"))
+    carry(console)
+    show(console, header(report, findings, width=console.width))
+    console.print(Text(""))
+    show(console, _title(tally_title(list(findings))))
     print_section(console, next(sec for sec in sections(report, full=full, width=console.width) if sec["id"] == "watch"))
 
 
@@ -2731,8 +2840,8 @@ def portfolio_section(reports: list) -> dict:
         worst = f"{textfmt.severity_word(found[0]['severity'])}: {found[0]['title']}" if found else "-"
         rows.append((name, s["commits"], s["identities"], bus, len(leaks.group(rep.get("secrets") or [])), f"{s['lines']:,}", worst))
     return _section(f"Portfolio ({len(reports)} repositories)",
-                    [("repo", {"overflow": "fold"}), ("commits", RIGHT), ("people", RIGHT), ("top author", RIGHT),
-                     ("secrets", RIGHT), ("lines", RIGHT), ("worst finding", {"overflow": "fold", "ratio": 2})], rows,
+                    [("repo", {}), ("commits", RIGHT), ("people", RIGHT), ("top author", RIGHT),
+                     ("secrets", RIGHT), ("lines", RIGHT), ("worst finding", TAIL)], rows,
                     note=None if rows else "no repositories")
 
 

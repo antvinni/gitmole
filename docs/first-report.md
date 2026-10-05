@@ -3,15 +3,16 @@
 What each part of `gitmole .` means, in plain words, and what to do first. [output.md](output.md) is the
 full reference; back to [the README](https://github.com/antvinni/gitmole#readme).
 
-**Header box.** The repository at a glance, with the branch and commit analysed in its title and one labelled
+**Header.** The repository at a glance, with the branch and commit analysed on its title line and one labelled
 row per subject: `history` (commits, date span, people), `files` (how many are tracked, how many hold code and how
 many are *scored*, the source files every ranking below is over), `code` (lines, languages, how old the surviving
 code is), `commits` (how many are fixes or reverts), `left out` (commits that sweep the whole tree, which no count
 below includes). A step that failed or timed out gets a `steps` row. The findings are counted by
-severity in the title of the Findings box under it. When people commit (the busiest weekday and hour) is in
+severity on the title line of the Findings under it. When people commit (the busiest weekday and hour) is in
 `--full`'s Activity table.
 
-**Findings.** What the rules flagged, worst first. `✖` is critical, `▲` a warning, `●` a note. Each
+**Findings.** What the rules flagged, worst first. `✖` is critical, `▲` a warning, `●` a note: the mark is the
+first character of a finding's first line, so the marks can be counted against the title. Each
 finding states the facts, and the line starting `↳` names the file, area or person to start with.
 The facts are the short form: how many, against which thresholds, and the worst one, with `(see Complex
 functions)` where a table below lists the rest. `--full` names every subject.
