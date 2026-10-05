@@ -2,6 +2,7 @@
 packages the source imports (imports.py), the declared licences (licences.py), the OSPS Baseline
 coverage (osps.py) and the CycloneDX SBOM (sbom.py)."""
 import json
+import os
 import tempfile
 import unittest
 
@@ -242,6 +243,79 @@ class VulnerableImported(unittest.TestCase):
         self.assertEqual([(r["name"], r["version"], r.get("runtime"), r["imported"]) for r in rows],
                          [("multer", "2.2.0", True, True), ("form-data", "4.0.5", False, False), ("esbuild", "0.18.20", False, False),
                           ("esbuild", "0.28.2", True, True), ("left-pad", "1", None, True)])
+        self.assertEqual(rows[0]["via"], "multer")
+        self.assertNotIn("via", rows[1], "a development-only row has no runtime path")
+
+    WORKSPACE = ("lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    devDependencies:\n      tool:\n        specifier: ^1\n        version: 1.0.0\n\n"
+                 "  packages/protocol:\n    dependencies:\n      '@grpc/grpc-js':\n        specifier: ^1\n        version: 1.14.4\n"
+                 "      kit:\n        specifier: workspace:*\n        version: link:../../common/kit\n\n"
+                 "  common/shared:\n    dependencies:\n      sass:\n        specifier: ^1\n        version: 1.0.0\n\n"
+                 "  common/kit:\n    dependencies:\n      left-pad:\n        specifier: ^1\n        version: 1.3.0\n\n"
+                 "  apps/web:\n    dependencies:\n      next:\n        specifier: ^1\n        version: 1.0.0\n\n"
+                 "snapshots:\n\n  tool@1.0.0: {}\n\n  '@grpc/grpc-js@1.14.4':\n    dependencies:\n      protobufjs: 7.5.5\n\n  protobufjs@7.5.5: {}\n\n"
+                 "  sass@1.0.0:\n    dependencies:\n      immutable: 5.1.2\n\n  immutable@5.1.2: {}\n\n  left-pad@1.3.0: {}\n\n  next@1.0.0: {}\n")
+
+    def _workspace(self, d, web_deploys):
+        def put(path, text):
+            os.makedirs(os.path.dirname(os.path.join(d, path)) or d, exist_ok=True)
+            with open(os.path.join(d, path), "w") as fh:
+                fh.write(text)
+        put("pnpm-lock.yaml", self.WORKSPACE)
+        put("package.json", json.dumps({"private": True}))
+        put("packages/protocol/package.json", json.dumps({"name": "@x/protocol", "publishConfig": {"access": "public"}}))
+        put("common/shared/package.json", json.dumps({"name": "@x/shared", "private": True, "bin": {"lint": "lint.js"}}))
+        put("common/kit/package.json", json.dumps({"name": "@x/kit", "private": True}))
+        put("apps/web/package.json", json.dumps({"name": "web", "private": True}))
+        if web_deploys:
+            put("apps/web/Dockerfile", "FROM node\n")
+
+    def _rows(self, d):
+        rows = [{"name": n, "version": v, "ecosystem": "npm", "source": "pnpm-lock.yaml", "imported": False}
+                for n, v in (("protobufjs", "7.5.5"), ("immutable", "5.1.2"), ("left-pad", "1.3.0"), ("next", "1.0.0"))]
+        deps.lock_context(rows, d)
+        return {r["name"]: (r["runtime"], r.get("via")) for r in rows}
+
+    def test_a_private_member_without_a_deploy_file_does_not_ship_what_it_depends_on(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._workspace(d, web_deploys=False)
+            got = self._rows(d)
+        self.assertEqual(got["protobufjs"], (True, "@grpc/grpc-js"), "a published member's transitive dependency ships")
+        self.assertEqual(got["immutable"], (False, None), "only the private toolbox reaches it")
+        self.assertEqual(got["left-pad"], (True, "left-pad"), "a private member a published one links to ships with it")
+        self.assertEqual(got["next"], (False, None))
+
+    def test_a_private_member_with_a_deploy_file_ships(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._workspace(d, web_deploys=True)
+            got = self._rows(d)
+        self.assertEqual(got["next"], (True, "next"))
+        self.assertEqual(got["immutable"], (False, None))
+
+    def test_a_lone_private_app_without_a_deploy_file_keeps_its_rows_runtime(self):
+        lock = ("lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      express:\n        specifier: ^4\n        version: 4.0.0\n\n"
+                "snapshots:\n\n  express@4.0.0:\n    dependencies:\n      qs: 6.0.0\n\n  qs@6.0.0: {}\n")
+        with tempfile.TemporaryDirectory() as d:
+            with open(f"{d}/pnpm-lock.yaml", "w") as fh:
+                fh.write(lock)
+            with open(f"{d}/package.json", "w") as fh:
+                fh.write(json.dumps({"name": "app", "private": True}))
+            rows = [{"name": "qs", "version": "6.0.0", "ecosystem": "npm", "source": "pnpm-lock.yaml"}]
+            deps.lock_context(rows, d)
+        self.assertEqual((rows[0]["runtime"], rows[0]["via"]), (True, "express"))
+
+    def test_the_finding_says_which_direct_dependency_a_runtime_row_is_reached_through(self):
+        base = {"ecosystem": "npm", "source": "pnpm-lock.yaml", "ids": ["GHSA-x"], "aliases": [], "score": 8.1, "severity": "high",
+                "fixed": "7.5.6", "malicious": False, "imported": False}
+        through = {**base, "name": "protobufjs", "version": "7.5.5", "runtime": True, "via": "@grpc/grpc-js"}
+        direct = {**base, "name": "qs", "version": "6.0.0", "runtime": True, "via": "qs"}
+        dev = {**base, "name": "immutable", "version": "5.1.2", "runtime": False, "via": "sass"}
+        self.assertIn("reached through @grpc/grpc-js", findings._vuln_ref(through))
+        self.assertNotIn("reached through", findings._vuln_ref(direct), "a direct dependency is not reached through itself")
+        self.assertNotIn("reached through", findings._vuln_ref(dev))
+        f = findings.vulnerable_dependencies(report(dependencies={"status": "scanned", "vulnerable": [through, dev]}, tree=frozenset({"pnpm-lock.yaml"})))
+        self.assertIn("protobufjs 7.5.5 (GHSA-x, 8.1, fixed in 7.5.6, imported by no tracked source, reached through @grpc/grpc-js)", f[0]["detail"])
+        self.assertEqual(f[0]["evidence"]["packages"][0]["via"], "@grpc/grpc-js")
+        self.assertNotIn("via", f[0]["evidence"]["packages"][1])
 
 
 class OspsCoverage(unittest.TestCase):

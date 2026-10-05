@@ -266,7 +266,12 @@ def lock_context(rows: list, cwd: str) -> None:
     when only development dependencies reach it; left out for a lock that does not say. And where the
     lock records which versions the workspaces depend on directly, an `imported` true for a version no
     workspace depends on becomes false: the import loads the version its workspace resolves, not this
-    one (esbuild imported at 0.28.2 says nothing about a 0.18.20 a build tool brings)."""
+    one (esbuild imported at 0.28.2 says nothing about a 0.18.20 a build tool brings).
+
+    For a pnpm workspace, `runtime` counts what ships: the walk starts from the root importer and from
+    every member except one that declares "private": true and has no deploy file (DEPLOY_FILE) in its
+    directory (_held), and a runtime row gets `via`, the direct dependency its shortest path starts from.
+    package-lock.json keeps its own `dev` marks, which count every workspace."""
     parsed = {}
     for r in rows:
         src = r.get("source") or ""
@@ -281,14 +286,21 @@ def lock_context(rows: list, cwd: str) -> None:
                 text = ""
             if name == "pnpm-lock.yaml":
                 lock = locks.pnpm(text) if text else None
-                parsed[src] = (locks.pnpm_runtime(lock), locks.pnpm_direct(lock)) if lock and lock["importers"] else None
+                if lock and lock["importers"]:
+                    held = _held(cwd, os.path.dirname(src), lock["importers"])
+                    parsed[src] = (locks.pnpm_runtime(lock, held), locks.pnpm_direct(lock))
+                else:
+                    parsed[src] = None
             else:
                 lock = locks.npm(text) if text else None
                 parsed[src] = (locks.npm_runtime(lock), locks.npm_direct(lock)) if lock else None
         if not parsed[src]:
             continue
         runtime, direct = parsed[src]
-        r["runtime"] = (r.get("name"), r.get("version")) in runtime
+        key = (r.get("name"), r.get("version"))
+        r["runtime"] = key in runtime
+        if isinstance(runtime, dict) and key in runtime:
+            r["via"] = runtime[key]
         if r.get("imported") is True and r.get("name") in direct and r.get("version") not in direct[r["name"]]:
             r["imported"] = False
 
@@ -317,6 +329,34 @@ def _file(cwd: str, path: str) -> str:
             return fh.read(2_000_000)
     except OSError:
         return ""
+
+
+def _manifest(cwd: str, d: str) -> dict:
+    try:
+        doc = json.loads(_file(cwd, _join(d, "package.json")) or "{}")
+    except ValueError:
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
+def _held(cwd: str, lock_dir: str, importers) -> set:
+    """The pnpm importers whose package.json declares "private": true (npm and pnpm refuse to publish
+    them) and whose directory holds no deploy file: what they depend on is installed for the workspace's
+    own development, not shipped. The root importer is never held (locks.pnpm_runtime)."""
+    out = set()
+    for imp in importers:
+        if imp in (".", ""):
+            continue
+        d = _join(lock_dir, imp)
+        if _manifest(cwd, d).get("private") is not True:
+            continue
+        try:
+            names = os.listdir(os.path.join(cwd, d))
+        except OSError:
+            names = []
+        if not any(DEPLOY_FILE.match(n) for n in names):
+            out.add(imp)
+    return out
 
 
 def _toml_tables(text: str) -> dict:
@@ -395,7 +435,9 @@ def _members(cwd: str, lock_dir: str, lock: str) -> list:
 
 def _entry_points(cwd: str, d: str) -> list:
     """What makes the directory a program by its manifests: [project.scripts] and the like in
-    pyproject.toml, `bin` in package.json, [[bin]] in Cargo.toml."""
+    pyproject.toml, `bin` in package.json, [[bin]] in Cargo.toml. A package.json that declares
+    "private": true is never published, so its `bin` is a command for the workspace's own developers
+    (a lint or build toolbox), not a program anyone installs."""
     out = []
     for name in ("pyproject.toml", "Cargo.toml"):
         tables = _toml_tables(_file(cwd, _join(d, name)))
@@ -404,11 +446,8 @@ def _entry_points(cwd: str, d: str) -> list:
                 out.append(f"{_join(d, name)} {label}")
         if name == "pyproject.toml" and any(re.match(r"^\s*(?:gui-)?scripts\s*=", line) for line in tables.get("project", [])):
             out.append(f"{_join(d, name)} [project.scripts]")
-    try:
-        doc = json.loads(_file(cwd, _join(d, "package.json")) or "{}")
-    except ValueError:
-        doc = {}
-    if isinstance(doc, dict) and doc.get("bin"):
+    doc = _manifest(cwd, d)
+    if doc.get("bin") and doc.get("private") is not True:
         out.append(f"{_join(d, 'package.json')} bin")
     return sorted(set(out))
 

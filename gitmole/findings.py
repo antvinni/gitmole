@@ -919,7 +919,8 @@ def _vuln_ref(r: dict) -> str:
     fixed = f", fixed in {r['fixed']}" if r.get("fixed") else ", no fix yet"
     loaded = ", imported by no tracked source" if r.get("imported") is False else ""
     dev = ", development dependencies only" if r.get("runtime") is False else ""
-    return f"{ref}{score}{fixed}{loaded}{dev}"
+    via = f", reached through {r['via']}" if r.get("runtime") is True and r.get("via") and r["via"] != r.get("name") else ""
+    return f"{ref}{score}{fixed}{loaded}{dev}{via}"
 
 
 def _vuln_statement(rows: list) -> str:
@@ -955,7 +956,8 @@ def _vuln_evidence(r: dict) -> dict:
            "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
            "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious")),
            "imported": r.get("imported", "unknown"), "deploys": list(r.get("deploys") or [])[:3],
-           **({"runtime": r["runtime"]} if isinstance(r.get("runtime"), bool) else {})}
+           **({"runtime": r["runtime"]} if isinstance(r.get("runtime"), bool) else {}),
+           **({"via": r["via"]} if r.get("runtime") is True and r.get("via") else {})}
     if _floating(r):   # the version is the range's floor, not an installed one
         out = {**{k: v for k, v in out.items() if k != "version"}, "floor": r["version"], "requirement": r.get("requirement")}
     return out

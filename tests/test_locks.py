@@ -87,6 +87,61 @@ snapshots:
   esbuild@0.18.20: {}
 """
 
+# univer's shape: a published member reaches protobufjs through @grpc/grpc-js; a private toolbox reaches immutable
+WORKSPACE = """lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      root-dep:
+        specifier: ^1
+        version: 1.0.0
+
+  packages/protocol:
+    dependencies:
+      '@grpc/grpc-js':
+        specifier: ^1.14.4
+        version: 1.14.4
+      linked:
+        specifier: workspace:*
+        version: link:../../common/linked
+
+  common/shared:
+    dependencies:
+      sass:
+        specifier: ^1
+        version: 1.0.0
+
+  common/linked:
+    dependencies:
+      left-pad:
+        specifier: ^1
+        version: 1.3.0
+
+snapshots:
+
+  root-dep@1.0.0: {}
+
+  '@grpc/grpc-js@1.14.4':
+    dependencies:
+      '@grpc/proto-loader': 0.8.0
+
+  '@grpc/proto-loader@0.8.0':
+    dependencies:
+      protobufjs: 7.5.5
+
+  protobufjs@7.5.5: {}
+
+  sass@1.0.0:
+    dependencies:
+      immutable: 5.1.2
+
+  immutable@5.1.2: {}
+
+  left-pad@1.3.0: {}
+"""
+
 
 class Pnpm(unittest.TestCase):
     def setUp(self):
@@ -110,6 +165,23 @@ class Pnpm(unittest.TestCase):
         self.assertNotIn(("form-data", "4.0.5"), runtime, "reached only through a devDependency")
         self.assertNotIn(("esbuild", "0.18.20"), runtime)
         self.assertIn(("esbuild", "0.28.2"), runtime)
+
+    def test_each_runtime_package_names_the_direct_dependency_it_is_reached_through(self):
+        runtime = locks.pnpm_runtime(self.lock)
+        self.assertEqual(runtime[("busboy", "1.6.0")], "multer")
+        self.assertEqual(runtime[("nice-grpc", "2.1.17")], "nice-grpc", "a direct dependency is its own first hop, though @photon-ai/imessage reaches it too")
+        self.assertEqual(runtime[("qs", "6.15.0")], "qs", "a linked member's dependency is a first hop")
+
+    def test_a_held_member_is_not_walked_from_but_a_link_into_it_and_the_root_are(self):
+        lock = locks.pnpm(WORKSPACE)
+        everything = locks.pnpm_runtime(lock)
+        self.assertIn(("immutable", "5.1.2"), everything, "with nothing held, every importer is walked")
+        held = locks.pnpm_runtime(lock, {"common/shared", "common/linked", "."})
+        self.assertNotIn(("immutable", "5.1.2"), held, "only a held member's dependencies reach it")
+        self.assertNotIn(("sass", "1.0.0"), held)
+        self.assertEqual(held[("protobufjs", "7.5.5")], "@grpc/grpc-js")
+        self.assertEqual(held[("left-pad", "1.3.0")], "left-pad", "a held member a published one links to ships with it")
+        self.assertEqual(held[("root-dep", "1.0.0")], "root-dep", "the root importer is walked whatever it declares")
 
     def test_direct_versions_and_importer_peers(self):
         self.assertEqual(locks.pnpm_direct(self.lock)["esbuild"], {"0.28.2"})
