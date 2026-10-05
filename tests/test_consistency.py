@@ -479,6 +479,19 @@ class FromThePaperclipExport(unittest.TestCase):
         self.assertEqual(subjects, ["knowledge map: Tool is second of 1 area(s), e.g. src/", "People: Tool holds 44% of the surviving code"],
                          "the name is found before the word gone, and the column under its shorter head")
 
+    def test_the_checks_read_every_row_of_a_table_whatever_the_report_caps(self):
+        """A tool past the fiftieth row of People and of the knowledge map is still a tool shown as an owner: the
+        checks ask for the section whole (render.SECTION), which is every row whether or not --full caps its tables."""
+        ids = [{"name": f"P{n:02d}", "email": f"p{n}@x.org", "commits": 200 - n, "authored": 200 - n} for n in range(70)] + self.IDS[1:]
+        own = [{"entity": f"d{n:02d}/a.py", "author": f"P{n:02d}", "added": 1000 - n, "deleted": 0, "commits": 3} for n in range(70)]
+        own += [{"entity": "zz/a.py", "author": "Ann", "added": 9, "deleted": 0, "commits": 3}, {"entity": "zz/a.py", "author": "Tool", "added": 5, "deleted": 0, "commits": 3}]
+        r = report(meta={"identities": ids}, ownership=own, theseus_authors={"P00": 100, "Tool": 80})
+        self.assertEqual(len(consistency._render(r, "people_section")["rows"]), 72)
+        self.assertEqual(len(consistency._render(r, "knowledge_section")["rows"]), 71)
+        subjects = [c["subject"] for c in consistency.over(r)["complaints"] if c["check"] == "tool_owner"]
+        self.assertEqual(subjects, ["knowledge map: Tool is second of 1 area(s), e.g. zz/", "People: Tool holds 44% of the surviving code"])
+        self.assertEqual(len(consistency._render(r, "people_section", full=False)["rows"]), 6, "a check that asks for the default's table gets it")
+
     def test_a_tool_kept_out_of_the_tables(self):
         r = report(meta={"identities": self.IDS}, ownership=self.OWN[:1], theseus_authors={"Ann": 100},
                    tools={"names": ["Tool", "Helper"]})
