@@ -1,6 +1,6 @@
 import unittest
 
-from gitmole import findings, structure
+from gitmole import findings, hygiene, structure
 
 
 def report(**overrides):
@@ -1166,6 +1166,43 @@ class Hygiene(unittest.TestCase):
         self.assertTrue(advice({"host": "gitlab.com", "owner": "apache"}).startswith("Pin apache/skywalking-eyes@main "), "an account on another host is not the GitHub one")
         f = self.by_id(self.h(actions={"unpinned": unpinned[:2], "unpinned_count": 2, "pinned": 0, "origin": {"host": "github.com", "owner": "apache"}}))["unpinned_actions"]
         self.assertTrue(f["advice"].startswith("Pin apache/skywalking-eyes@main "), "the repository's own owner still comes before GitHub's")
+
+    def test_within_an_owner_tier_a_branch_ref_then_a_step_handed_secrets_or_a_write_token_comes_first(self):
+        # univer: codecov@v7 led the advice while jikkai/sync-gitee@main, a branch handed two secrets, sat at row 19
+        def row(uses, ref="version", secrets=False, grants=False, file=".github/workflows/ci.yml"):
+            return {"file": file, "uses": uses, "line": 1, "ref": ref, "secrets": secrets, "grants": grants}
+        unpinned = [row("actions/checkout@v7", secrets=True), row("codecov/codecov-action@v7", secrets=True),
+                    row("pnpm/setup@v2", grants=True), row("o/plain@v1"), row("dream-num/own@main", ref="branch", secrets=True),
+                    row("jikkai/sync-gitee@main", ref="branch", secrets=True, file=".github/workflows/sync.yml")]
+        f = self.by_id(self.h(actions={"unpinned": unpinned, "unpinned_count": 6, "pinned": 0, "origin": {"host": "github.com", "owner": "dream-num"}}))["unpinned_actions"]
+        self.assertTrue(f["advice"].startswith("Pin jikkai/sync-gitee@main "), f["advice"])
+        self.assertEqual([u["uses"] for u in f["evidence"]["unpinned"]],
+                         ["jikkai/sync-gitee@main", "codecov/codecov-action@v7", "pnpm/setup@v2", "o/plain@v1", "dream-num/own@main", "actions/checkout@v7"],
+                         "owner first, then the branch, then a secret or a write grant, then the file order")
+        self.assertEqual(f["rule"]["order"], findings.ACTION_ORDER)
+        quiet = [row("o/first@v1"), row("o/second@v1", grants=True), row("o/third@v1", secrets=True)]
+        f = self.by_id(self.h(actions={"unpinned": quiet, "unpinned_count": 3, "pinned": 0}))["unpinned_actions"]
+        self.assertTrue(f["advice"].startswith("Pin o/second@v1 "), "a write token outranks an earlier step handed nothing")
+
+    def test_the_evidence_names_each_action_once_per_file_up_to_the_hygiene_cap(self):
+        rows = [{"file": f".github/workflows/w{i % 30}.yml", "uses": "actions/checkout@v7", "line": i, "ref": "version", "secrets": False, "grants": False}
+                for i in range(120)]
+        f = self.by_id(self.h(actions={"unpinned": rows, "unpinned_count": 120, "pinned": 0}))["unpinned_actions"]
+        named = [(u["file"], u["uses"]) for u in f["evidence"]["unpinned"]]
+        self.assertEqual((len(named), len(set(named))), (30, 30), "four checkouts in a file are one subject")
+        many = [{**r, "file": f".github/workflows/w{i}.yml"} for i, r in enumerate(rows)]
+        f = self.by_id(self.h(actions={"unpinned": many, "unpinned_count": 120, "pinned": 0}))["unpinned_actions"]
+        self.assertEqual(len(f["evidence"]["unpinned"]), hygiene.CAP)
+
+    def test_rows_from_before_the_step_context_keep_their_order_and_evidence(self):
+        # a saved 0.44.0 output directory: no ref, secrets or grants, so the finding renders as it did
+        unpinned = [{"file": ".github/workflows/a.yml", "uses": "actions/checkout@v7"}] * 4 + \
+                   [{"file": f".github/workflows/w{i}.yml", "uses": f"o{i}/x@v1"} for i in range(9)] + \
+                   [{"file": ".github/workflows/z.yml", "uses": "jikkai/sync-gitee@main"}]
+        f = self.by_id(self.h(actions={"unpinned": unpinned, "unpinned_count": 14, "pinned": 0}))["unpinned_actions"]
+        self.assertTrue(f["advice"].startswith("Pin o0/x@v1 "), "the first of the tie, as before")
+        self.assertEqual(f["evidence"]["unpinned"], unpinned[:10])
+        self.assertNotIn("order", f["rule"])
 
     def test_a_pwn_request_is_a_warning_naming_the_job_line_and_field(self):
         row = {"file": ".github/workflows/preview.yml", "job": "build", "line": 14, "key": "ref", "field": "github.event.pull_request.head.sha",

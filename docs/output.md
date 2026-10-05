@@ -154,7 +154,14 @@ in plain words, and what to do first. This page is the reference.
    that use an action by tag or branch rather than a full commit SHA (a
    warning, whose advice names another account's action before one from
    the account the `origin` remote says the repository lives under, and
-   either before GitHub's own `actions/`); a manifest whose last commit is newer than its lock file's, by
+   either before GitHub's own `actions/`; within each, a branch-shaped ref
+   such as `@main` before a release-shaped one (`@v7`, `@1.2.3`), then a
+   step handed a secret (`secrets.` in its `with:` or `env:`, or the
+   `env:` it inherits) or a token that can write (`id-token: write`,
+   `contents: write` or `write-all` in its job's `permissions:`, else the
+   workflow's) before one that is not, each row in `hygiene.json` saying
+   which as `ref`, `secrets` and `grants`; the evidence names each action
+   once per file, up to 50); a manifest whose last commit is newer than its lock file's, by
    commit time (a warning), and a manifest of an ecosystem that locks by
    convention with no lock file in its directory or above it (a note),
    unless it declares nothing a lock would pin: a `go.mod` with no

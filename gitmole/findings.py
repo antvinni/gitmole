@@ -7,7 +7,7 @@ import math
 import os
 import re
 
-from . import classify, coupling, deps, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, scope, structure, textfmt, trend
+from . import classify, coupling, deps, filetypes, hotspots, hygiene, knowledge, leaks, licences, loss, maat, osps, scope, structure, textfmt, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -1096,12 +1096,17 @@ def _hygiene_actions(h: dict, out: list) -> None:
             if u["uses"] not in by_file.setdefault(u["file"], []):
                 by_file[u["file"]].append(u["uses"])
         listed = "; ".join(f"{textfmt.join_and(v[:3])}{' and more' if len(v) > 3 else ''} in {k}" for k, v in list(by_file.items())[:3])
-        first = min(a["unpinned"], key=lambda u: _action_trust(u["uses"], a.get("origin")))["uses"]
+        ranked = [u for _, u in sorted(enumerate(a["unpinned"]), key=lambda iu: _action_rank(iu, a.get("origin")))]
+        rule = {"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}
+        if all("ref" in u for u in a["unpinned"]):
+            rule["order"] = ACTION_ORDER
+            rows = list({(u["file"], u["uses"]): {"file": u["file"], "uses": u["uses"]} for u in ranked}.values())[:hygiene.CAP]
+        else:   # an output directory from before the rows said what each step is handed: its evidence as it was
+            rows = [{"file": u["file"], "uses": u["uses"]} for u in a["unpinned"][:10]]
         out.append(_f("warning", "Actions pinned by tag or branch",
                       f"{n} of {total} workflow steps use an action by tag or branch: {listed}. Whoever controls the action can move the tag to other code.",
-                      f"Pin {first} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
-                      rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0),
-                                                                                                "unpinned": [{"file": u["file"], "uses": u["uses"]} for u in a["unpinned"][:10]]}))
+                      f"Pin {ranked[0]['uses']} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
+                      rule=rule, evidence={"count": n, "pinned": a.get("pinned", 0), "unpinned": rows}))
 
 
 def _workflow_rows(rows: list) -> list:
@@ -1182,6 +1187,17 @@ def _action_trust(uses: str, origin) -> int:
         return 2
     home = origin or {}
     return 1 if home.get("host") == "github.com" and owner.lower() == (home.get("owner") or "").lower() else 0
+
+
+# The order unpinned steps are pinned in, first to last: owner trust (_action_trust), then a branch-shaped ref before a
+# release-shaped one, then a step handed a secret or a token that can write before one that is not, then the file
+# order. A row from before hygiene recorded ref, secrets and grants ties on the middle two, so the order is as it was.
+ACTION_ORDER = ["owner", "branch ref", "secrets or write grants", "file order"]
+
+
+def _action_rank(iu: tuple, origin) -> tuple:
+    i, u = iu
+    return (_action_trust(u["uses"], origin), u.get("ref") != "branch", not (u.get("secrets") or u.get("grants")), i)
 
 
 def _hygiene_lockfiles(h: dict, out: list) -> None:

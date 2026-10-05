@@ -105,13 +105,16 @@ def actions_pinning(repo: str) -> dict:
     """Every `uses:` in the tracked workflows: pinned to a full commit SHA, a local action or a docker
     image (neither), or unpinned (a tag or a branch the action's owner can move). `origin` is the
     account the clone's origin remote names, so the advice can put another owner's actions first. Each
-    unpinned row carries the line of its `uses:`, where SARIF places it. The same walk reads each
-    workflow's two dangerous shapes (workflow_shapes): `pwn_request` and `injection`."""
+    unpinned row carries the line of its `uses:`, where SARIF places it, and what the step is handed
+    (_step_context): the shape of its ref, whether it reads a secret, whether its token can write. The
+    same walk reads each workflow's two dangerous shapes (workflow_shapes): `pwn_request` and `injection`."""
     unpinned, pinned, local, pwn, injection = [], 0, 0, [], []
     for path in _tracked(repo):
         if not re.match(r"^\.github/workflows/[^/]+\.ya?ml$", path):
             continue
         text = _text(repo, path)
+        lines = text.split("\n")
+        jobs = _jobs(lines)
         for m in _USES.finditer(text):
             ref = m.group(1)
             if ref.startswith("./") or ref.startswith("docker://") or "@" not in ref:   # a remote action always names its ref
@@ -119,7 +122,8 @@ def actions_pinning(repo: str) -> dict:
             elif "@" in ref and _SHA.match(ref.rsplit("@", 1)[1]):
                 pinned += 1
             else:
-                unpinned.append({"file": path, "uses": ref, "line": text.count("\n", 0, m.start(1)) + 1})
+                line = text.count("\n", 0, m.start(1)) + 1
+                unpinned.append({"file": path, "uses": ref, "line": line, **_step_context(lines, jobs, line - 1, ref)})
         shapes = workflow_shapes(path, text)
         pwn += shapes["pwn_request"]
         injection += shapes["injection"]
@@ -258,6 +262,59 @@ def workflow_shapes(path: str, text: str) -> dict:
         for m in _DIRECT.finditer(ln):
             injection.append({"file": path, "job": job_of(i), "line": i + 1, "field": m.group(1)})
     return {"pwn_request": pwn, "injection": injection}
+
+
+# What an unpinned step is handed, so the advice can put first the pin whose move would cost the most. Read off the
+# lines like the shapes above:
+# - ref: "version" when the ref is shaped like a release (v7, 1.2.3), else "branch" (main, release/v1, a short sha):
+#   a branch moves with every push to it, a tag only when someone retags it.
+# - secrets: the step's with: or env:, or the env: of its job or workflow it inherits, reads `secrets.`; for a job
+#   that calls a reusable workflow, its with: reads one or it has a secrets: key (`secrets: inherit` passes them all).
+# - grants: the permissions: of its job, or of the workflow when the job declares none (a job's own replaces the
+#   workflow's), hold id-token: write, contents: write or write-all: a token that can mint cloud credentials or push.
+_VERSION_REF = re.compile(r"^v?\d+(?:\.\d+)*$")
+_WRITE_GRANT = re.compile(r"""(?:^|[\s{,])(?:id-token|contents)\s*:\s*['"]?write\b|\bwrite-all\b""")
+
+
+def _key_col(m) -> int:
+    return len(m.group(1)) + len(m.group(2) or "")
+
+
+def _value(lines: list, lo: int, hi: int, col, name: str):
+    """The text of the key `name` written at column col between lo and hi (the rest of its line and the code lines
+    of its block), or None when no such key is there."""
+    for i in range(lo, hi):
+        m = _KEY.match(lines[i])
+        if m and _code(lines[i]) and _key_col(m) == col and m.group(3).strip("\"'") == name:
+            out, j = [m.group(4)], i + 1
+            while j < hi and (not _code(lines[j]) or _indent(lines[j]) > col):
+                if _code(lines[j]):
+                    out.append(lines[j])
+                j += 1
+            return "\n".join(out)
+    return None
+
+
+def _step_context(lines: list, jobs: list, i: int, uses: str) -> dict:
+    """ref, secrets and grants (above) for the `uses:` on line index i."""
+    m = _KEY.match(lines[i])
+    col = _key_col(m) if m else _indent(lines[i])
+    job = next(((lo, hi) for _, lo, hi in jobs if lo <= i < hi), None)
+    lo, hi = (job[0] + 1, job[1]) if job else (0, len(lines))
+    jcol = next((_indent(lines[k]) for k in range(lo, hi) if _code(lines[k])), None) if job else None
+    if job and col == jcol:   # the job itself calls a reusable workflow
+        secrets = _value(lines, lo, hi, col, "secrets") is not None or "secrets." in (_value(lines, lo, hi, col, "with") or "")
+    else:
+        end, dash = _step_end(lines, i, hi)
+        secrets = any("secrets." in (_value(lines, dash, end, col, k) or "") for k in ("with", "env"))
+    if job:
+        secrets = secrets or "secrets." in (_value(lines, lo, hi, jcol, "env") or "")
+    secrets = secrets or "secrets." in (_value(lines, 0, len(lines), 0, "env") or "")
+    perms = _value(lines, lo, hi, jcol, "permissions") if job else None
+    if perms is None:
+        perms = _value(lines, 0, len(lines), 0, "permissions")
+    return {"ref": "version" if _VERSION_REF.match(uses.rsplit("@", 1)[1]) else "branch", "secrets": secrets,
+            "grants": bool(perms and _WRITE_GRANT.search(perms))}
 
 
 # --- lock files ---------------------------------------------------------------------------------

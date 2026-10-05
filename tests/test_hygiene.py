@@ -42,8 +42,10 @@ class ActionsPinning(unittest.TestCase):
             r.write(".github/workflows/release.yaml", "jobs:\n  r:\n    steps:\n      - uses: softprops/action-gh-release@" + "b" * 64 + "\n")
             r.commit()
             out = hygiene.actions_pinning(d)
-        self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4", "line": 4},
-                                           {"file": ".github/workflows/ci.yml", "uses": "org/repo@main", "line": 8}], "each at the line of its uses:")
+        handed = {"secrets": False, "grants": False}
+        self.assertEqual(out["unpinned"], [{"file": ".github/workflows/ci.yml", "uses": "actions/checkout@v4", "line": 4, "ref": "version", **handed},
+                                           {"file": ".github/workflows/ci.yml", "uses": "org/repo@main", "line": 8, "ref": "branch", **handed}],
+                         "each at the line of its uses:")
         self.assertEqual(out["pinned"], 2)
         self.assertEqual(out["local"], 3, "a local action, a docker image and a path without @ref (curl writes $/.github/...) are neither")
         self.assertIsNone(out["origin"], "no origin remote")
@@ -59,6 +61,88 @@ class ActionsPinning(unittest.TestCase):
                 Repo(d)
                 subprocess.run(["git", "remote", "add", "origin", url], cwd=d, check=True, capture_output=True)
                 self.assertEqual(hygiene.origin_owner(d), expected, url)
+
+    def rows(self, text):
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write(".github/workflows/w.yml", text)
+            r.commit()
+            return {u["line"]: (u["uses"], u["ref"], u["secrets"], u["grants"]) for u in hygiene.actions_pinning(d)["unpinned"]}
+
+    def test_a_ref_is_a_version_only_when_shaped_like_one(self):
+        refs = ["v7", "1.2.3", "v1.0.0", "main", "release/v1", "stable", "v2-beta", "a1b2c3d"]
+        got = self.rows("jobs:\n  t:\n    steps:\n" + "".join(f"      - uses: o/a@{r}\n" for r in refs))
+        self.assertEqual([got[n + 4][1] for n in range(len(refs))], ["version"] * 3 + ["branch"] * 5,
+                         "@v7, @1.2.3 and @v1.0.0 are release-shaped; a branch, a path-like ref, a suffix and a short sha are not")
+
+    def test_a_step_is_handed_secrets_through_its_own_with_or_env_or_the_env_it_inherits(self):
+        got = self.rows("""jobs:
+  own:
+    steps:
+      - name: with
+        uses: o/with@v1
+        with:
+          token: ${{ secrets.TOKEN }}
+      - uses: o/env@v1
+        env:
+          TOKEN: ${{ secrets.TOKEN }}
+      - uses: o/plain@v1
+        with:
+          token: ${{ github.token }}
+        if: ${{ secrets.TOKEN != '' }}
+      # with: ${{ secrets.TOKEN }}
+  inherited:
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+    steps:
+      - uses: o/job-env@v1
+  caller:
+    uses: o/repo/.github/workflows/r.yml@main
+    secrets: inherit
+  quiet-caller:
+    uses: o/repo/.github/workflows/q.yml@main
+    with:
+      level: 1
+""")
+        self.assertEqual({v[0]: v[2] for v in got.values()},
+                         {"o/with@v1": True, "o/env@v1": True, "o/plain@v1": False, "o/job-env@v1": True,
+                          "o/repo/.github/workflows/r.yml@main": True, "o/repo/.github/workflows/q.yml@main": False},
+                         "an if: or a comment that names a secret hands the action nothing")
+        workflow_env = self.rows("env:\n  TOKEN: ${{ secrets.TOKEN }}\njobs:\n  t:\n    steps:\n      - uses: o/a@v1\n")
+        self.assertTrue(workflow_env[6][2], "the workflow's env: is inherited too")
+
+    def test_a_token_that_can_write_comes_from_the_job_or_else_the_workflow(self):
+        got = self.rows("""permissions:
+  contents: write
+jobs:
+  inherits:
+    steps:
+      - uses: o/inherits@v1
+  narrows:
+    permissions:
+      contents: read
+    steps:
+      - uses: o/narrows@v1
+  oidc:
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: o/oidc@v1
+  all:
+    permissions: write-all
+    steps:
+      - uses: o/all@v1
+  comments:
+    permissions: { pull-requests: write }
+    steps:
+      - uses: o/comments@v1
+""")
+        self.assertEqual({v[0]: v[3] for v in got.values()},
+                         {"o/inherits@v1": True, "o/narrows@v1": False, "o/oidc@v1": True, "o/all@v1": True, "o/comments@v1": False},
+                         "a job's own permissions replace the workflow's; pull-requests: write can neither push nor mint a cloud token")
+        self.assertEqual({v[3] for v in self.rows("jobs:\n  t:\n    steps:\n      - uses: o/a@v1\n").values()}, {False},
+                         "no permissions declared: what the token can do is the repository's setting, which the files do not say")
 
 
 PWN = """name: preview
