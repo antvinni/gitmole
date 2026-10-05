@@ -790,6 +790,63 @@ class TrojanSource(unittest.TestCase):
         self.assertEqual(out["mixed_script"], [{"file": "src/b.py", "line": 2, "token": "pr\u043ecess", "scripts": ["CYRILLIC", "LATIN"]}])
         self.assertEqual(out["files"], 4, "source files scanned; the doc and the test fixture are not")
 
+    def test_a_regex_class_range_and_prose_in_a_literal_are_not_spoofed_identifiers(self):
+        # The three univer 0.44.0 shapes: the joint `zА` of two ranges in a character class, and a mixed token
+        # (ZТЕСТ, a Latin Z before Cyrillic) inside a string that is Russian prose.
+        prose = "Возвращает значение"   # Возвращает значение
+        z_test = "ZТЕСТ"   # ZТЕСТ
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/tools.ts", "const ok = /^[A-Za-zА-Яа-яЁё_]/.test(name);\n")
+            r.write("src/ru-RU.ts", f"export default {{\n    description: '{prose} (μ0) {z_test} {prose}',\n"
+                                    f"    abstract: \"{prose} {z_test}\",\n    tpl: `{prose} ${{x}} {z_test}`,\n}};\n")
+            r.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual(out["mixed_script"], [])
+
+    def test_a_look_alike_still_fires_in_code_in_a_lone_string_and_in_template_code(self):
+        a = "а"   # Cyrillic а
+        prose = "значение"   # значение
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/a.py", f"p{a}ssword = 1\n")
+            r.write("src/b.py", f'if role == "{a}dmin":\n    pass\n')
+            r.write("src/c.ts", f"const s = `{prose} ${{p{a}ssword}}`;\n")   # ${…} is code, not the literal's text
+            r.write("src/d.ts", f"const s = '{prose}'; p{a}ssword();\n")   # prose in another literal on the line
+            r.write("src/e.ts", f"const m = /[{a}dmin]/;\n")   # a class with no range keeps its letters
+            r.write("src/f.ts", f"const s = 'x' + \"{prose}\" + '{a}dmin';\n")
+            r.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual([(x["file"], x["token"]) for x in out["mixed_script"]],
+                         [("src/a.py", f"p{a}ssword"), ("src/b.py", f"{a}dmin"), ("src/c.ts", f"p{a}ssword"),
+                          ("src/d.ts", f"p{a}ssword"), ("src/e.ts", f"{a}dmin"), ("src/f.ts", f"{a}dmin")])
+
+    def test_a_quote_from_a_comment_or_regex_and_an_index_expression_do_not_hide_a_look_alike(self):
+        # The PR #273 review's probes: a stray quote in a comment or a regex makes a "span" over code, and the `-` of
+        # an index expression is arithmetic, not a class range.
+        a, r, s = "а", "р", "с"   # Cyrillic а р с
+        hello, world = "Привет", "мир"   # Привет мир
+        cases = {
+            "block_comment.ts": f"/* it's */ let p{a}ss = 1; /* {hello}' */",
+            "line_comment.ts": f'x = /"/; let p{a}ss = 1; // {hello} "',
+            "index_digit.ts": f"y = x[len{a}-1];",
+            "index_letters.ts": f"y = x[a{r}-{s}];",
+            "prose_then_code.ts": f'log("{hello}"); let p{a}ss = 1;',
+            "template_tail.ts": f"{world} {hello}`; const p{a}ss = 1; f(`",
+            "hash.py": f"p{a}ss = 1  # it's",
+            "far_prose.ts": f"const t = '{hello} {world} one two p{a}ss';",
+            # A quote after a letter or a `/` cannot open a string (the re-review's probes).
+            "regex_quote.ts": f"ok = /'/.test({hello} + p{a}ss) || /'/",
+            "jsx_text.tsx": f"<p>it's {{{hello} + p{a}ss}} '</p>",
+        }
+        with tempfile.TemporaryDirectory() as d:
+            repo = Repo(d)
+            for name, line in cases.items():
+                repo.write(f"src/{name}", line + "\n")
+            repo.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual(sorted(x["file"] for x in out["mixed_script"]), sorted(f"src/{k}" for k in cases))
+
 
 class Step(unittest.TestCase):
     def test_the_step_writes_hygiene_json_from_inside_the_repository(self):

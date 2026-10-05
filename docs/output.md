@@ -141,7 +141,11 @@ in plain words, and what to do first. This page is the reference.
      whatever the counts, since raw fix counts mostly follow file size;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
-   - hotspots getting more complex, a warning when the top one did;
+   - hotspots getting more complex, a warning when the top one did; each
+     file's summed complexity (scc's count, which grows with the lines)
+     stands beside the change in its code, and the advice to split goes to
+     the first one whose complexity per line also rose 25% or more in the
+     year, or says they grew with their size;
    - tightly coupled file pairs; a file and its test are expected to change
      together, so those pairs are left out;
    - vulnerable dependencies (see below);
@@ -408,8 +412,8 @@ in plain words, and what to do first. This page is the reference.
    a `Procfile`, `fly.toml`, `vercel.json`, `netlify.toml`, `wrangler.toml`
    or `serverless.yml`; a compose service whose `build` context is that
    directory; an entry point (`[project.scripts]`, `[project.gui-scripts]`
-   or `[tool.poetry.scripts]` in pyproject.toml, `bin` in package.json,
-   `[[bin]]` in Cargo.toml); and for Cargo and Go the ecosystem's program
+   or `[tool.poetry.scripts]` in pyproject.toml, `bin` in a package.json
+   that does not declare `"private": true`, `[[bin]]` in Cargo.toml); and for Cargo and Go the ecosystem's program
    layout (`src/main.rs` or `src/bin/`, `main.go` or `cmd/`). A lock
    nothing declares, a published library's or a development or integration
    workspace's, stays a warning at any score, and the finding says which
@@ -420,10 +424,16 @@ in plain words, and what to do first. This page is the reference.
    for running (or whose lock does not say), then one only development
    dependencies reach (`runtime`: false, from a `pnpm-lock.yaml` importer's
    dependencies walked through its snapshots, or a `package-lock.json`
-   `dev` mark; said as "development dependencies only"); then those with a
-   fixed version before those without, then by score, so the advice starts
-   where a fix exists. The reach orders the rows and never changes the
-   grade. A package pinned only by a lock file under tests,
+   `dev` mark; said as "development dependencies only"). The pnpm walk
+   starts from the root importer and every member except one that declares
+   `"private": true` that nothing deploys (no tracked deploy file in its
+   directory, no compose service built from it), and follows a `link:` into
+   any member; a row it reaches names the direct dependency its shortest
+   path starts from (`via`, said as "reached through @grpc/grpc-js" when
+   that is another package). Then those with a fixed version before those
+   without, then by score, so the advice starts where a fix exists. The
+   reach orders the rows and never changes the grade.
+   A package pinned only by a lock file under tests,
    examples, docs or vendored code is a note. osv-scanner also reads pip's requirement
    files (`requirements*.txt`, `constraints*.txt`, `*.in` by those names),
    and for a range such as `mcp>=1.0.0` it reports the floor, 1.0.0, which
@@ -642,7 +652,8 @@ in plain words, and what to do first. This page is the reference.
    owner, the minor contributors (people with a small share of the file's
    commits each), the most complex function lizard found (a nameless one
    by its line; a span marked `?` in the complex functions table is passed
-   over) and, when its complexity grew in a year, by how much (the trend is
+   over) and, when its summed complexity grew in a year, by how much and
+   how much its code grew beside it (the trend is
    sampled for the top hotspots only, so a file further down the list may
    have none), the files it always changes with, and how many files it
    changes with when it is weakly coupled to many (Tornhill's sum of
@@ -910,7 +921,7 @@ directory for a remote target:
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, the import commits left out with the history's total lines added, and how many declared commits the log holds; the oversized fixes left out of the fix counts, the tangled commits with a sample, and how many subjects end in a squash-merge suffix |
 | `size.json` | scc | lines per language, COCOMO estimate |
 | `secrets.json` | betterleaks | secret-looking strings across HEAD's history: rule, file, commit, line and fingerprint, with each value replaced by a short keyed hash |
-| `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record, and for a row from a pip requirement file its specifier and whether that pins one version); on each lock file, the workspace members it pins and the entry points declared there, and the directories compose files build from, the database date and a digest of that snapshot; or a status: no lock files, no local database |
+| `dependencies.json` | osv-scanner | the lock files with their package counts, one row per package with a known vulnerability (ids, CVE aliases, score, fixed version, whether an advisory is a `MAL-` record, for a row from a pip requirement file its specifier and whether that pins one version, and for an npm row whether the lock installs it for running (`runtime`) and, from a pnpm lock, the direct dependency it is reached through (`via`)); on each lock file, the workspace members it pins and the entry points declared there, and the directories compose files build from, the database date and a digest of that snapshot; or a status: no lock files, no local database |
 | `packages.json` | osv-scanner, with or without its database | every package the lock files pin, once per ecosystem, name and version, with the lock files that pin it and the licence a lock file declares; read by `--sbom`, not part of the report |
 | `reverts.txt` | git | the commits whose message carries git revert's body line `This reverts commit <sha>`, each hash with its message body: the change analysis and the cohort count them as reverts whatever their subject says |
 | `log.txt` | git | the numstat log export the change analysis reads, whitespace ignored, with each commit's `Co-authored-by` trailers behind its subject |

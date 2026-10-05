@@ -260,13 +260,19 @@ def summarise(data: dict, cwd: str) -> dict:
 
 # --- what the lock says about each vulnerable row ---------------------------------------------------
 
-def lock_context(rows: list, cwd: str) -> None:
+def lock_context(rows: list, cwd: str, tracked=None, builds=()) -> None:
     """Set `runtime` on each row from a pnpm-lock.yaml or package-lock.json: true when an install without
     development dependencies puts that version on disk (locks.pnpm_runtime, locks.npm_runtime), false
     when only development dependencies reach it; left out for a lock that does not say. And where the
     lock records which versions the workspaces depend on directly, an `imported` true for a version no
     workspace depends on becomes false: the import loads the version its workspace resolves, not this
-    one (esbuild imported at 0.28.2 says nothing about a 0.18.20 a build tool brings)."""
+    one (esbuild imported at 0.28.2 says nothing about a 0.18.20 a build tool brings).
+
+    For a pnpm workspace, `runtime` counts what ships: the walk starts from the root importer and from
+    every member except one that declares "private": true and that nothing deploys, by the same tracked
+    files and compose builds deploys() reads (_held: `tracked`, `builds`, as declare() found them; the
+    tracked list is read here when not given); and a runtime row gets `via`, the direct dependency its
+    shortest path starts from. package-lock.json keeps its own `dev` marks, which count every workspace."""
     parsed = {}
     for r in rows:
         src = r.get("source") or ""
@@ -281,14 +287,23 @@ def lock_context(rows: list, cwd: str) -> None:
                 text = ""
             if name == "pnpm-lock.yaml":
                 lock = locks.pnpm(text) if text else None
-                parsed[src] = (locks.pnpm_runtime(lock), locks.pnpm_direct(lock)) if lock and lock["importers"] else None
+                if lock and lock["importers"]:
+                    if tracked is None:
+                        tracked = _tracked(cwd)
+                    held = _held(cwd, os.path.dirname(src), lock["importers"], tracked, builds)
+                    parsed[src] = (locks.pnpm_runtime(lock, held), locks.pnpm_direct(lock))
+                else:
+                    parsed[src] = None
             else:
                 lock = locks.npm(text) if text else None
                 parsed[src] = (locks.npm_runtime(lock), locks.npm_direct(lock)) if lock else None
         if not parsed[src]:
             continue
         runtime, direct = parsed[src]
-        r["runtime"] = (r.get("name"), r.get("version")) in runtime
+        key = (r.get("name"), r.get("version"))
+        r["runtime"] = key in runtime
+        if isinstance(runtime, dict) and key in runtime:
+            r["via"] = runtime[key]
         if r.get("imported") is True and r.get("name") in direct and r.get("version") not in direct[r["name"]]:
             r["imported"] = False
 
@@ -317,6 +332,36 @@ def _file(cwd: str, path: str) -> str:
             return fh.read(2_000_000)
     except OSError:
         return ""
+
+
+def _manifest(cwd: str, d: str) -> dict:
+    try:
+        doc = json.loads(_file(cwd, _join(d, "package.json")) or "{}")
+    except ValueError:
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
+def _tracked(cwd: str) -> list:
+    listed = subprocess.run(["git", "ls-files", "-z"], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True)
+    return [p for p in listed.stdout.decode("utf-8", "replace").split("\0") if p]
+
+
+def _held(cwd: str, lock_dir: str, importers, tracked, builds=()) -> set:
+    """The pnpm importers whose package.json declares "private": true (npm and pnpm refuse to publish
+    them) and that nothing deploys, read as deploys() reads it: no tracked deploy file (DEPLOY_FILE) in
+    the member's directory and no compose service built from it. What they depend on is installed for
+    the workspace's own development, not shipped. The root importer is never held (locks.pnpm_runtime)."""
+    deployed = {p.rpartition("/")[0] for p in tracked or () if DEPLOY_FILE.match(p.rpartition("/")[2])} | set(builds or ())
+    out = set()
+    for imp in importers:
+        if imp in (".", ""):
+            continue
+        d = _join(lock_dir, imp)
+        if _manifest(cwd, d).get("private") is not True or d in deployed:
+            continue
+        out.add(imp)
+    return out
 
 
 def _toml_tables(text: str) -> dict:
@@ -395,7 +440,9 @@ def _members(cwd: str, lock_dir: str, lock: str) -> list:
 
 def _entry_points(cwd: str, d: str) -> list:
     """What makes the directory a program by its manifests: [project.scripts] and the like in
-    pyproject.toml, `bin` in package.json, [[bin]] in Cargo.toml."""
+    pyproject.toml, `bin` in package.json, [[bin]] in Cargo.toml. A package.json that declares
+    "private": true is never published, so its `bin` is a command for the workspace's own developers
+    (a lint or build toolbox), not a program anyone installs."""
     out = []
     for name in ("pyproject.toml", "Cargo.toml"):
         tables = _toml_tables(_file(cwd, _join(d, name)))
@@ -404,11 +451,8 @@ def _entry_points(cwd: str, d: str) -> list:
                 out.append(f"{_join(d, name)} {label}")
         if name == "pyproject.toml" and any(re.match(r"^\s*(?:gui-)?scripts\s*=", line) for line in tables.get("project", [])):
             out.append(f"{_join(d, name)} [project.scripts]")
-    try:
-        doc = json.loads(_file(cwd, _join(d, "package.json")) or "{}")
-    except ValueError:
-        doc = {}
-    if isinstance(doc, dict) and doc.get("bin"):
+    doc = _manifest(cwd, d)
+    if doc.get("bin") and doc.get("private") is not True:
         out.append(f"{_join(d, 'package.json')} bin")
     return sorted(set(out))
 
@@ -439,9 +483,10 @@ def compose_builds(text: str, compose_dir: str) -> list:
     return out
 
 
-def declare(result: dict, cwd: str) -> None:
+def declare(result: dict, cwd: str) -> list:
     """Add to each lock file's source row what needs its directory's files read: the workspace `members` it
-    pins and the `entry_points` of it and its members; and to the result the `compose_builds`."""
+    pins and the `entry_points` of it and its members; and to the result the `compose_builds`. Returns the
+    tracked paths it listed, for lock_context."""
     for src in result.get("sources") or []:
         d = os.path.dirname(src["path"])
         members = _members(cwd, d, os.path.basename(src["path"]))
@@ -450,12 +495,13 @@ def declare(result: dict, cwd: str) -> None:
             src["members"] = members
         if entries:
             src["entry_points"] = entries
-    listed = subprocess.run(["git", "ls-files", "-z"], cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True)
+    tracked = _tracked(cwd)
     builds = set()
-    for path in listed.stdout.decode("utf-8", "replace").split("\0"):
-        if path and COMPOSE_FILE.search(path) and "node_modules/" not in path:
+    for path in tracked:
+        if COMPOSE_FILE.search(path) and "node_modules/" not in path:
             builds.update(compose_builds(_file(cwd, path), os.path.dirname(path)))
     result["compose_builds"] = sorted(builds)
+    return tracked
 
 
 def deploys(source: dict, tree, builds=()) -> list:
@@ -573,8 +619,9 @@ def main(argv=None) -> int:
             print("deps.py: osv-scanner printed no JSON report; nothing written", file=sys.stderr)
             return 1
         result = summarise(data, os.getcwd())
+        tracked = None
         try:
-            declare(result, os.getcwd())
+            tracked = declare(result, os.getcwd())
         except OSError as e:   # the rows stand without it; the report then reads only the tree
             print(f"deps.py: declarations: {e}", file=sys.stderr)
         result["database_date"] = database_date()
@@ -583,7 +630,7 @@ def main(argv=None) -> int:
             imports.annotate(result["vulnerable"], os.getcwd())
         except OSError as e:   # the rows stand without it
             print(f"deps.py: imports: {e}", file=sys.stderr)
-        lock_context(result["vulnerable"], os.getcwd())
+        lock_context(result["vulnerable"], os.getcwd(), tracked, result.get("compose_builds") or ())
         write_packages(packages(data, os.getcwd()), os.path.join(os.path.dirname(os.path.abspath(target)), PACKAGES))
     else:
         print(f"deps.py: osv-scanner exited {proc.returncode}; no report written", file=sys.stderr)
