@@ -196,10 +196,17 @@ class TestPaths(unittest.TestCase):
 
     def test_a_file_named_for_its_locale_is_a_translation(self):
         for path in ("packages/ui/src/locale/ru-RU.ts", "src/locale/zh-Hant-TW.json", "po/es_419.po", "messages/pt-BR.json", "zh_CN.properties",
-                     "src/locales/de.ts", "app/i18n/messages/fr.json", "src/Locale/en.ts"):
+                     "src/locales/de.ts", "src/Locale/en.ts", "src/locale/zh-Hant.json", "src/i18n/es-419.json", "po/fr.po",
+                     "locales/fr/LC_MESSAGES/app.po", "locale/pt_BR/LC_MESSAGES/pt_BR.po"):
             self.assertTrue(filetypes.is_locale_path(path), path)
         for path in ("src/set.ts", "src/api.ts", "src/fx.ts", "src/locale/index.ts", "src/locale/locale.service.ts", "src/locale/en-us.ts",
-                     "src/locale/ru-RU.test.ts", "src/locale-ru-RU/x.ts", "src/en-US/strings.ts"):
+                     "src/locale/ru-RU.test.ts", "src/locale-ru-RU/x.ts", "src/en-US/strings.ts",
+                     # an i18n package's own code, at any depth under its locale-named directory
+                     "packages/i18n/src/api.ts", "packages/i18n/src/utils/fmt.ts", "src/locale/core/set.ts", "app/i18n/messages/fr.json",
+                     # a number after a short word is a region only in a locale directory
+                     "src/app_100.ts", "src/fix-101.js", "gdb/testsuite/gdb.cp/pr-574.cc", "docs/images/www_128.png", "es-419.json",
+                     # a file named for its domain: the locale is the directory, not the name
+                     "conf/locale/fr/LC_MESSAGES/django.po"):
             self.assertFalse(filetypes.is_locale_path(path), path)
 
     def test_release_plumbing_files(self):

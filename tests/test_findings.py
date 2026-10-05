@@ -445,15 +445,17 @@ class LocaleMagnets(unittest.TestCase):
     FIXES = [{"entity": p, "n-fixes": 9, "last-fix": "2026-09-01", "recent-fixes": 5} for p in (
         "packages/ui/src/locale/ru-RU.ts", "packages/ui/src/locale/zh-Hant-TW.json", "po/es_419.po",
         "messages/pt-BR.json", "packages/x/src/locales/de.ts", "packages/y/src/Locale/en.ts",
-        "packages/ui/src/locale/index.ts", "packages/core/src/set.ts", "packages/core/src/api.ts")]
+        "packages/ui/src/locale/index.ts", "packages/core/src/set.ts", "packages/core/src/api.ts",
+        "packages/i18n/src/api.ts", "packages/core/src/app_100.ts")]
 
     def test_a_translation_file_is_not_a_magnet_row(self):
         rows = sorted(f["entity"] for f in findings.magnet_rows(report(fixes=self.FIXES)))
-        self.assertEqual(rows, ["packages/core/src/api.ts", "packages/core/src/set.ts", "packages/ui/src/locale/index.ts"])
+        self.assertEqual(rows, ["packages/core/src/api.ts", "packages/core/src/app_100.ts", "packages/core/src/set.ts",
+                                "packages/i18n/src/api.ts", "packages/ui/src/locale/index.ts"])
 
     def test_the_finding_counts_and_names_only_the_code(self):
         f = findings.bug_magnets(report(fixes=self.FIXES))
-        self.assertEqual(f[0]["evidence"]["count"], 3)
+        self.assertEqual(f[0]["evidence"]["count"], 5)
         self.assertIn("set.ts", f[0]["detail"])
         self.assertNotIn("ru-RU", f[0]["detail"])
 
