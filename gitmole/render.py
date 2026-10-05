@@ -577,19 +577,29 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
 
 
 def _tools_left_out(report: dict, tools: set) -> str:
-    """'coding tools left out: 7 names on 1 no-reply address': what the rows kept out of the People table
-    are, counted as what git records. They are names, and several names on one vendor address are one
-    assistant signing each model version differently, so "4 coding tools" for four rows on one address
-    counted spellings as tools. Every spelling counts, the ones merged into a row too."""
-    names, addresses = set(), set()
+    """'3 coding-tool names left out (7 with aliases, sharing 1 no-reply address, 32 commits)': what the rows
+    kept out of the People table are, counted as what git records. They are names, and several names on one
+    vendor address are one assistant signing each model version differently, so "4 coding tools" for four rows
+    on one address counted spellings as tools. The first number is the rows left out, which is what the export's
+    `tools.names` holds and what the table's count is short by; every spelling, the ones merged into a row too,
+    is the number with aliases, said only when it differs. prometheus's caption gave the 7 alone, beside a JSON
+    key holding 3 names and 32 commits, and the two could not be told to be one fact. The commits are the
+    export's `tools.commits`. The same sentence in the default report, --full and Markdown."""
+    rows, names, addresses = 0, set(), set()
     for i in report["meta"].get("identities") or []:
         if i["name"] in tools:
+            rows += 1
             for v in [i, *(i.get("aliases") or [])]:
                 names.add(v.get("name"))
                 if identity.NO_REPLY_MAILBOX.match(v.get("email") or ""):
                     addresses.add(v["email"].lower())
-    on = f" on {len(addresses)} no-reply address{'es' if len(addresses) != 1 else ''}" if addresses else ""
-    return f"coding tools left out: {len(names)} name{'s' if len(names) != 1 else ''}{on}"
+    commits = (report.get("tools") or {}).get("commits")
+    detail = [f"{len(names):,} with aliases"] if len(names) != rows else []
+    if addresses:
+        detail.append(f"{'sharing ' if rows > 1 or len(names) > 1 else 'on '}{textfmt.count(len(addresses), 'no-reply address', 'no-reply addresses')}")
+    if commits:
+        detail.append(textfmt.count(commits, "commit"))
+    return f"{textfmt.count(rows, 'coding-tool name')} left out" + (f" ({', '.join(detail)})" if detail else "")
 
 
 def people_section(report: dict, full: bool = True, width=None) -> dict:
@@ -615,13 +625,13 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if full is False:   # a row for two commits says little: under the floor they are counted, not listed
         listed = [i for n, i in enumerate(listed) if n < ROWS_KEPT or own(i) >= ROW_MIN_COMMITS]
     credited = any(credit(i) for i in listed)   # a column only when a row shown has any
-    rows = [(i["name"], i["email"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
+    # No address in any rendering, at any width: the Markdown is what the README says to post to a public job
+    # summary, and prometheus's --full printed 1,324 addresses beside commit counts. The JSON keeps them, under
+    # meta.identities, for whoever has the clone anyway.
+    rows = [(i["name"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
              _pct(own(i), total_commits), _pct(lines_of(i), total_lines)) for i in listed]
-    columns = [("author", {}), ("email", {"style": "dim", "overflow": "fold", "spare": True}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
+    columns = [("author", {}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
                *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving code", RIGHT)]
-    if full is not True:
-        columns, rows = _keep(columns, rows, ["author", "commits", *(["merges"] if merges else []), *(["co-authored"] if credited else []),
-                                              "share", "surviving code"])
     since = report["meta"].get("since")
     by = _by_source(report) if total_lines else ""   # the source of the column, said where the column is: the two steps give different shares
     notes = [f"commits since {since}; surviving code is for the whole tree{by}"] if since else []
@@ -728,7 +738,9 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
 
 
 def signing_section(report: dict, full: bool = True, width=None) -> dict:
-    """Signed commits per year, from the gpgsig headers: --full and Markdown only."""
+    """Signed commits per year, from the gpgsig headers: --full and Markdown only. Humans against bots as two
+    totals and no rate per person: prometheus's caption ranked four named people by how often they sign, a
+    score of a person, which the project's own rule keeps out of every report (the export keeps `by_identity`)."""
     sig = report.get("signing") or {}
     columns = [("year", {}), ("commits", RIGHT), ("signed", RIGHT), ("share", RIGHT)]
     if not sig.get("commits"):
@@ -738,9 +750,6 @@ def signing_section(report: dict, full: bool = True, width=None) -> dict:
     parts = []
     if humans.get("commits"):
         parts.append(f"humans {_pct(humans['signed'], humans['commits'])} signed" + (f", bots {_pct(bots['signed'], bots['commits'])}" if bots.get("commits") else ""))
-    people = [i for i in (sig.get("by_identity") or [])[:5]]
-    if people:
-        parts.append(", ".join(f"{i['name']} {_pct(i['signed'], i['commits'])}" for i in people))
     forge = sig.get("forge") or {}
     if forge.get("signed"):
         parts.append(f"{forge['signed']:,} of the signed commits were committed and signed by the forge on merge, not by their authors")

@@ -418,7 +418,10 @@ class Report(unittest.TestCase):
         self.assertIn("Signing by year", full)
         block = _section_text(full, "Signing by year")
         self.assertRegex(block, r"2026\s+200\s+100\s+50%")
-        self.assertIn("humans 36% signed, bots 0%; Ann 51%, Bob 1%; read from the commit objects, nothing verified", block)
+        self.assertIn("humans 36% signed, bots 0%; read from the commit objects, nothing verified", block)
+        for surface in (full, render.markdown(r, [], full=True), render.markdown(r, [])):
+            self.assertNotIn("Ann 51%", surface, "no rate per person: prometheus's caption ranked four named people by how often they sign")
+            self.assertNotIn("Bob 1%", surface)
         self.assertIn("## Signing by year", render.markdown(r, []))
         r["signing"]["forge"] = {"commits": 60, "signed": 60, "mechanisms": {"ssh": 39, "gpg": 21}}
         r["signing"]["last_year"]["forge_signed"] = 105
@@ -1606,7 +1609,7 @@ class Layout(unittest.TestCase):
     def test_full_restores_every_column_and_row(self):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=True)}
         self.assertEqual(secs["Size by language"]["columns"], ["language", "files", "code", "share", "complexity"])
-        self.assertIn("email", secs["People"]["columns"])
+        self.assertEqual(secs["People"]["columns"], ["author", "commits", "share", "surviving code"], "--full adds rows to People, never an address")
         self.assertEqual(secs["Hotspots (score = revisions × lines of code)"]["columns"], ["file", "revs", "lines", "cplx", "score", "fixes", "authors", "minors", "co-changes", "idle", "trend"])
         self.assertIn("avg revs", secs["Change coupling"]["columns"])
 
@@ -2034,8 +2037,8 @@ class PeopleMerges(unittest.TestCase):
         rep = {"meta": {"identities": [{"name": "Rya", "email": "r@x", "commits": 70, "merges": 60},
                                        {"name": "Dee", "email": "d@x", "commits": 30}]}}
         sec = render.people_section(rep)
-        self.assertEqual([c for c in sec["columns"]], ["author", "email", "commits", "merges", "share", "surviving code"])
-        self.assertEqual(sec["rows"][0][:5], ["Dee", "d@x", "30", "0", "75%"], "Dee wrote three quarters of the non-merge commits")
+        self.assertEqual([c for c in sec["columns"]], ["author", "commits", "merges", "share", "surviving code"])
+        self.assertEqual(sec["rows"][0][:4], ["Dee", "30", "0", "75%"], "Dee wrote three quarters of the non-merge commits")
         self.assertIn("leave out merges", sec["caption"])
         plain = render.people_section({"meta": {"identities": [{"name": "Dee", "email": "d@x", "commits": 30}]}})
         self.assertNotIn("merges", plain["columns"])
@@ -2051,6 +2054,17 @@ class PeopleMerges(unittest.TestCase):
         self.assertNotIn("co-authored", plain["columns"])
 
 
+    def test_no_rendering_of_the_people_table_has_an_address(self):
+        # prometheus --full at 160 columns, and both Markdown exports, printed every address beside its commit count
+        r = sample_report()
+        for full in (False, True, "markdown"):
+            self.assertNotIn("email", render.people_section(r, full=full)["columns"])
+        surfaces = [rendered(r, [], width=w, full=f) for w in (80, 160, 300) for f in (False, True)] + [render.markdown(r, []), render.markdown(r, [], full=True)]
+        for text in surfaces:
+            self.assertNotIn("ann@x.com", text)
+            self.assertNotIn("bob@x.com", text)
+        self.assertIn("ann@x.com", render.dumps_json(r, []), "the export keeps the addresses")
+
     def test_coding_tools_are_left_out_of_the_rows_and_counted_in_the_caption(self):
         rep = {"meta": {"identities": [{"name": "Model A", "email": "noreply@v.example", "commits": 60, "authored": 0},
                                        {"name": "Model B", "email": "noreply@v.example", "commits": 6, "authored": 0},
@@ -2059,15 +2073,16 @@ class PeopleMerges(unittest.TestCase):
         sec = render.people_section(rep, full=False)
         self.assertEqual([r[0] for r in sec["rows"]], ["Dee"])
         self.assertNotIn("co-authored", sec["columns"])
-        self.assertIn("coding tools left out: 2 names on 1 no-reply address", sec["caption"],
-                      "two spellings on one address are not two tools: the caption counts what git records")
+        self.assertIn("2 coding-tool names left out (sharing 1 no-reply address, 66 commits)", sec["caption"],
+                      "two spellings on one address are not two tools: the caption counts what git records, names and commits as the export's tools key has them")
+        self.assertIn("2 coding-tool names left out (sharing 1 no-reply address, 66 commits)", render.people_section(rep, full=True)["caption"], "the same sentence under --full")
         rep["meta"]["identities"][0]["aliases"] = [{"name": "Model A (1M)", "email": "noreply@v.example", "commits": 5},
                                                    {"name": "Model A", "email": "no-reply@w.example", "commits": 1}]
-        self.assertIn("coding tools left out: 3 names on 2 no-reply addresses", render.people_section(rep, full=False)["caption"],
-                      "a spelling merged into a row is a name too")
+        self.assertIn("2 coding-tool names left out (3 with aliases, sharing 2 no-reply addresses, 66 commits)", render.people_section(rep, full=False)["caption"],
+                      "a spelling merged into a row is a name too, counted beside the rows and not in their place (prometheus: 7 in the caption, 3 in the export)")
         rep = {"meta": {"identities": [{"name": "Tool", "email": "", "commits": 9, "authored": 0}, {"name": "Dee", "email": "d@x", "commits": 30, "authored": 30}]},
                "tools": {"names": ["Tool"], "commits": 9, "added": {}, "surviving": 0}}
-        self.assertIn("coding tools left out: 1 name", render.people_section(rep, full=False)["caption"])
+        self.assertIn("1 coding-tool name left out (9 commits)", render.people_section(rep, full=False)["caption"])
         self.assertNotIn("no-reply", render.people_section(rep, full=False)["caption"], "no address is not a no-reply address")
 
     def test_rows_sharing_a_name_keep_their_own_surviving_code_and_no_row_goes_negative(self):
@@ -2075,11 +2090,10 @@ class PeopleMerges(unittest.TestCase):
                                        {"name": "Dev", "email": "7+dev@users.noreply.example", "commits": 1, "authored": 0, "merges": 4}]},
                "theseus_authors": {"Dev": 100}, "surviving_by_identity": {"Dev <dev@home.example>": 100}}
         sec = render.people_section(rep, full=True)
-        rows = {r[1]: r for r in sec["rows"]}
-        self.assertEqual(rows["dev@home.example"][2], "26")
-        self.assertEqual(rows["dev@home.example"][-1], "100%")
-        self.assertEqual(rows["7+dev@users.noreply.example"][2], "0", "an old run's merges on a row that authored nothing never go below zero")
-        self.assertEqual(rows["7+dev@users.noreply.example"][-1], "0%", "the name's lines are the other row's")
+        home, noreply = sec["rows"]   # most commits first; the table has no address to tell them by (the two rows read "Dev")
+        self.assertEqual([home[0], home[1], home[-1]], ["Dev", "26", "100%"])
+        self.assertEqual(noreply[1], "0", "an old run's merges on a row that authored nothing never go below zero")
+        self.assertEqual(noreply[-1], "0%", "the name's lines are the other row's")
 
 
 class SummaryLine(unittest.TestCase):

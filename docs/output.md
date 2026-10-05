@@ -51,7 +51,7 @@ in plain words, and what to do first. This page is the reference.
    carries the forge's signature and not its author's, so it is named
    apart: `12% of commits signed by their authors (gpg 12%), 0% of the
    last year's; 50% signed by the forge on merge`. `--full` and Markdown add a Signing by year table with humans
-   against bots and the busiest identities. `--full` and Markdown add a Trailers table: every hyphenated
+   against bots as two totals, and no rate per person (the JSON keeps `signing.by_identity`). `--full` and Markdown add a Trailers table: every hyphenated
    trailer key and how many commits carry it, counted without regard to
    case as git matches them (`Co-authored-by` and `Co-Authored-By` are one
    row, under the more common spelling), and never an issue reference
@@ -646,7 +646,13 @@ in plain words, and what to do first. This page is the reference.
    counts its changes as someone else's. The knowledge map shows the tools'
    part of each area in an `agents` column when a shown area has a whole
    percent of it (the default report: where they hold as much as the
-   second owner), and the People caption says how many were left out.
+   second owner), and the People caption says how many names were left out,
+   how many spellings that is with their aliases, the no-reply addresses
+   they share and their commits (`3 coding-tool names left out (7 with
+   aliases, sharing 1 no-reply address, 32 commits)`), the same sentence in
+   the default report, `--full` and Markdown. No rendering of the People
+   table has an email column, at any width; the addresses stay in the
+   JSON export's `meta.identities`.
    Someone credited only by trailers, who never commits, is a person and
    counts as one.
 3. **Since last report**: with `--compare BEFORE.json`, what changed
