@@ -13,8 +13,9 @@ in plain words, and what to do first. This page is the reference.
    renames, so a moved file is one entity under its new path and a pure move
    adds no lines: whoever moved a tree to `src/` did not write it, and the
    knowledge map says so. Large files that change constantly are your risk; the
-   reasons do not move a file, they say what to look at there, and the backtest
-   line says how the same list would have done six months ago, or that nothing
+   columns beside each file (`fixes`, `top author`, `look at first`) do not move
+   it, they say what to look at there, and the caption's `Check:` says how the
+   same ranking would have done six months ago, or that nothing
    has been fixed since the cut-off. The hotspots table behind
    it, which `--full` and the Markdown export add, ranks every file by the same
    product and carries the trend column; the Markdown export caps it and leaves
@@ -731,15 +732,27 @@ The JSON's keys are unchanged.
    vulnerable-dependency finding with no change to the code. Markdown
    carries the section and the JSON carries it under `compare`. The comparison never changes the exit code: `--fail-on`
    reads this run alone.
-4. **Watch list**: the five source files most likely to need a fix next, with
-   the reasons in words. Every source file still in the tree that changed
+4. **Watch list**: the five source files most likely to need a fix next, one
+   line each with its numbers in columns: `changes` (the commits that touched
+   it), `fixes` (in the six months to the last commit, the window the caption
+   states: a file fixed 31 times long ago shows 0), `top author` (the largest
+   share of the lines added to the file that one person holds, with `gone`
+   after it when that person has no commit in the `--gone` window; the share
+   and no name, since `gone` beside a 10% share is not a file left without
+   an author) and `look at first` (the function nested deepest when that is
+   five levels or more, else the most complex one at complexity 10 or more;
+   the column is left out when no row shown has either). The title counts the
+   rows against the list's fifteen (`5 of 15`) and names the ranking.
+   Every source file still in the tree that changed
    more than once is ranked by changes × lines of code, over source
    files only: measured against the fixes that followed at six cut-offs
    on three repositories
    ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md)),
    it named more of them than any weighting of fixes, complexity and
    ownership did. A file's score, which `--risk` adds up, is its share, in
-   percent, of all scored files' changes × lines of code. The reasons
+   percent, of all scored files' changes × lines of code. The reasons, which
+   the JSON carries as `watch[].reasons`, `--hook` joins into its context and
+   `--risk` prints beside each file,
    name the fix count (the last six months' when there are any), the sole
    owner, the minor contributors (people with a small share of the file's
    commits each), the most complex function lizard found (a nameless one
@@ -771,9 +784,10 @@ The JSON's keys are unchanged.
    list by component: each component's share of the list's revisions ×
    lines of code and its own top three files, since one busy subtree
    otherwise takes the whole list; the JSON carries it as
-   `watch_by_component`. The default report shows a row's
-   first six reasons, most actionable first, and counts the rest (`· 3
-   more`); `--full`, Markdown and the JSON carry them all.
+   `watch_by_component`. The default report prints no reasons in
+   words. `--full` prints the ones the columns do not hold on one indented line
+   under each row, Markdown in a last column (`also`), and the JSON carries
+   them all.
    With `--risk BASE`, a
    Change risk section follows: every file changed since BASE with its watch
    score as a bar and the reasons, or why it has none: the first reason that
@@ -795,18 +809,23 @@ The JSON's keys are unchanged.
    coding agent's hook, see
    [cli.md](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#agent-hooks).
 
-   Under the watch list, one line says how the list would have done:
-   gitmole reruns the change analysis as of six months before the last
-   commit, with scc on the tree at that time, ranks the watch list from
-   that, and counts how many of the files fixed since were on it, out of
-   the fixed files that had changed more than once by then (the pool the
-   list draws from). It then says in words whether that was fewer, no more
-   or more than the same number of most-changed files, and whether it was
-   more than a random list of the same size would name by chance: the
-   one-sided hypergeometric test (Fisher's exact test) at p < 0.05, from
-   the pool, its fixed files, the list's length and its hits, all in the
-   JSON's `watch_backtest`. Repositories with under a year of history say
-   `too little history to backtest`.
+   Under the watch list, the caption's `Check:` says how the ranking would
+   have done: gitmole reruns the change analysis as of six months before the
+   last commit, with scc on the tree at that time, ranks the watch list from
+   that, and counts how many of the files fixed since its top fifteen held,
+   out of the fixed files that had changed more than once by then (the pool
+   the list draws from): `6 months ago the top 15 of this ranking held 13 of
+   the 91 files fixed since. The 15 most-changed files also held 13; 15
+   random files would hold 2.9.` The second sentence is the comparison: what
+   the same number of most-changed files held, and what a random pick of that
+   size would. When the result is one a random pick could have given, by the
+   one-sided hypergeometric test (Fisher's exact test) at p < 0.05, the
+   sentence ends `and 3 is not distinguishable from that (p = 0.19)`.
+   `--full` and Markdown add what the count is over (`Counted over the 464
+   files that had changed more than once by then; 24 more files fixed since
+   had not; p < 0.001.`); the pool, its fixed files, the list's length and
+   its hits are all in the JSON's `watch_backtest`. Repositories with under a
+   year of history say `Check: none, too little history to backtest`.
 
    When documentation is more than half the tree's lines and none of it is
    ranked, a short list follows the watch list: **Most-changed documents**,
@@ -984,9 +1003,9 @@ The JSON's keys are unchanged.
    the months shown, for the timeline), the floor the coupling table
    already uses for "enough commits to say anything"; the rest are counted
    as `and N more`, and the top three rows stay whatever they hold. The
-   change coupling table is left out when it would be one pair that a
-   watch-list row already shows with its share and nothing but test
-   pairs was hidden. The complex functions table is one line (`no long,
+   change coupling table is left out when it would be one pair that the
+   finding *Files that always change together* already names with its share
+   and nothing but test pairs was hidden. The complex functions table is one line (`no long,
    complex functions; highest complexity 16 (handleRequest); --full lists
    5 at 10 or more`) when no function meets the brain-methods rule itself,
    complexity 15 or more over 100 lines or more, and the whole list fits

@@ -17,10 +17,13 @@ functions)` where a table below lists the rest. `--full` names every subject.
   against real repositories yet. Treat them as leads, not verdicts; the header's count includes them.
 
 **Watch list.** The five source files where a change is most likely to need a fix: ranked by how often
-each changed times how big it is (*changes × lines of code*). The reasons say what to look at there; they do not change the rank.
-The caption under it replays the list six months back and counts how many of the files fixed since
-were on it, next to a random list and the most changed files, so you can see how far to trust it here.
-With under a year of history it says *too little history to backtest* instead: there is no list from six
+each changed times how big it is (*changes × lines of code*). The other columns say what to look at there and do not change the rank:
+`fixes` in the last six months, `top author` (the largest share of the file's lines one person added, with `gone`
+after it when that person has stopped committing) and `look at first`, the function nested deepest or, failing
+that, the most complex. `--full` adds each file's other reasons on a line under it.
+The `Check:` under it replays the ranking six months back and counts how many of the files fixed since
+its top held, next to the most changed files and a random pick, so you can see how far to trust it here.
+With under a year of history it says *Check: none, too little history to backtest* instead: there is no list from six
 months back to replay yet, so nothing here says how far to trust the ranking.
 
 In a repository that is mostly documentation the header says so (*17 of 227 files scored*, *69% of tracked
@@ -51,7 +54,7 @@ are listed whatever they committed. The People table keeps its rows the same way
 
 **Change coupling.** Pairs of files that change together, and the share of changes they share
 (`together`). A pair with no obvious link is often a hidden dependency or copied code. When there is
-one pair and the watch list already shows it (`changes with … (59%)`), the table is left out.
+one pair and the finding *Files that always change together* already names it with its share, the table is left out.
 
 **Complex functions.** The functions with the most branches (`complexity`: cyclomatic, the function's branch points plus 1), with their
 length and parameters. A `?` marks a span the parser may have misread, and `<anonymous>` a function
@@ -68,7 +71,7 @@ and a table too wide for the terminal leaves its rightmost columns out and says 
 
 1. Any `✖`: act on it now. A secret in history means rotating the credential, not just deleting the file.
 2. Read each `▲` warning's `↳` line and decide yes or no; the advice names where to start.
-3. Before changing a file at the top of the watch list, read it and its reasons.
+3. Before changing a file at the top of the watch list, read it, starting at the function under `look at first`.
 4. Where the knowledge map shows `(gone)` or one name, find out who can review changes there.
 
 Everything else can wait. `gitmole . --full` shows every section and row, and

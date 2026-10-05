@@ -297,15 +297,67 @@ class Report(unittest.TestCase):
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
         self.assertNotIn("sweeping", caption)
 
-    def test_the_default_watch_list_shows_six_reasons_and_counts_the_rest(self):
+    def test_the_reasons_the_columns_do_not_hold_are_under_each_row_in_full_and_a_last_column_in_markdown(self):
+        """prometheus's five files took 21 lines of reasons in one wrapped cell; the default table has none."""
         from unittest.mock import patch
         r = sample_report()
-        many = [f"reason {i}" for i in range(9)]
+        many = ["changed 51 times"] + [f"reason {i}" for i in range(8)]
         with patch.object(render.watch, "_reasons", return_value=many):
-            short = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["rows"][0][1]
-            full = next(x for x in render.sections(r, full=True) if x["id"] == "watch")["rows"][0][1]
-        self.assertEqual(short, " · ".join(many[:6]) + " · 3 more")
-        self.assertEqual(full, " · ".join(many))
+            short = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
+            full = next(x for x in render.sections(r, full=True) if x["id"] == "watch")
+            text = _rendered_section(full, width=60)
+            md = render.markdown(r, [])
+            exported = render.to_json(r, [])["watch"][0]["reasons"]
+        self.assertNotIn("under", short, "one line a file")
+        self.assertEqual(short["columns"], ["file", "changes", "fixes", "top author"])
+        self.assertEqual(full["under"][0], " · ".join(many[1:]), "the change count is a column, the rest is under the row")
+        self.assertEqual(full["rows"][0][:3], ["static/index.html", "51", "0"])
+        lines = [line.rstrip() for line in text.splitlines()]
+        at = next(i for i, line in enumerate(lines) if line.lstrip().startswith("static/index.html"))
+        self.assertEqual(lines[at + 1:at + 3], ["    reason 0 · reason 1 · reason 2 · reason 3 · reason 4 ·", "    reason 5 · reason 6 · reason 7"],
+                         "indented under its row, wrapped after a separator and never before one")
+        self.assertIn("| file | changes | fixes | top author | also |", md)
+        self.assertIn("| static/index.html | 51 | 0 | - | " + " · ".join(many[1:]) + " |", md)
+        self.assertEqual(exported, many, "the export keeps every reason, the change count too")
+
+    def test_the_watch_list_s_columns(self):
+        r = sample_report()
+        r["meta"]["gone_months"] = 12
+        r["activity"]["authors_all"] = {"Ann": {"last": "2024-01-01"}, "Bob": {"last": "2026-09-01"}}
+        r["revisions"].append({"entity": "static/a.html", "n-revs": 9})
+        r["ownership"] += [{"entity": "static/index.html", "author": "Ann", "added": 9, "deleted": 0}, {"entity": "static/index.html", "author": "Bob", "added": 91, "deleted": 0},
+                           {"entity": "static/apps-metadata.json", "author": "Ann", "added": 100, "deleted": 0}]
+        r["functions"] += [{"file": "static/index.html", "function": "draw", "ccn": 31, "nloc": 90, "params": 1, "start": 5, "end": 95},
+                           {"file": "static/a.html", "function": "(anonymous)", "ccn": 12, "nloc": 40, "params": 0, "start": 7, "end": 47}]
+        r["structure"] = {"status": "run", "files": {}, "functions": [{"file": "static/index.html", "name": "(anonymous at line 40)", "start": 40, "end": 60, "nesting": 6},
+                                                                      {"file": "static/apps-metadata.json", "name": "shallow", "start": 1, "end": 9, "nesting": 4}]}
+        sec = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
+        self.assertEqual(sec["title"], "Watch list · all 3, ranked by changes × lines of code")
+        self.assertEqual(sec["columns"], ["file", "changes", "fixes", "top author", "look at first"])
+        self.assertEqual(sec["rows"], [["static/index.html", "51", "0", " 91%", "<anonymous>:40 nesting 6"],
+                                       ["static/apps-metadata.json", "128", "4", "100% gone", ""],
+                                       ["static/a.html", "9", "0", "100% gone", "<anonymous>:7 complexity 12"]],
+                         "the share of the largest author and no name; the deepest function at 5 levels or more, else the most complex at 10 or more; "
+                         "the shares end in one column, so gone starts in one")
+        self.assertEqual(sec["caption"].split("\n")[0], "fixes = in the 6 months to 2026-09-10 · top author = largest share of the lines added to the file · "
+                                                        "gone = no commit in the 12 months to 2026-09-10")
+        r["activity"]["authors_all"]["Ann"]["last"] = "2026-09-02"
+        sec = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
+        self.assertNotIn("gone", sec["caption"], "a word no row carries is not defined")
+        self.assertEqual([row[3] for row in sec["rows"]], [" 91%", "100%", "100%"], "blank means active")
+
+    def test_the_last_text_cell_is_cut_at_its_end_after_the_path_has_lost_its_directories(self):
+        sec = render._section("Watch list", [("file", render.PATH), ("changes", render.RIGHT), ("top author", render.WHOLE), ("look at first", render.TAIL)],
+                              [("storage/remote/otlptranslator/prometheusremotewrite/helper.go", 1234, "23% gone", "writePostingsToTmpFiles() complexity 26")])
+        self.assertEqual(render.fit(sec, 82)["rows"][0], ("storage/…/helper.go", "1,234", "23% gone", "writePostingsToTmpFiles() complexity 26"),
+                         "the path gives its middle directories first")
+        self.assertEqual(render.fit(sec, 80)["rows"][0], ("…/helper.go", "1,234", "23% gone", "writePostingsToTmpFiles() complexity 26"), "all of them before anything else is cut")
+        fitted = render.fit(sec, 60)
+        self.assertEqual(fitted["rows"][0], ("…/helper.go", "1,234", "23% gone", "writePostingsToTmpFiles()…"), "then the last text cell, at its end; no number is cut")
+        text = _rendered_section(sec, width=60)
+        self.assertEqual([line.split()[0] for line in text.splitlines() if "helper.go" in line or "…" in line], ["…/helper.go"], "one line for the row")
+        for line in text.splitlines():
+            self.assertLessEqual(len(line.rstrip()), 60)
 
     def test_the_duplication_rate_is_no_longer_a_header_phrase(self):
         """The duplicates step left at 0.39.0; an old report dict that still carries its rate says nothing of it."""
@@ -552,7 +604,7 @@ class Report(unittest.TestCase):
     def test_watch_list_caption_reports_the_backtest_or_why_not(self):
         r = sample_report()
         r["meta"]["backtest"] = {"status": "skipped", "reason": "too little history to backtest"}
-        self.assertIn("too little history to backtest", rendered(r, []))
+        self.assertIn("Check: none, too little history to backtest", rendered(r, []))
         r = sample_report()
         past = sample_report()
         past["meta"] = {"now": "2026-03-10"}
@@ -560,8 +612,17 @@ class Report(unittest.TestCase):
         r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
         text = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("6 months ago this list's top 2 would have named 1 of the 1 file fixed since among the 2 that had changed more than once: "
-                      "no more than the 2 most changed; not distinguishable from a random 2 (1.0 expected, p = 1)", text)
+        self.assertIn("Check: 6 months ago the top 2 of this ranking held 1 of the 1 file fixed since. The 2 most-changed files also held 1; "
+                      "2 random files would hold 1.0, and 1 is not distinguishable from that (p = 1).", text)
+        r = sample_report()
+        r["meta"]["backtest"] = {"status": "timeout"}
+        self.assertIn("Check: none, backtest timed out", next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"])
+        r = sample_report()
+        past = sample_report()
+        past["meta"] = {"now": "2026-03-10"}
+        r["backtest"] = past
+        r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1},
+                      {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["positives"], 1, "static/other.html was not in the pool")
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["hits"], 1)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["pool"], 2)
@@ -574,7 +635,7 @@ class Report(unittest.TestCase):
         r["backtest"] = past
         r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-01-01", "recent-fixes": 0}]   # before the cut-off
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("nothing has been fixed since the cut-off 6 months ago, so there is nothing to score the list against", caption)
+        self.assertIn("Check: nothing has been fixed since the cut-off 6 months ago, so there is nothing to score this ranking against.", caption)
         self.assertNotIn("0 of the 0", caption)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["fixed"], 0, "the JSON keeps the numbers")
 
@@ -587,27 +648,35 @@ class Report(unittest.TestCase):
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
         r["meta"]["since"] = "2026-01-01"
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("ranked by changes × lines of code alone; the reasons say what to look at there; commits since 2026-01-01", caption)
-        self.assertTrue(caption.endswith("(1.0 expected, p = 1); whole history"), caption)
+        self.assertTrue(caption.startswith("changes = commits since 2026-01-01 · fixes = in the 6 months to 2026-09-10 · "), caption)
+        self.assertIn("\nCheck, over the whole history: 6 months ago the top 2 of this ranking held 1 of the 1 file fixed since.", caption)
 
     def test_backtest_words_say_what_the_numbers_mean(self):
         bt = {"t": "2026-03-10", "pool": 1245, "listed": 15, "fixed": 205, "positives": 128, "hits": 3, "expected": 1.5,
               "baselines": {"churn": 5, "size": 2}, "p_by_chance": 0.19}
         self.assertEqual(render.backtest_words(bt),
-                         "6 months ago this list's top 15 would have named 3 of the 128 files fixed since among the 1,245 that had changed "
-                         "more than once: fewer than the 15 most changed (5); not distinguishable from a random 15 (1.5 expected, p = 0.19)",
+                         "6 months ago the top 15 of this ranking held 3 of the 128 files fixed since. The 15 most-changed files held 5, more than this ranking; "
+                         "15 random files would hold 1.5, and 3 is not distinguishable from that (p = 0.19).",
                          "devlake's, which once read 3 of the 205 beside a random 1.5 out of 128 and said nothing about either")
+        self.assertTrue(render.backtest_words(bt, detail=True).endswith(" Counted over the 1,245 files that had changed more than once by then; 77 more files fixed since had not."),
+                        "--full and Markdown say what the 128 are out of, and where the other 77 of the 205 went")
         bt.update(hits=9, p_by_chance=0.00002)
-        self.assertTrue(render.backtest_words(bt).endswith("more than the 15 most changed (5); more than a random 15 would by chance (1.5 expected, p < 0.001)"))
+        self.assertTrue(render.backtest_words(bt).endswith("held 9 of the 128 files fixed since. The 15 most-changed files held 5, fewer than this ranking; 15 random files would hold 1.5."))
+        self.assertTrue(render.backtest_words(bt, detail=True).endswith("had not; p < 0.001."), "the p of a result that is not chance is --full's")
         bt.update(hits=5, p_by_chance=0.0496)
-        self.assertIn("no more than the 15 most changed; more than a random 15 would by chance (1.5 expected, p = 0.0496)", render.backtest_words(bt),
-                      "0.0496 is not rounded to a 0.05 that reads as the other side of the line")
+        self.assertTrue(render.backtest_words(bt).endswith("The 15 most-changed files also held 5; 15 random files would hold 1.5."))
+        self.assertTrue(render.backtest_words(bt, detail=True).endswith("; p = 0.0496."), "0.0496 is not rounded to a 0.05 that reads as the other side of the line")
+        bt.update(hits=5, p_by_chance=0.05)
+        self.assertIn("and 5 is not distinguishable from that (p = 0.05)", render.backtest_words(bt), "at the line it is chance, and the default report says so")
         bt.update(positives=0)
-        self.assertEqual(render.backtest_words(bt), "none of the 205 files fixed since the cut-off 6 months ago had changed more than once by then, "
-                                                    "so there is nothing to score the list against")
+        self.assertEqual(render.backtest_words(bt), "None of the 205 files fixed since the cut-off 6 months ago had changed more than once by then, "
+                                                    "so there is nothing to score this ranking against.")
         old = {k: v for k, v in bt.items() if k not in ("positives", "p_by_chance")}
-        self.assertIn("(a random 15 of the 1,245 files that had changed more than once would name 1.5", render.backtest_words(old),
-                      "a backtest recorded before the pool's own count keeps its old sentence")
+        self.assertEqual(render.backtest_words(old), "6 months ago the top 15 of this ranking held 5 of the 205 files fixed since. The 15 most-changed files held 5; "
+                                                     "15 random files of the 1,245 that had changed more than once would hold 1.5.",
+                         "a backtest recorded before the pool's own count keeps to the counts it has")
+        one = {"t": "2026-03-10", "pool": 9, "listed": 1, "fixed": 1, "positives": 1, "hits": 1, "expected": 0.1, "baselines": {"churn": 0, "size": 0}, "p_by_chance": 0.11}
+        self.assertIn("The most-changed file held 0, fewer than this ranking; 1 random file would hold 0.1", render.backtest_words(one))
 
     def test_markdown_hotspots_hide_test_files_and_say_so(self):
         r = sample_report()
@@ -1109,7 +1178,7 @@ class ComplexFunctions(unittest.TestCase):
                            "function": "shouldReturnTheAccountWhenTheIdentifierIsKnownAndActive",
                            "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200}]
         sec = render.fit(next(x for x in render.sections(r, full=False, width=100) if x["title"] == "Complex functions"), 100)
-        self.assertEqual(sec["rows"][0][1], "…/impl/AccountServiceImpl.java", "the directory survives; only the name would at the 16-char floor")
+        self.assertEqual(sec["rows"][0][1], "src/…/impl/AccountServiceImpl.java", "the directories survive; only the name would at the 16-char floor")
 
     def test_only_functions_over_the_floor(self):
         r = sample_report()
@@ -1125,15 +1194,17 @@ class ComplexFunctions(unittest.TestCase):
 
 
 class WatchList(unittest.TestCase):
-    def test_leads_the_tables_with_reasons_in_words(self):
+    def test_leads_the_tables_with_its_numbers_in_columns(self):
         r = sample_report()
         r["authors"].append({"entity": "static/index.html", "n-authors": 1, "n-revs": 51})
         r["ownership"].append({"entity": "static/index.html", "author": "Ann", "added": 4000, "deleted": 0})
         text = rendered(r, [], width=120)
-        self.assertIn("◎ Watch list", text)
-        self.assertRegex(text, r"static/index.html\s+changed 51 times · only Ann has touched it")
-        self.assertRegex(text, r"static/apps-metadata.json\s+changed 128 times · fixed 4 times in 6 months")
-        self.assertIn("ranked by changes × lines of code alone; the reasons say what to look at there", text)
+        self.assertIn("◎ Watch list · all 2, ranked by changes × lines of code", text)
+        self.assertRegex(text, r"static/index.html\s+51\s+0\s+100%\s*\n")
+        self.assertRegex(text, r"static/apps-metadata.json\s+128\s+4\s+-\s*\n", "no ownership row, so no share")
+        self.assertNotIn("only Ann has touched it", text, "the reasons in words are --full's, under each row")
+        self.assertIn("only Ann has touched it", rendered(r, [], width=120, full=True))
+        self.assertEqual(render.to_json(r, [])["watch"][0]["reasons"], ["changed 51 times", "only Ann has touched it"])
 
     def test_capped_at_five_by_default_and_fifteen_in_full(self):
         r = sample_report()
@@ -1174,7 +1245,7 @@ class WatchList(unittest.TestCase):
         r = sample_report()
         r["meta"]["since"] = "2025-01-01"
         sec = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
-        self.assertEqual(sec["caption"], "ranked by changes × lines of code alone; the reasons say what to look at there; commits since 2025-01-01")
+        self.assertEqual(sec["caption"], "changes = commits since 2025-01-01 · fixes = in the 6 months to 2026-09-10 · top author = largest share of the lines added to the file")
 
 
 class FullOnlySections(unittest.TestCase):
@@ -1486,10 +1557,10 @@ class Timeline(unittest.TestCase):
     def test_a_name_is_never_folded_the_oldest_months_go_instead(self):
         r = sample_report()
         r["activity"]["timeline"] = {"antvinni": {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
-        text = rendered(r, [], width=80)
+        text = rendered(r, [], width=60)
         body = _section_text(text, "Timeline")
         self.assertIn("antvinni", body, "the name on one line")
-        sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
+        sec = next(s for s in render.sections(r, full=False, width=60) if s["id"] == "timeline")
         self.assertLess(len(sec["columns"]) - 1, 12, "fewer months than the year, since the year does not fit")
         self.assertTrue(sec["title"].endswith("→ Sep 2026)"), sec["title"])
         self.assertNotIn("Oct 2025", sec["title"], "the title names the months shown")
@@ -1502,7 +1573,7 @@ class Timeline(unittest.TestCase):
         r = sample_report()
         r["activity"]["timeline"] = {"Stopped Last Autumn": {"2025-10": 40, "2025-11": 30},
                                      "Here All Year": {f"2026-{m:02d}": 2 for m in range(1, 10)}}
-        narrow = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
+        narrow = next(s for s in render.sections(r, full=False, width=60) if s["id"] == "timeline")
         self.assertLess(len(narrow["columns"]) - 1, 12, "the width dropped the oldest months")
         self.assertEqual([row[0] for row in narrow["rows"]], ["Here All Year"])
         wide = next(s for s in render.sections(r, full=False, width=200) if s["id"] == "timeline")
@@ -1744,7 +1815,8 @@ class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report(), full=True)
         titles = [x["title"] for x in secs]
-        self.assertEqual(titles[:6], ["Watch list", "Watch list by component", "Size by language", "People", "Knowledge map (every file in the history)", "Activity"])
+        self.assertEqual(titles[:6], ["Watch list · all 2, ranked by changes × lines of code", "Watch list by component", "Size by language", "People",
+                                      "Knowledge map (every file in the history)", "Activity"])
         self.assertTrue(titles[6].startswith("Timeline"))
         self.assertTrue(titles[7].startswith("Hotspots"))
         self.assertEqual(titles[-2], "Complex functions")
@@ -2014,13 +2086,18 @@ class SmallRepository(unittest.TestCase):
         r["coupling"] = [{"entity": "src/a.py", "coupled": "src/b.py", "degree": 80, "average-revs": 12}]
         return r
 
-    def test_one_coupled_pair_the_watch_list_already_shows_is_no_table(self):
+    def test_one_coupled_pair_its_finding_already_names_is_no_table(self):
+        from gitmole import findings
         r = self.coupled()
-        text = rendered(r, [])
-        self.assertIn("changes with src/b.py (80%)", " ".join(text.split()))
-        self.assertNotIn("Change coupling", text)
-        self.assertIn("Change coupling", rendered(r, [], full=True))
-        self.assertIn("## Change coupling", render.markdown(r, []))
+        found = findings.tight_coupling(r)
+        text = rendered(r, found)
+        self.assertIn("a.py and b.py in src/, 80%", " ".join(text.split()), "the finding gives the pair and its share")
+        self.assertNotIn("Change coupling", text, "and points at no table, since none is printed")
+        self.assertIn("Change coupling", rendered(r, found, full=True))
+        self.assertIn("## Change coupling", render.markdown(r, found))
+        r["coupling"][0]["degree"] = 60   # under the finding's 80%: the watch list's columns name no partner, so the table is the only place
+        self.assertEqual(findings.tight_coupling(r), [])
+        self.assertIn("⟷ Change coupling", rendered(r, []))
 
     def test_the_coupling_table_stays_when_it_says_more_than_the_watch_list(self):
         r = self.coupled()

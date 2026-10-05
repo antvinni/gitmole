@@ -29,17 +29,16 @@ WARM = "#ff9ee0"            # values worth a glance
 ROW_STYLES = ["", "on #1c2230"]
 SIDE_BY_SIDE_MIN_WIDTH = 100
 
-# the Timeline's month columns: each is 3 characters wide plus 2 of column padding, plus the 1-column
-# gap rich reserves between every pair of columns even with the box's edges hidden (verified against
-# rich.table.Table._calculate_column_widths, whose "n columns - 1" extra width cancels the gap saved
-# on the last column, leaving a clean 6 per month). The section itself is indented by 2. FLOOR is the
+# the Timeline's month columns: each is 3 characters wide plus the 2 of GAP between every pair of columns
+# (verified against rich.table.Table._calculate_column_widths, whose "n columns - 1" extra width cancels the
+# gap saved on the last column, leaving a clean 5 per month). The section itself is indented by 2. FLOOR is the
 # fewest months shown even when a name leaves almost no room. Once FLOOR is reached the months keep
 # their full width and the name gives way instead, cut to whatever room is left; NAME_FLOOR is the
 # fewest characters of a name still shown before the ellipsis, even if the months leave less room than
 # that (eight is enough to keep most short names, and the start of longer ones, still recognisable).
-# The section needs INDENT + NAME_FLOOR + FLOOR × MONTH_WIDTH = 28 columns; below that rich starves
+# The section needs INDENT + NAME_FLOOR + FLOOR × MONTH_WIDTH = 25 columns; below that rich starves
 # the month cells, which no real terminal reaches.
-MONTH_WIDTH, INDENT, FLOOR, NAME_FLOOR = 6, 2, 3, 8
+MONTH_WIDTH, INDENT, FLOOR, NAME_FLOOR = 5, 2, 3, 8
 
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
@@ -50,11 +49,13 @@ SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timel
 KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "changes", "Change coupling": "together",
               "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
               "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "complexity",
-              "Watch list": "why", "Change risk": "risk", "Most-changed documents": "changes"}
+              "Watch list": "changes", "Change risk": "risk", "Most-changed documents": "changes"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
 PATH = {"overflow": "fold", "no_wrap": False, "kind": "path"}   # "kind" (and "spare") are fit()'s, not rich's
+WHOLE = {"kind": "fixed"}   # a short text cell that is never cut, as a number is not: a share with "gone" after it
+TAIL = {"kind": "tail", "no_wrap": True}   # the last text cell of a row: cut at its end with an ellipsis once every path has given its directories
 
 # rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own. Hotspots has
 # no entry: it is `--full`/Markdown only now, so its row count is never decided by this table.
@@ -89,10 +90,18 @@ def _number(c) -> str:
     return f"{c:,}" if isinstance(c, int) and not isinstance(c, bool) else str(c)
 
 
-def _section(title, columns, rows, note=None, caption=None) -> dict:
-    """columns: list of (name, rich column options). rows: lists of cells, a count as an int (see _number)."""
-    return {"title": title, "columns": [c[0] for c in columns], "col_opts": [c[1] for c in columns],
-            "rows": [[_number(c) for c in r] for r in rows], "note": note, "caption": caption}
+def _section(title, columns, rows, note=None, caption=None, under=None, loose=False) -> dict:
+    """columns: list of (name, rich column options). rows: lists of cells, a count as an int (see _number).
+    `caption` is one paragraph a line, each wrapped at its separators when it is drawn. `under` is one line of
+    text per row, drawn indented beneath it on a terminal and as a last column in Markdown ("under_head" names
+    it). `loose` keeps the drawing from before the default report's grid (LOOSE_GAP)."""
+    sec = {"title": title, "columns": [c[0] for c in columns], "col_opts": [c[1] for c in columns],
+           "rows": [[_number(c) for c in r] for r in rows], "note": note, "caption": caption}
+    if under is not None:
+        sec["under"] = list(under)
+    if loose:
+        sec["loose"] = True
+    return sec
 
 
 def _limit(title: str, full, cap=None):
@@ -412,56 +421,117 @@ def _p_words(p: float) -> str:
     return f"p = {shown}"
 
 
-def backtest_words(bt: dict) -> str:
-    """The backtest in one sentence, every count out of the same pool: the files that had changed more
-    than once by the cut-off, of which `positives` were fixed after it. Then what the numbers mean, in
-    words: against the same number of most-changed files, and against a random pick, by the one-sided
-    hypergeometric test at 5% (watch.p_by_chance). A backtest from before `positives` was recorded
-    says the old sentence rather than guess."""
+def backtest_words(bt: dict, detail: bool = False) -> str:
+    """The backtest in two plain sentences, every count out of the same pool, the files that had changed more
+    than once by the cut-off, of which `positives` were fixed after it: what the top of the ranking held, then
+    what the same number of most-changed files held and what a random pick would. A result a random pick could
+    have given says so, by the one-sided hypergeometric test at 5% (watch.p_by_chance), with its p. `detail`
+    (--full, Markdown) adds the pool, the fixed files outside it and the p of a result that is not chance.
+    prometheus's caption was one sentence of four lines with the three comparisons in brackets. A backtest from
+    before `positives` was recorded keeps to the counts it has, and one with nothing in the pool fixed says so."""
     n, k, churn = bt["listed"], bt["hits"], bt["baselines"]["churn"]
+    most = "The most-changed file" if n == 1 else f"The {n} most-changed files"
+    random = "1 random file" if n == 1 else f"{n} random files"
     if "positives" not in bt:
-        return (f"6 months ago this list would have named {k:,} of the {bt['fixed']:,} files fixed since "
-                f"(a random {n} of the {bt['pool']:,} files that had changed more than once would name {bt['expected']}; "
-                f"the {n} most changed would name {churn:,})")
+        return (f"6 months ago the top {n} of this ranking held {k:,} of the {bt['fixed']:,} files fixed since. "
+                f"{most} held {churn:,}; {random} of the {bt['pool']:,} that had changed more than once would hold {bt['expected']}.")
     if not bt["positives"]:
-        return (f"none of the {bt['fixed']:,} files fixed since the cut-off 6 months ago had changed more than once by then, "
-                f"so there is nothing to score the list against")
+        return (f"None of the {bt['fixed']:,} files fixed since the cut-off 6 months ago had changed more than once by then, "
+                f"so there is nothing to score this ranking against.")
     p = bt.get("p_by_chance")
     p = watch.p_by_chance(bt["pool"], bt["positives"], n, k) if p is None else p
-    versus = (f"fewer than the {n} most changed ({churn})" if k < churn else f"no more than the {n} most changed" if k == churn
-              else f"more than the {n} most changed ({churn})")
-    chance = (f"not distinguishable from a random {n}" if p >= watch.CHANCE_ALPHA else f"more than a random {n} would by chance")
-    return (f"6 months ago this list's top {n} would have named {k:,} of the {bt['positives']:,} file{'s' if bt['positives'] != 1 else ''} fixed since among the "
-            f"{bt['pool']:,} that had changed more than once: {versus}; {chance} ({bt['expected']} expected, {_p_words(p)})")
+    by_chance = p >= watch.CHANCE_ALPHA
+    versus = (f"held {churn:,}, more than this ranking" if k < churn else f"also held {churn:,}" if k == churn
+              else f"held {churn:,}, fewer than this ranking")
+    chance = f"{random} would hold {bt['expected']}" + (f", and {k:,} is not distinguishable from that ({_p_words(p)})" if by_chance else "")
+    out = (f"6 months ago the top {n} of this ranking held {k:,} of the {textfmt.count(bt['positives'], 'file')} fixed since. "
+           f"{most} {versus}; {chance}.")
+    if detail:
+        outside = bt["fixed"] - bt["positives"]
+        out += (f" Counted over the {bt['pool']:,} files that had changed more than once by then"
+                + (f"; {textfmt.count(outside, 'more file')} fixed since had not" if outside > 0 else "")
+                + ("" if by_chance else f"; {_p_words(p)}") + ".")
+    return out
+
+
+FIX_MONTHS = 6   # the window of maat's recent-fixes column, which the watch list's "fixes" and the bug magnets count in
+
+
+def _window(months: int, last: str) -> str:
+    """'the 6 months to 2026-09-18', or 'the last 6 months' for a report without its last date."""
+    return f"the {months} months to {last}" if last else f"the last {months} months"
+
+
+def _gone_names(report: dict) -> tuple:
+    """(the names with no commit in the --gone window, that window in months)."""
+    months = report["meta"].get("gone_months", loss.DEFAULT_MONTHS)
+    return {g["name"] for g in loss.gone(report, months)}, months
+
+
+def gone_definition(report: dict) -> str:
+    """'gone = no commit in the 12 months to 2026-09-18': the one definition of the word, under the first table
+    that prints it."""
+    return f"gone = no commit in {_window(_gone_names(report)[1], report['meta'].get('last_date') or '')}"
+
+
+def _share_cells(shares: list, gone: list) -> list:
+    """A column of shares, each with "gone" after it when its person is: the percentage right-aligned in a
+    field as wide as the column's widest, so the word starts in one place (" 9% gone" under "23% gone"), and
+    "-" for a row with no share. One space, no comma, no brackets; blank means active."""
+    wide = max((len(x) for x in shares if x), default=0)
+    return [(f"{x:>{wide}}" + (" gone" if g else "")) if x else "-" for x, g in zip(shares, gone)]
+
+
+WATCH_ALSO = "also"   # the Markdown column for what --full prints under a watch-list row
 
 
 def watch_section(report: dict, full: bool = True, width=None) -> dict:
-    """The files to keep an eye on, with the reasons in words. Paths stay whole here."""
+    """The files to keep an eye on, one line each with its numbers in columns: how often it changed, how often
+    it was fixed lately, the share of its largest author (and whether that person is gone) and the one function
+    to open first (watch.first_look). prometheus's five files took 21 lines of reasons wrapped in one cell, the
+    same "N of M authors are minor contributors" on every row. The reasons themselves are unchanged in the
+    JSON, the --hook context and the --risk section; the ones the columns do not hold are printed under each
+    row by --full and in a last column by Markdown. The share is printed and the name is not: a bare "gone"
+    read as the file's only author, where prometheus's web/api/v1/api.go has 10% from its largest."""
     ranked = watch.risks(report)
     limit = WATCH_CAP if full is False else WATCH_FULL
-    shown = watch.REASONS_SHOWN if full is False else None   # the default terminal view keeps each row readable
-    rows = [(r["file"], " · ".join(r["reasons"][:shown]) + (f" · {len(r['reasons']) - shown} more" if shown and len(r["reasons"]) > shown else ""))
-            for r in ranked[:limit]]
-    columns = [("file", PATH), ("why", {"overflow": "fold", "ratio": 3})]
+    listed = ranked[:limit]
+    gone, months = _gone_names(report)
+    last = report["meta"].get("last_date") or ""
     since = report["meta"].get("since")
-    # "alone": the reasons never move a file; a reader who sees fixes and ownership beside each row
-    # would otherwise take them for the ranking
-    notes = ["ranked by changes × lines of code alone; the reasons say what to look at there" + (f"; commits since {since}" if since else "")]
+    looks = [watch.first_look(r) for r in listed]
+    owners = _share_cells([f"{100 * r['owner_share']:.0f}%" if r["owner"] else "" for r in listed], [r["owner"] in gone for r in listed])
+    rows = [(r["file"], r["revs"], r["recent_fixes"], owner, look[0] if look else "") for r, owner, look in zip(listed, owners, looks)]
+    columns = [("file", PATH), ("changes", RIGHT), ("fixes", RIGHT), ("top author", WHOLE), ("look at first", TAIL)]
+    if not any(looks):   # no function at either floor in any row shown: an empty column is not a column
+        columns, rows = _keep(columns, rows, [c[0] for c in columns[:-1]])
+    pool = min(len(ranked), WATCH_FULL)   # the list is short by design: its top, never every scored file
+    title = (f"Watch list · {f'{len(rows):,} of {pool:,}' if len(rows) < pool else f'all {pool:,}'}, ranked by changes × lines of code"
+             if rows else "Watch list")
+    defined = ([f"changes = commits since {since}"] if since else []) + [f"fixes = in {_window(FIX_MONTHS, last)}",
+               "top author = largest share of the lines added to the file"]
+    if any(r["owner"] in gone for r in listed):
+        defined.append(gone_definition(report))
+    notes = [" · ".join(defined)]
     bt = watch.backtest(report)
     status = report["meta"].get("backtest") or {}
+    check = "Check, over the whole history: " if since else "Check: "   # the backtest ignores the window
     if bt and not bt["fixed"]:
-        notes.append("nothing has been fixed since the cut-off 6 months ago, so there is nothing to score the list against")
+        notes.append("Check: nothing has been fixed since the cut-off 6 months ago, so there is nothing to score this ranking against.")
     elif bt:
-        notes.append(backtest_words(bt) + ("; whole history" if since else ""))   # the backtest ignores the window
+        notes.append(check + backtest_words(bt, detail=full is not False))
     elif status.get("reason"):
-        notes.append(status["reason"])
+        notes.append(f"Check: none, {status['reason']}")
     elif status.get("status") in ("failed", "timeout"):
-        notes.append(f"backtest {status['status']}")
+        notes.append(f"Check: none, backtest {STEP_WORDS[status['status']]}")
     left_out = sweeps_note(report)
     if left_out:
         notes.append(left_out)
     caption = "\n".join(notes)
-    return _section("Watch list", columns, rows, note=None if rows else watch.why_empty(report), caption=caption if rows else None)
+    under = None if full is False else [" · ".join(watch.beyond_columns(r)) for r in listed]
+    sec = _section(title, columns, rows, note=None if rows else watch.why_empty(report), caption=caption if rows else None, under=under)
+    sec["under_head"] = WATCH_ALSO
+    return sec
 
 
 def scored_phrase(report: dict):
@@ -560,8 +630,10 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
     gaps = risk.get("coupling_gaps") or []
     if rows and gaps:
         notes.append(gaps_line(gaps))
+    # loose: this section's drawing is stored in tests/golden/strings.txt with the hook's and the gate's words,
+    # which the watch list's columns (A5) do not touch; it takes the grid when that copy is next regenerated
     return _section(f"Change risk ({len(rows_all):,} files since {base})", columns, rows,
-                    note=None if rows else f"no files changed since {base}", caption="\n".join(notes) or None)
+                    note=None if rows else f"no files changed since {base}", caption="\n".join(notes) or None, loose=True)
 
 
 def gaps_line(gaps: list) -> str:
@@ -910,20 +982,26 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     caveat = coupling.regime(report)[1]   # what a pair means here: a pull request under squash merging, an edit otherwise
     if rows and caveat:
         notes.append(caveat)
-    # A table of one pair that the watch list's rows already give, with its degree, says nothing twice. Only
-    # test pairs may have been hidden on the way: a count of historical or vendored pairs is said nowhere else.
-    if full is False and not groups and not gone_note and len(pairs) == 1 and _watch_shows(report, pairs[0]):
-        return None
-    return _section("Change coupling", columns, rows, note=note, caption="; ".join(notes) or None)
+    sec = _section("Change coupling", columns, rows, note=note, caption="; ".join(notes) or None)
+    # A table of one pair that a finding already gives, with its degree, says nothing twice (_said_by_finding).
+    # Only test pairs may have been hidden on the way: a count of historical or vendored pairs is said nowhere else.
+    if full is False and not groups and not gone_note and len(pairs) == 1:
+        sec["lone_pair"] = (pairs[0]["entity"], pairs[0]["coupled"])
+    return sec
 
 
-def _watch_shows(report: dict, pair: dict) -> bool:
-    """Whether the default watch list already prints this coupled pair: one of its files is a row shown there
-    and a reason shown on that row is that it changes with the other."""
-    for r in watch.risks(report)[:WATCH_CAP]:
-        other = pair["coupled"] if r["file"] == pair["entity"] else pair["entity"] if r["file"] == pair["coupled"] else None
-        if other and any(reason.startswith(f"changes with {other} (") for reason in r["reasons"][:watch.REASONS_SHOWN]):
-            return True
+def _said_by_finding(sec: dict, findings) -> bool:
+    """Whether a default section holds nothing the Findings above it do not say: the coupling table of one
+    pair (coupling_section's `lone_pair`) when "Files that always change together" names that pair with its
+    share. The watch list's rows used to be what made the table redundant, a partner among each row's reasons;
+    its columns hold no partner, so a pair under that rule's 80% keeps its table."""
+    pair = sec.get("lone_pair")
+    if not pair:
+        return False
+    for f in findings or ():
+        if (f.get("rule") or {}).get("id") == "tight_coupling":
+            if any({p.get("a"), p.get("b")} == set(pair) for p in (f.get("evidence") or {}).get("pairs") or []):
+                return True
     return False
 
 
@@ -1581,7 +1659,9 @@ def cell_style(column: str, value: str):
 
 
 def _base_title(title: str) -> str:
-    return title.split(" (")[0]
+    """A section's name without its qualifier: 'Watch list' of 'Watch list · 5 of 15, ranked by …' and of a
+    title that still carries its qualifier in brackets."""
+    return title.split(" · ")[0].split(" (")[0]
 
 
 def _cell(column: str, value: str, bars: bool) -> Text:
@@ -1599,8 +1679,17 @@ def _cell(column: str, value: str, bars: bool) -> Text:
 # folded at PROSE_FLOOR; a column marked "spare" goes first, then the rightmost.
 # Prose keeps PROSE_KEEP characters before a path loses a directory, so a long path does not squeeze the reasons
 # beside it into a column of single words.
+# A "tail" column is the last text cell of a row (the watch list's "look at first"): it is cut at its end with an
+# ellipsis, and only once every path has given up its directories, so a table's overflow has one order: a path loses
+# middle directories, then the last text cell is cut, and a number never is.
 NAME_KEEP, PROSE_KEEP, PROSE_FLOOR, CUT_FLOOR, PATH_LEAST, NAME_LEAST = 32, 40, 20, 12, 24, 16
-GAP = 3   # rich's padding either side of a column plus the SIMPLE_HEAD box's divider between two
+GAP = 2         # between two columns: one of padding after a cell and the SIMPLE_HEAD box's divider
+LOOSE_GAP = 3   # the drawing before the grid, padding either side: the Change risk section's, whose stored copy
+                # (tests/golden/strings.txt) the watch list's change leaves byte for byte
+
+
+def _gap(sec: dict) -> int:
+    return LOOSE_GAP if sec.get("loose") else GAP
 
 
 def _kind(name: str, opts: dict) -> str:
@@ -1618,6 +1707,8 @@ def _fit_cell(kind: str, text: str, width: int, others=()) -> str:
         return text
     if kind == "path":
         return textfmt.cut_path(text, width, others)
+    if kind == "tail":
+        return textfmt.cut(text, width)
     return textfmt.cut_middle(text, width)
 
 
@@ -1657,7 +1748,7 @@ def fit(sec: dict, width) -> dict:
     want = [max(a, b) for a, b in zip(cells, heads)]
 
     def room(keep):
-        return width - INDENT - GAP * (len(keep) - 1)
+        return width - INDENT - _gap(sec) * (len(keep) - 1)
     keep = list(range(len(cols)))
     if sum(want) <= room(keep):
         return sec
@@ -1677,6 +1768,7 @@ def fit(sec: dict, width) -> dict:
     # the least each column can take: a number whole, a name or path cut to CUT_FLOOR, prose folded at PROSE_FLOOR
     least = [min(want[i], max(head_word[i], PROSE_FLOOR if k == "prose" else CUT_FLOOR)) if k != "fixed" else max(cells[i], head_word[i])
              for i, k in enumerate(kinds)]
+    tails = [i for i, k in enumerate(kinds) if k == "tail"]
 
     def needs(i):   # what a column must have to stay in the table
         if kinds[i] == "path":
@@ -1695,6 +1787,8 @@ def fit(sec: dict, width) -> dict:
             floor.append(min(want[i], max(PROSE_FLOOR, longest_word(i), head_word[i])))
         elif k in ("path", "name"):
             floor.append(name_floor(i))
+        elif k == "tail":
+            floor.append(want[i])   # whole until the paths have given what they can
         else:
             floor.append(least[i])
     widths = {i: want[i] for i in keep}
@@ -1712,14 +1806,14 @@ def fit(sec: dict, width) -> dict:
     # has given what it can: an area is the row's subject, an owner's name is its detail
     dirs = {i for i in keep if kinds[i] == "path" and any(r[i].endswith("/") for r in rows)
             and all(r[i].endswith("/") or "/" not in r[i] for r in rows)}   # "(root files)" sits among them
-    for floors, give, among in ((floor, ("path", "name"), keep), (floor, ("prose",), keep),
+    for floors, give, among in ((floor, ("path", "name"), keep), (floor, ("prose",), keep), (least, ("tail",), [i for i in keep if i in tails]),
                                 (least, ("path", "name", "prose"), [i for i in keep if i not in dirs]), (least, ("path",), dirs)):
         while excess() > 0:
             cand = [i for i in among if kinds[i] in give and widths[i] > floors[i]]
             if not cand:
                 break
             widths[max(cand, key=lambda i: widths[i])] -= 1
-    fitted = [tuple(_fit_cell(kinds[i], r[i], widths[i], namesakes[i][n] if i in namesakes else ()) if kinds[i] in ("path", "name") else r[i] for i in keep)
+    fitted = [tuple(_fit_cell(kinds[i], r[i], widths[i], namesakes[i][n] if i in namesakes else ()) if kinds[i] in ("path", "name", "tail") else r[i] for i in keep)
               for n, r in enumerate(rows)]
     col_opts = [dict(opts[i], width=widths[i]) for i in keep]
     caption = sec.get("caption")
@@ -1730,15 +1824,20 @@ def fit(sec: dict, width) -> dict:
 
 
 def rich_table(sec: dict):
-    """A table for a section: no title (the caller prints the heading), caption underneath,
-    coloured headers, bold key column, dimmed secondary columns, zebra rows, threshold colours."""
+    """A table for a section: no title (the caller prints the heading) and no caption (section_block prints it
+    under the table, so a table is as wide as its columns and never as wide as its caption), coloured headers,
+    bold key column, dimmed secondary columns, zebra rows, threshold colours. A `loose` section keeps the
+    drawing from before the grid: wider gaps and the caption inside the table."""
     key = KEY_METRIC.get(_base_title(sec["title"]))
     kw = {}
-    if sec.get("caption"):
-        kw = {"caption": escape(sec["caption"]), "caption_justify": "left", "caption_style": "dim italic"}   # a name like renovate[bot] is not markup
-    fits = max((len(line) for line in (sec.get("caption") or "").split("\n")), default=0)
+    if sec.get("loose"):
+        if sec.get("caption"):
+            kw = {"caption": escape(sec["caption"]), "caption_justify": "left", "caption_style": CAPTION_STYLE}   # a name like renovate[bot] is not markup
+        kw["min_width"] = max((len(line) for line in (sec.get("caption") or "").split("\n")), default=0)
+    else:
+        kw["padding"] = (0, 1, 0, 0)   # with the box's divider, GAP between two columns
     bars = "share" in sec["columns"] and "" not in sec["columns"]   # inline bars only where there is no bar column
-    t = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, min_width=fits, header_style=HEADER,
+    t = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, header_style=HEADER,
               row_styles=ROW_STYLES, border_style="#3a4150", **kw)
     for i, (name, opts) in enumerate(zip(sec["columns"], sec["col_opts"])):
         o = {k: v for k, v in opts.items() if k not in ("kind", "spare")}   # fit()'s, not rich's
@@ -1751,17 +1850,66 @@ def rich_table(sec: dict):
     return t
 
 
+CAPTION_STYLE = "dim italic"
+UNDER_INDENT = 2   # a row's line of detail, in from the row's first cell
+
+
+class _Under:
+    """A table with one line of text under each of its rows (the watch list's remaining reasons in --full),
+    indented and wrapped at its separators. The table is drawn first and its lines are passed through with the
+    detail put after each row's, which a row that is one line makes exact: the rows come after the rule under
+    the column heads, and fit() lets no cell of these tables wrap."""
+
+    def __init__(self, table, under: list):
+        self.table, self.under = table, under
+
+    def __rich_measure__(self, console, options):
+        from rich.measure import Measurement
+        return Measurement.get(console, options, self.table)
+
+    def __rich_console__(self, console, options):
+        from rich.segment import Segment
+        lines = console.render_lines(self.table, options, pad=False)
+        rule = next((i for i, line in enumerate(lines) if (text := "".join(seg.text for seg in line).strip()) and set(text) <= set("─ ")), -1)
+        for i, line in enumerate(lines):
+            yield from line
+            yield Segment.line()
+            n = i - rule - 1
+            if rule >= 0 and 0 <= n < len(self.under) and self.under[n]:
+                for part in brief.wrap(self.under[n], max(options.max_width - UNDER_INDENT, 20)):
+                    yield from console.render(Text(" " * UNDER_INDENT + part, style="dim"), options)
+
+
+def caption_lines(sec: dict, width=None) -> list:
+    """A section's caption as the lines to print: each paragraph wrapped at spaces, a " · " kept at the end of
+    the line before it, so no line starts with a separator. `width` None leaves each paragraph a line."""
+    paragraphs = (sec.get("caption") or "").split("\n") if sec.get("caption") else []
+    if width is None:
+        return paragraphs
+    return [line for par in paragraphs for line in brief.wrap(par, max(width - INDENT, 20))]
+
+
 def heading(sec: dict) -> Text:
     symbol = SYMBOLS.get(_base_title(sec["title"]), "•")
     return Text(f"{symbol} ", style=ACCENT) + Text(sec["title"], style=f"bold {ACCENT}")
 
 
 def section_block(sec: dict, width=None):
-    """Heading plus table, or heading plus a dim note for an empty section. With a `width`, the table is
-    fitted to it first (fit)."""
+    """Heading plus table plus caption, or heading plus a dim note for an empty section. With a `width`, the
+    table is fitted to it first (fit) and the caption wrapped to it."""
     if not sec["rows"] and sec["note"]:
         return heading(sec) + Text(f": {sec['note']}", style="dim")
-    return Group(heading(sec), Padding(rich_table(fit(sec, width)), (0, 0, 0, INDENT)))
+    fitted = fit(sec, width)
+    table = rich_table(fitted)
+    if fitted.get("loose"):
+        return Group(heading(sec), Padding(table, (0, 0, 0, INDENT)))
+    if fitted.get("under") and any(fitted["under"]):
+        table = _Under(table, fitted["under"])
+    parts = [heading(sec), Padding(table, (0, 0, 0, INDENT))]
+    lines = caption_lines(fitted, width)
+    if lines:
+        parts.append(Padding(Text("\n".join(lines), style=CAPTION_STYLE), (0, 0, 0, INDENT)))
+    return Group(*parts)
 
 
 def print_section(console: Console, sec: dict) -> None:
@@ -1786,7 +1934,7 @@ def _partners(secs: list) -> dict:
 
 def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> None:
     console.print(header(report, findings, full=full, width=console.width))
-    secs = sections(report, full=full, width=console.width)
+    secs = [s for s in sections(report, full=full, width=console.width) if not _said_by_finding(s, findings)]
     by_id = {s["id"]: s for s in secs}
     console.print(findings_panel(findings, report, full=full, width=console.width, printed=by_id))   # a short finding may point at its table below
     if compare is not None:
@@ -1852,9 +2000,10 @@ def _md_section(sec: dict) -> list:
     if not sec["rows"]:
         out.append(f"_{sec['note'] or 'nothing'}_")
         return out
-    out.append("| " + " | ".join(sec["columns"]) + " |")
-    out.append("| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]) + " |")
-    out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sec["rows"]]
+    under = sec.get("under")   # what a terminal prints under each row is a last column here
+    out.append("| " + " | ".join(sec["columns"] + ([sec.get("under_head") or ""] if under else [])) + " |")
+    out.append("| " + " | ".join(["---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]] + (["---"] if under else [])) + " |")
+    out += ["| " + " | ".join(_md_cell(c) for c in list(row) + ([under[n]] if under else [])) + " |" for n, row in enumerate(sec["rows"])]
     if sec.get("caption"):
         out += ["", f"_{sec['caption']}_"]
     return out
