@@ -130,7 +130,9 @@ def pnpm_runtime(parsed: dict, held=()) -> dict:
     `held` names the importers that are not walked from: a workspace member that declares itself
     unpublished ("private": true) and has nothing that deploys it, so its dependencies serve the
     workspace's own development. The lock's root importer is walked from whatever it declares (a lone
-    private app ships), and a held member that a walked importer links to is followed like any other."""
+    private app ships), and a held member that a walked importer links to is followed like any other.
+    So a private workspace root that lists its tooling under `dependencies` rather than
+    `devDependencies` over-reports runtime: accepted, as the root cannot be told from a lone app."""
     importers, graph = parsed["importers"], parsed["graph"]
     held = set(held) - {".", ""}
     by_plain = {}

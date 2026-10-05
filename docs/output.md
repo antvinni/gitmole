@@ -411,13 +411,14 @@ in plain words, and what to do first. This page is the reference.
    dependencies walked through its snapshots, or a `package-lock.json`
    `dev` mark; said as "development dependencies only"). The pnpm walk
    starts from the root importer and every member except one that declares
-   `"private": true` with no deploy file in its directory, and follows a
-   `link:` into any member; a row it reaches names the direct dependency its
-   shortest path starts from (`via`, said as "reached through
-   @grpc/grpc-js" when that is another package). Then those with a
-   fixed version before those without, then by score, so the advice starts
-   where a fix exists. The reach orders the rows and never changes the
-   grade. A package pinned only by a lock file under tests,
+   `"private": true` that nothing deploys (no tracked deploy file in its
+   directory, no compose service built from it), and follows a `link:` into
+   any member; a row it reaches names the direct dependency its shortest
+   path starts from (`via`, said as "reached through @grpc/grpc-js" when
+   that is another package). Then those with a fixed version before those
+   without, then by score, so the advice starts where a fix exists. The
+   reach orders the rows and never changes the grade.
+   A package pinned only by a lock file under tests,
    examples, docs or vendored code is a note. osv-scanner also reads pip's requirement
    files (`requirements*.txt`, `constraints*.txt`, `*.in` by those names),
    and for a range such as `mcp>=1.0.0` it reports the floor, 1.0.0, which

@@ -3,6 +3,7 @@ packages the source imports (imports.py), the declared licences (licences.py), t
 coverage (osps.py) and the CycloneDX SBOM (sbom.py)."""
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 
@@ -255,7 +256,9 @@ class VulnerableImported(unittest.TestCase):
                  "snapshots:\n\n  tool@1.0.0: {}\n\n  '@grpc/grpc-js@1.14.4':\n    dependencies:\n      protobufjs: 7.5.5\n\n  protobufjs@7.5.5: {}\n\n"
                  "  sass@1.0.0:\n    dependencies:\n      immutable: 5.1.2\n\n  immutable@5.1.2: {}\n\n  left-pad@1.3.0: {}\n\n  next@1.0.0: {}\n")
 
-    def _workspace(self, d, web_deploys):
+    def _workspace(self, d, tracked=(), untracked=()):
+        """univer's shape, committed to git with the `tracked` extra files; the `untracked` ones are left on
+        disk only."""
         def put(path, text):
             os.makedirs(os.path.dirname(os.path.join(d, path)) or d, exist_ok=True)
             with open(os.path.join(d, path), "w") as fh:
@@ -266,30 +269,55 @@ class VulnerableImported(unittest.TestCase):
         put("common/shared/package.json", json.dumps({"name": "@x/shared", "private": True, "bin": {"lint": "lint.js"}}))
         put("common/kit/package.json", json.dumps({"name": "@x/kit", "private": True}))
         put("apps/web/package.json", json.dumps({"name": "web", "private": True}))
-        if web_deploys:
-            put("apps/web/Dockerfile", "FROM node\n")
+        for path, text in tracked:
+            put(path, text)
+        subprocess.run(["git", "init", "-q"], cwd=d, check=True)
+        subprocess.run(["git", "add", "."], cwd=d, check=True)
+        for path, text in untracked:
+            put(path, text)
 
-    def _rows(self, d):
+    def _rows(self, d, declared=True):
+        """The rows as deps.main sets them: lock_context given declare()'s tracked list and compose builds,
+        or, with declared false, reading the tracked list itself."""
         rows = [{"name": n, "version": v, "ecosystem": "npm", "source": "pnpm-lock.yaml", "imported": False}
                 for n, v in (("protobufjs", "7.5.5"), ("immutable", "5.1.2"), ("left-pad", "1.3.0"), ("next", "1.0.0"))]
-        deps.lock_context(rows, d)
+        if declared:
+            result = {"sources": [{"path": "pnpm-lock.yaml", "packages": 6}]}
+            tracked = deps.declare(result, d)
+            deps.lock_context(rows, d, tracked, result["compose_builds"])
+        else:
+            deps.lock_context(rows, d)
         return {r["name"]: (r["runtime"], r.get("via")) for r in rows}
 
     def test_a_private_member_without_a_deploy_file_does_not_ship_what_it_depends_on(self):
         with tempfile.TemporaryDirectory() as d:
-            self._workspace(d, web_deploys=False)
+            self._workspace(d)
             got = self._rows(d)
         self.assertEqual(got["protobufjs"], (True, "@grpc/grpc-js"), "a published member's transitive dependency ships")
         self.assertEqual(got["immutable"], (False, None), "only the private toolbox reaches it")
         self.assertEqual(got["left-pad"], (True, "left-pad"), "a private member a published one links to ships with it")
         self.assertEqual(got["next"], (False, None))
 
-    def test_a_private_member_with_a_deploy_file_ships(self):
+    def test_a_private_member_with_a_tracked_deploy_file_ships(self):
+        for declared in (True, False):
+            with tempfile.TemporaryDirectory() as d:
+                self._workspace(d, tracked=[("apps/web/Dockerfile", "FROM node\n")])
+                got = self._rows(d, declared)
+            self.assertEqual(got["next"], (True, "next"), f"declared={declared}")
+            self.assertEqual(got["immutable"], (False, None))
+
+    def test_a_private_member_a_compose_service_builds_ships(self):
         with tempfile.TemporaryDirectory() as d:
-            self._workspace(d, web_deploys=True)
+            self._workspace(d, tracked=[("docker-compose.yml", "services:\n  web:\n    build: ./apps/web\n")])
             got = self._rows(d)
-        self.assertEqual(got["next"], (True, "next"))
+        self.assertEqual(got["next"], (True, "next"), "deploys() says the lock ships through this member; so does runtime")
         self.assertEqual(got["immutable"], (False, None))
+
+    def test_an_untracked_deploy_file_does_not_count(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._workspace(d, untracked=[("apps/web/Dockerfile", "FROM node\n")])
+            got = self._rows(d)
+        self.assertEqual(got["next"], (False, None), "a local file git does not track would make this run differ from CI's")
 
     def test_a_lone_private_app_without_a_deploy_file_keeps_its_rows_runtime(self):
         lock = ("lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      express:\n        specifier: ^4\n        version: 4.0.0\n\n"
