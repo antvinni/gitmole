@@ -586,6 +586,29 @@ class TrojanSource(unittest.TestCase):
                          [("src/a.py", f"p{a}ssword"), ("src/b.py", f"{a}dmin"), ("src/c.ts", f"p{a}ssword"),
                           ("src/d.ts", f"p{a}ssword"), ("src/e.ts", f"{a}dmin"), ("src/f.ts", f"{a}dmin")])
 
+    def test_a_quote_from_a_comment_or_regex_and_an_index_expression_do_not_hide_a_look_alike(self):
+        # The PR #273 review's probes: a stray quote in a comment or a regex makes a "span" over code, and the `-` of
+        # an index expression is arithmetic, not a class range.
+        a, r, s = "а", "р", "с"   # Cyrillic а р с
+        hello, world = "Привет", "мир"   # Привет мир
+        cases = {
+            "block_comment.ts": f"/* it's */ let p{a}ss = 1; /* {hello}' */",
+            "line_comment.ts": f'x = /"/; let p{a}ss = 1; // {hello} "',
+            "index_digit.ts": f"y = x[len{a}-1];",
+            "index_letters.ts": f"y = x[a{r}-{s}];",
+            "prose_then_code.ts": f'log("{hello}"); let p{a}ss = 1;',
+            "template_tail.ts": f"{world} {hello}`; const p{a}ss = 1; f(`",
+            "hash.py": f"p{a}ss = 1  # it's",
+            "far_prose.ts": f"const t = '{hello} {world} one two p{a}ss';",
+        }
+        with tempfile.TemporaryDirectory() as d:
+            repo = Repo(d)
+            for name, line in cases.items():
+                repo.write(f"src/{name}", line + "\n")
+            repo.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual(sorted(x["file"] for x in out["mixed_script"]), sorted(f"src/{k}" for k in cases))
+
 
 class Step(unittest.TestCase):
     def test_the_step_writes_hygiene_json_from_inside_the_repository(self):

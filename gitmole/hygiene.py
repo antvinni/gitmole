@@ -955,10 +955,14 @@ LOOKALIKE = set(
     "\u13aa\u13f4\u13df\u13ac\u13bb\u13ab\u13e6\u13de\u13b7\u13e2\u13da\u13a2\u13d4\u13c3"   # Cherokee Ꭺ Ᏼ Ꮯ Ꭼ Ꮋ Ꭻ Ꮶ Ꮮ Ꮇ Ꮲ Ꮪ Ꭲ Ꮤ Ꮓ
 )
 _WORD = re.compile(r"[^\W\d]\w*")
-# A bracketed span and the X-Y ranges inside it: in `[A-Za-zА-Яа-я]` the joint `zА` is two ranges meeting, not a
-# word. Each range is blanked to spaces of the same length, so the columns of the rest of the line do not move.
-_BRACKETS = re.compile(r"\[(?:\\.|[^\]\\])*\]")
-_RANGE = re.compile(r"\S-\S")
+# A bracketed class and the X-Y ranges inside it: in `[A-Za-zА-Яа-я]` the joint `zА` is two ranges meeting, not a
+# word. Each range is blanked to spaces of the same length, so the columns of the rest of the line do not move. A `[`
+# after a word, `)` or `]` opens an index (`x[len-1]`), whose `-` is arithmetic, so it is left as it is; and a range
+# is one only when both ends are letters of one script, or both digits, in ascending order (`[aр-с]` is not one).
+_BRACKETS = re.compile(r"(?<![\w)\]])\[(?:\\.|[^\]\\])*\]")
+_RANGE = re.compile(r"(\w)-(\w)")
+# Text that is code, not prose: a quote opened in a comment or a regex makes a "span" that runs over statements.
+_CODE_IN_SPAN = re.compile(r"//|/\*|\*/|;|(?:^|\s)#")
 
 
 def _script(c: str) -> str:
@@ -968,8 +972,14 @@ def _script(c: str) -> str:
         return ""
 
 
+def _is_range(m) -> str:
+    a, b = m.group(1), m.group(2)
+    same = (a.isalpha() and b.isalpha() and _script(a) == _script(b)) or (a.isdigit() and b.isdigit())
+    return "   " if same and a <= b else m.group(0)
+
+
 def _blank_ranges(line: str) -> str:
-    return _BRACKETS.sub(lambda m: _RANGE.sub("   ", m.group(0)), line) if "[" in line else line
+    return _BRACKETS.sub(lambda m: _RANGE.sub(_is_range, m.group(0)), line) if "[" in line else line
 
 
 def _quoted(line: str) -> list:
@@ -1005,13 +1015,21 @@ def _quoted(line: str) -> list:
 
 
 def _in_prose(line: str, at: int, foreign: set, parts: list) -> bool:
-    """A token at column `at` is prose when the quoted span holding it also holds, in its text, a word of two or
-    more letters written entirely in the token's foreign script: `функция ZТЕСТ возвращает` is a sentence, `"аdmin"`
-    alone is not."""
+    """A token at column `at` is prose when a word next to it in the quoted span holding it (the one before or the
+    one after) has two or more letters, all in the token's foreign script: `функция ZТЕСТ возвращает` is a sentence,
+    `"аdmin"` alone is not. A span whose text holds `//`, `/*`, `*/`, `;` or ` #` is code a stray quote ran over, and
+    is never prose."""
     for span in parts:
-        if any(a <= at < b for a, b in span):
-            return any(len(w) > 1 and all(c.isalpha() and _script(c) in foreign for c in w)
-                       for a, b in span for w in _WORD.findall(line, a, b))
+        if not any(a <= at < b for a, b in span):
+            continue
+        if any(_CODE_IN_SPAN.search(line, a, b) for a, b in span):
+            return False
+        words = [(m.start(), m.group(0)) for a, b in span for m in _WORD.finditer(line, a, b)]
+        k = next((i for i, (s, _) in enumerate(words) if s == at), None)
+        if k is None:
+            return False
+        near = [w for i, (_, w) in enumerate(words) if i in (k - 1, k + 1)]
+        return any(len(w) > 1 and all(c.isalpha() and _script(c) in foreign for c in w) for w in near)
     return False
 
 
