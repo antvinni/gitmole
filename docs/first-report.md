@@ -16,8 +16,9 @@ finding states the facts, and the line starting `↳` names the file, area or pe
 The facts are the short form: how many, against which thresholds, and the worst one, with `(see Complex
 functions)` where a table below lists the rest. `--full` names every subject.
 
-- *"N more from the structure step, not labelled yet (2 warnings, 3 notes)"*: newer rules nobody has checked
-  against real repositories yet. Treat them as leads, not verdicts; the Findings title's count includes them.
+- *"(not measured yet)"* after a finding's title: a newer rule nobody has checked against real repositories
+  yet. Treat it as a lead, not a verdict. A note of this kind is one statement with no step; the Findings title
+  says how many there are (*5 by rules not measured for precision yet*).
 
 **Tables.** They come in one order at every terminal width, code first and people after: Watch list, Complex
 functions, Change coupling, Knowledge map, People. A table's title says how many of its rows are shown and what they are ranked by (*8 of 475, by

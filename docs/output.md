@@ -97,7 +97,8 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    of the last year's`). `scope` (a `--path` run) and `steps` (the ones that
    did not finish) are rows when there is something to say, and a row with
    nothing to say is not printed. The tally of the findings is the Findings
-   title's: `Findings · 4 warnings ▲ · 10 notes ●`, each word beside the mark
+   title's: `Findings · 4 warnings ▲ · 10 notes ● · 5 by rules not measured
+   for precision yet`, each word beside the mark
    its entries carry. Signing
    is read from the `gpgsig` header in each commit object, so it needs no
    keyring and a fresh clone reads the same as the author's; nothing is
@@ -217,14 +218,32 @@ Reinartz gone`, `2019-01 gone`); blank means active.
      that is three lines or fewer, else what comes before its list and
      three lines of the list.
 
-   The default report folds the rules no label has reached yet into a
-   closing line instead of spelling them out ("4 more from the structure
-   step, not labelled yet (1 warning, 3 notes)", the severities the
-   Findings title's tally counts them under); the set is `UNJUDGED` in
-   [gitmole/findings.py](https://github.com/antvinni/gitmole/blob/main/gitmole/findings.py).
-   `--full`, Markdown, JSON (where they carry `"summary": true` and
-   `"unjudged": true`), SARIF and `--fail-on` treat them like any other
-   finding. Until 0.39.0 a second line named the rules whose findings were
+   Every finding is an entry with a mark of its own, so the marks can be
+   counted against the title's tally. A finding from a rule whose
+   precision nobody has measured yet (the set is `UNJUDGED` in
+   [gitmole/findings.py](https://github.com/antvinni/gitmole/blob/main/gitmole/findings.py))
+   has the dim tag `(not measured yet)` after its title, in the default
+   report and in `--full`, and the Findings title says once what the tag
+   means and how many carry it: `· 5 by rules not measured for precision
+   yet`, or in fewer words (`5 not measured for precision yet`, `5 not
+   measured yet`) where the box's border would cut the title. A warning
+   or a critical from such a rule is an entry like any other. A note from
+   one is compact in the default report: the title, the tag, a colon and
+   one statement, three lines at most and no step (`● Possibly
+   unreferenced files (not measured yet): 3 files imported by nothing in
+   the tree; first discovery/install/install.go`). The statement names
+   the subject the rule's own advice picks, which need not be the first
+   the long statement lists: the hotspot with the most TODO markers, the
+   largest import group's shortest loop, the function in a top hotspot.
+   A note that would name a pair the entry *Files that always change
+   together* has just named says `the one above`. `--full` and Markdown
+   spell these findings out with their steps; JSON (where they carry
+   `"summary": true` and `"unjudged": true`), SARIF and `--fail-on` treat
+   them like any other finding, and the `--fail-on` line on stderr says
+   `not measured yet` when one of them tripped the gate. Until 0.44.0 the
+   default report folded them into one closing line ("5 more from the
+   structure step, not labelled yet"), which left the title counting a
+   warning that no ▲ stood for. Until 0.39.0 a second line named the rules whose findings were
    labelled true but never as something to act on ([measurement.md](measurement.md),
    "Hand labels"); those nine rules were retired instead: duplicated blocks,
    git-sizer's repository health, reverts, stale files, components that

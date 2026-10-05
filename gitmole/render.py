@@ -1708,31 +1708,61 @@ def header(report: dict, findings: list = (), full: bool = False, width=None) ->
     return Panel(body, title=title, title_align="left", border_style="blue")
 
 
-def tally_title(findings: list) -> str:
-    """'Findings · 4 warnings ▲ · 10 notes ●': the tally where the findings are, each word beside the mark the
-    entries below carry, so the marks can be counted against it. 'Findings' alone when there are none."""
+UNMEASURED_GLOSSES = ("by rules not measured for precision yet", "not measured for precision yet", "not measured yet")
+PANEL_TITLE_EDGES = 6   # what a panel's border takes beside its title: a corner, a dash and a space either side
+
+
+def tally_title(findings: list, gloss: bool = False, width: int = None) -> str:
+    """'Findings · 4 warnings ▲ · 10 notes ● · 5 by rules not measured for precision yet': the tally where the
+    findings are, each word beside the mark the entries below carry, so the marks can be counted against it.
+    'Findings' alone when there are none. With `gloss`, the last part counts the findings that carry
+    brief.UNMEASURED_TAG after their title and says once what the tag means; in a title the border of an
+    80-column box would cut, it says so in fewer words (UNMEASURED_GLOSSES, the first that fits `width`)."""
     counts = {sev: sum(1 for f in findings if f["severity"] == sev) for sev in SEVERITY_MARK}
     words = {"critical": lambda n: f"{n:,} critical", "warning": lambda n: textfmt.count(n, "warning"), "info": lambda n: textfmt.count(n, "note")}
     parts = [f"{words[sev](n)} {SEVERITY_MARK[sev]}" for sev, n in counts.items() if n]
-    return SEP.join(["Findings"] + parts)
+    title = SEP.join(["Findings"] + parts)
+    unmeasured = sum(1 for f in findings if f.get("unjudged")) if gloss else 0
+    if not unmeasured:
+        return title
+    fits = [g for g in UNMEASURED_GLOSSES if width is None or len(title) + len(SEP) + len(f"{unmeasured:,} {g}") <= width - PANEL_TITLE_EDGES]
+    return f"{title}{SEP}{unmeasured:,} {fits[0] if fits else UNMEASURED_GLOSSES[-1]}"
 
 
-def unjudged_line(findings: list) -> str:
-    """'4 more from the structure step, not labelled yet (1 warning, 3 notes): Deep nesting and Debt in hotspots;
-    --full lists them': the rules whose worth nobody has judged (findings.UNJUDGED), kept out of the default
-    report's entries. Their severities are said, since the header's tally, the JSON and the gate count them."""
-    names = [g["title"] for g in textfmt.group_findings(findings)]
-    return (f"{len(findings):,} more from the structure step, not labelled yet ({textfmt.tally(findings)}): "
-            f"{textfmt.join_and(names)}; --full lists them")
+def _unmeasured(g: dict) -> bool:
+    """Whether an entry is a rule's that nobody has measured (findings.UNJUDGED, the finding's `unjudged`)."""
+    return bool(g["findings"]) and all(f.get("unjudged") for f in g["findings"])
 
 
-def _short_entry(g: dict, report: dict, width: int, printed: dict, style: str) -> Text:
+def _titled(g: dict, style: str) -> Text:
+    """An entry's title, in its severity's colour, and the dim tag after it when its rule is not measured yet:
+    the colour ends with the title."""
+    body = Text(g["title"], style=style)
+    if _unmeasured(g):
+        body.append(f" {brief.UNMEASURED_TAG}", style="dim")
+    return body
+
+
+def _short_entry(g: dict, report: dict, width: int, printed: dict, style: str, found: list = None) -> Text:
     """One entry of the default report's Findings: the title, then each finding's short form (brief.short):
     the statement, its subject lines indented two, and the step under ↳ with its continuation indented two.
     The lines come wrapped, so a path or a version is never split. An entry holding several findings of one
-    title shows brief.SUBJECT_LINES of them and counts the rest."""
-    body = Text(g["title"], style=style)
-    shorts = [brief.short(f, report, width, printed) for f in g["findings"]]
+    title shows brief.SUBJECT_LINES of them and counts the rest.
+
+    A note from a rule not measured yet takes the compact shape instead: title, tag, ': ' and the statement
+    in the default foreground, brief.COMPACT_LINES lines at most and no step (brief.compact). prometheus's
+    report folded five such findings, one of them a warning, into a closing line, so its title counted a
+    warning no ▲ stood for; now every finding owns one mark. A warning from such a rule is an entry like any
+    other, with the tag after its title."""
+    body = _titled(g, style)
+    if _unmeasured(g) and g["severity"] == "info" and len(g["findings"]) == 1:
+        lead = len(g["title"]) + 1 + len(brief.UNMEASURED_TAG) + 2
+        lines = brief.compact(g["findings"][0], report, width, lead, printed, found)
+        body.append(":" + (f" {lines[0]}" if lines[0] else ""))
+        for line in lines[1:]:
+            body.append(f"\n{line}")
+        return body
+    shorts = [brief.short(f, report, width, printed, found) for f in g["findings"]]
     steps = []
     for s in shorts[:brief.SUBJECT_LINES]:
         for line in s["statement"]:
@@ -1754,37 +1784,35 @@ PROSE_WIDTH = 100   # a finding's lines are no longer than this on a terminal wi
 def findings_panel(findings: list, report: dict = None, full: bool = True, width: int = None, printed: dict = None) -> Panel:
     """The Findings box. `full` False is the default report: each finding in its short form (brief.py), for
     which `width` is the terminal's and `printed` the report's sections by id, so a "(see Section)" pointer
-    names only a table that is there. `full` True spells every finding out, as the Markdown export does."""
+    names only a table that is there. `full` True spells every finding out, as the Markdown export does.
+    Either way every finding is an entry with its own mark, and one from a rule not measured yet has the tag
+    after its title, which the box's title glosses (tally_title)."""
     passed = checks_passed(report or {}, footer=bool(full) or not footer_said(report or {}))
     absent = not_computed_line(report) if report else None
     if not findings and not passed and not absent:
         return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
-    unjudged = [] if full else [f for f in findings if f.get("unjudged")]
-    shown = [f for f in findings if f not in unjudged]
     grid = Table.grid(padding=(0, 1))
     grid.add_column(no_wrap=True)
     grid.add_column(overflow="fold")
     inner = min((width or PROSE_WIDTH + PANEL_EDGES + 2) - PANEL_EDGES - 2, PROSE_WIDTH)   # less the box, the mark and its gap
-    for g in textfmt.group_findings(shown):
+    for g in textfmt.group_findings(findings):
         style = SEVERITY_STYLE[g["severity"]]
         if not full:
-            grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), _short_entry(g, report or {}, inner, printed, style))
+            grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), _short_entry(g, report or {}, inner, printed, style, findings))
             continue
-        body = Text(g["title"], style=style)
+        body = _titled(g, style)
         for item in g["items"]:
             body.append(f"\n{item}", style="dim" if len(g["items"]) == 1 else "")
         for advice in g["advice"]:
             body.append(f"\n↳ {advice}", style="dim italic")
         grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
-    if unjudged:
-        grid.add_row(Text("·", style="dim"), Text(unjudged_line(unjudged), style="dim"))
     if (passed or absent) and not findings:
         grid.add_row(Text(""), Text("Nothing flagged.", style="green"))
     for title, detail in passed:   # problems first, then the checks that passed
         grid.add_row(Text("✔", style="green"), Text(title, style="green").append(f"\n{detail}", style="dim"))
     if absent:   # last: what was found, what passed, then what was never measured, so its silence is not a pass
         grid.add_row(Text("·", style="dim"), Text(absent, style="dim"))
-    return Panel(grid, title=tally_title(findings), title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]] if findings else "green")
+    return Panel(grid, title=tally_title(findings, gloss=True, width=width), title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]] if findings else "green")
 
 
 def cell_style(column: str, value: str):

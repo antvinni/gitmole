@@ -30,6 +30,9 @@ DEPENDENCIES_FILE = "dependencies.json"   # the osv-scanner step's file in the o
 STEP_LINES = 3          # the step's lines
 WHOLE_LINES = 3         # a statement this short has no need of a short form
 BASELINE_MARK = "In the baseline: "   # gate.BASELINE_MARK, which --baseline puts in front of a finding's detail
+# After the title of a finding from a rule in findings.UNJUDGED, in either shape; the Findings title glosses it once.
+UNMEASURED_TAG = "(not measured yet)"
+COMPACT_LINES = 3       # a note from such a rule: title, tag and statement in this many lines, and no step
 IGNORE_DEPS_SHORT = "One that does not apply to this code can be ignored in osv-scanner.toml."
 
 # A Go pseudo-version, by its shape: a base version, a 14-digit commit time, a 12-character commit
@@ -488,9 +491,150 @@ def _truck_factor(f: dict, report: dict, ctx: dict):
     return {"statement": statement, "subjects": subjects, "step": step}
 
 
+# --- the rules not measured yet (findings.UNJUDGED) ------------------------------------------------------
+#
+# One statement each: the count and the rule's numbers, then the subject the rule's own advice picks, which is
+# not always the first the long statement lists (the debt finding lists hotspots in rank order and advises
+# the one with the most markers). A note of these prints as that statement alone (compact); a warning prints
+# it with its step, like any other finding.
+
+def _lead(f: dict) -> str:
+    """What the rule's statement says before its list: the count and the thresholds, in the rule's words."""
+    return textfmt._statement_and_advice(f)[0].partition(": ")[0]
+
+
+def _deep_nesting(f: dict, report: dict, ctx: dict):
+    """'147 functions nest 5 levels or more or carry 3 or more separate nested chunks. Worst: eval at
+    promql/engine.go:2132, nested 6 deep': the function the advice names, which is the first in a top hotspot
+    when the finding is a warning for one, and the deepest by cognitive complexity otherwise. Past the ten
+    functions of the evidence the advice's own cannot be described, and the first is named with the advice
+    whole."""
+    ev, rule = f["evidence"], f["rule"]
+    n, rows = ev["count"], ev["functions"]
+
+    def which(fn):
+        return f"the anonymous function at {fn['file']}:{fn['start']}" if findings._anonymous(fn) else f"{fn['name']} in {fn['file']}"
+    picked = next((fn for fn in rows if f["advice"].startswith(f"Flatten {which(fn)} first:")), None)
+    fn = picked or rows[0]
+    called = f"the anonymous function at {fn['file']}:{fn['start']}" if findings._anonymous(fn) else f"{fn['name']} at {fn['file']}:{fn['start']}"
+    how = f"nested {fn['nesting']} deep" if fn["nesting"] >= rule["min_nesting"] else f"{fn['bumps']} nested chunks"
+    label = "Worst" if fn is rows[0] else "In a top hotspot"
+    statement = (f"{textfmt.count(n, 'function')} {_is(n, 'nests', 'nest')} {rule['min_nesting']} levels or more or {_is(n, 'carries', 'carry')} "
+                 f"{rule['min_bumps']} or more separate nested chunks. {label}: {called}, {how}")
+    said = f"Flatten {which(fn)} first: return early and move each nested chunk into a function of its own."
+    return {"statement": statement, "subjects": None,
+            "step": "Flatten it first: return early, move each nested chunk into a function." if picked and f["advice"] == said else f["advice"]}
+
+
+def _debt_in_hotspots(f: dict, report: dict, ctx: dict):
+    """'8 of the top 10 hotspots carry TODO, FIXME, XXX or HACK comments; most in
+    storage/remote/queue_manager.go (10)': the file with the most markers, which is the one the advice names
+    and on prometheus the seventh the statement lists."""
+    rows = f["evidence"]["files"]
+    top = max(rows, key=lambda r: r["markers"])   # the first of equals, as the rule takes it
+    return {"statement": f"{_lead(f)}{'; most in' if len(rows) > 1 else ':'} {top['file']} ({top['markers']:,})", "subjects": None, "step": f["advice"]}
+
+
+def _same_pair(p: dict, q: dict) -> bool:
+    return {p["a"], p["b"]} == {q["a"], q["b"]}
+
+
+def _said_above(f: dict, pair: dict, ctx: dict) -> bool:
+    """Whether Files that always change together, printed above this finding, already names `pair` as its one
+    subject (_tight_coupling names its first pair when it has no directory to name)."""
+    found = ctx.get("found") or []
+    at = next((i for i, x in enumerate(found) if x is f), None)
+    for x in found[:at] if at is not None else []:
+        ev = x.get("evidence") or {}
+        if (x.get("rule") or {}).get("id") == "tight_coupling" and not ev.get("clusters") and ev.get("pairs"):
+            return _same_pair(ev["pairs"][0], pair)
+    return False
+
+
+def _hidden_coupling(f: dict, report: dict, ctx: dict):
+    """'1 pair, the one above; neither file imports the other' when Files that always change together has
+    just named it (prometheus printed format.tsx and serialize.ts twice, eight lines apart); else the pair
+    with its share. The evidence names ten pairs at most, and the statement counts the rest."""
+    ev, rule = f["evidence"], f["rule"]
+    pairs = ev["pairs"]
+    counted = _MORE.search(textfmt._statement_and_advice(f)[0])
+    n = (3 + int((counted.group(1) or counted.group(2)).replace(",", ""))) if counted else len(pairs)
+    p = pairs[0]
+    above = _said_above(f, p, ctx)
+    named = f"{_pair_words(p['a'], p['b'])}, {p['degree']}%"
+    if n == 1:
+        statement = ("1 pair, the one above; neither file imports the other" if above
+                     else f"1 pair changes together {rule['min_degree']}% of the time or more and neither file imports the other: {named}")
+    else:
+        statement = (f"{n:,} pairs change together {rule['min_degree']}% of the time or more with no import between the two files. "
+                     f"Highest: {'the one above' if above else named}")
+    return {"statement": statement, "subjects": None, "step": f["advice"]}
+
+
+def _loop_words(loop: list) -> str:
+    """'AlertContents.tsx and CollapsibleAlertPanel.tsx in web/ui/react-app/src/pages/alerts/' for two files
+    that import each other; a longer loop as the rule writes it, file → file → back."""
+    return _pair_words(loop[0], loop[1]) if len(loop) == 3 else " → ".join(loop)
+
+
+def _import_cycles(f: dict, report: dict, ctx: dict):
+    """'6 groups, the largest 16 files; its shortest loop: AlertContents.tsx and CollapsibleAlertPanel.tsx in
+    web/ui/react-app/src/pages/alerts/': the loop the advice says to break first, the largest group's."""
+    ev = f["evidence"]
+    n, g = ev["count"], ev["groups"][0]
+    size = f"{g['size']:,} files"
+    statement = (f"1 group of {size}" if n == 1 else f"{n:,} groups, the largest {size}") + f"; its shortest loop: {_loop_words(g['loop'])}"
+    return {"statement": statement, "subjects": None, "step": f["advice"]}
+
+
+def _unreferenced_files(f: dict, report: dict, ctx: dict):
+    """'3 files imported by nothing in the tree; first discovery/install/install.go', the one the advice says
+    to check before anything else."""
+    ev = f["evidence"]
+    n, first = ev["count"], ev["files"][0]
+    statement = f"{first}, imported by nothing in the tree" if n == 1 else f"{n:,} files imported by nothing in the tree; first {first}"
+    return {"statement": statement, "subjects": None, "step": f["advice"]}
+
+
+def _commented_out_code(f: dict, report: dict, ctx: dict):
+    """'4 source files hold 10 or more lines of commented-out code; most in src/a.py (40 lines from line
+    12)', the block the advice says to delete."""
+    rows = f["evidence"]["files"]
+    top = rows[0]
+    lead = _lead(f)
+    one = lead.startswith("1 ")
+    return {"statement": f"{lead}{':' if one else '; most in'} {top['file']} ({textfmt.count(top['lines'], 'line')} from line {top['start']:,})",
+            "subjects": None, "step": f["advice"]}
+
+
+def _hardcoded_addresses(f: dict, report: dict, ctx: dict):
+    """'12 IPv4 addresses in string literals in 5 source files; first 10.1.2.3 at src/net.py:8', the one the
+    advice says to move into configuration."""
+    ev = f["evidence"]
+    top = ev["files"][0]
+    return {"statement": f"{_lead(f)}{':' if ev['count'] == 1 else '; first'} {top['value']} at {top['file']}:{top['start']}", "subjects": None, "step": f["advice"]}
+
+
+def _swallowed_errors(f: dict, report: dict, ctx: dict):
+    """'9 empty catch blocks in 4 source files, 2 of them a bare except; first in a top hotspot: src/a.py:12
+    (3 there)', or 'most in' the file with the most when no hotspot holds one: the file the advice names."""
+    ev = f["evidence"]
+    rows, hot = ev["files"], ev.get("hotspots") or []
+    top = next((r for r in rows if hot and r["file"] == hot[0]), None)
+    if hot and top is None:   # the hotspot's row is past the ten the evidence names
+        return {"statement": f"{_lead(f)}; first in a top hotspot: {hot[0]}", "subjects": None, "step": f["advice"]}
+    top = top or rows[0]
+    label = "first in a top hotspot:" if hot else "most in" if len(rows) > 1 else "in"
+    there = f" ({top['count']:,} there)" if top.get("count", 1) > 1 and len(rows) > 1 else ""
+    return {"statement": f"{_lead(f)}; {label} {top['file']}:{top['start']}{there}", "subjects": None, "step": f["advice"]}
+
+
 FORMS = {"credential_files": _credential_files, "vulnerable_dependencies": _vulnerable, "vulnerable_dependencies_aside": _vulnerable,
          "bug_magnets": _bug_magnets, "brain_methods": _brain_methods, "tight_coupling": _tight_coupling,
-         "sweeping_commits": _sweeping_commits, "unused_dependencies": _unused_dependencies, "truck_factor": _truck_factor}
+         "sweeping_commits": _sweeping_commits, "unused_dependencies": _unused_dependencies, "truck_factor": _truck_factor,
+         "deep_nesting": _deep_nesting, "debt_in_hotspots": _debt_in_hotspots, "hidden_coupling": _hidden_coupling, "import_cycles": _import_cycles,
+         "unreferenced_files": _unreferenced_files, "commented_out_code": _commented_out_code, "hardcoded_addresses": _hardcoded_addresses,
+         "swallowed_errors": _swallowed_errors}
 
 
 # --- every other rule -----------------------------------------------------------------------------------
@@ -523,19 +667,26 @@ def _fallback(statement: str, width: int) -> dict:
     return {"statement": f"{lead}:", "subjects": subjects} if lead else {"statement": "\n".join(subjects), "subjects": None}
 
 
-def short(f: dict, report: dict = None, width: int = 74, printed: dict = None) -> dict:
+def _made(f: dict, report: dict, ctx: dict):
+    """The rule's own short form, or None: no form, no evidence, or evidence from before a key the form reads
+    existed (an older export, a hand-made dict), where the statement stands."""
+    form = FORMS.get((f.get("rule") or {}).get("id"))
+    if not (form and f.get("evidence") and f.get("advice")):
+        return None
+    try:
+        return form(f, report, ctx)
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+
+
+def short(f: dict, report: dict = None, width: int = 74, printed: dict = None, found: list = None) -> dict:
     """The finding as the default report prints it: {"statement": lines, "subjects": lines, "step": lines},
     each line at most `width` characters (the subjects and the step two fewer, for their indent). `printed`
-    is the report's sections by id, for the "(see Section)" pointer. A finding whose evidence lacks what its
+    is the report's sections by id, for the "(see Section)" pointer, and `found` the report's findings in
+    their order, for a note that restates a subject printed above it. A finding whose evidence lacks what its
     short form reads (an older export, a hand-made dict) takes the fallback, as a rule without one does."""
-    ctx = {"width": width, "printed": printed or {}}
-    form = FORMS.get((f.get("rule") or {}).get("id"))
-    made = None
-    if form and f.get("evidence") and f.get("advice"):
-        try:
-            made = form(f, report, ctx)
-        except (KeyError, IndexError, TypeError):
-            made = None   # evidence from before a key existed: the statement stands
+    ctx = {"width": width, "printed": printed or {}, "found": found or []}
+    made = _made(f, report, ctx)
     statement, advice = textfmt._statement_and_advice(f)
     marked = statement.startswith(BASELINE_MARK)
     if made is None:
@@ -546,3 +697,26 @@ def short(f: dict, report: dict = None, width: int = 74, printed: dict = None) -
     subjects = made.get("subjects") or []
     step = step_lines(short_version(made["step"]), width - 2) if made.get("step") else []
     return {"statement": lines, "subjects": [short_version(x) for x in subjects], "step": step}
+
+
+def compact(f: dict, report: dict = None, width: int = 74, lead: int = 0, printed: dict = None, found: list = None) -> list:
+    """A note from a rule not measured yet, as the lines after 'Title (not measured yet): ': its statement and
+    nothing else, in COMPACT_LINES lines at most, the first of them `lead` characters shorter since the title
+    and the tag are on it. No step: the rule's worth is not known, and the statement names the subject its
+    advice would. A finding with no form of its own, or without the evidence its form reads, gives the lead of
+    its statement and as much of its list as fits. When not even the statement's first word fits beside the
+    title, the first line is empty and the statement starts under it."""
+    ctx = {"width": width, "printed": printed or {}, "found": found or []}
+    made = _made(f, report, ctx)
+    statement = textfmt._statement_and_advice(f)[0]
+    marked = statement.startswith(BASELINE_MARK)
+    if made is None:
+        text = statement[len(BASELINE_MARK):] if marked else statement
+    else:
+        text = " ".join([made["statement"]] + list(made.get("subjects") or []))
+    text = (BASELINE_MARK if marked else "") + short_version(text)
+    first = width - lead
+    words = text.split(" ")
+    if first < len(words[0]):
+        return [""] + cap(wrap(text, width), COMPACT_LINES - 1, width)
+    return cap(wrap(text, first, width), COMPACT_LINES, width)

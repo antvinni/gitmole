@@ -2322,17 +2322,42 @@ class SummaryLine(unittest.TestCase):
         self.assertNotIn("seldom acted on", text)
         self.assertFalse(hasattr(render, "summary_line"))
 
-    def test_the_structure_step_s_unlabelled_findings_get_a_line_of_their_own(self):
-        unjudged = [{"severity": "warning", "title": "Deep nesting", "detail": "deep", "advice": "act",
+    def test_every_finding_owns_one_mark_and_an_unmeasured_rule_s_carries_the_tag(self):
+        """prometheus: the title said 5 warnings over four ▲, the fifth folded into a closing line with four notes."""
+        unjudged = [{"severity": "warning", "title": "Deep nesting", "detail": "deep. Flatten it.", "advice": "Flatten it.",
                      "rule": {"id": "deep_nesting"}, "summary": True, "unjudged": True},
-                    {"severity": "info", "title": "Debt in hotspots", "detail": "debt", "advice": "act",
+                    {"severity": "info", "title": "Debt in hotspots", "detail": "debt in two of them. Ticket it.", "advice": "Ticket it.",
                      "rule": {"id": "debt_in_hotspots"}, "summary": True, "unjudged": True}]
-        text = self._text(render.findings_panel(self._findings() + unjudged, {}, full=False))
-        self.assertIn("2 more from the structure step, not labelled yet (1 warning, 1 note): Deep nesting and Debt in hotspots; --full lists them", text)
-        self.assertNotIn("deep", text.replace("Deep nesting", ""))
-        full = self._text(render.findings_panel(self._findings() + unjudged, {}, full=True))
-        self.assertIn("deep", full)
-        self.assertNotIn("not labelled yet", full)
+        found = self._findings() + unjudged
+        text = self._text(render.findings_panel(found, {}, full=False))
+        lines = [line.strip("│ ").rstrip() for line in text.splitlines()]
+        self.assertNotIn("more from the structure step", text)
+        self.assertNotIn("--full lists them", text)
+        self.assertEqual(sum(line.startswith("▲ ") for line in lines), 2, "the title's 2 warnings are two marks")
+        self.assertEqual(sum(line.startswith(("✖ ", "▲ ", "● ")) for line in lines), len(found))
+        at = lines.index("▲ Deep nesting (not measured yet)")
+        self.assertEqual(lines[at + 1:at + 3], ["deep", "↳ Flatten it."], "a warning is an entry like any other, with its step")
+        self.assertIn("● Debt in hotspots (not measured yet): debt in two of them", lines, "a note is title, tag and statement, and no step")
+        self.assertNotIn("Ticket it.", text)
+        self.assertIn("Findings · 1 critical ✖ · 2 warnings ▲ · 1 note ● · 2 by rules not measured for precision yet", text.splitlines()[0])
+        full = self._text(render.findings_panel(found, {}, full=True))
+        self.assertIn("▲ Deep nesting (not measured yet)", full)
+        self.assertIn("● Debt in hotspots (not measured yet)\n", full.replace(" │", "").replace("  \n", "\n").replace(" \n", "\n") + "\n" if False else "\n".join(x.strip("│ ").rstrip() for x in full.splitlines()) + "\n")
+        self.assertIn("↳ Ticket it.", full, "--full keeps the step")
+        self.assertIn("2 by rules not measured for precision yet", full.splitlines()[0])
+
+    def test_the_title_glosses_the_tag_in_fewer_words_when_the_box_would_cut_it(self):
+        mk = lambda sev, unjudged=False: {"severity": sev, "title": "T", "detail": "d", "rule": {"id": "r"}, **({"unjudged": True} if unjudged else {})}   # noqa: E731
+        found = [mk("warning")] * 4 + [mk("info")] * 6 + [mk("info", True)] * 4 + [mk("warning", True)]
+        self.assertEqual(render.tally_title(found), "Findings · 5 warnings ▲ · 10 notes ●", "the bare tally, as the README's excerpt prints it")
+        self.assertEqual(render.tally_title(found, gloss=True), "Findings · 5 warnings ▲ · 10 notes ● · 5 by rules not measured for precision yet")
+        self.assertEqual(render.tally_title(found, gloss=True, width=80), "Findings · 5 warnings ▲ · 10 notes ● · 5 not measured for precision yet")
+        self.assertEqual(render.tally_title([mk("critical")] + found, gloss=True, width=80), "Findings · 1 critical ✖ · 5 warnings ▲ · 10 notes ● · 5 not measured yet")
+        self.assertEqual(render.tally_title(found[:10], gloss=True, width=80), "Findings · 4 warnings ▲ · 6 notes ●", "nothing to gloss")
+        for width in (60, 80, 100, 160):
+            out = io.StringIO()
+            Console(file=out, width=width, color_system=None).print(render.findings_panel([mk("critical")] + found, {}, full=False, width=width))
+            self.assertNotIn("…", out.getvalue().splitlines()[0], width)
 
 
 class Fit(unittest.TestCase):

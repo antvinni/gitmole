@@ -470,14 +470,15 @@ class Export(unittest.TestCase):
             self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical"], console=console()), 0)
             self.assertEqual(cli.main([out, "--no-run"], console=console()), 0)
 
-    def test_a_rule_not_labelled_yet_counts_and_the_tripping_line_says_it_was_one(self):
-        """paperclip: deep_nesting, folded into the report's "not labelled yet" line, tripped --fail-on warning unsaid."""
+    def test_a_rule_not_measured_yet_counts_and_the_tripping_line_says_it_was_one(self):
+        """paperclip: deep_nesting, then folded into the report's closing line, tripped --fail-on warning unsaid. The
+        report now prints it as an entry tagged "(not measured yet)", and the line carries the tag's words."""
         from gitmole import gate
         deep = {"severity": "warning", "title": "Deeply nested code", "rule": {"id": "deep_nesting"}, "summary": True, "unjudged": True}
         self.assertTrue(gate.tripped([deep], "warning"), "the gate fails closed: an unlabelled rule still counts")
         self.assertEqual(gate.tripping([deep], "warning"),
-                         ["--fail-on warning: deep_nesting, 1 warning finding (Deeply nested code; not labelled yet, so the report folds it "
-                          "into its closing line, and it counts all the same) (exit 3)"])
+                         ["--fail-on warning: deep_nesting, 1 warning finding (Deeply nested code; not measured yet, and it counts all the same) (exit 3)"])
+        self.assertNotIn("fold", gate.tripping([deep], "warning")[0])
 
     def test_the_tripping_line_calls_an_info_finding_a_note_and_keeps_the_flags_own_level(self):
         """The report's word for the JSON's `info` is "note"; --fail-on takes the JSON's word, so the line has both."""

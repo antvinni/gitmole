@@ -63,11 +63,11 @@ def tripped(found: list, level: str) -> bool:
 def tripping(found: list, level: str, where: str = "") -> list:
     """One line per rule with a finding at `level` or worse, for stderr: an exit 3 with nothing said left a CI
     log reader to rerun the scan to learn what it stopped on. `where` names the repository in a portfolio.
-    A rule nobody has labelled yet (findings.UNJUDGED) counts like any other, as docs/output.md has said since
-    the default report began folding them into one line: the gate fails closed, and a pipeline gating on
-    warnings may rely on deep nesting. But the report shows such a finding only as a count in that line, so
-    the line that names what tripped the gate says it was one of those (paperclip: deep_nesting tripped
-    --fail-on warning from "N more from the structure step, not labelled yet")."""
+    A rule nobody has measured yet (findings.UNJUDGED) counts like any other: the gate fails closed, and a
+    pipeline gating on warnings may rely on deep nesting. The report prints such a finding as an entry with
+    "(not measured yet)" after its title, and the line that names what tripped the gate carries the same
+    words, so a log reader knows the rule's precision is not known (paperclip: deep_nesting tripped --fail-on
+    warning while the report of the day folded it into a closing line)."""
     from .findings import SEVERITIES
     by = {}
     for f in found:
@@ -77,11 +77,11 @@ def tripping(found: list, level: str, where: str = "") -> list:
     for rule, fs in by.items():
         worst = min((f["severity"] for f in fs), key=SEVERITIES.index)
         titles = "; ".join(dict.fromkeys(f["title"] for f in fs))
-        folded = "; not labelled yet, so the report folds it into its closing line, and it counts all the same" if any(f.get("unjudged") for f in fs) else ""
+        unmeasured = "; not measured yet, and it counts all the same" if any(f.get("unjudged") for f in fs) else ""
         # the level is the flag's own word (and the JSON's); what was found is said as the report says it, "1 note" for an `info`
         counted = textfmt.count(len(fs), "note") if worst == "info" else f"{len(fs):,} {worst} finding{'s' if len(fs) != 1 else ''}"
         lines.append(f"--fail-on {level}: {where + ': ' if where else ''}{rule}, {counted}"
-                     f" ({titles}{folded}) (exit {EXIT_FOUND})")
+                     f" ({titles}{unmeasured}) (exit {EXIT_FOUND})")
     return lines
 
 
