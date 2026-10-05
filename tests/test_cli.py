@@ -702,6 +702,62 @@ class Baseline(unittest.TestCase):
         self.assertEqual(len(gate.against_baseline({"meta": {}}, [tf("Ann", ["src/", "lib/"])], before)), 1, "a new area of one")
         self.assertEqual(len(gate.against_baseline({"meta": {}}, [tf("Bob", ["src/"])], before)), 1, "hangs on someone else")
 
+    def test_a_new_trojan_token_counts_and_a_known_one_that_moved_does_not(self):
+        # univer review (ci-release, V5): trojan_source was judged by its rule id, so after a baseline a new mixed-script
+        # identifier passed --fail-on; with the line in its identity an unrelated edit above a known token would trip it
+        from gitmole import findings, gate, sarif
+
+        def rep(mixed, bidi=()):
+            return {"meta": {}, "hygiene": {"trojan": {"bidi": list(bidi), "bidi_count": len(bidi), "mixed_script": mixed, "mixed_script_count": len(mixed)}}}
+        tok = lambda line, token="zА", file="src/a.ts": {"file": file, "line": line, "token": token, "scripts": ["CYRILLIC", "LATIN"]}
+        old = rep([tok(10), tok(20, "pАss", "src/b.ts")])
+        before = {**old, "findings": findings.trojan_source(old)}
+        moved = rep([tok(15), tok(25, "pАss", "src/b.ts")])
+        found = findings.trojan_source(moved)
+        self.assertEqual(gate.against_baseline(moved, found, before), [], "five lines added above both tokens: nothing new")
+        self.assertEqual(found[0]["baseline"], "in the baseline")
+        fp = lambda r: [x["partialFingerprints"]["gitmole/v1"] for x in sarif.build({**r, "meta": {}}, findings.trojan_source(r), "history")["runs"][0]["results"]]
+        self.assertEqual(fp(moved), fp(old), "and code scanning sees the same alerts")
+        now = rep([tok(15), tok(25, "pАss", "src/b.ts"), tok(30, "cОnfig", "src/b.ts")])
+        found = findings.trojan_source(now)
+        counted = gate.against_baseline(now, found, before)
+        self.assertEqual([[r["token"] for r in c["evidence"]["mixed_script"]] for c in counted], [["cОnfig"]])
+        self.assertTrue(gate.tripped(counted, "warning"), "a new token after a baseline fails --fail-on warning")
+        self.assertEqual(found[0]["baseline"], "new")
+        again = rep([tok(15), tok(16), tok(25, "pАss", "src/b.ts")])
+        self.assertEqual(len(gate.against_baseline(again, findings.trojan_source(again), before)), 1, "the same token a second time in the file is new")
+        bidi = rep([tok(15), tok(25, "pАss", "src/b.ts")], [{"file": "src/c.ts", "line": 3, "char": "U+202E"}])
+        counted = gate.against_baseline(bidi, findings.trojan_source(bidi), before)
+        self.assertTrue(gate.tripped(counted, "critical"), "a new bidirectional character is critical on its own")
+        self.assertEqual(counted[0]["evidence"]["mixed_script"], [])
+        self.assertEqual(gate.against_baseline(now, findings.trojan_source(now), {"findings": before["findings"]}), [],
+                         "an export without the hygiene rows: the rule id decides, as before")
+
+    def test_a_new_drifted_manifest_counts_though_the_rule_is_in_the_baseline(self):
+        from gitmole import findings, gate
+
+        def rep(manifests):
+            drift = [{"manifest": m, "lockfile": "pnpm-lock.yaml", "manifest_date": "2026-09-29", "lockfile_date": "2026-09-24"} for m in manifests]
+            return {"meta": {}, "hygiene": {"lockfiles": {"drift": drift, "drift_count": len(drift)}}}
+        old = rep([f"packages/p{i:02d}/package.json" for i in range(12)])
+        before = {**old, "findings": findings.lockfile_drift(old)}
+        self.assertEqual(gate.against_baseline(old, findings.lockfile_drift(old), before), [], "the same twelve, though the evidence keeps ten")
+        now = rep([f"packages/p{i:02d}/package.json" for i in range(12)] + ["apps/web/package.json"])
+        counted = gate.against_baseline(now, findings.lockfile_drift(now), before)
+        self.assertEqual([[d["manifest"] for d in c["evidence"]["drift"]] for c in counted], [["apps/web/package.json"]])
+        self.assertTrue(gate.tripped(counted, "warning"), "a new drifted manifest fails --fail-on warning")
+
+    def test_complexity_growth_counts_when_a_hotspot_grew_that_the_baseline_did_not_name(self):
+        from gitmole import gate
+        cg = lambda files: {"severity": "warning", "title": "Hotspots getting more complex", "detail": "D", "rule": {"id": "complexity_growth"},
+                            "evidence": {"hotspots": 10, "grown": [{"file": f, "growth_pct": 50} for f in files]}}
+        before = {"findings": [cg(["a.ts", "b.ts", "c.ts"])]}
+        self.assertEqual(gate.against_baseline({"meta": {}}, [cg(["b.ts", "a.ts", "c.ts"])], before), [])
+        self.assertEqual(gate.against_baseline({"meta": {}}, [cg(["a.ts", "b.ts"])], before), [], "fewer grown: nothing new")
+        counted = gate.against_baseline({"meta": {}}, [cg(["a.ts", "b.ts", "d.ts"])], before)
+        self.assertEqual(len(counted), 1, "d.ts grew and the baseline's finding did not name it")
+        self.assertTrue(gate.tripped(counted, "warning"))
+
     def test_a_baseline_of_another_clone_or_no_export_is_refused(self):
         with tempfile.TemporaryDirectory() as out:
             self._dir(out, [])

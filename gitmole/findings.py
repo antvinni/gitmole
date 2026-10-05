@@ -1086,14 +1086,54 @@ def _files_list(items: list, n: int = 3) -> str:
 def hygiene_findings(report: dict) -> list:
     """The hygiene checks (hygiene.py), one finding per rule, each naming the OpenSSF Scorecard check it
     stands in for without the GitHub API. Nothing for an output directory from before the step."""
-    h = report.get("hygiene") or {}
-    swept = [c["hash"] for c in (report.get("activity") or {}).get("sweeping") or [] if c.get("hash")]
-    if swept and (h.get("lockfiles") or {}).get("drift"):
-        h = {**h, "lockfiles": _drift_past_sweeps(h["lockfiles"], swept)}
+    h = _swept_hygiene(report)
     out = []
     for check in (_hygiene_actions, _hygiene_pwn_request, _hygiene_injection, _hygiene_lockfiles, _hygiene_updates, _hygiene_presence, _hygiene_confusion, _hygiene_install, _hygiene_binaries, _hygiene_submodules, _hygiene_symlinks, _hygiene_trojan,
                   _hygiene_unused, _hygiene_licence, _hygiene_copyleft):
         check(h, out)
+    return out
+
+
+def _swept_hygiene(report: dict) -> dict:
+    """The hygiene record with the lock file drift that only sweeping commits explain left out (_drift_past_sweeps)."""
+    h = report.get("hygiene") or {}
+    swept = [c["hash"] for c in (report.get("activity") or {}).get("sweeping") or [] if c.get("hash")]
+    if swept and (h.get("lockfiles") or {}).get("drift"):
+        h = {**h, "lockfiles": _drift_past_sweeps(h["lockfiles"], swept)}
+    return h
+
+
+def drift_rows(report: dict) -> list:
+    """The drift rows lockfile_drift names, every one the hygiene step kept: what --baseline compares (gate.py)
+    and where SARIF places the finding."""
+    return (_swept_hygiene(report).get("lockfiles") or {}).get("drift") or []
+
+
+def lockfile_drift(report: dict) -> list:
+    """The lockfile_drift finding alone, which --baseline runs again over the manifests its baseline lacked."""
+    out = []
+    _hygiene_lockfiles(_swept_hygiene(report), out)
+    return [f for f in out if f["rule"]["id"] == "lockfile_drift"]
+
+
+def trojan_source(report: dict) -> list:
+    """The trojan_source finding alone, which --baseline runs again over the characters and tokens its baseline lacked."""
+    out = []
+    _hygiene_trojan(report.get("hygiene") or {}, out)
+    return out
+
+
+def trojan_identities(rows: dict) -> list:
+    """[(identity, row)] for a trojan record's rows ({"bidi": [...], "mixed_script": [...]}, the hygiene step's or a
+    finding's evidence): a row is its file, its character or token, and which occurrence of that one in that file it
+    is, in file order - never its line, so an edit above it moves nothing. What --baseline compares (gate.py) and
+    what a SARIF result's fingerprint keys on, so the gate and code scanning agree on which row is new."""
+    out, seen = [], {}
+    for kind, what in (("bidi", "char"), ("mixed_script", "token")):
+        for r in rows.get(kind) or []:
+            key = (kind, r.get("file"), r.get(what))
+            seen[key] = seen.get(key, 0) + 1
+            out.append((key + (seen[key],), r))
     return out
 
 

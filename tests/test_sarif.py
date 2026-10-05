@@ -42,7 +42,8 @@ class Document(unittest.TestCase):
         [result] = doc["runs"][0]["results"]
         self.assertEqual(result["ruleId"], "bug_magnets")
         self.assertEqual(result["level"], "warning")
-        self.assertEqual(result["message"]["text"], "D")
+        self.assertEqual(result["message"]["text"], "src/a.py was fixed 5 times in six months. Review it before the next release.",
+                         "a result's message names its own subject, not the whole rule's summary")
         self.assertEqual(result["locations"], [{"physicalLocation": {"artifactLocation": {"uri": "src/a.py", "uriBaseId": "%SRCROOT%"}}}])
         self.assertNotIn("security-severity", result["properties"], "a bug magnet is not a vulnerability: GitHub files it as code quality")
         self.assertEqual(result["partialFingerprints"], {"gitmole/v1": hashlib.sha256(b"bug_magnets\0src/a.py\0\0").hexdigest()},
@@ -281,6 +282,92 @@ class Document(unittest.TestCase):
         a, b = sarif.dumps(report(), found), sarif.dumps(report(), found)
         self.assertEqual(a, b)
         json.loads(a)
+
+
+def _trojan_report(rows, bidi=()):
+    from gitmole import findings
+    rep = report(tree=frozenset({r["file"] for r in list(rows) + list(bidi)}),
+                 hygiene={"trojan": {"bidi": list(bidi), "bidi_count": len(bidi), "mixed_script": list(rows), "mixed_script_count": len(rows)}})
+    return rep, findings.trojan_source(rep)
+
+
+def _token(file, line, token="zА"):
+    return {"file": file, "line": line, "token": token, "scripts": ["CYRILLIC", "LATIN"]}
+
+
+class RowResults(unittest.TestCase):
+    """univer review (ci-release): Trojan Source had no location though the report had its line, and lock file drift,
+    brain methods, deep nesting, bug magnets and the truck factor repeated the whole rule's summary in every result."""
+
+    def test_a_trojan_token_is_placed_at_its_line_and_known_by_the_token_not_the_line(self):
+        rep, found = _trojan_report([_token("src/a.ts", 10), _token("src/a.ts", 40), _token("src/b.ts", 3, "pАss")], bidi=[{"file": "src/c.ts", "line": 7, "char": "U+202E"}])
+        results = sarif.build(rep, found)["runs"][0]["results"]
+        self.assertEqual([(r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"], r["locations"][0]["physicalLocation"]["region"]["startLine"])
+                          for r in results], [("src/c.ts", 7), ("src/a.ts", 10), ("src/a.ts", 40), ("src/b.ts", 3)])
+        self.assertEqual({r["level"] for r in results}, {"error"}, "a bidirectional character makes the finding critical")
+        self.assertEqual(len({r["partialFingerprints"]["gitmole/v1"] for r in results}), 4, "the same token twice in one file is two results")
+        self.assertTrue(results[1]["message"]["text"].startswith("zА at src/a.ts:10 mixes CYRILLIC and LATIN: "), results[1]["message"]["text"])
+        self.assertTrue(results[0]["message"]["text"].startswith("src/c.ts:7 holds U+202E, a bidirectional control character: "))
+        moved, found = _trojan_report([_token("src/a.ts", 15), _token("src/a.ts", 45), _token("src/b.ts", 3, "pАss")], bidi=[{"file": "src/c.ts", "line": 7, "char": "U+202E"}])
+        again = sarif.build(moved, found)["runs"][0]["results"]
+        self.assertEqual([r["partialFingerprints"] for r in again], [r["partialFingerprints"] for r in results],
+                         "five lines added above the tokens: the same alerts, so code scanning neither closes nor reopens them")
+        self.assertEqual(again[1]["locations"][0]["physicalLocation"]["region"], {"startLine": 15}, "the line is the region's")
+
+    def test_every_trojan_row_the_report_holds_is_a_result_not_only_the_ten_the_evidence_keeps(self):
+        rep, found = _trojan_report([_token(f"src/f{i:02d}.ts", i + 1) for i in range(14)])
+        self.assertEqual(len(found[0]["evidence"]["mixed_script"]), 10)
+        self.assertEqual(len(sarif.build(rep, found)["runs"][0]["results"]), 14)
+
+    def test_lock_file_drift_is_one_result_per_drifted_manifest_naming_it(self):
+        drift = [{"manifest": f"packages/p{i:02d}/package.json", "lockfile": "pnpm-lock.yaml", "manifest_date": "2026-09-29",
+                  "lockfile_date": "2026-09-24", "changes": [{"commit": "c%02d" % i, "date": "2026-09-29"}]} for i in range(60)]
+        drift[59]["changes"] = [{"commit": "sweep1", "date": "2026-09-29"}]
+        hyg = {"lockfiles": {"drift": drift[:50] + drift[59:], "drift_count": 60}}
+        rep = report(tree=frozenset(d["manifest"] for d in drift) | {"pnpm-lock.yaml"}, hygiene=hyg,
+                     activity={"sweeping": [{"hash": "sweep1"}]})
+        from gitmole import findings
+        found = findings.lockfile_drift(rep)
+        results = sarif.build(rep, found)["runs"][0]["results"]
+        self.assertEqual(len(results), 50, "the hygiene step's rows, capped at its own 50, not the evidence's ten; a sweep's drift is left out")
+        self.assertNotIn("packages/p59/package.json", {r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] for r in results})
+        self.assertEqual(results[3]["message"]["text"], "packages/p03/package.json changed on 2026-09-29, after pnpm-lock.yaml last did on 2026-09-24. "
+                         "Regenerate pnpm-lock.yaml and commit it with the manifest; a frozen install does not catch this.")
+        self.assertEqual(results[3]["partialFingerprints"]["gitmole/v1"], sarif._fingerprint("lockfile_drift", "packages/p03/package.json", "", 1),
+                         "the fingerprint 0.44.0 gave the same manifest: the message changed, the alert did not")
+
+    def test_brain_methods_deep_nesting_and_the_truck_factor_name_their_own_subject(self):
+        brain = finding("brain_methods", evidence={"functions": [{"file": "src/a.py", "function": "parse", "start": 12, "ccn": 31, "lines": 140, "params": 2}]})
+        deep = finding("deep_nesting", evidence={"functions": [{"file": "src/a.py", "name": "walk", "start": 80, "nesting": 6, "cognitive": 40, "bumps": 1}]})
+        truck = finding("truck_factor", evidence={"areas": [{"area": "src/", "author": "Ann", "files": 30, "orphaned": 20}]})
+        rep = report(tree=frozenset({"src/a.py"}))
+        rep["meta"]["gone_months"] = 6
+        results = {r["ruleId"]: r for r in sarif.build(rep, [brain, deep])["runs"][0]["results"]}
+        self.assertEqual(results["brain_methods"]["message"]["text"],
+                         "parse at src/a.py:12 is long and complex: complexity 31, 140 lines, 2 params. Split it before the next change lands there.")
+        self.assertEqual(results["brain_methods"]["partialFingerprints"]["gitmole/v1"], sarif._fingerprint("brain_methods", "src/a.py", "", 12, "parse"))
+        self.assertEqual(results["deep_nesting"]["message"]["text"],
+                         "walk at src/a.py:80 nests 6 deep, cognitive complexity 40, 1 bump. Flatten it: return early and move each nested chunk into a function of its own.")
+        [area] = sarif.build({"meta": {}}, [truck], scope="history")["runs"][0]["results"]
+        self.assertTrue(area["message"]["text"].startswith("src/ has a truck factor of one (Ann): 20 of its 30 source files would have no author left"),
+                        area["message"]["text"])
+
+    def test_every_result_whose_report_row_has_a_line_carries_a_region(self):
+        from gitmole import findings
+        fn = {"file": "src/a.py", "function": "f", "start": 5, "end": 160, "ccn": 20, "nloc": 150, "params": 1}
+        deep = {"file": "src/a.py", "name": "g", "start": 200, "nesting": 6, "cognitive": 30, "bumps": 0}
+        rep = report(tree=frozenset({"src/a.py", "src/t.ts", ".github/workflows/ci.yml", "web/package.json"}),
+                     functions=[fn], structure={"status": "run", "files": {}, "functions": [deep]},
+                     hygiene={"trojan": {"bidi": [], "mixed_script": [_token("src/t.ts", 9)], "mixed_script_count": 1},
+                              "actions": {"unpinned": [{"file": ".github/workflows/ci.yml", "uses": "x/y@v1", "line": 14}], "unpinned_count": 1},
+                              "lockfiles": {"drift": [{"manifest": "web/package.json", "lockfile": "web/package-lock.json",
+                                                       "manifest_date": "2026-01-02", "lockfile_date": "2025-01-01"}], "drift_count": 1}})
+        found = findings.brain_methods(rep) + findings.deep_nesting(rep) + findings.hygiene_findings(rep)
+        self.assertEqual({f["rule"]["id"] for f in found} >= {"brain_methods", "deep_nesting", "trojan_source", "unpinned_actions", "lockfile_drift"}, True)
+        results = sarif.build(rep, found)["runs"][0]["results"]
+        lines = {(r["ruleId"], r["locations"][0]["physicalLocation"].get("region", {}).get("startLine")) for r in results}
+        self.assertEqual(lines, {("brain_methods", 5), ("deep_nesting", 200), ("trojan_source", 9), ("unpinned_actions", 14), ("lockfile_drift", 1)})
+
 
 
 if __name__ == "__main__":

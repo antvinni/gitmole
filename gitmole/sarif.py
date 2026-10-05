@@ -84,6 +84,12 @@ def _result(rule: str, level: str, severity: str, text: str, path: str = None, l
 def _places(f: dict) -> list:
     """[(path, line, commit, extra)] the finding's evidence points at, in the shape each rule writes;
     an empty list for a repository-wide finding."""
+    return [p[:4] for p in _placed(f)]
+
+
+def _placed(f: dict) -> list:
+    """_places with what each place is: [(path, line, commit, extra, item)], item the evidence row behind the place
+    (None for a bare path or commit), which the place's own message (PLACE_TEXT) is written from."""
     e = f.get("evidence") or {}
     out = []
 
@@ -92,36 +98,130 @@ def _places(f: dict) -> list:
         return v if isinstance(v, list) else []
     for item in items("files"):
         if isinstance(item, str):
-            out.append((item, None, None, ""))
+            out.append((item, None, None, "", None))
         elif isinstance(item, dict) and item.get("file"):
-            out.append((item["file"], item.get("start"), None, ""))
+            out.append((item["file"], item.get("start"), None, "", item))
     for fn in items("functions"):
-        out.append((fn["file"], fn.get("start"), None, fn.get("function", "")))
+        out.append((fn["file"], fn.get("start"), None, fn.get("function", ""), fn))
     for g in items("grown"):
-        out.append((g["file"], None, None, ""))
+        out.append((g["file"], None, None, "", g))
     for p in items("pairs"):
-        out.append((p["a"], None, None, p.get("b", "")))
+        out.append((p["a"], None, None, p.get("b", ""), p))
     for c in items("clusters"):
-        out.append((c["dir"].rstrip("/") if c["dir"] != "(root files)" else ".", None, None, ""))
+        out.append((c["dir"].rstrip("/") if c["dir"] != "(root files)" else ".", None, None, "", c))
     for a in items("islands") or items("areas"):
         area = a.get("area") if isinstance(a, dict) else None
         if area and area != "(root files)":
-            out.append((area.rstrip("/"), None, None, ""))
+            out.append((area.rstrip("/"), None, None, "", a))
+    # a Trojan Source character or token, at its line; the extra is its identity (findings.trojan_identities), which
+    # the gate compares and the fingerprint keys on in place of the line (UNLINED)
+    if items("bidi") or items("mixed_script"):
+        from .findings import trojan_identities
+        for ident, r in trojan_identities({"bidi": items("bidi"), "mixed_script": items("mixed_script")}):
+            if isinstance(r.get("file"), str):
+                out.append((r["file"], r.get("line"), None, "\0".join(str(x) for x in ident), r))
     # a file the finding is about as a whole: lockfile_drift's manifests, and unpinned_actions' workflow files when
     # the report has no rows behind the finding (_action_results). Line 1, since code scanning shows a result by
     # its region and the rule records no line; one result per file
-    named = [u.get("file") for u in items("unpinned") if isinstance(u, dict)] + \
-        [d.get("manifest") for d in items("drift") if isinstance(d, dict)]
-    for path in dict.fromkeys(p for p in named if isinstance(p, str) and p):
-        out.append((path, 1, None, ""))
+    named = [(u.get("file"), u) for u in items("unpinned") if isinstance(u, dict)] + \
+        [(d.get("manifest"), d) for d in items("drift") if isinstance(d, dict)]
+    seen = set()
+    for path, item in named:
+        if isinstance(path, str) and path and path not in seen:
+            seen.add(path)
+            out.append((path, 1, None, "", item))
     if isinstance(e.get("file"), str):
-        out.append((e["file"], None, None, ""))
+        out.append((e["file"], None, None, "", None))
     if isinstance(e.get("ref"), str) and e["ref"]:
-        out.append((e["ref"], None, None, ""))
+        out.append((e["ref"], None, None, "", None))
     for c in items("commits") or items("sample"):
         if isinstance(c, dict) and c.get("hash"):
-            out.append((None, None, c["hash"], ""))
+            out.append((None, None, c["hash"], "", None))
     return out
+
+
+# The rules whose results are not known by their line: a Trojan Source token is the same token after an edit above it
+# moved it, so its fingerprint is its identity (the place's extra) and the line is only the region. The gate's
+# --baseline compares the same identity, so a baselined token that moved stays one alert, unchanged.
+UNLINED = frozenset({"trojan_source"})
+
+
+def _magnet_text(report: dict, f: dict, m: dict) -> str:
+    above = {x.get("file") for x in ((f.get("evidence") or {}).get("fix_rate") or {}).get("above_rate") or []}
+    rate = ", more often than files of its size explain" if m["file"] in above else ""
+    whole = f" ({m['fixes']} in all)" if m.get("fixes") is not None else ""
+    return f"{m['file']} was fixed {m['recent_fixes']} times in six months{whole}{rate}. Review it before the next release."
+
+
+def _truck_text(report: dict, f: dict, a: dict) -> str:
+    from .findings import _gone, _who
+    gone = _gone(report) if isinstance(report.get("meta"), dict) else set()
+    left = a.get("author") in gone
+    return (f"{a['area']} has a truck factor of one ({_who(a.get('author'), gone)}): {a.get('orphaned')} of its "
+            f"{a.get('files')} source files {'already have' if left else 'would have'} no author left without them. "
+            + ("Give it an owner." if left else f"Pair someone with {a.get('author')} on it."))
+
+
+def _brain_text(report: dict, f: dict, fn: dict) -> str:
+    from .findings import _called
+    return (f"{_called(fn)} at {fn['file']}:{fn.get('start')} is long and complex: complexity {fn.get('ccn')}, {fn.get('lines')} lines, "
+            f"{fn.get('params')} param{'s' if fn.get('params') != 1 else ''}. Split it before the next change lands there.")
+
+
+def _deep_text(report: dict, f: dict, fn: dict) -> str:
+    from .findings import _called
+    return (f"{_called(fn)} at {fn['file']}:{fn.get('start')} nests {fn.get('nesting')} deep, cognitive complexity {fn.get('cognitive')}, "
+            f"{fn.get('bumps')} bump{'s' if fn.get('bumps') != 1 else ''}. Flatten it: return early and move each nested chunk into a function of its own.")
+
+
+def _drift_text(report: dict, f: dict, d: dict) -> str:
+    return (f"{d['manifest']} changed on {d.get('manifest_date')}, after {d.get('lockfile')} last did on {d.get('lockfile_date')}. "
+            f"Regenerate {d.get('lockfile')} and commit it with the manifest; a frozen install does not catch this.")
+
+
+def _trojan_text(report: dict, f: dict, r: dict) -> str:
+    from . import textfmt
+    what = (f"{r['file']}:{r.get('line')} holds {r['char']}, a bidirectional control character" if r.get("char") else
+            f"{r.get('token')} at {r['file']}:{r.get('line')} mixes {textfmt.join_and(r.get('scripts') or [])}")
+    return (f"{what}: code can read one way in review and compile another. Look at it in a hex view, and remove the "
+            "character unless it is in a string that must hold it.")
+
+
+# a result's own message, from the evidence row behind its place: the finding's detail is the whole rule's summary,
+# and ten results each carrying it said nothing about their own subject. The fingerprint does not read the message.
+PLACE_TEXT = {"bug_magnets": _magnet_text, "truck_factor": _truck_text, "brain_methods": _brain_text, "deep_nesting": _deep_text,
+              "lockfile_drift": _drift_text, "trojan_source": _trojan_text}
+
+
+def _place_text(report: dict, f: dict, item) -> str:
+    text = PLACE_TEXT.get(f["rule"]["id"])
+    if text is None or not isinstance(item, dict):
+        return f["detail"]
+    try:
+        return text(report, f, item)
+    except (KeyError, TypeError):   # an evidence row of an older shape: the finding's own text, as before
+        return f["detail"]
+
+
+# the most places a lock file drift result list takes from the hygiene step's rows (it keeps that many); the finding's
+# evidence keeps ten
+DRIFT_PLACES = 50
+
+
+def _evidence_rows(report: dict, f: dict) -> dict:
+    """The finding with every row the report holds behind it in place of the ten its evidence keeps, for the rules
+    whose results are one per row: lock file drift (from the hygiene rows, sweeps left out as the finding does) and
+    Trojan Source. A report without those rows (a hand-built finding) keeps the evidence."""
+    from . import findings
+    rule = f["rule"]["id"]
+    if rule == "lockfile_drift":
+        rows = findings.drift_rows(report)
+        return {**f, "evidence": {**(f.get("evidence") or {}), "drift": rows[:DRIFT_PLACES]}} if rows else f
+    if rule == "trojan_source":
+        tj = (report.get("hygiene") or {}).get("trojan") or {}
+        if tj.get("bidi") or tj.get("mixed_script"):
+            return {**f, "evidence": {**(f.get("evidence") or {}), "bidi": tj.get("bidi") or [], "mixed_script": tj.get("mixed_script") or []}}
+    return f
 
 
 def _in_tree(report: dict, path: str) -> bool:
@@ -263,16 +363,18 @@ def _finding_results(report: dict, f: dict, scope: str) -> list:
         return _dependency_results(report, f)
     if rule == "unpinned_actions" and ((report.get("hygiene") or {}).get("actions") or {}).get("unpinned"):
         return _action_results(report, f, scope)
-    places = _places(f)
+    places = _placed(_evidence_rows(report, f))
     if not places:
         return [_result(rule, level, severity, f["detail"])] if scope == "history" or not _repo_wide_needs_tree(f) else []
     out = []
-    for path, line, commit, extra in places:
+    for path, line, commit, extra, item in places:
         if path and scope == "head" and not _in_tree(report, path):
             continue
         if not path and scope == "head":
             continue
-        out.append(_result(rule, level, severity, f["detail"], path, line, commit, extra))
+        out.append(_result(rule, level, severity, _place_text(report, f, item), path, line, commit, extra))
+        if rule in UNLINED:
+            out[-1]["partialFingerprints"]["gitmole/v1"] = _fingerprint(rule, path or "", commit or "", None, extra)
     return out
 
 

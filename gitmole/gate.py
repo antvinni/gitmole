@@ -147,7 +147,34 @@ def _row_rules():
          lambda rep, rows: {**rep, "structure": {**(rep.get("structure") or {}), "functions": rows}}, picked(findings.deep_rows, _deep)),
         (findings.bug_magnets, lambda r: r.get("entity"), lambda rep: rep.get("fixes") or [],
          lambda rep, rows: {**rep, "fixes": rows}, picked(findings.magnet_rows, lambda rep: rep.get("fixes"))),
+        # a bidirectional character or a mixed-script token by its file, the character or token, and which occurrence in
+        # that file it is (findings.trojan_identities), not its line: an unrelated edit above a known token moves nothing
+        (findings.trojan_source, lambda r: r["identity"], lambda rep: _trojan(rep) or [], _with_trojan, _trojan),
+        # a manifest behind its lock file, by the manifest: the next release's version bump in a known one is not new
+        (findings.lockfile_drift, lambda r: r.get("manifest"), findings.drift_rows, _with_drift,
+         lambda rep: findings.drift_rows(rep) if "drift" in ((rep.get("hygiene") or {}).get("lockfiles") or {}) else None),
     )
+
+
+def _trojan(rep: dict):
+    """The trojan rows, each with its identity beside it; None for an export without the hygiene step's record."""
+    tj = (rep.get("hygiene") or {}).get("trojan")
+    if tj is None:
+        return None
+    from .findings import trojan_identities
+    return [{**r, "identity": ident, "kind": ident[0]} for ident, r in trojan_identities(tj)]
+
+
+def _with_trojan(rep: dict, rows: list) -> dict:
+    h = rep.get("hygiene") or {}
+    keep = {kind: [{k: v for k, v in r.items() if k not in ("identity", "kind")} for r in rows if r["kind"] == kind] for kind in ("bidi", "mixed_script")}
+    return {**rep, "hygiene": {**h, "trojan": {**(h.get("trojan") or {}), **keep, "bidi_count": len(keep["bidi"]),
+                                               "mixed_script_count": len(keep["mixed_script"])}}}
+
+
+def _with_drift(rep: dict, rows: list) -> dict:
+    h = rep.get("hygiene") or {}
+    return {**rep, "hygiene": {**h, "lockfiles": {**(h.get("lockfiles") or {}), "drift": rows, "drift_count": len(rows)}}}
 
 
 def _truck_subjects(f: dict) -> set:
@@ -157,10 +184,22 @@ def _truck_subjects(f: dict) -> set:
     return {("without", p) for p in ev.get("removed") or []} | ({("area", a.get("area")) for a in areas} if len(areas) < 10 else set())
 
 
+def _grown_subjects(f: dict) -> set:
+    """The hotspots a complexity growth finding names as grown: all of them, as it judges only the top ten."""
+    return {g.get("file") for g in (f.get("evidence") or {}).get("grown") or [] if isinstance(g, dict)}
+
+
+# the rules judged by their key whose findings name subjects with no rows behind them in the export: a truck factor's
+# people and areas of one, complexity growth's grown hotspots. Both are set rules (a count over the whole tree, three
+# or more of the top ten), so they cannot be run again over the new subjects alone as _row_rules' rules are.
+SUBJECTS = {"truck_factor": _truck_subjects, "complexity_growth": _grown_subjects}
+
+
 def _subjects_grew(f: dict, old: dict) -> bool:
-    """Whether a finding judged by its key holds a subject the baseline's finding did not. Only the truck factor
-    has subjects without rows behind them in the export: a person the count hangs on, an area of one."""
-    return f["rule"]["id"] == "truck_factor" and bool(_truck_subjects(f) - _truck_subjects(old))
+    """Whether a finding judged by its key holds a subject the baseline's finding did not: a person a truck factor
+    hangs on or an area of one, a hotspot that grew which the baseline's growth finding did not name."""
+    subjects = SUBJECTS.get(f["rule"]["id"])
+    return subjects is not None and bool(subjects(f) - subjects(old))
 
 
 def against_baseline(report: dict, found: list, before: dict) -> list:
@@ -168,14 +207,17 @@ def against_baseline(report: dict, found: list, before: dict) -> list:
     findings that count toward --fail-on. A finding is in the baseline when the export has one with the same
     key (compare.key: the rule id, and the metric or email for the rules that emit several) at the same
     severity or worse. For the rules that fold many subjects into one finding (_row_rules: secrets, vulnerable
-    dependencies, unpinned actions, brain methods, deep nesting, bug magnets) that key says nothing about which
-    subjects the finding holds, so their rows are compared instead - a secret's place by betterleaks'
-    fingerprint, a package by name, version, lock file and advisory ids, an action by workflow file and ref, a
-    function by file and name, a magnet by file - and the rows the baseline's finding did not hold are run
-    through the same rule on their own: what that finds, at the severity it finds it, is what counts. A value
-    committed again in a new place is a new row, and counts. A truck factor counts when it hangs on a person,
-    or names an area of one, the baseline's did not. An export without a rule's rows (from before they were
-    exported) judges that rule by its key alone."""
+    dependencies, unpinned actions, brain methods, deep nesting, bug magnets, Trojan Source, lock file drift) that
+    key says nothing about which subjects the finding holds, so their rows are compared instead - a secret's place
+    by betterleaks' fingerprint, a package by name, version, lock file and advisory ids, an action by workflow file
+    and ref, a function by file and name, a magnet by file, a Trojan Source character or token by file, itself and
+    its occurrence in that file, a drifted lock file by its manifest - and the rows the baseline's finding did not
+    hold are run through the same rule on their own: what that finds, at the severity it finds it, is what counts.
+    A value committed again in a new place is a new row, and counts. A truck factor counts when it hangs on a
+    person, or names an area of one, the baseline's did not; complexity growth when a hotspot grew that the
+    baseline's did not name. An export without a rule's rows (from before they were exported) judges that rule
+    by its key alone. The hygiene step keeps 50 rows a list: past that, a row the baseline had beyond its 50 that
+    surfaces when one of them goes reads as new, and counts - the gate fails closed rather than open."""
     from . import compare
     from .findings import SEVERITIES
     was = {compare.key(f): f for f in before.get("findings") or []}
