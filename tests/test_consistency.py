@@ -785,6 +785,25 @@ class FromTheSuperpowersExport(unittest.TestCase):
         fine = ["│ 1 package in 1 lock file; 21 files, 1,001 commits, 0.1 lines, v1 files │", "  Ann   1", "  files hidden"]
         self.assertEqual(self.complaints(fine), [], "a row's last number is not the next line's count")
 
+    def test_one_followed_by_a_plural_in_the_supply_chain_section(self):
+        """The footer as the output plan's item A10 draws it: a titled label grid, then the closing lines. A row
+        wraps under its own label, so a phrase split by the wrap is still read, and a row that ends in a number
+        does not count the label of the row after it."""
+        grid = ["│   osv-scanner checked 1 package in 1 lock file   │", "",
+                "⛨ Supply chain",
+                "  secrets       none in source files (secrets.json) · at HEAD 18 places, 1",
+                "                places high confidence",
+                "  dependencies  1 packages in 1 lock file, database 2026-09-30 · 1",
+                "                lock files held 1",
+                "  secrets       a second row whose label follows a row that ends in 1",
+                "",
+                "--full adds 1 section: Timeline. 15 of 18 steps ran; --plots runs the other 1",
+                "steps.", "/tmp/out"]
+        self.assertEqual(sorted(c["subject"] for c in self.complaints(grid)), ["'1 lock files' (1x)", "'1 packages' (1x)", "'1 places' (1x)", "'1 steps' (1x)"])
+        self.assertEqual(self.complaints(["Supply chain", "  signing       1", "  dependencies  none vulnerable"]), [], "the title without a pictogram, and no closing lines")
+        old = ["Secrets: none found", "Dependencies: 1 ", "packages in 1 lock file, none vulnerable"]
+        self.assertEqual([c["subject"] for c in self.complaints(old)], ["'1 packages' (1x)"], "the drawing before A10 is read as it was")
+
     def complaints(self, lines):
         with mock.patch.object(consistency, "_default_report", return_value=lines):
             return consistency.plural_one(report(), [])
