@@ -306,6 +306,63 @@ class Lockfiles(unittest.TestCase):
                          [("packages/a/tools/package.json", "packages/a/tools/bun.lock"), ("packages/legacy/package.json", "packages/legacy/bun.lock")],
                          "electron, packages/a and site/apps/web/ui are members their roots relocked; the rest keep their own lock")
 
+    ROOT_MANIFEST = {"name": "mono", "version": "1.0.0", "private": True, "workspaces": ["packages/*"], "packageManager": "pnpm@9.1.0",
+                     "pnpm": {"overrides": {"left-pad": "1.3.0"}}, "devDependencies": {"typescript": "5.4.0"}}
+    MEMBER_MANIFEST = {"name": "@mono/a", "version": "1.0.0", "dependencies": {"left-pad": "^1.0.0"},
+                       "peerDependencies": {"react": "*"}, "peerDependenciesMeta": {"react": {"optional": True}},
+                       "dependenciesMeta": {"left-pad": {"injected": False}}}
+
+    def _drift_after(self, lock, root=None, member=None):
+        """The (manifest, lockfile) drift pairs after one commit that rewrites the root and member manifests
+        of a workspace locked by `lock` at its root, a month after the lock's last commit."""
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("package.json", json.dumps(self.ROOT_MANIFEST, indent=2))
+            r.write("packages/a/package.json", json.dumps(self.MEMBER_MANIFEST, indent=2))
+            if lock == "pnpm-lock.yaml":
+                r.write("pnpm-workspace.yaml", "packages:\n  - packages/*\n")
+            r.write(lock, "lockfileVersion: '9.0'\n")
+            r.commit(date="2026-09-01T00:00:00")
+            r.write("package.json", json.dumps(root or self.ROOT_MANIFEST, indent=2))
+            r.write("packages/a/package.json", json.dumps(member or self.MEMBER_MANIFEST, indent=2))
+            r.git("add", "-A")
+            r.git("commit", "-q", "--allow-empty", "-m", "change", date="2026-10-01T00:00:00")
+            return sorted((x["manifest"], x["lockfile"]) for x in hygiene.lockfiles(d)["drift"])
+
+    def test_pnpm_lock_does_not_record_a_name_or_a_version(self):
+        """univer: 82 package.json files "changed after pnpm-lock.yaml" — every member's release bump. pnpm-lock.yaml
+        records each importer's dependency specifiers, never its name or version, so a bump cannot put it behind."""
+        bumped_root = dict(self.ROOT_MANIFEST, name="mono-renamed", version="1.1.0", scripts={"build": "tsc"})
+        bumped_member = dict(self.MEMBER_MANIFEST, name="@mono/a2", version="1.1.0", description="now described")
+        self.assertEqual(self._drift_after("pnpm-lock.yaml", bumped_root, bumped_member), [])
+        moved_member = dict(self.MEMBER_MANIFEST, packageManager="pnpm@9.2.0")
+        self.assertEqual(self._drift_after("pnpm-lock.yaml", member=moved_member), [],
+                         "pnpm reads packageManager from the workspace root only")
+
+    def test_pnpm_lock_still_drifts_on_what_it_records(self):
+        both = [("package.json", "pnpm-lock.yaml"), ("packages/a/package.json", "pnpm-lock.yaml")]
+        root_only, member_only = both[:1], both[1:]
+        cases = {
+            "member dependency": ({}, {"dependencies": {"left-pad": "^1.1.0"}}, member_only),
+            "member peerDependenciesMeta": ({}, {"peerDependenciesMeta": {"react": {"optional": False}}}, member_only),
+            "member dependenciesMeta": ({}, {"dependenciesMeta": {"left-pad": {"injected": True}}}, member_only),
+            "root devDependency": ({"devDependencies": {"typescript": "5.5.0"}}, {}, root_only),
+            "root packageManager": ({"packageManager": "pnpm@9.2.0"}, {}, root_only),
+            "root pnpm.overrides": ({"pnpm": {"overrides": {"left-pad": "1.3.1"}}}, {}, root_only),
+            "a version bump beside a dependency change": ({"version": "2.0.0"}, {"version": "2.0.0", "optionalDependencies": {"fsevents": "2"}}, member_only),
+        }
+        for label, (root, member, expected) in cases.items():
+            with self.subTest(label):
+                self.assertEqual(self._drift_after("pnpm-lock.yaml", dict(self.ROOT_MANIFEST, **root), dict(self.MEMBER_MANIFEST, **member)), expected)
+
+    def test_npm_yarn_and_bun_locks_keep_the_name_and_version(self):
+        """package-lock.json and npm-shrinkwrap.json record the root's and each workspace's name and version, so a
+        version-only bump still puts them behind; yarn.lock and bun.lock keep that reading until a fixture shows theirs."""
+        for lock in ("package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "bun.lock"):
+            with self.subTest(lock):
+                self.assertEqual(self._drift_after(lock, dict(self.ROOT_MANIFEST, version="1.1.0"), dict(self.MEMBER_MANIFEST, version="1.1.0")),
+                                 [("package.json", lock), ("packages/a/package.json", lock)])
+
 
 class DependencyUpdates(unittest.TestCase):
     def test_ecosystems_with_a_lockfile_that_dependabot_does_not_cover(self):
@@ -554,6 +611,63 @@ class TrojanSource(unittest.TestCase):
         self.assertEqual(out["bidi"], [{"file": "src/a.py", "line": 2, "char": "U+202E"}, {"file": "src/a.py", "line": 3, "char": "U+2066"}])
         self.assertEqual(out["mixed_script"], [{"file": "src/b.py", "line": 2, "token": "pr\u043ecess", "scripts": ["CYRILLIC", "LATIN"]}])
         self.assertEqual(out["files"], 4, "source files scanned; the doc and the test fixture are not")
+
+    def test_a_regex_class_range_and_prose_in_a_literal_are_not_spoofed_identifiers(self):
+        # The three univer 0.44.0 shapes: the joint `zА` of two ranges in a character class, and a mixed token
+        # (ZТЕСТ, a Latin Z before Cyrillic) inside a string that is Russian prose.
+        prose = "Возвращает значение"   # Возвращает значение
+        z_test = "ZТЕСТ"   # ZТЕСТ
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/tools.ts", "const ok = /^[A-Za-zА-Яа-яЁё_]/.test(name);\n")
+            r.write("src/ru-RU.ts", f"export default {{\n    description: '{prose} (μ0) {z_test} {prose}',\n"
+                                    f"    abstract: \"{prose} {z_test}\",\n    tpl: `{prose} ${{x}} {z_test}`,\n}};\n")
+            r.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual(out["mixed_script"], [])
+
+    def test_a_look_alike_still_fires_in_code_in_a_lone_string_and_in_template_code(self):
+        a = "а"   # Cyrillic а
+        prose = "значение"   # значение
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/a.py", f"p{a}ssword = 1\n")
+            r.write("src/b.py", f'if role == "{a}dmin":\n    pass\n')
+            r.write("src/c.ts", f"const s = `{prose} ${{p{a}ssword}}`;\n")   # ${…} is code, not the literal's text
+            r.write("src/d.ts", f"const s = '{prose}'; p{a}ssword();\n")   # prose in another literal on the line
+            r.write("src/e.ts", f"const m = /[{a}dmin]/;\n")   # a class with no range keeps its letters
+            r.write("src/f.ts", f"const s = 'x' + \"{prose}\" + '{a}dmin';\n")
+            r.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual([(x["file"], x["token"]) for x in out["mixed_script"]],
+                         [("src/a.py", f"p{a}ssword"), ("src/b.py", f"{a}dmin"), ("src/c.ts", f"p{a}ssword"),
+                          ("src/d.ts", f"p{a}ssword"), ("src/e.ts", f"{a}dmin"), ("src/f.ts", f"{a}dmin")])
+
+    def test_a_quote_from_a_comment_or_regex_and_an_index_expression_do_not_hide_a_look_alike(self):
+        # The PR #273 review's probes: a stray quote in a comment or a regex makes a "span" over code, and the `-` of
+        # an index expression is arithmetic, not a class range.
+        a, r, s = "а", "р", "с"   # Cyrillic а р с
+        hello, world = "Привет", "мир"   # Привет мир
+        cases = {
+            "block_comment.ts": f"/* it's */ let p{a}ss = 1; /* {hello}' */",
+            "line_comment.ts": f'x = /"/; let p{a}ss = 1; // {hello} "',
+            "index_digit.ts": f"y = x[len{a}-1];",
+            "index_letters.ts": f"y = x[a{r}-{s}];",
+            "prose_then_code.ts": f'log("{hello}"); let p{a}ss = 1;',
+            "template_tail.ts": f"{world} {hello}`; const p{a}ss = 1; f(`",
+            "hash.py": f"p{a}ss = 1  # it's",
+            "far_prose.ts": f"const t = '{hello} {world} one two p{a}ss';",
+            # A quote after a letter or a `/` cannot open a string (the re-review's probes).
+            "regex_quote.ts": f"ok = /'/.test({hello} + p{a}ss) || /'/",
+            "jsx_text.tsx": f"<p>it's {{{hello} + p{a}ss}} '</p>",
+        }
+        with tempfile.TemporaryDirectory() as d:
+            repo = Repo(d)
+            for name, line in cases.items():
+                repo.write(f"src/{name}", line + "\n")
+            repo.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual(sorted(x["file"] for x in out["mixed_script"]), sorted(f"src/{k}" for k in cases))
 
 
 class Step(unittest.TestCase):
