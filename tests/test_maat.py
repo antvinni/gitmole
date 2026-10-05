@@ -202,7 +202,7 @@ class Arrivals(unittest.TestCase):
         # still marks its files as renamed: otherwise a moved directory would read as new
         lines = []
         for i in range(200):
-            lines += [f"--c{i}--2025-01-{1 + i % 28:02d}T10:00:00+00:00--Ann--work", f"3\t1\tsrc/a.py", ""]
+            lines += [f"--c{i}--2025-01-{1 + i % 28:02d}T10:00:00+00:00--Ann--work", "3\t1\tsrc/a.py", ""]
         lines += ["--sw--2026-06-01T10:00:00+00:00--Bob--normalize folder structures"]
         lines += [f"1\t1\t{{old => pkg}}/f{i}.py" for i in range(60)] + [""]
         lines += ["--n1--2026-07-01T10:00:00+00:00--Cat--feat: a new package", "10\t0\tfresh/a.py", ""]
