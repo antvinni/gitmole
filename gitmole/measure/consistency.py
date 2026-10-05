@@ -782,8 +782,15 @@ def harness_tools(report: dict) -> set:
     return out
 
 
-def _render(report: dict, section: str, full=True):
+def _render(report: dict, section: str, full=None):
+    """A section as gitmole builds it. `full` None is every row the section has: the mode of a section printed
+    on its own (render.SECTION, from the release that has `--section NAME`), and `--full`'s for a renderer
+    without one. The checks that ask for it read every row (a tool that owns code in the sixtieth area, a
+    People row with negative commits), and once `--full` caps its tables at fifty rows, True would hand them
+    the first fifty."""
     from .. import render
+    if full is None:
+        full = getattr(render, "SECTION", True)
     try:
         return getattr(render, section)(report, full=full)
     except Exception:   # an export the renderer cannot read is not these checks' to judge
