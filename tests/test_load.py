@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import unittest
 
 from gitmole import load
@@ -61,6 +62,35 @@ class ParseMaatCsv(unittest.TestCase):
             {"entity": "static/a.json", "n-revs": 128},
             {"entity": "src/b.py", "n-revs": 3},
         ])
+
+    def test_arrivals_are_read_for_the_tree_and_not_for_the_backtest_sub_report(self):
+        # brew, the 0.45.0 round: reading maat-arrivals.csv whole, and again unnarrowed for the sub-report, which has
+        # no tree listing, took the run's peak from 1,025 MB to 1,161 MB; nothing reads the sub-report's arrivals
+        import tempfile
+        text = "entity,first,renamed\na.py,2026-01-01,0\ngone.py,2020-01-01,1\n"
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(load._arrivals(d, None), [], "an output directory from before the file")
+            os.makedirs(os.path.join(d, "backtest"))
+            for where in (d, os.path.join(d, "backtest")):
+                with open(os.path.join(where, "maat-arrivals.csv"), "w") as fh:
+                    fh.write(text)
+                with open(os.path.join(where, "meta.json"), "w") as fh:
+                    fh.write("{}")
+            self.assertEqual(load._arrivals(d, frozenset({"a.py"})), [{"entity": "a.py", "first": "2026-01-01", "renamed": 0}])
+            self.assertEqual(len(load._arrivals(d, None)), 2, "no tree listing: every row, as before")
+            report = load.load_report(d)
+            self.assertEqual(len(report["arrivals"]), 2)
+            self.assertEqual(report["backtest"]["arrivals"], [])
+
+    def test_keep_refuses_a_row_before_it_is_built(self):
+        # brew: 58,220 arrivals, a few thousand of them paths HEAD has; the rest must not be built to be dropped
+        text = "entity,first,renamed\na.py,2026-01-01,0\ngone.py,2020-01-01,1\nb.py,2026-02-01,1\n"
+        tree = frozenset({"a.py", "b.py"})
+        seen = []
+        rows = load.parse_maat_csv(text, keep=lambda r: seen.append(r["renamed"]) or r["entity"] in tree)
+        self.assertEqual(rows, [{"entity": "a.py", "first": "2026-01-01", "renamed": 0}, {"entity": "b.py", "first": "2026-02-01", "renamed": 1}])
+        self.assertEqual(seen, ["0", "1", "1"], "the predicate reads the raw row, before any cell is converted")
+        self.assertEqual(len(load.parse_maat_csv(text)), 3, "without it, every row")
 
     def test_empty_text_gives_empty_list(self):
         self.assertEqual(load.parse_maat_csv(""), [])

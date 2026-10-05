@@ -104,12 +104,18 @@ NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months"
 FLOAT_COLUMNS = {"doa", "doa_decayed", "dl_decayed", "ac_decayed", "hcm"}
 
 
-def parse_maat_csv(text: str) -> list:
-    """Rows as dicts. Only known numeric columns become ints; a file or author named 2024 stays a string."""
-    if not text.strip():
+def parse_maat_csv(text: str, keep=None) -> list:
+    """Rows as dicts. Only known numeric columns become ints; a file or author named 2024 stays a string.
+    `keep` is a predicate on the raw row: one it refuses is never built. A caller that wants a few rows of a
+    long file passes it rather than filter the list afterwards: brew's maat-arrivals.csv has a row for each of
+    the 58,220 paths its history ever held, the report reads the few thousand HEAD has, and building them all
+    first raised the run's peak memory from 1,025 MB to 1,161 MB (the 0.45.0 round)."""
+    if isinstance(text, str) and not text.strip():
         return []
     out = []
-    for row in csv.DictReader(io.StringIO(text)):
+    for row in csv.DictReader(io.StringIO(text) if isinstance(text, str) else text):   # or an open file, read by the line
+        if keep is not None and not keep(row):
+            continue
         out.append({k: (_num(v) if k in NUMERIC_COLUMNS else _float(v) if k in FLOAT_COLUMNS else v) for k, v in row.items()})
     return out
 
@@ -519,6 +525,17 @@ def _read(out_dir: str, name: str) -> str:
         return fh.read()
 
 
+def _arrivals(out_dir: str, tree) -> list:
+    """maat-arrivals.csv's rows for the paths HEAD has (all of them without a tree listing), read a line at a
+    time: the file has a row for every path the history ever held (brew: 58,220, 6.8 MB), the report reads the
+    few thousand in the tree, and reading it whole to parse it whole raised the run's peak memory."""
+    path = os.path.join(out_dir, "maat-arrivals.csv")
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8", errors="replace", newline="") as fh:
+        return parse_maat_csv(fh, keep=None if tree is None else lambda r: r.get("entity") in tree)
+
+
 def parse_tree(out_dir: str, meta: dict):
     """The paths at HEAD from tree.txt (git ls-tree -r -z --name-only), or None when the run has none to
     judge by: an output directory from before the step, or a step that did not finish."""
@@ -541,7 +558,7 @@ def _nested(out_dir: str):
     if not os.path.isfile(os.path.join(sub, "meta.json")):
         return None
     try:
-        return load_report(sub, nested=False)
+        return load_report(sub, nested=False, dated=False)
     except Unreadable:
         return None
 
@@ -748,10 +765,13 @@ def _merges_once(meta: dict) -> None:
             seen |= names
 
 
-def load_report(out_dir: str, nested: bool = True) -> dict:
+def load_report(out_dir: str, nested: bool = True, dated: bool = True) -> dict:
     """Read every output file gitmole writes. Missing optional files become empty values.
 
-    `nested`: also load the backtest sub-report (out_dir/backtest), one level deep only."""
+    `nested`: also load the backtest sub-report (out_dir/backtest), one level deep only.
+    `dated`: read when each path arrived (maat-arrivals.csv). The backtest's sub-report is read without:
+    only the truck factor's area ages read the arrivals, of the report itself, and the sub-report has no
+    tree to narrow them by, so brew's held all 54,509 rows for the length of the run."""
     meta = _read_json(out_dir, "meta.json", None) if os.path.exists(os.path.join(out_dir, "meta.json")) else {}
     if not isinstance(meta, dict):
         raise Unreadable(f"{os.path.join(out_dir, 'meta.json')} is truncated or not JSON; run gitmole again")
@@ -808,7 +828,7 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "components": parse_maat_csv(_read(out_dir, "maat-components.csv")),
         # when each path first appeared and whether by a rename, for the files HEAD has (the area ages read no
         # others); absent before 0.45, so an older output directory dates no area
-        "arrivals": [r for r in parse_maat_csv(_read(out_dir, "maat-arrivals.csv")) if tree is None or r["entity"] in tree],
+        "arrivals": _arrivals(out_dir, tree) if dated else [],
         "authors": authors_rows,
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),
         "ownership": ownership,
