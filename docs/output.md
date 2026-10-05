@@ -1159,7 +1159,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    bug-magnet findings: a version file or a manifest changes on every
    release by design, not because anything is wrong with it. Plumbing is
    known by name (`version.py`, `package.json`, lock files, changelogs)
-   and by behaviour: `maat-plumbing.csv` lists files with twenty commits
+   and by behaviour: `maat-plumbing.csv`, written when it has a row, lists files with twenty commits
    or more where at least four in five swapped no more than three lines
    for as many, a version constant in `__init__.py` or the three fields
    of a version struct being the usual case. Vendored and generated code is left out of the
@@ -1267,7 +1267,10 @@ Reinartz gone`, `2019-01 gone`); blank means active.
      named here only when they were drawn (`2 plots drawn (code-age.png,
      survival.png)`);
    - `gitmole DIR --no-run --full re-renders this run, DIR being the path
-     below.`;
+     below.`, or, once a run has written the digest of the findings into
+     that directory, `gitmole DIR --no-run --full re-renders this run;
+     findings.json is in DIR, below.`: the same line, so the file is named
+     at no cost in lines (see [The output directory](#the-output-directory));
    - the output directory's path, alone on the last line.
 
    `--full` closes with the steps line, a Run line (what produced the
@@ -1347,6 +1350,7 @@ directory for a remote target:
 | File | From | What it is |
 |---|---|---|
 | `meta.json` | git | name, branch, commit count, merge-commit count, date span and identities of the checked-out branch's history; every step's outcome under `steps`, its wall time under `step_seconds` and the peak memory of its largest process under `step_peak_mb` (the `--json` export moves these two into its `envelope`, since they vary between runs); what produced the run under `run` (the commit, gitmole's version, every tool's version under `tools`, the versions gitmole pins under `tools_pinned` and any tool that is not at its pinned one under `tools_moved`, and the options); the classifier's `coverage`, `credential_files`, `generated` and `vendored` lists, and `scripts`, the executables with an interpreter line that are source by shape, each with the file type its interpreter gives it (absent when there are none) |
+| `findings.json` | gitmole, last, on every run | the digest of the report, for a script or a CI artefact: `findings`, `watch`, `watch_backtest`, `osps` and `not_computed` as the `--json` export has them, row for row; `summary`, the header's numbers (the portfolio export's row for a repository: commits, dates, the count of identities, lines, files, languages, coverage); of `meta` only `steps` and `run` (what ran, gitmole's version, each tool's and the options); `hygiene` and `dependencies` with every list replaced by its length (`unpinned_count`, `vulnerable_count`), which keeps what each check looked at, what it found and the vulnerability database's date; and `secret_counts`, the secrets scan as counts (values, places at HEAD and only in history, those graded high, placeholders). It is the same bytes for the same commit and options: keys sorted, one line, no path of the machine, no seconds, no memory figure, no email address, and never a secret's value, hash, line or fingerprint. 44 KB on prometheus, where the `--json` export is 27 MB. `--no-run` reads a directory and writes nothing, so a directory from before 0.45.0 has none |
 | `gitmole-feedback.json` | you | written only when you answer the five questions (`--feedback`): each answer's rule id, severity, whether it was true and whether you would act on it, plus gitmole's version and three bands (main language, file count, commit count). Nothing else, and nothing is sent |
 | `activity.json` | change analysis | commits by weekday, hour and month; net lines per year; fix-commit count; per-author totals and monthly timeline; the sweeping commits left out of the tables, each marked whether `.git-blame-ignore-revs` declares it, the import commits left out with the history's total lines added, and how many declared commits the log holds; the oversized fixes left out of the fix counts, the tangled commits with a sample, and how many subjects end in a squash-merge suffix |
 | `size.json` | scc | lines per language, COCOMO estimate |
@@ -1356,6 +1360,7 @@ directory for a remote target:
 | `reverts.txt` | git | the commits whose message carries git revert's body line `This reverts commit <sha>`, each hash with its message body: the change analysis and the cohort count them as reverts whatever their subject says |
 | `log.txt` | git | the numstat log export the change analysis reads, whitespace ignored, with each commit's `Co-authored-by` trailers behind its subject |
 | `maat-revisions.csv` | change analysis | change frequency per file |
+| `maat-plumbing.csv` | change analysis | the files the change log shows to be release plumbing by behaviour: twenty commits or more, four in five of them swapping no more than three lines for as many. Written only when there is such a file, and the `--json` export has its `plumbing` key only then: until 0.44.0 every run wrote a header and every export an empty list |
 | `maat-coupling.csv` | change analysis | files that change together, over logical changes (a ticket's commits, or one author's day) |
 | `maat-soc.csv` | change analysis | sum of coupling per file: its co-changes with any other file, and how many files it often changes with, over logical changes |
 | `maat-tests.csv` | change analysis | per production file, how many logical changes touched it and how many of those also touched a test file |

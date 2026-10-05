@@ -53,8 +53,12 @@ jobs:
           GITMOLE_NOW="$(git log -1 --format=%cs)"   # the reference date is the commit's, not the runner clock's
           export GITMOLE_NOW   # on its own line: `export X="$(…)"` succeeds even when the command fails
           gitmole . --out analysis --json first.json > /dev/null
+          cp analysis/findings.json findings-first.json   # the digest every run writes into its output directory
           TZ=Asia/Tokyo LC_ALL=C gitmole . --out analysis --json other-zone.json > /dev/null   # another time zone and the C locale
+          cp analysis/findings.json findings-other-zone.json
           gitmole . --out analysis --json report.json > /dev/null
+          cmp findings-first.json analysis/findings.json        # it has no envelope: the whole file is the same bytes
+          cmp findings-other-zone.json analysis/findings.json
           python - <<'PY'
           import json, sys
           a, c, b = (json.load(open(p)) for p in ("first.json", "other-zone.json", "report.json"))

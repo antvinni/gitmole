@@ -223,6 +223,15 @@ parsing its sentence:
  "evidence": {"count": 2, "files": [{"file": "lib/url.c", "recent_fixes": 5, "fixes": 41}]}}
 ```
 
+A run also writes `findings.json` into its output directory, whether or not
+`--json` is given: the findings, the watch list with its check, the OSPS
+result, the header's numbers, what each hygiene check and each scan counted,
+the tools and the steps, in about a six-hundredth of the export's bytes
+(44 KB against 27 MB on prometheus) and with nothing in it that is the
+machine's or a secret's. It is the file to upload from a CI job or read
+from a script; the export is every table. See
+[The output directory](output.md#the-output-directory).
+
 The same commit with the same options gives the same bytes. The export is
 written with its keys sorted, rows come back in one order whatever order a
 parallel step wrote them in, and each secret's keyed hash (the key is made

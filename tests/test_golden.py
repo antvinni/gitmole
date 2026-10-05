@@ -103,7 +103,7 @@ class Golden(unittest.TestCase):
             repo = os.path.join(work, "demo")
             os.makedirs(repo)
             build_repo(repo)
-            exports = []
+            exports, digests = [], []
             for i in range(2):
                 out = os.path.join(work, "out")   # the same output directory, as a CI job reruns into
                 c = Console(file=io.StringIO(), width=100, record=True, force_terminal=False, color_system=None)
@@ -114,7 +114,17 @@ class Golden(unittest.TestCase):
                     data = json.load(fh)
                 del data["envelope"]
                 exports.append(json.dumps(data, sort_keys=True))
+                with open(os.path.join(out, "findings.json"), "rb") as fh:   # the digest every run writes: no envelope to take off
+                    digests.append(fh.read())
+                self.assertFalse(os.path.exists(os.path.join(out, "maat-plumbing.csv")), "no row, no file")
+                self.assertNotIn("plumbing", data)
         self.assertEqual(exports[0], exports[1], "same commit, same options, same bytes: the claim no inference-based reviewer can make")
+        self.assertEqual(digests[0], digests[1], "findings.json is the same bytes too, whole")
+        self.assertNotIn(os.path.realpath(work).encode(), digests[0], "and holds no path of this machine")
+        self.assertNotIn(work.encode(), digests[0])
+        self.assertEqual(json.loads(digests[0])["findings"], json.loads(exports[0])["findings"])
+        if os.environ.get("GITMOLE_DIGEST_SIZE"):   # for the record of a change to what the file holds
+            print(f"\nfindings.json on the synthetic repository: {len(digests[0]):,} bytes; the export: {len(exports[0]):,}")
 
 
 if __name__ == "__main__":

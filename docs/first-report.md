@@ -89,7 +89,7 @@ clean, had nothing to check or did not run.
 
 **The last lines.** One sentence lists the sections only `--full` prints and says that `--section NAME` prints one whole. The next says how many of the steps
 ran and which flag runs the others (*15 of 18 steps ran; --plots runs the other 3*). Then the command that
-re-renders this run without analysing again, and the directory with the results, alone on the last line.
+re-renders this run without analysing again, on a line that also says the directory holds `findings.json` (the findings as a file for a script), and the directory with the results, alone on the last line.
 
 In a narrow terminal a long path keeps its file name and loses directories (`backend/…/routers/app.py`),
 and a table too wide for the terminal leaves its rightmost columns out and says which under it;

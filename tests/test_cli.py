@@ -191,9 +191,9 @@ class FunctionMetrics(unittest.TestCase):
         self.assertEqual(meta["age"]["status"], "failed")
 
     def test_every_previous_output_is_cleared_before_a_run(self):
-        stale = ("functions.csv", "duplicates.json", "dependencies.json", "theseus/cohorts.json", "maat-revisions.csv", "size.json")
+        stale = ("functions.csv", "duplicates.json", "dependencies.json", "theseus/cohorts.json", "maat-revisions.csv", "size.json", "findings.json")
         _, _, left = self._main(False, [], stale=stale)
-        self.assertEqual(left, ["meta.json", "run.log"], "last run's outputs must not pass for this run's")
+        self.assertEqual(left, ["findings.json", "meta.json", "run.log"], "last run's outputs must not pass for this run's; the digest is this run's own")
 
     def test_trend_status_is_recorded(self):
         _, meta, _ = self._main(True, [], name="trend")

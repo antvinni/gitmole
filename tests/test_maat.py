@@ -408,7 +408,7 @@ class SinceWindow(unittest.TestCase):
 
 
 class WriteAll(unittest.TestCase):
-    def test_writes_the_csv_files_in_code_maat_layout_plus_plumbing(self):
+    def test_writes_the_csv_files_in_code_maat_layout_and_no_plumbing_file_without_a_row(self):
         with tempfile.TemporaryDirectory() as d:
             log = os.path.join(d, "log.txt")
             with open(log, "w") as fh:
@@ -416,8 +416,9 @@ class WriteAll(unittest.TestCase):
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
             self.assertEqual(names, ["maat-age.csv", "maat-arrivals.csv", "maat-authors.csv", "maat-companions.csv", "maat-components.csv", "maat-coupling.csv", "maat-doa.csv",
-                                     "maat-entity-ownership.csv", "maat-entropy.csv", "maat-fixes.csv", "maat-latenight.csv", "maat-plumbing.csv",
-                                     "maat-revisions.csv", "maat-soc.csv", "maat-tests.csv"])
+                                     "maat-entity-ownership.csv", "maat-entropy.csv", "maat-fixes.csv", "maat-latenight.csv",
+                                     "maat-revisions.csv", "maat-soc.csv", "maat-tests.csv"], "maat-plumbing.csv is written when it has a row (prometheus's was a header)")
+            self.assertEqual(maat.plumbing(maat.parse_log(LOG)), [])
             self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))
             with open(os.path.join(d, "maat-revisions.csv")) as fh:
                 self.assertEqual(fh.readline().strip(), "entity,n-revs")

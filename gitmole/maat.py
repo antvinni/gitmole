@@ -901,6 +901,11 @@ ANALYSES = {
     "arrivals": (arrivals, ["entity", "first", "renamed"]),
 }
 NEEDS_NOW = {"age", "fixes", "entropy", "doa"}
+# Written only when it has a row: the release plumbing the change log shows by behaviour is nearly always
+# nothing, and prometheus's output directory held a 25-byte file, a header, that the export repeated as an empty
+# key. A reader finds no file and reads no rows (load.load_report); a run starts from a directory without the
+# last run's (run.clear_outputs), so a stale one cannot stand in.
+WRITTEN_WITH_ROWS = {"plumbing"}
 
 
 def aliases_from_meta(path: str) -> dict:
@@ -979,6 +984,8 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filet
             rows = fn(source, base=scopes.base(scope_from_meta(aliases_path) if aliases_path else []))
         else:
             rows = fn(source, now=now) if name in NEEDS_NOW else fn(source)
+        if name in WRITTEN_WITH_ROWS and not rows:
+            continue
         with open(os.path.join(out_dir, f"maat-{name}.csv"), "w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=header)
             w.writeheader()

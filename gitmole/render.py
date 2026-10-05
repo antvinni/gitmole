@@ -2467,6 +2467,16 @@ def full_only_sections(report: dict) -> list:
 
 
 RERENDER = "gitmole DIR --no-run --full re-renders this run, DIR being the path below."
+# The same line once the directory holds the digest of the findings (digest.py): the one place the default
+# report names it, in the words' place and not on a line of its own, since the closing block is at its cap.
+FINDINGS_FILE = "findings.json"
+RERENDER_DIGEST = f"gitmole DIR --no-run --full re-renders this run; {FINDINGS_FILE} is in DIR, below."
+
+
+def digest_written(report: dict) -> bool:
+    """Whether the report's output directory holds findings.json: a run writes it, and a re-render (--no-run)
+    of a directory from before the file existed finds none and names none."""
+    return os.path.isfile(os.path.join(report.get("out_dir") or "", FINDINGS_FILE))
 
 
 SECTION_HINT = "--section NAME prints one whole."
@@ -2499,20 +2509,21 @@ def closing_lines(report: dict, width=None) -> list:
     """The default report's last lines before the path, CLOSING_LINES at most: one sentence naming the sections
     --full adds, by title and generated from FULL_ONLY, so the count follows the code, and saying where every
     row of a table is (index_line); the steps line; and the command that re-renders this run with its
-    argument named. prometheus's report named none of --full's sections and none of the three steps it had
+    argument named, which also says that the directory holds findings.json once a run has written it. prometheus's report named none of --full's sections and none of the three steps it had
     not run. It said "--full shows the hidden rows" while --full was every row; --full caps its tables now."""
     lines = index_line(full_only_sections(report), width, INDEX_LINES)
     steps = steps_line(report)
     if steps:
         lines += brief.cap(wrapped(steps, width), CLOSING_LINES - 1 - len(lines), max(width or 20, 20))
-    return lines + [RERENDER]
+    return lines + [RERENDER_DIGEST if digest_written(report) else RERENDER]
 
 
 # What a section of the report (or --section NAME) reads from the output directory. A file that is not here is
 # marked in --full's index of the directory: it is an input of the run (the log, the tree listing), read by an
 # export only (packages.json, by --sbom) or by nothing (maat-components.csv since 0.39.0). The plots are their
 # own rendering. A new output file is marked until a section gives it a home.
-RENDERED_FILES = {"meta.json", "activity.json", "size.json", "secrets.json", "dependencies.json", "hygiene.json", "signing.json", "provenance.json",
+RENDERED_FILES = {FINDINGS_FILE,   # the Findings and the Watch list themselves, written out (digest.py)
+                  "meta.json", "activity.json", "size.json", "secrets.json", "dependencies.json", "hygiene.json", "signing.json", "provenance.json",
                   "structure.json", "trend.json", "unreachable.json", "functions.csv", "maat-revisions.csv", "maat-coupling.csv", "maat-companions.csv",
                   "maat-soc.csv", "maat-authors.csv", "maat-age.csv", "maat-fixes.csv", "maat-entity-ownership.csv", "maat-doa.csv", "maat-tests.csv",
                   "maat-latenight.csv", "maat-entropy.csv", "backtest", "theseus"}
@@ -3591,11 +3602,13 @@ def _md_supply_chain(report: dict, findings: list) -> list:
     return out + [f"- **{label}** {md_text(' '.join(lines))}" for label, lines, _ in supply_chain_rows(report, findings, full=True)]
 
 
-def md_rerender(full: bool) -> str:
+def md_rerender(full: bool, digest: bool = False) -> str:
     """The export's last line: the command that writes it again from the run's output directory, which this
     line does not name. It was 'Full results in' and the absolute path of the directory on the machine that
-    made the report, which a reader of a job summary cannot open."""
-    return f"{md_code('gitmole DIR --no-run --markdown -' + (' --full' if full else ''))} writes this report again, DIR being the run's output directory."
+    made the report, which a reader of a job summary cannot open. With `digest`, the directory holds
+    findings.json, and the line names it: the file to hand a script, or to upload beside this report."""
+    return (f"{md_code('gitmole DIR --no-run --markdown -' + (' --full' if full else ''))} writes this report again, DIR being the run's output directory"
+            + (f"; {md_code(FINDINGS_FILE)} there holds the findings for a script." if digest else "."))
 
 
 def _md_run_line(report: dict):
@@ -3654,7 +3667,7 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
     if grouped is None:
         out += _md_supply_chain(report, findings)
     steps = steps_line(report)
-    closing = [text for text in (md_paragraph(steps) if steps else None, _md_run_line(report)) if text] + [md_rerender(full)]
+    closing = [text for text in (md_paragraph(steps) if steps else None, _md_run_line(report)) if text] + [md_rerender(full, digest_written(report))]
     out += [""] + [line + ("  " if n < len(closing) - 1 else "") for n, line in enumerate(closing)] + [""]
     return "\n".join(out)
 
@@ -3707,7 +3720,11 @@ def dumps_json(report: dict, findings: list, risk: dict = None, compare: dict = 
 
 
 def to_json(report: dict, findings: list, risk: dict = None, compare: dict = None) -> dict:
-    out = {**{k: v for k, v in report.items() if k not in ("backtest", "tree", "imported", "arrivals")}, "findings": findings,   # the sub-report is a report of its own; the listing is the clone's; the arrivals live on as the truck factor's new_since
+    # An empty `plumbing` is not exported: the key says which files the change log showed to be release plumbing,
+    # nearly always none (prometheus's maat-plumbing.csv was 25 bytes, a header), and a reader takes a missing key
+    # as it took an empty list (filetypes.plumbing_paths). A report that has rows keeps the key.
+    left_out = ("backtest", "tree", "imported", "arrivals") + (() if report.get("plumbing") else ("plumbing",))
+    out = {**{k: v for k, v in report.items() if k not in left_out}, "findings": findings,   # the sub-report is a report of its own; the listing is the clone's; the arrivals live on as the truck factor's new_since
            "watch": [{k: v for k, v in r.items() if k != "function"} | {"function": r["function"]["function"] if r["function"] else None}
                      for r in watch.risks(report)[:WATCH_FULL]]}
     out["watch_by_component"] = [{"component": g["component"], "share": round(g["share"], 3), "files": [x["file"] for x in g["files"]]}

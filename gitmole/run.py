@@ -262,7 +262,8 @@ def manifest(repo_dir: str, args, version_of=tool_version, lizard_of=lizard_vers
 # Everything a run writes besides meta.json and run.log. Removed before each run so a reused
 # --out directory never shows a previous run's data as this run's (a step skipped or killed
 # this time would otherwise leave last time's file in place).
-OUTPUTS = ["size.json", "tree.txt", "secrets.json", "dependencies.json", "packages.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json", "provenance.json",
+OUTPUTS = ["findings.json",   # the digest of the findings (digest.py), written after the steps, from what they left
+           "size.json", "tree.txt", "secrets.json", "dependencies.json", "packages.json", "log.txt", "activity.json", "functions.csv", "signing.json", "hygiene.json", "unreachable.json", "structure.json", "provenance.json",
            "duplicates.json", "duplicates.txt", "repo-health.txt",   # what the retired duplicates and git-sizer steps wrote before 0.39.0: a reused directory holds only this run's
            "theseus/cohorts.json", "theseus/authors.json", "theseus/survival.json", "code-age.png", "survival.png", "trend.json"]
 OUTPUT_GLOBS = ["maat-*.csv"]

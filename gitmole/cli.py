@@ -232,7 +232,7 @@ def main(argv=None, console: Console = None, tool_check=run.missing_tools, plann
     finally:
         if kind == "remote":
             shutil.rmtree(os.path.dirname(repo_dir), ignore_errors=True)   # the temp clone; nothing reads it after the run
-    return _render(out_dir, console, ui, args, err)
+    return _render(out_dir, console, ui, args, err, ran=True)
 
 
 def _check_args(args, err, kind=None) -> int | None:
@@ -776,7 +776,9 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
             except load.Unreadable as e:
                 ui.print(f"[yellow]{name}:[/yellow] {e}; skipped", soft_wrap=True)
                 continue
-            reports.append((name, report, findings.evaluate(report)))
+            found = findings.evaluate(report)
+            _digest(out_dir, report, found, ui)
+            reports.append((name, report, found))
     finally:
         shutil.rmtree(parent, ignore_errors=True)   # the temp clones; nothing reads them after the run
 
@@ -858,7 +860,21 @@ def _write(text: str, target: str, console: Console) -> None:
             fh.write(text)
 
 
-def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> int:
+def _digest(out_dir: str, report: dict, found: list, err: Console) -> None:
+    """Write findings.json beside the files the steps wrote: a run's last file, from the report as it was just
+    read back. A directory that cannot be written to costs the file, not the report."""
+    from . import digest
+    try:
+        digest.write(out_dir, report, found)
+    except OSError as e:
+        err.print(f"[yellow]{digest.FILE} not written:[/yellow] {e}", soft_wrap=True)
+
+
+def _render(out_dir: str, console: Console, ui: Console, args, err: Console, ran: bool = False) -> int:
+    """Read the output directory back and print or export the report. `ran` says a run has just filled the
+    directory: only then is findings.json written, as every other file there is a run's. --no-run reads a
+    directory and writes nothing into it, so a re-render by a newer gitmole never leaves a file that
+    disagrees with the meta.json beside it about which version found what."""
     from . import render
 
     try:
@@ -867,6 +883,8 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
         err.print(f"[red]{e}[/red]", soft_wrap=True)
         return 2
     found = findings.evaluate(report)
+    if ran:
+        _digest(out_dir, report, found, err)
     risk = None
     if args.risk:
         try:
