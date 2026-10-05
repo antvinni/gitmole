@@ -245,7 +245,7 @@ class NotComputed(unittest.TestCase):
             text = _text(report)
             self.assertIn("· truck factor not computed: 1 source file, needs 20", text)
             self.assertIn("Nothing flagged.", text)
-            self.assertIn("- **not computed** truck factor not computed: 1 source file, needs 20", render.markdown(report, []))
+            self.assertIn("## Findings\n\nNothing flagged.\n\ntruck factor not computed: 1 source file, needs 20\n", render.markdown(report, []))
             self.assertEqual(render.to_json(report, [])["not_computed"][0]["measure"], "truck_factor")
 
 

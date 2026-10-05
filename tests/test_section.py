@@ -208,8 +208,8 @@ class Csv(unittest.TestCase):
 class Markdown(unittest.TestCase):
     def test_the_named_sections_and_nothing_else(self):
         md = section.markdown(whole_report(), found(), ["people", "findings"])
-        self.assertTrue(md.startswith("## People · all 3 identities, by commits · 1 with aliases merged\n\n| author | commits |"), md[:80])
-        self.assertIn("\n## Findings\n\n- **critical** Secrets in source", md)
+        self.assertTrue(md.startswith("## People\n\nall 3 identities, by commits · 1 with aliases merged\n\n| author | commits |"), md[:80])
+        self.assertIn("\n## Findings\n\n- **Critical: Secrets in source**", md)
         self.assertNotIn("# demo", md)
         self.assertNotIn("Watch list", md)
         self.assertNotIn("example.com", md)
@@ -306,7 +306,7 @@ class CommandLine(unittest.TestCase):
             _out_dir(out)
             rc, text = _main([out, "--no-run", "--section", "hotspots", "--markdown", "-"])
         self.assertEqual(rc, 0)
-        self.assertTrue(text.startswith("## Hotspots · all 2, by changes × lines of code\n\n| file | kind |"), text[:80])
+        self.assertTrue(text.startswith("## Hotspots\n\nall 2, by changes × lines of code\n\n| file | kind |"), text[:80])
         self.assertNotIn("# demo", text)
 
     def test_an_unknown_name_prints_the_list_and_exits_2_before_anything_runs(self):

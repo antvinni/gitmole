@@ -132,9 +132,9 @@ def markdown(report: dict, found: list, names: list) -> str:
             out += ["", "## Findings", ""] + render._md_findings(found, report)
             continue
         sec = _built(report, name)
-        out += ["", f"_{_nothing(name)}_"] if sec is None else render._md_section(sec)
+        out += ["", render.md_paragraph(_nothing(name))] if sec is None else render._md_section(sec)
     left = _unfinished(report)
-    return "\n".join(out[1:] + (["", f"_{left}_"] if left else []) + [""])
+    return "\n".join(out[1:] + (["", render.md_paragraph(left)] if left else []) + [""])
 
 
 _COUNT = re.compile(r"^-?\d{1,3}(?:,\d{3})+$")

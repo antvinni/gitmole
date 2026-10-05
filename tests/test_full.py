@@ -124,8 +124,8 @@ class Capped(unittest.TestCase):
         r = self.big()
         md = render.markdown(r, [], full=True)
         self.assertEqual(len(re.findall(r"(?m)^\| Person \d+ \|", md)), render.TABLE_CAP)
-        self.assertIn("## People · 50 of 78 identities, by commits · --section people", md)
-        self.assertIn("A table stops at 50 rows; `--section NAME` prints one whole.", md)
+        self.assertIn("## People\n\n50 of 78 identities, by commits · `--section people --markdown` prints every row\n", md)
+        self.assertIn("a table up to 50 rows · `--section NAME --markdown` prints one table whole", md)
 
     def test_the_markdown_export_without_full_keeps_the_sections_it_had(self):
         r = rich_report()

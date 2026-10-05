@@ -622,9 +622,11 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    checked the lock files and found nothing. Neither is counted as a
    finding. When a scan did not run, because the step was killed or
    `--no-run` points at an output directory without its file, the row says
-   `not scanned` where the verdict would be. The Markdown export carries
-   the two passes as `**ok**` lines under its findings. Until 0.44.0 the
-   terminal report had them as two green ✔ lines closing the Findings.
+   `not scanned` where the verdict would be. The Markdown export has the
+   same section under the same title, a row an item; the portfolio export,
+   which has no such section, says each pass as an `Ok:` line under a
+   repository's findings. Until 0.44.0 the terminal report had them as two
+   green ✔ lines closing the Findings.
 
    Vulnerable dependencies come from osv-scanner over the lock files,
    offline against the local copy of the OSV database (see
@@ -726,7 +728,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    rule (an AWS key id, a Slack token) stays critical at any grade.
 
    Shapes that cannot be a live secret are left out, counted on the
-   `secrets` row in `--full` and on the Markdown export's `Secrets:` line: version strings, tokens shortened with "...", a dotted
+   `secrets` row in `--full` and in Markdown: version strings, tokens shortened with "...", a dotted
    path of lowercase words such as `passwords.password` (a translation or
    config key), whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
@@ -768,7 +770,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    less those a ref reaches, writes the blobs among them (up to a cap on
    count and size) under the output directory for one `betterleaks dir`
    pass, removes them again, and reports what it finds as `(unreachable
-   blob <hash>)`; the `secrets` row in `--full`, and the Markdown export's `Secrets:` line, say how many it scanned, or that there were
+   blob <hash>)`; the `secrets` row in `--full` and in Markdown says how many it scanned, or that there were
    none, which is what a fresh clone looks like, since a clone fetches only
    what a ref reaches. What each clone happens to hold is its own, not the
    commit's, so the counts sit in the `--json` export's `envelope` and a
@@ -1278,14 +1280,61 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    which `--sbom` reads), a line naming `--sarif PATH`, `--sbom PATH` and
    `--json PATH`, `A table stops at 50 rows; --section NAME prints one
    whole.`, and `Full results in …` (`Full results and plots in …`
-   only when the directory holds a plot). Markdown keeps its `Secrets:`
-   and `Dependencies:` lines with each scan's totals, the Run line, the
-   line saying a table stops at 50 rows, and the `Full results` line.
-   Without `--full` it carries the sections it always carried, not the
-   three `--full` gained; with `--full`, all of them under the same cap
-   (on prometheus 38 KB and 50 KB, both under GitHub's 65,536-character
-   limit for a comment; `--markdown --full` was 285 KB). The header shows the manifest's commit as
-   `branch main @ 540ee5b5`.
+   only when the directory holds a plot). The header shows the manifest's
+   commit as `branch main @ 540ee5b5`.
+
+   **The Markdown export** (`--markdown PATH`) is the same report for a
+   reader who is not on the machine that made it: a pull-request comment,
+   a job summary. It opens with the tally (`**4 warnings, 10 notes** · 5 by
+   rules not measured for precision yet`), then one line saying which of
+   the two exports this is and how to get the other or one table whole
+   (`The default report: every finding, a table up to 50 rows ·
+   --markdown --full adds Secrets by rule, Dependencies by lock file and
+   Checks run · --section NAME --markdown prints one table whole`), then
+   the header's facts. Its headings are the terminal's section titles and
+   nothing else, the same words at either tier and each once, so a link to
+   `#hotspots` holds whichever export it points into; what qualifies a
+   title (`50 of 475, by complexity`) is the line under it, with the command
+   that prints the rest of a table the cap cut (`--section
+   complex-functions --markdown`). A finding is a list item: the severity
+   word and the title in bold, `(not measured yet)` for a rule nobody has
+   measured, and the rule's id as code; then the statement, the subjects
+   it names as a nested list, every one the statement lists and a last
+   item counting the rest, what it says after them, and each `Next step:`
+   on a line of its own. A caption is a paragraph a line. The Supply chain
+   section is a list, a row an item, placed where `--full` has it: before
+   the first section of its group. Without `--full` the export carries the
+   sections it always carried, not the three `--full` gained; with
+   `--full`, all of them under the same 50-row cap.
+
+   No text is lost to the renderer. What a reader would paste is a code
+   span and everything else has `\`, `` ` ``, `*`, `_`, `<` and `>` escaped
+   (and `|` in a table), so a nameless function prints as `<anonymous>`
+   where GitHub used to read an HTML tag and print nothing. A table says
+   which of its columns hold code (paths, functions, packages, versions,
+   advisory and control ids, secret rules) and those cells are spans
+   whole. In a finding, the subjects are the ones its own `evidence`
+   names: its paths, its packages, a version after its package's name,
+   after `fixed in` or after `to`, a function before its file, a commit
+   hash. Everywhere else (captions, the header, a prose cell such as the
+   watch list's `eval() nesting 6`, and a subject a statement names past
+   the ten its evidence holds) a word is a span when it has the shape of
+   one: a path that ends in a slash or whose last part has a dot, a file
+   name with an extension, a dot file, a call, a flag, an abbreviated
+   commit hash. A package or a version has no shape of its own (`2.9` is
+   a version and a mean), so outside a finding's evidence and a table's
+   column it is left as prose, escaped.
+
+   The export names no path outside the repository. It closes with the
+   steps line, the Run line and `gitmole DIR --no-run --markdown -` (`…
+   --full` in the full export) `writes this report again, DIR being the
+   run's output directory`; a file it points at (`secrets.json`,
+   `dependencies.json`, `hygiene.json`, a plot) is named as it is in that
+   directory. Until 0.44.0 its last line was `Full results in` and the
+   absolute path on the machine that ran it. On prometheus the two exports
+   are 41 KB and 53 KB (40,774 and 52,490 characters), both under GitHub's
+   65,536-character limit for a comment; `--markdown --full` was 285 KB
+   while it printed every row.
 
 A full example, at a pinned commit, is
 [docs/examples/react.md](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md).

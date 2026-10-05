@@ -72,7 +72,7 @@ What is printed, and what is written beside it.
 | `--section NAME` | Print one section of the report whole, and nothing else: every row, with no cap and nothing hidden. Repeatable. Works with `--no-run`, and with `--markdown`, which then holds the named sections only. See [One section, whole](#one-section-whole) for the names. |
 | `--csv` | With one `--section NAME`: write that section's rows to stdout as a CSV with a header line, holding every field the JSON export has for a row, and no email address. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
-| `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout. |
+| `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout: the tally, a line saying which tier this is, the findings as a list and the sections under the terminal's titles, up to 50 rows a table. Paths, functions, packages, versions and hashes are code spans, everything else is escaped, and nothing in it names the output directory's path. With `--full`, `--full`'s sections. See [Reading the output](output.md). |
 | `--sarif PATH` | Write the findings as SARIF 2.1.0 to PATH, or `-` for stdout, for GitHub code scanning and GitLab. See [SARIF](#sarif). |
 | `--sarif-scope SCOPE` | With `--sarif`, `head` or `history`: `head` (the default) keeps only the results whose file is in the tree; `history` keeps every result, the commit in its properties. |
 | `--sbom PATH` | Write a CycloneDX 1.6 SBOM of every locked package to PATH, or `-` for stdout. See [SBOM](#sbom). |

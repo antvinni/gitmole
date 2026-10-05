@@ -50,6 +50,10 @@ RIGHT = {"justify": "right"}
 PATH = {"kind": "path"}
 WHOLE = {"kind": "fixed"}   # a short text cell that is never cut, as a number is not: a share with "gone" after it
 TAIL = {"kind": "tail"}
+# What the Markdown export prints as a code span, whole: a column of functions, packages, versions or ids. A path
+# column is one already (PATH). Nothing on a terminal reads it.
+CODE = {"code": True}
+WHOLE_CODE = {"kind": "fixed", "code": True}
 
 # rows shown by default. `--full` and the Markdown export share a looser cap, TABLE_CAP: a fixed number, so
 # one rule to learn, the same on a terminal and in a document, and a table's length does not move when a
@@ -1327,7 +1331,7 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     cut = sum(1 for f in marked if f.get("lizard_span"))
     cut_note = (f"{FLOOR_MARK} = lizard ended the function early ({cut:,}): its lines are the structure step's, "
                 f"its complexity what lizard counted before it stopped") if cut else None
-    columns = [("function", {}), ("file", PATH), *(((KIND, WHOLE),) if full == SECTION else ()), ("complexity", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
+    columns = [("function", CODE), ("file", PATH), *(((KIND, WHOLE),) if full == SECTION else ()), ("complexity", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
     status = (report["meta"].get("functions") or {}).get("status", "skipped" if not measured else "run")
     reason = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)",
               "skipped": "no function metrics (install lizard)"}.get(status, "function metrics did not complete")
@@ -1532,7 +1536,7 @@ def osps_section(report: dict, full: bool = True, width=None) -> dict:
         fired = osps._fired(found, r["control"])
         named = r["result"] == "gap" and fired and all((f.get("rule") or {}).get("by") in findings.BY_NAME_ALONE for f in fired)
         rows.append((r["control"], r["result"], r["requirement"], r["evidence"] + (f" ({BY_NAME})" if named else "")))
-    sec = _section("OSPS Baseline", [("control", WHOLE), ("result", WHOLE), ("asks", TAIL), ("evidence", TAIL)], rows,
+    sec = _section("OSPS Baseline", [("control", WHOLE_CODE), ("result", WHOLE), ("asks", TAIL), ("evidence", TAIL)], rows,
                    caption=f"the controls a clone can show evidence for, from the {osps.BASELINE}" + SEP + "access control and most of vulnerability management need the forge")
     return _below(sec, 2)
 
@@ -1657,7 +1661,7 @@ def secrets_by_rule_section(report: dict, full: bool = True, width=None):
         rows.append((rule, confidence or "-", at_head, sum(1 for v in places.values() if v is False),
                      *((sum(1 for v in places.values() if v is None),) if unrecorded else ()), first))
     limit = _limit("Secrets by rule", full)
-    columns = [("rule", WHOLE), ("confidence", WHOLE), ("at HEAD", RIGHT), ("history only", RIGHT), *((("not recorded", RIGHT),) if unrecorded else ()), ("first file", PATH)]
+    columns = [("rule", WHOLE_CODE), ("confidence", WHOLE), ("at HEAD", RIGHT), ("history only", RIGHT), *((("not recorded", RIGHT),) if unrecorded else ()), ("first file", PATH)]
     skipped = leaks.placeholders(report.get("secrets") or [])
     caption = _fragments("a place = a value at a commit, file and line", "first file = at HEAD when the rule has a place there, else in history",
                          f"{skipped:,} placeholder-shaped hit{'s' if skipped != 1 else ''} left out" if skipped else None, f"every place in {SECRETS_FILE}, values hashed")
@@ -1693,7 +1697,7 @@ def dependencies_by_lock_file_section(report: dict, full: bool = True, width=Non
                                      f"{textfmt.count(len(always), 'more row')} past the cap for a CVSS of {rules.CRITICAL_SCORE:g} or more" if always else None),
                           _fragments(f"{textfmt.count(clean, 'more lock file')} with none vulnerable" if clean else None, f"every advisory in {brief.DEPENDENCIES_FILE}"))
     sec = _section(f"Dependencies by lock file · {_shown(len(shown), len(ranked))} vulnerable, as the findings rank them",
-                   [("package", {}), ("lock file", PATH), ("CVSS", RIGHT), ("version", WHOLE), ("advisory", WHOLE), ("fixed in", WHOLE), ("reach", TAIL)], rows, caption=caption)
+                   [("package", CODE), ("lock file", PATH), ("CVSS", RIGHT), ("version", WHOLE_CODE), ("advisory", WHOLE_CODE), ("fixed in", WHOLE_CODE), ("reach", TAIL)], rows, caption=caption)
     sec = _below(sec, 4, labels=False)
     sec["under"] = [SEP.join(part for part in (r[3], r[4], f"fixed in {r[5]}" if r[5] != "none published" else "no fix published", r[6]) if part) for r in rows]
     return sec
@@ -2019,9 +2023,9 @@ def run_line(report: dict):
 
 
 def checks_passed(report: dict) -> list:
-    """The checks that ran and passed, secrets first, for the Markdown export's **ok** lines. The terminal
-    report says them where it says every scan's result, verdict first, in the Supply chain section
-    (supply_chain_rows): the Findings box had a ✔ line for each and the footer said the same again."""
+    """The checks that ran and passed, secrets first, for the portfolio export's "Ok:" lines. A report says them
+    where it says every scan's result, verdict first, in the Supply chain section (supply_chain_rows), on a
+    terminal and in Markdown: the Findings box had a ✔ line for each and the footer said the same again."""
     return [p for p in (secrets_pass(report), dependencies_pass(report)) if p]
 
 
@@ -3292,73 +3296,368 @@ def excerpt(report: dict, findings: list, console: Console, full: bool = False) 
 
 
 # --- markdown / json -------------------------------------------------------
+#
+# The Markdown export is read where its author's machine is not: a pull-request comment, a job summary. So it
+# loses no text to the renderer, names no path of the machine that wrote it, and has the terminal report's
+# outline: the tally first, then the same titles in the same order at either tier.
+#
+# No text is lost because everything is one of two things. What a reader would paste (a path, a function, a
+# package, a version, a hash, a flag) is a code span; everything else has the characters Markdown reads as
+# markup escaped. prometheus's export escaped "|" alone, so GitHub took "<anonymous>" for an HTML tag and
+# printed nothing: 7 times in the default export and 91 in --full's.
+#
+# What is code is said where the text is composed, wherever that is possible:
+#   - a table column says so in its options (PATH, CODE, WHOLE_CODE), and its cells are spans whole;
+#   - a finding's subjects are the ones its own `evidence` names (_finding_subjects), matched whole in its
+#     statement and its advice;
+#   - a pointer this export composes itself (the tier line, a table's --section line, the re-render line) is
+#     written with its spans.
+# The rest is told by shape (code_shaped): a finding's `detail` and `advice` are single strings a rule composes
+# and the JSON export keeps byte for byte, so a subject past the ten the evidence names, or a file name an
+# advice gives (.gitignore, osv-scanner.toml), carries no mark; nor do captions, notes, the header's facts and
+# the cells of a prose column (a watch-list row's "eval() nesting 6"). There a word is a span when it has the
+# shape of a path, a file name, a call, a flag or a commit hash, and escaped text otherwise: a package or a
+# version has no shape of its own (2.9 is a version and a mean), so outside a finding's evidence and a table's
+# column it stays prose.
 
-def _md_cell(cell: str) -> str:
-    return cell.replace("|", "\\|").replace("\n", " ")
+MD_ESCAPED = re.compile(r"[\\`*_<>]")
+MD_ENTITY = re.compile(r"&(?=#?\w+;)")   # "&lt;" in a commit subject would print as "<"
+MD_LIST_START = re.compile(r"^(?:[-+#](?= |$)|\d+(?=[.)] ))")   # a paragraph that would open a list or a heading
 
 
-def _md_findings(findings: list, report: dict = None) -> list:
-    out = [] if findings else ["Nothing flagged."]
+def md_escape(text: str, cell: bool = False) -> str:
+    """`text` as Markdown prints it literally: a backslash before each character it would read as markup
+    (emphasis, a code span, an HTML tag, an escape), `&` spelled out where it would start an entity, and in a
+    table `cell` the column separator escaped and a line break made a space."""
+    text = MD_ENTITY.sub("&amp;", MD_ESCAPED.sub(lambda m: "\\" + m.group(0), text))
+    return text.replace("|", "\\|").replace("\n", " ") if cell else text
+
+
+def md_code(text: str, cell: bool = False) -> str:
+    """`text` as a code span: nothing in it is markup, so it needs no escape, except the column separator of a
+    table `cell`, which GitHub reads before the span. Text holding a backquote takes a longer fence."""
+    if cell:
+        text = text.replace("|", "\\|").replace("\n", " ")
+    if "`" not in text:
+        return f"`{text}`"
+    fence = "`" * (max(len(run) for run in re.findall(r"`+", text)) + 1)
+    return f"{fence} {text} {fence}"
+
+
+_LINE = r"(?::\d+)?"   # the line a function or a finding starts at, after its file
+_SHAPE_ANONYMOUS = re.compile(re.escape(textfmt.ANONYMOUS) + _LINE)
+_SHAPE_FLAG = re.compile(r"--[a-z][\w-]*(?:=[\w./:-]+)?")
+_SHAPE_CALL = re.compile(r"[A-Za-z_$][\w.$]*\(\)")
+_SHAPE_DOTFILE = re.compile(r"\.[A-Za-z][\w.-]+")
+_SHAPE_PATH = re.compile(r"[\w@.~+-]*(?:/[\w@.~+{},-]*)+" + _LINE)
+_SHAPE_FILE = re.compile(r"\.?[\w+-]{2,}(?:\.[\w+-]+)*\.[A-Za-z][A-Za-z0-9]{1,9}" + _LINE)
+_SHAPE_HASH = re.compile(r"[0-9a-f]{7,40}")
+
+
+def code_shaped(word: str) -> bool:
+    """Whether a word of prose has the shape of something a reader would paste: the report's name for a
+    nameless function, a flag (--full), a call (eval()), a dot file (.mailmap), a path (one that ends in a
+    slash or whose last part has a dot: web/, promql/engine.go:2132, and not TODO/FIXME), a file name with an
+    extension that starts with a letter (dependencies.json, and not 2.31.0 or e.g) or an abbreviated commit
+    hash (hexadecimal with a digit and a letter). Shape alone, as a rule of the tool keys on: no word list."""
+    if _SHAPE_ANONYMOUS.fullmatch(word) or _SHAPE_FLAG.fullmatch(word) or _SHAPE_CALL.fullmatch(word) or _SHAPE_DOTFILE.fullmatch(word):
+        return True
+    if _SHAPE_PATH.fullmatch(word):
+        path = textfmt.LINE_SUFFIX.sub("", word)
+        return bool(re.search(r"[A-Za-z]", path)) and (path.endswith("/") or "." in path.rsplit("/", 1)[-1])
+    if _SHAPE_FILE.fullmatch(word):
+        return True
+    return bool(_SHAPE_HASH.fullmatch(word)) and bool(re.search(r"\d", word)) and bool(re.search(r"[a-f]", word))
+
+
+_SENTENCE_MARKS, _OPENERS, _CLOSERS = ".,;:!?", "([\"'“‘", ")]\"'”’"
+
+
+def _shaped_word(m) -> tuple:
+    """(before, code, after) of one word of prose: the part with a code shape, without the brackets, quotes
+    and sentence marks around it ("(hygiene.json)." is hygiene.json in brackets at a sentence's end), or
+    (word, "", "") when it has none. The marks are taken off before the brackets, and the brackets only when
+    the word is not code with them: eval() keeps its own."""
+    word = m if isinstance(m, str) else m.group(0)
+    tails = [word.rstrip(_SENTENCE_MARKS)]
+    while tails[-1] and tails[-1][-1] in _CLOSERS:   # one bracket at a time: "(main())" is main() in brackets
+        tails.append(tails[-1][:-1].rstrip(_SENTENCE_MARKS))
+    for tail in tails:
+        for head in (tail, tail.lstrip(_OPENERS)):
+            if head and code_shaped(head):
+                start = len(tail) - len(head)
+                return word[:start], head, word[start + len(head):]
+    return word, "", ""
+
+
+def _md_prose(text: str, cell: bool) -> str:
+    """A stretch of prose: each word that has a code shape as a span, the rest escaped."""
+    def said(m):
+        before, code, after = _shaped_word(m)
+        return md_escape(before, cell) + (md_code(code, cell) if code else "") + md_escape(after, cell)
+    return re.sub(r"[^\s]+", said, text.replace("\n", " ") if cell else text)
+
+
+def md_text(text: str, known=None, cell: bool = False) -> str:
+    """`text` for the Markdown export: what `known` matches (a finding's own subjects, _finding_subjects) as
+    code spans, then what has a code shape, and everything else escaped. Nothing is dropped and nothing is
+    reordered: without its backquotes and backslashes the result is `text`."""
+    out, at = [], 0
+    for m in known.finditer(text) if known is not None else ():
+        if m.end() == m.start():
+            continue
+        out += [_md_prose(text[at:m.start()], cell), md_code(m.group(0), cell)]
+        at = m.end()
+    out.append(_md_prose(text[at:], cell))
+    return "".join(out)
+
+
+def md_paragraph(text: str, known=None) -> str:
+    """`text` as a paragraph of its own: md_text, and a first character that would make the line a list item
+    or a heading escaped (a caption that opens "+ = lizard ended the function early")."""
+    out = md_text(text, known)
+    m = MD_LIST_START.match(out)
+    return out if not m else (out[:m.end()] + "\\" + out[m.end():] if out[0].isdigit() else "\\" + out)
+
+
+# The keys under which a rule's evidence names a path: a file, a directory, a lock file or a manifest. A
+# string, a list of strings or a list of rows under one of them is a subject of the finding.
+SUBJECT_PATH_KEYS = frozenset({"file", "files", "a", "b", "dir", "area", "source", "manifest", "lockfile", "path", "loop", "skipped"})
+_BEFORE, _AFTER = r"(?<![\w/.@-])", r"(?![\w/-])(?!\.\w)"   # a subject is matched whole: never part of a longer path, name or version
+
+
+def _finding_subjects(findings: list, report: dict = None):
+    """What the findings' own evidence names, as one pattern over their statements and advice, or None: the
+    paths (with the line after one), the packages, a package's version and its fix where the sentence puts them
+    (after the name, after "fixed in", after "to"), a function's name where its file follows it, and the
+    commit hashes. The dependency findings add the rule's own rows (findings._vuln_rows), since the evidence
+    holds the first ten and the advice may name a package past them (prometheus's websocket-driver). A version
+    is matched only in those places because 7.5 is also a score; a function only before its file because eval,
+    run and open are also words."""
+    from . import findings as rules
+    plain, lined, calls, versions = set(), set(), set(), set()
+
+    def row(d: dict) -> None:
+        name = d.get("name") if isinstance(d.get("name"), str) else None
+        if name and ("version" in d or "fixed" in d):
+            plain.add(name)
+            for v in (d.get("version"), d.get("fixed")):
+                if isinstance(v, str) and v:
+                    versions.update((before, v) for before in (f"{name} ", "fixed in ", "to "))
+        if isinstance(d.get("package"), str):
+            plain.add(d["package"])
+        if isinstance(d.get("hash"), str):
+            plain.add(d["hash"])
+        fn = name if name and "version" not in d and "fixed" not in d else d.get("function")
+        if isinstance(fn, str) and isinstance(d.get("file"), str) and not textfmt.nameless(fn):
+            calls.add((fn, d["file"]))
+
+    def walk(v, key=None) -> None:
+        if isinstance(v, str):
+            if key in SUBJECT_PATH_KEYS and len(v) > 1:
+                lined.add(v)
+        elif isinstance(v, dict):
+            row(v)
+            for k, x in v.items():
+                walk(x, k)
+        elif isinstance(v, (list, tuple)):
+            for x in v:
+                walk(x, key)
+    for f in findings:
+        walk(f.get("evidence") or {})
+        rid = (f.get("rule") or {}).get("id")
+        if report is not None and rid in DEPENDENCY_FINDINGS:
+            try:
+                walk([g for r, _, _, g in rules._vuln_rows(report) if r == rid])
+            except (KeyError, TypeError, ValueError):
+                pass   # an output directory whose dependency rows predate what the rule reads: the evidence stands
+    alts = [(len(p), _BEFORE + re.escape(p) + _LINE + _AFTER) for p in lined]
+    alts += [(len(p), _BEFORE + re.escape(p) + _AFTER) for p in plain - lined if len(p) > 1]
+    alts += [(len(name), _BEFORE + re.escape(name) + rf"(?= (?:\(|in |at ){re.escape(file)})") for name, file in calls]
+    alts += [(len(v), rf"(?<={re.escape(before)}){re.escape(v)}" + _AFTER) for before, v in versions]
+    if not alts:
+        return None
+    return re.compile("|".join(p for _, p in sorted(alts, key=lambda a: (-a[0], a[1]))))
+
+
+NEXT_STEP = "Next step:"   # in front of a finding's advice, which the terminal leads with STEP_MARK
+
+
+def _md_findings(findings: list, report: dict = None, passed: bool = False) -> list:
+    """The findings as a list, an entry a title as the terminal groups them: the severity word and the title,
+    the tag of a rule not measured yet, and the rule's id as code; then each finding's statement as a
+    paragraph, the subjects it names as a nested list, every one of them (brief.parts), what it says after
+    them, and each next step on a line of its own. prometheus's Vulnerable dependencies was one paragraph of
+    945 characters, its subjects between semicolons and its advice run on in italics. What the run could not
+    measure closes the list, as it closes the terminal's. With `passed`, a scan that came back clean has a
+    line too: the portfolio's, which has no Supply chain section to say it in."""
+    out = [] if findings else [NOTHING_FLAGGED]
     for g in textfmt.group_findings(findings):
-        line = f"- **{textfmt.severity_word(g['severity'])}** {g['title']} — " + "; ".join(g["items"])
-        line += "".join(f" _{advice}_" for advice in g["advice"])
-        out.append(line)
-    for title, detail in checks_passed(report or {}):
-        out.append(f"- **ok** {title} — {detail}")
+        ids = list(dict.fromkeys((f.get("rule") or {}).get("id") for f in g["findings"] if (f.get("rule") or {}).get("id")))
+        known = _finding_subjects(g["findings"], report)
+        out.append(f"- **{textfmt.severity_word(g['severity']).capitalize()}: {md_escape(g['title'])}**"
+                   + (f" {brief.UNMEASURED_TAG}" if _unmeasured(g) else "") + "".join(f"{SEP}{md_code(i)}" for i in ids))
+        for f in g["findings"]:
+            made = brief.parts(f)
+            out += ["", "  " + md_text(made["statement"], known)]
+            if made["subjects"]:
+                out += [""] + [f"  - {md_text(item, known)}" for item in made["subjects"]]
+                out += [f"  - and {made['rest']:,} more"] if made["rest"] else []
+            if made["more"]:
+                out += ["", "  " + md_text(made["more"], known)]
+        for advice in g["advice"]:
+            out += ["", f"  **{NEXT_STEP}** " + md_text(advice, known)]
+        out.append("")
+    for title, detail in checks_passed(report or {}) if passed else ():
+        out += [f"- **Ok: {md_escape(title)}** {md_text(detail)}", ""]
     absent = not_computed_line(report) if report else None
-    if absent:
-        out.append(f"- **not computed** {absent}")
-    return out
+    if absent:   # last: what was found, then what was never measured, so its silence is not a pass
+        out += ([""] if not findings else []) + [md_paragraph(absent)]
+    return out[:-1] if out[-1] == "" else out
+
+
+MD_COUNTED = re.compile(r"^(.*?\S) (\(.*\))$")   # a path cell with what is counted behind it: "discovery/aws/ (5 files)"
+MD_EMPTY = ("", "-")   # a cell that holds nothing
+
+
+def _md_cell(cell: str, opts: dict = None) -> str:
+    """One cell of a table. A cell of a column that holds code (a path column, or one whose options say so:
+    CODE) is a span whole, less a bracketed count after a path; any other cell is prose (md_text)."""
+    opts = opts or {}
+    if cell in MD_EMPTY:
+        return cell
+    if opts.get("kind") == "path":
+        counted = MD_COUNTED.match(cell)
+        return md_code(counted.group(1), True) + " " + md_escape(counted.group(2), True) if counted else md_code(cell, True)
+    return md_code(cell, True) if opts.get("code") else md_text(cell, cell=True)
+
+
+def _md_table(columns: list, col_opts: list, rows: list) -> list:
+    """A table's lines: the heads, the alignment row and a line a row, every row with as many cells as heads."""
+    opts = list(col_opts) + [{}] * (len(columns) - len(col_opts))
+    return (["| " + " | ".join(md_escape(c, True) for c in columns) + " |",
+             "| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in opts) + " |"]
+            + ["| " + " | ".join(_md_cell(c, o) for c, o in zip(row, opts)) + " |" for row in rows])
+
+
+def _md_pointer(sec: dict):
+    """'`--section hotspots --markdown` prints every row', for a table this export cut: the command to rerun,
+    whole in one span, since a reader of a pull-request comment has no JSON to be sent to. None for a table
+    that is whole, or one that is no section of the report (Change risk, Since last report)."""
+    if not sec.get("id") or not sec["rows"]:
+        return None
+    if not (CUT_TITLE.search(sec["title"]) or re.match(r"and [\d,]+ more\b", sec.get("caption") or "")):
+        return None
+    from . import section
+    return md_code(f"--section {section.name_of(sec['id'])} --markdown") + " prints every row"
+
+
+SECTION_POINTER = re.compile(r" · --section [\w-]+$")   # what sections() ends a cut table's title with under --full
 
 
 def _md_section(sec: dict) -> list:
-    """A section's Markdown: the heading, then its table (or note), then its caption."""
-    out = ["", f"## {sec['title']}", ""]
+    """A section's Markdown: its title as the heading, the same words at either tier and on the terminal
+    (_base_title), so a link to it holds; what qualifies the title (the count, the ranking key) and the
+    command that prints the rest of a cut table on the line under it; then the table (or the note) and each
+    line of the caption as a paragraph of its own."""
+    base = _base_title(sec["title"])
+    qualifier = SECTION_POINTER.sub("", sec["title"])[len(base):].lstrip(" ·")
+    said = SEP.join([md_text(qualifier)] if qualifier else []) or None
+    pointer = _md_pointer(sec)
+    under_title = SEP.join(x for x in (said, pointer) if x)
+    out = ["", f"## {md_escape(base)}"] + (["", under_title] if under_title else []) + [""]
     if not sec["rows"]:
-        out.append(f"_{sec['note'] or 'nothing'}_")
+        out.append(md_paragraph(sec["note"] or "nothing"))
         return out
     wide = sec.get("wide")   # the columns a terminal draws under each row are columns here (_below)
     if wide:
         sec = dict(sec, columns=wide["columns"], col_opts=wide["col_opts"], rows=wide["rows"], under=None)
     under = sec.get("under")   # what a terminal prints under each row is a last column here
-    out.append("| " + " | ".join(sec["columns"] + ([sec.get("under_head") or ""] if under else [])) + " |")
-    out.append("| " + " | ".join(["---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]] + (["---"] if under else [])) + " |")
-    out += ["| " + " | ".join(_md_cell(c) for c in list(row) + ([under[n]] if under else [])) + " |" for n, row in enumerate(sec["rows"])]
+    out += _md_table(sec["columns"] + ([sec.get("under_head") or ""] if under else []), sec["col_opts"] + ([{}] if under else []),
+                     [list(row) + ([under[n]] if under else []) for n, row in enumerate(sec["rows"])])
     for sub in sec.get("more") or []:
-        out += ["", "| " + " | ".join(sub["columns"]) + " |", "| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sub["col_opts"]) + " |"]
-        out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sub["rows"]]
-    if sec.get("caption"):
-        out += ["", f"_{sec['caption']}_"]
+        out += [""] + _md_table(sub["columns"], sub["col_opts"], sub["rows"])
+    for line in (sec.get("caption") or "").split("\n"):
+        if line:
+            out += ["", md_paragraph(line)]
     return out
 
 
+def _md_supply_chain(report: dict, findings: list) -> list:
+    """The Supply chain section as a list, a row an item under its label: the terminal's rows, each whole
+    (supply_chain_rows), where the export had two untitled lines after its last table and an **ok** line in
+    the Findings for a scan that came back clean. The files a row names are in the output directory."""
+    out = ["", f"## {SUPPLY_TITLE}", ""]
+    return out + [f"- **{label}** {md_text(' '.join(lines))}" for label, lines, _ in supply_chain_rows(report, findings, full=True)]
+
+
+def md_rerender(full: bool) -> str:
+    """The export's last line: the command that writes it again from the run's output directory, which this
+    line does not name. It was 'Full results in' and the absolute path of the directory on the machine that
+    made the report, which a reader of a job summary cannot open."""
+    return f"{md_code('gitmole DIR --no-run --markdown -' + (' --full' if full else ''))} writes this report again, DIR being the run's output directory."
+
+
+def _md_run_line(report: dict):
+    """run_line for the export: the options the run was given are one span, a flag with its argument."""
+    made = run_line(report)
+    return SEP.join(md_code(part) if part.startswith("--") else md_text(part) for part in made.split(SEP)) if made else None
+
+
+def md_tier(report: dict, full: bool) -> str:
+    """The one line that says which of the two exports this is and how to get the other, or one table whole:
+    the headings are the same in both, so nothing else tells them apart."""
+    whole = f"{md_code('--section NAME --markdown')} prints one table whole"
+    if full:
+        return f"The {md_code('--full')} report: every section and every finding, a table up to {TABLE_CAP} rows{SEP}{whole}"
+    added = [_base_title(sec["title"]) for sec in (b(report, True, None) for b in BUILDERS if b.__name__[:-len("_section")] in FULL_NEW) if sec and sec["rows"]]
+    more = f"{SEP}{md_code('--markdown --full')} adds {textfmt.join_and(added)}" if added else ""
+    return f"The default report: every finding, a table up to {TABLE_CAP} rows{more}{SEP}{whole}"
+
+
 def markdown(report: dict, findings: list, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> str:
+    """The report as a Markdown document: the repository, the tally, the line that says which tier this is,
+    the header's facts, then the Findings and the sections under the terminal's titles in the terminal's order,
+    the Supply chain section where --full has it (before the first section of its group), and the lines that
+    say what produced the report and how to write it again. Nothing in it names a path outside the
+    repository: the files it points at are named as they are in the output directory."""
     s = summary(report)
     unranked = coverage_phrases(report)
-    out = [f"# {s['name']}", "",
-           f"{s['commits']:,} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
-           + f" · {textfmt.count(s['identities'], 'identity', 'identities')} · branch {s['branch']}"
-           + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "  ",
-           *([f"{scope.label(s['scope'])} · {scope.REPOSITORY_WIDE}  "] if s["scope"] else []),
-           f"{s['lines']:,} lines in {s['files']:,} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["coverage"] or s["pulse"] else ""),
-           *([classify.coverage_line(s["coverage"]) + ("  " if s["pulse"] or unranked else "")] if s["coverage"] else []),
-           *([" · ".join(unranked) + ("  " if s["pulse"] else "")] if unranked else []),
-           *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
+    signed = signing_phrase(report)
+    facts = [p for p in s["pulse"] if p != signed]   # signing is a row of the Supply chain section, as on the terminal
+    unmeasured = sum(1 for f in findings if f.get("unjudged"))
+    tally = f"**{textfmt.tally(findings).capitalize()}**" + (f"{SEP}{unmeasured:,} {UNMEASURED_GLOSSES[0]}" if unmeasured else "")
+    lines = [f"{s['commits']:,} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
+             + f" · {textfmt.count(s['identities'], 'identity', 'identities')} · branch {s['branch']}"
+             + (f" @ {s['commit'][:8]}" if s["commit"] else ""),
+             *([f"{scope.label(s['scope'])} · {scope.REPOSITORY_WIDE}"] if s["scope"] else []),
+             f"{s['lines']:,} lines in {s['files']:,} files · {', '.join(s['languages']) or 'unknown'}",
+             *([classify.coverage_line(s["coverage"])] if s["coverage"] else []),
+             *([" · ".join(unranked)] if unranked else []),
+             *([" · ".join(facts)] if facts else [])]
+    out = [f"# {md_escape(s['name'])}", "", tally, "", md_tier(report, full), "",
+           *[md_paragraph(line) + ("  " if n < len(lines) - 1 else "") for n, line in enumerate(lines)], "",
            "## Findings", ""]
     out += _md_findings(findings, report)
     if compare is not None:
         out += _md_section(compare_section(compare))
     secs = sections(report, full=True if full else "markdown")
-    if risk is not None:
-        after = next((i for i, sec in enumerate(secs) if sec["id"] == "watch"), len(secs) - 1)
-        secs = secs[:after + 1] + [risk_section(risk, base, full=True if full else "markdown")] + secs[after + 1:]
+    grouped = next((sec for sec in secs if sec["id"] in SUPPLY_GROUP), None)
     for sec in secs:
+        if sec is grouped:
+            out += _md_supply_chain(report, findings)
         out += _md_section(sec)
-    deps_line = dependencies_line(report)
-    rl = run_line(report)
-    out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "",
-            *([rl + "  "] if rl else []), f"A table stops at {TABLE_CAP} rows; `--section NAME` prints one whole.  ", results_line(report), ""]
+        if risk is not None and sec["id"] == "watch":
+            out += _md_section(risk_section(risk, base, full=True if full else "markdown"))
+    if risk is not None and not any(sec["id"] == "watch" for sec in secs):
+        out += _md_section(risk_section(risk, base, full=True if full else "markdown"))
+    if grouped is None:
+        out += _md_supply_chain(report, findings)
+    steps = steps_line(report)
+    closing = [text for text in (md_paragraph(steps) if steps else None, _md_run_line(report)) if text] + [md_rerender(full)]
+    out += [""] + [line + ("  " if n < len(closing) - 1 else "") for n, line in enumerate(closing)] + [""]
     return "\n".join(out)
+
 
 
 def _envelope(out: dict) -> dict:
@@ -3447,16 +3746,14 @@ def portfolio_section(reports: list) -> dict:
 
 def portfolio_markdown(owner: str, reports: list) -> str:
     sec = portfolio_section(reports)
-    out = [f"# {owner}", "", f"{len(reports):,} repositories analysed with gitmole.", "", f"## {sec['title']}", ""]
+    out = [f"# {md_escape(owner)}", "", f"{len(reports):,} repositories analysed with gitmole.", "", f"## {md_escape(sec['title'])}", ""]
     if sec["rows"]:
-        out.append("| " + " | ".join(sec["columns"]) + " |")
-        out.append("| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]) + " |")
-        out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sec["rows"]]
+        out += _md_table(sec["columns"], sec["col_opts"], sec["rows"])
     else:
-        out.append(f"_{sec['note']}_")
+        out.append(md_paragraph(sec["note"]))
     for name, rep, found in reports:
-        out += ["", f"## {name}", ""]
-        out += _md_findings(found, rep)
+        out += ["", f"## {md_escape(name)}", ""]
+        out += _md_findings(found, rep, passed=True)
     return "\n".join(out) + "\n"
 
 

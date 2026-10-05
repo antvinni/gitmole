@@ -116,7 +116,10 @@ class Report(unittest.TestCase):
         text = rendered(sample_report(), f)
         self.assertIn("\nFindings · 1 warning ▲\n", text, "a scan that came back clean is not a finding and is not counted")
         self.assertLess(text.index("Bus factor of one"), text.index("none found: betterleaks"), "the findings first, the section last")
-        self.assertIn("- **ok** No secrets in history", render.markdown(sample_report(), []), "the Markdown export keeps its line")
+        md = render.markdown(sample_report(), [])
+        self.assertIn("\n## Supply chain\n\n- **secrets** none found: betterleaks scanned every commit HEAD reaches", md, "the Markdown export says it under the terminal's title")
+        self.assertNotIn("**ok**", md)
+        self.assertEqual(md.count("betterleaks scanned every commit HEAD reaches"), 1)
 
     def test_the_placeholder_hits_left_out_are_fulls(self):
         r = sample_report()
@@ -180,7 +183,7 @@ class Report(unittest.TestCase):
         self.assertNotIn("Dependencies:", text)
         self.assertLess(text.index("  secrets "), text.index("  dependencies "), "secrets first")
         self.assertIn("none vulnerable (dependencies.json)", _supply(rendered(sample_report(), [], full=True)))
-        self.assertIn("- **ok** No known vulnerabilities in dependencies", render.markdown(sample_report(), []))
+        self.assertIn("- **dependencies** 151 packages in 2 lock files, database 2026-09-16 · none vulnerable (`dependencies.json`)", render.markdown(sample_report(), []))
 
     def test_the_unreachable_sweep_is_fulls_and_the_markdown_exports(self):
         r = sample_report()
@@ -190,7 +193,7 @@ class Report(unittest.TestCase):
         self.assertNotIn("unreachable", text, "the default report leaves the sweep to --full")
         full = rendered(r, [], full=True)
         self.assertIn("none found: betterleaks scanned every commit HEAD reaches · 3 unreachable blobs scanned too", _supply(full))
-        self.assertIn("Secrets: none found; 3 unreachable blobs scanned too", render.markdown(r, []))
+        self.assertIn("- **secrets** none found: betterleaks scanned every commit HEAD reaches · 3 unreachable blobs scanned too", render.markdown(r, []))
         r["unreachable"] = {"objects": 0, "blobs": 0, "scanned": 0, "findings": 0}
         self.assertIn("no unreachable objects (a fresh clone fetches only what a ref reaches)", _supply(rendered(r, [], full=True)))
 
@@ -231,7 +234,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["dependencies"]["sources"].append({"path": "tools/requirements.txt", "packages": 3})
         self.assertIn("dependencies 151 packages in 2 lock files and 1 requirement file, database 2026-09-16 · none vulnerable", _supply(rendered(r, [], full=True)))
-        self.assertIn("osv-scanner checked 151 packages in 2 lock files and 1 requirement file against", render.markdown(r, []))
+        self.assertIn("- **dependencies** 151 packages in 2 lock files and 1 requirement file, database 2026-09-16 · none vulnerable", render.markdown(r, []))
 
     def test_one_lock_file_is_named_and_one_package_is_singular(self):
         """superpowers: "1 packages in 1 lock file" beside "package.json has no package-lock.json"; the lock was a test's."""
@@ -467,7 +470,7 @@ class Report(unittest.TestCase):
         self.assertEqual(lines[at + 1:at + 3], ["    reason 0 · reason 1 · reason 2 · reason 3 · reason 4 ·", "    reason 5 · reason 6 · reason 7"],
                          "indented under its row, wrapped after a separator and never before one")
         self.assertIn("| file | changes | fixes | top author | also |", md)
-        self.assertIn("| static/index.html | 51 | 0 | - | " + " · ".join(many[1:]) + " |", md)
+        self.assertIn("| `static/index.html` | 51 | 0 | - | " + " · ".join(many[1:]) + " |", md)
         self.assertEqual(exported, many, "the export keeps every reason, the change count too")
 
     def test_the_watch_list_s_columns(self):
@@ -705,10 +708,12 @@ class Report(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             r = dict(sample_report(), out_dir=d)
             self.assertEqual(render.results_line(r), f"Full results in {d}")
-            self.assertIn(f"Full results in {d}", render.markdown(r, []))
+            self.assertNotIn("plot", render.markdown(r, []).split("## ")[-1])
             open(os.path.join(d, "code-age.png"), "wb").close()
             self.assertEqual(render.results_line(r), f"Full results and plots in {d}")
-            self.assertIn(f"Full results and plots in {d}", render.markdown(r, []))
+            r["meta"]["steps"] = {"scc": "run"}
+            self.assertIn("1 plot drawn (`code-age.png`)", render.markdown(r, []), "the Markdown export names a plot by its file, as the steps line does")
+            self.assertNotIn(d, render.markdown(r, []), "and never the directory it is in")
         self.assertEqual(render.results_line(dict(sample_report(), out_dir="/no/such/dir")), "Full results in /no/such/dir")
 
     def test_a_surviving_code_figure_names_the_step_it_came_from(self):
@@ -1242,13 +1247,16 @@ class Report(unittest.TestCase):
         self.assertIn(line, rendered(r, [], full=True))
         self.assertNotIn("gitmole 0.10.0", rendered(r, []), "the default report stays tight")
         md = render.markdown(r, [])
-        self.assertIn("branch main @ 540ee5b5", md)
-        capped = "A table stops at 50 rows; `--section NAME` prints one whole."
-        self.assertIn(f"\n{line}  \n{capped}  \nFull results in", md)
-        self.assertIn(f"\n{line}  \n{capped}  \nFull results in", render.markdown(r, [], full=True), "--markdown --full takes the same cap")
+        self.assertIn("branch main @ `540ee5b5`", md)
+        line = "gitmole 0.10.0 · git 2.55.0 · scc 4.1.0 · lizard 1.24.0 · `--ignore *.min.js --ignore-data`"
+        self.assertTrue(md.endswith(f"\n{line}  \n`gitmole DIR --no-run --markdown -` writes this report again, DIR being the run's output directory.\n"), md[-300:])
+        self.assertIn(f"\n{line}  \n`gitmole DIR --no-run --markdown - --full` writes this report again", render.markdown(r, [], full=True))
+        self.assertRegex(md.split("\n")[4], r"^The default report: every finding, a table up to 50 rows · .*`--section NAME --markdown` prints one table whole$")
+        self.assertEqual(render.markdown(r, [], full=True).split("\n")[4], "The `--full` report: every section and every finding, a table up to 50 rows · `--section NAME --markdown` prints one table whole",
+                         "--markdown --full takes the same cap")
         r["meta"].pop("run")
         self.assertIsNone(render.run_line(r))
-        self.assertNotIn("@ ", render.markdown(r, []).split("\n")[2], "an older output directory: the branch alone")
+        self.assertNotIn("@ ", render.markdown(r, []).split("\n")[6], "an older output directory: the branch alone")
 
 
 class HideTests(unittest.TestCase):
@@ -1832,7 +1840,7 @@ class Timeline(unittest.TestCase):
         self.assertIn("◉ People · all 2 identities, by commits · 1 with aliases merged", text, "the count is the title's")
         self.assertNotIn(".mailmap", text, "whose, and the hint, are --full's")
         self.assertIn("aliases merged for Ann; a .mailmap makes that permanent", rendered(r, [], full=True))
-        self.assertIn("aliases merged for Ann; a .mailmap makes that permanent", render.markdown(r, []))
+        self.assertIn("\n\naliases merged for Ann; a `.mailmap` makes that permanent\n", render.markdown(r, []), "a caption line is a paragraph of its own")
         self.assertNotIn("aliases merged", rendered(sample_report(), []))
 
     def test_secrets_line_counts_distinct_values_and_the_placeholders_left_out(self):
@@ -2055,13 +2063,14 @@ class ReviewFixes(unittest.TestCase):
         r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 200 - i} for i in range(60)]
         r["size"]["files"] = {f"f{i}.py": {"code": 10, "complexity": 0} for i in range(60)}
         import re as _re
-        rows = lambda md: len(_re.findall(r"^\| f\d+\.py \|", md[md.index("## Hotspots"):], _re.M))
+        rows = lambda md: len(_re.findall(r"^\| `f\d+\.py` \|", md[md.index("## Hotspots"):], _re.M))
         md = render.markdown(r, [])
         self.assertEqual(rows(md), 50)
-        self.assertIn("_and 10 more_", md)
+        self.assertIn("\n\nand 10 more\n", md)
+        self.assertIn("## Hotspots\n\n`--section hotspots --markdown` prints every row\n", md, "the command that prints the rest, at either tier")
         full = render.markdown(r, [], full=True)
         self.assertEqual(rows(full), 50, "--markdown --full takes the same cap")
-        self.assertIn("## Hotspots · 50 of 60, by changes × lines of code · --section hotspots", full)
+        self.assertIn("## Hotspots\n\n50 of 60, by changes × lines of code · `--section hotspots --markdown` prints every row\n", full)
 
     def test_repo_health_findings_group(self):
         f = [{"severity": "warning", "title": "Repo health", "detail": "Blobs: Maximum size is 21.3 MiB at a.mp4. git-sizer level of concern 2."},
@@ -2078,7 +2087,7 @@ class ReviewFixes(unittest.TestCase):
         self.assertIn("↳ Consider a shallow clone for CI; the history is the cost.", text)
         self.assertIn("↳ Move large files to Git LFS or rewrite them out of history.", text)
         md = render.markdown(sample_report(), f)
-        self.assertIn("_Consider a shallow clone for CI; the history is the cost._ _Move large files to Git LFS or rewrite them out of history._", md)
+        self.assertIn("\n  **Next step:** Consider a shallow clone for CI; the history is the cost.\n\n  **Next step:** Move large files to Git LFS or rewrite them out of history.\n", md)
 
     def test_no_threshold_decides_a_style(self):
         self.assertFalse(hasattr(render, "cell_style"), "a value past a threshold is a finding's to say, not a colour's")
@@ -2090,8 +2099,8 @@ class ReviewFixes(unittest.TestCase):
              {"severity": "info", "title": "One person under several identities", "detail": "b merged into B by name and email similarity. Add a .mailmap to make it permanent."}]
         md = render.portfolio_markdown("acme", [("demo", rep, f)])
         self.assertIn("One person under several identities (2)", md)
-        self.assertEqual(md.count("Add a .mailmap"), 1)
-        self.assertIn("- **ok** No secrets in history", md, "each repository says when its scan came back clean")
+        self.assertEqual(md.count("Add a `.mailmap`"), 1)
+        self.assertIn("- **Ok: No secrets in history** betterleaks scanned every commit HEAD reaches", md, "each repository says when its scan came back clean")
 
 
 class AgentSurface(unittest.TestCase):
@@ -2157,17 +2166,17 @@ class Markdown(unittest.TestCase):
         self.assertTrue(md.startswith("# demo"))
         self.assertIn("363 commits", md)
         self.assertIn("## Findings", md)
-        self.assertIn("**warning** Bus factor of one", md)
+        self.assertIn("- **Warning: Bus factor of one**\n\n  Ann wrote 79% of the code.\n", md)
         note = render.markdown(sample_report(), [{"severity": "info", "title": "Sweeping commits", "detail": "2 commits."}])
-        self.assertIn("**note** Sweeping commits", note, "the terminal's word, where the JSON says info (prometheus: **info** under a tally of 10 notes)")
+        self.assertIn("- **Note: Sweeping commits**", note, "the terminal's word, where the JSON says info (prometheus: **info** under a tally of 10 notes)")
         self.assertNotIn("**info**", note)
         self.assertIn('"severity": "info"', render.dumps_json(sample_report(), [{"severity": "info", "title": "Sweeping commits", "detail": "2 commits."}]))
         self.assertIn("## Watch list", md)
         self.assertIn("## Size by language", md, "the export keeps every table")
         self.assertIn("| language | files | code |", md)
         self.assertIn("| HTML | 28 | 4,783 |", md)
-        self.assertIn("static/apps-metadata.json", md)
-        self.assertIn("Secrets: none found", md)
+        self.assertIn("`static/apps-metadata.json`", md)
+        self.assertIn("- **secrets** none found", md)
         self.assertNotIn("◎", md, "no pictogram: the export is not the terminal's drawing")
 
     def test_markdown_escapes_pipes_and_notes_empty_tables(self):
@@ -2176,12 +2185,162 @@ class Markdown(unittest.TestCase):
         r["revisions"] = [{"entity": "weird|name.py", "n-revs": 3}]
         r["size"]["files"]["weird|name.py"] = {"code": 5, "complexity": 0}   # in the tree, so not hidden as deleted
         md = render.markdown(r, [])
-        self.assertIn("weird\\|name.py", md)
-        self.assertIn("_no pairs with 5 or more shared changes_", md)
+        self.assertIn("| `weird\\|name.py` |", md)
+        self.assertIn("## Change coupling\n\nno pairs with 5 or more shared changes\n", md)
         self.assertIn("Nothing flagged.", md)
-        self.assertIn("- **ok** No secrets in history", md)
+        self.assertIn("- **secrets** none found", md)
         r["secrets_scanned"] = False
-        self.assertNotIn("No secrets in history", render.markdown(r, []))
+        self.assertIn("- **secrets** not scanned", render.markdown(r, []))
+        self.assertNotIn("none found", render.markdown(r, []))
+
+
+def _md_plain(md: str) -> str:
+    """Markdown as a reader sees its text: the backquotes of the code spans and the escaping backslashes gone."""
+    return re.sub(r"\\([\\`*_<>|])|`", lambda m: m.group(1) or "", md).replace("&amp;", "&")
+
+
+def _md_problems(md: str) -> list:
+    """What a renderer would trip on, read from the raw text: a < or > that is neither escaped nor in a code
+    span, a code span left open, a table row with another number of cells than its header, a heading twice."""
+    out, heads, width = [], [], None
+    for n, line in enumerate(md.split("\n"), 1):
+        if line.count("`") % 2:
+            out.append(f"{n}: a code span left open: {line}")
+        outside = re.sub(r"`[^`]*`", "", line)
+        if re.search(r"(?<!\\)[<>]", outside):
+            out.append(f"{n}: a bare < or >: {line}")
+        if line.startswith("#"):
+            heads.append(line)
+        if line.startswith("|"):
+            cells = len(re.split(r"(?<!\\)\|", line)) - 2
+            width = width or cells
+            if cells != width:
+                out.append(f"{n}: {cells} cells under {width} heads: {line}")
+        else:
+            width = None
+    return out + [f"twice: {h}" for h in sorted(set(heads)) if heads.count(h) > 1]
+
+
+class MarkdownText(unittest.TestCase):
+    """The export loses no text, works off its author's machine and has the terminal's outline (prometheus:
+    <anonymous> swallowed as an HTML tag 7 times, one finding a paragraph of 945 characters, a /private/tmp
+    path on the last line)."""
+    BRAIN = {"severity": "warning", "title": "Brain methods", "rule": {"id": "brain_methods", "min_ccn": 15, "min_lines": 100},
+             "evidence": {"count": 3, "partial": False, "functions": [
+                 {"file": "discovery/aws/rds.go", "function": "errg.Go(func() error {", "start": 542, "ccn": 166, "lines": 482, "params": 0},
+                 {"file": "tsdb/db.go", "function": "open", "start": 12, "ccn": 83, "lines": 280, "params": 2},
+                 {"file": "tsdb/wlog/check_point.go", "function": "Checkpoint", "start": 9, "ccn": 74, "lines": 273, "params": 7}]},
+             "detail": "3 functions are both long and complex: <anonymous> (discovery/aws/rds.go:542) complexity 166, 482 lines, 0 params; "
+                       "open (tsdb/db.go) complexity 83, 280 lines, 2 params; Checkpoint (tsdb/wlog/check_point.go) complexity 74, 273 lines, 7 params. "
+                       "Split open in tsdb/db.go first, before the next change lands there; open questions wait.",
+             "advice": "Split open in tsdb/db.go first, before the next change lands there; open questions wait."}
+    VULN = {"severity": "info", "title": "Vulnerable dependencies", "unjudged": True, "rule": {"id": "vulnerable_dependencies"},
+            "evidence": {"packages": [{"name": "moment", "version": "7.5", "source": "web/pnpm-lock.yaml", "score": 7.5, "fixed": "7.6.0"}]},
+            "detail": "1 vulnerable package in 1 lock file: moment 7.5 (CVE-2026-1, CVSS 7.5, fixed in 7.6.0) in web/pnpm-lock.yaml. Upgrade moment to 7.6.0 in web/pnpm-lock.yaml first.",
+            "advice": "Upgrade moment to 7.6.0 in web/pnpm-lock.yaml first."}
+
+    def test_a_word_is_code_by_its_shape_and_by_no_list(self):
+        for word in ("<anonymous>", "<anonymous>:1401", "--full", "--color-moved=blocks", "eval()", "errg.Go()", ".mailmap", ".git-blame-ignore-revs",
+                     "web/", "promql/engine.go", "promql/engine.go:2132", "cmd/tsdb/testdata.20k", "dependencies.json", "osv-scanner.toml",
+                     ".env.example", "AGENTS.md", "e14795bbf", "296080c0"):
+            self.assertTrue(render.code_shaped(word), word)
+        for word in ("TODO/FIXME", "and/or", "ossf/security-baseline", "2.31.0", "7.5", "e.g", "1,324", "2026-09-18", "14:00", "OSPS-BR-07.01",
+                     "dependabot[bot]", "Signed-off-by", "deadbeef", "20251119130332", "nesting", "23%", "Sep*", "(#17785)", "<", "p"):
+            self.assertFalse(render.code_shaped(word), word)
+
+    def test_prose_is_escaped_and_what_has_a_code_shape_is_a_span(self):
+        self.assertEqual(render.md_text("<anonymous>:1401 nesting 5, p < 0.001 (see hygiene.json)."), "`<anonymous>:1401` nesting 5, p \\< 0.001 (see `hygiene.json`).")
+        self.assertEqual(render.md_text("my_func and *bold* or `tick` or a\\b"), "my\\_func and \\*bold\\* or \\`tick\\` or a\\\\b")
+        self.assertEqual(render.md_text("fix &lt; handling & more"), "fix &amp;lt; handling & more", "an entity in a commit subject is not decoded")
+        self.assertEqual(render.md_text("eval() nesting 6 (main())."), "`eval()` nesting 6 (`main()`).", "a call keeps its own brackets and loses the sentence's")
+        self.assertEqual(render.md_code("a`b"), "`` a`b ``")
+        self.assertEqual(render.md_code("a|b", cell=True), "`a\\|b`", "GitHub splits a row at | before it reads a span")
+        self.assertEqual(render.md_paragraph("+ = lizard ended the function early"), "\\+ = lizard ended the function early", "no list by accident")
+        self.assertEqual(render.md_paragraph("1. first"), "1\\. first")
+        self.assertEqual(render.md_paragraph("1,324 = 1,327 identities less 3"), "1,324 = 1,327 identities less 3")
+        for text in ("<anonymous> (discovery/aws/rds.go:542) complexity 166", "a_b *c* `d` <e> f|g \\h", "Sep* = to 2026-09-18 · 5% of x_y"):
+            self.assertEqual(_md_plain(render.md_text(text)), text, "nothing is dropped and nothing is reordered")
+
+    def test_a_finding_is_a_title_a_rule_id_a_statement_its_subjects_nested_and_the_step_on_its_own_line(self):
+        md = "\n".join(render._md_findings([self.BRAIN]))
+        self.assertEqual(md, "\n".join([
+            "- **Warning: Brain methods** · `brain_methods`", "",
+            "  3 functions are both long and complex:", "",
+            "  - `<anonymous>` (`discovery/aws/rds.go:542`) complexity 166, 482 lines, 0 params",
+            "  - `open` (`tsdb/db.go`) complexity 83, 280 lines, 2 params",
+            "  - `Checkpoint` (`tsdb/wlog/check_point.go`) complexity 74, 273 lines, 7 params", "",
+            "  **Next step:** Split `open` in `tsdb/db.go` first, before the next change lands there; open questions wait."]))
+        self.assertNotIn("`open` questions", md, "a function's name is code where its file follows it, and a word elsewhere")
+        self.assertEqual(_md_plain(md).count("<anonymous>"), 1, "the name of a nameless function is printed, not read as a tag")
+
+    def test_a_version_is_code_where_the_sentence_puts_it_and_a_score_is_not(self):
+        md = "\n".join(render._md_findings([self.VULN]))
+        self.assertIn("- **Note: Vulnerable dependencies** (not measured yet) · `vulnerable_dependencies`", md, "the tag after the title, as on the terminal")
+        self.assertIn("  1 vulnerable package in 1 lock file: `moment` `7.5` (CVE-2026-1, CVSS 7.5, fixed in `7.6.0`) in `web/pnpm-lock.yaml`", md)
+        self.assertIn("  **Next step:** Upgrade `moment` to `7.6.0` in `web/pnpm-lock.yaml` first.", md)
+
+    def test_a_finding_without_evidence_still_loses_nothing(self):
+        f = {"severity": "critical", "title": "Odd <title>", "detail": "x_y holds <b>3</b> values: a; b; c and 4 more. They are odd. Rotate them now.", "advice": "Rotate them now."}
+        md = "\n".join(render._md_findings([f]))
+        self.assertEqual(md, "\n".join(["- **Critical: Odd \\<title\\>**", "", "  x\\_y holds \\<b\\>3\\</b\\> values:", "", "  - a", "  - b", "  - c", "  - and 4 more", "",
+                                        "  They are odd", "", "  **Next step:** Rotate them now."]))
+
+    def test_the_export_opens_with_the_tally_and_says_which_tier_it_is(self):
+        r = sample_report()
+        md = render.markdown(r, [self.BRAIN, self.VULN]).split("\n")
+        self.assertEqual(md[:3], ["# demo", "", "**1 warning, 1 note** · 1 by rules not measured for precision yet"])
+        self.assertTrue(md[4].startswith("The default report: every finding, a table up to 50 rows · "), md[4])
+        self.assertIn("`--markdown --full` adds ", md[4])
+        self.assertEqual(render.markdown(r, []).split("\n")[2], "**Nothing flagged**")
+        self.assertNotIn("<details", "\n".join(md))
+
+    def test_the_headings_are_the_terminals_titles_and_the_same_at_either_tier(self):
+        from tests.test_full import rich_report, found
+        r = rich_report()
+        heads = lambda text: [line[3:] for line in text.split("\n") if line.startswith("## ")]   # noqa: E731
+        default, full = heads(render.markdown(r, found())), heads(render.markdown(r, found(), full=True))
+        self.assertEqual([h for h in full if h in default], default, "the default export's headings, in --full's order")
+        self.assertEqual(len(set(full)), len(full), "every heading once")
+        terminal = ["Findings"] + [h.split(" · ")[0] for h in _headings(rendered(r, found(), full=True))]
+        self.assertEqual(full, [h for h in terminal if h in full], "the terminal's order")
+        self.assertEqual(set(full) - set(terminal), set(), "and no title the terminal does not print")
+        self.assertIn("Supply chain", default)
+        self.assertLess(full.index("Supply chain"), full.index("Signing by year"), "before the first section of its group, as in --full")
+
+    def test_nothing_in_the_export_is_a_path_of_the_machine_that_wrote_it(self):
+        from tests.test_full import rich_report, found
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            r = dict(rich_report(), out_dir=d)
+            for full in (False, True):
+                md = render.markdown(r, found(), full=full)
+                self.assertNotIn(d, md)
+                self.assertNotIn("Full results", md)
+                self.assertTrue(md.endswith(f"`gitmole DIR --no-run --markdown -{' --full' if full else ''}` writes this report again, DIR being the run's output directory.\n"))
+
+    def test_the_raw_text_holds_nothing_a_renderer_trips_on(self):
+        from tests.test_full import rich_report, found
+        r = rich_report()
+        r["functions"] = [{"file": "src/a|b.py", "function": "const rows = (x) => {", "ccn": 40, "nloc": 200, "params": 1, "start": 7, "end": 300}] + list(r.get("functions") or [])
+        for full in (False, True):
+            md = render.markdown(r, found() + [self.BRAIN, self.VULN], full=full)
+            self.assertEqual(_md_problems(md), [], f"full={full}")
+            self.assertIn("| `<anonymous>` | `src/a\\|b.py:7` |", md)
+
+    def test_a_table_cut_by_the_cap_names_the_command_that_prints_the_rest(self):
+        r = sample_report()
+        r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 200 - i} for i in range(60)]
+        r["size"]["files"] = {f"f{i}.py": {"code": 10, "complexity": 0} for i in range(60)}
+        md = render.markdown(r, [], full=True)
+        self.assertIn("\n## Hotspots\n\n50 of 60, by changes × lines of code · `--section hotspots --markdown` prints every row\n", md)
+        self.assertNotIn("--section size-by-language", md, "a table that is whole points nowhere")
+
+    def test_a_directory_row_is_a_span_and_its_count_is_not(self):
+        self.assertEqual(render._md_cell("discovery/aws/ (5 files)", render.PATH), "`discovery/aws/` (5 files)")
+        self.assertEqual(render._md_cell("web/{api/v1/api.go,web.go}", render.PATH), "`web/{api/v1/api.go,web.go}`")
+        self.assertEqual(render._md_cell("-", render.PATH), "-")
+        self.assertEqual(render._md_cell("Julius Volz", {}), "Julius Volz")
+        self.assertEqual(render._md_cell("unmarshal_without", render.CODE), "`unmarshal_without`")
 
 
 class Json(unittest.TestCase):

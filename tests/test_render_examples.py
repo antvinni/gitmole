@@ -69,11 +69,14 @@ class Document(unittest.TestCase):
     def test_strips_the_footer_render_markdown_actually_emits(self):
         from tests.test_render import sample_report
         from gitmole import render
-        markdown = render.markdown(sample_report(), [])
-        self.assertIn("Full results in", markdown)          # no plot was written, so none is named; the fixture copies the --plots form
+        r = sample_report()
+        r["meta"]["run"] = {"gitmole": "0.10.0", "tools": {"git": "2.55.0"}}
+        markdown = render.markdown(r, [])
+        self.assertNotIn(sample_report()["out_dir"], markdown, "the export names no path of the machine that wrote it")
+        self.assertIn("\ngitmole 0.10.0 ·", markdown)   # the tools of the machine that ran it, which the provenance line replaces
         doc = self.mod.document("demo/demo", "b" * 40, markdown)
-        self.assertNotIn("Full results", doc)
-        self.assertNotIn(sample_report()["out_dir"], doc)
+        self.assertNotIn("\ngitmole 0.10.0 ·", doc)
+        self.assertTrue(doc.endswith("`gitmole DIR --no-run --markdown -` writes this report again, DIR being the run's output directory.\n"), doc[-200:])
 
 
 class Pins(unittest.TestCase):
