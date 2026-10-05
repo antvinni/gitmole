@@ -1009,13 +1009,18 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     if full is not True and tree:
         assisted = {e: n for e, n in assisted.items() if e in tree}
     rows, shares, outrank = [], [], False
+    # how many of an area's authors committed to it in the --gone window, as "recent/all" in the authors cell: a
+    # count with no names, from the change analysis of 0.45 on; an output directory from before has no such count,
+    # and its --full map is the one it always was. In the cell, not a column of its own, so the owners keep their width
+    recent = full is True and any("recent" in a for a in areas[:limit])
     for a in areas[:limit]:
         owners = _owner_cells(a, gone)
         lost = f"{100 * a['lost_share']:.0f}%" if a["lines"] else "-"
         theirs = sum(n for e, n in assisted.items() if knowledge.in_area(e, a["area"], base))
         shares.append(round(100 * theirs / (a["lines"] + theirs)) if a["lines"] + theirs else 0)
         outrank = outrank or (theirs > 0 and theirs >= (a["owners"][1][1] if len(a["owners"]) > 1 else 0))
-        rows.append((a["area"], f"{a['lines']:,}", a["authors"], lost if gone else "-", owners[0], owners[1], f"{shares[-1]}%"))
+        authors = f"{a.get('recent', 0)}/{a['authors']}" if recent else a["authors"]
+        rows.append((a["area"], f"{a['lines']:,}", authors, lost if gone else "-", owners[0], owners[1], f"{shares[-1]}%"))
     columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("second", {}), ("agents", RIGHT)]
     # a column only when a row shown has a whole percent of it; in the default report only when the tools
     # together hold as much of an area as its second owner, where naming them apart changes who is listed
@@ -1033,6 +1038,8 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     if gone:
         notes.append(f"gone = no commits in the {months} months before {report['meta'].get('last_date')}"
                      + ("; gone and lost are measured over the whole history" if report["meta"].get("since") else ""))
+    if recent:
+        notes.append(f"authors = recent/all; recent = a commit to the area in the {months} months before {report['meta'].get('last_date')}")
     return _section(f"Knowledge map ({counted})" if rows else "Knowledge map", columns, rows, note=None if rows else "no ownership data", caption="\n".join(notes) or None)
 
 

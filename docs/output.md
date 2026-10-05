@@ -364,7 +364,14 @@ in plain words, and what to do first. This page is the reference.
    their degree is close to the file's highest. The truck factor is how
    many authors have to leave before most of the source files have none; a
    low one is a finding, and an area whose own truck factor is one is
-   named. It is computed a second time with knowledge decaying over time
+   named, with `new since <month>` beside its author when its first commit is
+   inside the `--gone` window before the last commit, none of its files
+   arrived by a rename (a directory that moved is not new; git's `-M` is read
+   one hop, and a move below its similarity reads as files added), and the
+   history reaches back before the window (in a younger repository every
+   area is as new as the rest). One
+   author is what a new area has, so the advice never starts in one. It is
+   computed a second time with knowledge decaying over time
    (JetBrains' Bus Factor Explorer), and when the surviving code's largest
    share belongs to someone else, the finding says so.
 
@@ -768,7 +775,8 @@ in plain words, and what to do first. This page is the reference.
    small share of the file's commits) and a `co-changes` column (the files
    it often changes with). The knowledge map marks owners who have stopped committing
    with `(gone)`, and under `--full` shows the share of each area's lines
-   that they wrote. With `--full`: size by language, activity by weekday
+   that they wrote and how many of its authors committed to it in the
+   `--gone` window (`recent`, a count with no names). With `--full`: size by language, activity by weekday
    with the busiest hour and the share of commits that are fixes, and
    surviving code by year.
 
@@ -913,7 +921,8 @@ directory for a remote target:
 | `maat-entropy.csv` | change analysis | Hassan's change entropy per file: the months it changed in, and its decayed history complexity (its share of each month's changes times that month's entropy over files, halved per month back) |
 | `maat-authors.csv` | change analysis | authors per file (co-authors included), and how many of them are minor contributors |
 | `maat-age.csv` | change analysis | months since last change per file |
-| `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file, a commit's lines shared between its author and co-authors, and the commits crediting each of them that touched the file |
+| `maat-entity-ownership.csv` | change analysis | lines added and deleted per author per file, a commit's lines shared between its author and co-authors, the commits crediting each of them that touched the file, and how many of those fall in the `--gone` window before the last commit (`recent`) |
+| `maat-arrivals.csv` | change analysis | per file, the date of the first commit holding it under its current path and whether a commit brought it there by a rename, over every commit, sweeps and imports included; dates the truck factor's areas |
 | `maat-fixes.csv` | change analysis | fix commits per file: total, last, and in the last six months |
 | `functions.csv` | lizard | per-function complexity, length, parameters, in lizard's own `--csv` columns, then two of gitmole's: a label for a function lizard could not name (the text of its start line) and, when the span looks mis-parsed, why |
 | `theseus/` | blame pass (git-of-theseus with `--plots`) | surviving lines by year and by author |

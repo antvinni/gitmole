@@ -74,15 +74,21 @@ def present_rows(rows: list, tree: dict) -> list:
 
 
 def _aggregate(rows: list, depth: int, base: int = 0) -> list:
-    lines, per_author = Counter(), defaultdict(Counter)
+    """Per area: lines added, authors, owners most first, and, when the rows carry the change analysis's
+    `recent` commits (0.45 on), `recent`: how many of those authors committed to it inside the run's --gone
+    window. A count, never a name: who is active in an area is not a ranking of them."""
+    lines, per_author, active = Counter(), defaultdict(Counter), defaultdict(set)
+    dated = any("recent" in r for r in rows)
     for r in rows:
         a = _area(r["entity"], depth, base)
         lines[a] += r["added"]
         per_author[a][r["author"]] += r["added"]
+        if r.get("recent"):
+            active[a].add(r["author"])
     out = []
     for a, n in lines.items():
         owners = sorted(per_author[a].items(), key=lambda kv: (-kv[1], kv[0]))
-        out.append({"area": a, "lines": n, "authors": len(owners), "owners": owners})
+        out.append({"area": a, "lines": n, "authors": len(owners), "owners": owners, **({"recent": len(active[a])} if dated else {})})
     out.sort(key=lambda x: (-x["lines"], x["area"]))
     return out
 

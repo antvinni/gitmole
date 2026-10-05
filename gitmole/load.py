@@ -100,7 +100,7 @@ def all_code(rows, scope=()) -> dict:
 
 NUMERIC_COLUMNS = {"n-revs", "degree", "average-revs", "n-authors", "age-months", "added", "deleted", "n-fixes", "recent-fixes", "tiny-revs",
                    "minor", "soc", "partners", "n-sets", "with-tests", "periods", "fa", "dl", "ac", "is_author", "is_author_decayed", "late",
-                   "depth", "shared", "confidence", "commits"}
+                   "depth", "shared", "confidence", "commits", "renamed", "recent"}
 FLOAT_COLUMNS = {"doa", "doa_decayed", "dl_decayed", "ac_decayed", "hcm"}
 
 
@@ -803,6 +803,9 @@ def load_report(out_dir: str, nested: bool = True) -> dict:
         "doa": doa,   # degree of authorship per file and person; empty before 0.19
         "latenight": parse_maat_csv(_read(out_dir, "maat-latenight.csv")),
         "components": parse_maat_csv(_read(out_dir, "maat-components.csv")),
+        # when each path first appeared and whether by a rename, for the files HEAD has (the area ages read no
+        # others); absent before 0.45, so an older output directory dates no area
+        "arrivals": [r for r in parse_maat_csv(_read(out_dir, "maat-arrivals.csv")) if tree is None or r["entity"] in tree],
         "authors": authors_rows,
         "age": parse_maat_csv(_read(out_dir, "maat-age.csv")),
         "ownership": ownership,

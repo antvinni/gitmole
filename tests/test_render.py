@@ -1290,6 +1290,20 @@ class KnowledgeMap(unittest.TestCase):
                          "no column for less than a whole percent")
         self.assertEqual(render.knowledge_section(r, full=True)["columns"][-1], "second")
 
+    def test_full_counts_an_areas_recent_authors_and_names_none(self):
+        r = sample_report()
+        before = render.knowledge_section(r, full=True)
+        self.assertNotIn("recent", before["columns"], "rows from before 0.45 carry no count, and the map is the one it was")
+        for row in r["ownership"]:
+            row["recent"] = 2 if row["author"] == "Ann" else 0
+        r["ownership"].append({"entity": "static/b.css", "author": "Cat", "added": 1, "deleted": 0, "commits": 1, "recent": 1})
+        km = render.knowledge_section(r, full=True)
+        self.assertEqual(km["columns"], before["columns"], "a count in the authors cell, not a column: the owners keep their width")
+        by = {row[0]: row for row in km["rows"]}
+        self.assertEqual(by["static/"][2], "2/3", "Ann and Cat committed there in the window; Bob did not")
+        self.assertIn(f"authors = recent/all; recent = a commit to the area in the 12 months before {r['meta']['last_date']}", km["caption"])
+        self.assertNotIn("recent", render.knowledge_section(r, full=False)["caption"] or "", "the default map does not show it")
+
 
 class Timeline(unittest.TestCase):
     def test_last_twelve_months_per_author_with_dots_for_zero(self):

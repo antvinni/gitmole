@@ -67,9 +67,11 @@ def _co_authors(field: str, author: str, aliases: dict, bots: set) -> list:
 
 
 def parse_log(text: str, aliases: dict = None, types=None, bots: set = None) -> list:
-    """[{hash, date, time, author, subject, co_authors, files: [(path, added, deleted)]}], binary files
+    """[{hash, date, time, author, subject, co_authors, files: [(path, added, deleted)], renamed}], binary files
     count as 0/0. `types` restricts the file entries (None = keep everything); commits are always kept.
-    `bots` are names the run decided are services; they are never co-authors."""
+    `bots` are names the run decided are services; they are never co-authors. `renamed` is the set of the
+    commit's file paths that git's -M saw arrive by a rename (the new path, as `files` holds it): the tuples
+    cannot say so, since a pure move is 0/0 and so is an empty file added."""
     aliases = aliases or {}
     bots = bots or set()
     commits, current = [], None
@@ -82,13 +84,17 @@ def parse_log(text: str, aliases: dict = None, types=None, bots: set = None) -> 
             subject, _, trailers = (parts[4] if len(parts) > 4 else "").partition(TRAILER_SEP)
             author = aliases.get(author, author)
             current = {"hash": h, "date": when[:10], "time": when, "author": author, "subject": subject,
-                       "co_authors": _co_authors(trailers, author, aliases, bots), "files": []}
+                       "co_authors": _co_authors(trailers, author, aliases, bots), "files": [], "renamed": set()}
             commits.append(current)
         elif line.strip() and current is not None:
             added, deleted, path = line.split("\t", 2)
-            path = _renamed_to(filetypes.unquote(path))
+            path = filetypes.unquote(path)
+            moved = " => " in path
+            path = _renamed_to(path)
             if not filetypes.matches(path, types):
                 continue
+            if moved:
+                current["renamed"].add(path)
             current["files"].append((path, int(added) if added.isdigit() else 0, int(deleted) if deleted.isdigit() else 0))
     return commits
 
@@ -252,6 +258,20 @@ def analysed(commits: list, ignored: set = frozenset()) -> list:
 def imported_files(commits: list) -> set:
     """The files an import brought in: nobody here created them."""
     return {p for c in importing(commits) for p, a, _ in c["files"] if a > 0}
+
+
+def arrivals(commits: list) -> list:
+    """Per path: the date of the first commit that holds it under its current name, and 1 when some commit
+    brought it there by a rename (git's -M, single hop: the old path's history is not followed, and a move
+    below -M's similarity reads as the file being added). Read over every commit, the sweeps and imports
+    the tables leave out included, since a sweep is where a tree is moved. The report dates an area by them."""
+    first, moved = {}, set()
+    for c in commits:
+        for p, _, _ in c["files"]:
+            if p not in first or c["date"] < first[p]:
+                first[p] = c["date"]
+        moved |= c.get("renamed") or set()
+    return [{"entity": p, "first": d, "renamed": int(p in moved)} for p, d in sorted(first.items())]
 
 
 def revisions(commits: list) -> list:
@@ -716,19 +736,26 @@ def _shares(n: int, k: int) -> list:
     return [each + (1 if i < rest else 0) for i in range(k)]
 
 
-def entity_ownership(commits: list) -> list:
+def entity_ownership(commits: list, recent_since: str = None) -> list:
     """Lines added and deleted per author per entity, and the commits crediting them that touched it.
     A commit with co-authors shares its lines between everyone it credits, so the totals stay the lines
-    the log counts; each of them is credited with the whole commit, as authors() counts them."""
-    added, deleted, n = Counter(), Counter(), Counter()
+    the log counts; each of them is credited with the whole commit, as authors() counts them. With
+    `recent_since` (YYYY-MM-DD), each row also counts those commits dated on or after it (`recent`), from
+    which the report counts an area's recent authors."""
+    added, deleted, n, recent = Counter(), Counter(), Counter(), Counter()
     for c in commits:
         crew = people(c)
+        late = recent_since is not None and c["date"] >= recent_since
         for p, a, d in c["files"]:
             for who, x, y in zip(crew, _shares(a, len(crew)), _shares(d, len(crew))):
                 added[(p, who)] += x
                 deleted[(p, who)] += y
                 n[(p, who)] += 1
+                recent[(p, who)] += late
     rows = [{"entity": p, "author": who, "added": added[(p, who)], "deleted": deleted[(p, who)], "commits": n[(p, who)]} for (p, who) in added]
+    if recent_since is not None:
+        for r in rows:
+            r["recent"] = recent[(r["entity"], r["author"])]
     rows.sort(key=lambda r: (r["entity"], r["author"]))
     return rows
 
@@ -862,12 +889,13 @@ ANALYSES = {
     "tests": (test_cochange, ["entity", "n-sets", "with-tests"]),
     "authors": (authors, ["entity", "n-authors", "n-revs", "minor"]),
     "age": (age, ["entity", "age-months"]),
-    "entity-ownership": (entity_ownership, ["entity", "author", "added", "deleted", "commits"]),
+    "entity-ownership": (entity_ownership, ["entity", "author", "added", "deleted", "commits", "recent"]),
     "fixes": (fixes, ["entity", "n-fixes", "last-fix", "recent-fixes"]),
     "entropy": (entropy, ["entity", "periods", "hcm"]),
     "doa": (doa, ["entity", "author", "fa", "dl", "ac", "doa", "doa_decayed", "is_author", "is_author_decayed", "dl_decayed", "ac_decayed"]),
     "latenight": (latenight, ["entity", "n-revs", "late"]),
     "components": (components, ["depth", "entity", "coupled", "degree", "shared", "average-revs"]),
+    "arrivals": (arrivals, ["entity", "first", "renamed"]),
 }
 NEEDS_NOW = {"age", "fixes", "entropy", "doa"}
 
@@ -889,6 +917,15 @@ def bots_from_meta(path: str) -> set:
     with open(path) as fh:
         meta = json.load(fh)
     return {b["name"] for b in meta.get("bots") or []}
+
+
+def gone_months_from_meta(path: str) -> int:
+    """The --gone months the run recorded, or the default 12 for a meta.json from before it did."""
+    with open(path) as fh:
+        return int(json.load(fh).get("gone_months") or GONE_MONTHS)
+
+
+GONE_MONTHS = 12   # loss.DEFAULT_MONTHS; maat runs as a script and cannot import it
 
 
 def scope_from_meta(path: str) -> list:
@@ -923,10 +960,18 @@ def write_all(log_path: str, out_dir: str, aliases_path: str = None, types=filet
     ignored = {c["hash"] for c in commits if ignore_revs and is_ignored(c["hash"], ignore_revs)}
     windowed = in_window(commits, since, until)
     kept, kept_all = analysed(windowed, ignored), analysed(commits, ignored)
+    # the recent window ends at the last commit the run reads, as loss.cutoff measures gone from meta's last_date
+    bounded = in_window(commits, None, until)
+    last = max((c["date"] for c in bounded), default=None)
+    recent_since = months_before(last, gone_months_from_meta(aliases_path) if aliases_path else GONE_MONTHS) if last else None
     for name, (fn, header) in ANALYSES.items():
         source = kept_all if name == "age" else kept   # ages describe the whole history
         if name == "doa":   # the files an import created have no creator here
             rows = fn(source, now=now, imported=imported_files(commits))
+        elif name == "arrivals":   # when a path first appeared and whether by a rename: every commit, sweeps and imports too
+            rows = fn(bounded)
+        elif name == "entity-ownership":
+            rows = fn(source, recent_since=recent_since)
         elif name == "components":   # a --path run's components are the directories below the ones it names
             rows = fn(source, base=scopes.base(scope_from_meta(aliases_path) if aliases_path else []))
         else:

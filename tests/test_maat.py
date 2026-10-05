@@ -61,6 +61,20 @@ class ParseLog(unittest.TestCase):
         self.assertEqual(commits[0]["files"], [("src/requests/__init__.py", 0, 0), (".github/SECURITY.md", 4, 7),
                                                 (".github/CODE_OF_CONDUCT.md", 0, 0), ("src/requests/models_v2.py", 2, 0), ("Makefile", 1, 1)])
 
+    def test_the_paths_a_rename_brought_are_kept_beside_the_files(self):
+        # the tuples cannot tell a pure move (0/0) from an empty file added (0/0); the set can
+        log = ("--m1--2026-01-06T10:00:00+00:00--Nate--Move the debugger\n"
+               "0\t0\t{packages-experimental => common}/debugger/src/a.ts\n"
+               "4\t7\tREADME.md => docs/README.md\n"
+               "0\t0\tsrc/{x.ts => y.ts}\n"
+               "0\t0\tsrc/empty.ts\n"
+               "1\t1\tsrc/z.ts\n")
+        [c] = maat.parse_log(log, types=None)
+        self.assertEqual(c["renamed"], {"common/debugger/src/a.ts", "docs/README.md", "src/y.ts"})
+        self.assertEqual(c["files"][0], ("common/debugger/src/a.ts", 0, 0), "the tuples are what they were")
+        [c] = maat.parse_log(log, types=maat.filetypes.parse("ts"))
+        self.assertEqual(c["renamed"], {"common/debugger/src/a.ts", "src/y.ts"}, "only for the files the types keep")
+
     def test_subjects_with_exotic_line_break_characters_do_not_split_the_log(self):
         # U+2028 and form feed are line breaks to str.splitlines but not to git
         text = "--x--2026-05-04T10:00:00+00:00--Ann--Fix\u2028broken\x0cthing\n1\t0\tf.py\n"
@@ -164,6 +178,54 @@ class Ownership(unittest.TestCase):
         self.assertEqual(rows[("src/a.py", "Cat")]["deleted"], 2)
         self.assertEqual((rows[("src/a.py", "Bob")]["commits"], rows[("src/a.py", "Cat")]["commits"], rows[("src/b.py", "Ann")]["commits"]), (1, 1, 4),
                          "a person is credited once per commit that touched the file")
+
+
+    def test_recent_counts_the_commits_on_or_after_the_window_start(self):
+        rows = {(r["entity"], r["author"]): r for r in maat.entity_ownership(maat.parse_log(LOG), recent_since="2026-03-12")}
+        self.assertEqual(rows[("src/a.py", "Ann")]["recent"], 3, "d4, e5 and f6; a1 and c3 are before the window")
+        self.assertEqual((rows[("src/a.py", "Bob")]["recent"], rows[("src/a.py", "Cat")]["recent"]), (0, 1))
+
+
+class Arrivals(unittest.TestCase):
+    def test_first_date_and_whether_a_rename_brought_the_path(self):
+        commits = [_commit("a", [("old/x.py", 5, 0), ("new/y.py", 3, 0)], date="2026-01-05"),
+                   _commit("b", [("lib/x.py", 0, 0), ("new/y.py", 1, 0)], date="2026-02-05"),
+                   _commit("c", [("lib/x.py", 2, 0)], date="2026-03-05")]
+        commits[1]["renamed"] = {"lib/x.py"}
+        rows = {r["entity"]: r for r in maat.arrivals(commits)}
+        self.assertEqual(rows["lib/x.py"], {"entity": "lib/x.py", "first": "2026-02-05", "renamed": 1},
+                         "single hop: the moved file's first date is the move's, and the rename mark says so")
+        self.assertEqual(rows["new/y.py"], {"entity": "new/y.py", "first": "2026-01-05", "renamed": 0})
+
+    def test_write_all_dates_paths_over_the_sweeps_and_imports_too(self):
+        # a tree moved in a sweep (as many lines in as out over many files) is left out of every table, and
+        # still marks its files as renamed: otherwise a moved directory would read as new
+        lines = []
+        for i in range(200):
+            lines += [f"--c{i}--2025-01-{1 + i % 28:02d}T10:00:00+00:00--Ann--work", f"3\t1\tsrc/a.py", ""]
+        lines += ["--sw--2026-06-01T10:00:00+00:00--Bob--normalize folder structures"]
+        lines += [f"1\t1\t{{old => pkg}}/f{i}.py" for i in range(60)] + [""]
+        lines += ["--n1--2026-07-01T10:00:00+00:00--Cat--feat: a new package", "10\t0\tfresh/a.py", ""]
+        with tempfile.TemporaryDirectory() as d:
+            log = os.path.join(d, "log.txt")
+            with open(log, "w") as fh:
+                fh.write("\n".join(lines) + "\n")
+            meta = os.path.join(d, "meta.json")
+            with open(meta, "w") as fh:
+                json.dump({"aliases": {}, "gone_months": 6}, fh)
+            maat.write_all(log, d, meta)
+            with open(os.path.join(d, "activity.json")) as fh:
+                self.assertEqual([s["hash"] for s in json.load(fh)["sweeping"]], ["sw"])
+            with open(os.path.join(d, "maat-arrivals.csv")) as fh:
+                rows = {r.split(",")[0]: r.strip() for r in fh.readlines()[1:]}
+            with open(os.path.join(d, "maat-entity-ownership.csv")) as fh:
+                own = fh.read().split("\n")
+        self.assertEqual(rows["pkg/f7.py"], "pkg/f7.py,2026-06-01,1")
+        self.assertEqual(rows["fresh/a.py"], "fresh/a.py,2026-07-01,0")
+        self.assertEqual(rows["src/a.py"], "src/a.py,2025-01-01,0")
+        self.assertEqual(own[0], "entity,author,added,deleted,commits,recent")
+        self.assertIn("fresh/a.py,Cat,10,0,1,1", own, "the window is the meta's gone months back from the last commit")
+        self.assertIn("src/a.py,Ann,600,200,200,0", own)
 
 
 class Types(unittest.TestCase):
@@ -352,7 +414,7 @@ class WriteAll(unittest.TestCase):
                 fh.write(LOG)
             maat.write_all(log, d)
             names = sorted(n for n in os.listdir(d) if n.startswith("maat-"))
-            self.assertEqual(names, ["maat-age.csv", "maat-authors.csv", "maat-companions.csv", "maat-components.csv", "maat-coupling.csv", "maat-doa.csv",
+            self.assertEqual(names, ["maat-age.csv", "maat-arrivals.csv", "maat-authors.csv", "maat-companions.csv", "maat-components.csv", "maat-coupling.csv", "maat-doa.csv",
                                      "maat-entity-ownership.csv", "maat-entropy.csv", "maat-fixes.csv", "maat-latenight.csv", "maat-plumbing.csv",
                                      "maat-revisions.csv", "maat-soc.csv", "maat-tests.csv"])
             self.assertTrue(os.path.isfile(os.path.join(d, "activity.json")))

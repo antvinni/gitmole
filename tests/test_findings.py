@@ -1723,6 +1723,98 @@ class TruckFactor(unittest.TestCase):
         self.assertEqual(f["evidence"]["truck_factor_decayed"], 0)
 
 
+class AreaAge(unittest.TestCase):
+    """A truck-factor-one area whose first commit is inside the --gone window reads "new since": one author is
+    what a new directory has. Only when none of its files arrived by a rename: a moved directory is not new
+    (univer's common/debugger/, moved from packages-experimental/), and maat does not chain renames."""
+    row = TruckFactor.row
+    META = {"name": "r", "commits": 100, "identities": [], "first_date_all": "2019-01-01", "last_date": "2026-09-01", "gone_months": 12}
+
+    def rep(self, doa, **over):
+        over.setdefault("meta", dict(self.META))
+        return TruckFactor.rep(self, doa, **over)
+
+    def doa(self):
+        # core/ is Ann's and largest; debugger/ and toc/ are Bob's, ten files each; web/ has too few files to judge
+        return ([self.row(f"core/a{i}.py", "Ann") for i in range(20)] + [self.row(f"debugger/d{i}.py", "Bob") for i in range(10)]
+                + [self.row(f"toc/t{i}.py", "Bob") for i in range(10)] + [self.row(f"web/w{i}.py", "Bob") for i in range(4)])
+
+    def arrivals(self, toc=("2026-07-17", 0), debugger=("2026-01-06", 1), core=("2019-02-01", 0), mixed=None):
+        out = [{"entity": f"core/a{i}.py", "first": core[0], "renamed": core[1]} for i in range(20)]
+        out += [{"entity": f"toc/t{i}.py", "first": toc[0], "renamed": toc[1]} for i in range(10)]
+        out += [{"entity": f"debugger/d{i}.py", "first": debugger[0], "renamed": debugger[1] if mixed is None else int(i == 0)} for i in range(10)]
+        out += [{"entity": f"web/w{i}.py", "first": "2020-01-01", "renamed": 0} for i in range(4)]
+        return out
+
+    def truck(self, **over):
+        return {x["rule"]["id"]: x for x in findings.evaluate(self.rep(self.doa(), theseus_authors={"Ann": 50, "Bob": 50}, **over))}["truck_factor"]
+
+    def test_an_added_area_reads_new_and_a_renamed_in_one_has_no_age(self):
+        f = self.truck(arrivals=self.arrivals(debugger=("2026-01-06", 1)))
+        self.assertIn("toc/ (Bob, new since 2026-07)", f["detail"])
+        self.assertIn("debugger/ (Bob)", f["detail"], "its files arrived by a rename inside the window: moved, not new")
+        self.assertIn("core/ (Ann)", f["detail"], "first commit long before the window")
+        by = {a["area"]: a for a in f["evidence"]["areas"]}
+        self.assertEqual(by["toc/"]["new_since"], "2026-07")
+        self.assertNotIn("new_since", by["debugger/"])
+        self.assertIn("a move below -M's similarity reads as an added file", f["rule"]["area_age"]["renamed"])
+
+    def test_a_mixed_area_with_one_file_renamed_in_has_no_age(self):
+        f = self.truck(arrivals=self.arrivals(debugger=("2026-01-06", 0), mixed=True))
+        self.assertIn("debugger/ (Bob)", f["detail"])
+        self.assertNotIn("debugger/ (Bob, new", f["detail"])
+        f = self.truck(arrivals=self.arrivals(debugger=("2026-01-06", 0)))
+        self.assertIn("debugger/ (Bob, new since 2026-01)", f["detail"], "the same area with every file added is new: the veto is what held it")
+
+    def test_an_area_moved_in_a_sweep_has_no_age(self):
+        # maat marks the files a sweeping commit renamed (Arrivals in test_maat); here only the mark is read
+        f = self.truck(arrivals=self.arrivals(toc=("2026-06-01", 1)))
+        self.assertIn("toc/ (Bob)", f["detail"])
+        self.assertNotIn("toc/ (Bob, new", f["detail"])
+
+    def test_the_advice_never_starts_in_a_new_area(self):
+        doa = [self.row(f"toc/t{i}.py", "Ann") for i in range(30)] + [self.row(f"core/a{i}.py", "Ann") for i in range(12)]
+        doa += [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+        arr = [{"entity": f"toc/t{i}.py", "first": "2026-08-01", "renamed": 0} for i in range(30)]
+        arr += [{"entity": f"core/a{i}.py", "first": "2020-08-01", "renamed": 0} for i in range(12)]
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa, theseus_authors={"Ann": 50, "Bob": 50}, arrivals=arr))}["truck_factor"]
+        self.assertEqual([a["area"] for a in f["evidence"]["areas"]], ["toc/", "core/"], "most at stake first, as before")
+        self.assertEqual(f["advice"], "Pair someone with Ann on core/ first; they author most of what would be left without an author.")
+        arr = [{**r, "first": "2026-08-01"} for r in arr]
+        f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa, theseus_authors={"Ann": 50, "Bob": 50}, arrivals=arr))}["truck_factor"]
+        self.assertEqual(f["advice"], "Pair someone with Ann first; they author most of what would be left without an author.",
+                         "every area of theirs is new: no start area")
+
+    def test_the_merged_ownership_finding_skips_a_new_area_too(self):
+        doa = [self.row(f"toc/t{i}.py", "Ann") for i in range(30)] + [self.row(f"core/a{i}.py", "Ann") for i in range(12)]
+        doa += [self.row(f"web/b{i}.py", "Bob") for i in range(8)]
+        arr = [{"entity": f"toc/t{i}.py", "first": "2026-08-01", "renamed": 0} for i in range(30)]
+        arr += [{"entity": f"core/a{i}.py", "first": "2020-08-01", "renamed": 0} for i in range(12)]
+        found = findings.evaluate(self.rep(doa, theseus_authors={"Ann": 90, "Bob": 10}, arrivals=arr))
+        [f] = [f for f in found if f["rule"]["id"] in findings.OWNERSHIP]
+        self.assertEqual(f["advice"], "Pair someone with Ann on core/ first; 12 of its 12 files would have no author left without them.")
+
+    def test_no_age_without_arrivals_a_dated_file_short_or_a_full_history(self):
+        plain = self.truck()
+        self.assertNotIn("new since", plain["detail"], "an output directory from before 0.45 reads as it did")
+        self.assertNotIn("new_since", str(plain["evidence"]))
+        partial = [r for r in self.arrivals() if r["entity"] != "toc/t3.py"]
+        self.assertNotIn("new since", self.truck(arrivals=partial)["detail"], "a file the analysis did not date: no age")
+        meta = {**self.META, "shallow": True}
+        self.assertNotIn("new since", self.truck(arrivals=self.arrivals(), meta=meta)["detail"], "a shallow clone's history starts at the graft")
+        meta = {**self.META, "gone_months": 1}
+        self.assertNotIn("new since", self.truck(arrivals=self.arrivals(), meta=meta)["detail"], "the window is --gone's: 2026-07 is before 2026-08-01")
+
+    def test_a_repository_younger_than_the_window_has_no_new_area(self):
+        # the 0.44.0 run over gitmole itself: three days of history, so every area is as new as the repository
+        meta = {**self.META, "first_date_all": "2025-12-01"}
+        f = self.truck(arrivals=self.arrivals(debugger=("2026-01-06", 0), core=("2025-12-01", 0)), meta=meta)
+        self.assertNotIn("new since", f["detail"])
+        meta = {**self.META, "first_date_all": None, "first_date": "2025-08-01"}
+        self.assertIn("toc/ (Bob, new since 2026-07)", self.truck(arrivals=self.arrivals(), meta=meta)["detail"],
+                      "an output directory without first_date_all falls back to first_date")
+
+
 class OneOwner(unittest.TestCase):
     """The bus factor, the truck factor and the knowledge islands naming one person are one finding: hindsight's
     report said the same fact three times, each with its own start area."""
