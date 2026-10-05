@@ -858,6 +858,196 @@ class WithTheSuperpowersRepository(WithThePaperclipRepository):
         self.assertEqual(self.over(findings=[f]), [], "an export that lists no fix commits is not judged")
 
 
+UNIVER_CHECKS = {"drift_specifiers_agree", "drift_unclaimed", "private_critical", "published_demoted", "trojan_inert", "trojan_missed",
+                 "action_order", "noreply_split", "split_density", "locale_magnet"}
+
+
+class FromTheUniverExport(unittest.TestCase):
+    """The univer review's checks that need nothing but the export (h4, h6, h7)."""
+
+    def test_a_forge_address_whose_login_is_another_identity(self):
+        """univer: "Univer" commits as 68851825+DR-Univer@users.noreply.github.com, and "DR-Univer" is another identity."""
+        ids = [{"name": "Univer", "email": "68851825+DR-Univer@users.noreply.github.com", "aliases": []},
+               {"name": "DR-Univer", "email": "wbfsa@example.org", "aliases": []}]
+        self.assertEqual(checks(report(meta={"identities": ids})), ["noreply_split"])
+        ids[1]["name"] = "Dr Univer"   # not one word: a person's name, not an account
+        self.assertEqual(checks(report(meta={"identities": ids})), [])
+
+    def test_merged_or_bare_no_reply_addresses_are_not_split(self):
+        ids = [{"name": "bob-example", "email": "bob@example.org", "aliases": [{"name": "Bob", "email": "9999+bob-example@users.noreply.github.com"}]},
+               {"name": "noreply", "email": "noreply@github.com", "aliases": []},
+               {"name": "Cy", "email": "noreply@github.com", "aliases": []}]
+        self.assertEqual(checks(report(meta={"identities": ids})), [])
+
+    def growth(self, then, now, advice="Split a.ts before the next change; its complexity grew 418% in a year."):
+        f = finding("complexity_growth", "3 of the 10 top source hotspots grew.", advice, {"grown": [{"file": "a.ts", "growth_pct": 418}]}, "warning")
+        return report(meta={"last_date": "2026-10-04"}, findings=[f], trend={"files": {"a.ts": [["2025-08-30", *then], ["2026-10-04", *now]]}})
+
+    def test_split_advised_for_a_file_that_grew_with_its_size(self):
+        """univer's doc-skeleton.ts: summed complexity 279 -> 1,446 (+418%), per line 0.268 -> 0.298 (+11%)."""
+        self.assertEqual(checks(self.growth((279, 1042), (1446, 4858))), ["split_density"])
+
+    def test_split_advised_for_a_file_that_grew_denser(self):
+        """layout-ruler.ts: per line 0.260 -> 0.381 (+47%), past the floor: the advice stands."""
+        self.assertEqual(checks(self.growth((294, 1129), (1078, 2828))), [])
+        self.assertEqual(checks(self.growth((279, 1042), (1446, 4858), advice="Look at a.ts.")), [], "no Split advised")
+
+    def magnets(self, *paths, count=None):
+        f = finding("bug_magnets", evidence={"count": count or len(paths), "files": []}, severity="warning")
+        f["rule"]["min_recent"] = 3
+        return report(findings=[f], fixes=[{"entity": p, "recent-fixes": 3, "n-fixes": 9} for p in paths])
+
+    def test_locale_files_among_the_bug_magnets(self):
+        """univer: 82 of 287 magnet rows were translations (ru-RU.ts, zh-TW.ts), touched by every fix that adds a string."""
+        r = self.magnets("packages/ui/src/locale/ru-RU.ts", "packages/ui/src/locale/zh-Hant-TW.ts", "po/es_419.po", "app/i18n/de.json", "src/set.ts")
+        self.assertEqual(checks(r), ["locale_magnet"])
+        self.assertIn("4 of 5", consistency.over(r)["complaints"][0]["subject"])
+
+    def test_names_that_are_not_locales(self):
+        """set.ts and api.ts outside a locale directory, and index.ts inside one, are code."""
+        self.assertEqual(checks(self.magnets("src/set.ts", "src/api.ts", "src/locale/index.ts", "src/locale/de.test.ts")), [])
+
+
+class WithTheUniverRepository(WithThePaperclipRepository):
+    """The univer review's checks that read the clone (h1, h2, h3, h5)."""
+
+    test_the_merge_total_against_git = test_a_cargo_binary_only_the_tests_run = test_a_secret_in_test_code = None
+    test_an_unused_dependency_the_lock_records_as_a_peer = test_an_unreferenced_file_a_package_declares = None
+    test_a_go_module_that_requires_nothing = test_a_vulnerable_lead_only_dev_dependencies_reach = None
+
+    def mine(self, **r):
+        return [c for c in self.over(**r) if c in UNIVER_CHECKS]
+
+    LOCK = ("lockfileVersion: '9.0'\n\noverrides:\n  left-pad: 2.0.0\n\nimporters:\n\n  .:\n    devDependencies:\n"
+            "      tool:\n        specifier: ^3.0.0\n        version: 3.1.0\n\n  packages/core:\n    dependencies:\n"
+            "      lib:\n        specifier: ^1.0.0\n        version: 1.2.0\n      left-pad:\n        specifier: 2.0.0\n        version: 2.0.0\n\n"
+            "  packages/ui:\n    dependencies:\n      lib:\n        specifier: ^1.0.0\n        version: 1.2.0\n")
+
+    def drift(self, *manifests, count=None):
+        rows = [{"lockfile": "pnpm-lock.yaml", "manifest": m, "manifest_date": "2026-09-29", "lockfile_date": "2026-09-24",
+                 "changes": [{"commit": "f" * 40, "date": "2026-09-29"}]} for m in manifests]
+        f = finding("lockfile_drift", evidence={"count": count or len(rows), "drift": rows}, severity="warning")
+        return {"findings": [f] if rows else [], "hygiene": {"lockfiles": {"drift": rows, "drift_count": count or len(rows)}}}
+
+    def test_drift_claimed_on_a_version_bump_pnpm_does_not_lock(self):
+        """univer's 82: every change was the release's `version`, which pnpm's importers do not record. A
+        left-pad the lock's overrides pin is not a difference either."""
+        self.write("pnpm-lock.yaml", self.LOCK)
+        self.write("package.json", '{"private": true, "devDependencies": {"tool": "^3.0.0"}}')
+        self.write("packages/core/package.json", '{"name": "core", "version": "0.2.0", "dependencies": {"lib": "^1.0.0", "left-pad": "^1"}}')
+        self.write("packages/ui/package.json", '{"name": "ui", "version": "0.2.0", "dependencies": {"lib": "^1.0.0"}}')
+        self.assertEqual(self.mine(**self.drift("packages/core/package.json", "packages/ui/package.json")),
+                         ["drift_specifiers_agree", "drift_specifiers_agree"])
+        self.assertEqual(self.mine(**self.drift()), [], "nothing claimed, nothing differs")
+
+    def test_drift_on_a_real_change_both_ways(self):
+        """A dependency the manifest changed is drift: claimed, no complaint; unclaimed, a complaint, unless the
+        claims were cut short by the run's cap."""
+        self.write("pnpm-lock.yaml", self.LOCK)
+        self.write("package.json", '{"private": true, "devDependencies": {"tool": "^3.0.0"}}')
+        self.write("packages/core/package.json", '{"dependencies": {"lib": "^1.0.0", "left-pad": "2.0.0"}}')
+        self.write("packages/ui/package.json", '{"dependencies": {"lib": "^2.0.0"}}')
+        self.assertEqual(self.mine(**self.drift("packages/ui/package.json")), [])
+        self.assertEqual(self.mine(**self.drift()), ["drift_unclaimed"])
+        self.assertEqual(self.mine(**self.drift("packages/core/package.json")), ["drift_specifiers_agree", "drift_unclaimed"])
+        self.assertEqual(self.mine(**self.drift("packages/core/package.json", count=60)), ["drift_specifiers_agree"], "claims capped")
+
+    def test_a_v5_lock_records_specifiers_in_a_block(self):
+        self.write("pnpm-lock.yaml", "lockfileVersion: 5.4\n\nimporters:\n\n  app:\n    specifiers:\n      lib: ^1.0.0\n"
+                   "    dependencies:\n      lib: 1.2.0\n")
+        self.write("app/package.json", '{"version": "2.0.0", "dependencies": {"lib": "^1.0.0"}}')
+        self.assertEqual(self.mine(**self.drift("app/package.json")), ["drift_specifiers_agree"])
+        self.write("app/package.json", '{"dependencies": {"lib": "^1.0.0", "more": "^1"}}')
+        self.assertEqual(self.mine(**self.drift("app/package.json")), [])
+
+    VULN_LOCK = ("lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n\n  common/shared:\n    dependencies:\n"
+                 "      immutable:\n        specifier: ^5\n        version: 5.1.2\n\n  packages/protocol:\n    dependencies:\n"
+                 "      grpc:\n        specifier: ^1\n        version: 1.14.0\n\npackages:\n\n  grpc@1.14.0:\n    resolution: {}\n\n"
+                 "snapshots:\n\n  grpc@1.14.0:\n    dependencies:\n      protobufjs: 7.5.5\n\n  protobufjs@7.5.5: {}\n\n  immutable@5.1.2: {}\n")
+
+    def vulns(self, rows, severity="critical"):
+        return {"findings": [finding("vulnerable_dependencies", evidence={"packages": rows}, severity=severity)],
+                "dependencies": {"vulnerable": rows}}
+
+    def test_a_critical_shipped_only_by_a_private_package(self):
+        """univer's ✖: "common/shared/package.json bin ships that lock", and common/shared declares private."""
+        self.write("pnpm-lock.yaml", self.VULN_LOCK)
+        self.write("package.json", '{"private": true}')
+        self.write("common/shared/package.json", '{"private": true, "bin": {"x": "cli.js"}}')
+        self.write("packages/protocol/package.json", '{"name": "@u/protocol"}')
+        row = {"name": "immutable", "version": "5.1.2", "source": "pnpm-lock.yaml", "score": 9.8, "runtime": True,
+               "deploys": ["common/shared/package.json bin"]}
+        self.assertEqual(self.mine(**self.vulns([row])), ["private_critical"])
+        row["deploys"] = ["common/shared/package.json bin", "common/shared/Dockerfile"]
+        self.assertEqual(self.mine(**self.vulns([row])), [], "a Dockerfile ships it")
+        self.write("common/shared/package.json", '{"bin": {"x": "cli.js"}}')
+        row["deploys"] = ["common/shared/package.json bin"]
+        self.assertEqual(self.mine(**self.vulns([row])), [], "a published package's bin ships")
+
+    def test_a_published_members_runtime_dependency_stays_at_a_warning(self):
+        """protobufjs, through @grpc/grpc-js from packages/protocol (published): after a fix it may leave the
+        critical, never fall to a note or to development-only."""
+        self.write("pnpm-lock.yaml", self.VULN_LOCK)
+        self.write("package.json", '{"private": true}')
+        self.write("common/shared/package.json", '{"private": true}')
+        self.write("packages/protocol/package.json", '{"name": "@u/protocol"}')
+        reached = {"name": "protobufjs", "version": "7.5.5", "source": "pnpm-lock.yaml", "score": 8.1, "runtime": True}
+        private = {"name": "immutable", "version": "5.1.2", "source": "pnpm-lock.yaml", "score": 9.8, "runtime": False}
+        self.assertEqual(self.mine(**self.vulns([reached, private], "warning")), [], "the private member's row may be development-only")
+        self.assertEqual(self.mine(**self.vulns([reached], "info")), ["published_demoted"])
+        self.assertEqual(self.mine(**self.vulns([{**reached, "runtime": False}], "warning")), ["published_demoted"])
+
+    def trojan(self, rows, count=None):
+        return {"findings": [finding("trojan_source", evidence={"mixed_script": rows, "bidi": []}, severity="warning")] if rows else [],
+                "hygiene": {"trojan": {"mixed_script": rows, "mixed_script_count": len(rows) if count is None else count, "bidi": [], "bidi_count": 0}}}
+
+    def test_mixed_tokens_that_are_no_identifier(self):
+        """univer's three: a regex class range and Russian prose naming a function ZТЕСТ."""
+        self.write("src/tools.ts", "const ok = /^[A-Za-zА-Яа-яЁё_]/.test(name);\n// zА in a comment\n")
+        self.write("src/ru-RU.ts", "export default {\n  ZTEST: { description: 'Возвращает значение. функция ZТЕСТ возвращает' },\n};\n")
+        rows = [{"file": "src/tools.ts", "line": 1, "token": "zА", "scripts": ["CYRILLIC", "LATIN"]},
+                {"file": "src/tools.ts", "line": 2, "token": "zА", "scripts": ["CYRILLIC", "LATIN"]},
+                {"file": "src/ru-RU.ts", "line": 2, "token": "ZТЕСТ", "scripts": ["CYRILLIC", "LATIN"]}]
+        self.assertEqual(self.mine(**self.trojan(rows)), ["trojan_inert"] * 3)
+
+    def test_homoglyphs_in_code_and_in_a_bare_literal_are_real(self):
+        """`pаssword = 1` and `role === "аdmin"`: the attack itself, named or not."""
+        self.write("src/auth.ts", 'let pаssword = 1;\nif (role === "аdmin") {}\nconst t = `${pаssword} and Слово`;\n')
+        rows = [{"file": "src/auth.ts", "line": 1, "token": "pаssword", "scripts": ["CYRILLIC", "LATIN"]},
+                {"file": "src/auth.ts", "line": 2, "token": "аdmin", "scripts": ["CYRILLIC", "LATIN"]},
+                {"file": "src/auth.ts", "line": 3, "token": "pаssword", "scripts": ["CYRILLIC", "LATIN"]}]
+        self.assertEqual(self.mine(**self.trojan(rows)), [])
+        self.assertEqual(self.mine(**self.trojan(rows[1:])), ["trojan_missed"], "a fix that drops the code row is caught")
+        self.assertEqual(self.mine(**self.trojan(rows[1:], count=5)), [], "rows capped: not judged")
+
+    def test_a_homoglyph_outside_the_checked_code_is_not_missed(self):
+        self.write("src/a.ts", "// pаssword in a comment\nconst r = /[a-zа-я]/;\n")
+        self.write("tests/a.test.ts", "let pаssword = 1;\n")
+        self.write("docs/a.md", "pаssword\n")
+        self.assertEqual(self.mine(**self.trojan([])), [])
+
+    def actions(self, advice):
+        f = finding("unpinned_actions", advice=f"Pin {advice} to a full commit SHA first, with the tag in a comment.", severity="warning")
+        return {"findings": [f], "hygiene": {"actions": {"origin": {"host": "github.com", "owner": "dream-num"}}}}
+
+    def test_the_pinning_advice_leads_with_what_ranks_first(self):
+        """univer named codecov/codecov-action@v7 while jikkai/sync-gitee@main was given secrets.GITEE_PASSWORD."""
+        self.write(".github/workflows/ci.yml", "on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n"
+                   "      - uses: actions/checkout@v4\n      - uses: codecov/codecov-action@v7\n        with:\n          files: x\n")
+        self.write(".github/workflows/sync.yml", "on: push\njobs:\n  sync:\n    runs-on: ubuntu-latest\n    steps:\n"
+                   "      - name: mirror\n        uses: jikkai/sync-gitee@main\n        with:\n          password: ${{ secrets.GITEE_PASSWORD }}\n"
+                   "      - uses: dream-num/own@main\n")
+        self.assertEqual(self.mine(**self.actions("codecov/codecov-action@v7")), ["action_order"])
+        self.assertEqual(self.mine(**self.actions("jikkai/sync-gitee@main")), [])
+
+    def test_a_job_granted_id_token_ranks_before_one_that_is_not(self):
+        self.write(".github/workflows/release.yml", "on: push\npermissions:\n  contents: read\njobs:\n  plain:\n    runs-on: x\n    steps:\n"
+                   "      - uses: other/lint@v2\n  publish:\n    runs-on: x\n    permissions:\n      id-token: write\n    steps:\n"
+                   "      - uses: pnpm/setup@v2\n      - uses: other/pinned@" + "a" * 40 + "\n")
+        self.assertEqual(self.mine(**self.actions("other/lint@v2")), ["action_order"])
+        self.assertEqual(self.mine(**self.actions("pnpm/setup@v2")), [])
+
+
 class Totals(unittest.TestCase):
     def test_clean_counts_findings_and_tables_are_apart(self):
         f = finding("minor_contributors", "x.py.", "Have Ann review it.", {"files": [{"owner": "Ann"}]})

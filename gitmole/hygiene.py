@@ -363,13 +363,21 @@ def _last_commit(repo: str, path: str) -> int:
 # Cargo.lock resolves the dependency tables (_CARGO_LOCKED), so a comment or a [features] change does not.
 _NPM_LOCKED = ("name", "version", "dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta",
                "bundleDependencies", "bundledDependencies", "overrides", "resolutions", "workspaces")
+# pnpm-lock.yaml records each importer's dependency specifiers and dependenciesMeta and the root's
+# `pnpm` settings (overrides, patched dependencies), and the root's packageManager names the pnpm that
+# writes it (lockfileVersion, settings); it records no importer's name or version, so a release bump of
+# workspace members cannot put it behind (univer: 82 manifests bumped, a lock that is current).
+_PNPM_LOCKED = tuple(k for k in _NPM_LOCKED if k not in ("name", "version")) + ("dependenciesMeta", "pnpm")
+_PNPM_ROOT_LOCKED = ("packageManager",)
 DRIFT_WALK = 200   # manifest commits read past the lock file's last one: a cost bound, not a threshold
 DRIFT_KEPT = 5     # changes kept per drifting manifest, newest first, for the findings to leave the sweeping ones out
 
 
-def _locked_part(name: str, data):
+def _locked_part(name: str, data, lock: str = "", root: bool = True):
     """The part of a manifest its lock file records, or None when that cannot be told (a manifest of
-    another ecosystem, a missing or unparseable file): then every change counts."""
+    another ecosystem, a missing or unparseable file): then every change counts. `lock` is the lock
+    file's basename and `root` whether the manifest sits beside it; only pnpm-lock.yaml reads them, so
+    package-lock.json, npm-shrinkwrap.json, yarn.lock and bun.lock keep _NPM_LOCKED."""
     if data is None:
         return None
     text = data.decode("utf-8", "replace")
@@ -381,7 +389,12 @@ def _locked_part(name: str, data):
             doc = json.loads(text)
         except ValueError:
             return None
-        return {k: doc.get(k) for k in _NPM_LOCKED} if isinstance(doc, dict) else None
+        if not isinstance(doc, dict):
+            return None
+        keys = _NPM_LOCKED
+        if lock == "pnpm-lock.yaml":
+            keys = _PNPM_LOCKED + (_PNPM_ROOT_LOCKED if root else ())
+        return {k: doc.get(k) for k in keys}
     if name == "Cargo.toml":
         return _cargo_locked(text)
     return None
@@ -438,23 +451,24 @@ def _show(repo: str, rev: str, path: str):
     return done.stdout if done.returncode == 0 else None
 
 
-def _moves_lock(repo: str, commit: str, path: str) -> bool:
-    """Whether this commit's change to the manifest touched what the lock file records."""
+def _moves_lock(repo: str, commit: str, path: str, lock: str = "") -> bool:
+    """Whether this commit's change to the manifest touched what the lock file (its path) records."""
     name = path.rsplit("/", 1)[-1]
-    after = _locked_part(name, _show(repo, commit, path))
-    return after is None or after != _locked_part(name, _show(repo, f"{commit}^", path))
+    kind, root = lock.rsplit("/", 1)[-1], os.path.dirname(path) == os.path.dirname(lock)
+    after = _locked_part(name, _show(repo, commit, path), kind, root)
+    return after is None or after != _locked_part(name, _show(repo, f"{commit}^", path), kind, root)
 
 
-def _changes_after(repo: str, path: str, since: int) -> tuple:
-    """The manifest's commits after `since` that touched what its lock records, newest first, as
-    (hash, commit time), at most DRIFT_KEPT; and whether the walk stopped before it had read them all."""
+def _changes_after(repo: str, path: str, since: int, lock: str = "") -> tuple:
+    """The manifest's commits after `since` that touched what its lock (its path) records, newest first,
+    as (hash, commit time), at most DRIFT_KEPT; and whether the walk stopped before it had read them all."""
     out = subprocess.run(["git", *filetypes.RENAMES, "log", "--format=%H %ct", f"-{DRIFT_WALK + 1}", "--", path], cwd=repo, capture_output=True, text=True).stdout.split("\n")
     rows = [(h, int(t)) for h, _, t in (line.partition(" ") for line in out if line) if t.isdigit()]
     kept, cut = [], len(rows) > DRIFT_WALK
     for h, t in rows[:DRIFT_WALK]:
         if t <= since:
             return kept, False
-        if _moves_lock(repo, h, path):
+        if _moves_lock(repo, h, path, lock):
             kept.append((h, t))
             if len(kept) == DRIFT_KEPT:
                 return kept, True
@@ -601,7 +615,7 @@ def lockfiles(repo: str) -> dict:
         pairs += 1
         m, l = _last_commit(repo, path), _last_commit(repo, lock)
         if m > l:
-            changes, more = _changes_after(repo, path, l)
+            changes, more = _changes_after(repo, path, l, lock)
             if changes:
                 drift.append({"manifest": path, "lockfile": lock, "manifest_date": _day(changes[0][1]), "lockfile_date": _day(l),
                               "changes": [{"commit": h, "date": _day(t)} for h, t in changes], **({"more": True} if more else {})})
