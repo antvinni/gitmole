@@ -696,9 +696,13 @@ def _magnet_keep(report: dict):
 
 
 def magnet_rows(report: dict, min_recent: int = 3) -> list:
-    """The fix rows bug_magnets names, every one of them: what --baseline compares (gate.py)."""
+    """The fix rows bug_magnets names, every one of them: what --baseline compares (gate.py). A translation
+    file (filetypes.is_locale_path) is not one: a fix that adds a message adds it to every locale, so the
+    locales are fixed as often as the busiest of them is (univer: 82 of 287 rows). It stays in fix_prone's
+    pool and size strata, which are the repository's rate, not a list of places to look."""
     keep = _magnet_keep(report)
-    return [f for f in report.get("fixes") or [] if f["recent-fixes"] >= min_recent and keep(f["entity"])]
+    return [f for f in report.get("fixes") or []
+            if f["recent-fixes"] >= min_recent and keep(f["entity"]) and not filetypes.is_locale_path(f["entity"])]
 
 
 def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:

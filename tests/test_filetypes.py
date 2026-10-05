@@ -194,6 +194,14 @@ class TestPaths(unittest.TestCase):
         for a, b in (("src/vector.c", "src/list.h"), ("src/vector.c", "include/vector.h"), ("src/a.py", "src/a.pyi"), ("src/vector.c", "src/vector.c")):
             self.assertFalse(filetypes.is_header_pair(a, b), (a, b))
 
+    def test_a_file_named_for_its_locale_is_a_translation(self):
+        for path in ("packages/ui/src/locale/ru-RU.ts", "src/locale/zh-Hant-TW.json", "po/es_419.po", "messages/pt-BR.json", "zh_CN.properties",
+                     "src/locales/de.ts", "app/i18n/messages/fr.json", "src/Locale/en.ts"):
+            self.assertTrue(filetypes.is_locale_path(path), path)
+        for path in ("src/set.ts", "src/api.ts", "src/fx.ts", "src/locale/index.ts", "src/locale/locale.service.ts", "src/locale/en-us.ts",
+                     "src/locale/ru-RU.test.ts", "src/locale-ru-RU/x.ts", "src/en-US/strings.ts"):
+            self.assertFalse(filetypes.is_locale_path(path), path)
+
     def test_release_plumbing_files(self):
         for path in ("lib/sinatra/version.rb", "VERSION", "src/pkg/__version__.py", "package.json", "package-lock.json", "Gemfile.lock",
                      "Cargo.toml", "pyproject.toml", "go.sum", "CHANGELOG.md", "CHANGES.rst", "sinatra.gemspec", "uv.lock"):

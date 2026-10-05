@@ -96,6 +96,20 @@ def is_tooling_path(path: str) -> bool:
     return bool(_TOOLING_PATH.search(path))
 
 
+# A translation file by the shape of its name: a BCP 47 language tag (RFC 5646) of a language, an optional script
+# and a region, `ru-RU.ts`, `zh-Hant-TW.json`, `es_419.po` (the underscore is gettext's and Java's spelling). A bare
+# language, `de.json`, only under a locale/, locales/ or i18n/ directory: without that parent api.ts and set.ts
+# have the shape too.
+_LOCALE_TAG = re.compile(r"(^|/)[a-z]{2,3}(-[A-Z][a-z]{3})?[-_]([A-Z]{2}|\d{3})\.[A-Za-z0-9]+$")
+_LOCALE_BARE = re.compile(r"(^|/)(?i:locales?|i18n)/([^/]+/)*[a-z]{2,3}\.[A-Za-z0-9]+$")
+
+
+def is_locale_path(path: str) -> bool:
+    """A translation file, named for its locale: a string added with a fix lands in every one of them, so a
+    fix count on one says where strings were added, not where the bug was."""
+    return bool(_LOCALE_TAG.search(path) or _LOCALE_BARE.search(path))
+
+
 def is_test_path(path: str) -> bool:
     """A test file or anything under a tests directory (tests/, pending_tests/, e2e-tests/, test_utils/,
     snapshots/ and .snap files, smoke/, e2e/, __fixtures__/, and a -e2e/_e2e/.e2e file): changes with every fix, so not a signal on its own. Also the suffix

@@ -183,6 +183,17 @@ def _hide_header_pairs(pairs: list, full) -> tuple:
     return kept, (f"{hidden} header pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
+def _hide_locale_pairs(pairs: list, full) -> tuple:
+    """Coupled pairs where both files are translations (filetypes.is_locale_path): a message added in one
+    locale is added in all of them, so they change together by construction. A locale paired with the code
+    that uses it stays."""
+    if full is True:
+        return pairs, None
+    kept = [p for p in pairs if not (filetypes.is_locale_path(p["entity"]) and filetypes.is_locale_path(p["coupled"]))]
+    hidden = len(pairs) - len(kept)
+    return kept, (f"{hidden} locale pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
+
+
 def _join_hidden(*notes) -> str:
     """Several hidden-row notes as one caption phrase: 'A hidden; B hidden; --full shows them'."""
     parts = [n[:-len(HIDDEN_SUFFIX)] if n.endswith(HIDDEN_SUFFIX) else n for n in notes if n]
@@ -814,9 +825,10 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     pairs, release_note = _hide_release(pairs, full)
     pairs, example_note = _hide_example_pairs(pairs, full)
     pairs, header_note = _hide_header_pairs(pairs, full)
+    pairs, locale_note = _hide_locale_pairs(pairs, full)
     pairs, vendor_note = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, noun="vendored pair", plural="vendored pairs", report=report, classifier=cls)
     pairs, generated_note = _hide_generated(pairs, lambda p: (p["entity"], p["coupled"]), report, full, noun="generated pair", plural="generated pairs", classifier=cls)
-    gone_note = _join_hidden(gone_note, release_note, example_note, header_note, vendor_note, generated_note)
+    gone_note = _join_hidden(gone_note, release_note, example_note, header_note, locale_note, vendor_note, generated_note)
     groups, cluster_note = [], None
     if full is not True:
         # a directory whose files all change together is one row; --full lists every pair
