@@ -96,6 +96,25 @@ def is_tooling_path(path: str) -> bool:
     return bool(_TOOLING_PATH.search(path))
 
 
+# A translation file by the shape of its name, a BCP 47 language tag (RFC 5646): a language, an optional script and
+# a region. Anywhere in the tree only with a letter region, `ru-RU.ts`, `zh-Hant-TW.json`, `pt_BR.properties` (the
+# underscore is gettext's and Java's spelling). A numeric region (`es-419.json`) or no region (`de.json`,
+# `zh-Hant.json`) only in a locale/, locales/, i18n/ or po/ directory, directly or in gettext's
+# <lang>/LC_MESSAGES/ below it: outside one, app_100.ts and api.ts have the shape too, and deeper inside one,
+# an i18n package's own src/ is code. Not covered: a lower-case region (`en-us.ts`), and a file named for its
+# domain in a directory named for its locale (`fr/LC_MESSAGES/django.po`).
+_LANG = r"[a-z]{2,3}(-[A-Z][a-z]{3})?"
+_LOCALE_TAG = re.compile(rf"(^|/){_LANG}[-_][A-Z]{{2}}\.[A-Za-z0-9]+$")
+_LOCALE_DIR = re.compile(rf"(^|/)(?i:locales?|i18n|po)/({_LANG}([-_]([A-Z]{{2}}|\d{{3}}))?/LC_MESSAGES/)?"
+                         rf"{_LANG}([-_]([A-Z]{{2}}|\d{{3}}))?\.[A-Za-z0-9]+$")
+
+
+def is_locale_path(path: str) -> bool:
+    """A translation file, named for its locale: a string added with a fix lands in every one of them, so a
+    fix count on one says where strings were added, not where the bug was."""
+    return bool(_LOCALE_TAG.search(path) or _LOCALE_DIR.search(path))
+
+
 def is_test_path(path: str) -> bool:
     """A test file or anything under a tests directory (tests/, pending_tests/, e2e-tests/, test_utils/,
     snapshots/ and .snap files, smoke/, e2e/, __fixtures__/, and a -e2e/_e2e/.e2e file): changes with every fix, so not a signal on its own. Also the suffix

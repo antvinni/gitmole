@@ -727,6 +727,24 @@ class Report(unittest.TestCase):
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
         self.assertIn("100%", full)
 
+    def test_default_coupling_hides_locale_pairs_and_says_so(self):
+        """univer's top two rows were locale/ clusters: a message added in one locale is added in all of them.
+        A locale paired with the code that reads it stays."""
+        r = sample_report()
+        for f in ("src/locale/en-US.ts", "src/locale/zh-CN.ts", "src/locales/de.ts", "src/locale/index.ts", "src/menu.ts"):
+            r["size"]["files"][f] = {"code": 30, "complexity": 1}
+        r["coupling"] = [{"entity": "src/locale/en-US.ts", "coupled": "src/locale/zh-CN.ts", "degree": 91, "average-revs": 20},
+                         {"entity": "src/locales/de.ts", "coupled": "src/locale/zh-CN.ts", "degree": 88, "average-revs": 20},
+                         {"entity": "src/locale/en-US.ts", "coupled": "src/menu.ts", "degree": 60, "average-revs": 9},
+                         {"entity": "src/locale/index.ts", "coupled": "src/locale/en-US.ts", "degree": 55, "average-revs": 9}]
+        coupling = _section_text(rendered(r, [], width=200), "Change coupling")
+        self.assertIn("src/menu.ts", coupling)
+        self.assertIn("src/locale/index.ts", coupling)
+        self.assertNotIn("zh-CN", coupling)
+        self.assertIn("2 locale pairs hidden; --full shows them", coupling)
+        full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
+        self.assertIn("91%", full)
+
     def test_default_coupling_hides_pairs_of_examples_and_says_so(self):
         """curl's top two rows were docs/examples/ clusters: sibling programs showing one technique for
         two protocols. An example paired with the code it demonstrates stays."""

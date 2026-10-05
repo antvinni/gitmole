@@ -12,8 +12,12 @@ import re
 from . import metrics
 
 
-def _repo_ranking(rec: dict):
+def _repo_ranking(rec: dict, outcome: str = "current"):
+    """One repository's ranking numbers, against the current outcome or the declared-type one (a cut-off
+    without a `declared` score is one whose repository declares nothing: the two outcomes are the same)."""
     rows = [r for r in ((rec.get("ranking") or {}).get("cutoffs") or []) if "error" not in r]
+    if outcome == "declared":
+        rows = [{**r, **r["declared"]} if r.get("declared") else r for r in rows]
     if not rows:
         return None
     h, e, b, ch = (sum(r[k] for r in rows) for k in ("hits", "expected", "best", "churn_hits"))
@@ -116,6 +120,9 @@ def summarise(record: dict, only=None) -> dict:
         out["outcome_account"] = {"cutoffs": len(accounts), "outcome": sum(a["outcome"] for a in accounts),
                                   "credited": sum(a["credited"] for a in accounts), "by_cause": dict(sorted(causes.items()))}
     out["saturated_cutoffs"] = [sum(1 for c in cuts if c.get("pool") and c["positives"] / c["pool"] >= SATURATED), len(cuts)] if cuts else None
+    declared = declared_outcome(pop)
+    if declared:
+        out["declared_outcome"] = declared
     ok = [r for r in cost.values() if r["status"] == "ok"]
     out["findings_median"] = metrics.median([r.get("findings") for r in ok])
     out["findings_p90"] = _round(metrics.percentile([r.get("findings") for r in ok], 0.9), 1)
@@ -170,6 +177,27 @@ def summarise(record: dict, only=None) -> dict:
                               if isinstance(r.get("remediation"), dict) and r["remediation"].get("asked") is False})
             if reasons:
                 out["remediation"] = {"asked": False, "reason": "; ".join(reasons)}
+    return out
+
+
+def declared_outcome(pop: dict):
+    """The ranking numbers again against the declared-type outcome (measure.outcome), over the same
+    repositories, and which of them declare Conventional Commits; information beside the current outcome's,
+    never instead of it. None for a record made before the harness kept the convention."""
+    conventions = {n: (r.get("ranking") or {}).get("convention") for n, r in pop.items()}
+    if not any(c is not None for c in conventions.values()):
+        return None
+    ranked = {n: _repo_ranking(r, "declared") for n, r in pop.items()}
+    ranked = {n: v for n, v in ranked.items() if v}
+    sized = bool(ranked) and all(v["size_stored"] for v in ranked.values())
+    out = {"declaring": sorted(n for n, c in conventions.items() if c and c.get("declared")),
+           "repos": len(ranked),
+           "headroom": _round(metrics.median([v["headroom"] for v in ranked.values()])),
+           "churn_headroom": _round(metrics.median([v["churn_headroom"] for v in ranked.values()])),
+           "size_headroom": _round(metrics.median([v["size_headroom"] for v in ranked.values()])) if sized else None,
+           "wins_losses_ties": [sum(v[k] for v in ranked.values()) for k in ("wins", "losses", "ties")] if ranked else None}
+    for k in ("auc", "churn_auc", "recall20", "churn_recall20"):
+        out[k] = _round(metrics.median([v[k] for v in ranked.values()]))
     return out
 
 
