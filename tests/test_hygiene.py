@@ -306,6 +306,63 @@ class Lockfiles(unittest.TestCase):
                          [("packages/a/tools/package.json", "packages/a/tools/bun.lock"), ("packages/legacy/package.json", "packages/legacy/bun.lock")],
                          "electron, packages/a and site/apps/web/ui are members their roots relocked; the rest keep their own lock")
 
+    ROOT_MANIFEST = {"name": "mono", "version": "1.0.0", "private": True, "workspaces": ["packages/*"], "packageManager": "pnpm@9.1.0",
+                     "pnpm": {"overrides": {"left-pad": "1.3.0"}}, "devDependencies": {"typescript": "5.4.0"}}
+    MEMBER_MANIFEST = {"name": "@mono/a", "version": "1.0.0", "dependencies": {"left-pad": "^1.0.0"},
+                       "peerDependencies": {"react": "*"}, "peerDependenciesMeta": {"react": {"optional": True}},
+                       "dependenciesMeta": {"left-pad": {"injected": False}}}
+
+    def _drift_after(self, lock, root=None, member=None):
+        """The (manifest, lockfile) drift pairs after one commit that rewrites the root and member manifests
+        of a workspace locked by `lock` at its root, a month after the lock's last commit."""
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("package.json", json.dumps(self.ROOT_MANIFEST, indent=2))
+            r.write("packages/a/package.json", json.dumps(self.MEMBER_MANIFEST, indent=2))
+            if lock == "pnpm-lock.yaml":
+                r.write("pnpm-workspace.yaml", "packages:\n  - packages/*\n")
+            r.write(lock, "lockfileVersion: '9.0'\n")
+            r.commit(date="2026-09-01T00:00:00")
+            r.write("package.json", json.dumps(root or self.ROOT_MANIFEST, indent=2))
+            r.write("packages/a/package.json", json.dumps(member or self.MEMBER_MANIFEST, indent=2))
+            r.git("add", "-A")
+            r.git("commit", "-q", "--allow-empty", "-m", "change", date="2026-10-01T00:00:00")
+            return sorted((x["manifest"], x["lockfile"]) for x in hygiene.lockfiles(d)["drift"])
+
+    def test_pnpm_lock_does_not_record_a_name_or_a_version(self):
+        """univer: 82 package.json files "changed after pnpm-lock.yaml" — every member's release bump. pnpm-lock.yaml
+        records each importer's dependency specifiers, never its name or version, so a bump cannot put it behind."""
+        bumped_root = dict(self.ROOT_MANIFEST, name="mono-renamed", version="1.1.0", scripts={"build": "tsc"})
+        bumped_member = dict(self.MEMBER_MANIFEST, name="@mono/a2", version="1.1.0", description="now described")
+        self.assertEqual(self._drift_after("pnpm-lock.yaml", bumped_root, bumped_member), [])
+        moved_member = dict(self.MEMBER_MANIFEST, packageManager="pnpm@9.2.0")
+        self.assertEqual(self._drift_after("pnpm-lock.yaml", member=moved_member), [],
+                         "pnpm reads packageManager from the workspace root only")
+
+    def test_pnpm_lock_still_drifts_on_what_it_records(self):
+        both = [("package.json", "pnpm-lock.yaml"), ("packages/a/package.json", "pnpm-lock.yaml")]
+        root_only, member_only = both[:1], both[1:]
+        cases = {
+            "member dependency": ({}, {"dependencies": {"left-pad": "^1.1.0"}}, member_only),
+            "member peerDependenciesMeta": ({}, {"peerDependenciesMeta": {"react": {"optional": False}}}, member_only),
+            "member dependenciesMeta": ({}, {"dependenciesMeta": {"left-pad": {"injected": True}}}, member_only),
+            "root devDependency": ({"devDependencies": {"typescript": "5.5.0"}}, {}, root_only),
+            "root packageManager": ({"packageManager": "pnpm@9.2.0"}, {}, root_only),
+            "root pnpm.overrides": ({"pnpm": {"overrides": {"left-pad": "1.3.1"}}}, {}, root_only),
+            "a version bump beside a dependency change": ({"version": "2.0.0"}, {"version": "2.0.0", "optionalDependencies": {"fsevents": "2"}}, member_only),
+        }
+        for label, (root, member, expected) in cases.items():
+            with self.subTest(label):
+                self.assertEqual(self._drift_after("pnpm-lock.yaml", dict(self.ROOT_MANIFEST, **root), dict(self.MEMBER_MANIFEST, **member)), expected)
+
+    def test_npm_yarn_and_bun_locks_keep_the_name_and_version(self):
+        """package-lock.json and npm-shrinkwrap.json record the root's and each workspace's name and version, so a
+        version-only bump still puts them behind; yarn.lock and bun.lock keep that reading until a fixture shows theirs."""
+        for lock in ("package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "bun.lock"):
+            with self.subTest(lock):
+                self.assertEqual(self._drift_after(lock, dict(self.ROOT_MANIFEST, version="1.1.0"), dict(self.MEMBER_MANIFEST, version="1.1.0")),
+                                 [("package.json", lock), ("packages/a/package.json", lock)])
+
 
 class DependencyUpdates(unittest.TestCase):
     def test_ecosystems_with_a_lockfile_that_dependabot_does_not_cover(self):
