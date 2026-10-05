@@ -4,7 +4,9 @@ A release is its own source, extracted with `git archive` (or the working tree),
 interpreter under PYTHONPATH, so every release is judged by its own code. What a release produces is
 then scored by THIS tree's definitions, which stay fixed across the history: the outcome at a cut-off
 is the current evaluate.fixed_between (or the corpus labels), over a change log exported the current way.
-So a difference between two releases is a difference in the releases, not in the yardstick."""
+So a difference between two releases is a difference in the releases, not in the yardstick. Fix locality
+is scored by both of this tree's definitions of a fix (measure.outcome): `current` in each cut-off's row,
+`declared` beside it where the repository declares Conventional Commits."""
 from __future__ import annotations
 
 import hashlib
@@ -18,7 +20,7 @@ import sys
 import time
 
 from .. import evaluate, maat, run, szz
-from . import claims, consistency, corpus, metrics
+from . import claims, consistency, corpus, metrics, outcome as outcomes
 from . import labels as hand_labels   # `labels` is the ApacheJIT dict below
 
 HERE = os.path.dirname(os.path.realpath(__file__))
@@ -449,10 +451,11 @@ def magnets_at(rank: dict, outcome: set) -> dict:
             "observed": observed, "expected": round(expected, 6), "unmatched": unmatched}
 
 
-def cutoff_windows(entry: dict, commits: list, labels: dict = None) -> list:
+def cutoff_windows(entry: dict, commits: list, labels: dict = None, fix=None) -> list:
     """[(cut-off, outcome)] for one repository: the six cut-offs the history reaches back to, and the files
     fixed (or labelled) in the horizon after each. The releases' rankings and a candidate's comparison take
-    their dates and outcomes from here, so the two cannot drift apart."""
+    their dates and outcomes from here, so the two cannot drift apart. `fix` is the fix classifier of an
+    outcome (measure.outcome.predicate), maat.is_fix when None; labels do not use one."""
     if not commits:
         return []
     last = entry.get("end") or max(c["date"] for c in commits)[:10]
@@ -462,8 +465,24 @@ def cutoff_windows(entry: dict, commits: list, labels: dict = None) -> list:
         if t <= earliest:
             continue
         end = evaluate.months_after(t, HORIZON)
-        out.append((t, evaluate.labelled_between(commits, labels, t, end) if labels is not None else evaluate.fixed_between(commits, t, end)))
+        out.append((t, evaluate.labelled_between(commits, labels, t, end) if labels is not None else evaluate.fixed_between(commits, t, end, fix)))
     return out
+
+
+def declared_windows(entry: dict, commits: list, clone: str, labels: dict = None):
+    """(convention, {cut-off: outcome}) for the declared-type outcome: the repository's convention
+    (measure.outcome.convention) and, where it declares one, the files a commit typed `fix` touched in
+    each horizon. None and {} for labels, which no fix classifier decides; the convention and {} where
+    the repository declares nothing, the declared outcome then being the current one."""
+    if labels is not None:
+        return None, {}
+    conv = outcomes.convention(clone)
+    if not conv["declared"]:
+        return conv, {}
+    return conv, dict(cutoff_windows(entry, commits, None, outcomes.predicate("declared", conv)))
+
+
+DECLARED_DROP = ("top", "pool_digest")   # the same list and the same pool under either outcome: kept once, in the row
 
 
 def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache: str, labels: dict = None) -> dict:
@@ -486,6 +505,7 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
         if "error" not in rank:
             latest[t0] = rank
     rows, magnets = [], []
+    conv, declared = declared_windows(entry, commits, clone, labels)
     for t, outcome in cutoff_windows(entry, commits, labels):
         rank = latest.get(t) or ranking_at(src, clone, out, t, reference)
         if t == t0 and "error" not in rank:
@@ -494,6 +514,8 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
             rows.append({"cutoff": t, "error": rank["error"]})
             continue
         row = {"cutoff": t, **score(rank, outcome)}
+        if t in declared:   # the declared-type outcome beside the current one, never instead of it
+            row["declared"] = {k: v for k, v in score(rank, declared[t]).items() if k not in DECLARED_DROP}
         account = misses(rank, outcome)
         if account is not None:
             row["misses"] = account
@@ -510,7 +532,10 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
         if "error" not in a and "error" not in b:
             stability = {"from": t0, "to": t1, "spearman": metrics.spearman(a["pool"], b["pool"]),
                          "top_jaccard": metrics.jaccard(a["pool"][:TOP], b["pool"][:TOP])}
-    return {"cutoffs": rows, "stability": stability, "magnets": magnets}
+    out = {"cutoffs": rows, "stability": stability, "magnets": magnets}
+    if conv is not None:
+        out["convention"] = conv
+    return out
 
 
 # --- was it acted on? remediation at the same cut-offs -------------------------------------------

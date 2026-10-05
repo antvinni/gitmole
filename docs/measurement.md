@@ -130,6 +130,30 @@ it stood when the outcome was observed, so no window's outcome depends on what
 the repository did after it. `evaluate.py` computes the same against three
 outcome definitions (fix locality, R-SZZ bug insertion, external labels).
 
+**Two definitions of a fix.** Fix locality and R-SZZ both start from which
+commits are fixes, and the harness holds two definitions of that in its own
+tree (`gitmole/measure/outcome.py`), never in the release being measured.
+`current` is `maat.is_fix`, what the tool ships: a `fix:` prefix or a fix or bug
+word anywhere in the subject, so "ci: fix event name" counts. `declared` takes
+a repository that declares Conventional Commits at its word: a fix is a commit
+typed `fix` and nothing else. A repository declares the convention by tracking
+a commitlint or commitizen configuration at its root, or by typing at least 90%
+of its non-merge subjects with one of the convention's own types (the
+specification's `fix` and `feat` and config-conventional's `build`, `chore`,
+`ci`, `docs`, `perf`, `refactor`, `revert`, `style`, `test`; an `area: text`
+subject is not typed). The threshold was set in the univer debate before any
+run, not swept. A repository that declares nothing scores the same under both.
+Each cut-off's row keeps the current score and, where the repository declares
+the convention, the declared one under `declared`; the ranking keeps the
+`convention` it was decided on (the configurations by name and the typed
+share), and the dashboard prints the declared headroom beside the current one
+for information. `candidate` scores both and `--outcome` names the one that
+decides, `current` unless asked, so a change to `maat.is_fix` is judged against
+an outcome it cannot move. Labels are not switched: no definition of a fix
+decides them, and `candidate --holdout` refuses `--outcome`. On the 0.44.0
+clones no development, large or well-kept repository declares the convention
+(jadx comes closest, 73% typed), so the two outcomes are identical there.
+
 **Headroom, not raw hits and not lift.** Raw hits do not compare across
 repositories: curl scores 86 against a random expectation of 30.1, react 55
 against 5.1. Dividing by the expectation (lift) looks like the fix, but lift

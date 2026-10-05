@@ -4,7 +4,7 @@ the same six cut-offs, and scored on the baseline's pool against the same outcom
 cut-off is the candidate's top-fifteen hits minus the baseline's, averaged per repository, and an exact
 one-sided sign-flip test over the repositories decides.
 
-    python -m gitmole.measure.candidate BASE CANDIDATE [--sets development,large,well-kept] [--only NAME]... [--json PATH]
+    python -m gitmole.measure.candidate BASE CANDIDATE [--sets development,large,well-kept] [--only NAME]... [--outcome current|declared] [--json PATH]
     python -m gitmole.measure.candidate BASE CANDIDATE --holdout --approved "who agreed, when" [--again] [--json PATH]
 
 BASE and CANDIDATE are git refs of this repository ("worktree" for the working tree, except on the
@@ -19,7 +19,13 @@ a candidate that crashes where it would lose be judged on the rest. What the sat
 the pool or more fixed) do to the result is printed for information and never decides: at such a
 cut-off the two lists tend to name the same files and tie on their own. Where the labels end (the
 holdout's), the decision is printed again without the cut-offs that may be snoring (snore_exposed), for
-information only."""
+information only.
+
+Fix locality has two definitions of a fix, both this tree's and never the releases' (measure.outcome):
+`current` (maat.is_fix) and `declared` (the type `fix` alone, where the repository declares Conventional
+Commits). Both are scored and printed side by side; --outcome names the one that decides, `current`
+unless asked, so a candidate that changes the classifier is judged against an outcome it cannot move.
+The holdout is scored on its labels, which neither definition decides."""
 from __future__ import annotations
 
 import argparse
@@ -33,6 +39,7 @@ from fractions import Fraction
 
 from .. import evaluate
 from . import corpus, dashboard, harness, metrics
+from . import outcome as outcomes
 
 SATURATED = dashboard.SATURATED   # half the pool or more fixed at a cut-off: flagged, for information only
 ALPHA = 0.05                      # the one-sided p under which a positive mean effect counts
@@ -71,10 +78,20 @@ def _effects(rows: dict) -> dict:
     return {r: Fraction(sum(x["d"] for x in xs), len(xs)) for r, xs in rows.items() if xs}
 
 
-def decide(rows: dict) -> dict:
+def under(rows: dict, outcome: str) -> dict:
+    """The rows as scored against `outcome`: a cut-off's `declared` pairing in place of its own under the
+    declared-type outcome, where the repository declares the convention (elsewhere the two are one)."""
+    if outcome == "current":
+        return rows
+    return {r: [{**x, **x["declared"]} if x.get("declared") else x for x in xs] for r, xs in rows.items()}
+
+
+def decide(rows: dict, outcome: str = "current") -> dict:
     """{repository: [rows]} -> the per-repository mean effects, their mean, the exact one-sided sign-flip p
     over repositories, and wins, losses and ties over repositories; `failed` counts the rows that carry an
-    error, per repository; beside it, for information, the same without the saturated cut-offs."""
+    error, per repository; beside it, for information, the same without the saturated cut-offs. `outcome`
+    is the definition of a fix the rows are read under (measure.outcome)."""
+    rows = under(rows, outcome)
     failed = {r: sum("error" in x for x in xs) for r, xs in rows.items() if any("error" in x for x in xs)}
     rows = {r: [x for x in xs if "d" in x] for r, xs in rows.items()}
 
@@ -171,9 +188,11 @@ def holdout_preflight(args, entries: list, root: str, labels_dir: str) -> list:
     return sorted(set(problems))
 
 
-def compare_entry(base_src: str, cand_src: str, entry: dict, root: str, reference: str, labels_dir: str) -> list:
-    """Both releases on one repository: each run once from its own source, then ranked at every cut-off.
-    A failure on either side is a row with an error, never a missing row."""
+def compare_entry(base_src: str, cand_src: str, entry: dict, root: str, reference: str, labels_dir: str, conventions: dict = None) -> list:
+    """Both releases on one repository: each run once from its own source, then ranked at every cut-off,
+    each cut-off paired against the current outcome and, where the repository declares Conventional
+    Commits, against the declared-type one under `declared`. A failure on either side is a row with an
+    error, never a missing row. The repository's convention goes into `conventions` when one is given."""
     labels = harness.labels_for(entry, None, labels_dir) if entry.get("labels") else None
     if entry.get("labels") and labels is None:
         return [{"error": "labels not found"}]   # never quietly scored on fix locality instead
@@ -185,6 +204,9 @@ def compare_entry(base_src: str, cand_src: str, entry: dict, root: str, referenc
             return [{"error": f"{side}: {rec.get('note') or rec.get('status')}"}]
         outs[side] = rec["out"]
     commits = harness.canonical_log(clone, os.path.join(root, "logs", entry["name"] + ".txt"))
+    conv, declared = harness.declared_windows(entry, commits, clone, labels)
+    if conventions is not None:
+        conventions[entry["name"]] = conv
     rows = []
     for t, outcome in harness.cutoff_windows(entry, commits, labels):
         base = harness.ranking_at(base_src, clone, outs["base"], t, reference)
@@ -192,7 +214,10 @@ def compare_entry(base_src: str, cand_src: str, entry: dict, root: str, referenc
         if "error" in base or "error" in cand:
             rows.append({"cutoff": t, "error": ("base: " + base["error"]) if "error" in base else ("candidate: " + cand["error"])})
             continue
-        rows.append({"cutoff": t, **paired(base, cand, outcome)})
+        row = {"cutoff": t, **paired(base, cand, outcome)}
+        if t in declared:
+            row["declared"] = paired(base, cand, declared[t])
+        rows.append(row)
     return rows
 
 
@@ -205,6 +230,9 @@ def _p(x) -> str:
 
 
 def markdown(base: str, cand: str, sets: str, rows: dict, result: dict) -> str:
+    """The decision as Markdown, its table read under the outcome that decided (result["outcome"]), then
+    both outcomes side by side when the result carries them."""
+    raw, rows = rows, under(rows, result.get("outcome", outcomes.DEFAULT))
     lines = [f"### {cand} against {base}, {sets}", "",
              "| repository | cut-offs | baseline hits | candidate hits | mean effect | saturated | pool moved | failed |",
              "|---|---:|---:|---:|---:|---:|---:|---|"]
@@ -228,7 +256,31 @@ def markdown(base: str, cand: str, sets: str, rows: dict, result: dict) -> str:
               "candidate's own pool differs from the baseline's; both were scored on the baseline's."]
     if result.get("unsnored") is not None:
         lines += ["", snoring_table(result, result["unsnored"])]
+    if result.get("outcomes"):
+        lines += ["", outcomes_table(raw, result["outcomes"], result.get("outcome", outcomes.DEFAULT), result.get("conventions") or {})]
     return "\n".join(lines) + "\n"
+
+
+def outcomes_table(rows: dict, results: dict, deciding: str, conventions: dict) -> str:
+    """Both definitions of a fix side by side (measure.outcome), per repository, with the decision under
+    each; the one --outcome named decides and the other is information. A repository that declares no
+    convention scores the same under both."""
+    def hits(name, outcome):
+        ok = [x for x in under({name: rows[name]}, outcome)[name] if "d" in x]
+        return sum(x["base_hits"] for x in ok), sum(x["cand_hits"] for x in ok)
+    lines = [f"Fix locality by both definitions of a fix (measure.outcome); **{deciding}** decides, the other is information:", "",
+             "| repository | convention | baseline hits, current | candidate hits, current | effect, current | "
+             "baseline hits, declared | candidate hits, declared | effect, declared |", "|---|---|---:|---:|---:|---:|---:|---:|"]
+    for name in sorted(rows):
+        (bc, cc), (bd, cd) = hits(name, "current"), hits(name, "declared")
+        lines.append(f"| {name} | {outcomes.describe(conventions.get(name)) if name in conventions else '-'} | {bc} | {cc} | "
+                     f"{_num(results['current']['effects'].get(name))} | {bd} | {cd} | {_num(results['declared']['effects'].get(name))} |")
+    lines.append("")
+    for o in outcomes.OUTCOMES:
+        r = results[o]
+        lines.append(f"- {o}: mean effect {_num(r['mean'])}, wins, losses and ties {r['wins']}/{r['losses']}/{r['ties']}, "
+                     f"p = {_p(r['p'])}, **{verdict(r)}**{' (decides)' if o == deciding else ' (information)'}")
+    return "\n".join(lines)
 
 
 def snoring_table(result: dict, quiet: dict) -> str:
@@ -249,8 +301,10 @@ def snoring_table(result: dict, quiet: dict) -> str:
 
 
 def _jsonable(result: dict) -> dict:
+    """The result for --json: its Fractions as floats. Both outcomes' results are written beside it, not in it."""
     def part(x):
         return {**x, "effects": {k: float(v) for k, v in x["effects"].items()}, "mean": None if x["mean"] is None else float(x["mean"])}
+    result = {k: v for k, v in result.items() if k != "outcomes"}
     out = {**part(result), "without_saturated": part(result["without_saturated"]), "verdict": verdict(result)}
     if result.get("unsnored") is not None:
         quiet = result["unsnored"]
@@ -267,8 +321,13 @@ def main(argv=None) -> int:
     p.add_argument("--holdout", action="store_true", help="read the holdout: needs --approved")
     p.add_argument("--approved", default="", help="who agreed to this holdout read, and when")
     p.add_argument("--again", action="store_true", help="a second holdout read of the same candidate, counted as one")
+    p.add_argument("--outcome", choices=outcomes.OUTCOMES, default=outcomes.DEFAULT,
+                   help="the definition of a fix that decides (measure.outcome); both are printed")
     p.add_argument("--json", help="write the rows and the result here")
     args = p.parse_args(argv)
+    if args.holdout and args.outcome != outcomes.DEFAULT:
+        print("candidate: the holdout is scored on its labels, which no definition of a fix decides: --outcome is refused with --holdout", file=sys.stderr)
+        return 2
     manifest = corpus.load()
     root = corpus.workspace()
     sets = "holdout" if args.holdout else args.sets
@@ -291,14 +350,16 @@ def main(argv=None) -> int:
         except (ValueError, SpentRead) as e:
             print(f"candidate: {e}", file=sys.stderr)
             return 2
-    rows = {}
+    rows, conventions = {}, {}
     for entry in entries:
         print(f"candidate: {entry['name']}", file=sys.stderr, flush=True)
-        rows[entry["name"]] = compare_entry(base_src, cand_src, entry, root, manifest["reference_date"], labels_dir)
-    result = decide(rows)
+        rows[entry["name"]] = compare_entry(base_src, cand_src, entry, root, manifest["reference_date"], labels_dir, conventions)
+    both = {o: decide(rows, o) for o in outcomes.OUTCOMES}
+    result = dict(both[args.outcome])
     ends = {e["name"]: e["end"] for e in entries if e.get("labels") and e.get("end")}
     if ends:   # labels that stop can snore (the holdout's); fix locality cannot, and gets no such column
-        result["unsnored"] = unsnored(rows, ends)
+        result["unsnored"] = unsnored(under(rows, args.outcome), ends)
+    result.update(outcome=args.outcome, outcomes=both, conventions=conventions)
     print(markdown(args.base, args.candidate, sets, rows, result))
     dirty = "worktree" in (args.base, args.candidate) and bool(subprocess.run(
         ["git", "status", "--porcelain", "--untracked-files=no"], cwd=corpus.ROOT, capture_output=True, text=True).stdout.strip())
@@ -306,7 +367,9 @@ def main(argv=None) -> int:
         with open(args.json, "w", encoding="utf-8") as fh:
             json.dump({"base": args.base, "candidate": args.candidate, "commits": list(commits), "sets": sets,
                        "worktree_dirty": dirty,   # a working tree is HEAD plus changes no commit names
-                       "rows": rows, "result": _jsonable(result)}, fh, indent=2, sort_keys=True)
+                       "outcome": args.outcome, "conventions": conventions,
+                       "rows": rows, "result": _jsonable(result),
+                       "outcomes": {o: _jsonable(r) for o, r in both.items()}}, fh, indent=2, sort_keys=True)
     return 0 if verdict(result) in ("better", "not shown") else 1   # incomplete or no data: nothing was decided
 
 
