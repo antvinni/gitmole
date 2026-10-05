@@ -13,6 +13,7 @@ yarn.lock records `peerDependencies` per entry; a Yarn 1 lock records no peers a
 Everything here is what the lock itself says; nothing is resolved again."""
 from __future__ import annotations
 
+import collections
 import json
 import re
 
@@ -120,15 +121,24 @@ def _link(importer: str, version: str):
     return "/".join(parts) or "."
 
 
-def pnpm_runtime(parsed: dict) -> set:
-    """(name, version) of every package reachable from any importer's dependencies or optionalDependencies,
-    following workspace links and each package's own dependencies: what an install without dev
-    dependencies (`pnpm install --prod`) puts on disk."""
+def pnpm_runtime(parsed: dict, held=()) -> dict:
+    """{(name, version): via} for every package reachable from a shipping importer's dependencies or
+    optionalDependencies, following workspace links and each package's own dependencies: what an install
+    without dev dependencies (`pnpm install --prod`) puts on disk for something that ships. `via` is the
+    direct dependency the shortest path starts from (the package itself when it is one).
+
+    `held` names the importers that are not walked from: a workspace member that declares itself
+    unpublished ("private": true) and has nothing that deploys it, so its dependencies serve the
+    workspace's own development. The lock's root importer is walked from whatever it declares (a lone
+    private app ships), and a held member that a walked importer links to is followed like any other.
+    So a private workspace root that lists its tooling under `dependencies` rather than
+    `devDependencies` over-reports runtime: accepted, as the root cannot be told from a lone app."""
     importers, graph = parsed["importers"], parsed["graph"]
+    held = set(held) - {".", ""}
     by_plain = {}
     for key in graph:   # a snapshot may be recorded without the suffix its parent names, or the other way round
         by_plain.setdefault(key.split("(", 1)[0], []).append(key)
-    seen, out, todo, done = set(), set(), [], set()
+    seen, out, todo, done = set(), {}, collections.deque(), set()
 
     def visit_importer(imp):
         if imp in done or imp not in importers:
@@ -140,20 +150,20 @@ def pnpm_runtime(parsed: dict) -> set:
                 if linked is not None:
                     visit_importer(linked)
                 else:
-                    todo.append((name, version))
+                    todo.append((name, version, name))
     for imp in list(importers):
-        visit_importer(imp)
-    while todo:
-        name, version = todo.pop()
+        if imp not in held:
+            visit_importer(imp)
+    while todo:   # breadth first, so each package keeps the direct dependency of its shortest path
+        name, version, via = todo.popleft()
         key = _pnpm_ref(name, version)
         if key is None or key in seen:
             continue
         seen.add(key)
-        n, v = split_key(key)
-        out.add((n, v))
+        out.setdefault(split_key(key), via)
         keys = [key] if key in graph else by_plain.get(key.split("(", 1)[0], [])
         for k in keys:
-            todo.extend(graph[k].items())
+            todo.extend((n, v, via) for n, v in graph[k].items())
     return out
 
 

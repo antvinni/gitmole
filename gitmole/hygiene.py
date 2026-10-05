@@ -283,13 +283,21 @@ def _last_commit(repo: str, path: str) -> int:
 # Cargo.lock resolves the dependency tables (_CARGO_LOCKED), so a comment or a [features] change does not.
 _NPM_LOCKED = ("name", "version", "dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta",
                "bundleDependencies", "bundledDependencies", "overrides", "resolutions", "workspaces")
+# pnpm-lock.yaml records each importer's dependency specifiers and dependenciesMeta and the root's
+# `pnpm` settings (overrides, patched dependencies), and the root's packageManager names the pnpm that
+# writes it (lockfileVersion, settings); it records no importer's name or version, so a release bump of
+# workspace members cannot put it behind (univer: 82 manifests bumped, a lock that is current).
+_PNPM_LOCKED = tuple(k for k in _NPM_LOCKED if k not in ("name", "version")) + ("dependenciesMeta", "pnpm")
+_PNPM_ROOT_LOCKED = ("packageManager",)
 DRIFT_WALK = 200   # manifest commits read past the lock file's last one: a cost bound, not a threshold
 DRIFT_KEPT = 5     # changes kept per drifting manifest, newest first, for the findings to leave the sweeping ones out
 
 
-def _locked_part(name: str, data):
+def _locked_part(name: str, data, lock: str = "", root: bool = True):
     """The part of a manifest its lock file records, or None when that cannot be told (a manifest of
-    another ecosystem, a missing or unparseable file): then every change counts."""
+    another ecosystem, a missing or unparseable file): then every change counts. `lock` is the lock
+    file's basename and `root` whether the manifest sits beside it; only pnpm-lock.yaml reads them, so
+    package-lock.json, npm-shrinkwrap.json, yarn.lock and bun.lock keep _NPM_LOCKED."""
     if data is None:
         return None
     text = data.decode("utf-8", "replace")
@@ -301,7 +309,12 @@ def _locked_part(name: str, data):
             doc = json.loads(text)
         except ValueError:
             return None
-        return {k: doc.get(k) for k in _NPM_LOCKED} if isinstance(doc, dict) else None
+        if not isinstance(doc, dict):
+            return None
+        keys = _NPM_LOCKED
+        if lock == "pnpm-lock.yaml":
+            keys = _PNPM_LOCKED + (_PNPM_ROOT_LOCKED if root else ())
+        return {k: doc.get(k) for k in keys}
     if name == "Cargo.toml":
         return _cargo_locked(text)
     return None
@@ -358,23 +371,24 @@ def _show(repo: str, rev: str, path: str):
     return done.stdout if done.returncode == 0 else None
 
 
-def _moves_lock(repo: str, commit: str, path: str) -> bool:
-    """Whether this commit's change to the manifest touched what the lock file records."""
+def _moves_lock(repo: str, commit: str, path: str, lock: str = "") -> bool:
+    """Whether this commit's change to the manifest touched what the lock file (its path) records."""
     name = path.rsplit("/", 1)[-1]
-    after = _locked_part(name, _show(repo, commit, path))
-    return after is None or after != _locked_part(name, _show(repo, f"{commit}^", path))
+    kind, root = lock.rsplit("/", 1)[-1], os.path.dirname(path) == os.path.dirname(lock)
+    after = _locked_part(name, _show(repo, commit, path), kind, root)
+    return after is None or after != _locked_part(name, _show(repo, f"{commit}^", path), kind, root)
 
 
-def _changes_after(repo: str, path: str, since: int) -> tuple:
-    """The manifest's commits after `since` that touched what its lock records, newest first, as
-    (hash, commit time), at most DRIFT_KEPT; and whether the walk stopped before it had read them all."""
+def _changes_after(repo: str, path: str, since: int, lock: str = "") -> tuple:
+    """The manifest's commits after `since` that touched what its lock (its path) records, newest first,
+    as (hash, commit time), at most DRIFT_KEPT; and whether the walk stopped before it had read them all."""
     out = subprocess.run(["git", *filetypes.RENAMES, "log", "--format=%H %ct", f"-{DRIFT_WALK + 1}", "--", path], cwd=repo, capture_output=True, text=True).stdout.split("\n")
     rows = [(h, int(t)) for h, _, t in (line.partition(" ") for line in out if line) if t.isdigit()]
     kept, cut = [], len(rows) > DRIFT_WALK
     for h, t in rows[:DRIFT_WALK]:
         if t <= since:
             return kept, False
-        if _moves_lock(repo, h, path):
+        if _moves_lock(repo, h, path, lock):
             kept.append((h, t))
             if len(kept) == DRIFT_KEPT:
                 return kept, True
@@ -521,7 +535,7 @@ def lockfiles(repo: str) -> dict:
         pairs += 1
         m, l = _last_commit(repo, path), _last_commit(repo, lock)
         if m > l:
-            changes, more = _changes_after(repo, path, l)
+            changes, more = _changes_after(repo, path, l, lock)
             if changes:
                 drift.append({"manifest": path, "lockfile": lock, "manifest_date": _day(changes[0][1]), "lockfile_date": _day(l),
                               "changes": [{"commit": h, "date": _day(t)} for h, t in changes], **({"more": True} if more else {})})
@@ -955,6 +969,14 @@ LOOKALIKE = set(
     "\u13aa\u13f4\u13df\u13ac\u13bb\u13ab\u13e6\u13de\u13b7\u13e2\u13da\u13a2\u13d4\u13c3"   # Cherokee Ꭺ Ᏼ Ꮯ Ꭼ Ꮋ Ꭻ Ꮶ Ꮮ Ꮇ Ꮲ Ꮪ Ꭲ Ꮤ Ꮓ
 )
 _WORD = re.compile(r"[^\W\d]\w*")
+# A bracketed class and the X-Y ranges inside it: in `[A-Za-zА-Яа-я]` the joint `zА` is two ranges meeting, not a
+# word. Each range is blanked to spaces of the same length, so the columns of the rest of the line do not move. A `[`
+# after a word, `)` or `]` opens an index (`x[len-1]`), whose `-` is arithmetic, so it is left as it is; and a range
+# is one only when both ends are letters of one script, or both digits, in ascending order (`[aр-с]` is not one).
+_BRACKETS = re.compile(r"(?<![\w)\]])\[(?:\\.|[^\]\\])*\]")
+_RANGE = re.compile(r"(\w)-(\w)")
+# Text that is code, not prose: a quote opened in a comment or a regex makes a "span" that runs over statements.
+_CODE_IN_SPAN = re.compile(r"//|/\*|\*/|;|(?:^|\s)#")
 
 
 def _script(c: str) -> str:
@@ -964,11 +986,86 @@ def _script(c: str) -> str:
         return ""
 
 
+def _is_range(m) -> str:
+    a, b = m.group(1), m.group(2)
+    same = (a.isalpha() and b.isalpha() and _script(a) == _script(b)) or (a.isdigit() and b.isdigit())
+    return "   " if same and a <= b else m.group(0)
+
+
+def _blank_ranges(line: str) -> str:
+    return _BRACKETS.sub(lambda m: _RANGE.sub(_is_range, m.group(0)), line) if "[" in line else line
+
+
+_OPENS = set("(,=:[{+?!&|<")   # what a string can follow; after a letter or a `/` a quote is an apostrophe or a regex's
+
+
+def _can_open(line: str, i: int) -> bool:
+    """Whether a quote at column `i` can open a string: at the start of the line, or after one of ( , = : [ { + ? ! & |
+    < or the word return (spaces between). `/'/.test(` and the `it's` of JSX text open nothing."""
+    before = line[:i].rstrip()
+    return not before or before[-1] in _OPENS or re.search(r"(?<!\w)return$", before) is not None
+
+
+def _quoted(line: str) -> list:
+    """The quoted spans closed on this line, each as the list of its text parts' (start, end) columns: '…', "…" and
+    `…`, with a template literal's `${…}` left out, because that is code. A span opens only where a string can
+    (_can_open). An unclosed quote gives no span (a stray apostrophe in a comment, or the first line of a multi-line
+    literal), so a token there is judged as code."""
+    parts, i, n = [], 0, len(line)
+    while i < n:
+        q = line[i]
+        if q not in "'\"`" or not _can_open(line, i):
+            i += 1
+            continue
+        j, start, here = i + 1, i + 1, []
+        while j < n and line[j] != q:
+            if line[j] == "\\":
+                j += 2
+                continue
+            if q == "`" and line.startswith("${", j):
+                here.append((start, j))
+                depth, j = 1, j + 2
+                while j < n and depth:
+                    depth += {"{": 1, "}": -1}.get(line[j], 0)
+                    j += 1
+                start = j
+                continue
+            j += 1
+        if j >= n:
+            break   # unclosed: nothing after it on this line is known to be text
+        here.append((start, j))
+        parts.append(here)
+        i = j + 1
+    return parts
+
+
+def _in_prose(line: str, at: int, foreign: set, parts: list) -> bool:
+    """A token at column `at` is prose when a word next to it in the quoted span holding it (the one before or the
+    one after) has two or more letters, all in the token's foreign script: `функция ZТЕСТ возвращает` is a sentence,
+    `"аdmin"` alone is not. A span whose text holds `//`, `/*`, `*/`, `;` or ` #` is code a stray quote ran over, and
+    is never prose."""
+    for span in parts:
+        if not any(a <= at < b for a, b in span):
+            continue
+        if any(_CODE_IN_SPAN.search(line, a, b) for a, b in span):
+            return False
+        words = [(m.start(), m.group(0)) for a, b in span for m in _WORD.finditer(line, a, b)]
+        k = next((i for i, (s, _) in enumerate(words) if s == at), None)
+        if k is None:
+            return False
+        near = [w for i, (_, w) in enumerate(words) if i in (k - 1, k + 1)]
+        return any(len(w) > 1 and all(c.isalpha() and _script(c) in foreign for c in w) for w in near)
+    return False
+
+
 def trojan_source(repo: str, generated=frozenset(), scope=(), types=filetypes.DEFAULT) -> dict:
     """Bidirectional control characters in source files (CVE-2021-42574: code that reads one way and
     compiles another), and identifiers that mix Latin with a confusable script's look-alike letters (a
     Cyrillic о inside `process`; a Greek μ before a unit reads as itself, and is not one). Source files only, tests, examples, documentation and vendored code left out, so the
-    false-positive rate stays near zero; a whole word in one script is prose, not a trick."""
+    false-positive rate stays near zero; a whole word in one script is prose, not a trick. The ranges of a
+    bracketed class (`[A-Za-zА-Я]`) are not words, and a mixed token inside a quoted span that also holds a word
+    written entirely in the token's foreign script is a word of that sentence. This reads shapes, not a grammar:
+    comments are still read, and a multi-line literal is judged one line at a time."""
     bidi, mixed, files = [], [], 0
     for path in _tracked(repo):
         if not filetypes.matches(path, types) or _aside(path) or filetypes.is_doc_path(path) or path in generated or not _inside(path, scope):
@@ -987,13 +1084,19 @@ def trojan_source(repo: str, generated=frozenset(), scope=(), types=filetypes.DE
             for c in line:
                 if ord(c) in BIDI:
                     bidi.append({"file": path, "line": n, "char": f"U+{ord(c):04X}"})
-            for token in _WORD.findall(line):
+            if line.isascii():
+                continue
+            words, parts = _blank_ranges(line), None
+            for m in _WORD.finditer(words):
+                token = m.group(0)
                 if token.isascii():
                     continue
                 scripts = {_script(c) for c in token if c.isalpha()}
                 foreign = [c for c in token if c.isalpha() and _script(c) in CONFUSABLE]
                 if "LATIN" in scripts and foreign and all(c in LOOKALIKE for c in foreign):
-                    mixed.append({"file": path, "line": n, "token": token, "scripts": sorted(scripts)})
+                    parts = _quoted(words) if parts is None else parts
+                    if not _in_prose(words, m.start(), {_script(c) for c in foreign}, parts):
+                        mixed.append({"file": path, "line": n, "token": token, "scripts": sorted(scripts)})
     return {"files": files, "bidi": bidi[:CAP], "bidi_count": len(bidi), "mixed_script": mixed[:CAP], "mixed_script_count": len(mixed)}
 
 
