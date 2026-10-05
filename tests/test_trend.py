@@ -39,6 +39,16 @@ class ChangeOverYear(unittest.TestCase):
         self.assertEqual(trend.change_over_year([["2024-11-01", 0, 1], ["2025-11-01", 5, 1]], "2025-11-09"), "-")
         self.assertEqual(trend.change_over_year([["2024-11-01", 20, 1], ["2025-11-01", 14, 1]], "2025-11-09"), "-30%")
 
+    def test_year_change_splits_the_sum_into_size_and_density_over_the_same_year(self):
+        # univer's doc-skeleton.ts, the samples gitmole 0.44.0 saved: the sum +418% is code +366% at +11% per line
+        s = [["2024-07-26", 189, 819], ["2025-08-30", 279, 1042], ["2026-01-10", 279, 1048], ["2026-10-04", 1446, 4858]]
+        self.assertEqual(trend.year_change(s, "2026-10-04"), {"complexity": 418, "code": 366, "per_line": 11})
+        self.assertEqual(trend.change_over_year(s, "2026-10-04"), "+418%", "the same base sample as the trend column")
+        self.assertIsNone(trend.year_change(self.S[2:], "2025-11-09"), "no sample a year back")
+        self.assertIsNone(trend.year_change([["2025-11-01", 21, 1]], "2025-11-09"))
+        self.assertEqual(trend.year_change([["2024-11-01", 0, 0], ["2025-11-01", 5, 10]], "2025-11-09"),
+                         {"complexity": None, "code": None, "per_line": None}, "nothing to divide by a year ago")
+
 
 class Sparkline(unittest.TestCase):
     def test_maps_values_onto_eight_levels(self):

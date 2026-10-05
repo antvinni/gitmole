@@ -141,7 +141,11 @@ in plain words, and what to do first. This page is the reference.
      whatever the counts, since raw fix counts mostly follow file size;
    - brain methods: functions both complex and long, a warning when one
      sits in a hotspot;
-   - hotspots getting more complex, a warning when the top one did;
+   - hotspots getting more complex, a warning when the top one did; each
+     file's summed complexity (scc's count, which grows with the lines)
+     stands beside the change in its code, and the advice to split goes to
+     the first one whose complexity per line also rose 25% or more in the
+     year, or says they grew with their size;
    - tightly coupled file pairs; a file and its test are expected to change
      together, so those pairs are left out;
    - vulnerable dependencies (see below);
@@ -631,7 +635,8 @@ in plain words, and what to do first. This page is the reference.
    owner, the minor contributors (people with a small share of the file's
    commits each), the most complex function lizard found (a nameless one
    by its line; a span marked `?` in the complex functions table is passed
-   over) and, when its complexity grew in a year, by how much (the trend is
+   over) and, when its summed complexity grew in a year, by how much and
+   how much its code grew beside it (the trend is
    sampled for the top hotspots only, so a file further down the list may
    have none), the files it always changes with, and how many files it
    changes with when it is weakly coupled to many (Tornhill's sum of

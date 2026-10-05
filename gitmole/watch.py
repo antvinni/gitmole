@@ -135,7 +135,8 @@ def risks(report: dict, min_revs: int = 2) -> list:
     for r in rows:
         r["solo"] = r["authors"] == 1 or r["owner_share"] >= SOLO_SHARE
         r["score"] = 100 * (r["revs"] * r["code"]) / pool if pool else 0.0
-        r["reasons"] = _reasons(r)
+        year = trend.year_change(series[r["file"]], last) if last and r["file"] in series else None
+        r["reasons"] = _reasons(r, (year or {}).get("code"))
     rows.sort(key=lambda r: (-r["score"], -r["revs"], r["file"]))
     return rows
 
@@ -162,7 +163,7 @@ def why_empty(report: dict, min_revs: int = 2) -> str:
     return "only " + textfmt.join_and(named) + " changed more than once"
 
 
-def _reasons(r: dict) -> list:
+def _reasons(r: dict, code_pct: int = None) -> list:
     """The reasons, most actionable first: how often it changed and was fixed, who owns it, what in it
     is complex, what its authors flagged and what its tests do, then how it couples; the scatter and
     the size of the file last. The default terminal report shows the first REASONS_SHOWN."""
@@ -183,7 +184,8 @@ def _reasons(r: dict) -> list:
         out.append(f"{named} complexity {fn['ccn']}")
     grown = r.get("trend") or ""
     if grown.startswith("+") and int(grown[1:-1]) >= trend.GROWTH_FLOOR:
-        out.append(f"complexity {grown} in a year")   # the Hotspots table's trend column, which the default report no longer shows
+        # the Hotspots table's trend column, which the default report no longer shows; scc's sum grows with the lines, so the code's change stands beside it
+        out.append(f"{grown} summed complexity in a year" + (f", code {code_pct:+d}%" if code_pct is not None else ""))
     deepest = r.get("deepest")
     if deepest and deepest["nesting"] >= NESTING_FLOOR:
         named = f"the function at line {deepest['start']}" if textfmt.nameless(deepest["name"]) else f"{deepest['name']}()"

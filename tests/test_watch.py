@@ -244,8 +244,10 @@ class Risks(unittest.TestCase):
             return {x["file"]: x for x in watch.risks(r)}["core/parser.py"]
         grown = reasons([["2025-09-01", 10, 300], ["2026-09-01", 32, 800]])
         self.assertEqual(grown["trend"], "+220%")
-        self.assertIn("complexity +220% in a year", grown["reasons"])
-        self.assertEqual(grown["reasons"].index("complexity +220% in a year"), grown["reasons"].index("parse() complexity 41") + 1, "right after the function it is about")
+        self.assertIn("+220% summed complexity in a year, code +167%", grown["reasons"], "the sum grows with the lines: the code's change stands beside it")
+        self.assertEqual(grown["reasons"].index("+220% summed complexity in a year, code +167%"), grown["reasons"].index("parse() complexity 41") + 1, "right after the function it is about")
+        self.assertIn("+220% summed complexity in a year", reasons([["2025-09-01", 10, 0], ["2026-09-01", 32, 800]])["reasons"],
+                      "no code a year ago: no code change to show")
         for series in ([["2025-09-01", 10, 300], ["2026-09-01", 12, 800]],      # +20%: under the floor
                        [["2025-09-01", 40, 300], ["2026-09-01", 10, 800]],      # shrinking is not a reason
                        [["2026-08-31", 10, 300], ["2026-09-10", 126, 800]],     # ten days is not a year
@@ -261,7 +263,7 @@ class Risks(unittest.TestCase):
             r = report(trend={"samples": [], "files": {"core/parser.py": [["2025-09-01", 100, 300], ["2026-09-01", now, 800]]}})
             r["meta"]["last_date"] = "2026-09-10"
             return {x["file"]: x for x in watch.risks(r)}["core/parser.py"]["reasons"]
-        self.assertIn("complexity +25% in a year", reasons(125), "125 is a 25% rise over 100: right at the floor")
+        self.assertIn("+25% summed complexity in a year, code +167%", reasons(125), "125 is a 25% rise over 100: right at the floor")
         self.assertFalse([x for x in reasons(124) if "in a year" in x], "124 is a 24% rise over 100: just under the floor")
 
 
