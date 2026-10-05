@@ -250,14 +250,14 @@ def page(name: str, top: int, horizon: int, results: list, efforts: list, induce
         from .measure import outcome
         conv = declared["convention"]
         if conv.get("declared"):
-            out += ["", f"The same against the declared-type outcome: the repository declares Conventional Commits ({outcome.describe(conv)}), "
-                        "so a fix is a commit typed `fix` and nothing else:", "", table(declared["results"]),
+            out += ["", f"The same against the declared-type outcome, at the cut-offs whose window declares Conventional Commits "
+                        f"({outcome.describe(conv)}): a fix is a commit typed `fix` and nothing else:", "", table(declared["results"]),
                     "", "What each list costs a reviewer against those fixes:", "", effort_table(declared["efforts"])]
             if declared.get("induced"):
                 out += ["", "Against R-SZZ over the fixes typed `fix`:", "", table(declared["induced"], noun="bug-inducing")]
         else:
-            out += ["", f"The repository does not declare Conventional Commits ({outcome.describe(conv)}, no commitlint or commitizen "
-                        "configuration), so the declared-type outcome is the one above."]
+            out += ["", f"No window declares Conventional Commits ({outcome.describe(conv)}, no commitlint or commitizen "
+                        "configuration at a cut-off), so the declared-type outcome is the one above."]
     if labelled:
         out += ["", f"Against the files the bug-inducing commits labelled in {labels_name} touched inside each window:", "", table(labelled, noun="labelled"),
                 "", f"What each list costs a reviewer against the same labels: initial false alarms before the first labelled file, the lines of code "
@@ -296,7 +296,9 @@ def main(argv=None) -> int:
     types = filetypes.for_meta(meta)   # the pool the run scored: its file types and the scripts it found at HEAD
     aliases = maat.aliases_from_meta(os.path.join(args.out, "meta.json")) if "aliases" in meta else None
     with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
-        commits = maat.parse_log(fh.read(), aliases, types)
+        text = fh.read()
+    commits = maat.parse_log(text, aliases, types)
+    every = maat.parse_log(text)   # every file kept: a window's typed share is over the commits that touched any file
     from . import run
     declared = maat.read_ignore_revs(run.ignore_revs_files(args.repo))
     ignored = {c["hash"] for c in commits if declared and maat.is_ignored(c["hash"], declared)}
@@ -305,10 +307,9 @@ def main(argv=None) -> int:
         print(f"evaluate: no bug-inducing commits read from {args.labels}", file=sys.stderr)
         return 2
     from .measure import outcome
-    conv = outcome.convention(args.repo)   # the declared-type outcome beside the current one (measure.outcome)
-    declared_fix = outcome.predicate("declared", conv)
+    windows = {}   # each cut-off's convention (measure.outcome): the tree at the cut-off, the window's own subjects
     results, efforts, induced_results, labelled_results, labelled_effort = [], [], [], [], []
-    declared = {"convention": conv, "results": [], "efforts": [], "induced": []}
+    declared = {"convention": None, "results": [], "efforts": [], "induced": []}
     for t in cutoffs(args.end or meta["last_date"], args.windows, args.horizon):
         rev = trend.rev_before(args.repo, t, end_of_day=False)
         if not rev:
@@ -321,7 +322,9 @@ def main(argv=None) -> int:
         pool = set(variants(report)["churn"])
         results.append((t, len(fixed & pool), len(pool), score(report, fixed, args.top)))
         efforts.append(effort(report, fixed, args.top))
-        if conv["declared"]:
+        windows[t] = outcome.convention(args.repo, rev, outcome.window_subjects(maat.in_window(every, t, end)))
+        declared_fix = outcome.predicate("declared", windows[t])
+        if windows[t]["declared"]:
             typed = fixed_between(commits, t, end, declared_fix)
             declared["results"].append((t, len(typed & pool), len(pool), score(report, typed, args.top)))
             declared["efforts"].append(effort(report, typed, args.top))
@@ -330,7 +333,7 @@ def main(argv=None) -> int:
             leave_out = lambda p: p in generated or filetypes.is_vendored(p, vendor) or filetypes.is_sample_path(p)   # noqa: E731
             induced = induced_between(args.repo, commits, t, end, exclude=leave_out)
             induced_results.append((t, len(induced & pool), len(pool), score(report, induced, args.top)))
-            if conv["declared"]:
+            if windows[t]["declared"]:
                 typed_induced = induced_between(args.repo, commits, t, end, exclude=leave_out, fix=declared_fix)
                 declared["induced"].append((t, len(typed_induced & pool), len(pool), score(report, typed_induced, args.top)))
         if labels:
@@ -341,6 +344,7 @@ def main(argv=None) -> int:
     if not results:
         print("evaluate: no cut-off falls inside the history", file=sys.stderr)
         return 2
+    declared["convention"] = outcome.combine(windows)
     sys.stdout.write(page(meta.get("name", args.repo), args.top, args.horizon, results, efforts, induced_results, labelled_results, labelled_effort,
                           os.path.basename(args.labels) if args.labels else "", ref_spread(args.repo), declared))
     return 0

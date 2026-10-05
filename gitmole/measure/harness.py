@@ -451,35 +451,46 @@ def magnets_at(rank: dict, outcome: set) -> dict:
             "observed": observed, "expected": round(expected, 6), "unmatched": unmatched}
 
 
-def cutoff_windows(entry: dict, commits: list, labels: dict = None, fix=None) -> list:
-    """[(cut-off, outcome)] for one repository: the six cut-offs the history reaches back to, and the files
-    fixed (or labelled) in the horizon after each. The releases' rankings and a candidate's comparison take
-    their dates and outcomes from here, so the two cannot drift apart. `fix` is the fix classifier of an
-    outcome (measure.outcome.predicate), maat.is_fix when None; labels do not use one."""
+def cutoff_dates(entry: dict, commits: list) -> list:
+    """[(cut-off, end of its horizon)], oldest first: the six cut-offs the history reaches back to."""
     if not commits:
         return []
     last = entry.get("end") or max(c["date"] for c in commits)[:10]
     earliest = min(c["date"] for c in commits)[:10]
-    out = []
-    for t in evaluate.cutoffs(last, WINDOWS, HORIZON):
-        if t <= earliest:
-            continue
-        end = evaluate.months_after(t, HORIZON)
-        out.append((t, evaluate.labelled_between(commits, labels, t, end) if labels is not None else evaluate.fixed_between(commits, t, end, fix)))
-    return out
+    return [(t, evaluate.months_after(t, HORIZON)) for t in evaluate.cutoffs(last, WINDOWS, HORIZON) if t > earliest]
+
+
+def cutoff_windows(entry: dict, commits: list, labels: dict = None, fix=None) -> list:
+    """[(cut-off, outcome)] for one repository: the six cut-offs the history reaches back to, and the files
+    fixed (or labelled) in the horizon after each. The releases' rankings and a candidate's comparison take
+    their dates and outcomes from here, so the two cannot drift apart. `fix` is the fix classifier of an
+    outcome (measure.outcome.predicate), the frozen `current` one when None, never the live maat.is_fix;
+    labels do not use one."""
+    fix = fix or outcomes.predicate("current")
+    return [(t, evaluate.labelled_between(commits, labels, t, end) if labels is not None else evaluate.fixed_between(commits, t, end, fix))
+            for t, end in cutoff_dates(entry, commits)]
+
+
+def _rev_or_none(clone: str, date: str):
+    try:
+        return rev_at(clone, date)
+    except (RuntimeError, OSError):   # unreadable or absent: no tree, so no configuration at the cut-off
+        return None
 
 
 def declared_windows(entry: dict, commits: list, clone: str, labels: dict = None):
-    """(convention, {cut-off: outcome}) for the declared-type outcome: the repository's convention
-    (measure.outcome.convention) and, where it declares one, the files a commit typed `fix` touched in
-    each horizon. None and {} for labels, which no fix classifier decides; the convention and {} where
-    the repository declares nothing, the declared outcome then being the current one."""
+    """(convention, {cut-off: outcome}) for the declared-type outcome. The convention is decided window by
+    window (measure.outcome.window_conventions): from the configuration tracked in the tree at the cut-off
+    (rev_at) or the typed share of the window's own subjects. Only the windows that declare it get an
+    outcome here, the files a commit typed `fix` touched; the others score as the current outcome. None
+    and {} for labels, which no fix classifier decides."""
     if labels is not None:
         return None, {}
-    conv = outcomes.convention(clone)
-    if not conv["declared"]:
-        return conv, {}
-    return conv, dict(cutoff_windows(entry, commits, None, outcomes.predicate("declared", conv)))
+    dates = cutoff_dates(entry, commits)
+    conv = outcomes.window_conventions(clone, {t: (_rev_or_none(clone, t), outcomes.window_subjects(maat.in_window(commits, t, end)))
+                                               for t, end in dates})
+    return conv, {t: evaluate.fixed_between(commits, t, end, outcomes.predicate("declared", conv["windows"][t]))
+                  for t, end in dates if conv["windows"][t]["declared"]}
 
 
 DECLARED_DROP = ("top", "pool_digest")   # the same list and the same pool under either outcome: kept once, in the row
@@ -506,7 +517,7 @@ def rank_repo(src: str, entry: dict, clone: str, out: str, reference: str, cache
             latest[t0] = rank
     rows, magnets = [], []
     conv, declared = declared_windows(entry, commits, clone, labels)
-    for t, outcome in cutoff_windows(entry, commits, labels):
+    for t, outcome in cutoff_windows(entry, commits, labels, outcomes.predicate("current")):
         rank = latest.get(t) or ranking_at(src, clone, out, t, reference)
         if t == t0 and "error" not in rank:
             latest[t0] = rank

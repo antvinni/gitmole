@@ -208,7 +208,7 @@ def compare_entry(base_src: str, cand_src: str, entry: dict, root: str, referenc
     if conventions is not None:
         conventions[entry["name"]] = conv
     rows = []
-    for t, outcome in harness.cutoff_windows(entry, commits, labels):
+    for t, outcome in harness.cutoff_windows(entry, commits, labels, outcomes.predicate("current")):
         base = harness.ranking_at(base_src, clone, outs["base"], t, reference)
         cand = harness.ranking_at(cand_src, clone, outs["candidate"], t, reference)
         if "error" in base or "error" in cand:

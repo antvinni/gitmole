@@ -62,6 +62,28 @@ class Types(unittest.TestCase):
         self.assertIsNone(outcome.typed_share([])["share"])
 
 
+# Subjects the frozen `current` copy is checked against maat.is_fix on: prefixes, words, word boundaries, case.
+SUBJECTS = ["fix: a", "Fix(core)!: b", "hotfix: c", "bugfix(x): d", "ci: fix event name", "docs: fix image path", "Fixes #12",
+            "fixed the build", "fixing", "a bug", "BUGS", "regression in x", "crash on start", "crashes", "prefix the name",
+            "debug output", "suffixes", "feat: add x", "Merge pull request #3", "", "bugfixes", "fix", "hotfix", "crashed"]
+
+
+class FrozenCurrent(unittest.TestCase):
+    def test_the_frozen_current_classifier_is_maat_is_fix(self):
+        """Fails on purpose when maat.is_fix changes: keep the frozen copy (it is the yardstick) and judge the new
+        classifier as a candidate against it; update this test only when the yardstick itself is meant to move."""
+        self.assertEqual(outcome.CURRENT_FROM, "0.44.0")
+        for subject in SUBJECTS:
+            self.assertEqual(outcome.is_current_fix(subject), maat.is_fix(subject), subject)
+
+    def test_a_candidate_editing_is_fix_does_not_move_the_outcome(self):
+        commits = _commits([(f"{2020 + i // 12}-{i % 12 + 1:02d}-15", "ci: fix x" if i % 2 else "fix: y", [f"f{i % 4}.py"]) for i in range(72)])
+        before = harness.cutoff_windows({"name": "r"}, commits)
+        with mock.patch.object(maat, "is_fix", return_value=False):
+            self.assertEqual(harness.cutoff_windows({"name": "r"}, commits), before)
+            self.assertEqual(harness.cutoff_windows({"name": "r"}, commits, fix=outcome.predicate("current")), before)
+
+
 class Convention(unittest.TestCase):
     def test_a_tracked_commitlint_config_declares_it_whatever_the_share(self):
         with tempfile.TemporaryDirectory() as d:
@@ -93,8 +115,8 @@ class Convention(unittest.TestCase):
             self.assertFalse(outcome.convention(d)["declared"])
 
     def test_the_predicate_is_the_harness_choice(self):
-        self.assertIs(outcome.predicate("current", {"declared": True}), maat.is_fix)
-        self.assertIs(outcome.predicate("declared", {"declared": False}), maat.is_fix, "nothing declared: the two outcomes are one")
+        self.assertIs(outcome.predicate("current", {"declared": True}), outcome.is_current_fix)
+        self.assertIs(outcome.predicate("declared", {"declared": False}), outcome.is_current_fix, "nothing declared: the two outcomes are one")
         self.assertIs(outcome.predicate("declared", {"declared": True}), outcome.is_declared_fix)
         with self.assertRaises(ValueError):
             outcome.predicate("words", {})
@@ -133,27 +155,66 @@ def _rank(pool):
     return {"pool": pool, "revs": {f: 1 for f in pool}, "lines": {f: 10 for f in pool}, "total_code": 10 * len(pool)}
 
 
+def _history(typed):
+    """72 monthly commits from 2020; typed(i) says whether commit i is written in the convention."""
+    return _commits([(f"{2020 + i // 12}-{i % 12 + 1:02d}-15", ("ci: fix x" if i % 2 else "fix: y") if typed(i) else ("Fix x" if i % 2 else "bug y"),
+                      [f"f{i % 4}.py"]) for i in range(72)])
+
+
 class RankRepo(unittest.TestCase):
-    def _rank_repo(self, conv):
-        commits = _commits([(f"{2020 + i // 12}-{i % 12 + 1:02d}-15", "ci: fix x" if i % 2 else "fix: y", [f"f{i % 4}.py"]) for i in range(72)])
+    def _rank_repo(self, commits):
         with mock.patch.object(harness, "canonical_log", return_value=commits), \
              mock.patch.object(harness, "ranking_at", return_value=_rank(["f1.py", "f0.py", "f2.py", "f3.py", "g.py"])), \
-             mock.patch.object(harness, "run_backtest_until", return_value=None), \
-             mock.patch.object(harness.outcomes, "convention", return_value=conv):
-            return harness.rank_repo("src", {"name": "r"}, "/clone", "/out", "2026-09-17", "/cache")
+             mock.patch.object(harness, "run_backtest_until", return_value=None):
+            return harness.rank_repo("src", {"name": "r"}, "/no-clone", "/out", "2026-09-17", "/cache")
 
     def test_a_declaring_repository_is_scored_against_both(self):
-        out = self._rank_repo({"declared": True, "by": ["config"], "config": ["commitlint.config.cjs"], "share": 0.5})
-        self.assertEqual(out["convention"]["config"], ["commitlint.config.cjs"])
+        out = self._rank_repo(_history(lambda i: True))
+        self.assertTrue(all(w["by"] == ["typed share"] for w in out["convention"]["windows"].values()))
         row = out["cutoffs"][0]
         self.assertEqual(row["positives"], 4, "every file was touched by a commit with a fix word")
         self.assertEqual(row["declared"]["positives"], 2, "only f0 and f2 by a commit typed fix")
         self.assertNotIn("top", row["declared"])
 
     def test_a_repository_that_declares_nothing_keeps_one_score(self):
-        out = self._rank_repo({"declared": False, "by": [], "config": [], "share": 0.1})
+        out = self._rank_repo(_history(lambda i: False))
         self.assertFalse(out["convention"]["declared"])
         self.assertTrue(all("declared" not in r for r in out["cutoffs"]))
+
+    def test_a_late_adopter_is_switched_only_in_the_windows_after_it_adopted(self):
+        out = self._rank_repo(_history(lambda i: i >= 54))   # typed from mid-2024
+        declared = {r["cutoff"]: "declared" in r for r in out["cutoffs"]}
+        self.assertEqual(list(declared.values()), [False] * 4 + [True] * 2, declared)
+        self.assertEqual(out["cutoffs"][0]["positives"], 4, "the early windows keep their untyped fixes")
+
+    def test_monkeypatching_is_fix_leaves_the_positives_unmoved(self):
+        commits = _history(lambda i: i >= 54)
+        before = self._rank_repo(commits)
+        with mock.patch.object(maat, "is_fix", return_value=False):
+            after = self._rank_repo(commits)
+        self.assertEqual(before, after)
+
+
+class WindowConvention(unittest.TestCase):
+    def test_a_config_counts_from_the_cut_off_whose_tree_tracks_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            _repo(d, ["start"])
+            before = subprocess.run(["git", "rev-parse", "HEAD"], cwd=d, capture_output=True, text=True).stdout.strip()
+            with open(os.path.join(d, ".commitlintrc.json"), "w") as fh:
+                fh.write("{}\n")
+            env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+            subprocess.run(["git", "add", "-A"], cwd=d, env=env, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "adopt"], cwd=d, env=env, check=True)
+            conv = outcome.window_conventions(d, {"2024-01-01": (before, ["untyped"]), "2025-01-01": ("HEAD", ["untyped"]),
+                                                  "2019-01-01": (None, [])})
+        self.assertEqual({t: w["declared"] for t, w in conv["windows"].items()},
+                         {"2019-01-01": False, "2024-01-01": False, "2025-01-01": True})
+        self.assertTrue(conv["declared"])
+        self.assertEqual(conv["config"], [".commitlintrc.json"])
+        self.assertEqual(outcome.describe(conv), "declared in 1 of 3 windows (.commitlintrc.json)")
+
+    def test_the_window_share_leaves_merges_out(self):
+        self.assertEqual(outcome.window_subjects([{"subject": "Merge x", "files": []}, {"subject": "fix: y", "files": [("a", 1, 0)]}]), ["fix: y"])
 
 
 def _record(declared_hits):
@@ -174,6 +235,21 @@ class Dashboard(unittest.TestCase):
         self.assertEqual(s["declared_outcome"]["wins_losses_ties"], [1, 0, 1])
         self.assertEqual(report.declared_row(s, "development")[0][2],
                          "0.38; churn 0.25, size 0.00; repositories declaring Conventional Commits: a (the rest score as above)")
+
+    def test_the_committed_history_page_renders_byte_for_byte(self):
+        """Every record before the switch renders as the committed measurement-history.md does: the new row
+        appears only for a record that carries the convention."""
+        from gitmole.measure import corpus, labels
+        records = os.path.join(corpus.ROOT, "docs", "measurements")
+        history = dashboard.load_history(records)
+        series = set((corpus.load().get("series") or {}).get("repos") or []) or None
+        marks = labels._read(os.path.join(labels.DIR, "labels.jsonl"))
+        for r in history:
+            r["summary"], r["series"], r["useful"] = dashboard.summarise(r), dashboard.summarise(r, only=series), labels.usefulness(r, marks)
+        extras_path = os.path.join(records, "extras", history[-1]["version"] + ".json")
+        extras = json.load(open(extras_path, encoding="utf-8")) if os.path.exists(extras_path) else None
+        with open(os.path.join(corpus.ROOT, "docs", "measurement-history.md"), encoding="utf-8") as fh:
+            self.assertEqual(report.page(history, extras), fh.read())
 
     def test_a_record_from_before_the_switch_has_no_declared_outcome(self):
         rec = _record(2)
@@ -234,13 +310,13 @@ class EvaluatePage(unittest.TestCase):
         return evaluate.page("r", 15, 6, res, eff, declared={"convention": conv, "results": results or res, "efforts": eff, "induced": []})
 
     def test_a_repository_that_declares_nothing_gets_one_line(self):
-        text = self._page({"declared": False, "share": 0.03})
-        self.assertIn("does not declare Conventional Commits (no (3% typed)", text)
+        text = self._page(outcome.combine({"2025-01-01": {"declared": False, "share": 0.03, "config": []}}))
+        self.assertIn("No window declares Conventional Commits (no (at most 3% typed in a window)", text)
         self.assertNotIn("declared-type outcome: the repository declares", text)
 
     def test_a_declaring_repository_gets_the_tables_again(self):
-        text = self._page({"declared": True, "config": [".commitlintrc.json"], "share": 0.95})
-        self.assertIn("declares Conventional Commits (.commitlintrc.json; 95% typed)", text)
+        text = self._page(outcome.combine({"2025-01-01": {"declared": True, "share": 0.95, "config": [".commitlintrc.json"]}}))
+        self.assertIn("declares Conventional Commits (declared in 1 of 1 windows (.commitlintrc.json))", text)
         self.assertEqual(text.count("| watch list (hotspot) |"), 4, "hits and effort, under each outcome")
 
 
