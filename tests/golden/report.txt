@@ -48,6 +48,6 @@ Findings · 2 notes ●
 --full adds 10 sections: Watch list by component, Hotspots, Size by language, Timeline, Activity,
 Surviving code by year, Changed lines, Signing by year, Checks run, OSPS Baseline (4 gaps, 1 not
 seen, of 10). --section NAME prints one whole.
-15 of 18 steps ran; --plots runs the other 3 (code survival, 2 plots).
+<steps>
 gitmole DIR --no-run --full re-renders this run; findings.json is in DIR, below.
 <out>
