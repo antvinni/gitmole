@@ -1,12 +1,13 @@
 reference date fixed by GITMOLE_NOW: 2025-06-15
 
-╭─ demo ───────────────────────────────────────────────────────────────────────────────────────────╮
-│ 8 commits  ·  2024-01-10 → 2025-05-30  ·  2 identities  ·  branch main @ b310579c                │
-│ 10 lines in 3 files  ·  Python, Makefile                                                         │
-│ 12% of commits are fixes  ·  82% of surviving code from 2024, by blame  ·  no commits signed     │
-│ 2 notes                                                                                          │
+╭─ demo · branch main @ b310579c ──────────────────────────────────────────────────────────────────╮
+│ history  8 commits · 2024-01-10 → 2025-05-30 · 2 identities                                      │
+│ files    5 tracked · 3 with code · 3 scored (source: not test, example, generated or vendored)   │
+│ code     10 lines · Python, Makefile · 82% surviving from 2024, by blame                         │
+│ commits  12% are fixes                                                                           │
+│ signing  no commits signed                                                                       │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Findings (2) ───────────────────────────────────────────────────────────────────────────────────╮
+╭─ Findings · 2 notes ● ───────────────────────────────────────────────────────────────────────────╮
 │ ● Files that always change together                                                              │
 │   1 pair changes together 80% of the time or more: main.py and util.py in app/, 83%              │
 │   ↳ Look for a shared layout or a hidden dependency between the two.                             │
@@ -27,15 +28,14 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
   Check: 6 months ago the top 2 of this ranking held 1 of the 1 file fixed since. The 2 most-changed
   files also held 1; 2 random files would hold 1.0, and 1 is not distinguishable from that (p = 1).
 
-◉ People
-  author       commits  share        surviving code
-  ─────────────────────────────────────────────────
-  Ann Example        5   62% ▰▰▰▰▰▰             64%
-  Bob Example        3   38% ▰▰▰                36%
-  aliases merged for Bob Example; a .mailmap makes that permanent
-  surviving code is counted by blame
+◉ People · all 2 identities, by commits · 1 with aliases merged
+  author       commits  share        surviving
+  ────────────────────────────────────────────
+  Ann Example        5   62% ▰▰▰▰▰▰        64%
+  Bob Example        3   38% ▰▰▰           36%
+  share = of commits · surviving = blame share at HEAD
 
-⌂ Knowledge map (files in the tree now)
+⌂ Knowledge map · all 2 areas in the tree now, by lines added
   area          lines added  main owner          second
   ────────────────────────────────────────────────────────────────
   app/                   19  Ann Example (79%)   Bob Example (21%)
@@ -51,4 +51,5 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 
 Secrets: none found; no unreachable objects (a fresh clone fetches only what a ref reaches)
 Dependencies: no lock files found
+--full shows the hidden rows and more sections
 Full results in <out>
