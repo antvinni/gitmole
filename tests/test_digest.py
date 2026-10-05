@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from gitmole import cli, digest, findings, load, render, run
+from gitmole import digest, findings, load, render, run
 from tests.test_render import rendered, sample_report
 from tests.test_section import _contents, _main, _out_dir
 
