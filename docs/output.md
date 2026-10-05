@@ -1385,3 +1385,100 @@ directory for a remote target:
 | `structure.json` | structure step, Python 3.10 or newer | per file: language, lines, comments, TODO/FIXME/XXX/HACK markers with a sample, top-level definitions, the files it imports and which of those only after it loads (`deferred`) — resolved for Python (from a root), JavaScript and TypeScript (relative paths), C and C++ (quoted includes), Ruby (`require_relative`, and `require` of a tracked file) and Go (an import path against the `module` and relative `replace` lines of the go.mod files in the tree; a Go import names a package, so it is an edge to every file of that directory the build compiles into it, `_test.go` and `package main` aside), while Rust, Java, C# and PHP imports stay unresolved — its deepest nesting and highest cognitive complexity; the notable functions (nesting, cognitive complexity, complex conditions, bumps); how many imports resolved per language; the empty catch blocks, string-literal addresses and commented-out code lines per file; the possibly unreferenced files; or a status saying how to install it |
 | `provenance.json` | provenance step | trailer keys, co-authors who never author, sign-offs by them, the declared commits against the rest (with each side's watch-list hit rate; the JSON keeps the keys `cohort` and `marked`), the lines added, moved and churned within two weeks in the last year and the year before, the commit-shape descriptors, and the agent files (instructions and how far behind, guardrails, approval settings, personal settings tracked, MCP declarations with the keys of literal values, hook commands with their scripts, plugin manifests, skills) |
 | `run.log` | gitmole | every command run and its stderr |
+
+## Where each key and file is shown
+
+Every top-level key of the `--json` export and every file of the output
+directory has a home: a section of the report, with the tier that prints it
+(`default`, `--full`, or `--section NAME` only), or `export only` when no
+rendering prints it, or `retired` when gitmole no longer writes it. A test
+builds the list of keys from an export and the list of files from an output
+directory and fails when one has no row here, so a new key or file is given a
+home in the change that adds it. Nothing is retired today; the one removal
+is the `plumbing` key and its file when empty.
+
+A key some rule reads is `export only` when its rows are printed nowhere:
+the finding it leads to is in the Findings, the rows are not. A file whose
+content is a key has that key's home.
+
+| Key or file | Home |
+|---|---|
+| `activity` | People (default) · the header's `commits` and `left out` rows (default) · Activity (`--full`) · Timeline (`--full`) · export only: `by_hour` past the busiest hour, `tangled`, `oversized_fixes`, `squash_subjects`, `reverted` (the rules that read them are in the Findings) |
+| `age` | Hotspots (`--full`), its `idle` column · Surviving code by year (`--full`), when no blame pass ran |
+| `authors` | Hotspots (`--full`), its `authors` and `minors` columns · Watch list (`--full`), under each row |
+| `change_risk` | Change risk (default), with `--risk` |
+| `cohorts` | the header's `code` row (default) · Surviving code by year (`--full`) |
+| `companions` | `--section companions` only · Watch list (`--full`), under a row that has one |
+| `compare` | Since last report (default), with `--compare` |
+| `components` | export only: read by nothing since the component-coupling rule was retired at 0.39.0 |
+| `coupling` | Change coupling (default) |
+| `coverage` | the header's `files` and `code` rows (default) |
+| `dependencies` | Supply chain (default), its `dependencies` row · Dependencies by lock file (`--full`) |
+| `doa` | export only: read by the Truck factor rule |
+| `entropy` | `--section hotspots` only, in its `--csv` (`periods`, `hcm`) · Watch list (`--full`), under a row that changed in many months |
+| `envelope` | export only: what differs between two runs of one commit (paths, seconds, memory, the clone's unreachable objects) |
+| `findings` | Findings (default) |
+| `fix_history` | export only: read by the Bug magnets rule |
+| `fixes` | Watch list (default), its `fixes` column · Hotspots (`--full`) |
+| `functions` | Complex functions (default) |
+| `hygiene` | Supply chain (default), its `checked, ok` row: the checks that ran with something to check and found nothing, by name actions, updates, lock files, bidi and mixed-script, binaries, licence and declared files, as many as fit three lines · Checks run (`--full`), one row for each check, passed or not |
+| `latenight` | `--section hotspots` only, in its `--csv` (`late`) · Watch list (`--full`), under a row changed late at night |
+| `meta` | the header (default) · the closing lines (default), from `steps` · Checks run (`--full`), one row for each step · People (default), from `identities` |
+| `not_computed` | Findings (default), its last line |
+| `osps` | OSPS Baseline (`--full`) · the closing lines (default), as the one number of the list of sections |
+| `ownership` | Knowledge map (default) · Watch list (default), its `top author` column |
+| `plumbing` | export only, and only when it has a row: read by the file classifier, which hides release files from Hotspots and the Watch list |
+| `provenance` | Changed lines (`--full`) · Trailers (`--full`) · Agent surface (`--full`) |
+| `revisions` | Watch list (default) · Hotspots (`--full`) |
+| `secrets` | Supply chain (default), its `secrets` row, as counts · Secrets by rule (`--full`); never a value |
+| `secrets_scanned` | Supply chain (default): `not scanned` in the verdict's place |
+| `signing` | Supply chain (default), its `signing` row · Signing by year (`--full`) · export only: `by_identity` |
+| `size` | the header (default) · Size by language (`--full`) · Hotspots (`--full`), its `lines` column |
+| `soc` | Hotspots (`--full`), its `co-changes` column · Watch list (`--full`), under a row with many partners |
+| `structure` | Checks run (`--full`): `resolved`, the share of imports that resolve to a tracked file, one row naming each language · Watch list (default), its `look at first` column · export only: the per-file rows, which the structure rules read |
+| `surviving_by_identity` | People (default), its `surviving` column |
+| `tests` | `--section hotspots` only, in its `--csv` (`n-sets`, `with-tests`) · Watch list (`--full`), under a row whose changes rarely came with a test |
+| `theseus_authors` | People (default), its `surviving` column: the total the shares are of · export only: the per-author rows, which the ownership rules read |
+| `tools` | People (default), in its caption |
+| `trend` | Hotspots (`--full`), its `trend` column · Watch list (`--full`), under a row that grew |
+| `watch` | Watch list (default) |
+| `watch_backtest` | Watch list (default), the caption's `Check:` |
+| `watch_by_component` | Watch list by component (`--full`) |
+| `activity.json` | the `activity` key |
+| `backtest/` | the `watch_backtest` key |
+| `code-age.png` | export only: a plot, with `--plots`; the closing lines name it |
+| `dependencies.json` | the `dependencies` key |
+| `findings.json` | the `findings` key: the digest of Findings, Watch list and Supply chain, written out |
+| `functions.csv` | the `functions` key |
+| `gitmole-feedback.json` | export only: your answers to `--feedback` |
+| `hygiene.json` | the `hygiene` key |
+| `log.txt` | export only: the log the change analysis reads |
+| `maat-age.csv` | the `age` key |
+| `maat-arrivals.csv` | export only: read by the Truck factor rule, whose evidence carries the result as `new_since` |
+| `maat-authors.csv` | the `authors` key |
+| `maat-companions.csv` | the `companions` key |
+| `maat-components.csv` | the `components` key |
+| `maat-coupling.csv` | the `coupling` key |
+| `maat-doa.csv` | the `doa` key |
+| `maat-entity-ownership.csv` | the `ownership` key |
+| `maat-entropy.csv` | the `entropy` key |
+| `maat-fixes.csv` | the `fixes` key |
+| `maat-latenight.csv` | the `latenight` key |
+| `maat-plumbing.csv` | the `plumbing` key |
+| `maat-revisions.csv` | the `revisions` key |
+| `maat-soc.csv` | the `soc` key |
+| `maat-tests.csv` | the `tests` key |
+| `meta.json` | the `meta` key |
+| `packages.json` | export only: read by `--sbom` |
+| `provenance.json` | the `provenance` key |
+| `reverts.txt` | export only: read by the change analysis, which counts them in `activity` |
+| `run.log` | export only: every command run and its stderr |
+| `secrets.json` | the `secrets` key |
+| `signing.json` | the `signing` key |
+| `size.json` | the `size` key |
+| `structure.json` | the `structure` key |
+| `survival.png` | export only: a plot, with `--plots`; the closing lines name it |
+| `theseus/` | the `cohorts` key |
+| `tree.txt` | export only: the tracked paths at HEAD, which the file classifier reads |
+| `trend.json` | the `trend` key |
+| `unreachable.json` | Supply chain (`--full`), its `secrets` row, as a count; in the export under `envelope` |
