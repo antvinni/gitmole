@@ -60,6 +60,7 @@ gitmole . --fail-on critical --baseline last.json  # gate only on what is new si
 gitmole . --path backend/plugins/github  # one directory: its history, owners and watch list
 gitmole analysis-repo --no-run --hook  # an agent's edit hook, over the output of one earlier `gitmole . --out analysis-repo`
 gitmole . --since 2y --full            # the current team, every row and column
+gitmole analysis-repo --no-run --section people --csv  # every row of one table of an earlier run, as CSV
 gitmole --clean                        # list what gitmole left behind, delete on a yes
 gitmole --doctor                       # every tool gitmole runs, the version found against the one pinned
 gitmole --install-tools                # the three pinned tools, downloaded into gitmole's own directory

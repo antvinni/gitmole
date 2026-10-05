@@ -1,11 +1,14 @@
 """Turn a loaded report into sections, then draw them with rich or as Markdown/JSON.
 
 The default report is the tighter one: the columns you actually read, capped rows, elided
-paths. `full` restores every column and row (Markdown export is always full)."""
+paths. `full` restores every column and row (Markdown export is always full). One section on its
+own, whole (`--section NAME`, section.py), is the mode SECTION: every row, the ones the default
+hides after the ones it shows, each with its kind."""
 from __future__ import annotations
 
 import json
 import os
+import re
 
 from rich.console import Console
 from rich.text import Text
@@ -57,6 +60,16 @@ MARKDOWN_CAP = 50
 # reader came for; and never fewer than ROWS_KEPT rows, so a three-person repository still shows its people.
 ROW_MIN_COMMITS = 5
 ROWS_KEPT = 3
+# `full` is False for the default terminal report, "markdown" for the Markdown export, True for --full and SECTION
+# for one section printed on its own (--section NAME): every column, every row, nothing hidden. prometheus's
+# Hotspots and People tables existed only in --full's dump and in a 27 MB JSON export.
+SECTION = "section"
+KIND = "kind"   # the column a table printed whole gains where its rows are files
+# What the classifier calls a file, as the one word of the kind column; a file it gives no reason for is source.
+KIND_WORDS = {"generated": "generated", "amalgamation": "generated", "vendored": "vendored", "test file": "test", "example code": "example",
+              "release file": "release", "not a source type": "other"}
+# What a table's own hiding calls a pair it leaves out, where that is not the word above.
+HIDDEN_WORDS = {"historical": "removed", "deleted": "removed"}
 TREND_TOP = 10   # the trend step's own --top default: only those files have samples
 WATCH_CAP = 5   # the watch list is a short list by design; `full` and Markdown get a longer one, never all files
 WATCH_FULL = watch.WATCH_TOP   # tied to watch's own cap: the --compare before side is sliced by what to_json wrote
@@ -92,10 +105,20 @@ def _section(title, columns, rows, note=None, caption=None, under=None) -> dict:
     return sec
 
 
+def _wide(full) -> bool:
+    """Whether a table carries every column it has: --full and a section on its own."""
+    return full is True or full == SECTION
+
+
+def _every_row(full) -> bool:
+    """Whether a table carries every row it has, the hidden kinds too."""
+    return full is True or full == SECTION
+
+
 def _limit(title: str, full, cap=None):
-    """How many rows to keep: None for all. `full` may be False (terminal default), True, or 'markdown'.
+    """How many rows to keep: None for all. `full` may be False (terminal default), True, 'markdown' or SECTION.
     An explicit `cap` is the section's own cap and holds for Markdown too."""
-    if full is True:
+    if _every_row(full):
         return None
     if cap is not None:
         return cap
@@ -111,7 +134,7 @@ def _hide_rows(rows: list, path_of, full, pred, kind: str) -> tuple:
     `path_of(row)` returns a single path or a tuple of paths to check. Returns (rows, hidden), `hidden` being
     (count, kind) for the caption's sum (_hidden), `kind` the one word the breakdown gives the class ("test",
     "vendored"), or None when nothing was hidden."""
-    if full is True:
+    if _every_row(full):
         return rows, None
     kept, hidden = [], 0
     for row in rows:
@@ -168,7 +191,7 @@ def _hide_generated(rows: list, path_of, report: dict, full, classifier=None) ->
 
 def _hide_pairs(pairs: list, full, both, kind: str) -> tuple:
     """Drop the coupled pairs `both(entity, coupled)` accepts, unless `full` is True; (pairs, hidden) like _hide_rows."""
-    if full is True:
+    if _every_row(full):
         return pairs, None
     kept = [p for p in pairs if not both(p["entity"], p["coupled"])]
     hidden = len(pairs) - len(kept)
@@ -218,6 +241,63 @@ def _hide_gone(pairs: list, report: dict, full, classifier=None) -> tuple:
     describe a layout that no longer exists. Returns (pairs, hidden) like _hide_tests."""
     cls = classifier or classify.Classifier(report or {})
     return _hide_pairs(pairs, full, lambda a, b: cls.excluded(a, {"not in the tree"}) or cls.excluded(b, {"not in the tree"}), "historical")
+
+
+def _sift(rows: list, full, steps: list) -> tuple:
+    """Run a table's hiding, `steps` being its _hide_* calls in their order, each (rows, full) -> (rows,
+    hidden). Returns (rows, [each step's hidden], kinds). For a section on its own (SECTION) nothing is
+    dropped: the rows the default shows come first, in the table's ranking, then the ones it hides, in the
+    same ranking, and `kinds` says of each of those by id() which step took it, in the plan's words
+    ("test", "removed"). So the first rows of the whole table are the default's rows."""
+    if full != SECTION:
+        hidden = []
+        for step in steps:
+            rows, h = step(rows, full)
+            hidden.append(h)
+        return rows, hidden, {}
+    kept, kinds = rows, {}
+    for step in steps:
+        after, h = step(kept, False)
+        if h:
+            left = {id(r) for r in after}
+            kinds.update({id(r): HIDDEN_WORDS.get(h[1], h[1]) for r in kept if id(r) not in left})
+        kept = after
+    return kept + [r for r in rows if id(r) in kinds], [None] * len(steps), kinds
+
+
+def file_kind(classifier, path: str, tracked: bool = False) -> str:
+    """The one word a whole table gives a file: removed for one the tree no longer has (never said of a file
+    `tracked` by construction, as a measured function's is), else the first thing the classifier calls it
+    (generated, vendored, test, example, release, other for a type that is not ranked), else source."""
+    reasons = classifier.reasons(path)
+    if "not in the tree" in reasons and not tracked:
+        return "removed"
+    return next((KIND_WORDS[r] for r in reasons if r in KIND_WORDS), "source")
+
+
+ADDRESS = re.compile(r"([^@\s<>]+)@[^@\s<>]+\.[^@\s<>]+")
+
+
+def no_address(name):
+    """A person's name as a CSV may carry it: where the name is, or holds, an address (git lets a committer
+    put one there) the address is cut at its "@", so no export of rows about people holds an email address."""
+    return ADDRESS.sub(r"\1", name) if isinstance(name, str) else name
+
+
+def _scalar(v):
+    """A value as a CSV cell: itself, a list of plain values joined, None for anything nested."""
+    if isinstance(v, (list, tuple)):
+        return SEP.join(str(x) for x in v) if all(not isinstance(x, (dict, list, tuple)) for x in v) else None
+    return None if isinstance(v, dict) else v
+
+
+def _csv_dicts(rows: list, first=(), drop=()) -> tuple:
+    """(heads, rows) for a CSV of `rows` (dicts): the keys in `first`, then every other key in the order
+    met, less `drop` and the keys that only ever hold something nested. A missing value is an empty cell."""
+    heads = list(first)
+    for r in rows:
+        heads += [k for k in r if k not in heads and k not in drop and _scalar(r[k]) is not None]
+    return heads, [["" if _scalar(r.get(k)) is None else _scalar(r.get(k)) for k in heads] for r in rows]
 
 
 SEP = " · "   # between two fragments of a caption or two facts of the header: the report's one inline separator
@@ -545,6 +625,9 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     under = None if full is False else [" · ".join(watch.beyond_columns(r)) for r in listed]
     sec = _section(title, columns, rows, note=None if rows else watch.why_empty(report), caption=caption if rows else None, under=under)
     sec["under_head"] = WATCH_ALSO
+    if full == SECTION:   # the export's own rows (to_json), a row a file: the function and the deepest nesting by name, the reasons in one cell
+        flat = [{**r, "owner": no_address(r.get("owner")), "function": (r.get("function") or {}).get("function"), "deepest": (r.get("deepest") or {}).get("name")} for r in listed]
+        sec["csv"] = _csv_dicts(flat, first=("file",))
     if any(r["owner"] in gone for r in listed):
         sec["gone"] = gone_definition(report)
     return sec
@@ -659,7 +742,7 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
     limit = _limit("Size by language", full)
     rows = [(l["name"], l["files"], f"{l['code']:,}", _pct(l["code"], total), l["complexity"]) for l in langs[:limit]]
     columns = [("language", {}), ("files", RIGHT), ("code", RIGHT), ("share", RIGHT), ("complexity", RIGHT)]
-    if full is not True:
+    if not _wide(full):
         columns, rows = _keep(columns, rows, ["language", "files", "code", "share"])
     return _section("Size by language", columns, rows, caption=_more(len(langs), limit))
 
@@ -740,7 +823,8 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     # No address in any rendering, at any width: the Markdown is what the README says to post to a public job
     # summary, and prometheus's --full printed 1,324 addresses beside commit counts. The JSON keeps them, under
     # meta.identities, for whoever has the clone anyway.
-    rows = [(i["name"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
+    # nor a name that is itself an address, which git lets a committer record: it is cut at its "@" (no_address)
+    rows = [(no_address(i["name"]), own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
              _pct(own(i), total_commits), _pct(lines_of(i), total_lines), *((seen_at,) if dated else ())) for i, seen_at in zip(listed, when)]
     columns = [("author", {}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
                *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving", RIGHT),   # the report's one word for the blame measure, defined in the caption
@@ -748,7 +832,7 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     since = report["meta"].get("since")
     source = surviving_source(report) if total_lines else None   # the source of the column, said where the column is: the two steps give different shares
     bots = report["meta"].get("bots") or []
-    merged = [i["name"] for i in ids if i.get("aliases")]
+    merged = [no_address(i["name"]) for i in ids if i.get("aliases")]
     notes = [_fragments(
         f"{len(ids):,} = {textfmt.count(len(everyone), 'identity', 'identities')} less {_tools_words(report, tools)}" if apart else None,
         _bots_words(bots, 1 if full is False else BOTS_NAMED) if bots else None,
@@ -768,6 +852,14 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     sec["bars"] = False   # a share of 9% and one of 3% drew the same single block: the column says nothing the number does not
     if any(i["name"] in gone and d for i, d in zip(listed, last)):
         sec["gone"] = gone_definition(report)
+    if full == SECTION:
+        # every field the export holds for a person (meta.identities, activity.authors, the surviving lines) but the
+        # address, and the aliases as a count: their entries are addresses too
+        sec["csv"] = (["author", "commits", "merges", "co-authored", "share", "surviving", "surviving lines", "lines added", "lines deleted",
+                       "first commit", "last commit", "gone", "aliases"],
+                      [[no_address(i["name"]), own(i), i.get("merges", 0), credit(i), _pct(own(i), total_commits), _pct(lines_of(i), total_lines), lines_of(i),
+                        (seen.get(i["name"]) or {}).get("added", ""), (seen.get(i["name"]) or {}).get("deleted", ""), ((seen.get(i["name"]) or {}).get("first") or "")[:10],
+                        ((seen.get(i["name"]) or {}).get("last") or "")[:10], "gone" if i["name"] in gone else "", len(i.get("aliases") or [])] for i in listed])
     return sec
 
 
@@ -948,10 +1040,10 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     fixes = {f["entity"]: f["n-fixes"] for f in report.get("fixes") or []}
     cls = classify.Classifier(report)
     scored = hotspots.ranked(report)
-    scored, tests = _hide_tests(scored, lambda h: h["entity"], full, classifier=cls)
-    scored, deleted = _hide_deleted(scored, report, full, classifier=cls)
-    scored, generated = _hide_generated(scored, lambda h: h["entity"], report, full, classifier=cls)
-    scored, release = _hide_by(scored, lambda h: h["entity"], full, cls, {"release file"}, "release")
+    path = lambda h: h["entity"]   # noqa: E731
+    scored, (tests, deleted, generated, release), _ = _sift(scored, full, [
+        lambda rows, f: _hide_tests(rows, path, f, classifier=cls), lambda rows, f: _hide_deleted(rows, report, f, classifier=cls),
+        lambda rows, f: _hide_generated(rows, path, report, f, classifier=cls), lambda rows, f: _hide_by(rows, path, f, cls, {"release file"}, "release")])
     hidden_note = _hidden("file", "files", tests, deleted, generated, release)
     removed_note = None
     tracked = report.get("tree") or (report.get("size") or {}).get("files") or {}
@@ -965,49 +1057,55 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
             brought = sum(1 for h in removed if h["entity"] in imported)
             removed_note = (f"{len(removed):,} removed file{'s' if len(removed) != 1 else ''} not listed"
                             + (f", {brought:,} from left-out imports" if brought else "") + " (maat-revisions.csv has them)")
-    title = "Hotspots (score = changes × lines of code)" if full is True else "Hotspots"
+    title = "Hotspots (score = changes × lines of code)" if _wide(full) else "Hotspots"
     limit = _limit("Hotspots", full)
     series = (report.get("trend") or {}).get("files") or {}
     last = report["meta"].get("last_date") or ""
     def trend_cell(path):
         s = series.get(path) or []
-        if full is True:
+        if _wide(full):
             return trend.sparkline(s) or "-"
         return trend.change_over_year(s, last) if last else "-"
     rows = []
-    for h in scored[:limit]:
+    kinds = [file_kind(cls, h["entity"]) for h in scored] if full == SECTION else []
+    for n, h in enumerate(scored[:limit]):
         gone = h["code"] is None
-        rows.append((h["entity"], h["revs"], "-" if gone else f"{h['code']:,}", "-" if gone else h["complexity"],
+        rows.append((h["entity"], *(kinds[n:n + 1]), h["revs"], "-" if gone else f"{h['code']:,}", "-" if gone else h["complexity"],
                      "-" if gone else f"{h['score']:,}", fixes.get(h["entity"], 0), authors.get(h["entity"], "-"), minors.get(h["entity"], "-"),
                      partners.get(h["entity"], "-"), ages.get(h["entity"], "-"), trend_cell(h["entity"])))
     # minors: contributors with under 5% of the file's commits; co-changes: files it shares five or more commits with (sum of coupling)
-    columns = [("file", PATH), ("changes", RIGHT), ("lines", RIGHT), ("complexity", RIGHT), ("score", RIGHT), ("fixes", RIGHT), ("authors", RIGHT),
-               ("minors", RIGHT), ("co-changes", RIGHT), ("idle", RIGHT), ("trend", RIGHT)]
-    if full is not True:
+    columns = [("file", PATH), *(((KIND, WHOLE),) if full == SECTION else ()), ("changes", RIGHT), ("lines", RIGHT), ("complexity", RIGHT), ("score", RIGHT),
+               ("fixes", RIGHT), ("authors", RIGHT), ("minors", RIGHT), ("co-changes", RIGHT), ("idle", RIGHT), ("trend", RIGHT)]
+    if not _wide(full):
         columns, rows = _keep(columns, rows, ["file", "changes", "lines", "fixes", "authors", "trend"])
     note = None if rows else _empty_note(None, hidden_note, "no source hotspots")
     notes = [c for c in (_more(len(scored), limit), None if note else hidden_note, removed_note) if c]
     if series:
         notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
-    return _section(title, columns, rows, note=note, caption="; ".join(notes) or None)
+    sec = _section(title, columns, rows, note=note, caption="; ".join(notes) or None)
+    if full == SECTION:
+        # every number the export holds for a file, under the export's own keys: the fixes, the authors, the sum of
+        # coupling, the idle months, the commits that also changed a test, the late-night changes and the entropy.
+        # prometheus's per-file test co-change (7,545 rows), late-night share and entropy were in no rendering.
+        more = {}
+        for key in ("fixes", "authors", "soc", "age", "tests", "latenight", "entropy"):
+            for r in report.get(key) or []:
+                more.setdefault(r["entity"], {}).update({k: v for k, v in r.items() if k not in ("entity", "n-revs")})
+        flat = [{"file": h["entity"], KIND: kind, "n-revs": h["revs"], "code": h["code"], "complexity": h["complexity"], "score": h["score"] if h["code"] is not None else None,
+                 **more.get(h["entity"], {}), "trend": (trend.change_over_year(series.get(h["entity"]) or [], last) if last else "")} for h, kind in zip(scored, kinds)]
+        sec["csv"] = _csv_dicts(flat)
+    return sec
 
 
 def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     cls = classify.Classifier(report)
-    pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"]))
-    pairs, tests = _hide_tests(pairs, lambda p: (p["entity"], p["coupled"]), full, classifier=cls)
-    pairs, gone = _hide_gone(pairs, report, full, classifier=cls)
-    pairs, release = _hide_release(pairs, full)
-    pairs, example = _hide_example_pairs(pairs, full)
-    pairs, header = _hide_header_pairs(pairs, full)
-    pairs, locale = _hide_locale_pairs(pairs, full)
-    pairs, vendor = _hide_vendor(pairs, lambda p: (p["entity"], p["coupled"]), full, report=report, classifier=cls)
-    pairs, generated = _hide_generated(pairs, lambda p: (p["entity"], p["coupled"]), report, full, classifier=cls)
+    pairs = sorted((p for p in report.get("coupling") or [] if p["average-revs"] >= 5), key=lambda p: (-p["degree"], -p["average-revs"], p["entity"], p["coupled"]))   # the change analysis's own order, total
+    pairs, (tests, gone, release, example, header, locale, vendor, generated), kinds = _sift(pairs, full, _pair_steps(report, cls))
     beyond_tests = any((gone, release, example, header, locale, vendor, generated))
     hidden_note = _hidden("pair", "pairs", tests, gone, release, example, header, locale, vendor, generated)
     groups, cluster_note = [], None
-    if full is not True:
-        # a directory whose files all change together is one row; --full lists every pair
+    if not _every_row(full):
+        # a directory whose files all change together is one row; a table of every row lists every pair
         groups, pairs = coupling.clusters(pairs)
         if groups:
             n_pairs = sum(g["pairs"] for g in groups)
@@ -1020,7 +1118,9 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     rows += [(textfmt.brace_pair(p["entity"], p["coupled"]), f"{p['degree']}%", p["average-revs"]) for p in pairs[:max(limit - len(groups), 0) if limit else None]]
     # "together" is the share of their changes the two files made in one commit, the JSON's `degree`; "avg changes" its `average-revs`
     columns = [("files", PATH), ("together", RIGHT), ("avg changes", RIGHT)]
-    if full is not True:
+    if full == SECTION:
+        columns, rows = [columns[0], (KIND, WHOLE)] + columns[1:], [(r[0], kinds.get(id(p), "source")) + r[1:] for r, p in zip(rows, pairs)]
+    if not _wide(full):
         columns, rows = _keep(columns, rows, ["files", "together"])
     note = None if rows else _empty_note("no pairs with 5 or more shared changes", hidden_note, "no source pairs with 5 or more shared changes")
     # what a pair means here (a pull request under squash merging, an edit otherwise) is how the table is made, not
@@ -1032,6 +1132,36 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
     # Only test pairs may have been hidden on the way: a count of historical or vendored pairs is said nowhere else.
     if full is False and not groups and not beyond_tests and len(pairs) == 1:
         sec["lone_pair"] = (pairs[0]["entity"], pairs[0]["coupled"])
+    if full == SECTION:
+        sec["csv"] = _csv_dicts([{"entity": p["entity"], "coupled": p["coupled"], KIND: kinds.get(id(p), "source"), **p} for p in pairs])
+    return sec
+
+
+def _pair_steps(report: dict, cls) -> list:
+    """What the coupling table hides, in its order, as _sift takes it: pairs with a test file, with a file no
+    longer in the tree, of two release files, two examples, a source and its header, two translations, a
+    vendored file or a generated one."""
+    both = lambda p: (p["entity"], p["coupled"])   # noqa: E731
+    return [lambda rows, f: _hide_tests(rows, both, f, classifier=cls), lambda rows, f: _hide_gone(rows, report, f, classifier=cls),
+            lambda rows, f: _hide_release(rows, f), lambda rows, f: _hide_example_pairs(rows, f), lambda rows, f: _hide_header_pairs(rows, f),
+            lambda rows, f: _hide_locale_pairs(rows, f), lambda rows, f: _hide_vendor(rows, both, f, report=report, classifier=cls),
+            lambda rows, f: _hide_generated(rows, both, report, f, classifier=cls)]
+
+
+def companions_section(report: dict, full: bool = True, width=None) -> dict:
+    """The directed pairs the agent hook and --risk read (maat.companions): when the file changes, its
+    companion changes with it in this share of the file's commits. No report prints them, in any mode, so
+    prometheus's 55 rows were in the export and one CSV only; `--section companions` is where they are, with
+    the kind the coupling table would hide each pair under."""
+    cls = classify.Classifier(report)
+    pairs = [{"entity": c["entity"], "coupled": c["companion"], "confidence": c["confidence"], "shared": c["shared"]} for c in report.get("companions") or []]
+    pairs, _, kinds = _sift(pairs, SECTION, _pair_steps(report, cls))
+    rows = [(p["entity"], p["coupled"], kinds.get(id(p), "source"), f"{p['confidence']}%", p["shared"]) for p in pairs]
+    columns = [("file", PATH), ("companion", PATH), (KIND, WHOLE), ("together", RIGHT), ("shared changes", RIGHT)]
+    sec = _section(f"Companions · all {len(rows):,}, by share of the file's changes its companion moved in" if rows else "Companions", columns, rows,
+                   note=None if rows else "no file has a companion: none moved with another in enough of its changes",
+                   caption="together = the share of the file's changes that also changed the companion" + SEP + "what --hook and --risk name as not touched")
+    sec["csv"] = (["entity", "companion", KIND, "confidence", "shared"], [[p["entity"], p["coupled"], kinds.get(id(p), "source"), p["confidence"], p["shared"]] for p in pairs])
     return sec
 
 
@@ -1095,20 +1225,21 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     measured = report.get("functions") or []
     # a span lizard may have mis-parsed goes after every one it did not: its complexity may be the next function's too
     funcs = sorted((f for f in measured if f["ccn"] >= CCN_FLOOR), key=lambda f: (bool(f.get("suspect")), -f["ccn"], -f["nloc"], f["file"], f["function"], f["start"]))
-    funcs, tests = _hide_tests(funcs, lambda f: f["file"], full, classifier=cls)
-    funcs, vendor = _hide_vendor(funcs, lambda f: f["file"], full, report=report, classifier=cls)
-    funcs, sample = _hide_by(funcs, lambda f: f["file"], full, cls, {"example code"}, "example")
-    funcs, generated = _hide_generated(funcs, lambda f: f["file"], report, full, classifier=cls)
+    path = lambda f: f["file"]   # noqa: E731
+    funcs, (tests, vendor, sample, generated), _ = _sift(funcs, full, [
+        lambda rows, f: _hide_tests(rows, path, f, classifier=cls), lambda rows, f: _hide_vendor(rows, path, f, report=report, classifier=cls),
+        lambda rows, f: _hide_by(rows, path, f, cls, {"example code"}, "example"), lambda rows, f: _hide_generated(rows, path, report, f, classifier=cls)])
     hidden_note = _hidden("function", "functions", tests, vendor, sample, generated)   # a function is of the kind of file it is in
     limit = _limit("Complex functions", full)
     shown = funcs[:limit]
-    rows = [(textfmt.ANONYMOUS if _nameless(f) else f["function"], _where(f), _ccn_cell(f), f["nloc"], f["params"]) for f in shown]
+    kinds = [file_kind(cls, f["file"], tracked=True) for f in shown] if full == SECTION else []
+    rows = [(textfmt.ANONYMOUS if _nameless(f) else f["function"], _where(f), *kinds[n:n + 1], _ccn_cell(f), f["nloc"], f["params"]) for n, f in enumerate(shown)]
     suspects = sum(1 for f in shown if f.get("suspect"))
     suspect_note = f"{SUSPECT_MARK} = a span lizard may have mis-parsed ({suspects:,})" if suspects else None
     cut = sum(1 for f in shown if f.get("lizard_span"))
     cut_note = (f"{FLOOR_MARK} = lizard ended the function early ({cut:,}): its lines are the structure step's, "
                 f"its complexity what lizard counted before it stopped") if cut else None
-    columns = [("function", {}), ("file", PATH), ("complexity", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
+    columns = [("function", {}), ("file", PATH), *(((KIND, WHOLE),) if full == SECTION else ()), ("complexity", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
     status = (report["meta"].get("functions") or {}).get("status", "skipped" if not measured else "run")
     reason = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)",
               "skipped": "no function metrics (install lizard)"}.get(status, "function metrics did not complete")
@@ -1139,7 +1270,10 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     # what is hidden, then the definitions: the head was lizard's "ccn", and the word needs its measure said once, where the column is
     caption = _fragments(None if note else hidden_note, partial, COMPLEXITY_DEFINITION, suspect_note, cut_note)
     title = f"Complex functions · {_shown(len(rows), len(funcs))}, by complexity" if rows else "Complex functions"
-    return _section(title, columns, rows, note=note, caption=caption if rows else None)
+    sec = _section(title, columns, rows, note=note, caption=caption if rows else None)
+    if full == SECTION:   # lizard's own record of each function, under the export's keys
+        sec["csv"] = _csv_dicts([{"file": f["file"], "function": f["function"], KIND: kind, **f} for f, kind in zip(shown, kinds)])
+    return sec
 
 
 COMPLEXITY_DEFINITION = "complexity = cyclomatic: the function's branch points plus 1"
@@ -1226,7 +1360,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     gone = {g["name"] for g in loss.gone(report, months)}
     rows_all = report.get("ownership") or []   # every area the map showed before, tests included
     base = scope.report_base(report)   # a --path run's areas are the directories below the ones it names
-    dated = bool(report["meta"].get("ownership_recent")) and full is True   # the change analysis counted `recent` (0.45 on)
+    dated = bool(report["meta"].get("ownership_recent")) and _wide(full)   # the change analysis counted `recent` (0.45 on)
     areas = loss.areas(rows_all, gone, base, dated)
     hidden_note = None
     tree = (report.get("size") or {}).get("files") or {}
@@ -1234,8 +1368,8 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     # contradiction until the heading says which: the default keeps the files HEAD still has, --full every
     # file the history (or the --since window) changed. In the heading, so the report is no line longer.
     since = report["meta"].get("since")
-    counted = "in the tree now" if full is not True and tree else f"over every file in the history{f' since {since}' if since else ''}"
-    if full is not True and tree:
+    counted = "in the tree now" if not _every_row(full) and tree else f"over every file in the history{f' since {since}' if since else ''}"
+    if not _every_row(full) and tree:
         # a directory the history knows but HEAD does not is a layout that no longer exists; the rows are
         # filtered before the areas are built so a vanished layout cannot hide that one directory now dominates
         areas = [a for a in loss.areas(knowledge.present_rows(rows_all, tree), gone, base, dated) if knowledge.in_tree(a["area"], tree, base)]
@@ -1245,7 +1379,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     # the lines Co-authored-by trailers credit to a coding tool are not anyone's to own: the owners' shares are
     # of the people's lines, and the tools' part of each area is shown on its own
     assisted = ((report.get("tools") or {}).get("added") or {})
-    if full is not True and tree:
+    if not _every_row(full) and tree:
         assisted = {e: n for e, n in assisted.items() if e in tree}
     rows, shares, outrank, any_gone = [], [], False, False
     # how many of an area's authors committed to it in the --gone window, as "recent/all" in the authors cell: a
@@ -1266,8 +1400,8 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     columns = [("area", PATH), ("added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("share", RIGHT), ("second", {}), ("share", RIGHT), ("agents", RIGHT)]
     # a column only when a row shown has a whole percent of it; in the default report only when the tools
     # together hold as much of an area as its second owner, where naming them apart changes who is listed
-    shown = any(shares) and (full is True or outrank)
-    drop = ({2, 3} if full is not True else set()) | (set() if shown else {8})   # authors and lost are --full's; two columns are headed "share", so by position
+    shown = any(shares) and (_wide(full) or outrank)
+    drop = ({2, 3} if not _wide(full) else set()) | (set() if shown else {8})   # authors and lost are --full's; two columns are headed "share", so by position
     columns = [c for n, c in enumerate(columns) if n not in drop]
     rows = [tuple(c for n, c in enumerate(r) if n not in drop) for r in rows]
     # What is hidden, then the definitions, in one paragraph. "owner" is by lines added, and the Truck factor
@@ -1290,7 +1424,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     title = f"Knowledge map · {_shown(len(rows), len(areas))} {'area' if len(areas) == 1 else 'areas'} {counted}, by lines added" if rows else "Knowledge map"
     sec = _section(title, columns, rows, note=None if rows else "no ownership data", caption=_paragraphs(*notes))
     sec["bars"] = False   # the shares are the owners', one beside each name: a bar on each would be two bar columns
-    if rows and (any_gone or (gone and full is True)):   # --full's "lost" column is the gone people's share
+    if rows and (any_gone or (gone and _wide(full))):   # --full's "lost" column is the gone people's share
         sec["gone"] = gone_definition(report) + (", measured over the whole history" if report["meta"].get("since") else "")
     return sec
 
@@ -1423,12 +1557,40 @@ def sections(report: dict, full: bool = True, width=None) -> list:
             continue
         sec["id"] = sid
         out.append(sec)
+    return _finished(report, out, width)
+
+
+def _finished(report: dict, out: list, width) -> list:
+    """What every list of sections gets once it is built: "gone" defined in the first that prints the word, and,
+    for a terminal, the namesakes its path columns must not be shortened into."""
     _define_gone(out)
     if width is not None:
         homes = _homes(report, out)
         for sec in out:
             sec["homes"] = homes
     return out
+
+
+# The sections no report prints, which `--section NAME` alone reaches.
+SECTION_ONLY = [companions_section]
+
+
+def section_ids() -> list:
+    """The id of every section that can be printed on its own, in --full's order, then the ones only
+    `--section` reaches."""
+    return [b.__name__[:-len("_section")] for b in BUILDERS + SECTION_ONLY]
+
+
+def whole_section(report: dict, sid: str, width=None):
+    """Section `sid` whole (SECTION): every row, the ones the default hides after the ones it shows, with a
+    kind column where its rows are files, and under "csv" the (heads, rows) of its CSV where that holds more
+    than the table. None for a section this repository has nothing for (no agent files, no documents)."""
+    b = next(b for b in BUILDERS + SECTION_ONLY if b.__name__ == f"{sid}_section")
+    sec = b(report, SECTION, width)
+    if sec is None:
+        return None
+    sec["id"] = sid
+    return _finished(report, [sec], width)[0]
 
 
 def _homes(report: dict, secs: list) -> dict:

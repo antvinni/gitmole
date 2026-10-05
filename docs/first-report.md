@@ -99,5 +99,6 @@ and a table too wide for the terminal leaves its rightmost columns out and says 
 3. Before changing a file at the top of the watch list, read it, starting at the function under `look at first`.
 4. Where the knowledge map shows `gone` after a name, or one name, find out who can review changes there.
 
-Everything else can wait. `gitmole . --full` shows every section and row, and
+Everything else can wait. `gitmole . --full` shows every section and row,
+`gitmole . --section NAME` one table on its own with every row (`--csv` for a spreadsheet), and
 `gitmole . --markdown report.md` gives the same report as a document to share.

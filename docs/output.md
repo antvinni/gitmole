@@ -33,6 +33,10 @@ in plain words, and what to do first. This page is the reference.
    or `crates/`) is hidden from the map with a count, and left out of the
    islands and bus-factor findings; `--full` shows it.
 5. Secrets is a pass or fail check. Read it only if it flags something.
+6. One table, whole: `--section NAME` prints a section on its own with every
+   row, the ones the report hides too, each with its kind, and `--csv` writes
+   the same rows as a CSV
+   ([One section, whole](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#one-section-whole)).
 
 ## The terminal report
 

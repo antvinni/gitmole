@@ -24,6 +24,7 @@ LEFT_OUT = {
     "gitmole/banner.py": "the terminal banner",
     "gitmole/brief.py": "the default terminal report's short form of a finding: it reads the rule and the evidence and writes neither, and remediation reads the export",
     "gitmole/clean.py": "--clean",
+    "gitmole/section.py": "--section and --csv: one section of a finished report on its own; it reads the report and writes nothing remediation reads",
     "gitmole/doctor.py": "--doctor",
     "gitmole/install.py": "--install-tools",
     "gitmole/feedback.py": "--feedback, after the report",
