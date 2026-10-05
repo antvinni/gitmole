@@ -49,14 +49,42 @@ language it is the line counter's sum for the file) and `together` (the
 share of two files' changes made in one commit: `degree` in the JSON).
 The JSON's keys are unchanged.
 
-1. **Header**: commits, date span, identities, branch, size, top languages,
-   one line for the share of fix commits, the share that are reverts (git's `Revert "…"` subject or its `This reverts commit <sha>` body line) when
-   there are any (the busiest weekday and hour are `--full`'s Activity
-   table), the year most surviving code was written with the step that counted it (`23% of surviving code
-   from 2026, by blame`; `by git-of-theseus` after a `--plots` run, whose sampling pass rewrites the same
-   two files and gives slightly different shares; or why the blame pass did not run), and the share of
-   commits signed and by what (`51% of commits signed (gpg 49%, ssh 2%),
-   60% of the last year's`), and a one-line tally of the findings. Signing
+A table's title carries its count and what it is ranked by (`Complex
+functions · 8 of 475, by complexity`; `all 8` when every row is shown), so no
+caption ends `and 467 more`. A caption says what the table hides, as a sum
+with its breakdown (`501 pairs hidden: 289 test, 192 historical, 10 vendored,
+8 generated, 2 example`), and then defines the table's words as `term =
+meaning`, the fragments joined by ` · `: two lines at most at 80 columns,
+three under People and four under the Watch list with its `Check:`. A word is
+defined once, under the first table that prints it (`gone = no commit in the
+12 months to 2026-09-18`). How a table was made (the merge regime behind the
+coupled pairs, an import left out of ownership, the merge total, whose aliases
+were merged) is `--full`'s and Markdown's. No caption says `--full shows
+them`: the default report says it once, on the line before its last.
+
+1. **Header**: a title line, the repository with its branch and commit
+   (`prometheus · branch measure @ 296080c0`), and labelled rows, each label
+   describing everything on its row. `history`: commits, date span, the
+   `--since` window, identities. `files`: the three counts with their three
+   denominators, `1,676 tracked · 1,056 with code · 653 scored (source: not
+   test, example, generated or vendored)`: git's tracked files, the ones the
+   line counter found code in, and the source files every ranking is over.
+   `code`: lines, top languages and the year most surviving code was written
+   with the step that counted it (`23% surviving from 2026, by blame`; `by
+   git-of-theseus` after a `--plots` run, whose sampling pass rewrites the same
+   two files and gives slightly different shares; or why the blame pass did
+   not run). `commits`: the share of fix commits and the reverts (git's
+   `Revert "…"` subject or its `This reverts commit <sha>` body line) when
+   there are any; the busiest weekday and hour are `--full`'s Activity table.
+   `left out`: the sweeping commits and the ones `.git-blame-ignore-revs`
+   declares, `18 sweeping commits, not counted in churn, coupling or
+   ownership`, said here once for every table below. `signing`: the share of
+   commits signed and by what (`51% of commits signed (gpg 49%, ssh 2%), 60%
+   of the last year's`). `scope` (a `--path` run) and `steps` (the ones that
+   did not finish) are rows when there is something to say, and a row with
+   nothing to say is not printed. The tally of the findings is the Findings
+   title's: `Findings · 4 warnings ▲ · 10 notes ●`, each word beside the mark
+   its entries carry. Signing
    is read from the `gpgsig` header in each commit object, so it needs no
    keyring and a fresh clone reads the same as the author's; nothing is
    verified, and the figure is evidence toward SLSA Source L2, never a
@@ -79,24 +107,26 @@ The JSON's keys are unchanged.
    conventional-commit subjects, hours of the day). This
    repository against itself, with no prior from elsewhere, and nothing is
    labelled: every descriptor has an ordinary cause. The rest is every commit that declares
-   nothing, which includes any agent use nobody disclosed; it is never a group of people. With `--full`, and always in Markdown, a coverage
-   line counts the tracked text files by why they are out of the scored
-   pool: `4,512 files: 582 scored · 13 generated · 2,680 test files · 139
-   example code · 3 release files · 1,095 not a source type`, and a file of
+   nothing, which includes any agent use nobody disclosed; it is never a group of people. With `--full` the `files` row
+   counts the tracked text files by why they are out of the scored
+   pool, `4,512 tracked · 1,470 with code · 582 scored · 13 generated ·
+   2,680 test files · 139 example code · 3 release files · 1,095 not a source
+   type`, and Markdown always carries that count as a line of its own
+   (`4,512 files: 582 scored · …`); a file of
    a type scc does not classify counts as `not counted by scc`.
 
    The default header says what it ranks when that is the smaller part. When
    the files no table carries (`not a source type`, `not counted by scc`)
-   outnumber the scored ones, the header's last line, the tally, ends
-   `581 of 4,512 files scored`. When the files the type filter left out
-   also hold more lines than the scored ones, the count opens a line of
-   its own instead: `17 of 227 files scored · 69% of tracked lines are
-   documentation, not ranked · --file-types all includes them · 83% of
-   commits and 72% of fixes change only unscored files`. The lines are
+   outnumber the scored ones, the `files` row gives the scored count as a
+   ratio: `581 of 4,512 files scored`. When the files the type filter left out
+   also hold more lines than the scored ones, the `code` row adds `69% of
+   tracked lines are documentation, not ranked · --file-types all includes
+   them` and the `commits` row `83% of commits and 72% of fixes change only
+   unscored files`. The lines are
    scc's code lines, the unit of the header's own count; documentation is
    prose formats and anything under `docs/`; a tree where other types hold
    more reads `37% of tracked lines are in file types that are not ranked`.
-   The last phrase labels the populations: `25% of commits are fixes` is
+   The last phrase labels the populations: `25% are fixes` is
    over every commit, the bug magnets and the watch list over scored files,
    and it says how many commits, and how many fix commits, changed files
    and none that is scored. A tree with more test files than source files
@@ -157,7 +187,7 @@ The JSON's keys are unchanged.
    The default report folds the rules no label has reached yet into a
    closing line instead of spelling them out ("4 more from the structure
    step, not labelled yet (1 warning, 3 notes)", the severities the
-   header's tally counts them under); the set is `UNJUDGED` in
+   Findings title's tally counts them under); the set is `UNJUDGED` in
    [gitmole/findings.py](https://github.com/antvinni/gitmole/blob/main/gitmole/findings.py).
    `--full`, Markdown, JSON (where they carry `"summary": true` and
    `"unjudged": true`), SARIF and `--fail-on` treat them like any other
@@ -655,7 +685,7 @@ The JSON's keys are unchanged.
    age counts, along with every commit the repository declares
    uninteresting in `.git-blame-ignore-revs` (and the file
    `blame.ignoreRevsFile` names); the activity totals keep them,
-   `activity.json` lists them, the watch list's caption counts them, and
+   `activity.json` lists them, the header's `left out` row counts them, and
    the finding names the undeclared ones with the advice to declare them,
    so that git blame and GitHub skip them too. An import is left out the
    same way: a commit that adds to a great many files, deletes almost
@@ -703,9 +733,10 @@ The JSON's keys are unchanged.
    percent of it (the default report: where they hold as much as the
    second owner), and the People caption says how many names were left out,
    how many spellings that is with their aliases, the no-reply addresses
-   they share and their commits (`3 coding-tool names left out (7 with
-   aliases, sharing 1 no-reply address, 32 commits)`), the same sentence in
-   the default report, `--full` and Markdown. No rendering of the People
+   they share and their commits, as the subtraction from the header's count of
+   identities to the title's (`1,324 = 1,327 identities less 3 coding-tool
+   names (7 with aliases, sharing 1 no-reply address, 32 commits)`), the same
+   words in the default report, `--full` and Markdown. No rendering of the People
    table has an email column, at any width; the addresses stay in the
    JSON export's `meta.identities`.
    Someone credited only by trailers, who never commits, is a person and
@@ -854,7 +885,7 @@ The JSON's keys are unchanged.
    unless it is one word that two people's full names in the history hold
    or that is written as a given name (Jack, George), a one-word handle
    that is a distinctive word of the fuller name, the fuller name run together
-   (RobinMalfait), or an initial plus the surname (nlohmann); the caption says whose; merges
+   (RobinMalfait), or an initial plus the surname (nlohmann); the title counts them (`242 with aliases merged`) and `--full` says whose; merges
    counted in a column of their own and left out of the commit count and
    share, since merging every pull request is not writing the code; a row's
    merges and its surviving code are its own, by the name and address git
@@ -863,10 +894,12 @@ The JSON's keys are unchanged.
    which are any author named `*[bot]`, any identity that merges with
    one (`github-actions` beside `github-actions[bot]` is one account),
    and any author whose name says bot, CI, deploy or automation, no
-   product names, are counted apart in the caption and kept out of the
+   product names, are counted in the caption (`4 bots left out:
+   dependabot[bot] 882, 3 more`) and kept out of the
    timeline; their lines are left out of ownership and surviving code
    too, so a deploy job that commits a built site owns nothing; the caption
-   says which step counted the surviving code, blame or git-of-theseus), a knowledge map (lines added per area of the tree
+   defines `share` (of commits, without merges) and `surviving` with the step
+   that counted it, `surviving = blame share at HEAD` or git-of-theseus's), a knowledge map (lines added per area of the tree
    and who wrote them), a timeline of commits per author over the last
    twelve months, change coupling, the most complex functions, repo
    health. On a narrow terminal the timeline shows fewer of those months,
@@ -882,7 +915,8 @@ The JSON's keys are unchanged.
    day, code-maat's temporal period, so a rebase-merged pull request is one
    change again and a change spread over a ticket's commits counts once;
    the cap on files per change applies after grouping, and the sum of
-   coupling and the test co-change counts use the same changes. The caption
+   coupling and the test co-change counts use the same changes. Under `--full`
+   and in Markdown the caption
    says how changes reach the branch when that changes what a pair means:
    almost no merge commits and most subjects ending `(#NNNN)` is a
    squash-merged repository, whose pairs describe pull requests rather than
@@ -892,7 +926,9 @@ The JSON's keys are unchanged.
    no longer in the tree, since they describe a layout that no longer
    exists, and shows a directory whose files all change together (generated
    tables, one file per version) as one row with the file count and the
-   weakest share; the caption counts both and `--full` shows every pair.
+   weakest share; the caption gives the hidden pairs as a sum with its
+   breakdown and says what a directory row is (`a directory row = its files
+   change with each other (15 pairs)`), and `--full` shows every pair.
    The column `together` is the share of the two files' changes made in one
    commit (`degree` in the JSON); `--full` adds `avg changes`, the mean of
    their change counts (`average-revs`).
@@ -1002,7 +1038,8 @@ The JSON's keys are unchanged.
    a repository's size. A People or Timeline row needs five commits (in
    the months shown, for the timeline), the floor the coupling table
    already uses for "enough commits to say anything"; the rest are counted
-   as `and N more`, and the top three rows stay whatever they hold. The
+   (in the People title, `3 of 8 identities`; under the Timeline, `and N
+   more`), and the top three rows stay whatever they hold. The
    change coupling table is left out when it would be one pair that the
    finding *Files that always change together* already names with its share
    and nothing but test pairs was hidden. The complex functions table is one line (`no long,

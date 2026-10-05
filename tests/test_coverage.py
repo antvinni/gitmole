@@ -158,10 +158,12 @@ class Rendered(unittest.TestCase):
                              ["85% of tracked lines are documentation, not ranked", "--file-types all includes them",
                               "40% of commits and 50% of fixes change only unscored files"])
             text = _text(report)
-            self.assertIn("│ 1 of 5 files scored  ·  85% of tracked lines are documentation, not ranked", text)
-            self.assertIn("40% of commits and 50% of fixes change only unscored files", text)
+            self.assertRegex(text, r"│ files +1 with code · 1 of 5 files scored \(source: not test, example, generated or vendored\) +│")
+            self.assertRegex(text, r"│ code +100 lines · Shell · 85% of tracked lines are documentation, not ranked · +│\n│ +--file-types all includes them +│",
+                             "the flag is not parted from its argument")
+            self.assertRegex(text, r"│ commits +(\d+% are fixes · )?40% of commits and 50% of fixes change only unscored files +│", "each fact on the row its label describes")
             full = _text(report, full=True)
-            self.assertIn("5 files: 1 scored", full)
+            self.assertRegex(full, r"│ files +5 tracked · 1 with code · 1 scored · 1 test file · 3 not a source type +│")
             self.assertNotIn("1 of 5 files scored", full, "--full's own coverage line counts the files")
             self.assertIn("85% of tracked lines are documentation", full)
             self.assertIn("85% of tracked lines are documentation", render.markdown(report, []))
@@ -182,7 +184,7 @@ class Rendered(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             loaded = load.load_report(_out(d, {"app/main.py": ("Python", 900), "a.md": ("Markdown", 100), "b.md": ("Markdown", 100)},
                                            {"scored": 1, "not a source type": 2}))
-        self.assertRegex(_text(loaded, width=80), r"│ nothing flagged  ·  1 of 3 files scored +│", "on the tally's line: no line added")
+        self.assertRegex(_text(loaded, width=80), r"│ files +1 with code · 1 of 3 files scored \(source: not test, example, +│", "on the files row: no line of its own")
         files["scored"] = 1200
         self.assertFalse(classify.unseen(files), "tests are in the tables, hidden: they are not what is unseen")
         self.assertIsNone(render.scored_phrase(report))
@@ -195,7 +197,8 @@ class Rendered(unittest.TestCase):
             self.assertEqual(ids[:2], ["watch", "documents"])
             sec = render.documents_section(report, False)
             self.assertEqual(sec["rows"], [["README.md", "3"], ["skills/a/SKILL.md", "3"]])
-            self.assertTrue(sec["caption"].startswith("by changes alone"))
+            self.assertEqual(sec["title"], "Most-changed documents · all 2, by changes")
+            self.assertEqual(sec["caption"], "documentation is not scored: this is where it changed most, not where a fix is likely")
             report["coverage"]["documents"] = [{"file": f"d{i}.md", "revisions": 20 - i} for i in range(12)]
             self.assertEqual(len(render.documents_section(report, False)["rows"]), 5, "a short list")
             self.assertEqual(len(render.documents_section(report, True)["rows"]), 12)

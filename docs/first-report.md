@@ -3,10 +3,13 @@
 What each part of `gitmole .` means, in plain words, and what to do first. [output.md](output.md) is the
 full reference; back to [the README](https://github.com/antvinni/gitmole#readme).
 
-**Header box.** The repository at a glance: commits, date span, people, the branch and commit analysed,
-size and languages, how many commits are fixes or reverts, how old the surviving code is and how many
-commits are signed. Its last line counts the findings by severity; a step that failed or timed out is
-named here too. When people commit (the busiest weekday and hour) is in `--full`'s Activity table.
+**Header box.** The repository at a glance, with the branch and commit analysed in its title and one labelled
+row per subject: `history` (commits, date span, people), `files` (how many are tracked, how many hold code and how
+many are *scored*, the source files every ranking below is over), `code` (lines, languages, how old the surviving
+code is), `commits` (how many are fixes or reverts), `left out` (commits that sweep the whole tree, which no count
+below includes) and `signing`. A step that failed or timed out gets a `steps` row. The findings are counted by
+severity in the title of the Findings box under it. When people commit (the busiest weekday and hour) is in
+`--full`'s Activity table.
 
 **Findings.** What the rules flagged, worst first. `✖` is critical, `▲` a warning, `●` a note. Each
 finding states the facts, and the line starting `↳` names the file, area or person to start with.
@@ -14,7 +17,11 @@ The facts are the short form: how many, against which thresholds, and the worst 
 functions)` where a table below lists the rest. `--full` names every subject.
 
 - *"N more from the structure step, not labelled yet (2 warnings, 3 notes)"*: newer rules nobody has checked
-  against real repositories yet. Treat them as leads, not verdicts; the header's count includes them.
+  against real repositories yet. Treat them as leads, not verdicts; the Findings title's count includes them.
+
+**Tables.** A table's title says how many of its rows are shown and what they are ranked by (*8 of 475, by
+complexity*). The lines under it say what it hides (*188 functions hidden: 82 test, 60 generated, …*) and what its
+words mean (*gone = no commit in the 12 months to …*); `--full` shows the hidden rows.
 
 **Watch list.** The five source files where a change is most likely to need a fix: ranked by how often
 each changed times how big it is (*changes × lines of code*). The other columns say what to look at there and do not change the rank:
@@ -33,16 +40,16 @@ in the findings (*truck factor not computed: 17 source files, needs 20*) names a
 too small for, so its absence is not read as a pass.
 
 **People.** Who commits, their share of the commits, and how much of the code in the tree today each
-wrote (`surviving code`; the caption says which step counted it, gitmole's own blame pass or, after `--plots`, git-of-theseus). Bots and merges are counted apart, aliases of one person
-are merged, and a coding tool credited by `Co-authored-by` trailers is left out; the caption counts the names
-left out, the spellings with their aliases, the no-reply addresses they share and their commits (*3 coding-tool names
-left out (7 with aliases, sharing 1 no-reply address, 32 commits)*; several names on one address are one assistant's
+wrote (`surviving`; the caption says which step counted it, gitmole's own blame pass or, after `--plots`, git-of-theseus). Bots are left out and merges have their own column, aliases of one person
+are merged (the title says for how many), and a coding tool credited by `Co-authored-by` trailers is left out; the caption counts the names
+left out, the spellings with their aliases, the no-reply addresses they share and their commits (*1,324 = 1,327 identities
+less 3 coding-tool names (7 with aliases, sharing 1 no-reply address, 32 commits)*; several names on one address are one assistant's
 model versions). No report prints an email address, at any width or in Markdown; the JSON export keeps them.
 
 **Knowledge map.** Each top-level area, how many lines were added there, and who wrote most of them.
-The heading says which files are counted: the default map counts the `files in the tree now`, so a
+The title says which files are counted: the default map counts the areas `in the tree now`, so a
 directory that was moved or deleted does not make its author an owner of what remains, and `--full`
-counts `every file in the history`; an area's lines and shares differ between the two for that reason.
+counts them `over every file in the history`; an area's lines and shares differ between the two for that reason.
 `(gone)` marks an owner with no commits in the twelve months before the last commit (`--gone` changes
 the twelve). When several people hold exactly the top share, as the co-authors of one squash commit do,
 no owner is named: the cell reads `shared by 12 (8%)`, twelve people with 8% each. Lines a `Co-authored-by` trailer credits to a coding tool are not anyone's to own: an

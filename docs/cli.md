@@ -665,10 +665,8 @@ and removed again when the step ends.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
 and the rest of the report still renders: whatever the tool had written is
-read as no data, the terminal header's third line (the fourth with `--full`
-when there is coverage data; the Markdown header shows the coverage line
-whenever there is coverage data, so there it is the fourth without `--full`
-too) opens by naming the step (`size timed out`; `structure checks timed out`, `failed`
+read as no data, the terminal header's `steps` row (in Markdown, the start of
+the line that gives the share of fix commits) names the step (`size timed out`; `structure checks timed out`, `failed`
 or `did not complete` for the step whose eight rules have no section of their
 own), and `meta.json` records every step's outcome under `steps`. A structure
 step skipped because gitmole runs on Python before 3.10 is said nowhere in
