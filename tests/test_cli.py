@@ -479,6 +479,15 @@ class Export(unittest.TestCase):
                          ["--fail-on warning: deep_nesting, 1 warning finding (Deeply nested code; not labelled yet, so the report folds it "
                           "into its closing line, and it counts all the same) (exit 3)"])
 
+    def test_the_tripping_line_calls_an_info_finding_a_note_and_keeps_the_flags_own_level(self):
+        """The report's word for the JSON's `info` is "note"; --fail-on takes the JSON's word, so the line has both."""
+        from gitmole import gate
+        notes = [{"severity": "info", "title": "Sweeping commits", "rule": {"id": "sweeping_commits"}}]
+        self.assertEqual(gate.tripping(notes, "info"), ["--fail-on info: sweeping_commits, 1 note (Sweeping commits) (exit 3)"])
+        self.assertEqual(gate.tripping(notes * 2, "info"), ["--fail-on info: sweeping_commits, 2 notes (Sweeping commits) (exit 3)"])
+        mixed = notes + [{"severity": "warning", "title": "Sweeping commits", "rule": {"id": "sweeping_commits"}}]
+        self.assertEqual(gate.tripping(mixed, "info"), ["--fail-on info: sweeping_commits, 2 warning findings (Sweeping commits) (exit 3)"], "the worst of a rule's findings names them, as before")
+
     def test_a_tripped_gate_says_what_it_stopped_on(self):
         """--fail-on critical exited 3 with an empty stderr: a CI log said the job failed and not why."""
         ids = [{"name": "Your Name", "email": "you@example.com", "commits": 5, "aliases": []}]

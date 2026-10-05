@@ -46,7 +46,7 @@ class Risks(unittest.TestCase):
                          "60 × 4000, then 40 × 800, then 30 × 200; fixes, complexity and ownership are reasons, not rank")
         # products 240,000 / 32,000 / 6,000, sum 278,000: 100 × each ÷ 278,000.
         self.assertEqual([round(r["score"], 2) for r in ranked], [86.33, 11.51, 2.16],
-                         "each file's percentage share of the pool's revisions × lines of code")
+                         "each file's percentage share of the pool's changes × lines of code")
         self.assertAlmostEqual(sum(r["score"] for r in ranked), 100.0, msg="the whole list's scores add up to 100")
 
     def test_a_single_scored_file_holds_the_whole_pool_and_scores_100(self):
@@ -66,7 +66,7 @@ class Risks(unittest.TestCase):
 
     def test_reasons_in_plain_words(self):
         top = {r["file"]: r for r in watch.risks(scored_companions(report()))}["core/parser.py"]
-        self.assertEqual(top["reasons"], ["changed 40 times", "fixed 5 times in six months",
+        self.assertEqual(top["reasons"], ["changed 40 times", "fixed 5 times in 6 months",
                                           "only Ann has touched it", "parse() complexity 41",
                                           "changes with core/ast.py (72%) and 1 other"])
         by = {r["file"]: r for r in watch.risks(report())}
@@ -78,7 +78,7 @@ class Risks(unittest.TestCase):
         r["authors"] = [{"entity": "core/parser.py", "n-authors": 14, "n-revs": 40, "minor": 11}, {"entity": "core/util.py", "n-authors": 3, "n-revs": 30, "minor": 2}]
         r["soc"] = [{"entity": "core/parser.py", "soc": 210, "partners": 41}, {"entity": "core/util.py", "soc": 12, "partners": 4}]
         by = {x["file"]: x for x in watch.risks(r)}
-        self.assertEqual(by["core/parser.py"]["reasons"], ["changed 40 times", "fixed 5 times in six months", "Ann wrote 100% of it",
+        self.assertEqual(by["core/parser.py"]["reasons"], ["changed 40 times", "fixed 5 times in 6 months", "Ann wrote 100% of it",
                                                            "11 of 14 authors are minor contributors", "parse() complexity 41",
                                                            "changes with core/ast.py (72%) and 1 other", "changes alongside 41 other files"])
         self.assertEqual(by["core/parser.py"]["minor"], 11)
@@ -222,7 +222,7 @@ class Risks(unittest.TestCase):
         r["revisions"].append({"entity": "ops/deploy.sh", "n-revs": 40})
         # ops/plain.sh differs from deploy.sh only in complexity: same revisions, same lines of
         # code, no fixes or ownership rows for either. The test below compares only the list's
-        # own ranking, which is revisions × lines of code and does not read complexity at all.
+        # own ranking, which is changes × lines of code and does not read complexity at all.
         r["size"]["files"]["ops/plain.sh"] = {"code": 300, "complexity": 0}
         r["revisions"].append({"entity": "ops/plain.sh", "n-revs": 40})
         by = {x["file"]: x for x in watch.risks(r)}

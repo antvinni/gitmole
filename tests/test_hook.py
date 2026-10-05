@@ -73,7 +73,7 @@ class Gate(unittest.TestCase):
             printed = json.loads(stdout.getvalue())
             context = printed["hookSpecificOutput"]["additionalContext"]
             self.assertEqual(printed["hookSpecificOutput"]["hookEventName"], "PostToolUse")
-            self.assertIn("core/hot.py: 99.4% of the repository's revisions × lines of code (rank 1 of 2, on the watch list)", context)
+            self.assertIn("core/hot.py: 99.4% of the repository's changes × lines of code (rank 1 of 2, on the watch list)", context)
             self.assertIn("not touched: core/cold.py, which moved in 80% of core/hot.py's changes", context)
             self.assertNotIn("CHANGES", context, "a companion is a scored source file, not a change log every commit touched")
             self.assertIn("total 99.4%, over the 50% threshold", context)
@@ -90,7 +90,7 @@ class Gate(unittest.TestCase):
                           {"file": "main.py", "score": 0, "reasons": ["changed once"], "reason": "changed once", "rank": None}],
                 "total": 0.6, "pool": 9}
         lines = hook.summary(risk)
-        self.assertEqual(lines[0], "core/util.py: 0.6% of the repository's revisions × lines of code (rank 2 of 9, on the watch list); "
+        self.assertEqual(lines[0], "core/util.py: 0.6% of the repository's changes × lines of code (rank 2 of 9, on the watch list); "
                                    "changed 30 times; imported by 2 files, 5 counting what imports them")
         self.assertEqual(lines[1], "core/new.py: not scored (changed once); imported by core/util.py")
         self.assertEqual(lines[2], "main.py: not scored (changed once)")

@@ -83,10 +83,10 @@ Exit codes for CI and for coding agents.
 
 | Option | What it does |
 |---|---|
-| `--fail-on LEVEL` | Exit 3 if any finding is at LEVEL or worse, LEVEL being `critical`, `warning` or `info`; exit 4 when none is and a step the findings read did not complete. The rules nobody has labelled yet, which the default report folds into its closing "not labelled yet" line, count like any other; the line on stderr naming what tripped the gate says when it was one of them. See [Exit codes](#exit-codes). |
+| `--fail-on LEVEL` | Exit 3 if any finding is at LEVEL or worse, LEVEL being `critical`, `warning` or `info` (the severity the report calls a note; the flag takes the JSON's word); exit 4 when none is and a step the findings read did not complete. The rules nobody has labelled yet, which the default report folds into its closing "not labelled yet" line, count like any other; the line on stderr naming what tripped the gate says when it was one of them. See [Exit codes](#exit-codes). |
 | `--require-vuln-db` | Exit 4 when the dependency scan ran with no vulnerability database, so no package was checked. Without it that run is said on stderr under a gate and in the SARIF, and passes. See [No vulnerability database](#no-vulnerability-database). |
 | `--baseline BEFORE.json` | With an earlier `--json` export of the same clone: the findings it already had are still reported, their statement opening "In the baseline:", and do not count toward `--fail-on`. See [Baseline](#baseline). Not with `owner/*`. |
-| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's revisions × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
+| `--risk BASE` | Score the files changed since BASE (the merge base with HEAD) with the watch list's score (each file's share, in percent, of the repository's changes × lines of code), in one extra section with a total. Needs a local path; works with `--no-run`, and the JSON carries the total. |
 | `--risk-threshold N` | With `--risk`: exit 3 when the changed files together hold more than N percent; exit 4 when they do not and scc, the log or the change analysis did not complete. With `--hook`: only says whether the total is over N; the hook never blocks (see [Agent hooks](#agent-hooks)). |
 | `--hook` | With `--no-run` and an output directory: read an agent hook's JSON on stdin (or take files after `--`), score the files it names like `--risk`, print a summary the agent reads back, and exit 0. It never blocks an edit: the score is one no edit can lower. See [Agent hooks](#agent-hooks). |
 
@@ -143,7 +143,7 @@ gitmole . --markdown report.md         # the same report as a Markdown document
 gitmole . --json report.json           # every table, the watch list and the findings, machine-readable
 gitmole . --markdown - | pbcopy        # - means stdout; banner and progress go to stderr
 gitmole . --fail-on warning            # exit 3 if any finding is a warning or worse
-gitmole . --risk main --risk-threshold 10  # exit 3 if the changed files hold over 10% of the repo's revisions × lines
+gitmole . --risk main --risk-threshold 10  # exit 3 if the changed files hold over 10% of the repo's changes × lines
 ```
 
 Each finding in the JSON carries, next to its severity, title, detail and
@@ -289,7 +289,7 @@ stderr names the ones that did not count. `--baseline` does not change the
 exit code for a step that did not complete: 4 stays 4.
 
 `--risk-threshold` needs `--risk`; it exits 3 when the files changed since
-main hold more than 10% of the repository's revisions × lines of code, and
+main hold more than 10% of the repository's changes × lines of code, and
 the total prints in the Change risk caption.
 
 The scale changed in 0.8.0: before, the total was a sum of factor-product
@@ -409,7 +409,7 @@ the `version` input overrides both. The inputs:
 | Input | Default | |
 |---|---|---|
 | `args` | `.` | The target and any other options, split on whitespace (no shell quoting). |
-| `fail-on` | none | `critical`, `warning` or `info`: fail the step when a finding is at that severity or worse. |
+| `fail-on` | none | `critical`, `warning` or `info` (a note in the report): fail the step when a finding is at that severity or worse. |
 | `risk` | none | `--risk` base, for a pull request `origin/${{ github.base_ref }}`. |
 | `risk-threshold` | none | With `risk`: fail when the changed files hold more than N percent. |
 | `baseline` | `false` | Gate only on what is new since the default branch's last run. See [Baseline in the Action](#baseline-in-the-action). |
@@ -543,7 +543,7 @@ about this change`.
 The hook never blocks the agent; it is context. Up to 0.42.0 it exited 2,
 which every one of these hooks reads as "block", when the total was over
 `--risk-threshold`. But the total is the edited files' share of the
-repository's revisions × lines of code, and no edit can lower it: the
+repository's changes × lines of code, and no edit can lower it: the
 revisions are already in the log. Lewis et al. (ICSE 2013) put a flag of
 that kind in front of Google's code reviewers and saw no change in what
 they did, because "there is nothing that can be done by a team to

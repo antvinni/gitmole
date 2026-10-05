@@ -15,7 +15,7 @@ finding states the facts, and the line starting `↳` names the file, area or pe
   against real repositories yet. Treat them as leads, not verdicts; the header's count includes them.
 
 **Watch list.** The five source files where a change is most likely to need a fix: ranked by how often
-each changed times how big it is. The reasons say what to look at there; they do not change the rank.
+each changed times how big it is (*changes × lines of code*). The reasons say what to look at there; they do not change the rank.
 The caption under it replays the list six months back and counts how many of the files fixed since
 were on it, next to a random list and the most changed files, so you can see how far to trust it here.
 With under a year of history it says *too little history to backtest* instead: there is no list from six
@@ -23,7 +23,7 @@ months back to replay yet, so nothing here says how far to trust the ranking.
 
 In a repository that is mostly documentation the header says so (*17 of 227 files scored*, *69% of tracked
 lines are documentation, not ranked*) and a short **Most-changed documents** list follows: the watch list
-ranks source files only, and that list is a plain count of revisions, not a ranking of risk. A dim last line
+ranks source files only, and that list is a plain count of changes, not a ranking of risk. A dim last line
 in the findings (*truck factor not computed: 17 source files, needs 20*) names a measure the repository is
 too small for, so its absence is not read as a pass.
 
@@ -48,10 +48,10 @@ commits in the months shown; the rest are counted under the table (`and 32 more`
 are listed whatever they committed. The People table keeps its rows the same way.
 
 **Change coupling.** Pairs of files that change together, and the share of changes they share
-(`degree`). A pair with no obvious link is often a hidden dependency or copied code. When there is
+(`together`). A pair with no obvious link is often a hidden dependency or copied code. When there is
 one pair and the watch list already shows it (`changes with … (59%)`), the table is left out.
 
-**Complex functions.** The functions with the most branches (`ccn`, cyclomatic complexity), with their
+**Complex functions.** The functions with the most branches (`complexity`: cyclomatic, the function's branch points plus 1), with their
 length and parameters. A `?` marks a span the parser may have misread, and `<anonymous>` a function
 with no name of its own (a callback, a lambda): its file column gives the line to find it by. When no
 function is both long and complex (complexity 15 or more over 100 lines or more, the brain-methods

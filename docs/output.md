@@ -8,7 +8,7 @@ in plain words, and what to do first. This page is the reference.
 ## How to read the output
 
 1. Start with the header and the findings.
-2. The watch list is the source files ranked by revisions × lines of code, from
+2. The watch list is the source files ranked by changes × lines of code (a change is one commit that touched the file; the JSON calls them `revs`), from
    `maat-revisions.csv` joined with scc's per-file size. The change log follows
    renames, so a moved file is one entity under its new path and a pure move
    adds no lines: whoever moved a tree to `src/` did not write it, and the
@@ -34,6 +34,19 @@ in plain words, and what to do first. This page is the reference.
 5. Secrets is a pass or fail check. Read it only if it flags something.
 
 ## The terminal report
+
+One format for numbers and one word per column, in the terminal and in
+Markdown: a count of 1,000 or more has its thousands separator, in the
+header, every table and every caption; zero prints as 0 (a month without a
+commit in the Timeline too); a span is digits and its unit (`6 months`); a
+threshold is `N or more` in a sentence and `≥N` only in a table cell; a
+bare vulnerability score has `CVSS` before it. The column heads are
+`changes` (commits that touched the file: `revs` in the JSON),
+`complexity` (cyclomatic, the function's branch points plus 1, defined in
+one line under Complex functions: `ccn` in the JSON; in Hotspots and Size by
+language it is the line counter's sum for the file) and `together` (the
+share of two files' changes made in one commit: `degree` in the JSON).
+The JSON's keys are unchanged.
 
 1. **Header**: commits, date span, identities, branch, size, top languages,
    one line for the share of fix commits, the share that are reverts (git's `Revert "…"` subject or its `This reverts commit <sha>` body line) when
@@ -88,7 +101,10 @@ in plain words, and what to do first. This page is the reference.
    and none that is scored. A tree with more test files than source files
    gets none of this: tests are in the tables, hidden, and `--full` shows
    them. The counts are under `coverage` in the JSON.
-2. **Findings**: anything the heuristics flagged, worst first. Within a
+2. **Findings**: anything the heuristics flagged, worst first: critical,
+   warning, note. "Note" is the word in the terminal, the Markdown export
+   and these pages for the severity the JSON, the SARIF and `--fail-on`
+   call `info`. Within a
    severity, a finding that rests on the name of a path alone (its `rule`
    says `"by": "file name"` or `"by": "path convention"`: a tracked `.env`,
    a personal settings file) comes after the ones a scan or a count stands
@@ -472,7 +488,8 @@ in plain words, and what to do first. This page is the reference.
    from lock files, here and in the footer. The advice names the package to upgrade
    first, or, for a malicious one, to remove: a malicious package, then one
    that makes the finding critical, then the highest score that has a fixed
-   version published ("it scores 9.2, the highest with a fix published"),
+   version published ("it scores CVSS 9.2, the highest with a fix published";
+   a bare score in a finding always carries the word CVSS),
    which need not be the first package the sentence lists, since those are
    in order of reach. An advisory that does not
    apply to your code is silenced in `osv-scanner.toml` at the repository
@@ -511,7 +528,7 @@ in plain words, and what to do first. This page is the reference.
    decide; a value found only in unreachable blobs counts as source.
    betterleaks grades each sighting low, medium or high. A value that only
    the scanner's `generic-*` rules found, and that was graded low
-   everywhere, is a possible secret: an info note, since an ordinary
+   everywhere, is a possible secret: a note, since an ordinary
    assignment or a hash reads the same way. A `generic-*` value that is
    one word in one case (`PGPASSWORD: postgres`) is graded low whatever
    its context, since that is a service default or a sample. A provider's
@@ -661,7 +678,7 @@ in plain words, and what to do first. This page is the reference.
    by the rule id with the mailbox (unconfigured identity), or the metric
    for an export from before 0.39.0 that still has git-sizer's repo health; each one is listed as new, resolved or
    persisting, and a persisting finding whose severity moved says
-   `warning → info`. A persisting finding whose counts moved says which,
+   `warning → note`. A persisting finding whose counts moved says which,
    from the numbers in its evidence (`values 16 → 1`, `files 3,217 →
    3,400`), so a finding that shrank or grew is not read as unchanged; the
    JSON keeps them as `changed`. Then the files that entered and the files that left
@@ -679,13 +696,13 @@ in plain words, and what to do first. This page is the reference.
    reads this run alone.
 4. **Watch list**: the five source files most likely to need a fix next, with
    the reasons in words. Every source file still in the tree that changed
-   more than once is ranked by revisions × lines of code, over source
+   more than once is ranked by changes × lines of code, over source
    files only: measured against the fixes that followed at six cut-offs
    on three repositories
    ([validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md)),
    it named more of them than any weighting of fixes, complexity and
    ownership did. A file's score, which `--risk` adds up, is its share, in
-   percent, of all scored files' revisions × lines of code. The reasons
+   percent, of all scored files' changes × lines of code. The reasons
    name the fix count (the last six months' when there are any), the sole
    owner, the minor contributors (people with a small share of the file's
    commits each), the most complex function lizard found (a nameless one
@@ -819,7 +836,10 @@ in plain words, and what to do first. This page is the reference.
    no longer in the tree, since they describe a layout that no longer
    exists, and shows a directory whose files all change together (generated
    tables, one file per version) as one row with the file count and the
-   weakest degree; the caption counts both and `--full` shows every pair.
+   weakest share; the caption counts both and `--full` shows every pair.
+   The column `together` is the share of the two files' changes made in one
+   commit (`degree` in the JSON); `--full` adds `avg changes`, the mean of
+   their change counts (`average-revs`).
    Hotspots hide files no longer in the tree the same way; `--full`, which hides nothing else, gives them one
    line (`412 removed files not listed, 312 from left-out imports`), since a file that is gone has no lines,
    complexity or score to show, and `maat-revisions.csv` still lists every one. Hotspots carry a `trend` column, sampled for the
@@ -928,10 +948,10 @@ in plain words, and what to do first. This page is the reference.
    already uses for "enough commits to say anything"; the rest are counted
    as `and N more`, and the top three rows stay whatever they hold. The
    change coupling table is left out when it would be one pair that a
-   watch-list row already shows with its degree and nothing but test
+   watch-list row already shows with its share and nothing but test
    pairs was hidden. The complex functions table is one line (`no long,
    complex functions; highest complexity 16 (handleRequest); --full lists
-   5 at 10 or over`) when no function meets the brain-methods rule itself,
+   5 at 10 or more`) when no function meets the brain-methods rule itself,
    complexity 15 or more over 100 lines or more, and the whole list fits
    the table's eight rows; a longer list stays a table. `--full` and the
    Markdown export keep every one of these tables whole.

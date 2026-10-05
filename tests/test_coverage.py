@@ -195,7 +195,7 @@ class Rendered(unittest.TestCase):
             self.assertEqual(ids[:2], ["watch", "documents"])
             sec = render.documents_section(report, False)
             self.assertEqual(sec["rows"], [["README.md", "3"], ["skills/a/SKILL.md", "3"]])
-            self.assertTrue(sec["caption"].startswith("by revisions alone"))
+            self.assertTrue(sec["caption"].startswith("by changes alone"))
             report["coverage"]["documents"] = [{"file": f"d{i}.md", "revisions": 20 - i} for i in range(12)]
             self.assertEqual(len(render.documents_section(report, False)["rows"]), 5, "a short list")
             self.assertEqual(len(render.documents_section(report, True)["rows"]), 12)

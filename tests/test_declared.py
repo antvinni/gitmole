@@ -215,7 +215,7 @@ class VulnerableImported(unittest.TestCase):
         self.assertEqual([p["name"] for p in f[0]["evidence"]["packages"]], ["multer", "yarn-only", "fast-uri", "form-data"])
         self.assertEqual(f[0]["severity"], "warning")
         # prometheus: reach orders the rows and the sentence; the step is the highest score with a fix, here yarn-only at 9.0
-        self.assertTrue(f[0]["advice"].startswith("Upgrade yarn-only to 2 in pnpm-lock.yaml first; it scores 9.0, the highest with a fix published."), f[0]["advice"])
+        self.assertTrue(f[0]["advice"].startswith("Upgrade yarn-only to 2 in pnpm-lock.yaml first; it scores CVSS 9.0, the highest with a fix published."), f[0]["advice"])
         self.assertIn("development dependencies only", findings._vuln_ref(rows[0]))
         self.assertNotIn("development dependencies only", findings._vuln_ref(rows[3]))
         self.assertIs(f[0]["evidence"]["packages"][3]["runtime"], False)
@@ -342,7 +342,7 @@ class VulnerableImported(unittest.TestCase):
         self.assertNotIn("reached through", findings._vuln_ref(direct), "a direct dependency is not reached through itself")
         self.assertNotIn("reached through", findings._vuln_ref(dev))
         f = findings.vulnerable_dependencies(report(dependencies={"status": "scanned", "vulnerable": [through, dev]}, tree=frozenset({"pnpm-lock.yaml"})))
-        self.assertIn("protobufjs 7.5.5 (GHSA-x, 8.1, fixed in 7.5.6, imported by no tracked source, reached through @grpc/grpc-js)", f[0]["detail"])
+        self.assertIn("protobufjs 7.5.5 (GHSA-x, CVSS 8.1, fixed in 7.5.6, imported by no tracked source, reached through @grpc/grpc-js)", f[0]["detail"])
         self.assertEqual(f[0]["evidence"]["packages"][0]["via"], "@grpc/grpc-js")
         self.assertNotIn("via", f[0]["evidence"]["packages"][1])
 

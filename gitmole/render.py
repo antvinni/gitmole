@@ -46,10 +46,11 @@ SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timel
            "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
            "Change risk": "◈", "Since last report": "⇄", "Most-changed documents": "✎"}
 # the one column to read first in each table; the rest are dimmed
-KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "revs", "Change coupling": "degree",
+# keyed on the head as printed: "changes", "together" and "complexity" are the report's words for what the JSON calls revs, degree and ccn
+KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "changes", "Change coupling": "together",
               "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
-              "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "ccn",
-              "Watch list": "why", "Change risk": "risk", "Most-changed documents": "revisions"}
+              "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "complexity",
+              "Watch list": "why", "Change risk": "risk", "Most-changed documents": "changes"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 RIGHT = {"justify": "right"}
 FOLD = {"overflow": "fold"}
@@ -81,10 +82,17 @@ def _bar(part, whole, width=30) -> str:
     return "█" * int(width * part / whole) if whole else ""
 
 
+def _number(c) -> str:
+    """A cell as text: a count takes its thousands separator here, once for every table, so 1061 commits in
+    People and 18647 in the header no longer sit beside 357,025 lines (prometheus). Zero is 0. A year, a
+    line number or anything else that is not a count reaches a table as text already."""
+    return f"{c:,}" if isinstance(c, int) and not isinstance(c, bool) else str(c)
+
+
 def _section(title, columns, rows, note=None, caption=None) -> dict:
-    """columns: list of (name, rich column options). rows: lists of already-formatted cells."""
+    """columns: list of (name, rich column options). rows: lists of cells, a count as an int (see _number)."""
     return {"title": title, "columns": [c[0] for c in columns], "col_opts": [c[1] for c in columns],
-            "rows": [[str(c) for c in r] for r in rows], "note": note, "caption": caption}
+            "rows": [[_number(c) for c in r] for r in rows], "note": note, "caption": caption}
 
 
 def _limit(title: str, full, cap=None):
@@ -98,7 +106,7 @@ def _limit(title: str, full, cap=None):
 
 
 def _more(total: int, limit) -> str:
-    return f"and {total - limit} more" if limit is not None and total > limit else None
+    return f"and {total - limit:,} more" if limit is not None and total > limit else None
 
 
 HIDDEN_SUFFIX = "; --full shows them"
@@ -120,7 +128,7 @@ def _hide_rows(rows: list, path_of, full, pred, noun: str, plural=None) -> tuple
             hidden += 1
         else:
             kept.append(row)
-    note = f"{hidden} {noun if hidden == 1 else plural or noun + 's'} hidden{HIDDEN_SUFFIX}" if hidden else None
+    note = f"{hidden:,} {noun if hidden == 1 else plural or noun + 's'} hidden{HIDDEN_SUFFIX}" if hidden else None
     return kept, note
 
 
@@ -155,7 +163,7 @@ def _hide_release(pairs: list, full) -> tuple:
         return pairs, None
     kept = [p for p in pairs if not (filetypes.is_release_path(p["entity"]) and filetypes.is_release_path(p["coupled"]))]
     hidden = len(pairs) - len(kept)
-    return kept, (f"{hidden} release pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
+    return kept, (f"{hidden:,} release pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
 def _hide_example_pairs(pairs: list, full) -> tuple:
@@ -172,7 +180,7 @@ def _hide_example_pairs(pairs: list, full) -> tuple:
 
     kept = [p for p in pairs if not (specimen(p["entity"]) and specimen(p["coupled"]))]
     hidden = len(pairs) - len(kept)
-    return kept, (f"{hidden} example pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
+    return kept, (f"{hidden:,} example pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
 def _hide_header_pairs(pairs: list, full) -> tuple:
@@ -181,7 +189,7 @@ def _hide_header_pairs(pairs: list, full) -> tuple:
         return pairs, None
     kept = [p for p in pairs if not filetypes.is_header_pair(p["entity"], p["coupled"])]
     hidden = len(pairs) - len(kept)
-    return kept, (f"{hidden} header pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
+    return kept, (f"{hidden:,} header pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
 def _hide_locale_pairs(pairs: list, full) -> tuple:
@@ -192,7 +200,7 @@ def _hide_locale_pairs(pairs: list, full) -> tuple:
         return pairs, None
     kept = [p for p in pairs if not (filetypes.is_locale_path(p["entity"]) and filetypes.is_locale_path(p["coupled"]))]
     hidden = len(pairs) - len(kept)
-    return kept, (f"{hidden} locale pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
+    return kept, (f"{hidden:,} locale pair{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
 def _join_hidden(*notes) -> str:
@@ -210,7 +218,7 @@ def _hide_deleted(rows: list, report: dict, full, classifier=None) -> tuple:
     cls = classifier or classify.Classifier(report or {})
     kept = [h for h in rows if not cls.excluded(h["entity"], {"not in the tree"})]
     hidden = len(rows) - len(kept)
-    return kept, (f"{hidden} deleted file{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
+    return kept, (f"{hidden:,} deleted file{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None)
 
 
 def _hide_gone(pairs: list, report: dict, full, classifier=None) -> tuple:
@@ -221,7 +229,7 @@ def _hide_gone(pairs: list, report: dict, full, classifier=None) -> tuple:
     cls = classifier or classify.Classifier(report or {})
     kept = [p for p in pairs if not (cls.excluded(p["entity"], {"not in the tree"}) or cls.excluded(p["coupled"], {"not in the tree"}))]
     hidden = len(pairs) - len(kept)
-    return kept, (f"{hidden} historical pair{'s' if hidden != 1 else ''} hidden; --full shows them" if hidden else None)
+    return kept, (f"{hidden:,} historical pair{'s' if hidden != 1 else ''} hidden; --full shows them" if hidden else None)
 
 
 def _empty_note(base, hidden_note, source_base=None) -> str:
@@ -310,7 +318,7 @@ def pulse(report: dict) -> list:
         pct = _pct(act['revert_commits'], total)
         if pct == "0%":
             reverts = act['revert_commits']
-            out.append(f"{reverts} revert" if reverts == 1 else f"{reverts} reverts")
+            out.append(textfmt.count(reverts, "revert"))
         else:
             out.append(f"{pct} of commits are reverts")
     cohorts = report.get("cohorts") or {}
@@ -412,19 +420,19 @@ def backtest_words(bt: dict) -> str:
     says the old sentence rather than guess."""
     n, k, churn = bt["listed"], bt["hits"], bt["baselines"]["churn"]
     if "positives" not in bt:
-        return (f"6 months ago this list would have named {k} of the {bt['fixed']} files fixed since "
-                f"(a random {n} of the {bt['pool']} files that had changed more than once would name {bt['expected']}; "
-                f"the {n} most changed would name {churn})")
+        return (f"6 months ago this list would have named {k:,} of the {bt['fixed']:,} files fixed since "
+                f"(a random {n} of the {bt['pool']:,} files that had changed more than once would name {bt['expected']}; "
+                f"the {n} most changed would name {churn:,})")
     if not bt["positives"]:
-        return (f"none of the {bt['fixed']} files fixed since the cut-off six months ago had changed more than once by then, "
+        return (f"none of the {bt['fixed']:,} files fixed since the cut-off 6 months ago had changed more than once by then, "
                 f"so there is nothing to score the list against")
     p = bt.get("p_by_chance")
     p = watch.p_by_chance(bt["pool"], bt["positives"], n, k) if p is None else p
     versus = (f"fewer than the {n} most changed ({churn})" if k < churn else f"no more than the {n} most changed" if k == churn
               else f"more than the {n} most changed ({churn})")
     chance = (f"not distinguishable from a random {n}" if p >= watch.CHANCE_ALPHA else f"more than a random {n} would by chance")
-    return (f"6 months ago this list's top {n} would have named {k} of the {bt['positives']} file{'s' if bt['positives'] != 1 else ''} fixed since among the "
-            f"{bt['pool']} that had changed more than once: {versus}; {chance} ({bt['expected']} expected, {_p_words(p)})")
+    return (f"6 months ago this list's top {n} would have named {k:,} of the {bt['positives']:,} file{'s' if bt['positives'] != 1 else ''} fixed since among the "
+            f"{bt['pool']:,} that had changed more than once: {versus}; {chance} ({bt['expected']} expected, {_p_words(p)})")
 
 
 def watch_section(report: dict, full: bool = True, width=None) -> dict:
@@ -438,11 +446,11 @@ def watch_section(report: dict, full: bool = True, width=None) -> dict:
     since = report["meta"].get("since")
     # "alone": the reasons never move a file; a reader who sees fixes and ownership beside each row
     # would otherwise take them for the ranking
-    notes = ["ranked by revisions × lines of code alone; the reasons say what to look at there" + (f"; commits since {since}" if since else "")]
+    notes = ["ranked by changes × lines of code alone; the reasons say what to look at there" + (f"; commits since {since}" if since else "")]
     bt = watch.backtest(report)
     status = report["meta"].get("backtest") or {}
     if bt and not bt["fixed"]:
-        notes.append("nothing has been fixed since the cut-off six months ago, so there is nothing to score the list against")
+        notes.append("nothing has been fixed since the cut-off 6 months ago, so there is nothing to score the list against")
     elif bt:
         notes.append(backtest_words(bt) + ("; whole history" if since else ""))   # the backtest ignores the window
     elif status.get("reason"):
@@ -499,9 +507,9 @@ def documents_section(report: dict, full: bool = True, width=None):
     limit = _limit("Most-changed documents", full)
     rows = [(d["file"], d["revisions"]) for d in docs[:limit]]
     since = report["meta"].get("since")
-    notes = ["by revisions alone: documentation is not scored, so this says where it changed most, not where a fix is likely"
+    notes = ["by changes alone: documentation is not scored, so this says where it changed most, not where a fix is likely"
              + (f"; commits since {since}" if since else "")]
-    return _section("Most-changed documents", [("document", PATH), ("revisions", RIGHT)], rows, caption="\n".join(notes))
+    return _section("Most-changed documents", [("document", PATH), ("changes", RIGHT)], rows, caption="\n".join(notes))
 
 
 def not_computed_line(report: dict):
@@ -519,9 +527,9 @@ def sweeps_note(report: dict):
     swept, declared = [c for c in act.get("sweeping") or [] if not c.get("declared")], act.get("ignored_revs") or 0
     parts = []
     if swept:
-        parts.append(f"{len(swept)} sweeping commit{'s' if len(swept) != 1 else ''}")
+        parts.append(textfmt.count(len(swept), "sweeping commit"))
     if declared:
-        parts.append(f"{declared} declared in .git-blame-ignore-revs")
+        parts.append(f"{declared:,} declared in .git-blame-ignore-revs")
     if not parts:
         return None
     return " and ".join(parts) + (" are" if swept and declared or len(swept) > 1 or declared > 1 else " is") + " left out of every count"
@@ -541,8 +549,8 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
         rows.append((r["file"], "▰" * round(10 * r["score"] / top) if r["score"] else "", " · ".join(r["reasons"] + ([imported] if imported else []))))
     columns = [("file", PATH), ("risk", {}), ("why", {"overflow": "fold", "ratio": 3})]
     watched = risk["watched"]
-    notes = [f"total {risk['total']:.1f}% of the repository's revisions × lines of code; "
-             f"{watched} of these files {'is' if watched == 1 else 'are'} on the watch list"] if rows else []
+    notes = [f"total {risk['total']:.1f}% of the repository's changes × lines of code; "
+             f"{watched:,} of these files {'is' if watched == 1 else 'are'} on the watch list"] if rows else []
     more = _more(len(rows_all), limit)
     if more:
         notes.append(more)
@@ -552,7 +560,7 @@ def risk_section(risk: dict, base: str, full=True) -> dict:
     gaps = risk.get("coupling_gaps") or []
     if rows and gaps:
         notes.append(gaps_line(gaps))
-    return _section(f"Change risk ({len(rows_all)} files since {base})", columns, rows,
+    return _section(f"Change risk ({len(rows_all):,} files since {base})", columns, rows,
                     note=None if rows else f"no files changed since {base}", caption="\n".join(notes) or None)
 
 
@@ -637,17 +645,17 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     notes = [f"commits since {since}; surviving code is for the whole tree{by}"] if since else []
     if merges:
         notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
-    more = f"and {len(ids) - len(listed)} more" if len(ids) > len(listed) else None
+    more = f"and {len(ids) - len(listed):,} more" if len(ids) > len(listed) else None
     left = _tools_left_out(report, tools) if apart else None
     if more or left:
         notes.append("; ".join(x for x in (more, left) if x))
     bots = report["meta"].get("bots") or []
     if bots:
-        notes.append("bots left out: " + ", ".join(f"{b['name']} ({b['commits']}{' commits' if i == 0 else ''})" for i, b in enumerate(bots[:3]))
-                     + (f" and {len(bots) - 3} more" if len(bots) > 3 else ""))
+        notes.append("bots left out: " + ", ".join(f"{b['name']} ({b['commits']:,}{' commits' if i == 0 else ''})" for i, b in enumerate(bots[:3]))
+                     + (f" and {len(bots) - 3:,} more" if len(bots) > 3 else ""))
     merged = [i["name"] for i in ids if i.get("aliases")]
     if merged:
-        who = ", ".join(merged[:3]) + (f" and {len(merged) - 3} more" if len(merged) > 3 else "")
+        who = ", ".join(merged[:3]) + (f" and {len(merged) - 3:,} more" if len(merged) > 3 else "")
         notes.append(f"aliases merged for {who}; a .mailmap makes that permanent")
     if by and not since:
         notes.append(f"surviving code is counted{by[1:]}")
@@ -665,7 +673,7 @@ def activity_section(report: dict, full: bool = True, width=None) -> dict:
     notes = []
     if hours and max(hours):
         h = max(range(24), key=lambda i: hours[i])
-        notes.append(f"busiest hour {h:02d}:00 ({hours[h]} commits)")
+        notes.append(f"busiest hour {h:02d}:00 ({hours[h]:,} commits)")
     if act.get("fix_commits") is not None and total:
         notes.append(f"{_pct(act['fix_commits'], total)} of commits are fixes")
     return _section("Activity", columns, rows, caption="\n".join(notes) or None)
@@ -732,9 +740,10 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     listed = ranked[:limit]
     if full is False:   # as the People table: a row needs ROW_MIN_COMMITS commits in the months shown, the top ROWS_KEPT stay
         listed = [a for n, a in enumerate(listed) if n < ROWS_KEPT or sum(tl[a].get(m, 0) for m in span) >= ROW_MIN_COMMITS]
-    rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or "·" for m in span]) for a in listed]
+    # a month without a commit is 0, as zero is in every table: the dot it used to be is the report's separator
+    rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or 0 for m in span]) for a in listed]
     months_shown = _month_label(span[0]) if len(span) == 1 else f"{_month_label(span[0])} → {_month_label(span[-1])}"
-    return _section(f"Timeline ({months_shown})", columns, rows, caption=f"and {len(ranked) - len(listed)} more" if len(ranked) > len(listed) else None)
+    return _section(f"Timeline ({months_shown})", columns, rows, caption=f"and {len(ranked) - len(listed):,} more" if len(ranked) > len(listed) else None)
 
 
 def signing_section(report: dict, full: bool = True, width=None) -> dict:
@@ -764,7 +773,7 @@ def watch_by_component_section(report: dict, full: bool = True, width=None) -> d
             for g in groups]
     columns = [("component", PATH), ("share", RIGHT), ("top files", {"overflow": "fold", "ratio": 3})]
     return _section("Watch list by component", columns, rows, note=None if rows else "no component holds 5% of the list's score",
-                    caption="each component's share of the watch list's revisions × lines of code, and its own top files" if rows else None)
+                    caption="each component's share of the watch list's changes × lines of code, and its own top files" if rows else None)
 
 
 def trailers_section(report: dict, full: bool = True, width=None) -> dict:
@@ -782,9 +791,9 @@ def trailers_section(report: dict, full: bool = True, width=None) -> dict:
             return f"{_pct(marked.get(key, 0), marked['commits'])} against {_pct(rest.get(key, 0), rest.get('commits') or 0)}"
         watch_part = f", touched a file on the watch list's top {co['watch_top']} {pair('watch')}" if co.get("watch_top") else ""
         notes.append(f"declared commits ({co.get('definition')}): {marked['commits']:,}, {round(100 * co.get('share', 0))}% of the history; "
-                     f"reverted {pair('reverted')} for the rest (every commit that declares nothing, undisclosed agent use included), fixes {pair('fixes')}, a file changed again within two weeks {pair('retouched')}{watch_part}")
+                     f"reverted {pair('reverted')} for the rest (every commit that declares nothing, undisclosed agent use included), fixes {pair('fixes')}, a file changed again within 2 weeks {pair('retouched')}{watch_part}")
     if sh:
-        notes.append(f"{round(100 * sh.get('burst_share', 0))}% of commits land in bursts of five or more within ten minutes; "
+        notes.append(f"{round(100 * sh.get('burst_share', 0))}% of commits land in bursts of 5 or more within 10 minutes; "
                      f"{round(100 * sh.get('conventional_share', 0))}% have conventional-commit subjects; commits come in {sh.get('hours_used', 0)} hours of the day")
     return _section("Trailers", columns, rows, note=None if rows else "no trailers", caption="\n".join(notes) or None)
 
@@ -805,9 +814,9 @@ def lines_section(report: dict, full: bool = True, width=None) -> dict:
         rows += [(label, c["commits"], c["added"], share(c.get("moved_share")), share(c.get("churn_share")))
                  for label, c in (("declared commits, both years", co["marked"]), ("the rest, both years", co["rest"]))]
     columns = [("period", {"overflow": "fold"}), ("commits", RIGHT), ("lines added", RIGHT), ("moved", RIGHT), (f"churned in {ln.get('churn_days', 14)} days", RIGHT)]
-    return _section("Changed lines", columns, rows, note=None if rows else "no history in the last two years",
+    return _section("Changed lines", columns, rows, note=None if rows else "no history in the last 2 years",
                     caption="code files only; moved: lines git's moved-code detection marks (--color-moved=blocks); churned: deleted again "
-                            "within two weeks from the same file with the same text"
+                            "within 2 weeks from the same file with the same text"
                             + ("; the rest is every commit that declares no coding tool, undisclosed agent use included" if (co.get("marked") or {}).get("commits") else "")
                     if rows else None)
 
@@ -841,7 +850,7 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
             brought = sum(1 for h in removed if h["entity"] in imported)
             removed_note = (f"{len(removed):,} removed file{'s' if len(removed) != 1 else ''} not listed"
                             + (f", {brought:,} from left-out imports" if brought else "") + " (maat-revisions.csv has them)")
-    title = "Hotspots (score = revisions × lines of code)" if full is True else "Hotspots"
+    title = "Hotspots (score = changes × lines of code)" if full is True else "Hotspots"
     limit = _limit("Hotspots", full)
     series = (report.get("trend") or {}).get("files") or {}
     last = report["meta"].get("last_date") or ""
@@ -857,10 +866,10 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
                      "-" if gone else f"{h['score']:,}", fixes.get(h["entity"], 0), authors.get(h["entity"], "-"), minors.get(h["entity"], "-"),
                      partners.get(h["entity"], "-"), ages.get(h["entity"], "-"), trend_cell(h["entity"])))
     # minors: contributors with under 5% of the file's commits; co-changes: files it shares five or more commits with (sum of coupling)
-    columns = [("file", PATH), ("revs", RIGHT), ("lines", RIGHT), ("cplx", RIGHT), ("score", RIGHT), ("fixes", RIGHT), ("authors", RIGHT),
+    columns = [("file", PATH), ("changes", RIGHT), ("lines", RIGHT), ("complexity", RIGHT), ("score", RIGHT), ("fixes", RIGHT), ("authors", RIGHT),
                ("minors", RIGHT), ("co-changes", RIGHT), ("idle", RIGHT), ("trend", RIGHT)]
     if full is not True:
-        columns, rows = _keep(columns, rows, ["file", "revs", "lines", "fixes", "authors", "trend"])
+        columns, rows = _keep(columns, rows, ["file", "changes", "lines", "fixes", "authors", "trend"])
     note = None if rows else _empty_note(None, hidden_note, "no source hotspots")
     notes = [c for c in (_more(len(scored), limit), None if note else hidden_note, removed_note) if c]
     if series:
@@ -886,16 +895,17 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
         groups, pairs = coupling.clusters(pairs)
         if groups:
             n_pairs, n_dirs = sum(g["pairs"] for g in groups), len(groups)
-            cluster_note = (f"{n_pairs} pairs in {n_dirs} director{'y' if n_dirs == 1 else 'ies'} shown as "
+            cluster_note = (f"{n_pairs:,} pairs in {n_dirs:,} director{'y' if n_dirs == 1 else 'ies'} shown as "
                             f"{'one row' if n_dirs == 1 else 'one row each'}{HIDDEN_SUFFIX}")
     hidden_note = _join_hidden(hidden_note, gone_note, cluster_note)
     limit = _limit("Change coupling", full)
-    rows = [(f"{g['dir']} ({g['files']} files)", "each other", f"≥{g['degree']}%", g["average-revs"]) for g in groups]
+    rows = [(f"{g['dir']} ({g['files']:,} files)", "each other", f"≥{g['degree']}%", g["average-revs"]) for g in groups]
     rows += [(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in pairs[:max(limit - len(groups), 0) if limit else None]]
-    columns = [("file", PATH), ("changes with", PATH), ("degree", RIGHT), ("avg revs", RIGHT)]
+    # "together" is the share of their changes the two files made in one commit, the JSON's `degree`; "avg changes" its `average-revs`
+    columns = [("file", PATH), ("changes with", PATH), ("together", RIGHT), ("avg changes", RIGHT)]
     if full is not True:
-        columns, rows = _keep(columns, rows, ["file", "changes with", "degree"])
-    note = None if rows else _empty_note("no pairs with 5+ shared revisions", hidden_note, "no source pairs with 5+ shared revisions")
+        columns, rows = _keep(columns, rows, ["file", "changes with", "together"])
+    note = None if rows else _empty_note("no pairs with 5 or more shared changes", hidden_note, "no source pairs with 5 or more shared changes")
     notes = [c for c in (_more(len(pairs), limit), None if note else hidden_note) if c]
     caveat = coupling.regime(report)[1]   # what a pair means here: a pull request under squash merging, an edit otherwise
     if rows and caveat:
@@ -971,11 +981,11 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     shown = funcs[:limit]
     rows = [(textfmt.ANONYMOUS if _nameless(f) else f["function"], _where(f), _ccn_cell(f), f["nloc"], f["params"]) for f in shown]
     suspects = sum(1 for f in shown if f.get("suspect"))
-    suspect_note = f"{SUSPECT_MARK} marks {suspects} span{'s' if suspects != 1 else ''} lizard may have mis-parsed" if suspects else None
+    suspect_note = f"{SUSPECT_MARK} marks {suspects:,} span{'s' if suspects != 1 else ''} lizard may have mis-parsed" if suspects else None
     cut = sum(1 for f in shown if f.get("lizard_span"))
-    cut_note = (f"{FLOOR_MARK} marks {cut} function{'s' if cut != 1 else ''} lizard ended early: the lines are the structure step's, "
+    cut_note = (f"{FLOOR_MARK} marks {cut:,} function{'s' if cut != 1 else ''} lizard ended early: the lines are the structure step's, "
                 f"the complexity what lizard counted before it stopped") if cut else None
-    columns = [("function", {"overflow": "fold"}), ("file", PATH), ("ccn", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
+    columns = [("function", {"overflow": "fold"}), ("file", PATH), ("complexity", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
     status = (report["meta"].get("functions") or {}).get("status", "skipped" if not measured else "run")
     reason = {"timeout": "function metrics timed out", "failed": "function metrics failed (see run.log)",
               "skipped": "no function metrics (install lizard)"}.get(status, "function metrics did not complete")
@@ -986,8 +996,8 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
         note = "no functions found in the code files"
     elif not rows:
         counted = f"({len(measured):,} function{'s' if len(measured) != 1 else ''} measured{'; ' + partial if partial else ''})"
-        note = _empty_note(f"nothing over complexity {CCN_FLOOR} {counted}", hidden_note,
-                           f"nothing over complexity {CCN_FLOOR} in source files {counted}")
+        note = _empty_note(f"nothing at complexity {CCN_FLOOR} or more {counted}", hidden_note,
+                           f"nothing at complexity {CCN_FLOOR} or more in source files {counted}")
     else:
         note = None
     if rows and full is False and len(funcs) <= (limit or 0):
@@ -1001,12 +1011,15 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
             mark = "at most " if top.get("suspect") else "at least " if top.get("lizard_span") else ""
             note = (f"no long, complex functions; highest complexity {mark}{top['ccn']} "
                     f"({_where(top) if _nameless(top) else top['function']})"
-                    + (f"; {partial}" if partial else "") + f"; --full lists {len(funcs)} at {CCN_FLOOR} or over")
+                    + (f"; {partial}" if partial else "") + f"; --full lists {len(funcs):,} at {CCN_FLOOR} or more")
             rows = []
     caption = "; ".join(c for c in (_more(len(funcs), limit), None if note else hidden_note, partial, suspect_note, cut_note) if c) or None
+    # the head was lizard's "ccn"; the word needs its measure said once, where the column is
+    caption = "\n".join(c for c in (caption, COMPLEXITY_DEFINITION) if c)
     return _section("Complex functions", columns, rows, note=note, caption=caption if rows else None)
 
 
+COMPLEXITY_DEFINITION = "complexity = cyclomatic: the function's branch points plus 1"
 SUSPECT_MARK = "?"
 FLOOR_MARK = "+"   # at least this: lizard counted only the part of the function it read (load.cross_check)
 
@@ -1103,7 +1116,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         # filtered before the areas are built so a vanished layout cannot hide that one directory now dominates
         areas = [a for a in loss.areas(knowledge.present_rows(rows_all, tree), gone, base, dated) if knowledge.in_tree(a["area"], tree, base)]
         hidden = sum(1 for top in {knowledge.top_area(r["entity"], base) for r in rows_all} if not knowledge.in_tree(top, tree, base))
-        hidden_note = f"{hidden} historical area{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None
+        hidden_note = f"{hidden:,} historical area{'s' if hidden != 1 else ''} hidden{HIDDEN_SUFFIX}" if hidden else None
     limit = _limit("Knowledge map", full)
     # the lines Co-authored-by trailers credit to a coding tool are not anyone's to own: the owners' shares are
     # of the people's lines, and the tools' part of each area is shown on its own
@@ -1121,7 +1134,7 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
         theirs = sum(n for e, n in assisted.items() if knowledge.in_area(e, a["area"], base))
         shares.append(round(100 * theirs / (a["lines"] + theirs)) if a["lines"] + theirs else 0)
         outrank = outrank or (theirs > 0 and theirs >= (a["owners"][1][1] if len(a["owners"]) > 1 else 0))
-        authors = f"{a.get('recent', 0)}/{a['authors']}" if recent else a["authors"]
+        authors = f"{a.get('recent', 0):,}/{a['authors']:,}" if recent else a["authors"]
         rows.append((a["area"], f"{a['lines']:,}", authors, lost if gone else "-", owners[0], owners[1], f"{shares[-1]}%"))
     columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("second", {}), ("agents", RIGHT)]
     # a column only when a row shown has a whole percent of it; in the default report only when the tools
@@ -1211,9 +1224,10 @@ def _changed_words(changed) -> str:
 def compare_section(result: dict) -> dict:
     """Since last report: the findings that are new, resolved or persisting (with the severity they had),
     and the files that entered or left the watch list."""
-    rows = [("new", f"{f['severity']} · {f['title']}") for f in result["new"]]
-    rows += [("resolved", f"{f['severity']} · {f['title']}") for f in result["resolved"]]
-    rows += [("persisting", (f"{f['was']} → {f['severity']}" if f["was"] != f["severity"] else f["severity"]) + f" · {f['title']}" + _changed_words(f.get("changed")))
+    word = textfmt.severity_word   # "note" for the JSON's `info`, as the tally and the marks' legend say it
+    rows = [("new", f"{word(f['severity'])} · {f['title']}") for f in result["new"]]
+    rows += [("resolved", f"{word(f['severity'])} · {f['title']}") for f in result["resolved"]]
+    rows += [("persisting", (f"{word(f['was'])} → {word(f['severity'])}" if f["was"] != f["severity"] else word(f["severity"])) + f" · {f['title']}" + _changed_words(f.get("changed")))
              for f in result["persisting"]]
     rows += [("entered the watch list", p) for p in result["watch_entered"]] + [("left the watch list", p) for p in result["watch_left"]]
     before = result["before"]
@@ -1313,15 +1327,15 @@ def secrets_line(report: dict) -> str:
     rows = report.get("secrets") or []
     groups = leaks.group(rows)
     places = sum(g["places"] for g in groups)
-    line = (f"Secrets: {len(groups)} distinct value{'s' if len(groups) != 1 else ''} in {places} place{'s' if places != 1 else ''}"
+    line = (f"Secrets: {textfmt.count(len(groups), 'distinct value')} in {textfmt.count(places, 'place')}"
             if groups else "Secrets: none found")
     if groups:
         held = sum((f.get("evidence") or {}).get("values", 0) for f in secrets_found(report) if f["rule"]["id"] in SECRET_FINDINGS)
         if len(groups) > held:   # the rest are only in test, example, vendored, generated or documentation files
-            line += f", {len(groups) - held} never in source (secrets.json)"
+            line += f", {len(groups) - held:,} never in source (secrets.json)"
     skipped = leaks.placeholders(rows)
     if skipped:
-        line += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
+        line += f"; {skipped:,} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
     return line + _unreachable_words(report, bool(groups))
 
 
@@ -1335,7 +1349,7 @@ def secrets_pass(report: dict):
     detail = "betterleaks scanned every commit HEAD reaches"
     skipped = leaks.placeholders(rows)
     if skipped:
-        detail += f"; {skipped} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
+        detail += f"; {skipped:,} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"
     return "No secrets in history", detail
 
 
@@ -1411,12 +1425,12 @@ def dependencies_line(report: dict):
         rows = deps.get("vulnerable") or []
         bad = len({r.get("name") for r in rows})
         line = f"Dependencies: {_packages(deps.get('packages', 0))} in {_dependency_files(deps)}, "
-        line += (f"{bad} vulnerable" + (f" in {len(rows)} places" if len(rows) != bad else "")) if bad else "none vulnerable"
+        line += (f"{bad:,} vulnerable" + (f" in {len(rows):,} places" if len(rows) != bad else "")) if bad else "none vulnerable"
         notes = deps.get("informational") or []
         if notes:   # RustSec's unmaintained, unsound and notice advisories: said, not counted as vulnerable
             first = notes[0]
-            line += (f"; {len(notes)} with an informational advisory ({first.get('name')} {first.get('version')}, "
-                     f"{' and '.join(first.get('kinds') or [])}" + (f", and {len(notes) - 1} more" if len(notes) > 1 else "") + ")")
+            line += (f"; {len(notes):,} with an informational advisory ({first.get('name')} {first.get('version')}, "
+                     f"{' and '.join(first.get('kinds') or [])}" + (f", and {len(notes) - 1:,} more" if len(notes) > 1 else "") + ")")
         if deps.get("database_date"):
             line += f" (database from {deps['database_date']})"
         return line, ("" if bad else "green")   # a count is not a verdict: footer_style colours it when a finding is behind it
@@ -1454,17 +1468,17 @@ def header(report: dict, findings: list = (), full: bool = False, width=None) ->
     s = summary(report)
     inner = width - PANEL_EDGES if width else None
     body = Text()
-    first = [(f"{s['commits']} commits", "bold"), (f"{s['first_date']} → {s['last_date']}", "")]
+    first = [(f"{s['commits']:,} commits", "bold"), (f"{s['first_date']} → {s['last_date']}", "")]
     if s["since"]:
         first.append((f"since {s['since']}", "yellow"))
-    first += [(f"{s['identities']} {'identity' if s['identities'] == 1 else 'identities'}", ""),
+    first += [(textfmt.count(s["identities"], "identity", "identities"), ""),
               (f"branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else ""), "")]
     _facts(body, first, "  ·  ", inner)
     if s["scope"]:
         body.append(scope.label(s["scope"]), style="bold yellow")
         body.append(f"  ·  {scope.REPOSITORY_WIDE}\n", style="dim")
     scored = None if full and s["coverage"] else scored_phrase(report)   # --full's coverage line counts every bucket
-    _facts(body, [(f"{s['lines']:,} lines in {s['files']} files", ""), (", ".join(s["languages"]) or "unknown", "")], "  ·  ", inner)
+    _facts(body, [(f"{s['lines']:,} lines in {s['files']:,} files", ""), (", ".join(s["languages"]) or "unknown", "")], "  ·  ", inner)
     if full and s["coverage"]:
         _facts(body, [(part, "dim") for part in classify.coverage_line(s["coverage"]).split(" · ")], " · ", inner)
     unranked = coverage_phrases(report)
@@ -1485,7 +1499,7 @@ def unjudged_line(findings: list) -> str:
     --full lists them': the rules whose worth nobody has judged (findings.UNJUDGED), kept out of the default
     report's entries. Their severities are said, since the header's tally, the JSON and the gate count them."""
     names = [g["title"] for g in textfmt.group_findings(findings)]
-    return (f"{len(findings)} more from the structure step, not labelled yet ({textfmt.tally(findings)}): "
+    return (f"{len(findings):,} more from the structure step, not labelled yet ({textfmt.tally(findings)}): "
             f"{textfmt.join_and(names)}; --full lists them")
 
 
@@ -1515,7 +1529,7 @@ def findings_panel(findings: list, report: dict = None, full: bool = True) -> Pa
         grid.add_row(Text("✔", style="green"), Text(title, style="green").append(f"\n{detail}", style="dim"))
     if absent:   # last: what was found, what passed, then what was never measured, so its silence is not a pass
         grid.add_row(Text("·", style="dim"), Text(absent, style="dim"))
-    title = f"Findings ({len(findings)})" if findings else "Findings"
+    title = f"Findings ({len(findings):,})" if findings else "Findings"
     return Panel(grid, title=title, title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]] if findings else "green")
 
 
@@ -1525,9 +1539,9 @@ def cell_style(column: str, value: str):
         if column == "share":
             n = int(value.rstrip("%"))
             return HOT if n >= 50 else (WARM if n >= 20 else None)
-        if column == "degree" and int(value.rstrip("%")) >= 90:
+        if column == "together" and int(value.rstrip("%")) >= 90:   # the coupling table's share, the JSON's `degree`
             return HOT
-        if column == "fixes" and int(value) >= 5:
+        if column == "fixes" and int(value.replace(",", "")) >= 5:
             return HOT
     except ValueError:
         pass
@@ -1789,7 +1803,7 @@ def _md_cell(cell: str) -> str:
 def _md_findings(findings: list, report: dict = None) -> list:
     out = [] if findings else ["Nothing flagged."]
     for g in textfmt.group_findings(findings):
-        line = f"- **{g['severity']}** {g['title']} — " + "; ".join(g["items"])
+        line = f"- **{textfmt.severity_word(g['severity'])}** {g['title']} — " + "; ".join(g["items"])
         line += "".join(f" _{advice}_" for advice in g["advice"])
         out.append(line)
     for title, detail in checks_passed(report or {}):
@@ -1818,11 +1832,11 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
     s = summary(report)
     unranked = coverage_phrases(report)
     out = [f"# {s['name']}", "",
-           f"{s['commits']} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
-           + f" · {s['identities']} {'identity' if s['identities'] == 1 else 'identities'} · branch {s['branch']}"
+           f"{s['commits']:,} commits · {s['first_date']} → {s['last_date']}" + (f" · since {s['since']}" if s["since"] else "")
+           + f" · {textfmt.count(s['identities'], 'identity', 'identities')} · branch {s['branch']}"
            + (f" @ {s['commit'][:8]}" if s["commit"] else "") + "  ",
            *([f"{scope.label(s['scope'])} · {scope.REPOSITORY_WIDE}  "] if s["scope"] else []),
-           f"{s['lines']:,} lines in {s['files']} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["coverage"] or s["pulse"] else ""),
+           f"{s['lines']:,} lines in {s['files']:,} files · {', '.join(s['languages']) or 'unknown'}" + ("  " if s["coverage"] or s["pulse"] else ""),
            *([classify.coverage_line(s["coverage"]) + ("  " if s["pulse"] or unranked else "")] if s["coverage"] else []),
            *([" · ".join(unranked) + ("  " if s["pulse"] else "")] if unranked else []),
            *([" · ".join(s["pulse"])] if s["pulse"] else []), "",
@@ -1919,7 +1933,7 @@ def portfolio_section(reports: list) -> dict:
         surviving = rep.get("theseus_authors") or {}
         total = sum(surviving.values())
         bus = _pct(max(surviving.values()), total) if surviving else "-"
-        worst = f"{found[0]['severity']}: {found[0]['title']}" if found else "-"
+        worst = f"{textfmt.severity_word(found[0]['severity'])}: {found[0]['title']}" if found else "-"
         rows.append((name, s["commits"], s["identities"], bus, len(leaks.group(rep.get("secrets") or [])), f"{s['lines']:,}", worst))
     return _section(f"Portfolio ({len(reports)} repositories)",
                     [("repo", {"overflow": "fold"}), ("commits", RIGHT), ("people", RIGHT), ("top author", RIGHT),
@@ -1929,7 +1943,7 @@ def portfolio_section(reports: list) -> dict:
 
 def portfolio_markdown(owner: str, reports: list) -> str:
     sec = portfolio_section(reports)
-    out = [f"# {owner}", "", f"{len(reports)} repositories analysed with gitmole.", "", f"## {sec['title']}", ""]
+    out = [f"# {owner}", "", f"{len(reports):,} repositories analysed with gitmole.", "", f"## {sec['title']}", ""]
     if sec["rows"]:
         out.append("| " + " | ".join(sec["columns"]) + " |")
         out.append("| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]) + " |")

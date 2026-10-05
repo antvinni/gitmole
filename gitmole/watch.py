@@ -169,7 +169,7 @@ def _reasons(r: dict, code_pct: int = None) -> list:
     the size of the file last. The default terminal report shows the first REASONS_SHOWN."""
     out = [f"changed {textfmt.times(r['revs'])}"]
     if r["recent_fixes"]:
-        out.append(f"fixed {textfmt.times(r['recent_fixes'])} in six months")
+        out.append(f"fixed {textfmt.times(r['recent_fixes'])} in 6 months")
     elif r["fixes"]:
         out.append(f"fixed {textfmt.times(r['fixes'])}")
     if r["authors"] == 1:
@@ -177,11 +177,11 @@ def _reasons(r: dict, code_pct: int = None) -> list:
     elif r["owner_share"] >= SOLO_SHARE and r["owner"]:
         out.append(f"{r['owner']} wrote {round(100 * r['owner_share'])}% of it")
     if r.get("minor", 0) >= MINOR_FLOOR:
-        out.append(f"{r['minor']} of {r['authors']} authors are minor contributors")   # Bird et al.: the defect signal; the sole owner is the knowledge signal
+        out.append(f"{r['minor']:,} of {r['authors']:,} authors are minor contributors")   # Bird et al.: the defect signal; the sole owner is the knowledge signal
     fn = r["function"]
     if fn and fn["ccn"] >= CCN_FLOOR:
         named = f"the function at line {fn['start']}" if fn.get("anonymous") or textfmt.nameless(fn["function"]) else f"{fn['function']}()"
-        out.append(f"{named} complexity {fn['ccn']}")
+        out.append(f"{named} complexity {fn['ccn']:,}")
     grown = r.get("trend") or ""
     if grown.startswith("+") and int(grown[1:-1]) >= trend.GROWTH_FLOOR:
         # the Hotspots table's trend column, which the default report no longer shows; scc's sum grows with the lines, so the code's change stands beside it
@@ -191,19 +191,19 @@ def _reasons(r: dict, code_pct: int = None) -> list:
         named = f"the function at line {deepest['start']}" if textfmt.nameless(deepest["name"]) else f"{deepest['name']}()"
         out.append(f"{named} nested {deepest['nesting']} deep")
     if r.get("debt", 0) >= DEBT_FLOOR:
-        out.append(f"{r['debt']} TODO/FIXME comments")   # self-admitted debt: the authors said it is unfinished
+        out.append(f"{r['debt']:,} TODO/FIXME comments")   # self-admitted debt: the authors said it is unfinished
     if r.get("changes") and r["changes"] >= TESTED_SETS and r["tested_share"] <= TESTED_SHARE:
-        out.append(f"no test changed in its {r['changes']} changes" if not r["with_tests"]
-                   else f"a test changed in {r['with_tests']} of its {r['changes']} changes")
+        out.append(f"no test changed in its {r['changes']:,} changes" if not r["with_tests"]
+                   else f"a test changed in {r['with_tests']:,} of its {r['changes']:,} changes")
     if r["companions"]:
         other, degree = r["companions"][0]
         more = len(r["companions"]) - 1
         tail = f" and {more} other{'s' if more != 1 else ''}" if more else ""
         out.append(f"changes with {other} ({degree}%){tail}")
     if r.get("partners", 0) >= PARTNERS_FLOOR:
-        out.append(f"changes alongside {r['partners']} other files")   # sum of coupling: weakly coupled to everything
+        out.append(f"changes alongside {r['partners']:,} other files")   # sum of coupling: weakly coupled to everything
     if r.get("definitions", 0) >= GOD_FILE:
-        out.append(f"defines {r['definitions']} functions and classes")
+        out.append(f"defines {r['definitions']:,} functions and classes")
     if r.get("late", 0) >= LATE_FLOOR and r["late"] / max(1, r.get("late_revs") or 1) >= LATE_SHARE:
         out.append(f"{round(100 * r['late'] / r['late_revs'])}% of its changes made between midnight and 4 am")   # Eyolfson et al.: a tie-breaker, never a rank
     if (r.get("periods") or 0) >= PERIODS_FLOOR:

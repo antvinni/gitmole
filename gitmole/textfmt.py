@@ -142,7 +142,7 @@ def cut(name: str, cap: int) -> str:
 
 def times(n: int) -> str:
     """How often something happened, in words for the small numbers: once, twice, 3 times."""
-    return {1: "once", 2: "twice"}.get(n, f"{n} times")
+    return {1: "once", 2: "twice"}.get(n, f"{n:,} times")
 
 
 def join_and(items: list) -> str:
@@ -199,6 +199,13 @@ def group_findings(findings: list) -> list:
             g["title"] = f"{g['title']} ({len(g['items'])})"
     groups.sort(key=lambda g: order[g["severity"]])
     return groups
+
+
+def severity_word(severity: str) -> str:
+    """A severity as the terminal, the Markdown and the docs say it: "note" for the JSON's `info`, which stays
+    `info` in the export, in SARIF and as the level --fail-on takes. prometheus's Markdown said **info** under
+    a terminal tally of "10 notes"."""
+    return "note" if severity == "info" else severity
 
 
 def tally(findings: list) -> str:

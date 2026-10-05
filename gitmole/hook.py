@@ -91,7 +91,7 @@ def summary(risk: dict, threshold=None) -> list:
     for r in risk["files"]:
         if r.get("rank"):
             where = f"rank {r['rank']} of {risk.get('pool', '?')}" + (", on the watch list" if r.get("watched") else "")
-            line = f"{r['file']}: {r['score']:.1f}% of the repository's revisions × lines of code ({where}); " + "; ".join(r["reasons"])
+            line = f"{r['file']}: {r['score']:.1f}% of the repository's changes × lines of code ({where}); " + "; ".join(r["reasons"])
         else:
             line = f"{r['file']}: {unscored_words(r)}"
         imported = watch.dependents_phrase(r.get("dependents"))

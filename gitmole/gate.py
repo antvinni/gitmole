@@ -7,6 +7,8 @@ says which did not and exits EXIT_INCOMPLETE instead, unless it found what it st
 an answer whatever else is missing."""
 from __future__ import annotations
 
+from . import textfmt
+
 EXIT_FOUND = 3        # the gate found what it stops on
 EXIT_INCOMPLETE = 4   # the gate could not check: a step it reads did not complete
 
@@ -76,7 +78,9 @@ def tripping(found: list, level: str, where: str = "") -> list:
         worst = min((f["severity"] for f in fs), key=SEVERITIES.index)
         titles = "; ".join(dict.fromkeys(f["title"] for f in fs))
         folded = "; not labelled yet, so the report folds it into its closing line, and it counts all the same" if any(f.get("unjudged") for f in fs) else ""
-        lines.append(f"--fail-on {level}: {where + ': ' if where else ''}{rule}, {len(fs)} {worst} finding{'s' if len(fs) != 1 else ''}"
+        # the level is the flag's own word (and the JSON's); what was found is said as the report says it, "1 note" for an `info`
+        counted = textfmt.count(len(fs), "note") if worst == "info" else f"{len(fs):,} {worst} finding{'s' if len(fs) != 1 else ''}"
+        lines.append(f"--fail-on {level}: {where + ': ' if where else ''}{rule}, {counted}"
                      f" ({titles}{folded}) (exit {EXIT_FOUND})")
     return lines
 

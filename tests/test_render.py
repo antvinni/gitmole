@@ -220,7 +220,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["coupling"] = []
         text = rendered(r, [], width=60)
-        self.assertIn("Change coupling: no pairs with 5+ shared revisions", text)
+        self.assertIn("Change coupling: no pairs with 5 or more shared changes", text)
         self.assertNotIn("together)\n", text.replace("(files that change\ntogether)", "together)\n"))
 
     def test_age_falls_back_to_last_changed_years_when_theseus_skipped(self):
@@ -260,7 +260,7 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["revisions"] = [{"entity": "static/apps-metadata.json", "n-revs": 128}, {"entity": "static/index.html", "n-revs": 51},
                           {"entity": "gone.py", "n-revs": 300}]
-        text = rendered(r, [], full=True)
+        text = rendered(r, [], width=140, full=True)   # wide enough for the eleven columns with their paths whole
         text = text[text.index("◆ Hotspots"):]
         lines = [l.strip() for l in text.splitlines() if l.strip().startswith(("static/", "gone.py"))]
         # index.html: 51 x 4000 = 204,000 beats metadata.json: 128 x 800 = 102,400; deleted gone.py has no score and no row
@@ -326,8 +326,8 @@ class Report(unittest.TestCase):
         self.assertRegex(block, r"Co-authored-by\s+40\s+11%")
         caption = render.trailers_section(r)["caption"]
         self.assertIn("declared commits (an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool): 35, 10% of the history; "
-                      "reverted 6% against 1% for the rest (every commit that declares nothing, undisclosed agent use included), fixes 11% against 18%, a file changed again within two weeks 57% against 46%", caption)
-        self.assertIn("12% of commits land in bursts of five or more within ten minutes; 80% have conventional-commit subjects; commits come in 20 hours of the day", caption)
+                      "reverted 6% against 1% for the rest (every commit that declares nothing, undisclosed agent use included), fixes 11% against 18%, a file changed again within 2 weeks 57% against 46%", caption)
+        self.assertIn("12% of commits land in bursts of 5 or more within 10 minutes; 80% have conventional-commit subjects; commits come in 20 hours of the day", caption)
         self.assertIn("## Trailers", render.markdown(r, []))
 
     def test_the_comparison_says_when_the_vulnerability_database_changed(self):
@@ -529,7 +529,7 @@ class Report(unittest.TestCase):
         r["trend"] = {"samples": ["2025-09-10", "2026-03-10", "2026-09-10"],
                       "files": {"static/index.html": [["2025-09-10", 10, 4000], ["2026-03-10", 12, 4000], ["2026-09-10", 16, 4000]]}}
         text = _rendered_section(render.hotspots_section(r, full="markdown", width=120))
-        self.assertRegex(text, r"file\s+revs\s+lines\s+fixes\s+authors\s+trend")
+        self.assertRegex(text, r"file\s+changes\s+lines\s+fixes\s+authors\s+trend")
         self.assertRegex(text, r"static/index\.html\s+51\s+4,000\s+0\s+-\s+\+60%")
         self.assertRegex(text, r"static/apps-metadata\.json\s+128\s+800\s+9\s+4\s+-")
         self.assertRegex(rendered(r, [], full=True), r"static/index\.html.*▁▃█")
@@ -574,7 +574,7 @@ class Report(unittest.TestCase):
         r["backtest"] = past
         r["fixes"] = [{"entity": "static/index.html", "n-fixes": 1, "last-fix": "2026-01-01", "recent-fixes": 0}]   # before the cut-off
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("nothing has been fixed since the cut-off six months ago, so there is nothing to score the list against", caption)
+        self.assertIn("nothing has been fixed since the cut-off 6 months ago, so there is nothing to score the list against", caption)
         self.assertNotIn("0 of the 0", caption)
         self.assertEqual(render.to_json(r, [])["watch_backtest"]["fixed"], 0, "the JSON keeps the numbers")
 
@@ -587,14 +587,14 @@ class Report(unittest.TestCase):
                       {"entity": "static/other.html", "n-fixes": 1, "last-fix": "2026-08-01", "recent-fixes": 1}]
         r["meta"]["since"] = "2026-01-01"
         caption = next(x for x in render.sections(r, full=False) if x["id"] == "watch")["caption"]
-        self.assertIn("ranked by revisions × lines of code alone; the reasons say what to look at there; commits since 2026-01-01", caption)
+        self.assertIn("ranked by changes × lines of code alone; the reasons say what to look at there; commits since 2026-01-01", caption)
         self.assertTrue(caption.endswith("(1.0 expected, p = 1); whole history"), caption)
 
     def test_backtest_words_say_what_the_numbers_mean(self):
         bt = {"t": "2026-03-10", "pool": 1245, "listed": 15, "fixed": 205, "positives": 128, "hits": 3, "expected": 1.5,
               "baselines": {"churn": 5, "size": 2}, "p_by_chance": 0.19}
         self.assertEqual(render.backtest_words(bt),
-                         "6 months ago this list's top 15 would have named 3 of the 128 files fixed since among the 1245 that had changed "
+                         "6 months ago this list's top 15 would have named 3 of the 128 files fixed since among the 1,245 that had changed "
                          "more than once: fewer than the 15 most changed (5); not distinguishable from a random 15 (1.5 expected, p = 0.19)",
                          "devlake's, which once read 3 of the 205 beside a random 1.5 out of 128 and said nothing about either")
         bt.update(hits=9, p_by_chance=0.00002)
@@ -603,10 +603,10 @@ class Report(unittest.TestCase):
         self.assertIn("no more than the 15 most changed; more than a random 15 would by chance (1.5 expected, p = 0.0496)", render.backtest_words(bt),
                       "0.0496 is not rounded to a 0.05 that reads as the other side of the line")
         bt.update(positives=0)
-        self.assertEqual(render.backtest_words(bt), "none of the 205 files fixed since the cut-off six months ago had changed more than once by then, "
+        self.assertEqual(render.backtest_words(bt), "none of the 205 files fixed since the cut-off 6 months ago had changed more than once by then, "
                                                     "so there is nothing to score the list against")
         old = {k: v for k, v in bt.items() if k not in ("positives", "p_by_chance")}
-        self.assertIn("(a random 15 of the 1245 files that had changed more than once would name 1.5", render.backtest_words(old),
+        self.assertIn("(a random 15 of the 1,245 files that had changed more than once would name 1.5", render.backtest_words(old),
                       "a backtest recorded before the pool's own count keeps its old sentence")
 
     def test_markdown_hotspots_hide_test_files_and_say_so(self):
@@ -676,7 +676,7 @@ class Report(unittest.TestCase):
         r["functions"].append({"file": "server/heartbeat.ts", "function": "executeRun", "anonymous": False, "ccn": 55, "nloc": 6394, "params": 2,
                                "start": 20179, "end": 26572, "suspect": "", "lizard_span": {"end": 20446, "nloc": 222}})
         fn = _section_text(rendered(r, [], width=200), "Complex functions")
-        self.assertRegex(fn, r"executeRun\s+server/heartbeat.ts\s+55\+\s+6394")
+        self.assertRegex(fn, r"executeRun\s+server/heartbeat.ts\s+55\+\s+6,394")
         self.assertIn("+ marks 1 function lizard ended early: the lines are the structure step's, the complexity what lizard counted before it stopped", fn)
 
     def test_default_complex_functions_hide_vendored_code_and_say_so(self):
@@ -903,27 +903,27 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["coupling"] = [{"entity": "static/tax.html", "coupled": "tests/test_tax.py", "degree": 100, "average-revs": 11}]
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("no source pairs with 5+ shared revisions; 1 test pair hidden; --full shows them", coupling)
+        self.assertIn("no source pairs with 5 or more shared changes; 1 test pair hidden; --full shows them", coupling)
 
     def test_coupling_with_nothing_to_show_keeps_its_plain_note(self):
         r = sample_report()
         r["coupling"] = []
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("no pairs with 5+ shared revisions", coupling)
+        self.assertIn("no pairs with 5 or more shared changes", coupling)
         self.assertNotIn("hidden", coupling)
 
     def test_complex_functions_with_only_test_files_say_what_was_hidden(self):
         r = sample_report()
         r["functions"] = [{"file": "tests/test_a.py", "function": "test_thing", "ccn": 40, "nloc": 50, "params": 0, "start": 1, "end": 50}]
         fn = _section_text(rendered(r, [], width=200), "Complex functions")
-        self.assertIn("nothing over complexity 10 in source files (1 function measured); "
+        self.assertIn("nothing at complexity 10 or more in source files (1 function measured); "
                       "1 function in a test file hidden; --full shows them", fn)
 
     def test_complex_functions_with_nothing_to_show_keep_their_plain_note(self):
         r = sample_report()
         r["functions"] = [{"file": "static/js/app.js", "function": "render", "ccn": 2, "nloc": 5, "params": 0, "start": 1, "end": 5}]
         fn = _section_text(rendered(r, [], width=200), "Complex functions")
-        self.assertIn("nothing over complexity 10 (1 function measured)", fn)
+        self.assertIn("nothing at complexity 10 or more (1 function measured)", fn)
         self.assertNotIn("hidden", fn)
 
     def test_header_shows_the_commit_when_the_run_recorded_one_and_the_run_line_closes_full_and_markdown(self):
@@ -1053,17 +1053,17 @@ class ComplexFunctions(unittest.TestCase):
             r["meta"]["functions"] = {"status": status}
             sec = next(x for x in render.sections(r, full=True) if x["title"] == "Complex functions")
             self.assertTrue(sec["rows"])
-            self.assertEqual(sec["caption"], f"partial: {reason}", status)
+            self.assertEqual(sec["caption"], f"partial: {reason}\n{render.COMPLEXITY_DEFINITION}", status)
         r["meta"]["functions"] = {"status": "timeout"}
         r["functions"] = [{"file": "a.py", "function": "simple", "ccn": 2, "nloc": 5, "params": 0, "start": 1, "end": 5}]
-        self.assertIn("Complex functions: nothing over complexity 10 (1 function measured; partial: function metrics timed out)", rendered(r, []))
+        self.assertIn("Complex functions: nothing at complexity 10 or more (1 function measured; partial: function metrics timed out)", rendered(r, []))
 
     def test_a_partial_run_keeps_the_more_caption(self):
         r = sample_report()
         r["meta"]["functions"] = {"status": "timeout"}
         r["functions"] = [{"file": f"f{i}.py", "function": f"fn{i}", "ccn": 20, "nloc": 30, "params": 0, "start": 1, "end": 30} for i in range(10)]
         sec = next(x for x in render.sections(r, full=False) if x["title"] == "Complex functions")
-        self.assertEqual(sec["caption"], "and 2 more; partial: function metrics timed out")
+        self.assertEqual(sec["caption"], "and 2 more; partial: function metrics timed out\n" + render.COMPLEXITY_DEFINITION)
 
     def test_the_default_report_gives_one_line_when_no_function_is_both_long_and_complex(self):
         # superpowers: five rows topping at complexity 16 in 43 lines, none a brain method (15 or more over 100 lines or more)
@@ -1073,7 +1073,7 @@ class ComplexFunctions(unittest.TestCase):
                           {"file": "b.py", "function": "long_only", "ccn": 11, "nloc": 300, "params": 0, "start": 1, "end": 300, "suspect": ""}]
         sec = next(x for x in render.sections(r, full=False) if x["title"] == "Complex functions")
         self.assertEqual((sec["rows"], sec["caption"]), ([], None))
-        self.assertEqual(sec["note"], "no long, complex functions; highest complexity 16 (handle); --full lists 3 at 10 or over")
+        self.assertEqual(sec["note"], "no long, complex functions; highest complexity 16 (handle); --full lists 3 at 10 or more")
         self.assertEqual(len(next(x for x in render.sections(r, full=True) if x["title"] == "Complex functions")["rows"]), 3)
         self.assertTrue(next(x for x in render.sections(r, full="markdown") if x["title"] == "Complex functions")["rows"], "Markdown keeps the table")
         r["functions"].append({"file": "c.py", "function": "brain", "ccn": 15, "nloc": 100, "params": 0, "start": 1, "end": 100, "suspect": ""})
@@ -1081,11 +1081,11 @@ class ComplexFunctions(unittest.TestCase):
         self.assertEqual(len(sec["rows"]), 4, "one function meets the rule: the table is back, every row of it")
 
     def test_a_list_longer_than_the_table_stays_a_table_without_a_brain_method(self):
-        # gitmole's own: 166 functions at 10 or over, led by complexity 55 in 89 lines; the rows behind "and N more" are information
+        # gitmole's own: 166 functions at 10 or more, led by complexity 55 in 89 lines; the rows behind "and N more" are information
         r = sample_report()
         r["functions"] = [{"file": f"f{i}.py", "function": f"fn{i}", "ccn": 55 - i, "nloc": 89, "params": 0, "start": 1, "end": 89, "suspect": ""} for i in range(9)]
         sec = next(x for x in render.sections(r, full=False) if x["title"] == "Complex functions")
-        self.assertEqual((len(sec["rows"]), sec["caption"]), (8, "and 1 more"))
+        self.assertEqual((len(sec["rows"]), sec["caption"]), (8, "and 1 more\n" + render.COMPLEXITY_DEFINITION))
 
     def test_long_paths_are_elided_like_every_other_table(self):
         r = sample_report()
@@ -1109,14 +1109,14 @@ class ComplexFunctions(unittest.TestCase):
                            "function": "shouldReturnTheAccountWhenTheIdentifierIsKnownAndActive",
                            "ccn": 27, "nloc": 180, "params": 4, "start": 10, "end": 200}]
         sec = render.fit(next(x for x in render.sections(r, full=False, width=100) if x["title"] == "Complex functions"), 100)
-        self.assertEqual(sec["rows"][0][1], "src/…/impl/AccountServiceImpl.java", "the directory survives; only the name would at the 16-char floor")
+        self.assertEqual(sec["rows"][0][1], "…/impl/AccountServiceImpl.java", "the directory survives; only the name would at the 16-char floor")
 
     def test_only_functions_over_the_floor(self):
         r = sample_report()
         r["functions"] = [{"file": "a.py", "function": "simple", "ccn": 9, "nloc": 300, "params": 0, "start": 1, "end": 300}]
         text = rendered(r, [])
         self.assertNotIn("simple", text)
-        self.assertIn("Complex functions: nothing over complexity 10 (1 function measured)", text)
+        self.assertIn("Complex functions: nothing at complexity 10 or more (1 function measured)", text)
         r["functions"].append({"file": "a.py", "function": "twisty", "ccn": 10, "nloc": 20, "params": 0, "start": 1, "end": 20})
         text = rendered(r, [], full=True)
         self.assertRegex(text, r"twisty\s+a.py\s+10\s+20")
@@ -1132,8 +1132,8 @@ class WatchList(unittest.TestCase):
         text = rendered(r, [], width=120)
         self.assertIn("◎ Watch list", text)
         self.assertRegex(text, r"static/index.html\s+changed 51 times · only Ann has touched it")
-        self.assertRegex(text, r"static/apps-metadata.json\s+changed 128 times · fixed 4 times in six months")
-        self.assertIn("ranked by revisions × lines of code alone; the reasons say what to look at there", text)
+        self.assertRegex(text, r"static/apps-metadata.json\s+changed 128 times · fixed 4 times in 6 months")
+        self.assertIn("ranked by changes × lines of code alone; the reasons say what to look at there", text)
 
     def test_capped_at_five_by_default_and_fifteen_in_full(self):
         r = sample_report()
@@ -1174,7 +1174,7 @@ class WatchList(unittest.TestCase):
         r = sample_report()
         r["meta"]["since"] = "2025-01-01"
         sec = next(x for x in render.sections(r, full=False) if x["id"] == "watch")
-        self.assertEqual(sec["caption"], "ranked by revisions × lines of code alone; the reasons say what to look at there; commits since 2025-01-01")
+        self.assertEqual(sec["caption"], "ranked by changes × lines of code alone; the reasons say what to look at there; commits since 2025-01-01")
 
 
 class FullOnlySections(unittest.TestCase):
@@ -1397,11 +1397,11 @@ class KnowledgeMap(unittest.TestCase):
 
 
 class Timeline(unittest.TestCase):
-    def test_last_twelve_months_per_author_with_dots_for_zero(self):
+    def test_last_twelve_months_per_author_with_zero_as_0(self):
         text = rendered(sample_report(), [], width=120)
         self.assertIn("Timeline (Oct 2025 → Sep 2026)", text)
-        self.assertRegex(text, r"Ann\s+3(\s+·){9}\s+12\s+7")
-        self.assertRegex(text, r"Bob(\s+·){11}\s+5")
+        self.assertRegex(text, r"Ann\s+3(\s+0){9}\s+12\s+7")
+        self.assertRegex(text, r"Bob(\s+0){11}\s+5")
         self.assertIn("Oct", text)
         self.assertNotIn("Old Timer", text, "authors with no commits in the window are left out")
 
@@ -1440,7 +1440,7 @@ class Timeline(unittest.TestCase):
         r["activity"]["timeline"]["renovate[bot]"] = {"2026-08": 30, "2026-09": 40}
         text = rendered(r, [], width=120)
         self.assertNotIn("renovate[bot]", text.split("◉ People")[0], "the panel and findings do not mention bots")
-        self.assertRegex(text, r"Ann\s+3(\s+·){9}\s+12\s+7")
+        self.assertRegex(text, r"Ann\s+3(\s+0){9}\s+12\s+7")
         self.assertNotIn("renovate[bot]   ", text, "no timeline row for a bot")
         self.assertIn("bots left out: renovate[bot] (940 commits), github-actions[bot] (195)", text)
         self.assertNotIn("bots left out", rendered(sample_report(), []))
@@ -1561,7 +1561,7 @@ class Layout(unittest.TestCase):
         text = rendered(sample_report(), [], width=80)
         self.assertRegex(text, r"\n\n◉ People\n")
         full = rendered(sample_report(), [], width=80, full=True)
-        self.assertRegex(full, r"\n\n◆ Hotspots \(score = revisions × lines of code\)\n")
+        self.assertRegex(full, r"\n\n◆ Hotspots \(score = changes × lines of code\)\n")
         self.assertNotIn("─────", text.split("◉ People")[1].split("\n")[0], "no rule across the width")
 
     def test_small_tables_sit_side_by_side_on_wide_terminals(self):
@@ -1592,8 +1592,9 @@ class Layout(unittest.TestCase):
         self.assertEqual(render.cell_style("share", "64%"), "bold #ff5cc8")
         self.assertEqual(render.cell_style("share", "25%"), "#ff9ee0")
         self.assertIsNone(render.cell_style("share", "3%"))
-        self.assertEqual(render.cell_style("degree", "95%"), "bold #ff5cc8")
+        self.assertEqual(render.cell_style("together", "95%"), "bold #ff5cc8", "the coupling table's head, the JSON's degree")
         self.assertEqual(render.cell_style("fixes", "5"), "bold #ff5cc8")
+        self.assertEqual(render.cell_style("fixes", "1,204"), "bold #ff5cc8", "a count with its separator is still a count")
 
     def test_default_columns_are_the_ones_you_read(self):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=False)}
@@ -1602,16 +1603,16 @@ class Layout(unittest.TestCase):
         self.assertEqual(secs["People"]["columns"], ["author", "commits", "share", "surviving code"])
         hot = render.hotspots_section(sample_report(), full="markdown", width=None)
         self.assertEqual(hot["title"], "Hotspots")
-        self.assertEqual(hot["columns"], ["file", "revs", "lines", "fixes", "authors", "trend"])
-        self.assertEqual(secs["Change coupling"]["columns"], ["file", "changes with", "degree"])
+        self.assertEqual(hot["columns"], ["file", "changes", "lines", "fixes", "authors", "trend"])
+        self.assertEqual(secs["Change coupling"]["columns"], ["file", "changes with", "together"])
         self.assertEqual(secs["Knowledge map (files in the tree now)"]["columns"], ["area", "lines added", "main owner", "second"])
 
     def test_full_restores_every_column_and_row(self):
         secs = {x["title"]: x for x in render.sections(sample_report(), full=True)}
         self.assertEqual(secs["Size by language"]["columns"], ["language", "files", "code", "share", "complexity"])
         self.assertEqual(secs["People"]["columns"], ["author", "commits", "share", "surviving code"], "--full adds rows to People, never an address")
-        self.assertEqual(secs["Hotspots (score = revisions × lines of code)"]["columns"], ["file", "revs", "lines", "cplx", "score", "fixes", "authors", "minors", "co-changes", "idle", "trend"])
-        self.assertIn("avg revs", secs["Change coupling"]["columns"])
+        self.assertEqual(secs["Hotspots (score = changes × lines of code)"]["columns"], ["file", "changes", "lines", "complexity", "score", "fixes", "authors", "minors", "co-changes", "idle", "trend"])
+        self.assertIn("avg changes", secs["Change coupling"]["columns"])
 
     def test_row_caps_and_the_more_line(self):
         # the 8-row default cap with "and N more" is pinned for Timeline instead
@@ -1620,7 +1621,7 @@ class Layout(unittest.TestCase):
         r = sample_report()
         r["revisions"] = [{"entity": f"f{i}.py", "n-revs": 100 - i} for i in range(12)]
         r["size"]["files"] = {f"f{i}.py": {"code": 10, "complexity": 0} for i in range(12)}
-        full = {x["title"]: x for x in render.sections(r, full=True)}["Hotspots (score = revisions × lines of code)"]
+        full = {x["title"]: x for x in render.sections(r, full=True)}["Hotspots (score = changes × lines of code)"]
         self.assertEqual(len(full["rows"]), 12)
         self.assertIsNone(full["caption"])
 
@@ -1758,7 +1759,7 @@ class Sections(unittest.TestCase):
         r["coupling"] = []
         sec = next(x for x in render.sections(r, full=True) if x["title"] == "Change coupling")
         self.assertEqual(sec["rows"], [])
-        self.assertEqual(sec["note"], "no pairs with 5+ shared revisions")
+        self.assertEqual(sec["note"], "no pairs with 5 or more shared changes")
 
 
 class Markdown(unittest.TestCase):
@@ -1769,6 +1770,10 @@ class Markdown(unittest.TestCase):
         self.assertIn("363 commits", md)
         self.assertIn("## Findings", md)
         self.assertIn("**warning** Bus factor of one", md)
+        note = render.markdown(sample_report(), [{"severity": "info", "title": "Sweeping commits", "detail": "2 commits."}])
+        self.assertIn("**note** Sweeping commits", note, "the terminal's word, where the JSON says info (prometheus: **info** under a tally of 10 notes)")
+        self.assertNotIn("**info**", note)
+        self.assertIn('"severity": "info"', render.dumps_json(sample_report(), [{"severity": "info", "title": "Sweeping commits", "detail": "2 commits."}]))
         self.assertIn("## Watch list", md)
         self.assertIn("## Size by language", md, "the export keeps every table")
         self.assertIn("| language | files | code |", md)
@@ -1784,7 +1789,7 @@ class Markdown(unittest.TestCase):
         r["size"]["files"]["weird|name.py"] = {"code": 5, "complexity": 0}   # in the tree, so not hidden as deleted
         md = render.markdown(r, [])
         self.assertIn("weird\\|name.py", md)
-        self.assertIn("_no pairs with 5+ shared revisions_", md)
+        self.assertIn("_no pairs with 5 or more shared changes_", md)
         self.assertIn("Nothing flagged.", md)
         self.assertIn("- **ok** No secrets in history", md)
         r["secrets_scanned"] = False
@@ -1822,7 +1827,7 @@ class Json(unittest.TestCase):
 
 
 class ChangeRisk(unittest.TestCase):
-    RISK = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times", "fixed 5 times in six months"], "watched": True},
+    RISK = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times", "fixed 5 times in 6 months"], "watched": True},
                       {"file": "core/util.py", "score": 0.6, "reasons": ["changed 30 times"], "watched": True},
                       {"file": "core/new.py", "score": 0, "reasons": ["not in the tree"], "watched": False}],
             "total": 3.6, "watched": 2, "max_score": 3.0}
@@ -1836,10 +1841,10 @@ class ChangeRisk(unittest.TestCase):
         self.assertIn("touches 3 files across 2 directories, 1 commit; adds 20 lines to 800 (2%), removes 4", caption)
         self.assertIn("not touched: core/ast.py, which moved in 72% of core/parser.py's changes, and core/lexer.py (55%)", caption)
         self.assertEqual(sec["columns"], ["file", "risk", "why"])
-        self.assertEqual(sec["rows"][0], ["core/parser.py", "▰▰▰▰▰▰▰▰▰▰", "changed 40 times · fixed 5 times in six months"])
+        self.assertEqual(sec["rows"][0], ["core/parser.py", "▰▰▰▰▰▰▰▰▰▰", "changed 40 times · fixed 5 times in 6 months"])
         self.assertEqual(sec["rows"][1][1], "▰▰")
         self.assertEqual(sec["rows"][2][1], "")
-        self.assertEqual(sec["caption"], "total 3.6% of the repository's revisions × lines of code; 2 of these files are on the watch list")
+        self.assertEqual(sec["caption"], "total 3.6% of the repository's changes × lines of code; 2 of these files are on the watch list")
 
     def test_the_why_column_says_what_imports_the_file(self):
         risk = {"files": [{"file": "core/util.py", "score": 0.6, "reasons": ["changed 30 times"], "watched": True,
@@ -1857,7 +1862,7 @@ class ChangeRisk(unittest.TestCase):
         risk = {"files": [{"file": "core/parser.py", "score": 3.0, "reasons": ["changed 40 times"], "watched": True}],
                 "total": 3.0, "watched": 1, "max_score": 3.0}
         sec = render.risk_section(risk, "main", full=False)
-        self.assertEqual(sec["caption"], "total 3.0% of the repository's revisions × lines of code; 1 of these files is on the watch list")
+        self.assertEqual(sec["caption"], "total 3.0% of the repository's changes × lines of code; 1 of these files is on the watch list")
 
     def test_capped_rows_come_from_the_shared_limit_helper(self):
         risk = {"files": [{"file": f"f{i}.py", "score": 1.0, "reasons": ["changed 3 times"], "watched": False} for i in range(20)],
@@ -1900,8 +1905,8 @@ class Compare(unittest.TestCase):
                   "before": {"commit": "540ee5b560cc6e775e11317048a13cc7e355bf91", "date": "2026-09-10", "options_differ": ["ignore_data"]}}
         sec = render.compare_section(result)
         self.assertEqual(sec["title"], "Since last report")
-        self.assertEqual(sec["rows"], [["new", "warning · Credential-shaped files tracked"], ["resolved", "info · Reverts"],
-                                       ["persisting", "warning → info · Bug magnets"], ["persisting", "warning · Repo health"],
+        self.assertEqual(sec["rows"], [["new", "warning · Credential-shaped files tracked"], ["resolved", "note · Reverts"],
+                                       ["persisting", "warning → note · Bug magnets"], ["persisting", "warning · Repo health"],
                                        ["entered the watch list", "c.py"], ["left the watch list", "b.py"]],
                          "_section stringifies every row into a list, like every other section's rows")
         self.assertEqual(sec["caption"], "options differ: ignore_data; the changes partly reflect them\n"
@@ -2029,7 +2034,7 @@ class SmallRepository(unittest.TestCase):
         self.assertIn("Change coupling", rendered(r, []))
         r = sample_report()
         r["coupling"] = []
-        self.assertIn("Change coupling: no pairs with 5+ shared revisions", rendered(r, []), "an empty table's note is kept: it says there is none")
+        self.assertIn("Change coupling: no pairs with 5 or more shared changes", rendered(r, []), "an empty table's note is kept: it says there is none")
 
 
 class PeopleMerges(unittest.TestCase):
@@ -2053,6 +2058,43 @@ class PeopleMerges(unittest.TestCase):
         plain = render.people_section({"meta": {"identities": [{"name": "Dee", "email": "d@x", "commits": 30, "authored": 30}]}})
         self.assertNotIn("co-authored", plain["columns"])
 
+
+    def test_a_count_of_a_thousand_or_more_has_its_separator_in_every_table_and_the_header(self):
+        # prometheus: "18647 commits" and "1056 files" on the lines around "357,025 lines", and 1061 commits in People
+        r = sample_report()
+        r["meta"]["commits"] = 18647
+        r["size"]["total_files"] = 1056
+        r["meta"]["identities"] = [{"name": "Ann", "email": "ann@x.com", "commits": 1061}, {"name": "Bob", "email": "bob@x.com", "commits": 129}]
+        r["meta"]["bots"] = [{"name": "dependabot[bot]", "commits": 2882}]
+        self.assertEqual(render.people_section(r, full=False)["rows"][0][:2], ["Ann", "1,061"])
+        self.assertIn("dependabot[bot] (2,882 commits)", render.people_section(r, full=False)["caption"])
+        for text in (rendered(r, [], width=80), rendered(r, [], full=True), render.markdown(r, [])):
+            self.assertIn("18,647 commits", text)
+            self.assertIn("in 1,056 files", text)
+            self.assertNotIn("18647", text)
+            self.assertNotIn("1061", text)
+        self.assertEqual(render._number(0), "0", "zero prints as 0")
+        self.assertEqual(render._number("2026"), "2026", "a year reaches a table as text and stays as it is")
+        self.assertEqual(render.summary(r)["commits"], 18647, "the summary a JSON export carries keeps the number")
+
+    def test_one_word_for_each_column_whatever_the_json_calls_it(self):
+        # prometheus: "ccn" in Complex functions beside "complexity" in the Brain methods finding; "revs", "cplx" and "degree" under --full
+        r = sample_report()
+        r["functions"] = [{"file": f"f{i}.py", "function": f"fn{i}", "ccn": 55 - i, "nloc": 189, "params": 0, "start": 1, "end": 189, "suspect": ""} for i in range(9)]
+        heads = {s["id"]: s["columns"] for s in render.sections(r, full=True)}
+        self.assertEqual(heads["functions"], ["function", "file", "complexity", "lines", "params"])
+        self.assertEqual(heads["coupling"], ["file", "changes with", "together", "avg changes"])
+        self.assertEqual(heads["hotspots"][:4], ["file", "changes", "lines", "complexity"])
+        for name in ("ccn", "cplx", "revs", "avg revs", "degree", "revisions"):
+            self.assertFalse([sid for sid, cols in heads.items() if name in cols], name)
+        for title, key in render.KEY_METRIC.items():
+            sec = next((s for s in render.sections(r, full=True) if s["title"].split(" (")[0] == title), None)
+            if sec and sec["rows"]:
+                self.assertIn(key, sec["columns"], f"{title}: the column read first is looked up by its printed head")
+        fn = next(s for s in render.sections(r, full=False) if s["id"] == "functions")
+        self.assertTrue(fn["caption"].endswith("complexity = cyclomatic: the function's branch points plus 1"), "the renamed head is defined once, under its table")
+        watch = [w for w in render.dumps_json(r, []).splitlines() if '"revs"' in w or '"ccn"' in w or '"degree"' in w]
+        self.assertTrue(watch, "the export keeps its keys: revs, ccn, degree")
 
     def test_no_rendering_of_the_people_table_has_an_address(self):
         # prometheus --full at 160 columns, and both Markdown exports, printed every address beside its commit count
