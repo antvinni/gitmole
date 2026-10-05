@@ -1,5 +1,5 @@
 [--hook additionalContext]
-app/main.py: 80.8% of the repository's revisions × lines of code (rank 1 of 2, on the watch list); changed 7 times; fixed once in six months; changes with app/util.py (83%)
+app/main.py: 80.8% of the repository's changes × lines of code (rank 1 of 2, on the watch list); changed 7 times; fixed once in 6 months; changes with app/util.py (83%)
 not touched: app/util.py, which moved in 83% of app/main.py's changes
 total 80.8%, over the 1% threshold
 
@@ -7,15 +7,15 @@ total 80.8%, over the 1% threshold
 ◈ Change risk (2 files since HEAD~2)
   file          risk         why
   ──────────────────────────────────────────────────────────────────────────────────────────────────
-  app/main.py   ▰▰▰▰▰▰▰▰▰▰   changed 7 times · fixed once in six months · changes with app/util.py
+  app/main.py   ▰▰▰▰▰▰▰▰▰▰   changed 7 times · fixed once in 6 months · changes with app/util.py
                              (83%)
   app/util.py   ▰▰           changed 5 times · changes with app/main.py (83%)
-  total 100.0% of the repository's revisions × lines of code; 2 of these files are on the watch list
+  total 100.0% of the repository's changes × lines of code; 2 of these files are on the watch list
   touches 2 files across 1 directory, 2 commits; a fix, by its subject; adds 2 lines to 8 (25%),
   removes 2; spread evenly over its files; 1 of the 2 files changed this month; the files have 12
   prior changes by 2 people; Bob Example has 3 prior commits here, 4 in these subsystems
 
 [gate lines on stderr]
---fail-on info: tight_coupling, 1 info finding (Files that always change together) (exit 3)
---fail-on info: repo_policy, 1 info finding (Repository policy files) (exit 3)
+--fail-on info: tight_coupling, 1 note (Files that always change together) (exit 3)
+--fail-on info: repo_policy, 1 note (Repository policy files) (exit 3)
 --risk-threshold 1: the change against HEAD~2 scores 100 (exit 3)
