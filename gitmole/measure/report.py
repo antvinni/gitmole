@@ -320,28 +320,35 @@ def _extras(x: dict) -> list:
     return out
 
 
-def render(records_dir: str) -> list:
-    history = dashboard.load_history(records_dir)
+def history_page(records_dir: str) -> tuple:
+    """(records, page text): the records summarised as render writes them, and measurement-history.md's
+    text, without writing anything."""
+    records = dashboard.load_history(records_dir)
     series = set((corpus.load().get("series") or {}).get("repos") or []) or None
     marks = labels._read(os.path.join(labels.DIR, "labels.jsonl"))
-    for r in history:
+    for r in records:
         r["summary"] = dashboard.summarise(r)
         r["series"] = dashboard.summarise(r, only=series)
         r["useful"] = labels.usefulness(r, marks)
     extras = None
     extras_dir = os.path.join(records_dir, "extras")
-    if history and os.path.exists(os.path.join(extras_dir, f"{history[-1]['version']}.json")):
-        with open(os.path.join(extras_dir, f"{history[-1]['version']}.json"), encoding="utf-8") as fh:
+    if records and os.path.exists(os.path.join(extras_dir, f"{records[-1]['version']}.json")):
+        with open(os.path.join(extras_dir, f"{records[-1]['version']}.json"), encoding="utf-8") as fh:
             extras = json.load(fh)
+    return records, page(records, extras)
+
+
+def render(records_dir: str) -> list:
+    history, text = history_page(records_dir)
     os.makedirs(GRAPHS, exist_ok=True)
     written = []
-    for name, text in graphs(history).items():
+    for name, svg_text in graphs(history).items():
         path = os.path.join(GRAPHS, name)
         with open(path, "w", encoding="utf-8") as fh:
-            fh.write(text)
+            fh.write(svg_text)
         written.append(path)
     path = os.path.join(DOCS, "measurement-history.md")
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(page(history, extras))
+        fh.write(text)
     written.append(path)
     return written

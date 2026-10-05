@@ -5,9 +5,10 @@
 where it declares the Conventional Commits convention: a commit is a fix if and only if its type is `fix`,
 so "ci: fix event name" and "docs: fix image path" are not fixes and an untyped subject is not one either.
 The convention is decided window by window: a window declares it when the tree at its cut-off tracks a
-commitlint or commitizen configuration at its root, or when at least TYPED_SHARE of the window's own
-subjects are typed; a window that does neither is scored by `current` under both names, so the two
-outcomes differ only where the repository had said how its commits are typed.
+commitlint or commitizen configuration at its root, or when the window's own subjects are typed at
+TYPED_SHARE or more with 95% confidence (the Wilson lower bound); a window that does neither is scored
+by `current` under both names, so the two outcomes differ only where the repository had said how its
+commits are typed.
 
 The definitions live here, in the harness's tree, and are read neither from the release being measured
 nor from the live maat.is_fix: a candidate that changes maat.is_fix is scored against the outcome this
@@ -21,6 +22,7 @@ switched."""
 from __future__ import annotations
 
 import json
+import math
 import re
 import subprocess
 
@@ -34,6 +36,21 @@ DEFAULT = "current"
 # not swept and not fitted to a corpus repository. A repository that writes "area: text" subjects (curl,
 # git, the kernel) has the shape without a type, so the type vocabulary below is what tells the two apart.
 TYPED_SHARE = 0.9
+# A window switches on its typed share only when the share is at least TYPED_SHARE with 95% confidence:
+# the lower end of the Wilson score interval (E. B. Wilson, "Probable inference, the law of succession,
+# and statistical inference", JASA 22, 1927), which stays honest at the few commits a quiet window holds,
+# where 3 typed subjects of 3 would otherwise switch it. z for a two-sided 95% interval.
+WILSON_Z = 1.959964
+
+
+def wilson_lower(typed: int, n: int, z: float = WILSON_Z):
+    """The lower end of the Wilson score interval for `typed` successes in `n` (Wilson 1927); None for n = 0."""
+    if not n:
+        return None
+    p = typed / n
+    centre = p + z * z / (2 * n)
+    spread = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return (centre - spread) / (1 + z * z / n)
 
 # The Conventional Commits types: fix and feat from the specification (conventionalcommits.org, 1.0.0), the
 # rest from @commitlint/config-conventional's type-enum, the Angular convention the specification grew from.
@@ -75,11 +92,13 @@ def is_declared_fix(subject: str) -> bool:
 
 
 def typed_share(subjects) -> dict:
-    """{"typed", "subjects", "share"} over `subjects`, less git's own revert subjects, which commitlint
-    ignores too."""
+    """{"typed", "subjects", "share", "share_lower"} over `subjects`, less git's own revert subjects, which
+    commitlint ignores too; share_lower is the Wilson 95% lower bound the switch reads."""
     counted = [s for s in subjects if s and not maat.is_revert(s)]
     typed = sum(1 for s in counted if commit_type(s))
-    return {"typed": typed, "subjects": len(counted), "share": round(typed / len(counted), 4) if counted else None}
+    lower = wilson_lower(typed, len(counted))
+    return {"typed": typed, "subjects": len(counted), "share": round(typed / len(counted), 4) if counted else None,
+            "share_lower": None if lower is None else round(lower, 4)}
 
 
 def _git(repo: str, *args):
@@ -125,7 +144,7 @@ def convention(repo: str, rev: str = "HEAD", subjects=None) -> dict:
         subjects = (_git(repo, "log", rev, "--no-merges", "--format=%s") or "").split("\n") if rev else []
     share = typed_share(subjects)
     config = config_files(repo, rev) if rev else []
-    by = (["config"] if config else []) + (["typed share"] if share["share"] is not None and share["share"] >= TYPED_SHARE else [])
+    by = (["config"] if config else []) + (["typed share"] if share["share_lower"] is not None and share["share_lower"] >= TYPED_SHARE else [])
     return {"declared": bool(by), "by": by, "config": config, **share, "threshold": TYPED_SHARE}
 
 

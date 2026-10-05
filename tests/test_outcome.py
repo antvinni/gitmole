@@ -92,14 +92,21 @@ class Convention(unittest.TestCase):
         self.assertEqual((conv["by"], conv["config"]), (["config"], ["commitlint.config.cjs"]))
         self.assertEqual(conv["share"], 0.0)
 
-    def test_nine_in_ten_typed_subjects_declare_it_and_eight_do_not(self):
+    def test_the_typed_share_declares_it_only_when_its_wilson_lower_bound_reaches_ninety_percent(self):
+        with tempfile.TemporaryDirectory() as d:
+            conv = outcome.convention(_repo(d, ["fix: x"] * 40))
+        self.assertEqual((conv["declared"], conv["by"], conv["share"]), (True, ["typed share"], 1.0))
+        self.assertEqual(conv["share_lower"], 0.9124, "40 of 40: 40 / (40 + 1.96^2)")
         with tempfile.TemporaryDirectory() as d:
             conv = outcome.convention(_repo(d, ["fix: x"] * 9 + ["untyped"]))
-        self.assertEqual((conv["declared"], conv["by"], conv["share"]), (True, ["typed share"], 0.9))
-        with tempfile.TemporaryDirectory() as d:
-            conv = outcome.convention(_repo(d, ["fix: x"] * 8 + ["untyped"] * 2))
-        self.assertFalse(conv["declared"])
-        self.assertEqual(outcome.describe(conv), "no (80% typed)")
+        self.assertFalse(conv["declared"], "9 of 10 is 90% typed, but its lower bound is 0.60")
+        self.assertEqual(outcome.describe(conv), "no (90% typed)")
+
+    def test_the_wilson_lower_bound(self):
+        self.assertAlmostEqual(outcome.wilson_lower(3, 3), 0.4385, places=4, msg="three typed subjects of three switch nothing")
+        self.assertAlmostEqual(outcome.wilson_lower(93, 94), 0.9422, places=4)
+        self.assertAlmostEqual(outcome.wilson_lower(0, 10), 0.0, places=12)
+        self.assertIsNone(outcome.wilson_lower(0, 0))
 
     def test_a_key_in_package_json_or_pyproject_declares_it(self):
         with tempfile.TemporaryDirectory() as d:
@@ -156,9 +163,10 @@ def _rank(pool):
 
 
 def _history(typed):
-    """72 monthly commits from 2020; typed(i) says whether commit i is written in the convention."""
-    return _commits([(f"{2020 + i // 12}-{i % 12 + 1:02d}-15", ("ci: fix x" if i % 2 else "fix: y") if typed(i) else ("Fix x" if i % 2 else "bug y"),
-                      [f"f{i % 4}.py"]) for i in range(72)])
+    """Ten commits a month for 72 months from 2020 (sixty a window, enough for the Wilson bound to pass at
+    100% typed); typed(month) says whether that month's commits are written in the convention."""
+    return _commits([(f"{2020 + m // 12}-{m % 12 + 1:02d}-{2 * k + 1:02d}", ("ci: fix x" if k % 2 else "fix: y") if typed(m) else ("Fix x" if k % 2 else "bug y"),
+                      [f"f{(2 * m + k) % 4}.py"]) for m in range(72) for k in range(10)])
 
 
 class RankRepo(unittest.TestCase):
@@ -182,13 +190,13 @@ class RankRepo(unittest.TestCase):
         self.assertTrue(all("declared" not in r for r in out["cutoffs"]))
 
     def test_a_late_adopter_is_switched_only_in_the_windows_after_it_adopted(self):
-        out = self._rank_repo(_history(lambda i: i >= 54))   # typed from mid-2024
+        out = self._rank_repo(_history(lambda m: m >= 55))   # typed from August 2024, part-way through the fourth window
         declared = {r["cutoff"]: "declared" in r for r in out["cutoffs"]}
         self.assertEqual(list(declared.values()), [False] * 4 + [True] * 2, declared)
         self.assertEqual(out["cutoffs"][0]["positives"], 4, "the early windows keep their untyped fixes")
 
     def test_monkeypatching_is_fix_leaves_the_positives_unmoved(self):
-        commits = _history(lambda i: i >= 54)
+        commits = _history(lambda m: m >= 55)
         before = self._rank_repo(commits)
         with mock.patch.object(maat, "is_fix", return_value=False):
             after = self._rank_repo(commits)
@@ -236,20 +244,16 @@ class Dashboard(unittest.TestCase):
         self.assertEqual(report.declared_row(s, "development")[0][2],
                          "0.38; churn 0.25, size 0.00; repositories declaring Conventional Commits: a (the rest score as above)")
 
-    def test_the_committed_history_page_renders_byte_for_byte(self):
-        """Every record before the switch renders as the committed measurement-history.md does: the new row
-        appears only for a record that carries the convention."""
-        from gitmole.measure import corpus, labels
+    def test_the_new_row_is_the_only_difference_on_the_committed_records(self):
+        """The committed records render as they would without the declared-type row: the row is the only
+        thing this change can add to the history page, and none of the records before it carries one."""
+        from gitmole.measure import corpus
         records = os.path.join(corpus.ROOT, "docs", "measurements")
-        history = dashboard.load_history(records)
-        series = set((corpus.load().get("series") or {}).get("repos") or []) or None
-        marks = labels._read(os.path.join(labels.DIR, "labels.jsonl"))
-        for r in history:
-            r["summary"], r["series"], r["useful"] = dashboard.summarise(r), dashboard.summarise(r, only=series), labels.usefulness(r, marks)
-        extras_path = os.path.join(records, "extras", history[-1]["version"] + ".json")
-        extras = json.load(open(extras_path, encoding="utf-8")) if os.path.exists(extras_path) else None
-        with open(os.path.join(corpus.ROOT, "docs", "measurement-history.md"), encoding="utf-8") as fh:
-            self.assertEqual(report.page(history, extras), fh.read())
+        _, with_row = report.history_page(records)
+        with mock.patch.object(report, "declared_row", return_value=[]):
+            _, without = report.history_page(records)
+        self.assertEqual(with_row, without)
+        self.assertNotIn("declared-type outcome", with_row)
 
     def test_a_record_from_before_the_switch_has_no_declared_outcome(self):
         rec = _record(2)

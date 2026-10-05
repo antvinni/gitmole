@@ -142,8 +142,9 @@ typed `fix` and nothing else. The convention is decided window by window, since
 a repository that adopted it late would otherwise lose its untyped fixes from
 before (a label taken from the future, as above): a window declares it when the
 tree at its cut-off tracks a commitlint or commitizen configuration at its root,
-or when at least 90% of the window's non-merge subjects carry one of the
-convention's own types (the
+or when the window's non-merge subjects carry one of the convention's own types
+at 90% or more with 95% confidence (the lower end of the Wilson score interval,
+Wilson 1927, so a quiet window of three typed commits switches nothing) (the
 specification's `fix` and `feat` and config-conventional's `build`, `chore`,
 `ci`, `docs`, `perf`, `refactor`, `revert`, `style`, `test`; an `area: text`
 subject is not typed). The threshold was set in the univer debate before any
@@ -157,7 +158,8 @@ decides, `current` unless asked, so a change to `maat.is_fix` is judged against
 an outcome it cannot move. Labels are not switched: no definition of a fix
 decides them, and `candidate --holdout` refuses `--outcome`. On the
 development set at the 0.44.0 pins only jadx declares it, by typed share in
-each of its six windows (99 to 100%, though 73% over its whole history); its
+each of its six windows (99 to 100%, Wilson lower bounds 0.94 to 0.97, though
+73% over its whole history); its
 headroom is 0.593 under `current` and 0.569 under `declared`, and the median
 over the set does not move (0.696).
 
