@@ -310,7 +310,7 @@ def _tight_coupling(f: dict, report: dict, ctx: dict):
     if not pairs:
         return None
     p = pairs[0]
-    pointed = _printed(ctx, "coupling", lambda row: row[0] == p["a"] and row[1] == p["b"])
+    pointed = _printed(ctx, "coupling", lambda row: row[0] == textfmt.brace_pair(p["a"], p["b"]))
     count = f"{_count(len(pairs), 'pair', capped=len(pairs) >= 10)} {_is(len(pairs), 'changes', 'change')} together {when}"
     statement = (f"{count}{': ' if len(pairs) == 1 else '. Highest: '}{_pair_words(p['a'], p['b'])}, {p['degree']}%"
                  + (" (see Change coupling)" if pointed else ""))

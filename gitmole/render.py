@@ -8,7 +8,6 @@ import json
 import os
 
 from rich import box
-from rich.columns import Columns
 from rich.console import Console, Group
 from rich.markup import escape
 from rich.padding import Padding
@@ -27,18 +26,14 @@ BAR = "#5ad0ff"             # inline share bars
 HOT = "bold #ff5cc8"        # values past a threshold
 WARM = "#ff9ee0"            # values worth a glance
 ROW_STYLES = ["", "on #1c2230"]
-SIDE_BY_SIDE_MIN_WIDTH = 100
 
 # the Timeline's month columns: each is 3 characters wide plus the 2 of GAP between every pair of columns
 # (verified against rich.table.Table._calculate_column_widths, whose "n columns - 1" extra width cancels the
-# gap saved on the last column, leaving a clean 5 per month). The section itself is indented by 2. FLOOR is the
-# fewest months shown even when a name leaves almost no room. Once FLOOR is reached the months keep
-# their full width and the name gives way instead, cut to whatever room is left; NAME_FLOOR is the
-# fewest characters of a name still shown before the ellipsis, even if the months leave less room than
-# that (eight is enough to keep most short names, and the start of longer ones, still recognisable).
-# The section needs INDENT + NAME_FLOOR + FLOOR × MONTH_WIDTH = 25 columns; below that rich starves
-# the month cells, which no real terminal reaches.
-MONTH_WIDTH, INDENT, FLOOR, NAME_FLOOR = 5, 2, 3, 8
+# gap saved on the last column, leaving a clean 5 per month). The section itself is indented by 2. The twelve
+# months are the table at every width: when a name leaves them no room the name gives way, cut to what is left,
+# and NAME_FLOOR is the fewest characters of it still shown before the ellipsis (eight keeps most short names,
+# and the start of longer ones, recognisable). The year needs INDENT + NAME_FLOOR + 12 × MONTH_WIDTH = 70 columns.
+MONTH_WIDTH, INDENT, NAME_FLOOR = 5, 2, 8
 
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
@@ -47,7 +42,7 @@ SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timel
 # the one column to read first in each table; the rest are dimmed
 # keyed on the head as printed: "changes", "together" and "complexity" are the report's words for what the JSON calls revs, degree and ccn
 KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "changes", "Change coupling": "together",
-              "Knowledge map": "lines added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
+              "Knowledge map": "added", "Surviving code by year written": "lines", "Net lines added by year": "net lines",
               "Paths in history by year last changed": "paths", "Activity": "commits", "Portfolio": "commits", "Complex functions": "complexity",
               "Watch list": "changes", "Change risk": "risk", "Most-changed documents": "changes"}
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
@@ -59,9 +54,9 @@ TAIL = {"kind": "tail", "no_wrap": True}   # the last text cell of a row: cut at
 
 # rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own. Hotspots has
 # no entry: it is `--full`/Markdown only now, so its row count is never decided by this table.
-CAPS = {"Most-changed documents": 5, "People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Timeline": 8, "Complex functions": 8}
+CAPS = {"Most-changed documents": 5, "People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Complex functions": 8}
 MARKDOWN_CAP = 50
-# The default report's rows about a person need this many commits, the rest are counted in "and N more": the
+# The default report's rows about a person need this many commits, the rest are counted in the title: the
 # floor the coupling table and the sum of coupling already use for "enough commits to say anything" (five
 # shared revisions). Absolute, since a share of the commits would cut rows on a large repository that a
 # reader came for; and never fewer than ROWS_KEPT rows, so a three-person repository still shows its people.
@@ -722,13 +717,23 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if full is False:   # a row for two commits says little: under the floor they are counted, not listed
         listed = [i for n, i in enumerate(listed) if n < ROWS_KEPT or own(i) >= ROW_MIN_COMMITS]
     credited = any(credit(i) for i in listed)   # a column only when a row shown has any
+    # When each was last seen, to the month, and "gone" after it past the --gone window: prometheus's table led
+    # with a person whose last commit was in 2019, and the reader had the Knowledge map's "(gone)" three rows of
+    # another table away to learn it from. By name, as the run's own record of who is gone is (loss.gone).
+    act = report.get("activity") or {}
+    seen = act.get("authors_all") or act.get("authors") or {}
+    gone, _ = _gone_names(report)
+    last = [(seen.get(i["name"]) or {}).get("last") or "" for i in listed]
+    dated = any(last)
+    when = [f"{d[:7]}{' gone' if i['name'] in gone else ''}" if d else "-" for i, d in zip(listed, last)]
     # No address in any rendering, at any width: the Markdown is what the README says to post to a public job
     # summary, and prometheus's --full printed 1,324 addresses beside commit counts. The JSON keeps them, under
     # meta.identities, for whoever has the clone anyway.
     rows = [(i["name"], own(i), *((i.get("merges", 0),) if merges else ()), *((credit(i),) if credited else ()),
-             _pct(own(i), total_commits), _pct(lines_of(i), total_lines)) for i in listed]
+             _pct(own(i), total_commits), _pct(lines_of(i), total_lines), *((seen_at,) if dated else ())) for i, seen_at in zip(listed, when)]
     columns = [("author", {}), ("commits", RIGHT), *((("merges", RIGHT),) if merges else ()),
-               *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving", RIGHT)]   # the report's one word for the blame measure, defined in the caption
+               *((("co-authored", RIGHT),) if credited else ()), ("share", RIGHT), ("surviving", RIGHT),   # the report's one word for the blame measure, defined in the caption
+               *((("last commit", WHOLE),) if dated else ())]
     since = report["meta"].get("since")
     source = surviving_source(report) if total_lines else None   # the source of the column, said where the column is: the two steps give different shares
     bots = report["meta"].get("bots") or []
@@ -748,7 +753,11 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
             notes.append(f"aliases merged for {who}; a .mailmap makes that permanent")
     title = (f"People · {_shown(len(rows), len(ids))} {'identity' if len(ids) == 1 else 'identities'}, by commits"
              + (f"{SEP}{len(merged):,} with aliases merged" if merged else "")) if rows else "People"
-    return _section(title, columns, rows, caption=_paragraphs(*notes))
+    sec = _section(title, columns, rows, caption=_paragraphs(*notes))
+    sec["bars"] = False   # a share of 9% and one of 3% drew the same single block: the column says nothing the number does not
+    if any(i["name"] in gone and d for i, d in zip(listed, last)):
+        sec["gone"] = gone_definition(report)
+    return sec
 
 
 def activity_section(report: dict, full: bool = True, width=None) -> dict:
@@ -787,13 +796,27 @@ def _month_label(ym: str) -> str:
     return f"{MONTHS[int(ym[5:7]) - 1]} {ym[:4]}"
 
 
+def _part_month(report: dict, month: str) -> bool:
+    """Whether `month` ("YYYY-MM") is the month of the last commit and that commit is before the month's last day:
+    a column that holds part of a month beside eleven whole ones."""
+    import calendar
+    last = report["meta"].get("last_date") or ""
+    try:
+        return last[:7] == month and int(last[8:10]) < calendar.monthrange(int(month[:4]), int(month[5:7]))[1]
+    except ValueError:
+        return False
+
+
 def timeline_section(report: dict, full: bool = True, width=None, months: int = 12) -> dict:
-    """Commits each person authored, one column per month. Names never fold: when the year does not fit the
-    terminal width, the oldest months are dropped (down to FLOOR) instead. If a name is still too long
-    for the room FLOOR leaves, the name gives way, not the months: it is shown cut with an ellipsis
-    (never fewer than NAME_FLOOR characters), so the months a reader came for stay full width. The
-    title names the months actually shown; ranking, bots filtering and the row's key are all still the
-    real name, only the displayed cell is cut. With no width (the Markdown export) nothing is trimmed."""
+    """Commits each person authored, one column per month: --full and Markdown only, since no rule reads it and
+    it is the table most easily read as output per person. The twelve months ending at the last commit are the
+    table at every width (fewer only where the history, or the --since window, is shorter): the default report
+    used to drop the oldest months on a narrow terminal, so prometheus showed ten at 80 columns and twelve at
+    160, and ranked on the months it showed, which listed different people at different widths. The rows are
+    ranked on the twelve-month total. A name too long for the room the months leave is cut with an ellipsis
+    (never under NAME_FLOOR characters); ranking, bots filtering and the row's key are still the real name. The
+    month of the last commit is marked when that commit is not on its last day, and the caption says the rows
+    are identities as the run merged them: prometheus listed George Krajcsovits and György Krajcsovits apart."""
     tl = (report.get("activity") or {}).get("timeline") or {}
     if not tl:
         return _section("Timeline", [("author", {})], [], note="no timeline data")
@@ -807,32 +830,24 @@ def timeline_section(report: dict, full: bool = True, width=None, months: int = 
     bots = {b["name"] for b in report["meta"].get("bots") or []}
     # an older run counted a Co-authored-by credit here as a commit; a person with no commit of their own is not listed
     credit_only = {n for n, a in ((report.get("activity") or {}).get("authors") or {}).items() if a.get("authored", 1) == 0}
-
-    def active(shown):
-        """Who to list and in what order: commits inside the months actually shown, most first."""
-        totals = {a: sum(per.get(m, 0) for m in shown) for a, per in tl.items()}
-        return [a for a in sorted(totals, key=lambda a: -totals[a])
-                if totals[a] > 0 and a not in bots and a not in credit_only and not identity.is_bot(a)]
-
-    ranked = active(span)
-    limit = _limit("Timeline", full)
-    if width:
-        name = max([len("author")] + [len(a) for a in ranked[:limit]])
-        span = span[-max(FLOOR, min(len(span), (width - INDENT - name) // MONTH_WIDTH)):]
-        # The months that fit are the months that decide who is listed. Ranking over the wider span and
-        # printing the narrower one gave curl a row for Xiaoke Wang and react one for Sebastian Markbåge,
-        # a dot in every column shown: their commits were all in the months the width dropped. The name
-        # column is measured before this, so a longer name here is cut by `room` below, as always.
-        ranked = active(span)
-    columns = [("author", {"no_wrap": True})] + [(MONTHS[int(m[5:7]) - 1], RIGHT) for m in span]
-    room = width - INDENT - MONTH_WIDTH * len(span) if width else None
-    listed = ranked[:limit]
-    if full is False:   # as the People table: a row needs ROW_MIN_COMMITS commits in the months shown, the top ROWS_KEPT stay
-        listed = [a for n, a in enumerate(listed) if n < ROWS_KEPT or sum(tl[a].get(m, 0) for m in span) >= ROW_MIN_COMMITS]
+    totals = {a: sum(per.get(m, 0) for m in span) for a, per in tl.items()}
+    ranked = [a for a in sorted(totals, key=lambda a: -totals[a])
+              if totals[a] > 0 and a not in bots and a not in credit_only and not identity.is_bot(a)]
+    listed = ranked[:_limit("Timeline", full)]
+    part = _part_month(report, span[-1])
+    heads = [MONTHS[int(m[5:7]) - 1] + (PART_MARK if part and m == span[-1] else "") for m in span]
+    columns = [("author", {"no_wrap": True})] + [(head, RIGHT) for head in heads]
+    room = width - INDENT - MONTH_WIDTH * len(span) - (len(PART_MARK) if part else 0) if width else None
     # a month without a commit is 0, as zero is in every table: the dot it used to be is the report's separator
     rows = [(textfmt.cut(a, max(NAME_FLOOR, room)) if width else a, *[tl[a].get(m) or 0 for m in span]) for a in listed]
     months_shown = _month_label(span[0]) if len(span) == 1 else f"{_month_label(span[0])} → {_month_label(span[-1])}"
-    return _section(f"Timeline ({months_shown})", columns, rows, caption=f"and {len(ranked) - len(listed):,} more" if len(ranked) > len(listed) else None)
+    caption = _fragments(f"{heads[-1]} = to {report['meta'].get('last_date')}, not a whole month" if part else None,
+                         "a row = an identity as merged: one person under two names the run did not join has two rows")
+    title = f"Timeline · {_shown(len(listed), len(ranked))}, {months_shown}, by commits in those months" if rows else "Timeline"
+    return _section(title, columns, rows, note=None if rows else "no commits in the months shown", caption=caption if rows else None)
+
+
+PART_MARK = "*"   # after the head of the Timeline's last month, when the last commit is before the month's end
 
 
 def signing_section(report: dict, full: bool = True, width=None) -> dict:
@@ -987,12 +1002,15 @@ def coupling_section(report: dict, full: bool = True, width=None) -> dict:
             n_pairs = sum(g["pairs"] for g in groups)
             cluster_note = f"a directory row = its files change with each other ({textfmt.count(n_pairs, 'pair')})"
     limit = _limit("Change coupling", full)
-    rows = [(f"{g['dir']} ({g['files']:,} files)", "each other", f"≥{g['degree']}%", g["average-revs"]) for g in groups]
-    rows += [(p["entity"], p["coupled"], f"{p['degree']}%", p["average-revs"]) for p in pairs[:max(limit - len(groups), 0) if limit else None]]
+    # One cell for the two files, the directory they share said once (textfmt.brace_pair): prometheus's two path
+    # columns each lost their middle at 80 columns (`web/…/promql/format.tsx` beside `web/…/promql/serialize.ts`),
+    # and in one column all five rows print whole. A directory whose files change as one is `dir/ (N files)`.
+    rows = [(f"{g['dir']} ({g['files']:,} files)", f"≥{g['degree']}%", g["average-revs"]) for g in groups]
+    rows += [(textfmt.brace_pair(p["entity"], p["coupled"]), f"{p['degree']}%", p["average-revs"]) for p in pairs[:max(limit - len(groups), 0) if limit else None]]
     # "together" is the share of their changes the two files made in one commit, the JSON's `degree`; "avg changes" its `average-revs`
-    columns = [("file", PATH), ("changes with", PATH), ("together", RIGHT), ("avg changes", RIGHT)]
+    columns = [("files", PATH), ("together", RIGHT), ("avg changes", RIGHT)]
     if full is not True:
-        columns, rows = _keep(columns, rows, ["file", "changes with", "together"])
+        columns, rows = _keep(columns, rows, ["files", "together"])
     note = None if rows else _empty_note("no pairs with 5 or more shared changes", hidden_note, "no source pairs with 5 or more shared changes")
     # what a pair means here (a pull request under squash merging, an edit otherwise) is how the table is made, not
     # what it holds: --full and Markdown say it, the default caption keeps to what is hidden and what a row is
@@ -1135,21 +1153,22 @@ def _where(f: dict) -> str:
 
 
 def _owner_cells(area: dict, gone: set) -> list:
-    """The main owner and the second of an area, as the knowledge map prints them. When several people hold
-    exactly the top share there is no main owner to name and no second: the cell counts them and gives the
-    share each of them holds ("shared by 12 (8%)", short enough for the column at 80), since the name the
-    sort put first is the alphabet's. A second place that several hold equally is counted the same way."""
+    """The main owner and the second of an area, as the knowledge map prints them: [name, share, name, share],
+    the shares in columns of their own so they line up and "gone" after a name that has stopped committing
+    (one space, no brackets; blank means active). When several people hold exactly the top share there is no
+    main owner to name and no second: the cell counts them ("shared by 12") and the share is what each of them
+    holds, since the name the sort put first is the alphabet's. A second place that several hold equally is
+    counted the same way."""
     held = area["owners"]
 
     def cell(at):
         if at >= len(held):
-            return "-"
+            return ["-", "-"]
         level = knowledge.tied(held, at)
         name, n = held[at]
-        if level > 1:
-            return f"shared by {level} ({_pct(n, area['lines'])})"
-        return f"{name}{' (gone)' if name in gone else ''} ({_pct(n, area['lines'])})"
-    return [cell(0), "-" if knowledge.tied(held) > 1 else cell(1)]
+        share = _pct(n, area["lines"])
+        return [f"shared by {level}", share] if level > 1 else [f"{name}{' gone' if name in gone else ''}", share]
+    return cell(0) + (["-", "-"] if knowledge.tied(held) > 1 else cell(1))
 
 
 def _declared_text(declared: dict) -> str:
@@ -1217,27 +1236,29 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     assisted = ((report.get("tools") or {}).get("added") or {})
     if full is not True and tree:
         assisted = {e: n for e, n in assisted.items() if e in tree}
-    rows, shares, outrank = [], [], False
+    rows, shares, outrank, any_gone = [], [], False, False
     # how many of an area's authors committed to it in the --gone window, as "recent/all" in the authors cell: a
     # count with no names, from the change analysis of 0.45 on (meta's ownership_recent); an output directory from before has no such count,
     # and its --full map is the one it always was. In the cell, not a column of its own, so the owners keep their width
     recent = dated
     for a in areas[:limit]:
         owners = _owner_cells(a, gone)
+        any_gone = any_gone or any(knowledge.tied(a["owners"], at) == 1 and a["owners"][at][0] in gone for at in range(min(2, len(a["owners"]))))
         lost = f"{100 * a['lost_share']:.0f}%" if a["lines"] else "-"
         theirs = sum(n for e, n in assisted.items() if knowledge.in_area(e, a["area"], base))
         shares.append(round(100 * theirs / (a["lines"] + theirs)) if a["lines"] + theirs else 0)
         outrank = outrank or (theirs > 0 and theirs >= (a["owners"][1][1] if len(a["owners"]) > 1 else 0))
         authors = f"{a.get('recent', 0):,}/{a['authors']:,}" if recent else a["authors"]
-        rows.append((a["area"], f"{a['lines']:,}", authors, lost if gone else "-", owners[0], owners[1], f"{shares[-1]}%"))
-    columns = [("area", PATH), ("lines added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("second", {}), ("agents", RIGHT)]
+        rows.append((a["area"], f"{a['lines']:,}", authors, lost if gone else "-", *owners, f"{shares[-1]}%"))
+    # "added": the lines added to the area over its history, which under a bare "lines" head read as its size at
+    # HEAD (prometheus: tsdb/ 138,105 in a repository of 357,025 lines). The title says the map is ranked by it.
+    columns = [("area", PATH), ("added", RIGHT), ("authors", RIGHT), ("lost", RIGHT), ("main owner", {}), ("share", RIGHT), ("second", {}), ("share", RIGHT), ("agents", RIGHT)]
     # a column only when a row shown has a whole percent of it; in the default report only when the tools
     # together hold as much of an area as its second owner, where naming them apart changes who is listed
     shown = any(shares) and (full is True or outrank)
-    if full is not True:
-        columns, rows = _keep(columns, rows, ["area", "lines added", "main owner", "second", *(["agents"] if shown else [])])
-    elif not shown:
-        columns, rows = _keep(columns, rows, [c[0] for c in columns[:-1]])
+    drop = ({2, 3} if full is not True else set()) | (set() if shown else {8})   # authors and lost are --full's; two columns are headed "share", so by position
+    columns = [c for n, c in enumerate(columns) if n not in drop]
+    rows = [tuple(c for n, c in enumerate(r) if n not in drop) for r in rows]
     # What is hidden, then the definitions, in one paragraph. "owner" is by lines added, and the Truck factor
     # finding above counts files authored: prometheus's web/ is Julius Volz's by both and tsdb/ is not, and
     # nothing said the two were different measures.
@@ -1257,7 +1278,8 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
             notes.append(left)
     title = f"Knowledge map · {_shown(len(rows), len(areas))} {'area' if len(areas) == 1 else 'areas'} {counted}, by lines added" if rows else "Knowledge map"
     sec = _section(title, columns, rows, note=None if rows else "no ownership data", caption=_paragraphs(*notes))
-    if gone and rows:
+    sec["bars"] = False   # the shares are the owners', one beside each name: a bar on each would be two bar columns
+    if rows and (any_gone or (gone and full is True)):   # --full's "lost" column is the gone people's share
         sec["gone"] = gone_definition(report) + (", measured over the whole history" if report["meta"].get("since") else "")
     return sec
 
@@ -1357,18 +1379,24 @@ def compare_section(result: dict) -> dict:
     return _section("Since last report", columns, rows, note=note, caption="\n".join(lines))
 
 
-BUILDERS = [watch_section, documents_section, watch_by_component_section, size_section, people_section, knowledge_section, activity_section, timeline_section,
-            hotspots_section, coupling_section, signing_section, trailers_section, lines_section, age_section, functions_section, agent_surface_section,
-            osps_section]
+# One order in the default report, --full and Markdown: the code (what to read first, then what is hard to change
+# and what changes together), then the people. prometheus's default ran code, people, people, people, code, code.
+# --full's own sections sit in their groups: the watch list's by component and Hotspots after it, Size by language
+# closing the code, the Timeline after People, then the history (activity, age, changed lines, trailers) and what
+# the tree declares (signing, agent files, the OSPS controls).
+BUILDERS = [watch_section, documents_section, watch_by_component_section, hotspots_section, functions_section, coupling_section, size_section,
+            knowledge_section, people_section, timeline_section, activity_section, age_section, lines_section, trailers_section, signing_section,
+            agent_surface_section, osps_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
-# do next; Hotspots ranks the files the watch list already leads with, by the same product.
-FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "lines", "watch_by_component", "agent_surface", "osps"}
+# do next; Hotspots ranks the files the watch list already leads with, by the same product; no rule reads the
+# Timeline, and the People table's last-commit column says who is still here.
+FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "lines", "watch_by_component", "agent_surface", "osps", "timeline"}
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
-    """Every section as a dict with an `id` (the builder's name without _section). The default terminal
-    report (`full` False) leaves out the sections in FULL_ONLY (size, activity, code age and
-    hotspots); `full` True and Markdown keep them."""
+    """Every section as a dict with an `id` (the builder's name without _section), in the one order every
+    rendering prints them (BUILDERS). The default terminal report (`full` False) leaves out the sections in
+    FULL_ONLY; `full` True and Markdown keep them."""
     out = []
     for b in BUILDERS:
         sid = b.__name__[:-len("_section")]
@@ -1808,6 +1836,12 @@ def _gap(sec: dict) -> int:
     return LOOSE_GAP if sec.get("loose") else GAP
 
 
+def _bars(sec: dict) -> bool:
+    """Whether a section's share column carries inline bars: only where there is no bar column already, and
+    not in a table that says no (`bars` False: People and the Knowledge map, which are in the default report)."""
+    return sec.get("bars", True) and "share" in sec["columns"] and "" not in sec["columns"]
+
+
 def _kind(name: str, opts: dict) -> str:
     """How a column may give way: "path" (directories elided), "name" (cut in the middle), "prose" (wraps at
     words) or "fixed" (a number, a bar: never cut)."""
@@ -1818,17 +1852,54 @@ def _kind(name: str, opts: dict) -> str:
     return "prose" if opts.get("ratio") else "name"
 
 
+def _braced(text: str):
+    """(shared directory, one rest, the other rest) of a cell of two paths in braces (textfmt.brace_pair), or None."""
+    head, brace, group = text.partition("{")
+    if not brace or not group.endswith("}") or "," not in group:
+        return None
+    a, _, b = group[:-1].partition(",")
+    return head, a, b
+
+
+def _cut_braced(text: str, width: int) -> str:
+    """A cell of two paths in braces in at most `width` characters, by the order every path gives way in: the
+    directory the two share loses its middle first, then each path inside the braces loses its own directories
+    (the longer first), and only then is the cell cut in its middle. The file names stay whole as long as they can."""
+    head, a, b = _braced(text)
+
+    def form(h, x, y):
+        return f"{h}{{{x},{y}}}"
+    if head:
+        head = textfmt.shorten_path(head, max(width - len(form("", a, b)), 0))
+        if len(form(head, a, b)) <= width:
+            return form(head, a, b)
+    rest = {"a": a, "b": b}
+    for k, other in (("a", "b"), ("b", "a")) if len(a) >= len(b) else (("b", "a"), ("a", "b")):
+        rest[k] = textfmt.shorten_path(rest[k], max(width - len(form(head, "", rest[other])), 0))
+        if len(form(head, rest["a"], rest["b"])) <= width:
+            break
+    out = form(head, rest["a"], rest["b"])
+    return textfmt.cut_middle(out, width) if width > 0 else out   # at no width: the shortest form that keeps both names
+
+
+def _shortest(text: str) -> str:
+    """The shortest form of a path cell that still keeps its file name, or its two, whole."""
+    return _cut_braced(text, 0) if _braced(text) else textfmt.shorten_path(text, 0)
+
+
 def _fit_cell(kind: str, text: str, width: int, others=()) -> str:
     if len(text) <= width:
         return text
     if kind == "path":
-        return textfmt.cut_path(text, width, others)
+        return _cut_braced(text, width) if _braced(text) else textfmt.cut_path(text, width, others)
     if kind == "tail":
         return textfmt.cut(text, width)
     return textfmt.cut_middle(text, width)
 
 
 def _base(cell: str) -> str:
+    if _braced(cell):
+        return cell[cell.index("{"):]   # two files in one cell: no tracked file is called that, and no other row
     return textfmt.LINE_SUFFIX.sub("", cell).rstrip("/").rsplit("/", 1)[-1]
 
 
@@ -1855,7 +1926,7 @@ def fit(sec: dict, width) -> dict:
     if width is None or not sec["rows"]:
         return sec
     cols, opts = sec["columns"], sec["col_opts"]
-    bars = "share" in cols and "" not in cols
+    bars = _bars(sec)
     kinds = [_kind(c, o) for c, o in zip(cols, opts)]
     rows = sec["rows"]
     cells = [max(_cell(c, r[i], bars).cell_len for r in rows) for i, c in enumerate(cols)]
@@ -1878,7 +1949,7 @@ def fit(sec: dict, width) -> dict:
 
     def name_floor(i):   # what a column keeps before anything is cut: whole file names, NAME_KEEP of a name
         if kinds[i] == "path":
-            return min(want[i], max(head_word[i], max(cell_len(textfmt.shorten_path(r[i], 0)) for r in rows)))
+            return min(want[i], max(head_word[i], max(cell_len(_shortest(r[i])) for r in rows)))
         return min(want[i], max(head_word[i], NAME_KEEP))
 
     # the least each column can take: a number whole, a name or path cut to CUT_FLOOR, prose folded at PROSE_FLOOR
@@ -1952,7 +2023,7 @@ def rich_table(sec: dict):
         kw["min_width"] = max((len(line) for line in (sec.get("caption") or "").split("\n")), default=0)
     else:
         kw["padding"] = (0, 1, 0, 0)   # with the box's divider, GAP between two columns
-    bars = "share" in sec["columns"] and "" not in sec["columns"]   # inline bars only where there is no bar column
+    bars = _bars(sec)
     t = Table(box=box.SIMPLE_HEAD, show_edge=False, pad_edge=False, header_style=HEADER,
               row_styles=ROW_STYLES, border_style="#3a4150", **kw)
     for i, (name, opts) in enumerate(zip(sec["columns"], sec["col_opts"])):
@@ -2035,22 +2106,6 @@ def print_section(console: Console, sec: dict) -> None:
     console.print(section_block(sec, console.width))
 
 
-# small tables that sit side by side when the terminal is wide enough, by section id; a section pairs at most once
-# People and the Knowledge map no longer pair: both are default sections, and the default report's rows and order
-# do not change with the width.
-PAIRS = [("size", "people"), ("activity", "age")]
-PAIR_GAP = 3
-
-
-def _partners(secs: list) -> dict:
-    present, taken, out = {s["id"] for s in secs}, set(), {}
-    for a, b in PAIRS:
-        if a in present and b in present and a not in taken and b not in taken:
-            out[a], out[b] = b, a
-            taken.update((a, b))
-    return out
-
-
 def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> None:
     console.print(header(report, findings, full=full, width=console.width))
     secs = [s for s in sections(report, full=full, width=console.width) if not _said_by_finding(s, findings)]
@@ -2058,21 +2113,11 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
     console.print(findings_panel(findings, report, full=full, width=console.width, printed=by_id))   # a short finding may point at its table below
     if compare is not None:
         print_section(console, compare_section(compare))
-    partners = _partners(secs) if console.width >= SIDE_BY_SIDE_MIN_WIDTH else {}
-    done = set()
+    # One section under another at every width: small tables used to sit side by side from 100 columns, which
+    # changed the order of the lines with the terminal and put two tables on every copied line. A wider terminal
+    # un-wraps cells and un-elides paths, and changes nothing else.
     for sec in secs:
-        if sec["id"] in done:
-            continue
-        other = partners.get(sec["id"])
-        if other and other not in done:
-            left, right = section_block(sec), section_block(by_id[other])
-            if console.measure(left).maximum + PAIR_GAP + console.measure(right).maximum <= console.width:
-                console.print(Text(""))
-                console.print(Columns([left, right], padding=(0, PAIR_GAP), equal=False, expand=False))
-                done.update((sec["id"], other))
-                continue
-        print_section(console, sec)   # stacked, with the usual blank line before it
-        done.add(sec["id"])
+        print_section(console, sec)
         if risk is not None and sec["id"] == "watch":
             print_section(console, risk_section(risk, base, full))   # the change, right under the list it is scored against
     console.print(Text(""))

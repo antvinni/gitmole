@@ -62,6 +62,20 @@ coupled pairs, an import left out of ownership, the merge total, whose aliases
 were merged) is `--full`'s and Markdown's. No caption says `--full shows
 them`: the default report says it once, on the line before its last.
 
+The sections come in one order in the default report, `--full` and Markdown,
+code first and people after: Watch list, Complex functions, Change coupling,
+Knowledge map, People. `--full`'s own sections sit in their groups (the watch
+list by component and Hotspots after the Watch list, Size by language after
+Change coupling, the Timeline after People, then Activity, Surviving code by
+year, Changed lines, Trailers, Signing by year, Agent surface and the OSPS
+Baseline). The width of the terminal changes how a cell is elided and how a
+caption wraps, and nothing else: no rows, no order, no month window, and no
+two tables side by side. When a row does not fit, a path loses its middle
+directories first (`prompb/…/client/decoder.go`), then the last text cell is
+cut with `…`; a number is never cut. The word `gone` has one form in every
+table: after what it qualifies, one space, no brackets (`23% gone`, `Fabian
+Reinartz gone`, `2019-01 gone`); blank means active.
+
 1. **Header**: a title line, the repository with its branch and commit
    (`prometheus · branch measure @ 296080c0`), and labelled rows, each label
    describing everything on its row. `history`: commits, date span, the
@@ -899,12 +913,16 @@ them`: the default report says it once, on the line before its last.
    timeline; their lines are left out of ownership and surviving code
    too, so a deploy job that commits a built site owns nothing; the caption
    defines `share` (of commits, without merges) and `surviving` with the step
-   that counted it, `surviving = blame share at HEAD` or git-of-theseus's), a knowledge map (lines added per area of the tree
-   and who wrote them), a timeline of commits per author over the last
-   twelve months, change coupling, the most complex functions, repo
-   health. On a narrow terminal the timeline shows fewer of those months,
-   dropping the oldest, rather than folding an author's name; the title
-   names the months shown. Hotspots, ranked by revisions times lines of
+   that counted it, `surviving = blame share at HEAD` or git-of-theseus's; `last commit` is
+   the month each person was last seen, with `gone` after it past the `--gone` window, so the table that
+   opens on someone who left in 2019 says so), a knowledge map (lines added per area of the tree over its history, headed
+   `added` since it is not the area's size at HEAD, and who wrote them, each owner's share in the column beside the name),
+   change coupling, the most complex functions, repo
+   health. The Timeline, commits per author per month, is `--full`'s and Markdown's: no rule reads it. It is
+   the twelve months to the last commit at every width (fewer only when the history or the `--since` window is shorter),
+   ranked on the total of those months; a name too long for the room they leave is cut, never the months. The month of
+   the last commit is marked `*` when that commit is before the month's end, and the caption says the rows are
+   identities as merged, so one person under two names the run did not join has two rows. Hotspots, ranked by revisions times lines of
    code with the number of fix commits alongside, rank the same files the
    watch list leads with, and so appear under `--full` and in the Markdown
    export, next to size by language, activity and surviving code by year.
@@ -928,7 +946,12 @@ them`: the default report says it once, on the line before its last.
    tables, one file per version) as one row with the file count and the
    weakest share; the caption gives the hidden pairs as a sum with its
    breakdown and says what a directory row is (`a directory row = its files
-   change with each other (15 pairs)`), and `--full` shows every pair.
+   change with each other (15 pairs)`), and `--full` shows every pair. The two
+   files of a pair are one cell, the directories they share said once and the
+   rest of each in braces, the form a shell expands:
+   `web/ui/mantine-ui/src/promql/{format.tsx,serialize.ts}`, or
+   `web/{api/v1/api.go,web.go}` for two that part further up. In two columns
+   both paths lost their middle at 80 columns; in one, the rows print whole.
    The column `together` is the share of the two files' changes made in one
    commit (`degree` in the JSON); `--full` adds `avg changes`, the mean of
    their change counts (`average-revs`).
@@ -940,7 +963,7 @@ them`: the default report says it once, on the line before its last.
    shows the whole series as a sparkline), and under `--full` a `minors` column (contributors with a
    small share of the file's commits) and a `co-changes` column (the files
    it often changes with). The knowledge map marks owners who have stopped committing
-   with `(gone)`, and under `--full` shows the share of each area's lines
+   with `gone` after the name, and under `--full` shows the share of each area's lines
    that they wrote and how many of its authors committed to it in the
    `--gone` window (`recent`, a count with no names). With `--full`: size by language, activity by weekday
    with the busiest hour and the share of commits that are fixes, and
@@ -1035,11 +1058,9 @@ them`: the default report says it once, on the line before its last.
    lines. Activity and the
    timeline cover the whole history.
    The default report collapses what says little, by counts and never by
-   a repository's size. A People or Timeline row needs five commits (in
-   the months shown, for the timeline), the floor the coupling table
+   a repository's size. A People row needs five commits, the floor the coupling table
    already uses for "enough commits to say anything"; the rest are counted
-   (in the People title, `3 of 8 identities`; under the Timeline, `and N
-   more`), and the top three rows stay whatever they hold. The
+   in the title (`People · 3 of 8 identities`), and the top three rows stay whatever they hold. The
    change coupling table is left out when it would be one pair that the
    finding *Files that always change together* already names with its share
    and nothing but test pairs was hidden. The complex functions table is one line (`no long,

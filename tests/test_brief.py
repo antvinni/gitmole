@@ -153,11 +153,11 @@ class SeeSection(unittest.TestCase):
                   title="Files that always change together", min_degree=80, min_revs=5)
 
     def test_a_pair_in_one_directory_names_the_directory_once_and_points_at_change_coupling(self):
-        printed = {"coupling": {"rows": [["web/ui/src/promql/format.tsx", "web/ui/src/promql/serialize.ts", "86%"]]}}
+        printed = {"coupling": {"rows": [["web/ui/src/promql/{format.tsx,serialize.ts}", "86%"]]}}
         self.assertEqual(_text(self.pair(), {}, 200, printed),
                          "1 pair changes together 80% of the time or more: format.tsx and serialize.ts in web/ui/src/promql/, 86% (see Change coupling)\n"
                          "↳ Look for a shared layout or a hidden dependency between the two.")
-        self.assertNotIn("(see", _text(self.pair(), {}, 200, {"coupling": {"rows": [["x.py", "y.py", "90%"]]}}), "the table is there and the pair is not in it")
+        self.assertNotIn("(see", _text(self.pair(), {}, 200, {"coupling": {"rows": [["{x.py,y.py}", "90%"]]}}), "the table is there and the pair is not in it")
         self.assertNotIn("(see", _text(self.pair(), {}, 200, {"functions": {"rows": [["web/ui/src/promql/format.tsx", "web/ui/src/promql/serialize.ts"]]}}))
 
     def test_several_pairs_two_directories_and_a_count_at_the_evidence_s_cap(self):

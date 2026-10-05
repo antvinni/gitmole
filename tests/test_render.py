@@ -41,9 +41,8 @@ def sample_report():
 
 
 def _section_text(text: str, heading: str) -> str:
-    """The rendered report from one section's heading to the end of the tables: what that section printed,
-    and the sections after it. The closing lines (the --full pointer, the results path) are not a section's."""
-    return text[text.index(heading):].split("\n" + render.FULL_POINTER)[0]
+    """One section of the rendered report: from its heading to the blank line that ends it."""
+    return text[text.index(heading):].split("\n\n")[0]
 
 
 def _titled(secs, name: str) -> dict:
@@ -192,7 +191,7 @@ class Report(unittest.TestCase):
         text = rendered(sample_report(), [], full=True)
         self.assertIn("Ann", text)
         self.assertIn("static/apps-metadata.json", text)
-        self.assertIn("static/treasury.html", text)
+        self.assertIn("static/{tax.html,treasury.html}", text)
         self.assertIn("2025", text)
         self.assertNotIn("Repo health", text, "git-sizer's table left at 0.39.0")
 
@@ -569,12 +568,12 @@ class Report(unittest.TestCase):
         r["activity"]["authors"] = {"Ann": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2026-09-01"},
                                     "Bob": {"commits": 1, "added": 0, "deleted": 0, "first": "2025-01-01", "last": "2025-01-01"}}
         text = rendered(r, [])
-        self.assertIn("Bob (gone)", text)
+        self.assertRegex(text, r"static/\s+1,000\s+Ann\s+90%\s+Bob gone\s+10%", "the word after the name, one space, no brackets; the shares in their own columns")
         self.assertIn("gone = no commit in the 12 months to 2026-09-10", text)
         self.assertEqual(text.count("gone = "), 1, "defined once")
         self.assertNotIn("lost", text.split("⌂ Knowledge map")[1].split("\n")[1], "the lost column is --full only")
         full = rendered(r, [], full=True)
-        self.assertRegex(full, r"area\s+lines added\s+authors\s+lost\s+main owner")
+        self.assertRegex(full, r"area\s+added\s+authors\s+lost\s+main owner\s+share\s+second\s+share")
         self.assertRegex(full, r"static/\s+1,000\s+2\s+10%")
         self.assertNotIn("gone", rendered(sample_report(), []))
 
@@ -595,6 +594,7 @@ class Report(unittest.TestCase):
         r["revisions"] = [{"entity": "static/a.html", "n-revs": 9}, {"entity": "static/b.html", "n-revs": 4}]
         secs = {x["id"]: x for x in render.sections(r, full=False)}
         self.assertEqual(secs["watch"]["rows"][1][3], "100% gone", "static/b.html is Bob's")
+        self.assertEqual(secs["knowledge"]["rows"][0][4], "Bob gone")
         self.assertIn("gone = no commit in the 12 months to 2026-09-10", secs["watch"]["caption"], "the Watch list prints the word first")
         self.assertIsNone(secs["knowledge"]["caption"], "and the Knowledge map does not define it again")
 
@@ -732,7 +732,7 @@ class Report(unittest.TestCase):
         self.assertIn("2 pairs hidden: 1 historical, 1 test", coupling, "the sum with its breakdown")
         self.assertIn(render.FULL_POINTER, text, "one pointer, at the report's end")
         full_text = rendered(r, [], full=True)
-        self.assertIn("tests/test_tax.py", full_text[full_text.index("Change coupling"):])
+        self.assertIn("{static/tax.html,tests/test_tax.py}", full_text[full_text.index("Change coupling"):])
 
     def test_default_complex_functions_hide_test_files(self):
         r = sample_report()
@@ -837,7 +837,7 @@ class Report(unittest.TestCase):
                          {"entity": "deps/lua/a.c", "coupled": "src/x.c", "degree": 70, "average-revs": 9},
                          {"entity": "src/x.c", "coupled": "src/y.c", "degree": 60, "average-revs": 9}]
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("src/y.c", coupling)
+        self.assertIn("src/{x.c,y.c}", coupling)
         self.assertNotIn("deps/", coupling)
         self.assertIn("2 vendored pairs hidden", coupling)
 
@@ -863,7 +863,7 @@ class Report(unittest.TestCase):
                          {"entity": "js/b.bundle.js", "coupled": "js/b.js", "degree": 83, "average-revs": 20},
                          {"entity": "src/x.js", "coupled": "src/y.js", "degree": 60, "average-revs": 9}]
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("src/y.js", coupling)
+        self.assertIn("src/{x.js,y.js}", coupling)
         self.assertNotIn("bundle", coupling)
         self.assertIn("2 generated pairs hidden", coupling)
 
@@ -874,7 +874,7 @@ class Report(unittest.TestCase):
         r["coupling"] = [{"entity": "src/vector.c", "coupled": "src/vector.h", "degree": 100, "average-revs": 20},
                          {"entity": "src/list.c", "coupled": "src/vector.h", "degree": 60, "average-revs": 9}]
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("src/list.c", coupling)
+        self.assertIn("src/{list.c,vector.h}", coupling)
         self.assertNotIn("100%", coupling)
         self.assertIn("1 header pair hidden", coupling)
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
@@ -891,8 +891,8 @@ class Report(unittest.TestCase):
                          {"entity": "src/locale/en-US.ts", "coupled": "src/menu.ts", "degree": 60, "average-revs": 9},
                          {"entity": "src/locale/index.ts", "coupled": "src/locale/en-US.ts", "degree": 55, "average-revs": 9}]
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("src/menu.ts", coupling)
-        self.assertIn("src/locale/index.ts", coupling)
+        self.assertIn("src/{locale/en-US.ts,menu.ts}", coupling)
+        self.assertIn("src/locale/{index.ts,en-US.ts}", coupling)
         self.assertNotIn("zh-CN", coupling)
         self.assertIn("2 locale pairs hidden", coupling)
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
@@ -907,7 +907,7 @@ class Report(unittest.TestCase):
         r["coupling"] = [{"entity": "docs/examples/imap-ssl.c", "coupled": "docs/examples/pop3-ssl.c", "degree": 90, "average-revs": 20},
                          {"entity": "docs/examples/http-post.c", "coupled": "lib/http.c", "degree": 70, "average-revs": 9}]
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("lib/http.c", coupling, "an example and the code it demonstrates still count")
+        self.assertIn("{docs/examples/http-post.c,lib/http.c}", coupling, "an example and the code it demonstrates still count")
         self.assertNotIn("pop3-ssl.c", coupling)
         self.assertIn("1 example pair hidden", coupling)
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
@@ -921,7 +921,7 @@ class Report(unittest.TestCase):
                          {"entity": "Gemfile", "coupled": "Gemfile.lock", "degree": 90, "average-revs": 20},
                          {"entity": "static/index.html", "coupled": "static/apps-metadata.json", "degree": 90, "average-revs": 11}]
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("static/index.html", coupling)
+        self.assertIn("static/{index.html,apps-metadata.json}", coupling)
         self.assertNotIn("version.rb", coupling)
         self.assertIn("2 release pairs hidden", coupling)
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
@@ -951,11 +951,11 @@ class Report(unittest.TestCase):
         r["coupling"] = [{"entity": "static/index.html", "coupled": "static/apps-metadata.json", "degree": 90, "average-revs": 11},
                          {"entity": "static/tax.html", "coupled": "static/treasury.html", "degree": 85, "average-revs": 11}]
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("static/index.html", coupling)
-        self.assertNotIn("static/tax.html", coupling)
+        self.assertIn("static/{index.html,apps-metadata.json}", coupling)
+        self.assertNotIn("tax.html", coupling)
         self.assertIn("1 historical pair hidden", coupling)
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
-        self.assertIn("static/tax.html", full)
+        self.assertIn("static/{tax.html,treasury.html}", full)
         self.assertNotIn("hidden", full)
 
     def test_markdown_hotspots_hide_deleted_files_and_say_so(self):
@@ -997,16 +997,15 @@ class Report(unittest.TestCase):
         r["coupling"] = [{"entity": a, "coupled": b, "degree": 100, "average-revs": 5} for i, a in enumerate(files) for b in files[i + 1:]]
         r["coupling"].append({"entity": "static/index.html", "coupled": "static/apps-metadata.json", "degree": 90, "average-revs": 11})
         coupling = _section_text(rendered(r, [], width=200), "Change coupling")
-        self.assertIn("rich/_unicode_data/ (4 files)", coupling)
-        self.assertIn("each other", coupling)
-        self.assertIn("≥100%", coupling)
+        self.assertRegex(coupling, r"rich/_unicode_data/ \(4 files\) +≥100%", "a directory group has one form, with its weakest share")
+        self.assertNotRegex(coupling, r"\(4 files\) +each other", "the caption says what a directory row is, not a cell on every such row")
         self.assertNotIn("unicode10", coupling)
-        self.assertIn("static/index.html", coupling)
+        self.assertRegex(coupling, r"static/\{index.html,apps-metadata.json\} +90%")
         self.assertIn("Change coupling · all 2, by share of changes made together", coupling)
         self.assertIn("a directory row = its files change with each other (6 pairs)", coupling)
         full = _section_text(rendered(r, [], width=200, full=True), "Change coupling")
-        self.assertIn("unicode10", full)
-        self.assertNotIn("each other", full)
+        self.assertIn("rich/_unicode_data/{unicode10.py,unicode11.py}", full)
+        self.assertNotIn("(4 files)", full)
 
     def test_coupling_with_only_test_pairs_says_what_was_hidden(self):
         r = sample_report()
@@ -1393,8 +1392,8 @@ class KnowledgeMap(unittest.TestCase):
     def test_section_lists_areas_with_owners(self):
         text = rendered(sample_report(), [], full=True)
         self.assertIn("Knowledge map", text)
-        self.assertRegex(text, r"static/\s+1,000\s+2\s+-\s+Ann \(90%\)\s+Bob \(10%\)")
-        self.assertRegex(text, r"tests/\s+300\s+1\s+-\s+Bob \(100%\)")
+        self.assertRegex(text, r"static/\s+1,000\s+2\s+-\s+Ann\s+90%\s+Bob\s+10%")
+        self.assertRegex(text, r"tests/\s+300\s+1\s+-\s+Bob\s+100%\s+-\s+-")
 
     def test_absent_without_ownership(self):
         r = sample_report()
@@ -1445,36 +1444,52 @@ class KnowledgeMap(unittest.TestCase):
         r["ownership"] = []
         self.assertEqual(render.knowledge_section(r, full=True)["title"], "Knowledge map", "an empty map counts nothing")
 
+    def test_the_consistency_checks_still_read_the_map_and_the_people_table_as_drawn(self):
+        """Four checks of the measurement harness read these tables as text. A drawing they cannot read finds nothing and says nothing."""
+        from gitmole.measure import consistency
+        r = sample_report()
+        r["meta"].update({"last_date": "2026-09-10", "bots": []})
+        r["activity"]["authors"] = {"Ann": {"commits": 1, "first": "2025-01-01", "last": "2026-09-01"}, "Bob": {"commits": 1, "first": "2025-01-01", "last": "2025-01-01"}}
+        km = render.knowledge_section(r, full=False)
+        self.assertEqual(km["rows"][0][2:6], ["Ann", "90%", "Bob gone", "10%"])
+        self.assertEqual(consistency._owner_share(km, km["rows"][0], "main owner"), ("Ann", "90"))
+        self.assertEqual(consistency._owner_share(km, km["rows"][0], "second"), ("Bob", "10"), "the name without the word gone, the share from the column beside it")
+        self.assertIn("Bob", consistency._owner_names(km["rows"][0][4]))
+        people = render.people_section(r, full=True)
+        self.assertEqual(people["rows"][0][consistency._column(people, "surviving")], "79%")
+        merged = {"meta": {"identities": [{"name": "Rya", "email": "r@x", "commits": 70, "merges": 60}, {"name": "Dee", "email": "d@x", "commits": 30}]}}
+        self.assertEqual(consistency._MERGES_IN_ALL.search(render.people_section(merged)["caption"]).group(2), "60")
+
     def test_a_tied_top_share_is_shared_and_names_no_owner(self):
         # superpowers' .hermes-plugin/: one squash commit credited twelve people equally, and the map named the
         # first two by alphabet as main owner and second
         area = {"area": "plugin/", "lines": 96, "owners": [(n, 8) for n in "ABCDEFGHIJKL"]}
-        self.assertEqual(render._owner_cells(area, set()), ["shared by 12 (8%)", "-"])
+        self.assertEqual(render._owner_cells(area, set()), ["shared by 12", "8%", "-", "-"])
         area = {"area": "tools/", "lines": 431, "owners": [("Ann", 87), ("Bob", 86), ("Cat", 86), ("Dan", 86), ("Eve", 86)]}
-        self.assertEqual(render._owner_cells(area, {"Ann"}), ["Ann (gone) (20%)", "shared by 4 (20%)"], "a second place held equally is counted too")
+        self.assertEqual(render._owner_cells(area, {"Ann"}), ["Ann gone", "20%", "shared by 4", "20%"], "a second place held equally is counted too")
         area = {"area": "core/", "lines": 100, "owners": [("Ann", 60), ("Bob", 30), ("Cat", 10)]}
-        self.assertEqual(render._owner_cells(area, {"Bob"}), ["Ann (60%)", "Bob (gone) (30%)"])
-        self.assertEqual(render._owner_cells({"area": "x/", "lines": 5, "owners": [("Ann", 5)]}, set()), ["Ann (100%)", "-"])
+        self.assertEqual(render._owner_cells(area, {"Bob"}), ["Ann", "60%", "Bob gone", "30%"], "gone follows the name after one space: no comma, no brackets")
+        self.assertEqual(render._owner_cells({"area": "x/", "lines": 5, "owners": [("Ann", 5)]}, set()), ["Ann", "100%", "-", "-"])
         r = sample_report()
         r["ownership"] += [{"entity": "plugin/p.json", "author": who, "added": 8, "deleted": 0} for who in ("Zed", "Ann", "Bob")]
         row = next(x for x in render.knowledge_section(r, full=True)["rows"] if x[0] == "plugin/")
-        self.assertEqual(row[4:6], ["shared by 3 (33%)", "-"])
+        self.assertEqual(row[4:8], ["shared by 3", "33%", "-", "-"])
 
     def test_the_tools_part_of_an_area_is_its_own_column_and_nobody_s_ownership(self):
         r = sample_report()   # load.py has already taken the tools' rows out of the ownership table
         r["tools"] = {"names": ["Model A"], "commits": 5, "added": {"static/a.html": 250, "tests/t.py": 1}, "surviving": 0}
         km = render.knowledge_section(r, full=False)
-        self.assertEqual(km["columns"], ["area", "lines added", "main owner", "second", "agents"])
-        self.assertEqual(km["rows"][0], ["static/", "1,000", "Ann (90%)", "Bob (10%)", "20%"], "250 of the 1,250 lines static/ was given")
+        self.assertEqual(km["columns"], ["area", "added", "main owner", "share", "second", "share", "agents"])
+        self.assertEqual(km["rows"][0], ["static/", "1,000", "Ann", "90%", "Bob", "10%", "20%"], "250 of the 1,250 lines static/ was given")
         self.assertIn("agents = the lines trailers credit to coding tools", km["caption"])
         r["tools"]["added"] = {"static/a.html": 50}
         self.assertNotIn("agents", render.knowledge_section(r, full=False)["columns"],
                          "the default map shows them only where they hold as much as the second owner")
         self.assertEqual(render.knowledge_section(r, full=True)["columns"][-1], "agents")
         r["tools"]["added"] = {"static/a.html": 4}
-        self.assertEqual(render.knowledge_section(r, full=False)["columns"], ["area", "lines added", "main owner", "second"],
+        self.assertEqual(render.knowledge_section(r, full=False)["columns"], ["area", "added", "main owner", "share", "second", "share"],
                          "no column for less than a whole percent")
-        self.assertEqual(render.knowledge_section(r, full=True)["columns"][-1], "second")
+        self.assertEqual(render.knowledge_section(r, full=True)["columns"][-2:], ["second", "share"])
 
     def test_full_counts_an_areas_recent_authors_and_names_none(self):
         r = sample_report()
@@ -1519,29 +1534,50 @@ class KnowledgeMap(unittest.TestCase):
 
 
 class Timeline(unittest.TestCase):
+    def test_the_timeline_left_the_default_report(self):
+        """No rule reads it, and its months changed with the terminal's width; People says who is still here."""
+        self.assertIn("timeline", render.FULL_ONLY)
+        for width in (80, 120, 200):
+            self.assertNotIn("Timeline", rendered(sample_report(), [], width=width))
+        self.assertIn("▦ Timeline", rendered(sample_report(), [], full=True))
+        self.assertIn("## Timeline", render.markdown(sample_report(), []), "Markdown keeps the sections it had")
+
     def test_last_twelve_months_per_author_with_zero_as_0(self):
-        text = rendered(sample_report(), [], width=120)
-        self.assertIn("Timeline (Oct 2025 → Sep 2026)", text)
+        text = rendered(sample_report(), [], width=120, full=True)
+        self.assertIn("▦ Timeline · all 2, Oct 2025 → Sep 2026, by commits in those months", text)
         self.assertRegex(text, r"Ann\s+3(\s+0){9}\s+12\s+7")
         self.assertRegex(text, r"Bob(\s+0){11}\s+5")
         self.assertIn("Oct", text)
         self.assertNotIn("Old Timer", text, "authors with no commits in the window are left out")
 
+    def test_the_month_of_the_last_commit_is_marked_when_it_is_not_whole_and_the_rows_are_identities_as_merged(self):
+        """prometheus: Sep 2026 ends on the 18th beside eleven whole months, and George and György Krajcsovits are two rows."""
+        sec = render.timeline_section(sample_report(), full=True)   # the last commit is 2026-09-10
+        self.assertEqual(sec["columns"][-2:], ["Aug", "Sep*"])
+        self.assertEqual(sec["caption"], "Sep* = to 2026-09-10, not a whole month · a row = an identity as merged: one person under two names the run did not join has two rows")
+        r = sample_report()
+        r["meta"]["last_date"] = "2026-09-30"
+        sec = render.timeline_section(r, full=True)
+        self.assertEqual(sec["columns"][-1], "Sep", "a whole month has no mark")
+        self.assertTrue(sec["caption"].startswith("a row = an identity as merged"))
+        r["meta"]["last_date"] = "2026-08-31"   # the log's last month is later than the recorded date: nothing to mark
+        self.assertEqual(render.timeline_section(r, full=True)["columns"][-1], "Sep")
+
     def test_timeline_starts_at_the_window(self):
         r = sample_report()
         r["meta"]["since"] = "2026-07-15"
-        text = rendered(r, [], width=120)
-        self.assertIn("Timeline (Jul 2026 → Sep 2026)", text)
-        self.assertNotIn("Oct", text)
+        sec = render.timeline_section(r, full=True)
+        self.assertEqual(sec["title"], "Timeline · all 2, Jul 2026 → Sep 2026, by commits in those months")
+        self.assertEqual(sec["columns"], ["author", "Jul", "Aug", "Sep*"])
 
     def test_timeline_starts_no_earlier_than_the_history(self):
         r = sample_report()
         r["activity"]["timeline"] = {"Ann": {"2026-09": 4}, "Bob": {"2026-08": 1}}
-        text = rendered(r, [], width=120)
-        self.assertIn("Timeline (Aug 2026 → Sep 2026)", text, "ten days of history once drew Oct 2025 onwards, empty")
-        self.assertNotIn("Oct", text)
+        sec = render.timeline_section(r, full=True)
+        self.assertEqual(sec["title"], "Timeline · all 2, Aug 2026 → Sep 2026, by commits in those months", "ten days of history once drew Oct 2025 onwards, empty")
+        self.assertNotIn("Oct", sec["columns"])
         r["activity"]["timeline"] = {"Ann": {"2026-09": 4}}
-        self.assertIn("Timeline (Sep 2026)", rendered(r, [], width=120), "one month is not a range")
+        self.assertEqual(render.timeline_section(r, full=True)["title"], "Timeline · all 1, Sep 2026, by commits in those months", "one month is not a range")
 
     def test_people_caption_says_what_is_windowed(self):
         r = sample_report()
@@ -1555,8 +1591,9 @@ class Timeline(unittest.TestCase):
         r = sample_report()
         r["activity"]["timeline"]["Tool"] = {"2026-09": 40}   # an older run counted trailer credits here
         r["activity"]["authors"] = {"Ann": {"commits": 22}, "Tool": {"commits": 40, "authored": 0}}
-        text = rendered(r, [], width=120)
-        self.assertNotRegex(text.split("Timeline")[1], r"Tool\s+·")
+        text = rendered(r, [], width=120, full=True)
+        self.assertNotRegex(_section_text(text, "▦ Timeline"), r"Tool\s+\d")
+        self.assertRegex(_section_text(text, "▦ Timeline"), r"Ann\s+\d")
 
     def test_bots_are_left_out_of_the_timeline_and_named_under_people(self):
         r = sample_report()
@@ -1564,8 +1601,9 @@ class Timeline(unittest.TestCase):
         r["activity"]["timeline"]["renovate[bot]"] = {"2026-08": 30, "2026-09": 40}
         text = rendered(r, [], width=120)
         self.assertNotIn("renovate[bot]", text.split("◉ People")[0], "the panel and findings do not mention bots")
-        self.assertRegex(text, r"Ann\s+3(\s+0){9}\s+12\s+7")
-        self.assertNotIn("renovate[bot]   ", text, "no timeline row for a bot")
+        full = rendered(r, [], width=120, full=True)
+        self.assertRegex(full, r"Ann\s+3(\s+0){9}\s+12\s+7")
+        self.assertNotIn("renovate[bot]", _section_text(full, "▦ Timeline"), "no timeline row for a bot")
         self.assertIn("2 bots left out: renovate[bot] 940, 1 more", text, "how many, and the busiest")
         self.assertIn("2 bots left out: renovate[bot] 940, github-actions[bot] 195", rendered(r, [], width=120, full=True), "--full names three")
         self.assertNotIn("bots left out", rendered(sample_report(), []))
@@ -1574,8 +1612,8 @@ class Timeline(unittest.TestCase):
         r = sample_report()
         r["meta"]["bots"] = [{"name": "GitHub", "commits": 12}]   # actions@github.com: a bot by its address, not its name
         r["activity"]["timeline"]["GitHub"] = {"2026-08": 30, "2026-09": 40}
-        text = rendered(r, [], width=120)
-        timeline = text.split("▦ Timeline")[1].split("⟷ Change coupling")[0]
+        text = rendered(r, [], width=120, full=True)
+        timeline = _section_text(text, "▦ Timeline")
         self.assertNotIn("GitHub", timeline)
         self.assertIn("Ann", timeline)
 
@@ -1609,64 +1647,39 @@ class Timeline(unittest.TestCase):
     def test_timeline_absent_without_data(self):
         r = sample_report()
         r["activity"] = {}
-        self.assertIn("no timeline data", rendered(r, []))
+        self.assertIn("Timeline: no timeline data", rendered(r, [], full=True))
 
-    def test_a_name_is_never_folded_the_oldest_months_go_instead(self):
-        r = sample_report()
-        r["activity"]["timeline"] = {"antvinni": {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
-        text = rendered(r, [], width=60)
-        body = _section_text(text, "Timeline")
-        self.assertIn("antvinni", body, "the name on one line")
-        sec = next(s for s in render.sections(r, full=False, width=60) if s["id"] == "timeline")
-        self.assertLess(len(sec["columns"]) - 1, 12, "fewer months than the year, since the year does not fit")
-        self.assertTrue(sec["title"].endswith("→ Sep 2026)"), sec["title"])
-        self.assertNotIn("Oct 2025", sec["title"], "the title names the months shown")
-        wide = next(s for s in render.sections(r, full=False, width=120) if s["id"] == "timeline")
-        self.assertEqual(len(wide["columns"]) - 1, 12, "room for the whole year at 120")
-
-    def test_an_author_whose_months_the_width_dropped_is_not_a_row_of_dots(self):
-        """curl listed Xiaoke Wang and react Sebastian Markbåge with a dot in every column shown: they
-        ranked on the twelve-month window, and the terminal width then dropped the months they were in."""
+    def test_the_twelve_months_are_the_table_at_every_width_and_the_ranking_is_on_their_total(self):
+        """prometheus printed ten months at 80 columns and twelve at 160, and ranked on the months it showed: curl
+        listed Xiaoke Wang and react Sebastian Markbåge at one width and not at another."""
         r = sample_report()
         r["activity"]["timeline"] = {"Stopped Last Autumn": {"2025-10": 40, "2025-11": 30},
                                      "Here All Year": {f"2026-{m:02d}": 2 for m in range(1, 10)}}
-        narrow = next(s for s in render.sections(r, full=False, width=60) if s["id"] == "timeline")
-        self.assertLess(len(narrow["columns"]) - 1, 12, "the width dropped the oldest months")
-        self.assertEqual([row[0] for row in narrow["rows"]], ["Here All Year"])
-        wide = next(s for s in render.sections(r, full=False, width=200) if s["id"] == "timeline")
-        self.assertEqual(len(wide["columns"]) - 1, 12, "with room for the whole year both belong")
-        self.assertIn("Stopped Last Autumn", [row[0] for row in wide["rows"]])
+        seen = []
+        for width in (60, 80, 120, 200, None):
+            sec = render.timeline_section(r, full=True, width=width)
+            self.assertEqual(len(sec["columns"]) - 1, 12, width)
+            self.assertEqual(sec["title"], "Timeline · all 2, Oct 2025 → Sep 2026, by commits in those months", width)
+            seen.append([row[0][:7] for row in sec["rows"]])   # at 60 columns the names are cut to make room for the months
+        self.assertEqual(seen, [["Stopped", "Here Al"]] * 5, "70 commits in the twelve months against 18: the same rows in the same order at every width")
 
-    def test_a_very_long_name_still_leaves_at_least_three_months(self):
+    def test_a_name_gives_way_to_the_months_and_is_never_folded(self):
         r = sample_report()
-        name = "a" * 70   # long enough that even the floor does not leave room for the whole name
+        name = "a" * 70   # longer than any room the twelve months leave at 80 columns
         r["activity"]["timeline"] = {name: {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
-        text = rendered(r, [], width=80)
-        body = _section_text(text, "Timeline")
-        sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
-        self.assertEqual(len(sec["columns"]) - 1, 3, "the floor: three months even though the name leaves almost no room")
-        self.assertEqual(sec["title"], "Timeline (Jul 2026 → Sep 2026)")
-        section_text = body.split("\n\n", 1)[0]
-        for month in ("Jul", "Aug", "Sep"):
+        text = rendered(r, [], width=80, full=True)
+        section_text = _section_text(text, "▦ Timeline")
+        sec = next(s for s in render.sections(r, full=True, width=80) if s["id"] == "timeline")
+        self.assertEqual(len(sec["columns"]) - 1, 12)
+        for month in ("Oct", "Jan", "Aug", "Sep*"):
             self.assertIn(month, section_text, f"the {month} column header is fully visible, not starved to nothing")
-        self.assertIn("3", section_text, "the counts under the shown months are visible")
-        self.assertNotIn(name, body, "the full 70-character name does not fit even at the floor")
-        self.assertIn("…", section_text, "the name gives way, cut with an ellipsis, rather than the months")
-        self.assertEqual(len(section_text.splitlines()), 4, "one row, not a name folded onto a second line")
+        self.assertNotIn(name, section_text, "the full 70-character name does not fit")
+        self.assertIn("a" * 16 + "…", section_text, "the name gives way, cut with an ellipsis, rather than the months")
+        rows = [line for line in section_text.splitlines() if line.lstrip().startswith("aaa")]
+        self.assertEqual(len(rows), 1, "one row, not a name folded onto a second line")
         for line in section_text.splitlines():
-            self.assertLessEqual(len(line), 80, "no line wider than the terminal")
-
-    def test_a_name_just_over_the_floors_room_still_leaves_full_month_headers(self):
-        r = sample_report()
-        name = "a" * 62   # over the 60-character room the floor leaves (width 80, 3 months): headers used to starve first
-        r["activity"]["timeline"] = {name: {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
-        text = rendered(r, [], width=80)
-        body = _section_text(text, "Timeline")
-        section_text = body.split("\n\n", 1)[0]
-        for month in ("Jul", "Aug", "Sep"):
-            self.assertIn(month, section_text, f"the {month} header is whole, not truncated to a letter and an ellipsis")
-        sec = next(s for s in render.sections(r, full=False, width=80) if s["id"] == "timeline")
-        self.assertEqual(len(sec["columns"]) - 1, 3)
+            self.assertLessEqual(len(line.rstrip()), 80, "no line wider than the terminal")
+        self.assertEqual(render.timeline_section(r, full=True)["rows"][0][0], name, "with no width (Markdown) nothing is cut")
 
 
 class Layout(unittest.TestCase):
@@ -1696,30 +1709,40 @@ class Layout(unittest.TestCase):
         self.assertRegex(full, r"\n\n◆ Hotspots \(score = changes × lines of code\)\n")
         self.assertNotIn("─────", text.split("◉ People")[1].split("\n")[0], "no rule across the width")
 
-    def test_small_tables_sit_side_by_side_on_wide_terminals(self):
-        wide = rendered(sample_report(), [], width=120, full=True)
-        line = next(l for l in wide.splitlines() if "▤ Size by language" in l)
-        self.assertIn("◉ People", line)
-        line = next(l for l in wide.splitlines() if "◔ Activity" in l)
-        self.assertIn("◷ Surviving code by year written", line)
-        narrow = rendered(sample_report(), [], width=80, full=True)
-        line = next(l for l in narrow.splitlines() if "▤ Size by language" in l)
-        self.assertNotIn("People", line)
+    def test_no_tables_sit_side_by_side_at_any_width(self):
+        """Size by language sat beside People, and Activity beside Surviving code, from 100 columns: the order of the
+        lines changed with the terminal, and every copied line held two tables."""
+        for full in (False, True):
+            orders = set()
+            for width in (80, 120, 200, 300):
+                text = rendered(sample_report(), [], width=width, full=full)
+                heads = [line for line in text.splitlines() if line[:1] in set(render.SYMBOLS.values()) | {"•"}]
+                for line in heads:
+                    self.assertNotRegex(line[2:], r"[◎◉◆⟷λ⌂▤◔▦◷•] [A-Z]", "one section on a line")
+                orders.add(tuple(render._base_title(line[2:]).split(":")[0] for line in heads))   # an empty section is its title, a colon and a note
+            self.assertEqual(len(orders), 1, "one order of sections whatever the width")
+        self.assertEqual(orders.pop(), ("Watch list", "Watch list by component", "Hotspots", "Complex functions", "Change coupling", "Size by language", "Knowledge map", "People",
+                                        "Timeline", "Activity", "Surviving code by year written", "Changed lines", "Trailers", "Signing by year", "OSPS Baseline"))
 
-    def test_people_and_knowledge_map_are_not_side_by_side_at_any_width(self):
-        for width in (80, 120, 200, 300):
-            wide = rendered(sample_report(), [], width=width)
-            line = next(l for l in wide.splitlines() if "◉ People" in l)
-            self.assertNotIn("⌂ Knowledge map", line, "the default report's rows and their order do not change with the width")
-            self.assertLess(wide.index("◎ Watch list"), wide.index("◉ People"), "the watch list comes first")
+    def test_one_order_of_sections_in_the_default_report_full_and_markdown(self):
+        """prometheus's default ran code, people, people, people, code, code."""
+        r = sample_report()
+        default = [s["id"] for s in render.sections(r, full=False)]
+        self.assertEqual(default, ["watch", "functions", "coupling", "knowledge", "people"], "what to read first, what is hard to change, what changes together; then the people")
+        for full in (True, "markdown"):
+            ids = [s["id"] for s in render.sections(r, full=full)]
+            self.assertEqual([i for i in ids if i in default], default, "the same order with --full's own sections in their groups")
+            self.assertLess(ids.index("people"), ids.index("timeline"))
+            self.assertEqual(ids[:3], ["watch", "watch_by_component", "hotspots"])
 
-    def test_share_columns_carry_inline_bars(self):
+    def test_share_columns_carry_inline_bars_in_full_only_tables(self):
         text = rendered(sample_report(), [], width=80)
-        people = text[text.index("◉ People"):text.index("⌂ Knowledge map")]
-        self.assertRegex(people, r"Ann\s+234\s+64% ▰{6}")
+        self.assertNotIn("▰", text, "no bars in the default report: People's said nothing its number did not")
+        self.assertRegex(_section_text(text, "◉ People"), r"Ann\s+234\s+64%\s+79%")
         text = rendered(sample_report(), [], width=80, full=True)
-        size = text[text.index("▤ Size by language"):text.index("◉ People")]
-        self.assertRegex(size, r"HTML\s+28\s+4,783\s+88% ▰{8}")
+        self.assertRegex(_section_text(text, "▤ Size by language"), r"HTML\s+28\s+4,783\s+88% ▰{8}")
+        self.assertNotIn("▰", _section_text(text, "◉ People"))
+        self.assertNotIn("▰", _section_text(text, "⌂ Knowledge map"), "two share columns, and no bar on either")
 
     def test_grades(self):
         self.assertEqual(render.cell_style("share", "64%"), "bold #ff5cc8")
@@ -1737,8 +1760,8 @@ class Layout(unittest.TestCase):
         hot = render.hotspots_section(sample_report(), full="markdown", width=None)
         self.assertEqual(hot["title"], "Hotspots")
         self.assertEqual(hot["columns"], ["file", "changes", "lines", "fixes", "authors", "trend"])
-        self.assertEqual(secs["Change coupling"]["columns"], ["file", "changes with", "together"])
-        self.assertEqual(secs["Knowledge map"]["columns"], ["area", "lines added", "main owner", "second"])
+        self.assertEqual(secs["Change coupling"]["columns"], ["files", "together"])
+        self.assertEqual(secs["Knowledge map"]["columns"], ["area", "added", "main owner", "share", "second", "share"], "the count is headed for what it counts, and a percentage has its own column")
 
     def test_full_restores_every_column_and_row(self):
         secs = {render._base_title(x["title"]): x for x in render.sections(sample_report(), full=True)}
@@ -1780,13 +1803,13 @@ class ReviewFixes(unittest.TestCase):
         self.assertIn("c = code", text)
         self.assertIn("Portfolio (0 repositories): no repositories", text)
 
-    def test_full_lifts_the_timeline_cap(self):
+    def test_full_lists_every_timeline_row_and_markdown_caps_them(self):
         r = sample_report()
-        r["activity"]["timeline"] = {f"Author {i:02d}": {"2026-09": 12 - i} for i in range(12)}
-        compact = next(x for x in render.sections(r, full=False) if x["title"].startswith("Timeline"))
-        full = next(x for x in render.sections(r, full=True) if x["title"].startswith("Timeline"))
-        self.assertEqual((len(compact["rows"]), compact["caption"]), (8, "and 4 more"))
-        self.assertEqual((len(full["rows"]), full["caption"]), (12, None))
+        r["activity"]["timeline"] = {f"Author {i:02d}": {"2026-09": 60 - i} for i in range(60)}
+        full = _titled(render.sections(r, full=True), "Timeline")
+        md = _titled(render.sections(r, full="markdown"), "Timeline")
+        self.assertEqual((len(full["rows"]), full["title"]), (60, "Timeline · all 60, Sep 2026, by commits in those months"))
+        self.assertEqual((len(md["rows"]), md["title"]), (50, "Timeline · 50 of 60, Sep 2026, by commits in those months"), "the count of the rest is the title's")
 
     def test_paths_fit_next_to_wide_numbers_at_narrow_widths(self):
         # re-pointed at Complex functions: Hotspots no longer elides paths in any shipped mode, so
@@ -1877,14 +1900,14 @@ class Sections(unittest.TestCase):
     def test_sections_carry_title_columns_and_rows_in_report_order(self):
         secs = render.sections(sample_report(), full=True)
         titles = [x["title"] for x in secs]
-        self.assertEqual(titles[:6], ["Watch list · all 2, ranked by changes × lines of code", "Watch list by component", "Size by language",
-                                      "People · all 2 identities, by commits", "Knowledge map · all 2 areas over every file in the history, by lines added", "Activity"])
-        self.assertTrue(titles[6].startswith("Timeline"))
-        self.assertTrue(titles[7].startswith("Hotspots"))
-        self.assertEqual(titles[-2], "Complex functions · all 2, by complexity")
+        self.assertEqual(titles[:2], ["Watch list · all 2, ranked by changes × lines of code", "Watch list by component"])
+        self.assertTrue(titles[2].startswith("Hotspots"))
+        self.assertEqual(titles[3:9], ["Complex functions · all 2, by complexity", "Change coupling · all 1, by share of changes made together", "Size by language",
+                                       "Knowledge map · all 2 areas over every file in the history, by lines added", "People · all 2 identities, by commits",
+                                       "Timeline · all 2, Oct 2025 → Sep 2026, by commits in those months"])
         self.assertEqual(titles[-1], "OSPS Baseline")
-        self.assertEqual([x["id"] for x in secs][:5], ["watch", "watch_by_component", "size", "people", "knowledge"])
-        size = secs[2]
+        self.assertEqual([x["id"] for x in secs][:7], ["watch", "watch_by_component", "hotspots", "functions", "coupling", "size", "knowledge"])
+        size = secs[5]
         self.assertEqual(size["columns"][:3], ["language", "files", "code"])
         self.assertEqual(size["rows"][0][0], "HTML")
 
@@ -2134,14 +2157,14 @@ class SmallRepository(unittest.TestCase):
         self.assertEqual(len(sec["rows"]), 6, "a large repository's rows are all over the floor: the cap decides, as before")
         self.assertEqual(sec["title"], "People · 6 of 7 identities, by commits")
 
-    def test_timeline_rows_need_five_commits_in_the_months_shown(self):
+    def test_the_timeline_lists_everyone_with_a_commit_in_its_months(self):
+        """The default report's Timeline kept rows of five commits or more; the table is --full's now, which lists them all."""
         r = sample_report()
         r["activity"]["timeline"] = {"Ann": {"2026-08": 12, "2026-09": 7}, "Bob": {"2026-09": 5}, "Cy": {"2026-09": 4}, "Di": {"2026-07": 2, "2026-09": 2},
                                      "Ed": {"2026-09": 1}, "Old": {"2019-01": 400}}
-        sec = render.timeline_section(r, full=False)
-        self.assertEqual([row[0] for row in sec["rows"]], ["Ann", "Bob", "Cy"], "Cy is third: the top three stay")
-        self.assertEqual(sec["caption"], "and 2 more")
-        self.assertEqual(len(render.timeline_section(r, full=True)["rows"]), 5)
+        sec = render.timeline_section(r, full=True)
+        self.assertEqual([row[0] for row in sec["rows"]], ["Ann", "Bob", "Cy", "Di", "Ed"], "ranked on the total of the months shown; Old has none in them")
+        self.assertNotIn("more", sec["caption"])
 
     def coupled(self):
         r = sample_report()
@@ -2225,7 +2248,7 @@ class PeopleMerges(unittest.TestCase):
         r["functions"] = [{"file": f"f{i}.py", "function": f"fn{i}", "ccn": 55 - i, "nloc": 189, "params": 0, "start": 1, "end": 189, "suspect": ""} for i in range(9)]
         heads = {s["id"]: s["columns"] for s in render.sections(r, full=True)}
         self.assertEqual(heads["functions"], ["function", "file", "complexity", "lines", "params"])
-        self.assertEqual(heads["coupling"], ["file", "changes with", "together", "avg changes"])
+        self.assertEqual(heads["coupling"], ["files", "together", "avg changes"])
         self.assertEqual(heads["hotspots"][:4], ["file", "changes", "lines", "complexity"])
         for name in ("ccn", "cplx", "revs", "avg revs", "degree", "revisions"):
             self.assertFalse([sid for sid, cols in heads.items() if name in cols], name)
@@ -2337,9 +2360,13 @@ class Fit(unittest.TestCase):
                           "degree": 30, "average-revs": 9}]
         r["size"]["files"].update({p: {"code": 10, "complexity": 0} for c in r["coupling"] for p in (c["entity"], c["coupled"])})
         text = _section_text(rendered(r, [], width=80), "⟷ Change coupling")
-        self.assertIn("tts_stream.py", text)
-        self.assertRegex(text, r"…/(settings/)?model-library\.tsx")
+        self.assertIn("backend/api/routers/{openai_compat.py,tts_stream.py}", text, "two files of one directory print whole in one cell")
+        self.assertIn("{electron/…/settings/model-library.tsx,backend/api/schemas.py}", text, "a path inside the braces loses its middle directories, the longer first")
         self.assertTrue(all(len(line) <= 80 for line in text.splitlines()))
+        narrow = _section_text(rendered(r, [], width=54), "⟷ Change coupling")
+        self.assertIn("…/routers/{openai_compat.py,tts_stream.py}", narrow, "the directory the two share goes before either name")
+        self.assertIn("{…/model-library.tsx,…/api/schemas.py}", narrow)
+        self.assertTrue(all(len(line.rstrip()) <= 54 for line in narrow.splitlines()))
 
     def test_a_long_area_keeps_its_name_and_the_owner_columns_give_way_first(self):
         # hindsight at 0.40.0: "hindsight-integrations/" (23 characters) printed as "…/" at 80 columns while the

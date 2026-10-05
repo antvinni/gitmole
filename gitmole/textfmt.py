@@ -135,6 +135,18 @@ def nameless(name: str) -> bool:
     return not name or bool(re.search(r"\s|=>|\{", name)) or "(" in name.replace("()", "")
 
 
+def brace_pair(a: str, b: str) -> str:
+    """Two paths as one cell: the directories they share, then the rest of each in braces, `tsdb/wlog/{live_reader.go,reader.go}`
+    for two files of one directory and `web/{api/v1/api.go,web.go}` for two that part further up; `{a.py,b.py}`
+    when they share none. The form a shell expands, so the cell pastes into `git log --`."""
+    pa, pb = a.split("/"), b.split("/")
+    n = 0
+    while n < min(len(pa), len(pb)) - 1 and pa[n] == pb[n]:
+        n += 1
+    shared = "/".join(pa[:n])
+    return f"{shared + '/' if shared else ''}{{{'/'.join(pa[n:])},{'/'.join(pb[n:])}}}"
+
+
 def cut(name: str, cap: int) -> str:
     """`name`, unchanged if it fits in `cap` characters, else cut to exactly `cap` ending in the ellipsis."""
     return name if len(name) <= cap else name[:cap - 1] + ELLIPSIS
