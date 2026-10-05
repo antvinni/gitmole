@@ -261,21 +261,28 @@ instead: a secret's place by betterleaks' fingerprint
 (`commit:file:rule:line`, the same one `.betterleaksignore` takes), a
 vulnerable package by name, version, lock file and advisory ids, an unpinned
 action by workflow file and `uses:` ref, a brain method or deeply nested
-function by file and name, a bug magnet by file. The subjects the
+function by file and name, a bug magnet by file, a Trojan Source
+character or mixed-script token by file, the character or token itself and
+which occurrence of it in that file it is (never its line, so an edit above
+a known token does not make it new), a lock file drift by its manifest. The subjects the
 baseline's finding did not hold go through the same rule on their own, and
 what that finds, at the severity it finds it, is what counts: a new secret
 or a new unpinned action fails the gate while the old ones stay reported,
 and a new magnet with three fixes is a note even when the finding is a
 warning because of an old one. A known value committed again is a new
 place, and counts. A truck factor counts when it hangs on a person, or
-names an area of one, the baseline's did not. The subjects are read from
+names an area of one, the baseline's did not; complexity growth when a hotspot
+grew that the baseline's finding did not name. The subjects are read from
 the rows every `--json` export carries, so an older baseline works as it
 is; one that lacks a rule's rows (written before the structure step ran,
 say) is judged for that rule by its rule id alone, as every rule but
 secrets and vulnerable dependencies was until 0.42.0.
 The hygiene step keeps every unpinned action on a branch, handed a secret
 or a token that can write, and the others up to 50 per run, so a plain
-tag-pinned one past the fiftieth is not seen.
+tag-pinned one past the fiftieth is not seen. Trojan Source rows and drifted
+manifests are kept 50 per list too; when a baseline's list was full, a row
+past its fiftieth that surfaces once an earlier one is fixed reads as new and
+counts, so the gate fails closed.
 Findings in the baseline carry `"baseline": "in the baseline"` in the JSON
 (`"new"` otherwise) and `baselineState` `unchanged` or `new` in the SARIF;
 stderr names the ones that did not count. `--baseline` does not change the
@@ -342,9 +349,14 @@ alerts by (9.0 critical, 5.0 warning, 2.0 info; a vulnerable dependency
 carries its advisory's own score, a malicious one 10.0), and the tag
 `security`. The rest carry no security-severity, so code scanning files a
 bug magnet or a brain method as code quality rather than as a Medium
-vulnerability, and their tag is `maintainability`. Every result has a `partialFingerprints` entry hashed from rule,
+vulnerability, and their tag is `maintainability`. A result's message names
+its own subject (the function, the file, the manifest, the area), not the
+whole rule's summary. Every result has a `partialFingerprints` entry hashed from rule,
 path, commit and line, so a second upload updates alerts instead of
-duplicating them; for a secret that hash comes from where it was found,
+duplicating them; a Trojan Source result's hash takes the character or token
+and its occurrence in the file in place of the line, which stays in the
+region, the same identity `--baseline` compares (gitmole 0.44.0 and earlier
+gave those results no location, so their fingerprints change once); for a secret that hash comes from where it was found,
 never from the value, so two runs agree although the keyed value hashes
 never do. A secret is one result per place, pointing at the file and
 naming the commit; its line belongs to that commit's version of the file,
