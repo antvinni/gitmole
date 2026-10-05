@@ -709,7 +709,7 @@ class CollectMeta(unittest.TestCase):
                 subprocess.run(["git", *args], cwd=d, check=True, capture_output=True, env=e)
             git("init", "-q", "-b", "main")
             dev = dict(GIT_COMMITTER_NAME="x", GIT_COMMITTER_EMAIL="x@x", GIT_AUTHOR_NAME="Dev", GIT_AUTHOR_EMAIL="dev@home.example")
-            git("commit", "-q", "--allow-empty", "-m", "base\n\nCo-authored-by: Dev <7+dev@users.noreply.example>", **dict(dev, GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.example"))
+            git("commit", "-q", "--allow-empty", "-m", "base\n\nCo-authored-by: Dev <7+devon@users.noreply.example>", **dict(dev, GIT_AUTHOR_NAME="Ann", GIT_AUTHOR_EMAIL="ann@x.example"))
             for n in range(2):
                 git("switch", "-q", "-c", f"b{n}")
                 git("commit", "-q", "--allow-empty", "-m", f"work {n}", **dev)
@@ -718,7 +718,8 @@ class CollectMeta(unittest.TestCase):
             meta = run.collect_meta(d)
         rows = {(i["name"], i["email"]): i for i in meta["identities"]}
         self.assertEqual(rows[("Dev", "dev@home.example")].get("merges"), 2)
-        self.assertNotIn("merges", rows[("Dev", "7+dev@users.noreply.example")], "the trailer-only row merged nothing")
+        # a login of its own (devon, not the mailbox dev@): the login rule would otherwise make the two one account
+        self.assertNotIn("merges", rows[("Dev", "7+devon@users.noreply.example")], "the trailer-only row merged nothing")
         self.assertEqual(sum(i.get("merges", 0) for i in meta["identities"]), meta["merges"], "the rows add up to git's count")
         self.assertEqual(meta["merges_by"], "identity")
 

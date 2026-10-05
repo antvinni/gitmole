@@ -144,6 +144,33 @@ class Merge(unittest.TestCase):
         self.assertEqual(merged[0]["commits"], 1877)
         self.assertEqual(len(merged[0]["aliases"]), 3)
 
+    def test_a_forge_login_names_the_account_it_belongs_to(self):
+        # univer: "Univer" commits under DR-Univer's per-account address, and DR-Univer commits under wbfsa@qq.com
+        ids = [{"name": "Univer", "email": "68851825+DR-Univer@users.noreply.github.com", "commits": 561},
+               {"name": "DR-Univer", "email": "wbfsa@qq.com", "commits": 48},
+               {"name": "Mona Lind", "email": "7+monalind@users.noreply.github.com", "commits": 9},
+               {"name": "M. L.", "email": "monalind@x.example", "commits": 2}]
+        merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
+        self.assertEqual(merged, {"Univer": 609, "Mona Lind": 11}, "a login equal to a one-word name or to a mailbox")
+        self.assertEqual(identity._forge_login("68851825+DR-Univer@users.noreply.github.com"), "DR-Univer")
+        self.assertEqual(identity._forge_login("dr-univer@users.noreply.github.com"), "dr-univer")
+        self.assertEqual(identity._forge_login("wbfsa@qq.com"), "")
+
+    def test_a_login_written_as_a_given_name_or_a_bare_no_reply_mailbox_joins_nobody(self):
+        ids = [{"name": "Jack Doe", "email": "1+Jack@users.noreply.github.com", "commits": 5},
+               {"name": "jack", "email": "j@x.example", "commits": 1},
+               {"name": "Ann Roe", "email": "2+robin@users.noreply.github.com", "commits": 4},
+               {"name": "Robin", "email": "r@y.example", "commits": 1},
+               {"name": "Tool", "email": "noreply@users.noreply.github.com", "commits": 3},
+               {"name": "noreply", "email": "n@z.example", "commits": 1}]
+        self.assertEqual(len(identity.merge(ids)), 6, "Jack is anyone's, Robin is written as a given name, noreply@ names no one")
+        self.assertEqual(identity._forge_login("noreply@users.noreply.github.com"), "")
+
+    def test_a_login_that_two_full_names_share_joins_nobody(self):
+        ids = [{"name": "Morgan Hale", "email": "m@a.example", "commits": 3}, {"name": "Morgan Pike", "email": "p@b.example", "commits": 2},
+               {"name": "Kim Roe", "email": "3+morgan@users.noreply.github.com", "commits": 1}, {"name": "morgan", "email": "x@c.example", "commits": 1}]
+        self.assertEqual(len(identity.merge(ids)), 4)
+
     def test_empty(self):
         self.assertEqual(identity.merge([]), [])
 
@@ -215,7 +242,8 @@ def _history(seed, n):
         f, l = rnd.choice(first), rnd.choice(last)
         shape = rnd.randrange(7)
         name = [f"{f} {l}", f"{f}{l}", f"{f[0].lower()}{l.lower()}", f.lower() + l.lower(), f, l.lower(), f"Author: {f} {l}"][shape]
-        email = rnd.choice([f"{f.lower()}@x.org", f"{l.lower()}@y.org", f"{k}@users.noreply.github.com"])
+        email = rnd.choice([f"{f.lower()}@x.org", f"{l.lower()}@y.org", f"{k}@users.noreply.github.com",
+                            f"{k}+{l.lower()}@users.noreply.github.com", f"{k}+{f}{l}@users.noreply.github.com"])
         out.append({"name": name, "email": email, "commits": rnd.randrange(1, 6)})
     return out
 

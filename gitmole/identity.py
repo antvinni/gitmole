@@ -86,15 +86,44 @@ def shared_mailbox(email: str) -> bool:
     return not local or bool(_NO_REPLY.fullmatch(local))
 
 
+_FORGE_LOGIN = re.compile(r"^(?:\d+\+)?([a-z0-9-]+)@users\.noreply\.", re.I)
+
+
+def _forge_login(email: str) -> str:
+    """The account login a forge writes into its per-account no-reply address, as written there:
+    DR-Univer in 68851825+DR-Univer@users.noreply.github.com, or the older login@users.noreply… form.
+    Empty for any other address, and for a bare noreply@ mailbox, which names no account."""
+    m = _FORGE_LOGIN.match(email.strip())
+    return m.group(1) if m and not shared_mailbox(email) else ""
+
+
+def _login_matches(x: dict, y: dict, shared: frozenset) -> bool:
+    """x's forge login is y's one-word name or y's own mailbox: univer's "Univer <68851825+DR-Univer@users.noreply…>"
+    and "DR-Univer <wbfsa@…>" are one account. The handle rule's guards hold: a login written as a given name
+    (Jack) is anyone's, and so is a word that two full names here share; a name matched by the login must not
+    be a given name either."""
+    login = _forge_login(x["email"])
+    if not login or _given(login) or login.lower() in shared:
+        return False
+    login = login.lower()
+    ny = _plain(y["name"])
+    if ny == login and " " not in ny and not _given(y["name"]):
+        return True
+    return not shared_mailbox(y["email"]) and y["email"].strip().lower().rpartition("@")[0] == login
+
+
 def same_person(a: dict, b: dict, shared: frozenset = frozenset()) -> bool:
     """Same email, unless it is a shared_mailbox; two shared name tokens; the same name spelled identically (a handle such as KaKa
     under three emails), unless that name is one word that two full names here share or that is written
     as a given name; or a one-word handle that is one distinctive word of the other's fuller name
     (junegunn and Junegunn Choi), a given name excepted, and a handle that is the fuller name's first word only
-    when an address ties them too (_linked). `shared` is shared_words over the whole history,
+    when an address ties them too (_linked); or a forge's per-account no-reply address whose login is the
+    other's one-word name or mailbox (_login_matches). `shared` is shared_words over the whole history,
     which merge passes. A bare first name under another email is left apart: flink's three Jacks are
     three people, and nothing in the name says which of them a fuller name is."""
     if a["email"].lower() == b["email"].lower() and not shared_mailbox(a["email"]):
+        return True
+    if _login_matches(a, b, shared) or _login_matches(b, a, shared):
         return True
     ta, tb = _tokens(a["name"]), _tokens(b["name"])
     if len(ta & tb) >= 2:
@@ -140,7 +169,8 @@ def _keys(i: dict) -> set:
     """Every value same_person can match two identities on: two identities that share none of these
     cannot be the same person, so merge compares only identities that share one. The email; each name
     token (two shared tokens, and a one-word handle that is a token of the other's name); the name as
-    written; the name run together; and initial-plus-surname, from a full name and from a handle."""
+    written; the name run together; initial-plus-surname, from a full name and from a handle; and a login,
+    from a forge's no-reply address on one side and from a one-word name or a mailbox on the other."""
     plain = _plain(i["name"])
     keys = {("email", i["email"].lower()), ("plain", plain), ("squash", _squash(i["name"]))}
     keys |= {("token", t) for t in _tokens(i["name"])}
@@ -149,6 +179,11 @@ def _keys(i: dict) -> set:
         keys.add(("initial", words[0][0] + words[-1]))
     elif plain:
         keys.add(("initial", plain))
+        keys.add(("login", plain))
+    if _forge_login(i["email"]):
+        keys.add(("login", _forge_login(i["email"]).lower()))
+    if "@" in i["email"] and not shared_mailbox(i["email"]):
+        keys.add(("login", i["email"].strip().lower().rpartition("@")[0]))
     return keys
 
 
