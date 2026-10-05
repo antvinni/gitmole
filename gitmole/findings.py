@@ -1221,7 +1221,12 @@ def _hygiene_updates(h: dict, out: list) -> None:
     up = h.get("updates") or {}
     if up.get("uncovered"):
         names = textfmt.join_and(up["uncovered"])
-        if up.get("tool"):
+        locked = [e for e in up["uncovered"] if e != hygiene.ACTIONS_ECOSYSTEM]
+        if up.get("tool") and len(locked) < len(up["uncovered"]):   # github-actions: the workflows' actions, not a lock file
+            uses = f"{hygiene.ACTIONS_ECOSYSTEM}, whose actions the workflows here use"
+            statement = (f"dependabot.yml covers {textfmt.join_and(up['covered']) or 'nothing'} but not "
+                         + (f"{textfmt.join_and(locked)}, which have lock files here, nor {uses}." if locked else f"{uses}."))
+        elif up.get("tool"):
             statement = f"dependabot.yml covers {textfmt.join_and(up['covered']) or 'nothing'} but not {names}, which have lock files here."
         else:
             statement = f"No dependency update tool is declared for {names}, which have lock files here."

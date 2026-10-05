@@ -150,8 +150,9 @@ in plain words, and what to do first. This page is the reference.
 
    Repository hygiene is read from the clone alone, the checks OpenSSF
    Scorecard and the OSPS Baseline otherwise make through the GitHub API,
-   each rule naming the Scorecard check it stands in for: workflow steps
-   that use an action by tag or branch rather than a full commit SHA (a
+   each rule naming the Scorecard check it stands in for: workflow steps,
+   and the steps of a composite action (an `action.yml` whose `runs:` uses
+   `composite`), that use an action by tag or branch rather than a full commit SHA (a
    warning, whose advice names another account's action before one from
    the account the `origin` remote says the repository lives under, and
    either before GitHub's own `actions/`; within each, a branch-shaped ref
@@ -171,6 +172,8 @@ in plain words, and what to do first. This page is the reference.
    `ext-*`), a `Pipfile` with empty package tables (`lockfiles.nothing_to_lock`
    in `hygiene.json` names them; a `Gemfile` is Ruby and is not read); the
    ecosystems with a tracked lock file that `dependabot.yml` does not cover,
+   and `github-actions` when it leaves that out while a workflow or composite
+   action uses another repository's action, pinned or not,
    or no update tool at all (Renovate covers every manager by itself); no
    licence file, no `SECURITY.md` (at the root, in `.github/` or `docs/`,
    or a heading about security in the README or CONTRIBUTING, such as

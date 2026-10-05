@@ -1260,6 +1260,11 @@ class Hygiene(unittest.TestCase):
         self.assertIn("dependabot.yml covers npm but not gomod and pip", f["detail"])
         f = self.by_id(self.h(updates={"tool": None, "covered": [], "uncovered": ["npm"]}))["dependency_updates"]
         self.assertIn("No dependency update tool is declared for npm", f["detail"])
+        f = self.by_id(self.h(updates={"tool": "dependabot", "covered": ["npm"], "uncovered": ["github-actions"]}))["dependency_updates"]
+        self.assertIn("dependabot.yml covers npm but not github-actions, whose actions the workflows here use.", f["detail"])
+        self.assertIn("package-ecosystem entry for github-actions", f["advice"])
+        f = self.by_id(self.h(updates={"tool": "dependabot", "covered": ["npm"], "uncovered": ["gomod", "github-actions"]}))["dependency_updates"]
+        self.assertIn("dependabot.yml covers npm but not gomod, which have lock files here, nor github-actions, whose actions the workflows here use.", f["detail"])
 
     def test_policy_files(self):
         f = self.by_id(self.h(presence={"license": None, "security_policy": None, "codeowners": ".github/CODEOWNERS", "codeowners_missing": ["/gone/"]}))["repo_policy"]

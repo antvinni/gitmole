@@ -144,6 +144,25 @@ jobs:
         self.assertEqual({v[3] for v in self.rows("jobs:\n  t:\n    steps:\n      - uses: o/a@v1\n").values()}, {False},
                          "no permissions declared: what the token can do is the repository's setting, which the files do not say")
 
+    def test_a_composite_action_is_read_like_a_workflow_and_other_action_files_are_not(self):
+        composite = ("name: setup\nruns:\n  using: composite\n  steps:\n    - uses: pnpm/setup@v2\n      with:\n        install: false\n"
+                     "    - uses: actions/cache/restore@" + "c" * 40 + "\n    - run: echo ${{ github.event.issue.title }}\n      shell: bash\n")
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write(".github/workflows/ci.yml", "jobs:\n  t:\n    steps:\n      - uses: ./.github/actions/setup\n")
+            r.write(".github/actions/setup/action.yml", composite)
+            r.write("action.yaml", composite.replace("pnpm/setup@v2", "o/root@main"))
+            r.write("js/action.yml", "name: js\nruns:\n  using: node20\n  main: index.js\nuses: o/never@v1\n")
+            r.write("tests/fixtures/action.yml", composite.replace("pnpm/setup@v2", "o/fixture@v1"))
+            r.write("docs/action.yml.md", composite)
+            r.commit()
+            out = hygiene.actions_pinning(d)
+        self.assertEqual([(u["file"], u["uses"], u["line"], u["ref"]) for u in out["unpinned"]],
+                         [(".github/actions/setup/action.yml", "pnpm/setup@v2", 5, "version"), ("action.yaml", "o/root@main", 5, "branch")],
+                         "a JavaScript action has no steps; a test fixture is a specimen")
+        self.assertEqual((out["pinned"], out["local"]), (2, 1))
+        self.assertEqual(out["injection_count"], 0, "workflow_shapes reads workflows only: a composite action has no trigger of its own")
+
 
 PWN = """name: preview
 on:
@@ -409,6 +428,34 @@ class DependencyUpdates(unittest.TestCase):
             r.git("rm", "-q", "renovate.json", ".github/dependabot.yml")
             r.commit()
             self.assertEqual(hygiene.dependency_updates(d), {"tool": None, "covered": [], "uncovered": ["gomod", "npm", "pip"]})
+
+    def test_github_actions_is_uncovered_only_when_a_dependabot_yml_leaves_it_out(self):
+        # univer: dependabot.yml declares npm alone while eight workflows and a composite action use remote actions
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
+            r.write(".github/workflows/ci.yml", "jobs:\n  t:\n    steps:\n      - uses: ./.github/actions/setup\n      - uses: docker://alpine:3\n")
+            r.write(".github/dependabot.yml", "version: 2\nupdates:\n  - package-ecosystem: npm\n    directory: /\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], [], "a local action and a docker image are not github-actions'")
+            r.write(".github/actions/setup/action.yml", "runs:\n  using: composite\n  steps:\n    - uses: actions/cache@" + "a" * 40 + "\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d), {"tool": "dependabot", "covered": ["npm"], "uncovered": ["github-actions"]},
+                             "a SHA pin in a composite action needs updating too")
+            r.write("go.sum", "\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], ["gomod", "github-actions"], "after the lock files' ecosystems")
+            r.write(".github/dependabot.yml", "version: 2\nupdates:\n  - package-ecosystem: npm\n  - package-ecosystem: 'github-actions'\n  - package-ecosystem: gomod\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], [])
+            r.write("renovate.json", "{}\n")
+            r.git("rm", "-q", ".github/dependabot.yml")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], [], "renovate's github-actions manager is on by default")
+            r.git("rm", "-q", "renovate.json")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d), {"tool": None, "covered": [], "uncovered": ["gomod", "npm"]},
+                             "with no tool at all the lock files already say so; github-actions is not added")
 
 
 class Presence(unittest.TestCase):
