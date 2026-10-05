@@ -804,6 +804,46 @@ class FromTheSuperpowersExport(unittest.TestCase):
         old = ["Secrets: none found", "Dependencies: 1 ", "packages in 1 lock file, none vulnerable"]
         self.assertEqual([c["subject"] for c in self.complaints(old)], ["'1 packages' (1x)"], "the drawing before A10 is read as it was")
 
+    def test_one_followed_by_a_plural_in_a_header_and_findings_without_their_boxes(self):
+        """The header and the Findings as the output plan's item A11 draws them: a title line over a label grid,
+        and a title line over entries that each start at column 1 with their mark. A phrase the wrap split is
+        still read, within a header row and within an entry; a header row that ends in a number does not count
+        the label of the row after it; and a table is still read a line at a time."""
+        bare = ["demo · branch main @ 296080c0",
+                "  history   21 commits · 2026-01-01 → 2026-09-01 · 1",
+                "            identities",
+                "  code      5,421 lines · Python · 23% surviving from 1",
+                "  commits   16% are fixes · 84 reverts",
+                "  left out  1 sweeping",
+                "            commits, not counted in churn",
+                "",
+                "Findings · 1 warning ▲ · 1 note ●",
+                "▲ Vulnerable dependencies",
+                "  osv-scanner checked 1",
+                "  packages in 1 lock file. By lock file:",
+                "    go.mod: 1",
+                "      places, no fix published",
+                "  ↳ Upgrade it first; it is in 1",
+                "    lock files.",
+                "● Bug magnets (not measured yet): 1",
+                "  files were fixed 3 or more times",
+                "",
+                "◎ Watch list · 1 of 1, ranked by changes × lines of code",
+                "  file  changes",
+                "  ─────────────",
+                "  a.py        1",
+                "  files hidden: none",
+                "",
+                "Supply chain",
+                "  secrets       none found"]
+        self.assertEqual(sorted(c["subject"] for c in self.complaints(bare)),
+                         ["'1 files' (1x)", "'1 identities' (1x)", "'1 lock files' (1x)", "'1 packages' (1x)", "'1 places' (1x)"])
+        fine = ["demo", "  history   1 commit · 1 identity · 1", "  files     1 tracked", "", "Findings · 1 note ●", "● One (not measured yet): 1",
+                "● files is the next entry's first word", "", "Nothing here is a table:", "  the count is 1", "  files in all"]
+        self.assertEqual(self.complaints(fine), [], "a row's last number, and an entry's, is not the next one's count; nor is a table line's")
+        boxed = ["╭─ demo ──╮", "│ history   1 │", "│ commits │", "╰─────────╯", "╭─ Findings ─╮", "│ ▲ checked 1 │", "│   packages  │", "╰────────────╯"]
+        self.assertEqual(sorted(c["subject"] for c in self.complaints(boxed)), ["'1 commits' (1x)", "'1 packages' (1x)"], "the boxes are read as they were")
+
     def complaints(self, lines):
         with mock.patch.object(consistency, "_default_report", return_value=lines):
             return consistency.plural_one(report(), [])
