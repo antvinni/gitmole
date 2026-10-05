@@ -71,6 +71,44 @@ def repo_name(target: str) -> str:
     return tail[:-4] if tail.endswith(".git") else tail
 
 
+_DECLARERS = (("package.json", "name"), ("Cargo.toml", "name"), ("pyproject.toml", "name"), ("go.mod", "module"))
+
+
+def declared_name(repo_dir: str) -> dict:
+    """The name the repository's root manifest gives the project, as tracked at HEAD: package.json's "name"
+    without its @scope, Cargo.toml's [package] name, pyproject.toml's [project] (or [tool.poetry]) name, or the
+    last segment of go.mod's module path (a /vN major-version suffix skipped). {"name", "file", "field"}, the
+    first manifest in that order that declares one; {} when none does. What the repository says about itself,
+    not the directory it was cloned into."""
+    from .licences import _toml_value
+    for path, field in _DECLARERS:
+        done = subprocess.run(["git", "cat-file", "blob", f"HEAD:{path}"], cwd=repo_dir, capture_output=True)
+        if done.returncode != 0:
+            continue
+        text = done.stdout.decode("utf-8", "replace")
+        name = None
+        if path == "package.json":
+            try:
+                data = json.loads(text)
+            except ValueError:
+                data = None
+            name = data.get("name") if isinstance(data, dict) and isinstance(data.get("name"), str) else None
+            name = name.rpartition("/")[2] if name and name.startswith("@") else name
+        elif path == "Cargo.toml":
+            name = _toml_value(text, "package", "name")
+        elif path == "pyproject.toml":
+            name = _toml_value(text, "project", "name") or _toml_value(text, "tool.poetry", "name")
+        else:
+            m = re.search(r"^\s*module\s+\"?([^\s\"]+)", text, re.M)
+            segments = [s for s in m.group(1).split("/") if s] if m else []
+            if len(segments) > 1 and re.fullmatch(r"v\d+", segments[-1]):
+                segments.pop()
+            name = segments[-1] if segments else None
+        if name and name.strip():
+            return {"name": name.strip(), "file": path, "field": field}
+    return {}
+
+
 def output_dir(kind: str, repo_dir: str, explicit, cwd: str = None, scope=()) -> str:
     """--out as given, or analysis-<repo> beside the clone (in cwd for a remote target); a --path run gets
     the directories in the name too, so it never overwrites, or is re-rendered as, the whole repository's."""
@@ -624,6 +662,8 @@ def collect_meta(repo_dir: str, since: str = None, scope=()) -> dict:
         "bots": [{"name": n, "commits": c} for n, c in sorted(bots.items(), key=lambda kv: (-kv[1], kv[0]))],
         "aliases": aliases,
     }
+    if (declared := declared_name(repo_dir)):
+        meta["declared"] = declared   # the root manifest's project name: render captions an owner named like it
     # a trailer naming the commit's own author under another alias (a second address in their own trailer)
     # is one person writing their commit once, not a co-author: its credit comes off the identity it merged into
     selves = Counter((n, e) for (d, n, e), by in zip(co_rows, co_by)

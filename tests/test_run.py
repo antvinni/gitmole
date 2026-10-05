@@ -573,6 +573,34 @@ class Execute(unittest.TestCase):
 
 
 class CollectMeta(unittest.TestCase):
+    def test_the_root_manifest_declares_the_project_name(self):
+        def repo(files, d):
+            env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null", GIT_AUTHOR_NAME="A",
+                       GIT_AUTHOR_EMAIL="a@x", GIT_COMMITTER_NAME="A", GIT_COMMITTER_EMAIL="a@x")
+            subprocess.run(["git", "init", "-q", "-b", "main", d], check=True, env=env)
+            for path, text in files.items():
+                with open(os.path.join(d, path), "w") as fh:
+                    fh.write(text)
+            if files:
+                subprocess.run(["git", "add", *files], cwd=d, check=True, env=env)
+            subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "x"], cwd=d, check=True, env=env)
+        cases = [({"package.json": '{"name": "@univerjs/univer", "private": true}'}, {"name": "univer", "file": "package.json", "field": "name"}),
+                 ({"Cargo.toml": '[workspace]\nname = "no"\n[package]\nname = "tokio"\n'}, {"name": "tokio", "file": "Cargo.toml", "field": "name"}),
+                 ({"pyproject.toml": '[tool.poetry]\nname = "demo"\n'}, {"name": "demo", "file": "pyproject.toml", "field": "name"}),
+                 ({"go.mod": "module github.com/etcd-io/etcd/v3\n\ngo 1.22\n"}, {"name": "etcd", "file": "go.mod", "field": "module"}),
+                 ({"package.json": '{"private": true}', "go.mod": "module coredns\n"}, {"name": "coredns", "file": "go.mod", "field": "module"}),
+                 ({"package.json": "not json"}, {}), ({}, {})]
+        for files, want in cases:
+            with tempfile.TemporaryDirectory() as d:
+                repo(files, d)
+                self.assertEqual(run.declared_name(d), want, files)
+                self.assertEqual(run.collect_meta(d).get("declared"), want or None)
+        with tempfile.TemporaryDirectory() as d:
+            repo({}, d)
+            with open(os.path.join(d, "package.json"), "w") as fh:
+                fh.write('{"name": "untracked"}')
+            self.assertEqual(run.declared_name(d), {}, "what HEAD tracks, not a file lying in the working tree")
+
     def test_an_author_name_that_is_not_utf8_does_not_abort_the_run(self):
         # laravel/framework has a commit whose author name holds a raw 0xf8 byte; git prints it as is.
         # Built from raw bytes: git re-encodes a name that comes through the environment.
