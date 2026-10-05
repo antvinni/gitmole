@@ -45,9 +45,9 @@ Findings · 2 notes ●
   signing       no commits signed
   checked, ok   3 files free of bidi and mixed-script characters (hygiene.json)
 
---full shows the hidden rows and adds 9 sections: Watch list by component, Hotspots,
-Size by language, Timeline, Activity, Surviving code by year written, Changed lines,
-Signing by year, OSPS Baseline (4 gaps, 1 not seen, of 10).
+--full adds 10 sections: Watch list by component, Hotspots, Size by language, Timeline, Activity,
+Surviving code by year, Changed lines, Signing by year, Checks run, OSPS Baseline (4 gaps, 1 not
+seen, of 10). --section NAME prints one whole.
 15 of 18 steps ran; --plots runs the other 3 (code survival, 2 plots).
 gitmole DIR --no-run --full re-renders this run, DIR being the path below.
 <out>
