@@ -73,9 +73,27 @@ report as a reader sees it, or the clone, and none asks the function it judges:
   that counts episodes; the rule does not exist yet.
 - plural_one: "1 packages", "1 files" in the default report.
 
+A sixth set came from ten reviewers reading the 0.44.0 report of dream-num/univer, a pnpm monorepo, where the
+one critical and the lock drift, Trojan Source and identity findings were false (h1 to h7 of the review's plan).
+Each reads the evidence itself and never calls the function it judges; the first three complain both ways, of a
+claim the evidence does not bear out and of evidence no claim was made for:
+
+- drift_specifiers_agree / drift_unclaimed (h1): lock drift on a manifest whose specifiers all equal its pnpm
+  lock's `importers` entry; a member whose specifiers differ with no drift claimed.
+- private_critical / published_demoted (h2): a critical whose only deploy evidence is the entry point of a
+  `"private": true` package; a row a published member's runtime dependencies reach, shown below a warning.
+- trojan_inert / trojan_missed (h3): a mixed-script token only in a comment, a character-class range or a literal
+  of the other script's prose; a mixed identifier outside those that no row names.
+- noreply_split (h4): `<id>+<login>@users.noreply.<forge>` on one identity, `login` another's one-word name.
+- action_order (h5): the pinning advice's first action against trust tier, branch-shaped ref, secrets or grants.
+- split_density (h6): "Split" advised for a file whose complexity per line rose less than the growth floor.
+- locale_magnet (h7): bug-magnet rows that are locale files by their name's shape.
+
+h6 and h7 share their condition with the fixes the review planned, so they record agreement, not proof.
+
 tree_claim, sweeping_evidence, the second set but agent_owner, merge_total, the paperclip checks named above
-that read files, and lock_declares_nothing, contributing_heading, unscored_executable, dead_import and
-fix_episode need the clone, read at the commit the
+that read files, and lock_declares_nothing, contributing_heading, unscored_executable, dead_import,
+fix_episode and h1, h2, h3 and h5 need the clone, read at the commit the
 run recorded and never checked out; the rest need nothing but the JSON export. A complaint is a defect, not a score - the number to
 want is zero.
 
@@ -1008,11 +1026,13 @@ def _pnpm(text: str) -> tuple:
     return importers, graph
 
 
-def _reach(importers: dict, graph: dict, groups: tuple) -> set:
-    """The name@version (peer suffixes dropped) every importer reaches from its `groups`; a workspace link is
-    followed into that importer's runtime dependencies."""
+def _reach(importers: dict, graph: dict, groups: tuple, roots=None) -> set:
+    """The name@version (peer suffixes dropped) every importer (or each of `roots`) reaches from its `groups`;
+    a workspace link is followed into that importer's runtime dependencies."""
     seen, todo, out = set(), [], set()
     for imp, g in importers.items():
+        if roots is not None and imp not in roots:
+            continue
         for group in groups:
             todo += [(imp, n, v) for n, v in g.get(group) or []]
     while todo:
@@ -1659,14 +1679,575 @@ def plural_one(report: dict, found: list) -> list:
     return [_complaint("plural_one", None, f"'{phrase}' ({seen.count(phrase)}x)") for phrase in sorted(set(seen))]
 
 
+# --- the checks the 0.44.0 review of a pnpm monorepo added (dream-num/univer) --------------------------------
+#
+# h1 to h7 of that review's plan. Each reads the lock, the manifests, the workflows, the identities or the trend
+# samples itself, and none calls the function it judges (hygiene._locked_part, deps.deploys, locks.pnpm_runtime,
+# hygiene.trojan_source, identity.same_person, findings._action_trust, findings.magnet_rows). Where the plan asks,
+# a check is two-sided: it complains of a claim the evidence does not bear out and of evidence no claim was made
+# for, so a change that deletes a finding outright does not turn it green.
+
+_PNPM_GROUPS = ("dependencies", "devDependencies", "optionalDependencies")
+
+
+def _override_name(key: str) -> str:
+    """The package an entry of a pnpm `overrides:` map is about: `foo`, `foo@<2`, `bar>foo`, `@s/foo@1`."""
+    key = _unquote(key).rsplit(">", 1)[-1]
+    at = key.find("@", 1)
+    return key[:at] if at > 0 else key
+
+
+def _pnpm_specifiers(text: str) -> tuple:
+    """({importer: {(group, name): specifier}}, the names the lock's `overrides:` lists), read by indentation.
+    Lock files v6 and v9 write a `specifier:` under each dependency of an importer; v5 writes one `specifiers:`
+    block per importer, read here with the group '*'. A v10 lock's first YAML document (`packageManagerDependencies`)
+    has no group this reads."""
+    out, overridden = {}, set()
+    section = cur = group = dep = None
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        ind = len(line) - len(line.lstrip(" "))
+        if ind == 0:
+            section, cur, group, dep = _yaml_key(s)[0], None, None, None
+            continue
+        if section == "overrides" and ind == 2:
+            overridden.add(_override_name(_yaml_key(s)[0]))
+        elif section in _PNPM_GROUPS + ("specifiers",):   # a lock without a workspace (v5, v6): one importer, at the top
+            here = out.setdefault(".", {})
+            if ind == 2:
+                dep, value = _yaml_key(s)
+                if section == "specifiers":
+                    here[("*", dep)] = _unquote(value)
+            elif ind == 4 and section != "specifiers" and s.startswith("specifier:"):
+                here[(section, dep)] = _unquote(s.split(":", 1)[1])
+        elif section == "importers":
+            if ind == 2:
+                cur, group = _yaml_key(s)[0], None
+                out.setdefault(cur, {})
+            elif ind == 4 and cur is not None:
+                group = _yaml_key(s)[0]
+            elif ind == 6 and cur is not None and group:
+                dep, value = _yaml_key(s)
+                if group == "specifiers":
+                    out[cur][("*", dep)] = _unquote(value)
+            elif ind == 8 and cur is not None and group in _PNPM_GROUPS and s.startswith("specifier:"):
+                out[cur][(group, dep)] = _unquote(s.split(":", 1)[1])
+    return out, overridden
+
+
+def _manifest_specifiers(declared: dict, merged: bool) -> dict:
+    out = {}
+    for group in _PNPM_GROUPS:
+        for name, spec in (declared.get(group) or {}).items() if isinstance(declared.get(group), dict) else ():
+            out[("*" if merged else group, name)] = str(spec)
+    return out
+
+
+def _json_at(clone: str, commit: str, path: str):
+    try:
+        data = json.loads(_blob(clone, commit, path) or "null")
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _importer_manifest(lock: str, importer: str) -> str:
+    root = os.path.dirname(lock)
+    member = os.path.normpath(os.path.join(root, importer)).replace(os.sep, "/") if importer not in ("", ".") else root
+    member = "" if member == "." else member
+    return (member + "/" if member else "") + "package.json"
+
+
+def _specifier_diff(clone: str, commit: str, lock: str, importer: str, recorded: dict, overridden: set):
+    """None when the manifest is not at the commit; else the (group, name, manifest's, lock's) that differ."""
+    declared = _json_at(clone, commit, _importer_manifest(lock, importer))
+    if declared is None:
+        return None
+    merged = any(g == "*" for g, _ in recorded)
+    wrote = _manifest_specifiers(declared, merged)
+    keys = sorted(k for k in set(wrote) | set(recorded) if k[1] not in overridden)
+    return [(g, n, wrote.get((g, n)), recorded.get((g, n))) for g, n in keys if wrote.get((g, n)) != recorded.get((g, n))]
+
+
+def _drift_claims(report: dict, found: list):
+    """(the drift rows the lockfile_drift finding counts, whether that list is complete): the run's stored rows,
+    else the finding's, without the ones whose every recorded change the report left out as sweeping."""
+    f = next((f for f in found if (f.get("rule") or {}).get("id") == "lockfile_drift"), None)
+    if f is None:
+        return [], (report.get("hygiene") or {}).get("lockfiles") is not None, None
+    stored = ((report.get("hygiene") or {}).get("lockfiles") or {}).get("drift")
+    rows = stored if isinstance(stored, list) and stored else (f.get("evidence") or {}).get("drift") or []
+    swept = {s["hash"] for s in (report.get("activity") or {}).get("sweeping") or [] if s.get("hash")}
+
+    def counted(d):
+        changes = [c.get("commit") for c in d.get("changes") or [] if c.get("commit")]
+        return not changes or not all(any(c.startswith(h) or h.startswith(c) for h in swept) for c in changes)
+    rows = [d for d in rows if counted(d)]
+    count = (f.get("evidence") or {}).get("count") or len(rows)
+    return rows, len(rows) >= count, f
+
+
+def pnpm_specifiers(report: dict, found: list, clone: str, commit: str) -> list:
+    """h1, both ways, for pnpm locks: a manifest the drift finding says changed after its lock while every
+    specifier it declares equals the one the lock's `importers` entry records (univer's 82, all release version
+    bumps: pnpm does not record a package's own version), and a member whose specifiers differ from the lock's
+    with no drift claimed. The second side is judged only when the claims are all stored."""
+    claims, complete, f = _drift_claims(report, found)
+    out, cache = [], {}
+
+    def lock_of(lock):
+        if lock not in cache:
+            cache[lock] = _pnpm_specifiers(_blob(clone, commit, lock))
+        return cache[lock]
+    claimed = set()
+    for d in claims:
+        lock, manifest = d.get("lockfile") or "", d.get("manifest") or ""
+        claimed.add((lock, manifest))
+        if os.path.basename(lock) != "pnpm-lock.yaml":
+            continue
+        importers, overridden = lock_of(lock)
+        importer = next((i for i in importers if _importer_manifest(lock, i) == manifest), None)
+        if importer is None:
+            continue
+        diff = _specifier_diff(clone, commit, lock, importer, importers[importer], overridden)
+        if diff == []:
+            out.append(_complaint("drift_specifiers_agree", f, f"{manifest}: drift claimed, every specifier equals {lock}'s"))
+    if not complete:
+        return out
+    for lock in sorted(p for p in _in_head(clone, commit) if os.path.basename(p) == "pnpm-lock.yaml" and "node_modules/" not in p):
+        importers, overridden = lock_of(lock)
+        for importer in sorted(importers):
+            manifest = _importer_manifest(lock, importer)
+            if (lock, manifest) in claimed:
+                continue
+            diff = _specifier_diff(clone, commit, lock, importer, importers[importer], overridden)
+            if diff:
+                g, n, mine, theirs = diff[0]
+                out.append(_complaint("drift_unclaimed", f, f"{manifest}: {len(diff)} specifier(s) differ from {lock} "
+                                                            f"(e.g. {n}: {mine!r} declared, {theirs!r} locked); no drift claimed"))
+    return out
+
+
+_ENTRY_POINT = re.compile(r"^(\S*package\.json) \S+$")
+
+
+def _private(clone: str, commit: str, manifest: str) -> bool:
+    return ((_json_at(clone, commit, manifest) or {}).get("private")) is True
+
+
+def private_vulns(report: dict, found: list, clone: str, commit: str) -> list:
+    """h2, both ways. A critical vulnerable-dependencies finding whose every deploy declaration is an entry point
+    of a package.json that declares `"private": true` (univer's common/shared bin: a private package is never
+    published, so its `bin` ships nothing). And a row of a pnpm lock that this check's own walk reaches from the
+    runtime dependencies of a member that is not private, shown as development-only or in a note: whatever a
+    fix demotes, a published member's runtime dependency stays at a warning or above."""
+    out = []
+    for f in found:
+        if (f.get("rule") or {}).get("id") != "vulnerable_dependencies" or f.get("severity") != "critical":
+            continue
+        deploys = sorted({d for r in (f.get("evidence") or {}).get("packages") or [] for d in r.get("deploys") or []})
+        manifests = [_ENTRY_POINT.match(d) for d in deploys]
+        if deploys and all(m and _private(clone, commit, m.group(1)) for m in manifests):
+            out.append(_complaint("private_critical", f, f"critical on deploy evidence that is all private: {', '.join(deploys)}"))
+    sev = {}
+    for f in found:
+        if ((f.get("rule") or {}).get("id") or "").startswith("vulnerable_dependencies"):
+            for r in (f.get("evidence") or {}).get("packages") or []:
+                sev.setdefault((r.get("source"), r.get("name"), r.get("version")), (f.get("severity"), f))
+    rows = [r for r in (report.get("dependencies") or {}).get("vulnerable") or [] if (r.get("source") or "").endswith("pnpm-lock.yaml")]
+    reach = {}
+    for r in rows:
+        lock = r["source"]
+        if lock not in reach:
+            importers, graph = _pnpm(_blob(clone, commit, lock))
+            published = {i for i in importers if (_json_at(clone, commit, _importer_manifest(lock, i)) or {"private": True}).get("private") is not True}
+            reach[lock] = _reach(importers, graph, ("dependencies", "optionalDependencies"), roots=published)
+        if f"{r.get('name')}@{r.get('version')}" not in reach[lock]:
+            continue
+        shown, f = sev.get((lock, r.get("name"), r.get("version")), (None, None))
+        if r.get("runtime") is False:
+            out.append(_complaint("published_demoted", f, f"{r['name']} {r.get('version')} in {lock}: a published member's runtime dependency, said to be development-only"))
+        elif shown and shown not in GATED:
+            out.append(_complaint("published_demoted", f, f"{r['name']} {r.get('version')} in {lock}: a published member's runtime dependency, shown as {shown}"))
+    return out
+
+
+# the harness's own copy of the letters of Cyrillic, Greek and Armenian that pass for Latin ones (UTS #39)
+_LOOKS_LATIN = set("аеорсухіјѕһԁӏүАВЕКМНОРСТХІЈЅҮοανριγυΑΒΕΖΗΙΚΜΝΟΡΤΥΧօսհոցզ")
+_C_FAMILY = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".java", ".c", ".h", ".cc", ".cpp", ".hpp", ".cs", ".go",
+             ".rs", ".swift", ".kt", ".kts", ".scala", ".php", ".dart", ".m", ".mm", ".groovy"}
+_HASH_FAMILY = {".py", ".rb", ".sh", ".bash", ".pl", ".r", ".yml", ".yaml", ".toml"}
+_REGEX_BEFORE = set("(,=:[!&|?{};+-*%<>~^") | {""}
+
+
+def _lex(text: str, ext: str) -> list:
+    """(start, end, kind) of every comment, string and regular-expression literal of a file, kind one of
+    'comment', 'string', 'regex': a small lexer of its own for the C family (with template literals and
+    JavaScript regex literals) and the `#` family, enough to say where a token sits, not to parse."""
+    spans, i, n = [], 0, len(text)
+    cfam, hfam = ext in _C_FAMILY, ext in _HASH_FAMILY
+    js = ext in {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts"}
+    stack, last = [], ""   # open `${` of template literals (brace depth each); the last significant code character
+
+    def string_end(j, q):
+        while j < n:
+            c = text[j]
+            if c == "\\":
+                j += 2
+                continue
+            if c == q or (c == "\n" and q != "`" and len(q) == 1):
+                return j + 1
+            if q == "`" and text.startswith("${", j):
+                return j
+            if len(q) == 3 and text.startswith(q, j):
+                return j + 3
+            j += 1
+        return n
+    while i < n:
+        c = text[i]
+        if cfam and text.startswith("//", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            spans.append((i, j, "comment"))
+            i = j
+        elif cfam and text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            spans.append((i, j, "comment"))
+            i = j
+        elif hfam and c == "#":
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            spans.append((i, j, "comment"))
+            i = j
+        elif c in "'\"" or (c == "`" and cfam):
+            q = text[i:i + 3] if ext == ".py" and text[i:i + 3] in ('"""', "'''") else c
+            j = string_end(i + len(q), q)
+            spans.append((i, j, "string"))
+            if q == "`" and text.startswith("${", j):
+                stack.append(0)
+                j += 2
+            i, last = j, '"'
+        elif js and c == "/" and (last in _REGEX_BEFORE or re.search(r"\b(?:return|typeof|case|in|of|void|delete)\s*$", text[max(0, i - 12):i])):
+            j, cls = i + 1, False
+            while j < n and text[j] != "\n":
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == "[":
+                    cls = True
+                elif text[j] == "]":
+                    cls = False
+                elif text[j] == "/" and not cls:
+                    break
+                j += 1
+            spans.append((i, min(j + 1, n), "regex"))
+            i, last = j + 1, "/"
+        elif stack and c == "{":
+            stack[-1] += 1
+            i, last = i + 1, c
+        elif stack and c == "}":
+            if stack[-1] == 0:   # the end of a `${…}`: the template literal goes on
+                stack.pop()
+                j = string_end(i + 1, "`")
+                spans.append((i, j, "string"))
+                if text.startswith("${", j):
+                    stack.append(0)
+                    j += 2
+                i, last = j, '"'
+            else:
+                stack[-1] -= 1
+                i, last = i + 1, c
+        else:
+            if not c.isspace():
+                last = c if not (c.isalnum() or c in "_$") else "a"
+            i += 1
+    return spans
+
+
+def _scripts_of(token: str) -> set:
+    import unicodedata
+    out = set()
+    for ch in token:
+        if ch.isalpha():
+            try:
+                out.add(unicodedata.name(ch).split()[0])
+            except ValueError:
+                pass
+    return out
+
+
+def _inert(text: str, spans: list, at: int, token: str):
+    """Why a mixed-script token at offset `at` is no identifier, or None: it sits in a comment; it is the end of
+    a range in a character class (`[A-Za-zА-Яа-я]`, read as `zА`); or it sits in a literal that also holds a whole
+    word written in the token's other script (Russian prose naming ZТЕСТ). A literal holding only the token
+    (`"аdmin"`) is not inert: a homoglyph compared against is the attack."""
+    span = next((s for s in spans if s[0] <= at < s[1]), None)
+    if span is None:
+        return None
+    kind = span[2]
+    if kind == "comment":
+        return "in a comment"
+    inside = text[span[0]:at]
+    if inside.rfind("[") > inside.rfind("]") and "-" in (text[at - 1:at], text[at + len(token):at + len(token) + 1]):
+        return "a character-class range"
+    if kind == "string":
+        other = _scripts_of(token) - {"LATIN"}
+        for word in re.findall(r"[^\W\d_]+", text[span[0]:span[1]]):
+            if word != token and len(word) >= 2 and _scripts_of(word) and _scripts_of(word) <= other:
+                return f"in a literal that holds the word {word!r}"
+    return None
+
+
+def _occurrences(text: str, line: int, token: str) -> list:
+    starts = [0] + [m.end() for m in re.finditer("\n", text)]
+    if not 0 < line <= len(starts):
+        return []
+    base = starts[line - 1]
+    end = starts[line] if line < len(starts) else len(text)
+    return [base + m.start() for m in re.finditer(r"(?<!\w)" + re.escape(token) + r"(?!\w)", text[base:end])]
+
+
+_MIXED_CANDIDATE = r"[\x{0370}-\x{03FF}\x{0400}-\x{052F}\x{0530}-\x{058F}]"
+
+
+def trojan_tokens(report: dict, found: list, clone: str, commit: str) -> list:
+    """h3, both ways, by this check's own lexer. A mixed-script token the trojan_source finding counts that sits
+    only where it cannot be an identifier: a comment, a character-class range, a literal that holds whole words
+    of the token's other script (univer's three). And a token in code that mixes Latin with look-alike letters
+    of another script, in a source file outside tests, vendored and generated code, that no stored row names: the
+    finding must still fire on `pаssword = 1`. The second side is judged only when every row is stored."""
+    trojan = (report.get("hygiene") or {}).get("trojan")
+    if not isinstance(trojan, dict):
+        return []
+    f = next((f for f in found if (f.get("rule") or {}).get("id") == "trojan_source"), None)
+    rows = trojan.get("mixed_script") or []
+    texts, lexed, out = {}, {}, []
+
+    def read(path):
+        if path not in texts:
+            texts[path] = _blob(clone, commit, path)
+            lexed[path] = _lex(texts[path], os.path.splitext(path)[1].lower())
+        return texts[path], lexed[path]
+    for r in rows if f else ():
+        text, spans = read(r.get("file") or "")
+        at = _occurrences(text, int(r.get("line") or 0), r.get("token") or "")
+        why = [_inert(text, spans, a, r["token"]) for a in at]
+        if at and all(why):
+            out.append(_complaint("trojan_inert", f, f"{r['token']} at {r['file']}:{r['line']}: {why[0]}"))
+    if len(rows) < (trojan.get("mixed_script_count") or 0):
+        return out
+    meta = report.get("meta") or {}
+    declared = [p for key in ("generated", "vendored") for p in meta.get(key) or [] if isinstance(p, str)]
+    named = {(r.get("file"), r.get("line")) for r in rows}
+    done = _git(clone, "grep", "-n", "-I", "-P", "-e", _MIXED_CANDIDATE, commit, "--")
+    for hit in done.stdout.splitlines():
+        parts = hit.split(":", 3)
+        if len(parts) < 4 or not parts[2].isdigit():
+            continue
+        path, line = parts[1], int(parts[2])
+        ext = os.path.splitext(path)[1].lower()
+        if ext not in _C_FAMILY | _HASH_FAMILY - {".yml", ".yaml", ".toml"} or _set_aside(path, declared) \
+                or "docs" in path.split("/")[:-1] or (path, line) in named:
+            continue
+        for token in re.findall(r"\w+", parts[3]):
+            other = [ch for ch in token if ch.isalpha() and not ch.isascii()]
+            if not other or not any(ch.isascii() and ch.isalpha() for ch in token) or not all(ch in _LOOKS_LATIN for ch in other):
+                continue
+            text, spans = read(path)
+            if any(_inert(text, spans, a, token) is None and not any(s[0] <= a < s[1] for s in spans if s[2] != "string")
+                   for a in _occurrences(text, line, token)):
+                out.append(_complaint("trojan_missed", f, f"{token} at {path}:{line}: outside comments, regexes and prose literals, and no row names it"))
+                break
+    return out
+
+
+_FORGE_LOGIN = re.compile(r"^(?:\d+\+)?([A-Za-z0-9][A-Za-z0-9-]*)@users\.noreply\.", re.I)
+
+
+def noreply_split(report: dict, found: list) -> list:
+    """h4: two identities left apart although one's forge address is the other's account: `<id>+<login>@users.
+    noreply.<forge>` belongs to one identity and `login` is another's one-word name (univer's "Univer" at
+    68851825+DR-Univer@… and "DR-Univer"). Read by this regex over the identities and their aliases, never
+    by identity.same_person."""
+    ids = (report.get("meta") or {}).get("identities") or []
+    by_name = {}
+    for i in ids:
+        name = i.get("name") or ""
+        if name and not re.search(r"\s", name):
+            by_name.setdefault(name.casefold(), set()).add(name)
+    out, seen = [], set()
+    for i in ids:
+        for _, email in _addresses(i):
+            m = _FORGE_LOGIN.match(email or "")
+            if not m:
+                continue
+            for other in sorted(by_name.get(m.group(1).casefold(), ())):
+                pair = tuple(sorted((i.get("name"), other)))
+                if other != i.get("name") and pair not in seen:
+                    seen.add(pair)
+                    out.append(_complaint("noreply_split", None, f"{i.get('name')} <{email}> and {other}: the address's login is the other identity's name"))
+    return out
+
+
+_VERSION_REF = re.compile(r"^v?\d+(?:\.\d+)*$")
+_FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+_GRANT = re.compile(r"\b(?:id-token|contents)\s*:\s*write\b|\bwrite-all\b")
+
+
+def _block(lines: list, at: int) -> list:
+    """The lines under the key on line `at`: its inline value and every deeper line after it."""
+    ind = len(lines[at]) - len(lines[at].lstrip(" "))
+    out = [lines[at].split(":", 1)[1] if ":" in lines[at] else ""]
+    for ln in lines[at + 1:]:
+        if ln.strip() and not ln.strip().startswith("#") and len(ln) - len(ln.lstrip(" ")) <= ind:
+            break
+        out.append(ln)
+    return out
+
+
+def _no_comments(lines: list) -> str:
+    return "\n".join(l.split(" #", 1)[0] for l in lines if not l.strip().startswith("#"))
+
+
+def _workflow_steps(text: str) -> list:
+    """(uses, secrets, grants) for each step of a workflow that uses an action: secrets when the step or its
+    job's env: reads `secrets.`, grants when the workflow's or the job's permissions give id-token or contents
+    write, or write-all."""
+    lines = text.splitlines()
+    code = lambda l: l.strip() and not l.strip().startswith("#")
+    top = next((k for k, l in enumerate(lines) if re.match(r"^permissions\s*:", l)), None)
+    wf_grant = bool(top is not None and _GRANT.search(_no_comments(_block(lines, top))))
+    start = next((k for k, l in enumerate(lines) if re.match(r"^jobs\s*:", l)), None)
+    if start is None:
+        return []
+    end = next((k for k in range(start + 1, len(lines)) if code(lines[k]) and not lines[k].startswith(" ")), len(lines))
+    child = next((len(lines[k]) - len(lines[k].lstrip(" ")) for k in range(start + 1, end) if code(lines[k])), None)
+    heads = [k for k in range(start + 1, end) if code(lines[k]) and len(lines[k]) - len(lines[k].lstrip(" ")) == child]
+    out = []
+    for h, head in enumerate(heads):
+        stop = heads[h + 1] if h + 1 < len(heads) else end
+        body = range(head + 1, stop)
+        key_ind = next((len(lines[k]) - len(lines[k].lstrip(" ")) for k in body if code(lines[k])), None)
+        job_env, job_grant = "", False
+        for k in body:
+            if code(lines[k]) and len(lines[k]) - len(lines[k].lstrip(" ")) == key_ind:
+                key = lines[k].strip().split(":", 1)[0]
+                if key == "env":
+                    job_env = _no_comments(_block(lines, k))
+                elif key == "permissions":
+                    job_grant = bool(_GRANT.search(_no_comments(_block(lines, k))))
+        for k in body:
+            m = re.match(r"^(\s*)(-\s+)?uses\s*:\s*['\"]?([^'\"\s#]+)", lines[k])
+            if not m:
+                continue
+            item = k if m.group(2) else next((j for j in range(k - 1, head, -1) if re.match(r"^\s*-\s", lines[j])), k)
+            ind = len(lines[item]) - len(lines[item].lstrip(" "))
+            last = next((j for j in range(item + 1, stop) if code(lines[j]) and len(lines[j]) - len(lines[j].lstrip(" ")) <= ind), stop)
+            step = _no_comments(lines[item:last])
+            out.append((m.group(3), "secrets." in step or "secrets." in job_env, wf_grant or job_grant))
+    return out
+
+
+def action_order(report: dict, found: list, clone: str, commit: str) -> list:
+    """h5: the action the pinning advice names first, against this check's own order over the workflows read
+    from the clone: another account's action before the repository's own account's before GitHub's actions/ and
+    github/ (the trust tier), then a branch-shaped ref (anything but `v1`, `1.2.3`) before a version, then a
+    step given secrets or a job granted id-token/contents write before one that is not. univer's advice named
+    codecov/codecov-action@v7 while jikkai/sync-gitee@main was handed secrets.GITEE_PASSWORD."""
+    f = next((f for f in found if (f.get("rule") or {}).get("id") == "unpinned_actions"), None)
+    m = re.search(r"Pin (\S+) to a full commit SHA first", (f or {}).get("advice") or "")
+    if not m:
+        return []
+    owner = ((((report.get("hygiene") or {}).get("actions") or {}).get("origin")) or {})
+    home = (owner.get("owner") or "").lower() if owner.get("host") == "github.com" else None
+    rows = []
+    for path in sorted(p for p in _in_head(clone, commit) if re.match(r"^\.github/workflows/[^/]+\.ya?ml$", p)):
+        for uses, secrets, grants in _workflow_steps(_blob(clone, commit, path)):
+            if uses.startswith(("./", "docker://")) or "@" not in uses or _FULL_SHA.match(uses.rsplit("@", 1)[1]):
+                continue
+            who = uses.split("/", 1)[0].lower()
+            tier = 2 if who in ("actions", "github") else 1 if home and who == home else 0
+            rows.append(((tier, bool(_VERSION_REF.match(uses.rsplit("@", 1)[1])), not (secrets or grants)), path, uses))
+    named = [r for r in rows if r[2] == m.group(1)]
+    if not rows or not named:
+        return []
+    best, mine = min(rows), min(named)
+    if best[0] < mine[0]:
+        why = ", ".join(w for w, on in (("another account's", best[0][0] == 0), ("a branch ref", not best[0][1]),
+                                         ("given secrets or a write grant", not best[0][2])) if on)
+        return [_complaint("action_order", f, f"advice names {m.group(1)}; {best[2]} in {best[1]} ranks first ({why})")]
+    return []
+
+
+GROWTH_FLOOR = 25   # percent: the floor findings.complexity_growth states (trend.GROWTH_FLOOR), stated here and not imported
+
+
+def _year_before(date: str) -> str:
+    y, mo, d = (int(x) for x in date[:10].split("-"))
+    return f"{y - 1:04d}-{mo:02d}-{min(d, 28) if mo == 2 else d:02d}"
+
+
+def split_density(report: dict, found: list) -> list:
+    """h6: "Split <file>" advised for a file whose complexity per line of code rose less than the growth floor
+    over the year the finding speaks of, read from the trend samples: the summed complexity grew with the code,
+    not inside it (univer's doc-skeleton.ts, +418% summed, +11% per line). Agreement, not proof: the fix the
+    review planned uses the same condition."""
+    out = []
+    series = (report.get("trend") or {}).get("files") or {}
+    last = (report.get("meta") or {}).get("last_date") or ""
+    for f in found:
+        m = re.search(r"Split (\S+) before", f.get("advice") or "") if (f.get("rule") or {}).get("id") == "complexity_growth" else None
+        rows = series.get(m.group(1)) if m else None
+        if not rows or not last:
+            continue
+        before = [s for s in rows if s[0] <= _year_before(last)]
+        if not before or not before[-1][1] or not before[-1][2] or not rows[-1][2]:
+            continue
+        then, now = before[-1][1] / before[-1][2], rows[-1][1] / rows[-1][2]
+        rise = round(100 * (now - then) / then)
+        if rise < GROWTH_FLOOR:
+            out.append(_complaint("split_density", f, f"Split advised for {m.group(1)}: complexity per line {rise:+d}% since {before[-1][0]}"))
+    return out
+
+
+_LOCALE_FILE = re.compile(r"(?:^|/)[a-z]{2,3}(?:-[A-Z][a-z]{3})?[-_](?:[A-Z]{2}|\d{3})\.[A-Za-z0-9]+$"
+                          r"|(?:^|/)(?:locales?|i18n)/(?:[^/]+/)*[a-z]{2,3}\.[A-Za-z0-9]+$")
+
+
+def locale_magnet(report: dict, found: list) -> list:
+    """h7: bug-magnet rows that are locale files by the shape of their name (`ru-RU.ts`, `zh-Hant-TW.json`,
+    `es_419.po`; a bare `de.json` only under locale/, locales/ or i18n/): a translation touched by every fix
+    that adds a string is not where the bug was (univer: 82 of 287). Rows read from the export's fix table at
+    the finding's own min_recent, tests and files gone from the tree left out by the paths' convention and the
+    size table, never through findings.magnet_rows. Agreement, not proof: the fix the review planned keys on
+    the same shape."""
+    out = []
+    size = set(((report.get("size") or {}).get("files")) or {})
+    for f in found:
+        if (f.get("rule") or {}).get("id") != "bug_magnets":
+            continue
+        least = (f.get("rule") or {}).get("min_recent") or 3
+        rows = [r.get("entity") or "" for r in report.get("fixes") or [] if (r.get("recent-fixes") or 0) >= least]
+        hit = sorted(p for p in rows if _LOCALE_FILE.search(p) and (not size or p in size) and not _set_aside(p, []))
+        if hit:
+            total = (f.get("evidence") or {}).get("count")
+            out.append(_complaint("locale_magnet", f, f"{len(hit)} of {total if total is not None else '?'} magnet rows are locale files, e.g. {hit[0]}"))
+    return out
+
+
 FINDING_CHECKS = (gone_people, wrong_area, growth_window, secrets_headline, sarif_gate, trailer_author, agent_owner,
                   start_area, sarif_rows, doc_lock, tool_person,
                   tool_owner, merge_rows, suspect_lead, silent_precondition, trailer_case,
-                  tied_owner, overrun_span, silent_measure, coverage_unsaid, plural_one)
+                  tied_owner, overrun_span, silent_measure, coverage_unsaid, plural_one,
+                  noreply_split, split_density, locale_magnet)
 CLONE_CHECKS = (tree_claim, sweeping_evidence, magnet_gone, hygiene_misread, lock_workspace, unreferenced_named, self_credit, declared_critical,
                 generated_owner, agent_pointer, structure_skipped, dependency_floor,
                 merge_total, test_double_lead, test_path_secret, peer_unused, declared_reference, lock_without_require, dev_only_vuln_lead,
-                lock_declares_nothing, contributing_heading, unscored_executable, dead_import, fix_episode)
+                lock_declares_nothing, contributing_heading, unscored_executable, dead_import, fix_episode,
+                pnpm_specifiers, private_vulns, trojan_tokens, action_order)
 
 
 def over(report: dict, clone: str = None) -> dict:
