@@ -18,35 +18,34 @@ reference date fixed by GITMOLE_NOW: 2025-06-15
 │ · truck factor not computed: 3 source files, needs 20                                            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-◎ Watch list
-  file            why
-  ──────────────────────────────────────────────────────────────────────────────────────────────────
-  app/main.py     changed 7 times · fixed once in 6 months · changes with app/util.py (83%)
-  app/util.py     changed 5 times · changes with app/main.py (83%)
-  ranked by changes × lines of code alone; the reasons say what to look at there
-  6 months ago this list's top 2 would have named 1 of the 1 file fixed since among the 2 that had
-  changed more than once: no more than the 2 most changed; not distinguishable from a random 2 (1.0
-  expected, p = 1)
+◎ Watch list · all 2, ranked by changes × lines of code
+  file         changes  fixes  top author
+  ───────────────────────────────────────
+  app/main.py        7      1  85%
+  app/util.py        5      0  67%
+  fixes = in the 6 months to 2025-05-30 · top author = largest share of the lines added to the file
+  Check: 6 months ago the top 2 of this ranking held 1 of the 1 file fixed since. The 2 most-changed
+  files also held 1; 2 random files would hold 1.0, and 1 is not distinguishable from that (p = 1).
 
 ◉ People
-  author             commits   share               surviving code
-  ───────────────────────────────────────────────────────────────
-  Ann Example              5    62% ▰▰▰▰▰▰                    64%
-  Bob Example              3    38% ▰▰▰                       36%
+  author       commits  share        surviving code
+  ─────────────────────────────────────────────────
+  Ann Example        5   62% ▰▰▰▰▰▰             64%
+  Bob Example        3   38% ▰▰▰                36%
   aliases merged for Bob Example; a .mailmap makes that permanent
   surviving code is counted by blame
 
 ⌂ Knowledge map (files in the tree now)
-  area           lines added   main owner           second
-  ───────────────────────────────────────────────────────────────────
-  app/                    19   Ann Example (79%)    Bob Example (21%)
-  (root files)             2   Bob Example (100%)   -
+  area          lines added  main owner          second
+  ────────────────────────────────────────────────────────────────
+  app/                   19  Ann Example (79%)   Bob Example (21%)
+  (root files)            2  Bob Example (100%)  -
 
 ▦ Timeline (Jun 2024 → May 2025)
-  author        Jun   Jul   Aug   Sep   Oct   Nov   Dec   Jan   Feb   Mar   Apr   May
-  ───────────────────────────────────────────────────────────────────────────────────
-  Ann Example     1     0     0     0     0     0     1     0     0     1     0     0
-  Bob Example     0     0     0     1     0     0     0     0     0     0     0     1
+  author       Jun  Jul  Aug  Sep  Oct  Nov  Dec  Jan  Feb  Mar  Apr  May
+  ───────────────────────────────────────────────────────────────────────
+  Ann Example    1    0    0    0    0    0    1    0    0    1    0    0
+  Bob Example    0    0    0    1    0    0    0    0    0    0    0    1
 
 λ Complex functions: nothing at complexity 10 or more (2 functions measured)
 
