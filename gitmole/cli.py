@@ -31,7 +31,7 @@ EPILOG = f"""\
 examples:
   gitmole .                            the clone you are in
   gitmole owner/repo                   clone into a temp dir, then report
-  gitmole . --full                     every section, row and column
+  gitmole . --full                     every section and every finding
   gitmole . --markdown report.md       the report as a Markdown document
   gitmole analysis-repo --no-run --section people --csv
                                        every row of one table, as CSV
@@ -87,7 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     scope.add_argument("--ignore", action="append", default=[], metavar="GLOB", help="another pattern to leave out (repeatable)")
 
     report = p.add_argument_group("report and exports")
-    report.add_argument("--full", action="store_true", help="print the report with every section, row and column")
+    report.add_argument("--full", action="store_true", help="every section and finding; --section NAME for each row")
     report.add_argument("--section", action="append", default=[], metavar="NAME", help="print one section whole (repeatable); names below")
     report.add_argument("--csv", action="store_true", help="with --section: its rows as CSV on stdout")
     report.add_argument("--json", metavar="PATH", help="write report and findings as JSON (- for stdout)")

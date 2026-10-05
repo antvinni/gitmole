@@ -1,9 +1,10 @@
 """Turn a loaded report into sections, then draw them with rich or as Markdown/JSON.
 
 The default report is the tighter one: the columns you actually read, capped rows, elided
-paths. `full` restores every column and row (Markdown export is always full). One section on its
-own, whole (`--section NAME`, section.py), is the mode SECTION: every row, the ones the default
-hides after the ones it shows, each with its kind."""
+paths. `full` (--full) is every section, every finding and every column, its tables capped at
+TABLE_CAP rows with the default's hiding kept; the Markdown export has every section and the same
+cap. One section on its own, whole (`--section NAME`, section.py), is the mode SECTION: every row,
+the ones the default hides after the ones it shows, each with its kind."""
 from __future__ import annotations
 
 import json
@@ -33,7 +34,7 @@ SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": ""}
 MONTH_WIDTH, INDENT, NAME_FLOOR = 5, 2, 8
 
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
-           "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
+           "Surviving code by year": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
            "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
            "Change risk": "◈", "Since last report": "⇄", "Most-changed documents": "✎", "Supply chain": "◧"}
 SECTION_MARK = "•"   # in front of the title of a section with no pictogram of its own
@@ -50,10 +51,13 @@ PATH = {"kind": "path"}
 WHOLE = {"kind": "fixed"}   # a short text cell that is never cut, as a number is not: a share with "gone" after it
 TAIL = {"kind": "tail"}
 
-# rows shown by default; `full` lifts the caps. Markdown gets a looser cap of its own. Hotspots has
-# no entry: it is `--full`/Markdown only now, so its row count is never decided by this table.
+# rows shown by default. `--full` and the Markdown export share a looser cap, TABLE_CAP: a fixed number, so
+# one rule to learn, the same on a terminal and in a document, and a table's length does not move when a
+# rule's threshold is tuned. Only a section printed on its own (--section NAME) has every row. prometheus's
+# --full was 4,359 lines at 80 columns, 84% of them the rows of four uncapped tables, People alone 1,337.
+# Hotspots has no entry: it is `--full`/Markdown only, so its row count is never decided by CAPS.
 CAPS = {"Most-changed documents": 5, "People": 6, "Change coupling": 5, "Knowledge map": 6, "Size by language": 8, "Complex functions": 8}
-MARKDOWN_CAP = 50
+TABLE_CAP = 50
 # The default report's rows about a person need this many commits, the rest are counted in the title: the
 # floor the coupling table and the sum of coupling already use for "enough commits to say anything" (five
 # shared revisions). Absolute, since a share of the commits would cut rows on a large repository that a
@@ -82,8 +86,34 @@ def _pct(part, whole) -> str:
     return f"{100 * part / whole:.0f}%" if whole else "-"
 
 
-def _bar(part, whole, width=30) -> str:
-    return BLOCK_MARK * int(width * part / whole) if whole else ""
+BAR_CELLS = 8                # the cells a bar is drawn over: the column's largest value fills them
+BAR_PARTS = "▏▎▍▌▋▊▉"        # an eighth of a cell to seven eighths, behind the whole blocks
+BAR_LENGTHS = 3              # a bar column says something only when its rows draw this many different bars
+
+
+def bar_cells(values: list):
+    """One bar a value, in eighths of a cell and scaled so the column's largest value fills BAR_CELLS: zero
+    draws nothing and anything above it at least one eighth. None when the rows would draw fewer than
+    BAR_LENGTHS different bars: a column of two lengths says nothing the numbers beside it do not. The one
+    rule for every bar in --full: prometheus's had three glyphs and three scales, one of them a share of
+    the total over twenty cells, which drew 5% as nothing."""
+    top = max((v for v in values if v and v > 0), default=0)
+    if not top:
+        return None
+    out = []
+    for v in values:
+        eighths = max(1, round(BAR_CELLS * 8 * v / top)) if v and v > 0 else 0
+        out.append(BLOCK_MARK * (eighths // 8) + (BAR_PARTS[eighths % 8 - 1] if eighths % 8 else ""))
+    return out if len(set(out)) >= BAR_LENGTHS else None
+
+
+def _with_bars(columns: list, rows: list, values: list) -> tuple:
+    """`columns` and `rows` with a bar column last, one bar a row for `values`; as they came when the bars
+    would say nothing (bar_cells)."""
+    bars = bar_cells(values)
+    if not bars:
+        return columns, rows
+    return columns + [("", {})], [tuple(r) + (b,) for r, b in zip(rows, bars)]
 
 
 def _number(c) -> str:
@@ -111,8 +141,23 @@ def _wide(full) -> bool:
 
 
 def _every_row(full) -> bool:
-    """Whether a table carries every row it has, the hidden kinds too."""
-    return full is True or full == SECTION
+    """Whether a table carries every row it has, the hidden kinds too: a section on its own, and nothing else.
+    --full was that until its tables were capped: it led Complex functions with generated parsers and opened
+    Hotspots on test files, unlabelled."""
+    return full == SECTION
+
+
+def _below(sec: dict, n: int, labels: bool = True) -> dict:
+    """Move the last `n` columns of a section under each row, for a terminal: a line a column, indented, the
+    column's name before its text when `labels`. The whole table stays under "wide" for the Markdown export
+    and the CSV, which have room for it. prometheus's OSPS Baseline, Agent surface and Watch list by component
+    cut their text cells to some 25 characters at 80 columns ("No unencrypted secrets o…"), and a cell never
+    wraps; under the row nothing is lost, which is where --full's watch list puts each file's other reasons."""
+    cols, opts, rows = sec["columns"], sec["col_opts"], sec["rows"]
+    sec["wide"] = {"columns": cols, "col_opts": opts, "rows": rows}
+    sec["columns"], sec["col_opts"], sec["rows"] = cols[:-n], opts[:-n], [r[:-n] for r in rows]
+    sec["under"] = ["\n".join((f"{c}: {v}" if labels else v) for c, v in zip(cols[-n:], r[-n:]) if v) for r in rows]
+    return sec
 
 
 def _limit(title: str, full, cap=None):
@@ -120,9 +165,11 @@ def _limit(title: str, full, cap=None):
     An explicit `cap` is the section's own cap and holds for Markdown too."""
     if _every_row(full):
         return None
+    if full is True:
+        return TABLE_CAP
     if cap is not None:
         return cap
-    return MARKDOWN_CAP if full == "markdown" else CAPS.get(title)
+    return TABLE_CAP if full == "markdown" else CAPS.get(title)
 
 
 def _more(total: int, limit) -> str:
@@ -265,14 +312,15 @@ def _sift(rows: list, full, steps: list) -> tuple:
     return kept + [r for r in rows if id(r) in kinds], [None] * len(steps), kinds
 
 
-def file_kind(classifier, path: str, tracked: bool = False) -> str:
-    """The one word a whole table gives a file: removed for one the tree no longer has (never said of a file
-    `tracked` by construction, as a measured function's is), else the first thing the classifier calls it
-    (generated, vendored, test, example, release, other for a type that is not ranked), else source."""
+def file_kind(classifier, path: str, tree=None, present: bool = False) -> str:
+    """The one word a whole table gives a file: removed for one no longer tracked, else the first thing the
+    classifier calls it (generated, vendored, test, example, release, other for a type that is not ranked),
+    else source. Tracked is by the run's own listing of the tree (`tree`) and, for a run without one, by the
+    size step's rows; never said of a file `present` by construction, as a measured function's is."""
     reasons = classifier.reasons(path)
-    if "not in the tree" in reasons and not tracked:
+    if not present and ((path not in tree) if tree else "not in the tree" in reasons):
         return "removed"
-    return next((KIND_WORDS[r] for r in reasons if r in KIND_WORDS), "source")
+    return next((KIND_WORDS[r] for r in reasons if r in KIND_WORDS), "other" if "not in the tree" in reasons and not present else "source")
 
 
 ADDRESS = re.compile(r"([^@\s<>]+)@[^@\s<>]+\.[^@\s<>]+")
@@ -744,7 +792,8 @@ def size_section(report: dict, full: bool = True, width=None) -> dict:
     columns = [("language", {}), ("files", RIGHT), ("code", RIGHT), ("share", RIGHT), ("complexity", RIGHT)]
     if not _wide(full):
         columns, rows = _keep(columns, rows, ["language", "files", "code", "share"])
-    return _section("Size by language", columns, rows, caption=_more(len(langs), limit))
+    title = "Size by language" + (f"{SEP}{_shown(len(rows), len(langs))}, by lines of code" if len(rows) < len(langs) and full is True else "")
+    return _section(title, columns, rows, caption=None if full is True else _more(len(langs), limit))
 
 
 def _tools_words(report: dict, tools: set) -> str:
@@ -839,6 +888,8 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
         f"commits = since {since}" if since else None,
         "share = of commits" + (", without merges" if merges else ""),
         (f"surviving = {SURVIVING_SOURCES[source]} share at HEAD" + (", over the whole tree" if since else "")) if source else None)]
+    if full is True and len(listed) < len(ids):   # in place of the rows the cap leaves out: how the whole table is spread
+        notes.append(people_spread([(own(i), credit(i)) for i in ids]))
     if full is not False:   # how the table was made: --full and Markdown
         total_merges = sum(i.get("merges", 0) for i in ids)
         if merges:
@@ -863,20 +914,43 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     return sec
 
 
+SPREAD = (1000, 100, 10, 2)   # the floors of the commit bands, by the power of ten; then one commit, then none
+
+
+def people_spread(rows: list) -> str:
+    """'1,324 by commits: 2 with 1,000 or more · 20 with 100 to 999 · … · 310 with 1 · 87 credited only as
+    co-author': every row of the People table in a band of its commits column, the table's own numbers
+    (`rows` is each row's commits and its co-authored commits), so the bands sum to the title's count. A row
+    with no commit of its own is one credited only by Co-authored-by trailers, or, with no credit either,
+    one whose commits are all merges. --full prints it where the rows past the cap would be: prometheus's
+    People table ran 1,324 rows to say that most of them made one commit."""
+    bands, left = [], list(rows)
+    for n, floor in enumerate(SPREAD):
+        inside = [r for r in left if r[0] >= floor]
+        left = [r for r in left if r[0] < floor]
+        label = f"{floor:,} or more" if n == 0 else f"{floor:,} to {SPREAD[n - 1] - 1:,}"
+        bands.append((len(inside), f"with {label}"))
+    bands.append((sum(1 for r in left if r[0] == 1), "with 1"))
+    none = [r for r in left if r[0] < 1]
+    bands.append((sum(1 for r in none if r[1] > 0), "credited only as co-author"))
+    bands.append((sum(1 for r in none if r[1] <= 0), "with merges only"))
+    return f"{len(rows):,} by commits: " + SEP.join(f"{n:,} {label}" for n, label in bands if n)
+
+
 def activity_section(report: dict, full: bool = True, width=None) -> dict:
     act = report.get("activity") or {}
-    columns = [("weekday", {}), ("commits", RIGHT), ("share", RIGHT), ("", {})]
+    columns = [("weekday", {}), ("commits", RIGHT), ("share", RIGHT)]
     if not act.get("by_weekday"):
         return _section("Activity", columns, [], note="no activity data")
     total = sum(act["by_weekday"])
-    rows = [(WEEKDAYS[i], n, _pct(n, total), _bar(n, total, 20)) for i, n in enumerate(act["by_weekday"])]
+    rows = [(WEEKDAYS[i], n, _pct(n, total)) for i, n in enumerate(act["by_weekday"])]
+    columns, rows = _with_bars(columns, rows, act["by_weekday"])
     hours = act.get("by_hour") or []
     notes = []
     if hours and max(hours):
         h = max(range(24), key=lambda i: hours[i])
         notes.append(f"busiest hour {h:02d}:00 ({hours[h]:,} commits)")
-    if act.get("fix_commits") is not None and total:
-        notes.append(f"{_pct(act['fix_commits'], total)} of commits are fixes")
+    # the share of commits that are fixes is the header's, on its commits row: it was here a second time
     return _section("Activity", columns, rows, caption="\n".join(notes) or None)
 
 
@@ -970,7 +1044,7 @@ def signing_section(report: dict, full: bool = True, width=None) -> dict:
     if forge.get("signed"):
         parts.append(f"{forge['signed']:,} of the signed commits were committed and signed by the forge on merge, not by their authors")
     parts.append("read from the commit objects, nothing verified")
-    return _section("Signing by year", columns, rows, caption="; ".join(parts))
+    return _section("Signing by year", columns, rows, caption=SEP.join(parts))
 
 
 def watch_by_component_section(report: dict, full: bool = True, width=None) -> dict:
@@ -979,8 +1053,9 @@ def watch_by_component_section(report: dict, full: bool = True, width=None) -> d
     rows = [(g["component"], f"{g['share']:.0f}%", " · ".join(x["file"] for x in g["files"]))
             for g in groups]
     columns = [("component", PATH), ("share", RIGHT), ("top files", TAIL)]
-    return _section("Watch list by component", columns, rows, note=None if rows else "no component holds 5% of the list's score",
-                    caption="each component's share of the watch list's changes × lines of code, and its own top files" if rows else None)
+    sec = _section("Watch list by component", columns, rows, note=None if rows else "no component holds 5% of the list's score",
+                   caption="share = of the watch list's changes × lines of code" + SEP + "under each component, its own top files" if rows else None)
+    return _below(sec, 1, labels=False) if rows else sec
 
 
 def trailers_section(report: dict, full: bool = True, width=None) -> dict:
@@ -991,18 +1066,27 @@ def trailers_section(report: dict, full: bool = True, width=None) -> dict:
     columns = [("trailer", {}), ("commits", RIGHT), ("share", RIGHT)]
     total = tr.get("commits") or 0
     rows = [(k, min(n, total) if total else n, _pct(min(n, total), total)) for k, n in provenance.fold_keys(tr.get("keys") or {}).items()]
-    notes = []
+    # The declared commits against the rest were a five-line sentence under the table, eight numbers between
+    # commas: they are rows of a table of their own under it, and the caption keeps the definition.
+    notes, compared = [], None
     marked, rest = co.get("cohort") or {}, co.get("rest") or {}
     if marked.get("commits"):
         def pair(key):
-            return f"{_pct(marked.get(key, 0), marked['commits'])} against {_pct(rest.get(key, 0), rest.get('commits') or 0)}"
-        watch_part = f", touched a file on the watch list's top {co['watch_top']} {pair('watch')}" if co.get("watch_top") else ""
-        notes.append(f"declared commits ({co.get('definition')}): {marked['commits']:,}, {round(100 * co.get('share', 0))}% of the history; "
-                     f"reverted {pair('reverted')} for the rest (every commit that declares nothing, undisclosed agent use included), fixes {pair('fixes')}, a file changed again within 2 weeks {pair('retouched')}{watch_part}")
+            return (_pct(marked.get(key, 0), marked["commits"]), _pct(rest.get(key, 0), rest.get("commits") or 0))
+        measures = [("commits", f"{marked['commits']:,}", f"{rest.get('commits') or 0:,}"), ("reverted", *pair("reverted")), ("fixes", *pair("fixes")),
+                    ("a file changed again within 2 weeks", *pair("retouched"))]
+        if co.get("watch_top"):
+            measures.append((f"touched a file of the watch list's top {co['watch_top']}", *pair("watch")))
+        compared = _section("", [("declared commits against the rest", {}), ("declared", RIGHT), ("the rest", RIGHT)], measures)
+        notes.append(_fragments(f"declared = {co['definition']}" if co.get("definition") else None, "the rest = every commit that declares nothing, undisclosed agent use included"))
     if sh:
-        notes.append(f"{round(100 * sh.get('burst_share', 0))}% of commits land in bursts of 5 or more within 10 minutes; "
-                     f"{round(100 * sh.get('conventional_share', 0))}% have conventional-commit subjects; commits come in {sh.get('hours_used', 0)} hours of the day")
-    return _section("Trailers", columns, rows, note=None if rows else "no trailers", caption="\n".join(notes) or None)
+        notes.append(_fragments(f"{round(100 * sh.get('burst_share', 0))}% of commits land in bursts of 5 or more within 10 minutes",
+                                f"{round(100 * sh.get('conventional_share', 0))}% have conventional-commit subjects",
+                                f"commits come in {sh.get('hours_used', 0)} hours of the day"))
+    sec = _section("Trailers", columns, rows, note=None if rows else "no trailers", caption="\n".join(notes) or None)
+    if compared:
+        sec["more"] = [compared]
+    return sec
 
 
 def lines_section(report: dict, full: bool = True, width=None) -> dict:
@@ -1022,17 +1106,18 @@ def lines_section(report: dict, full: bool = True, width=None) -> dict:
                  for label, c in (("declared commits, both years", co["marked"]), ("the rest, both years", co["rest"]))]
     columns = [("period", {}), ("commits", RIGHT), ("lines added", RIGHT), ("moved", RIGHT), (f"churned in {ln.get('churn_days', 14)} days", RIGHT)]
     return _section("Changed lines", columns, rows, note=None if rows else "no history in the last 2 years",
-                    caption="code files only; moved: lines git's moved-code detection marks (--color-moved=blocks); churned: deleted again "
-                            "within 2 weeks from the same file with the same text"
-                            + ("; the rest is every commit that declares no coding tool, undisclosed agent use included" if (co.get("marked") or {}).get("commits") else "")
+                    caption=_fragments("code files only", "moved = lines git's moved-code detection marks (--color-moved=blocks)",
+                                       "churned = deleted again within 2 weeks from the same file with the same text",
+                                       "the rest = every commit that declares no coding tool, undisclosed agent use included" if (co.get("marked") or {}).get("commits") else None)
                     if rows else None)
 
 
 def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     """Change frequency times size, Tornhill-style. Drawn under `--full` and in the Markdown export
-    only; the default terminal report leaves it to the watch list, which ranks the same files. Built
-    only for those two, it has no row cap of its own outside Markdown's. Files no longer in the tree
-    have nothing to score: Markdown hides them like any hidden row, `--full` counts them in one line."""
+    only; the default terminal report leaves it to the watch list, which ranks the same files. Both cap
+    it at TABLE_CAP rows and hide what the other tables hide: test files, generated files, release
+    plumbing and the files no longer in the tree, which have nothing to score. A section on its own
+    (`--section hotspots`) lists every file the history changed, each with its kind."""
     authors = {a["entity"]: a["n-authors"] for a in report.get("authors") or []}
     minors = {a["entity"]: a.get("minor", 0) for a in report.get("authors") or []}
     partners = {a["entity"]: a.get("partners", 0) for a in report.get("soc") or []}
@@ -1045,19 +1130,6 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
         lambda rows, f: _hide_tests(rows, path, f, classifier=cls), lambda rows, f: _hide_deleted(rows, report, f, classifier=cls),
         lambda rows, f: _hide_generated(rows, path, report, f, classifier=cls), lambda rows, f: _hide_by(rows, path, f, cls, {"release file"}, "release")])
     hidden_note = _hidden("file", "files", tests, deleted, generated, release)
-    removed_note = None
-    tracked = report.get("tree") or (report.get("size") or {}).get("files") or {}
-    if full is True and tracked:
-        # --full hides nothing, but a file that is no longer tracked has no lines, no complexity and no score:
-        # its row is three dashes. superpowers spent 412 of 483 rows on them, 318 from an import later removed.
-        removed = [h for h in scored if h["code"] is None and h["entity"] not in tracked]
-        if removed:
-            scored = [h for h in scored if not (h["code"] is None and h["entity"] not in tracked)]
-            imported = report.get("imported") or ()
-            brought = sum(1 for h in removed if h["entity"] in imported)
-            removed_note = (f"{len(removed):,} removed file{'s' if len(removed) != 1 else ''} not listed"
-                            + (f", {brought:,} from left-out imports" if brought else "") + " (maat-revisions.csv has them)")
-    title = "Hotspots (score = changes × lines of code)" if _wide(full) else "Hotspots"
     limit = _limit("Hotspots", full)
     series = (report.get("trend") or {}).get("files") or {}
     last = report["meta"].get("last_date") or ""
@@ -1067,7 +1139,7 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
             return trend.sparkline(s) or "-"
         return trend.change_over_year(s, last) if last else "-"
     rows = []
-    kinds = [file_kind(cls, h["entity"]) for h in scored] if full == SECTION else []
+    kinds = [file_kind(cls, h["entity"], report.get("tree")) for h in scored] if full == SECTION else []
     for n, h in enumerate(scored[:limit]):
         gone = h["code"] is None
         rows.append((h["entity"], *(kinds[n:n + 1]), h["revs"], "-" if gone else f"{h['code']:,}", "-" if gone else h["complexity"],
@@ -1079,10 +1151,15 @@ def hotspots_section(report: dict, full: bool = True, width=None) -> dict:
     if not _wide(full):
         columns, rows = _keep(columns, rows, ["file", "changes", "lines", "fixes", "authors", "trend"])
     note = None if rows else _empty_note(None, hidden_note, "no source hotspots")
-    notes = [c for c in (_more(len(scored), limit), None if note else hidden_note, removed_note) if c]
+    # a file that is no longer tracked has no lines and no score, and its row is three dashes: superpowers spent
+    # 412 of 483 --full rows on them. They are hidden with the rest now, and counted (deleted).
+    notes = [c for c in (_more(len(scored), limit) if not _wide(full) else None, None if note else hidden_note) if c]
+    if _wide(full) and rows:
+        notes.append("score = changes × lines of code")
     if series:
         notes.append(f"trend sampled for the top {TREND_TOP} hotspots")   # the rest of the column is empty by design
-    sec = _section(title, columns, rows, note=note, caption="; ".join(notes) or None)
+    title = f"Hotspots · {_shown(len(rows), len(scored))}, by changes × lines of code" if _wide(full) and rows else "Hotspots"
+    sec = _section(title, columns, rows, note=note, caption=(SEP if _wide(full) else "; ").join(notes) or None)
     if full == SECTION:
         # every number the export holds for a file, under the export's own keys: the fixes, the authors, the sum of
         # coupling, the idle months, the commits that also changed a test, the late-night changes and the entropy.
@@ -1180,14 +1257,20 @@ def _said_by_finding(sec: dict, findings) -> bool:
     return False
 
 
+# "written" left the title: the plan's order and its closing index call the section this, the caption says what
+# the year is, and with the word the default's closing sentence did not fit its four lines on prometheus.
+AGE_TITLE = "Surviving code by year"
+
+
 def age_section(report: dict, full: bool = True, width=None) -> dict:
     cohorts = report.get("cohorts") or {}
     if not cohorts and _age_status(report) != "run":
         return age_fallback_section(report)
     total = sum(cohorts.values())
-    rows = [(label.replace("Code added in ", ""), f"{lines:,}", _pct(lines, total), _bar(lines, total)) for label, lines in cohorts.items()]
-    return _section("Surviving code by year written", [("year", {}), ("lines", RIGHT), ("share", RIGHT), ("", {})], rows,
-                    note=None if rows else "no age data", caption=f"counted{_by_source(report)[1:]}" if rows and _by_source(report) else None)
+    rows = [(label.replace("Code added in ", ""), f"{lines:,}", _pct(lines, total)) for label, lines in cohorts.items()]
+    columns, rows = _with_bars([("year", {}), ("lines", RIGHT), ("share", RIGHT)], rows, list(cohorts.values()))
+    return _section(AGE_TITLE, columns, rows, note=None if rows else "no age data",
+                    caption=_fragments("year = the year the lines were written", f"counted{_by_source(report)[1:]}" if _by_source(report) else None) if rows else None)
 
 
 def age_fallback_section(report: dict) -> dict:
@@ -1197,11 +1280,11 @@ def age_fallback_section(report: dict) -> dict:
     net = (report.get("activity") or {}).get("net_by_year") or {}
     if net:
         total = sum(v for v in net.values() if v > 0)
-        rows = [(y, f"{v:,}", _pct(v, total) if v > 0 else "-", _bar(v, total) if v > 0 else "") for y, v in net.items()]
-        return _section("Net lines added by year", [("year", {}), ("net lines", RIGHT), ("share", RIGHT), ("", {})], rows,
-                        caption=f"{reason}; approximation from the log, not a blame")
+        rows = [(y, f"{v:,}", _pct(v, total) if v > 0 else "-") for y, v in net.items()]
+        columns, rows = _with_bars([("year", {}), ("net lines", RIGHT), ("share", RIGHT)], rows, list(net.values()))
+        return _section("Net lines added by year", columns, rows, caption=f"{reason}; approximation from the log, not a blame")
     last = report["meta"].get("last_date") or ""
-    columns = [("year", {}), ("paths", RIGHT), ("share", RIGHT), ("", {})]
+    columns = [("year", {}), ("paths", RIGHT), ("share", RIGHT)]
     try:
         end_year, end_month = int(last[:4]), int(last[5:7])
     except ValueError:
@@ -1212,7 +1295,8 @@ def age_fallback_section(report: dict) -> dict:
         year = end_year + months_back // 12
         counts[year] = counts.get(year, 0) + 1
     total = sum(counts.values())
-    rows = [(str(y), n, _pct(n, total), _bar(n, total)) for y, n in sorted(counts.items(), reverse=True)]
+    rows = [(str(y), n, _pct(n, total)) for y, n in sorted(counts.items(), reverse=True)]
+    columns, rows = _with_bars(columns, rows, [n for _, n in sorted(counts.items(), reverse=True)])
     return _section("Paths in history by year last changed", columns, rows, note=None if rows else f"no age data ({reason})", caption=reason)
 
 
@@ -1232,11 +1316,15 @@ def functions_section(report: dict, full: bool = True, width=None) -> dict:
     hidden_note = _hidden("function", "functions", tests, vendor, sample, generated)   # a function is of the kind of file it is in
     limit = _limit("Complex functions", full)
     shown = funcs[:limit]
-    kinds = [file_kind(cls, f["file"], tracked=True) for f in shown] if full == SECTION else []
+    kinds = [file_kind(cls, f["file"], present=True) for f in shown] if full == SECTION else []
     rows = [(textfmt.ANONYMOUS if _nameless(f) else f["function"], _where(f), *kinds[n:n + 1], _ccn_cell(f), f["nloc"], f["params"]) for n, f in enumerate(shown)]
-    suspects = sum(1 for f in shown if f.get("suspect"))
-    suspect_note = f"{SUSPECT_MARK} = a span lizard may have mis-parsed ({suspects:,})" if suspects else None
-    cut = sum(1 for f in shown if f.get("lizard_span"))
+    # A mis-parsed span sorts after every other, so under a cap it is below the last row shown: --full counts
+    # them over the whole table, in the caption, where prometheus's "? marks 13 spans" sat under 663 rows.
+    marked = funcs if _wide(full) else shown
+    past = " of the table's, listed last" if _wide(full) and len(funcs) > len(shown) else ""
+    suspects = sum(1 for f in marked if f.get("suspect"))
+    suspect_note = f"{SUSPECT_MARK} = a span lizard may have mis-parsed ({suspects:,}{past})" if suspects else None
+    cut = sum(1 for f in marked if f.get("lizard_span"))
     cut_note = (f"{FLOOR_MARK} = lizard ended the function early ({cut:,}): its lines are the structure step's, "
                 f"its complexity what lizard counted before it stopped") if cut else None
     columns = [("function", {}), ("file", PATH), *(((KIND, WHOLE),) if full == SECTION else ()), ("complexity", RIGHT), ("lines", RIGHT), ("params", RIGHT)]
@@ -1365,8 +1453,8 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     hidden_note = None
     tree = (report.get("size") or {}).get("files") or {}
     # the two views count different files, and tests/ at 9,568 lines here and 10,765 there read as a
-    # contradiction until the heading says which: the default keeps the files HEAD still has, --full every
-    # file the history (or the --since window) changed. In the heading, so the report is no line longer.
+    # contradiction until the heading says which: the default and --full keep the files HEAD still has, the
+    # section on its own every file the history (or the --since window) changed. In the heading, so the report is no line longer.
     since = report["meta"].get("since")
     counted = "in the tree now" if not _every_row(full) and tree else f"over every file in the history{f' since {since}' if since else ''}"
     if not _every_row(full) and tree:
@@ -1429,12 +1517,24 @@ def knowledge_section(report: dict, full: bool = True, width=None) -> dict:
     return sec
 
 
+BY_NAME = "matched by file name alone"   # after the evidence of an OSPS gap that no scan stands behind
+
+
 def osps_section(report: dict, full: bool = True, width=None) -> dict:
-    """The OSPS Baseline controls a clone can show, each with its result here: --full and Markdown only."""
+    """The OSPS Baseline controls a clone can show, each with its result here: --full and Markdown only. A gap
+    that rests on a file's name and on nothing a scan found says so after its evidence: prometheus's one gap
+    under "No unencrypted secrets" was a file called .env in which the secrets scan had found no value. What
+    a control asks and the evidence are under each row on a terminal (_below)."""
     from . import findings, osps
-    rows = [(r["control"], r["requirement"], r["result"], r["evidence"]) for r in osps.coverage(report, findings.evaluate(report))]
-    return _section("OSPS Baseline", [("control", WHOLE), ("asks", TAIL), ("result", WHOLE), ("evidence", TAIL)],
-                    rows, caption=f"the controls a clone can show evidence for, from the {osps.BASELINE}; access control and most of vulnerability management need the forge")
+    found = findings.evaluate(report)
+    rows = []
+    for r in osps.coverage(report, found):
+        fired = osps._fired(found, r["control"])
+        named = r["result"] == "gap" and fired and all((f.get("rule") or {}).get("by") in findings.BY_NAME_ALONE for f in fired)
+        rows.append((r["control"], r["result"], r["requirement"], r["evidence"] + (f" ({BY_NAME})" if named else "")))
+    sec = _section("OSPS Baseline", [("control", WHOLE), ("result", WHOLE), ("asks", TAIL), ("evidence", TAIL)], rows,
+                   caption=f"the controls a clone can show evidence for, from the {osps.BASELINE}" + SEP + "access control and most of vulnerability management need the forge")
+    return _below(sec, 2)
 
 
 def agent_surface_section(report: dict, full: bool = True, width=None):
@@ -1474,7 +1574,7 @@ def agent_surface_section(report: dict, full: bool = True, width=None):
     caption = (", ".join(f"{n:,} {word}{'' if n == 1 else 's'}" for n, word in counts if n)
                + "; read from the tree by path convention and shape, listed and not judged"
                + ("; → names the tracked script a hook command runs, and the one that script hands over to" if any(h.get("script") for h in ag.get("hooks") or []) else ""))
-    return _section("Agent surface", [("kind", WHOLE), ("where", PATH), ("what", TAIL)], rows, caption=caption)
+    return _below(_section("Agent surface", [("kind", WHOLE), ("where", PATH), ("what", TAIL)], rows, caption=caption), 1, labels=False)
 
 
 def _tally_words(counts: dict) -> str:
@@ -1529,35 +1629,255 @@ def compare_section(result: dict) -> dict:
     return sec
 
 
+CONFIDENCE_ORDER = ("high", "medium", "low")   # the scanner's own grades, the strongest first; a row without one last
+
+
+def secrets_by_rule_section(report: dict, full: bool = True, width=None):
+    """What the secrets scan found, by the scanner's rule and the confidence it gave: the places at HEAD, the
+    places only history holds, and the first file. Never a value and never the line it matched, in any
+    rendering. --full only: the Supply chain section's secrets row gives the totals, and prometheus's 1,188
+    places, 1,156 of them graded high and all in two removed test-data files, were named in no report. None,
+    and so no section, when the scan did not run or found nothing but placeholder-shaped hits."""
+    groups = {}
+    for i, r in enumerate(report.get("secrets") or []):
+        if r.get("placeholder"):
+            continue
+        g = groups.setdefault((r.get("rule") or "?", r.get("confidence") or ""), {})
+        key = (r.get("value") or ("row", i), r.get("commit"), r.get("file"), r.get("line"))   # a place, as secret_places counts one
+        at = r.get("at_head") if isinstance(r.get("at_head"), bool) else None
+        g[key] = at if key not in g or g[key] is None else (g[key] or bool(at))
+    if not groups:
+        return None
+    grade = lambda c: CONFIDENCE_ORDER.index(c) if c in CONFIDENCE_ORDER else len(CONFIDENCE_ORDER)   # noqa: E731
+    unrecorded = any(v is None for g in groups.values() for v in g.values())   # a run from before a place's presence at HEAD was recorded
+    rows = []
+    for (rule, confidence), places in sorted(groups.items(), key=lambda kv: (grade(kv[0][1]), -len(kv[1]), kv[0][0])):
+        at_head = sum(1 for v in places.values() if v is True)
+        first = min((key[2] or "" for key, v in places.items() if v is True), default=None) or min(key[2] or "" for key in places)
+        rows.append((rule, confidence or "-", at_head, sum(1 for v in places.values() if v is False),
+                     *((sum(1 for v in places.values() if v is None),) if unrecorded else ()), first))
+    limit = _limit("Secrets by rule", full)
+    columns = [("rule", WHOLE), ("confidence", WHOLE), ("at HEAD", RIGHT), ("history only", RIGHT), *((("not recorded", RIGHT),) if unrecorded else ()), ("first file", PATH)]
+    skipped = leaks.placeholders(report.get("secrets") or [])
+    caption = _fragments("a place = a value at a commit, file and line", "first file = at HEAD when the rule has a place there, else in history",
+                         f"{skipped:,} placeholder-shaped hit{'s' if skipped != 1 else ''} left out" if skipped else None, f"every place in {SECRETS_FILE}, values hashed")
+    return _section(f"Secrets by rule · {_shown(len(rows[:limit]), len(rows))}, by confidence, then places", columns, rows[:limit], caption=caption)
+
+
+def dependencies_by_lock_file_section(report: dict, full: bool = True, width=None):
+    """Every vulnerable package with the lock file that pins it, in the order the findings rank them
+    (findings._vuln_rows: a lock that ships, a malicious package, reach, a fix, the score), the source tree's
+    locks before the ones under tests, examples and vendored code. A package an advisory scores in the
+    critical band is listed whatever the cap, since the rank puts reach before score: prometheus's
+    websocket-driver at 9.2, a dev dependency, was named in no report. Under each row its version, one
+    advisory id, and what the lock and the imports say of its reach. --full only; None with nothing
+    vulnerable, which the Supply chain section's dependencies row says."""
+    from . import findings as rules
+    ranked = [r for _, _, _, group in rules._vuln_rows(report) for r in group]
+    if not ranked:
+        return None
+    limit = _limit("Dependencies by lock file", full)
+    shown = ranked[:limit]
+    always = [r for r in ranked[limit:] if r.get("score") is not None and r["score"] >= rules.CRITICAL_SCORE] if limit is not None else []
+    rows = []
+    for r in shown + always:
+        ids = list(r.get("aliases") or []) + list(r.get("ids") or [])
+        reach = "a dev dependency" if r.get("runtime") is False else "imported by no tracked file" if r.get("imported") is False else "imported" if r.get("imported") is True else ""
+        ships = f"ships: {rules._deploy_phrase(r['deploys'])}" if r.get("deploys") else ""
+        rows.append((r["name"], r.get("source") or "", "malicious" if r.get("malicious") else f"{r['score']:.1f}" if r.get("score") is not None else "-",
+                     r.get("version") or "", ids[0] if ids else "", r.get("fixed") or "none published", _fragments(reach, ships) or ""))
+    scan = report.get("dependencies") or {}
+    held = {r.get("source") for r in ranked}
+    clean = len({src.get("path") for src in scan.get("sources") or []} - held)
+    caption = _paragraphs(_fragments("in the findings' order: a lock that ships, reach, a fix, then the score", "CVSS = the highest an advisory gives the version",
+                                     f"{textfmt.count(len(always), 'more row')} past the cap for a CVSS of {rules.CRITICAL_SCORE:g} or more" if always else None),
+                          _fragments(f"{textfmt.count(clean, 'more lock file')} with none vulnerable" if clean else None, f"every advisory in {brief.DEPENDENCIES_FILE}"))
+    sec = _section(f"Dependencies by lock file · {_shown(len(shown), len(ranked))} vulnerable, as the findings rank them",
+                   [("package", {}), ("lock file", PATH), ("CVSS", RIGHT), ("version", WHOLE), ("advisory", WHOLE), ("fixed in", WHOLE), ("reach", TAIL)], rows, caption=caption)
+    sec = _below(sec, 4, labels=False)
+    sec["under"] = [SEP.join(part for part in (r[3], r[4], f"fixed in {r[5]}" if r[5] != "none published" else "no fix published", r[6]) if part) for r in rows]
+    return sec
+
+
+CLEAN, NOTHING, NOT_RUN, HIT = "clean", "nothing to check", "did not run", "finding"   # a check's result; and "ran" for a step that only measures
+
+
+def _uses(h: dict) -> int:
+    a = h.get("actions") or {}
+    return (a.get("pinned") or 0) + (a.get("unpinned_count") or 0)
+
+
+def _present(h: dict):
+    pr = h.get("presence") or {}
+    there = [pr[key] for key in ("license", "security_policy", "contributing", "codeowners", "pull_request_template") if isinstance(pr.get(key), str) and pr.get(key)]
+    return ", ".join(there) if there else "none of 5 found" if pr else None
+
+
+def _licence_checked(h: dict):
+    lic = h.get("licences") or {}
+    names = [d.get("expression") for d in lic.get("declared") or [] if d.get("expression")] or ([lic["file_licence"]] if lic.get("file_licence") else [])
+    return ", ".join(dict.fromkeys(names)) or (", ".join(lic.get("files") or []) or None)
+
+
+# Every hygiene family as a row of Checks run: (what is checked, the rule ids that are a hit in it, what it had to
+# check as words, None for nothing). A family the step records with no count of what it looked at (registry
+# confusion, install scripts) has "not counted" there: its "clean" is "no hit", and the row says which.
+CHECKS = [
+    ("workflow actions pinned to a commit", ("unpinned_actions",), lambda h: f"{textfmt.count(_uses(h), 'use')} of an action" if _uses(h) else None),
+    ("pull-request checkout and script injection", ("pwn_request", "expression_injection"),
+     lambda h: f"the workflows behind {textfmt.count(_uses(h) + ((h.get('actions') or {}).get('local') or 0), 'action use')}" if _uses(h) + ((h.get("actions") or {}).get("local") or 0) else None),
+    ("dependency update tool", ("dependency_updates",), lambda h: _ok_updates(h) or ((h.get("updates") or {}).get("tool") or None)),
+    ("lock files against their manifests", ("lockfile_drift", "lockfile_missing"),
+     lambda h: f"{textfmt.count((h.get('lockfiles') or {}).get('pairs') or 0, 'manifest')} with a lock file" if (h.get("lockfiles") or {}).get("pairs") else None),
+    ("bidi and mixed-script characters", ("trojan_source",), lambda h: textfmt.count((h.get("trojan") or {}).get("files") or 0, "file") if (h.get("trojan") or {}).get("files") else None),
+    ("committed binaries", ("committed_binaries",), lambda h: textfmt.count((h.get("binaries") or {}).get("binaries") or 0, "binary", "binaries") if (h.get("binaries") or {}).get("binaries") else None),
+    ("licence", ("project_licence", "copyleft_dependencies"), _licence_checked),
+    ("declared files", ("repo_policy",), _present),
+    ("registry confusion", ("dependency_confusion",), lambda h: "not counted" if "confusion" in h else None),
+    ("install scripts", ("install_scripts",), lambda h: "not counted" if "install" in h else None),
+    ("submodule URLs", ("submodule_urls",), lambda h: textfmt.count((h.get("submodules") or {}).get("count") or 0, "submodule") if (h.get("submodules") or {}).get("count") else None),
+    ("symlinks", ("unsafe_symlinks",), lambda h: textfmt.count((h.get("symlinks") or {}).get("count") or 0, "symlink") if (h.get("symlinks") or {}).get("count") else None),
+    ("declared dependencies imported", ("unused_dependencies",),
+     lambda h: f"{textfmt.count((h.get('imports') or {}).get('manifests') or 0, 'manifest')}" if (h.get("imports") or {}).get("manifests") else None),
+]
+
+
+def _step_checked(report: dict, name: str):
+    """What a step that ran looked at, in a few words, where the run records it; None where it does not."""
+    meta = report.get("meta") or {}
+    if name == "scc":
+        return f"{(report.get('size') or {}).get('total_files') or 0:,} files with code"
+    if name in ("git-log", "change analysis"):
+        return f"{meta.get('commits') or 0:,} commits"
+    if name == "signing":
+        return f"{(report.get('signing') or {}).get('commits') or 0:,} commits" if report.get("signing") else None
+    if name == "provenance":
+        n = ((report.get("provenance") or {}).get("trailers") or {}).get("commits")
+        return f"{n:,} commits" if n else None
+    if name == "functions":
+        return f"{len(report.get('functions') or []):,} functions" if report.get("functions") else None
+    if name == "structure":
+        st = report.get("structure") or {}
+        n = st.get("files")
+        n = len(n) if isinstance(n, (list, dict)) else n
+        return f"{n:,} files parsed" if n else None
+    if name == "trend":
+        return f"{len((report.get('trend') or {}).get('files') or {}):,} files sampled" if report.get("trend") else None
+    if name == "backtest":
+        return f"the history to {(meta.get('backtest') or {}).get('until')}" if (meta.get("backtest") or {}).get("until") else None
+    if name == "code age":
+        return f"{(meta.get('age') or {}).get('files'):,} files" if (meta.get("age") or {}).get("files") else None
+    return None
+
+
+def checks_run_section(report: dict, full: bool = True, width=None) -> dict:
+    """Everything the run checked, a row a check, with what it had to look at and how it came out, so a check
+    that passed, one with nothing to check and one that never ran do not look the same: clean, nothing to
+    check, did not run (and finding, for a check with a hit, which the Findings spell out). The hygiene
+    families first, the update tool, the licence and the declared files among them; then the two scans, the
+    sweep of unreachable objects and the share of imports the structure step resolved, per language, which is
+    the denominator behind four findings and was printed nowhere (prometheus: tsx 92%); then every step a run
+    can take. No seconds: the same commit gives the same table. --full only."""
+    from . import findings as rules
+    rows = []
+    h = rules._swept_hygiene(report) if report.get("hygiene") else None
+    hits = {f["rule"]["id"] for f in rules.hygiene_findings(report)} if h else set()
+    for label, ids, checked in CHECKS:
+        if h is None:
+            rows.append((label, NOT_RUN, ""))
+            continue
+        what = checked(h)
+        rows.append((label, HIT if hits & set(ids) else NOTHING if what is None else "no hit" if what == "not counted" else CLEAN, what or ""))
+    steps = (report.get("meta") or {}).get("steps") or {}
+    found_ids = {f["rule"]["id"] for f in rules.secrets_found(report)} if report.get("secrets_scanned") else set()
+    if not report.get("secrets_scanned"):
+        rows.append(("secrets scan", NOT_RUN, _step_phrase("betterleaks", steps["betterleaks"]) if steps.get("betterleaks") not in (None, "run") else ""))
+    else:
+        values = len(leaks.group(report.get("secrets") or []))
+        rows.append(("secrets scan", HIT if found_ids & set(SECRET_FINDINGS) else CLEAN if not values else "none in source files",
+                     "every commit HEAD reaches" + (f"{SEP}{textfmt.count(values, 'distinct value')} in test, example, vendored, generated or documentation files" if values and not found_ids & set(SECRET_FINDINGS) else "")))
+    scan = report.get("dependencies") or {}
+    status = scan.get("status")
+    if status == "scanned":
+        rows.append(("dependency scan", HIT if scan.get("vulnerable") else CLEAN,
+                     f"{_packages(scan.get('packages', 0))} in {_dependency_files(scan)}" + (f", database {scan['database_date']}" if scan.get("database_date") else "")))
+    elif status == "no-sources":
+        rows.append(("dependency scan", NOTHING, "no lock file"))
+    else:
+        rows.append(("dependency scan", NOT_RUN, "no offline vulnerability database" if status == "no-database" else ""))
+    loose = report.get("unreachable")
+    if not loose:
+        rows.append(("unreachable objects", NOT_RUN, ""))
+    elif not loose.get("objects"):
+        rows.append(("unreachable objects", NOTHING, "0 objects no ref reaches"))
+    else:
+        rows.append(("unreachable objects", HIT if loose.get("findings") else CLEAN,
+                     f"{textfmt.count(loose['objects'], 'object')} no ref reaches, {textfmt.count(loose.get('scanned') or 0, 'blob')} scanned"))
+    resolved = (report.get("structure") or {}).get("resolved")
+    if isinstance(resolved, dict) and resolved:
+        rows.append(("imports resolved to a tracked file", "ran", ", ".join(f"{lang} {100 * share:.0f}%" for lang, share in sorted(resolved.items()))))
+    else:
+        rows.append(("imports resolved to a tracked file", NOT_RUN, ""))
+    if steps:
+        every = _all_steps()
+        every += [name for name in steps if name not in every]
+        for name in every:
+            gate = STEP_GATES.get(name)
+            result = "ran" if steps.get(name) == "run" else STEP_WORDS.get(steps[name], steps[name]) if name in steps else NOT_RUN
+            rows.append((f"step: {name}", result, (_step_checked(report, name) or "") if steps.get(name) == "run" else f"{gate[0]} runs it" if gate and name not in steps else ""))
+    counts = [f"{sum(1 for r in rows if r[1] == word):,} {said}" for word, said in ((CLEAN, CLEAN), (HIT, "with a finding"), (NOTHING, "with " + NOTHING), (NOT_RUN, "that " + NOT_RUN))
+              if any(r[1] == word for r in rows)]
+    caption = _paragraphs(_fragments(", ".join(counts), f"{CLEAN} = something to check and no hit", f"{HIT} = spelled out in the Findings",
+                                     "no hit = the step records no count of what it looked at"),
+                          f"under a check, what it had to look at{SEP}the lists behind each are in {HYGIENE_FILE}")
+    sec = _section(f"Checks run · all {len(rows):,}, the hygiene checks, the scans, then the steps", [("check", {}), ("result", WHOLE), ("checked", TAIL)], rows, caption=caption)
+    return _below(sec, 1, labels=False)
+
+
 # One order in the default report, --full and Markdown: the code (what to read first, then what is hard to change
 # and what changes together), then the people. prometheus's default ran code, people, people, people, code, code.
 # --full's own sections sit in their groups: the watch list's by component and Hotspots after it, Size by language
-# closing the code, the Timeline after People, then the history (activity, age, changed lines, trailers) and what
-# the tree declares (signing, agent files, the OSPS controls).
+# closing the code, the Timeline after People, then the history (activity, age, changed lines, trailers) and the
+# supply chain: the scan's findings by rule, the vulnerable packages by lock file, signing by year, everything
+# the run checked, the agent files and the OSPS controls. In --full the Supply chain section's own grid opens
+# that group (SUPPLY_GROUP), so what the scans say is no longer the report's last forty-five lines.
 BUILDERS = [watch_section, documents_section, watch_by_component_section, hotspots_section, functions_section, coupling_section, size_section,
-            knowledge_section, people_section, timeline_section, activity_section, age_section, lines_section, trailers_section, signing_section,
-            agent_surface_section, osps_section]
+            knowledge_section, people_section, timeline_section, activity_section, age_section, lines_section, trailers_section,
+            secrets_by_rule_section, dependencies_by_lock_file_section, signing_section, checks_run_section, agent_surface_section, osps_section]
 # `--full` and Markdown only: Size, Activity and Code age are interesting once and rarely change what you
 # do next; Hotspots ranks the files the watch list already leads with, by the same product; no rule reads the
 # Timeline, and the People table's last-commit column says who is still here.
-FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "lines", "watch_by_component", "agent_surface", "osps", "timeline"}
+FULL_ONLY = {"size", "activity", "age", "hotspots", "signing", "trailers", "lines", "watch_by_component", "agent_surface", "osps", "timeline",
+             "secrets_by_rule", "dependencies_by_lock_file", "checks_run"}
+# The sections --full gained when its tables were capped. The Markdown export without --full keeps the
+# sections it had: what it carries is an open question of the plan, and a job summary should not grow unasked.
+FULL_NEW = {"secrets_by_rule", "dependencies_by_lock_file", "checks_run"}
+SUPPLY_GROUP = ("secrets_by_rule", "dependencies_by_lock_file", "signing", "checks_run", "agent_surface", "osps")
 
 
 def sections(report: dict, full: bool = True, width=None) -> list:
     """Every section as a dict with an `id` (the builder's name without _section), in the one order every
     rendering prints them (BUILDERS). The default terminal report (`full` False) leaves out the sections in
-    FULL_ONLY; `full` True and Markdown keep them."""
+    FULL_ONLY; `full` True and Markdown keep them, the Markdown export without --full less the ones in
+    FULL_NEW. Under --full a table the cap cut says in its title how to see the rest: the title has its
+    "50 of 1,324" already, and `--section people` after it."""
     out = []
     for b in BUILDERS:
         sid = b.__name__[:-len("_section")]
-        if full is False and sid in FULL_ONLY:
+        if (full is False and sid in FULL_ONLY) or (full == "markdown" and sid in FULL_NEW):
             continue
         sec = b(report, full, width)
         if sec is None:   # a section that exists only for some repositories (documents_section, agent_surface), or one another table already gives (coupling)
             continue
         sec["id"] = sid
+        if full is True and sec["rows"] and CUT_TITLE.search(sec["title"]):
+            from . import section
+            sec["title"] += f"{SEP}--section {section.name_of(sid)}"
         out.append(sec)
     return _finished(report, out, width)
+
+
+CUT_TITLE = re.compile(r" · [\d,]+ of [\d,]+\b")   # a title's "50 of 1,324": the table shows part of its rows (_shown)
 
 
 def _finished(report: dict, out: list, width) -> list:
@@ -2134,7 +2454,7 @@ def full_only_sections(report: dict) -> list:
             continue
         title = _base_title(sec["title"])
         if sid == "osps":
-            results = [row[2] for row in sec["rows"]]
+            results = [row[sec["columns"].index("result")] for row in sec["rows"]]
             short = [f"{results.count(r):,} {word}" for r, word in (("gap", "gap" if results.count("gap") == 1 else "gaps"), ("not seen", "not seen"),
                                                                      ("unrecognised", "unrecognised"), ("not checked", "not checked")) if results.count(r)]
             title += f" ({', '.join(short)}, of {len(results):,})" if short else f" (all {len(results):,} met)"
@@ -2145,20 +2465,91 @@ def full_only_sections(report: dict) -> list:
 RERENDER = "gitmole DIR --no-run --full re-renders this run, DIR being the path below."
 
 
+SECTION_HINT = "--section NAME prints one whole."
+
+
+def index_line(titles: list, width=None, lines: int = None) -> list:
+    """'--full adds 14 sections: Watch list by component, …, OSPS Baseline (2 gaps, 1 not seen, of 10).
+    --section NAME prints one whole.' as its lines: the sections only --full prints, by title, and where
+    every row of a table is. With `lines`, the sentence keeps to that many: a title is held on one line
+    while that fits, then titles break like any words (prometheus's fourteen fit four lines of 80 columns
+    only so), and past that the last titles are counted instead of named. The closing words are never cut."""
+    def said(named, glue):
+        hold = (lambda t: t.partition(" (")[0].replace(" ", brief.NBSP) + "".join(t.partition(" (")[1:])) if glue else (lambda t: t)
+        rest = len(titles) - len(named)
+        listed = ", ".join([hold(t) for t in named] + ([f"{rest:,} more"] if rest else []))
+        return wrapped(f"--full adds {textfmt.count(len(titles), 'section')}: {listed}. {SECTION_HINT}", width)
+    if not titles:
+        return wrapped(f"--full prints every finding whole and more of every table. {SECTION_HINT}", width)
+    out = said(titles, True)
+    if lines is None or len(out) <= lines:
+        return out
+    for k in range(len(titles), 0, -1):
+        out = said(titles[:k], False)
+        if len(out) <= lines:
+            return out
+    return out[:lines]
+
+
 def closing_lines(report: dict, width=None) -> list:
-    """The default report's last lines before the path, CLOSING_LINES at most: one sentence naming what --full
-    adds (the hidden rows of the tables above, and its own sections by title, generated from FULL_ONLY, so the
-    count follows the code), the steps line, and the command that re-renders this run with its argument named.
-    prometheus's report named none of --full's sections and none of the three steps it had not run."""
-    titles = full_only_sections(report)
-    whole = [t.partition(" (")[0].replace(" ", brief.NBSP) + "".join(t.partition(" (")[1:]) for t in titles]   # a title is not broken across two lines
-    index = (f"--full shows the hidden rows and adds {textfmt.count(len(titles), 'section')}: {', '.join(whole)}." if titles
-             else "--full shows the hidden rows.")
-    lines = brief.cap(wrapped(index, width), INDEX_LINES, max(width or 20, 20))
+    """The default report's last lines before the path, CLOSING_LINES at most: one sentence naming the sections
+    --full adds, by title and generated from FULL_ONLY, so the count follows the code, and saying where every
+    row of a table is (index_line); the steps line; and the command that re-renders this run with its
+    argument named. prometheus's report named none of --full's sections and none of the three steps it had
+    not run. It said "--full shows the hidden rows" while --full was every row; --full caps its tables now."""
+    lines = index_line(full_only_sections(report), width, INDEX_LINES)
     steps = steps_line(report)
     if steps:
         lines += brief.cap(wrapped(steps, width), CLOSING_LINES - 1 - len(lines), max(width or 20, 20))
     return lines + [RERENDER]
+
+
+# What a section of the report (or --section NAME) reads from the output directory. A file that is not here is
+# marked in --full's index of the directory: it is an input of the run (the log, the tree listing), read by an
+# export only (packages.json, by --sbom) or by nothing (maat-components.csv since 0.39.0). The plots are their
+# own rendering. A new output file is marked until a section gives it a home.
+RENDERED_FILES = {"meta.json", "activity.json", "size.json", "secrets.json", "dependencies.json", "hygiene.json", "signing.json", "provenance.json",
+                  "structure.json", "trend.json", "unreachable.json", "functions.csv", "maat-revisions.csv", "maat-coupling.csv", "maat-companions.csv",
+                  "maat-soc.csv", "maat-authors.csv", "maat-age.csv", "maat-fixes.csv", "maat-entity-ownership.csv", "maat-doa.csv", "maat-tests.csv",
+                  "maat-latenight.csv", "maat-entropy.csv", "backtest", "theseus"}
+UNRENDERED_MARK = "*"
+
+
+def directory_line(report: dict):
+    """'Output directory: activity.json, backtest/, …, log.txt*, … (* = no section renders it)': every name the
+    output directory holds, in order, a directory with its slash, and a mark on each that no section of the
+    report reads (RENDERED_FILES). None when the directory cannot be listed. prometheus's packages.json,
+    reverts.txt and tree.txt were named by no report."""
+    out_dir = report.get("out_dir") or ""
+    try:
+        names = sorted(os.listdir(out_dir))
+    except OSError:
+        return None
+    if not names:
+        return None
+    def said(name):
+        slash = "/" if os.path.isdir(os.path.join(out_dir, name)) else ""
+        return name + slash + ("" if name in RENDERED_FILES or name.endswith(".png") else UNRENDERED_MARK)
+    listed = [said(name) for name in names]
+    return f"Output directory: {', '.join(listed)}" + (f" ({UNRENDERED_MARK} = no section renders it)" if any(x.endswith(UNRENDERED_MARK) for x in listed) else "") + "."
+
+
+EXPORTS_LINE = "--sarif PATH writes the findings for code scanning, --sbom PATH the locked packages, --json PATH every table."
+CAPPED_LINE = f"A table stops at {TABLE_CAP} rows; {SECTION_HINT}"
+
+
+def full_closing_lines(report: dict, width=None) -> list:
+    """--full's last lines before the results line: the steps, with the flag that gates each one not run; what
+    produced the report (run_line); the output directory's files, the ones no section renders marked; the
+    exports that are not this report; and that a table is capped, with where the rest of its rows are."""
+    lines = []
+    made = run_line(report)
+    if made:   # a tool and its version stay on one line
+        made = SEP.join(part.replace(" ", brief.NBSP) for part in made.split(SEP))
+    for text in (steps_line(report), made, directory_line(report), EXPORTS_LINE, CAPPED_LINE):
+        if text:
+            lines += wrapped(text, width)
+    return lines
 
 
 # --- the terminal's drawing --------------------------------------------------
@@ -2225,7 +2616,8 @@ ASCII_MARKS = {
     SEVERITY_MARK["critical"]: "x", SEVERITY_MARK["warning"]: "!", SEVERITY_MARK["info"]: "*", STEP_MARK: ">",
     textfmt.ELLIPSIS: "...", "→": "->", "·": "-", RULE_MARK: "-", "≥": ">=", "×": "x", "—": "-", brief.NBSP: " ",
     **{symbol: "#" for symbol in list(SYMBOLS.values()) + [SECTION_MARK]},   # every pictogram: "# Watch list"
-    BAR_MARK: "#", BLOCK_MARK: "#", **{block: str(level) for level, block in enumerate(trend.BLOCKS[:-1], 1)},   # a sparkline as its levels, 1 to 7 and "#"
+    BAR_MARK: "#", BLOCK_MARK: "#", **{part: "|" if n < 3 else "#" for n, part in enumerate(BAR_PARTS)},   # under half a cell, and half or more
+    **{block: str(level) for level, block in enumerate(trend.BLOCKS[:-1], 1)},   # a sparkline as its levels, 1 to 7 and "#"
     "═": "=", "║": "|", "╔": "+", "╗": "+", "╚": "+", "╝": "+", "▀": "#",   # the banner's, should a terminal that cannot carry them be given it
 }
 
@@ -2390,12 +2782,15 @@ def _title(title: str, symbol: str = None) -> Text:
     return Text.assemble((f"{symbol} {name}" if symbol else name, BOLD), title[len(name):])
 
 
-def header(report: dict, findings: list = (), full: bool = False, width=None) -> Text:
+def header(report: dict, findings: list = (), full: bool = False, width=None, contents: list = None) -> Text:
     """The header: a title line (the repository, its branch and commit) and header_rows as a label grid, the
     labels padded to the longest and a value that does not fit wrapped with a hanging indent. The finding
-    tally is the Findings title's (tally_title). `findings` is not read; it stays for the callers that pass it."""
+    tally is the Findings title's (tally_title). `findings` is not read; it stays for the callers that pass it.
+    `contents`, --full's, is the titles of the sections below in their order, as a last row."""
     s = summary(report)
     rows = header_rows(report, full)
+    if contents:
+        rows.append(("contents", [(", ".join(contents), "")]))
     branch = f"branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else "")
     title = Text.assemble((s["name"], BOLD), f"{SEP}{branch}")
     if width is not None and len(title.plain) > width:   # a title longer than the line: the branch is a row
@@ -2484,13 +2879,16 @@ def _short_entry(g: dict, report: dict, width: int, printed: dict, style: str, f
 
 
 def _long_entry(g: dict, width: int, style: str) -> list:
-    """One entry of --full's Findings as its lines: the title, every statement whole and every step, wrapped at
-    spaces only, so a path, a package or a version is never broken (the box put the last letter of prometheus's
-    web/ui/mantine-ui/src/pages/service-discovery/ServiceDiscoveryPoolsList.tsx on the next line). One longer
-    than the line has a line to itself."""
+    """One entry of --full's Findings as its lines: the title, then each finding in the long shape (brief.long):
+    the fact, the subjects its statement names one a line and two further in, what the statement says after
+    them, and every step. Wrapped at spaces only, so a path, a package or a version is never broken (the box
+    put the last letter of prometheus's web/ui/mantine-ui/src/pages/service-discovery/ServiceDiscoveryPoolsList.tsx
+    on the next line); one longer than the line has a line to itself. It was each statement as one paragraph,
+    its subjects between semicolons."""
     out = [_titled(g, style)]
-    for item in g["items"]:
-        out += brief.wrap(item, width)
+    for f in g["findings"]:
+        made = brief.long(f, width)
+        out += made["statement"] + [f"  {line}" for line in made["subjects"]] + made["more"]
     for advice in g["advice"]:
         out += _step(brief.wrap(advice, width - 2))
     return out
@@ -2536,12 +2934,19 @@ def _base_title(title: str) -> str:
     return title.split(" · ")[0].split(" (")[0]
 
 
-def _cell(column: str, value: str, bars: bool) -> str:
-    """A cell as printed: itself, or a share with its bar after it in a table that draws them."""
-    if bars and column == "share" and value.endswith("%"):
-        n = int(value[:-1])
-        return (f"{value:>4} " + BAR_MARK * (max(1, n // 10) if n else 0)).rstrip()
-    return value
+def _barred(sec: dict) -> dict:
+    """The section with a bar after each cell of its share column, by the one bar rule (bar_cells: scaled to
+    the column's largest share, a column only when the rows draw three lengths or more) and "barred" set; as
+    it came, the same object, for a table that draws none or has been through here."""
+    if sec.get("barred") or not (_bars(sec) and sec["rows"]):
+        return sec
+    at = sec["columns"].index("share")
+    cells = [r[at] for r in sec["rows"]]
+    bars = bar_cells([int(c[:-1]) for c in cells]) if all(c.endswith("%") and c[:-1].isdigit() for c in cells) else None
+    if not bars:
+        return sec
+    rows = [tuple(f"{c:>4} {bar}".rstrip() if i == at else c for i, c in enumerate(r)) for r, bar in zip(sec["rows"], bars)]
+    return dict(sec, rows=rows, barred=True)
 
 
 # fit(): how far a column may give way, in the one order every table follows. A path loses its middle directories
@@ -2653,11 +3058,11 @@ def fit(sec: dict, width) -> dict:
     from rich.cells import cell_len
     if width is None or not sec["rows"]:
         return sec
+    sec = _barred(sec)
     cols, opts = sec["columns"], sec["col_opts"]
-    bars = _bars(sec)
-    kinds = [_kind(c, o) for c, o in zip(cols, opts)]
+    kinds = ["fixed" if sec.get("barred") and c == "share" else _kind(c, o) for c, o in zip(cols, opts)]
     rows = sec["rows"]
-    cells = [max(cell_len(_cell(c, r[i], bars)) for r in rows) for i, c in enumerate(cols)]
+    cells = [max(cell_len(r[i]) for r in rows) for i, c in enumerate(cols)]
     heads = [cell_len(c) for c in cols]
     want = [max(a, b) for a, b in zip(cells, heads)]
 
@@ -2727,10 +3132,10 @@ def table_lines(sec: dict) -> dict:
     background and nothing is padded on the right: prometheus's tables had a near-black stripe on every other
     row, pink on a share over a fifth and a caption that stretched the table to the width of its sentence."""
     from rich.cells import cell_len
-    bars = _bars(sec)
+    sec = _barred(sec)
     cols = sec["columns"]
-    left = [not (o.get("justify") == "right") or (bars and c == "share") for c, o in zip(cols, sec["col_opts"])]   # a share with its bar starts where the bars do
-    cells = [[_cell(c, v, bars) for c, v in zip(cols, row)] for row in sec["rows"]]
+    left = [not (o.get("justify") == "right") or (sec.get("barred") and c == "share") for c, o in zip(cols, sec["col_opts"])]   # a share with its bar starts where the bars do
+    cells = [list(row) for row in sec["rows"]]
     widths = [max([cell_len(c)] + [cell_len(r[i]) for r in cells]) for i, c in enumerate(cols)]
     shown = [i for i, w in enumerate(widths) if w]   # a column with no head and no cell (a bar column of zeroes) is not there
 
@@ -2796,7 +3201,13 @@ def section_lines(sec: dict, width=None) -> list:
         out.append(row)
         if n < len(under) and under[n]:
             deep = INDENT + UNDER_INDENT
-            out += [" " * deep + part for part in ([under[n]] if width is None else brief.wrap(under[n], max(width - deep, 20)))]
+            several = "\n" in under[n]   # a line each for the columns a table keeps under its rows (_below): what one wraps to is further in, to tell them apart
+            for line in under[n].split("\n"):
+                parts = [line] if width is None else brief.wrap(line, max(width - deep, 20), max(width - deep - UNDER_INDENT, 20) if several else None)
+                out += [" " * (deep + (UNDER_INDENT if several and k else 0)) + part for k, part in enumerate(parts)]
+    for sub in sec.get("more") or []:   # a second table of the same section (Trailers): its heads, its rule and its rows, no title
+        drawn = table_lines(fit(sub, width))
+        out += [drawn["head"], drawn["rule"]] + drawn["rows"]
     return out + _captions(fitted, width)
 
 
@@ -2818,29 +3229,50 @@ def _dim(console: Console, line: str) -> None:
 
 
 def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> None:
+    """The report on a terminal. The default: header, Findings in their short form, the sections of the one
+    order, the Supply chain section and the closing lines. --full: every section and every finding, not
+    every row. A contents row closes the header; each finding is in the long shape; a table stops at
+    TABLE_CAP rows, hides what the default hides and says in its title how to see the rest; the Supply chain
+    section opens its own group of sections (SUPPLY_GROUP) and is no longer last; and the closing lines say
+    what produced the report and what else the output directory holds."""
     carry(console)
-    show(console, header(report, findings, full=full, width=console.width))
     secs = [s for s in sections(report, full=full, width=console.width) if not _said_by_finding(s, findings)]
     by_id = {s["id"]: s for s in secs}
+    grouped = [s for s in secs if s["id"] in SUPPLY_GROUP] if full else []   # --full: the grid, then the sections of its group
+    contents = None
+    if full:
+        contents = ["Findings"] + (["Since last report"] if compare is not None else [])
+        for sec in secs:
+            if grouped and sec is grouped[0]:
+                contents.append(SUPPLY_TITLE)
+            contents.append(_base_title(sec["title"]))
+            if risk is not None and sec["id"] == "watch":
+                contents.append("Change risk")
+        if not grouped:
+            contents.append(SUPPLY_TITLE)
+    show(console, header(report, findings, full=full, width=console.width, contents=contents))
     console.print(Text(""))
     show(console, findings_block(findings, report, full=full, width=console.width, printed=by_id))   # a short finding may point at its table below
     if compare is not None:
         print_section(console, compare_section(compare))
+
+    def supply():
+        console.print(Text(""))
+        show(console, supply_chain_block(report, findings, full=full, width=console.width))
     # One section under another at every width: small tables used to sit side by side from 100 columns, which
     # changed the order of the lines with the terminal and put two tables on every copied line. A wider terminal
     # un-elides paths and re-wraps prose, and changes nothing else.
     for sec in secs:
+        if grouped and sec is grouped[0]:
+            supply()
         print_section(console, sec)
         if risk is not None and sec["id"] == "watch":
             print_section(console, risk_section(risk, base, full))   # the change, right under the list it is scored against
-    console.print(Text(""))
-    show(console, supply_chain_block(report, findings, full=full, width=console.width))
-    steps = steps_line(report)
+    if not grouped:
+        supply()
     console.print(Text(""))
     if full:
-        if steps:
-            _dim(console, steps)
-        if (line := run_line(report)):
+        for line in full_closing_lines(report, console.width):
             _dim(console, line)
         _dim(console, results_line(report))
         return
@@ -2885,10 +3317,16 @@ def _md_section(sec: dict) -> list:
     if not sec["rows"]:
         out.append(f"_{sec['note'] or 'nothing'}_")
         return out
+    wide = sec.get("wide")   # the columns a terminal draws under each row are columns here (_below)
+    if wide:
+        sec = dict(sec, columns=wide["columns"], col_opts=wide["col_opts"], rows=wide["rows"], under=None)
     under = sec.get("under")   # what a terminal prints under each row is a last column here
     out.append("| " + " | ".join(sec["columns"] + ([sec.get("under_head") or ""] if under else [])) + " |")
     out.append("| " + " | ".join(["---:" if o.get("justify") == "right" else "---" for o in sec["col_opts"]] + (["---"] if under else [])) + " |")
     out += ["| " + " | ".join(_md_cell(c) for c in list(row) + ([under[n]] if under else [])) + " |" for n, row in enumerate(sec["rows"])]
+    for sub in sec.get("more") or []:
+        out += ["", "| " + " | ".join(sub["columns"]) + " |", "| " + " | ".join("---:" if o.get("justify") == "right" else "---" for o in sub["col_opts"]) + " |"]
+        out += ["| " + " | ".join(_md_cell(c) for c in row) + " |" for row in sub["rows"]]
     if sec.get("caption"):
         out += ["", f"_{sec['caption']}_"]
     return out
@@ -2919,7 +3357,7 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
     deps_line = dependencies_line(report)
     rl = run_line(report)
     out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "",
-            *([rl + "  "] if rl else []), *([] if full else ["`--markdown --full` shows the hidden rows.  "]), results_line(report), ""]
+            *([rl + "  "] if rl else []), f"A table stops at {TABLE_CAP} rows; `--section NAME` prints one whole.  ", results_line(report), ""]
     return "\n".join(out)
 
 

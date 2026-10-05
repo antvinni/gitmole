@@ -49,8 +49,11 @@ class CliDocsTest(unittest.TestCase):
         self.assertEqual(wrapped, [])
 
     def test_full_is_described_as_a_report_option(self):
-        line = next(line for line in _help().splitlines() if line.strip().startswith("--full"))
-        self.assertIn("report", line)
+        lines = _help().splitlines()
+        at = next(i for i, line in enumerate(lines) if line.strip().startswith("--full"))
+        self.assertEqual(lines[at].split(None, 1)[1], "every section and finding; --section NAME for each row")
+        group = next(line for line in reversed(lines[:at]) if line and not line.startswith(" "))
+        self.assertEqual(group, "report and exports:", "--help --full prints the help: --full is the report's")
 
     def test_install_and_doctor_are_in_readme_and_install_md(self):
         for doc in (_read("README.md"), _read("docs", "install.md")):

@@ -24,7 +24,8 @@ NAMES = {
     "findings": FINDINGS, "watch-list": "watch", "most-changed-documents": "documents", "watch-list-by-component": "watch_by_component",
     "hotspots": "hotspots", "complex-functions": "functions", "change-coupling": "coupling", "size-by-language": "size",
     "knowledge-map": "knowledge", "people": "people", "timeline": "timeline", "activity": "activity",
-    "surviving-code-by-year-written": "age", "changed-lines": "lines", "trailers": "trailers", "signing-by-year": "signing",
+    "surviving-code-by-year": "age", "changed-lines": "lines", "trailers": "trailers", "secrets-by-rule": "secrets_by_rule",
+    "dependencies-by-lock-file": "dependencies_by_lock_file", "signing-by-year": "signing", "checks-run": "checks_run",
     "agent-surface": "agent_surface", "osps-baseline": "osps", "companions": "companions",
 }
 ALIASES = {"watch": "watch-list"}   # the short name the plan and the docs use for the list
@@ -161,6 +162,8 @@ def table(report: dict, found: list, name: str):
         return None
     if sec.get("csv"):
         return sec["csv"]
+    if sec.get("wide"):   # the columns a terminal draws under each row are columns here
+        sec = dict(sec, columns=sec["wide"]["columns"], rows=sec["wide"]["rows"], under=None)
     keep = [i for i, c in enumerate(sec["columns"]) if c]
     under = sec.get("under")
     heads = [sec["columns"][i] for i in keep] + ([sec.get("under_head") or "also"] if under else [])

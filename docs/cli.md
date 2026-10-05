@@ -68,7 +68,7 @@ What is printed, and what is written beside it.
 
 | Option | What it does |
 |---|---|
-| `--full` | A report option, not a help option: print the report with every section, column and row. Adds the hotspots, size, activity and code age tables; the default report keeps the columns you read, caps each table, elides long paths in the middle, hides test files, deleted files and vendored code, shows a directory that changes as one as a single coupling row, prints each finding in its short form (the count, the rule's numbers, the worst subject, one step) where `--full` names every subject, and names in one line the findings labelled true but never acted on. With `--clean`, it lists each temp clone rather than one row for them all. |
+| `--full` | A report option, not a help option: print the report with every section and every finding. It is not every row: a table stops at 50 rows, hides what the default hides (test files, deleted files, vendored and generated code) and says in its title how many rows there are and which `--section NAME` prints them all (`People · 50 of 1,324 identities, by commits · --section people`). Each finding is laid out with the subjects its statement names a line each; the header closes with a `contents` row; the columns the default leaves out are back; and the sections only `--full` prints are added in their groups: Watch list by component, Hotspots, Size by language, Timeline, Activity, Surviving code by year, Changed lines, Trailers, and after the Supply chain section Secrets by rule, Dependencies by lock file, Signing by year, Checks run, Agent surface and the OSPS Baseline. `--markdown --full` takes the same cap. Until 0.44.0 `--full` printed every row (4,359 lines at 80 columns on prometheus, 964 now); a script that piped it for the rows wants `--section NAME --csv`. With `--clean`, it lists each temp clone rather than one row for them all. |
 | `--section NAME` | Print one section of the report whole, and nothing else: every row, with no cap and nothing hidden. Repeatable. Works with `--no-run`, and with `--markdown`, which then holds the named sections only. See [One section, whole](#one-section-whole) for the names. |
 | `--csv` | With one `--section NAME`: write that section's rows to stdout as a CSV with a header line, holding every field the JSON export has for a row, and no email address. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
@@ -111,7 +111,7 @@ Checking and installing the tools, looking before a run, and tidying up after on
 
 `--section NAME` prints one section of the report on its own: no header, no findings, no closing lines.
 The table has every row it can have, in the table's own ranking, the rows the default report shows first
-and the ones it hides after them. Where the rows are files a `kind` column says what each is, in the file
+and the ones it hides after them; `--full` stops a table at 50 rows, and this is where the rest are. Where the rows are files a `kind` column says what each is, in the file
 classifier's word: `source`, `test`, `generated`, `vendored`, `example`, `release`, `other` (a file type
 that is not ranked) or `removed` (no longer in the tree). A coupled pair's kind is the class the Change
 coupling table hides it under (`header` and `locale` besides those), `source` for a pair it shows.
@@ -128,10 +128,12 @@ names, and an unknown one prints the list and exits 2 before anything runs:
 
 | Name | What it prints |
 |---|---|
-| `findings` | every finding in the long form `--full` prints |
+| `findings` | every finding in the long form `--full` prints: the fact, the subjects its statement names a line each, the step |
 | `watch-list` | the watch list's fifteen files, each with the reasons the default report's columns do not hold on a line under it |
 | `most-changed-documents` | the documents the history changed most, where documentation is most of the tree |
-| `watch-list-by-component`, `size-by-language`, `activity`, `surviving-code-by-year-written`, `changed-lines`, `trailers`, `signing-by-year`, `agent-surface`, `osps-baseline` | the table `--full` prints under that title |
+| `watch-list-by-component`, `size-by-language`, `activity`, `surviving-code-by-year`, `changed-lines`, `trailers`, `signing-by-year`, `checks-run`, `agent-surface`, `osps-baseline` | the table `--full` prints under that title |
+| `secrets-by-rule` | what the secrets scan found, by its rule and the confidence it gave: places at HEAD, places only in history, the first file. Never a value |
+| `dependencies-by-lock-file` | every vulnerable package with the lock file that pins it, in the order the findings rank them |
 | `hotspots` | every file the history changed, by changes × lines of code, with its kind |
 | `complex-functions` | every function at complexity 10 or more, with the kind of its file |
 | `change-coupling` | every pair with five or more shared changes, with its kind; no directory rows |

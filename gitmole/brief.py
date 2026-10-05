@@ -1,7 +1,7 @@
 """The short form of a finding, for the default terminal report: the count and the rule's numbers, the worst
 subject, and one step. It is a second rendering of the same `rule` and `evidence`, not the long sentence cut
-off: `--full`, the Markdown export, the JSON and SARIF keep the enumeration (`detail`) byte for byte, since
-nothing here writes to a finding. prometheus's Findings box was 88 of the default report's 211 lines at 80
+off: the Markdown export, the JSON and SARIF keep the enumeration (`detail`) byte for byte, since nothing here
+writes to a finding, and `--full` lays that same statement out with its subjects a line each (long). prometheus's Findings box was 88 of the default report's 211 lines at 80
 columns: Brain methods repeated the first five rows of the Complex functions table below it, one Go
 pseudo-version of 40 characters was printed three times, and five notes took more lines than four warnings.
 
@@ -697,6 +697,40 @@ def short(f: dict, report: dict = None, width: int = 74, printed: dict = None, f
     subjects = made.get("subjects") or []
     step = step_lines(short_version(made["step"]), width - 2) if made.get("step") else []
     return {"statement": lines, "subjects": [short_version(x) for x in subjects], "step": step}
+
+
+LONG_SUBJECTS = 5       # the subjects --full prints under a finding, one a line: what a rule's statement names
+
+
+def long(f: dict, width: int = 74) -> dict:
+    """The finding as --full and `--section findings` print it: {"statement": lines, "subjects": lines, "more":
+    lines}, the fact, then the subjects the rule's statement names, one a line (LONG_SUBJECTS at most, the
+    lines one wraps to indented under it, and a last line counting the rest), then what the statement says
+    after its list. Nothing is cut and no version is shortened: this is the rule's own statement, laid out.
+    prometheus's Vulnerable dependencies was one paragraph of eleven lines with its three packages between
+    semicolons. A statement that is no list (no colon in its first sentence, or one subject after it) is
+    printed whole."""
+    statement = textfmt._statement_and_advice(f)[0]
+    marked = statement.startswith(BASELINE_MARK)
+    body = statement[len(BASELINE_MARK):] if marked else statement
+    sentences = textfmt._SENTENCE_END.split(body.strip())
+    lead, colon, listing = sentences[0].partition(": ")
+    items = listing.rstrip(".").split("; ") if colon else []
+    if len(items) < 2:
+        return {"statement": wrap(statement, width), "subjects": [], "more": []}
+    counted = _MORE.search(items[-1])
+    rest = int((counted.group(1) or counted.group(2)).replace(",", "")) if counted else 0
+    if counted:
+        items[-1] = items[-1][:counted.start()]
+    rest += max(len(items) - LONG_SUBJECTS, 0)
+    subjects = []
+    for item in items[:LONG_SUBJECTS]:
+        lines = wrap(item, width - 2, width - 2 - len(HANG))
+        subjects += [lines[0]] + [HANG + x for x in lines[1:]]
+    if rest:
+        subjects.append(f"and {rest:,} more")
+    more = wrap(" ".join(sentences[1:]), width) if len(sentences) > 1 else []
+    return {"statement": wrap((BASELINE_MARK if marked else "") + lead + ":", width), "subjects": subjects, "more": more}
 
 
 def compact(f: dict, report: dict = None, width: int = 74, lead: int = 0, printed: dict = None, found: list = None) -> list:

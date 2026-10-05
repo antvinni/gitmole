@@ -33,6 +33,10 @@ def whole_report() -> dict:
     r["entropy"] = [{"entity": "static/index.html", "periods": 9, "hcm": 0.25}]
     r["meta"]["identities"] += [{"name": "dev@example.com", "email": "dev@example.com", "commits": 3, "aliases": [{"name": "Dev", "email": "dev@old.example.com", "commits": 1}]}]
     r["activity"]["authors"] = {"Bob": {"commits": 129, "authored": 129, "added": 4000, "deleted": 100, "first": "2025-08-20", "last": "2026-09-10"}}
+    r["secrets"] = [{"rule": "generic-api-key", "file": "tests/test_app.py", "commit": "abc1234", "line": 3, "value": "v1", "confidence": "low", "at_head": True},
+                    {"rule": "private-key", "file": "old/gone.py", "commit": "def5678", "line": 9, "value": "v2", "confidence": "high", "at_head": False}]
+    r["dependencies"]["vulnerable"] = [{"name": "lodash", "version": "4.17.20", "source": "package-lock.json", "ids": ["GHSA-x"], "aliases": ["CVE-2026-1"], "score": 7.5,
+                                        "fixed": "4.17.21", "imported": True}]
     return r
 
 
@@ -58,6 +62,7 @@ class Names(unittest.TestCase):
             if sid in (section.FINDINGS, "documents"):
                 continue
             sec = render.whole_section(report, sid)
+            self.assertIsNotNone(sec, name)
             self.assertEqual(render._base_title(sec["title"]).lower().replace(" ", "-"), name)
 
     def test_case_spaces_and_hyphens_do_not_matter(self):
@@ -301,7 +306,7 @@ class CommandLine(unittest.TestCase):
             _out_dir(out)
             rc, text = _main([out, "--no-run", "--section", "hotspots", "--markdown", "-"])
         self.assertEqual(rc, 0)
-        self.assertTrue(text.startswith("## Hotspots (score = changes × lines of code)\n\n| file | kind |"), text[:80])
+        self.assertTrue(text.startswith("## Hotspots · all 2, by changes × lines of code\n\n| file | kind |"), text[:80])
         self.assertNotIn("# demo", text)
 
     def test_an_unknown_name_prints_the_list_and_exits_2_before_anything_runs(self):

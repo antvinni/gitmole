@@ -44,6 +44,20 @@ def rich_report() -> dict:
                        "lines": {"windows": [{"label": "last year", "from": "2025-09-10", "to": "2026-09-10", **w},
                                              {"label": "the year before", "from": "2024-09-10", "to": "2025-09-10", **w}], "churn_days": 14},
                        "agents": AgentSurface.AGENTS}
+    # what --full's supply-chain sections read: the scan's rows by rule, a vulnerable package past the critical band, the hygiene record and the steps
+    r["secrets"] = [{"rule": "generic-api-key", "file": "tests/fixtures/keys.py", "commit": "abc1234", "line": 3, "value": "v1", "confidence": "low", "at_head": True},
+                    {"rule": "private-key", "file": DEEP.replace("token_validator.go", "testdata/ca.key"), "commit": "def5678", "line": 1, "value": "v2", "confidence": "high", "at_head": False}]
+    r["dependencies"]["vulnerable"] = [
+        {"name": "github.com/example/gateway", "version": "0.307.4-0.20251119130332-1174b0ce4f1f", "source": "services/gateway/go.mod", "ids": ["GO-2026-1"], "aliases": ["CVE-2026-40179"],
+         "score": 7.5, "fixed": "0.311.2-0.20260410083055-07c6232d159b", "imported": True},
+        {"name": "websocket-driver", "version": "0.7.4", "source": "package-lock.json", "ids": ["GHSA-x"], "aliases": ["CVE-2026-54466"], "score": 9.2, "fixed": "0.7.5", "imported": False, "runtime": False}]
+    r["hygiene"] = {"actions": {"pinned": 65, "local": 5, "unpinned_count": 0}, "lockfiles": {"pairs": 9}, "updates": {"tool": "renovate", "covered": ["gomod", "npm"], "uncovered": []},
+                    "trojan": {"files": 675}, "binaries": {"binaries": 9, "executables_count": 0}, "submodules": {"count": 0}, "symlinks": {"count": 0}, "confusion": {}, "install": {},
+                    "presence": {"license": "LICENSE", "security_policy": "SECURITY.md", "codeowners": "CODEOWNERS"}, "licences": {"file_licence": "Apache-2.0", "approved": True, "files": ["LICENSE"]},
+                    "imports": {"manifests": 9, "unused": [], "count": 0}}
+    r["structure"] = {"status": "run", "resolved": {"go": 1.0, "tsx": 0.916}}
+    r["unreachable"] = {"objects": 0, "blobs": 0, "scanned": 0, "findings": 0}
+    r["meta"]["steps"] = {"scc": "run", "git-log": "run", "change analysis": "run", "betterleaks": "run", "osv-scanner": "run", "hygiene": "run", "structure": "run", "trend": "timeout"}
     return r
 
 

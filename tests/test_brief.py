@@ -600,7 +600,8 @@ class Block(unittest.TestCase):
         self.assertIn("\n  ↳ Review promql/engine.go", default, "the step at column 3")
         self.assertIn("\n● A title\n  18 files", default, "the mark at column 1, the statement at column 3")
         self.assertNotIn("7 at 5 or more", full)
-        self.assertIn("62 functions are both long and complex: a; b; c; d; e and 57 more", full)
+        self.assertIn("\n  62 functions are both long and complex:\n    a\n    b\n    c\n    d\n    e\n    and 57 more\n  ↳ Split", full,
+                      "the long shape: the fact, the subjects the statement names one a line, the rest counted, then the step")
         self.assertIn("a long list", full)
         self.assertEqual(found, before)
         self.assertEqual(render.to_json({"meta": {}}, found)["findings"], before, "no key is added to what the JSON exports")

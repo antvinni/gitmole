@@ -20,7 +20,7 @@ in plain words, and what to do first. This page is the reference.
    it, which `--full` and the Markdown export add, ranks every file by the same
    product and carries the trend column; the Markdown export caps it and leaves
    test files, deleted files, generated files and release plumbing out, saying
-   how many, and `--full` shows them all. The default report's own tables,
+   how many, as `--full` does; `--section hotspots` lists them all. The default report's own tables,
    change coupling and complex functions, leave test files out the same way.
 3. Change coupling shows files that always change together. That usually
    means a hidden dependency or copy-pasted layout. A whole directory that
@@ -31,11 +31,12 @@ in plain words, and what to do first. This page is the reference.
    subdirectories of a lone top-level one such as `src/`. A directory the
    history knows but the tree no longer has (the layout before a move to `src/`
    or `crates/`) is hidden from the map with a count, and left out of the
-   islands and bus-factor findings; `--full` shows it.
+   islands and bus-factor findings; `--section knowledge-map` shows it.
 5. Secrets is a pass or fail check. Read it only if it flags something.
 6. One table, whole: `--section NAME` prints a section on its own with every
    row, the ones the report hides too, each with its kind, and `--csv` writes
-   the same rows as a CSV
+   the same rows as a CSV. `--full` is every section and every finding, not
+   every row: its tables stop at 50
    ([One section, whole](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#one-section-whole)).
 
 ## The terminal report
@@ -94,16 +95,38 @@ three under People and four under the Watch list with its `Check:`. A word is
 defined once, under the first table that prints it (`gone = no commit in the
 12 months to 2026-09-18`). How a table was made (the merge regime behind the
 coupled pairs, an import left out of ownership, the merge total, whose aliases
-were merged) is `--full`'s and Markdown's. No caption says `--full shows
-them`: the default report says it once, on the line before its last.
+were merged) is `--full`'s and Markdown's. No caption says where the hidden
+rows are: the default report says it once, in its closing lines.
 
 The sections come in one order in the default report, `--full` and Markdown,
 code first and people after: Watch list, Complex functions, Change coupling,
-Knowledge map, People. `--full`'s own sections sit in their groups (the watch
-list by component and Hotspots after the Watch list, Size by language after
-Change coupling, the Timeline after People, then Activity, Surviving code by
-year, Changed lines, Trailers, Signing by year, Agent surface and the OSPS
-Baseline). The width of the terminal changes how a cell is elided and how
+Knowledge map, People, Supply chain. `--full`'s own sections sit in their
+groups (the watch list by component and Hotspots after the Watch list, Size by
+language after Change coupling, the Timeline after People, then Activity,
+Surviving code by year, Changed lines and Trailers), and under `--full` the
+Supply chain section opens a group of its own instead of closing the report:
+Secrets by rule, Dependencies by lock file, Signing by year, Checks run, Agent
+surface and the OSPS Baseline follow it.
+
+`--full` is every section and every finding, not every row. Its header closes
+with a `contents` row naming the sections in order. A table stops at 50 rows
+(the Markdown export's cap, with or without `--full`), hides what the default
+hides, so its first rows are the default's rows, and when the cap cut it the
+title says so and names where the rest are: `People · 50 of 1,324 identities,
+by commits · --section people`. A count that would sit under the last row is in
+the caption instead: the spans lizard may have mis-parsed sort last, so
+Complex functions says `? = a span lizard may have mis-parsed (6 of the
+table's, listed last)`, and People says how its whole table is spread (`1,324
+by commits: 2 with 1,000 or more · 18 with 100 to 999 · 98 with 10 to 99 · 448
+with 2 to 9 · 718 with 1 · 37 credited only as co-author · 3 with merges
+only`), the bands summing to the title's count. A bar is drawn in eighths of
+a cell, scaled so the column's largest value fills eight cells; zero draws
+nothing, and a table whose rows would draw fewer than three different bars
+has no bar column. Where a table's text does not fit beside its numbers at 80
+columns (the OSPS Baseline, Agent surface, Watch list by component, Checks
+run, Dependencies by lock file) it is on lines under each row, whole, and in
+columns of its own in Markdown and in a CSV. On prometheus `--full` is 964
+lines at 80 columns; it was 4,359 while it printed every row. The width of the terminal changes how a cell is elided and how
 prose wraps, and nothing else: no rows, no order, no month window (the
 Timeline's twelve months need 70 columns), and no two tables side by side.
 A cell is never wrapped onto a second line, and neither is a column head.
@@ -186,8 +209,8 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    over every commit, the bug magnets and the watch list over scored files,
    and it says how many commits, and how many fix commits, changed files
    and none that is scored. A tree with more test files than source files
-   gets none of this: tests are in the tables, hidden, and `--full` shows
-   them. The counts are under `coverage` in the JSON.
+   gets none of this: tests are in the tables, hidden, and `--section NAME`
+   shows them. The counts are under `coverage` in the JSON.
 2. **Findings**: anything the heuristics flagged, worst first: critical,
    warning, note. "Note" is the word in the terminal, the Markdown export
    and these pages for the severity the JSON, the SARIF and `--fail-on`
@@ -208,7 +231,10 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    complexity 15 or more`), the worst subject, and the step in three lines
    at most. `--full`, the Markdown export, the JSON and SARIF keep the
    whole statement with every subject it names; the short form is a second
-   rendering of the same `rule` and `evidence`, and changes neither.
+   rendering of the same `rule` and `evidence`, and changes neither. `--full`
+   (and `--section findings`) lays the statement out: the fact, then the
+   subjects it names a line each, five at most with the rest counted, then
+   what the statement says after its list, then the step.
    - A finding whose subjects are a table of the same report in the same
      order names the worst one and points there: Brain methods at Complex
      functions, Files that always change together at Change coupling
@@ -768,8 +794,8 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    ampersands and pluses, and a part after "and" only when it is two words
    or more, so "a new agent on macOS and Linux" is one change. Test files are left out of every finding that names a
    file, area or function: they change with every fix, and owning the tests is
-   not the knowledge risk. The default tables leave them out too; `--full`
-   shows them.
+   not the knowledge risk. The tables leave them out too, under `--full` as
+   well; `--section NAME` shows them, marked `test`.
 
    The change log is read with whitespace ignored (`git log -w
    --ignore-blank-lines`), so a hunk that only re-indents counts no lines
@@ -1032,7 +1058,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    tables, one file per version) as one row with the file count and the
    weakest share; the caption gives the hidden pairs as a sum with its
    breakdown and says what a directory row is (`a directory row = its files
-   change with each other (15 pairs)`), and `--full` shows every pair. The two
+   change with each other (15 pairs)`), and `--section change-coupling` shows every pair. The two
    files of a pair are one cell, the directories they share said once and the
    rest of each in braces, the form a shell expands:
    `web/ui/mantine-ui/src/promql/{format.tsx,serialize.ts}`, or
@@ -1041,9 +1067,9 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    The column `together` is the share of the two files' changes made in one
    commit (`degree` in the JSON); `--full` adds `avg changes`, the mean of
    their change counts (`average-revs`).
-   Hotspots hide files no longer in the tree the same way; `--full`, which hides nothing else, gives them one
-   line (`412 removed files not listed, 312 from left-out imports`), since a file that is gone has no lines,
-   complexity or score to show, and `maat-revisions.csv` still lists every one. Hotspots carry a `trend` column, sampled for the
+   Hotspots hide files no longer in the tree the same way, under `--full` too, and count them in the caption
+   (`7,666 files hidden: 6,836 deleted, 821 test, 9 generated`): a file that is gone has no lines,
+   complexity or score to show. `--section hotspots` lists every one, after the rows the table shows, marked `removed`. Hotspots carry a `trend` column, sampled for the
    top hotspots: the change in complexity over the last year from scc on
    the file at sampled commits, `-` when no sample is a year old (`--full`
    shows the whole series as a sparkline), and under `--full` a `minors` column (contributors with a
@@ -1052,8 +1078,21 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    with `gone` after the name, and under `--full` shows the share of each area's lines
    that they wrote and how many of its authors committed to it in the
    `--gone` window (`recent`, a count with no names). With `--full`: size by language, activity by weekday
-   with the busiest hour and the share of commits that are fixes, and
-   surviving code by year.
+   with the busiest hour (the share of commits that are fixes is the header's, and is not said again there), and
+   surviving code by year. After the Supply chain section `--full` adds three tables no report had. **Secrets by
+   rule**: the scanner's rule, the confidence it gave, the places at HEAD, the places only history holds and the
+   first file, never a value or the line it matched. **Dependencies by lock file**: every vulnerable package with
+   the lock file that pins it, in the order the findings rank them (a lock that ships, reach, a fix, then the
+   score), its version, one advisory id, its fix and its reach under the row, and a package scoring CVSS 9.0 or
+   more listed whatever the cap. **Checks run**: a row for each hygiene family (the update tool, the licence and
+   the declared files among them), the two scans, the sweep of unreachable objects, the share of imports the
+   structure step resolved to a tracked file per language, and every step a run can take, each with what it had
+   to look at under it and its result: `clean`, `nothing to check`, `did not run`, `finding` for a check the
+   Findings spell out, `no hit` for a family the step records no count for, and `ran` for a step that only
+   measures. No seconds, so the same commit gives the same table. An OSPS Baseline gap that rests on a file's
+   name and on nothing a scan found says so after its evidence (`matched by file name alone`). The Trailers
+   section's comparison of the declared commits with the rest is a second table under the first, a row a
+   measure, and the caption keeps the definition of `declared`.
 
    Size, hotspots, coupling, ownership, code age and the watch list analyse
    source files: a built-in list of code extensions plus names like Makefile
@@ -1089,7 +1128,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    file every one of whose functions also appears identically in other
    files, found from the function metrics); the hotspots table, drawn
    under `--full` and in the Markdown export, hides the same test files
-   and generated files in the Markdown export, since `--full` shows
+   and generated files in both; `--section hotspots` shows
    everything. The complex functions table also hides vendored code
    (`vendor/`, `vendored/`, `node_modules/`,
    `third_party/`, `external/`, `deps/`, `.yarn/`, a `packages/` inside a
@@ -1113,7 +1152,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    source file and its own header), locale pairs (two translation files
    named for their locales, as the bug magnets know them) and pairs with a
    vendored file on either side; the captions show how many are hidden, and
-   `--full` shows them. Release plumbing is also hidden from the hotspots
+   `--section change-coupling` shows them, each with the class it is hidden under. Release plumbing is also hidden from the hotspots
    table and left out of the watch list, the churn-dominance and the
    bug-magnet findings: a version file or a manifest changes on every
    release by design, not because anything is wrong with it. Plumbing is
@@ -1154,7 +1193,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    5 at 10 or more`) when no function meets the brain-methods rule itself,
    complexity 15 or more over 100 lines or more, and the whole list fits
    the table's eight rows; a longer list stays a table. `--full` and the
-   Markdown export keep every one of these tables whole.
+   Markdown export keep every one of these tables, up to their 50 rows.
 6. **Supply chain**, last: a titled grid of labelled rows, what the scans
    and the tree's own declarations say in one place. No row carries a
    status mark; the first words of a scan's row are its verdict, in the
@@ -1209,12 +1248,15 @@ Reinartz gone`, `2019-01 gone`); blank means active.
 
 7. **Closing lines.** The default report ends with at most six lines and
    the path:
-   - one sentence naming what `--full` adds: `--full shows the hidden rows
-     and adds 11 sections: Watch list by component, Hotspots, ..., OSPS
-     Baseline (2 gaps, 1 not seen, of 10).` The list is generated from the
-     sections only `--full` prints that have rows for this report (no
-     Agent surface without agent files), and the OSPS result is its only
-     number;
+   - one sentence naming what `--full` adds, and where every row of a
+     table is: `--full adds 14 sections: Watch list by component, Hotspots,
+     ..., OSPS Baseline (2 gaps, 1 not seen, of 10). --section NAME prints
+     one whole.` The list is generated from the sections only `--full`
+     prints that have rows for this report (no Agent surface without agent
+     files), and the OSPS result is its only number. It keeps to four
+     lines: a title is held on one line while that fits, then titles break
+     like any words, and past that the last titles are counted (`3 more`);
+     the closing words are never cut;
    - the steps line: `15 of 18 steps ran; --plots runs the other 3 (code
      survival, 2 plots).` The total is every step a run can take; each one
      that did not run is named with the flag that runs it (`--plots`,
@@ -1229,10 +1271,20 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    `--full` closes with the steps line, a Run line (what produced the
    report: gitmole's version, every tool's and the `--ignore`,
    `--ignore-data` and `--deep` options, read from the run manifest
-   `meta.run`), and `Full results in …` (`Full results and plots in …`
+   `meta.run`), an index of the output directory (`Output directory:
+   activity.json, backtest/, ..., log.txt*, ... (* = no section renders
+   it).`: every name it holds, with a mark on the ones no section of the
+   report reads, such as the log, the tree listing and `packages.json`,
+   which `--sbom` reads), a line naming `--sarif PATH`, `--sbom PATH` and
+   `--json PATH`, `A table stops at 50 rows; --section NAME prints one
+   whole.`, and `Full results in …` (`Full results and plots in …`
    only when the directory holds a plot). Markdown keeps its `Secrets:`
-   and `Dependencies:` lines with each scan's totals, the Run line and
-   the `Full results` line. The header shows the manifest's commit as
+   and `Dependencies:` lines with each scan's totals, the Run line, the
+   line saying a table stops at 50 rows, and the `Full results` line.
+   Without `--full` it carries the sections it always carried, not the
+   three `--full` gained; with `--full`, all of them under the same cap
+   (on prometheus 38 KB and 50 KB, both under GitHub's 65,536-character
+   limit for a comment; `--markdown --full` was 285 KB). The header shows the manifest's commit as
    `branch main @ 540ee5b5`.
 
 A full example, at a pinned commit, is
