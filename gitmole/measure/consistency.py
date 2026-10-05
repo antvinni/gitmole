@@ -1592,12 +1592,57 @@ def _running(lines: list) -> str:
 
 _SUPPLY_CHAIN = re.compile(r"^(?:\S+ )?Supply chain\s*$")   # the section's title line, behind its pictogram or without one
 _GRID_LABEL = re.compile(r"^ {2}\S")                        # a row of its label grid starts two in; what a row wraps to starts further in
+_FINDINGS = re.compile(r"^(?:\S+ )?Findings(?: · .*)?$")    # the Findings title line once it has no box around it, with its tally or bare
+_RULE = re.compile(r"^\s*─+\s*$")                           # the rule under a table's column heads
+
+
+def _joined(lines: list) -> str:
+    return " ".join(" ".join(lines).split())
+
+
+def _grid_rows(lines: list) -> list:
+    """The rows of a label grid as running text, one each: a row starts two in, and what it wraps to starts
+    further in and belongs to the row above it."""
+    rows = []
+    for l in lines:
+        if _GRID_LABEL.match(l) or not rows:
+            rows.append([l])
+        else:
+            rows[-1].append(l)
+    return [_joined(row) for row in rows]
+
+
+def _unboxed(block: list) -> list:
+    """One run of lines between two blank ones, outside any box, as its chunks. A table (it has a rule under
+    its column heads) is a chunk a line, as it always was. From the output plan's item A11 the header and the
+    Findings have no box either, and are told by their shape: the Findings block opens with its title line and
+    each entry starts at column 1 with its mark, its statement, subject lines and step wrapped under it, so an
+    entry is one running text; the header is a title line over a label grid, each row of which is a chunk (a
+    row that ends in a number is not counting the next row's label, "files" or "commits"). Anything else is a
+    chunk a line."""
+    if any(_RULE.match(l) for l in block):
+        return list(block)
+    if _FINDINGS.match(block[0]):
+        entries = []
+        for l in block[1:]:
+            if l[:1] != " " or not entries:
+                entries.append([l])
+            else:
+                entries[-1].append(l)
+        return [block[0]] + [_joined(e) for e in entries]
+    if len(block) > 1 and block[0][:1] != " " and all(l.startswith("  ") for l in block[1:]):
+        return [block[0]] + _grid_rows(block[1:])
+    return list(block)
 
 
 def _chunks(lines: list) -> list:
     """The report as the pieces a count phrase can sit in: the panels' text and the footer each as running text
     (both wrap mid-sentence), every table line on its own (joining rows would put one row's last number before
     the next row's first word).
+
+    The header and the Findings are read in either drawing. Until the output plan's item A11 they are two
+    boxes, every line of which starts with a border, and their text is one running text. From A11 they are
+    unboxed blocks, read by their shape (_unboxed).
 
     The footer is read in either drawing. Until the output plan's item A10 it is the lines from "Secrets:" to
     the end, one running text. From A10 it is a titled Supply chain section, last in the report: a label grid,
@@ -1608,19 +1653,19 @@ def _chunks(lines: list) -> list:
     old = next((i for i, l in enumerate(lines) if l.startswith("Secrets:")), None)
     new = next((i for i, l in enumerate(lines) if _SUPPLY_CHAIN.match(l)), None)
     at = old if old is not None else new if new is not None else len(lines)
-    rest = [l for l in lines[:at] if not l.startswith(("│", "╭", "╰"))]
-    said = [" ".join(" ".join(panel).split())]
+    rest, block = [], []
+    for l in [l for l in lines[:at] if not l.startswith(("│", "╭", "╰"))] + [""]:
+        if l.strip():
+            block.append(l)
+        elif block:
+            rest += _unboxed(block)
+            block = []
+    said = [_joined(panel)]
     if old is None and new is not None:
         tail = lines[at + 1:]
         end = next((i for i, l in enumerate(tail) if not l.strip()), len(tail))
-        rows = []
-        for l in tail[:end]:
-            if _GRID_LABEL.match(l) or not rows:
-                rows.append([l])
-            else:
-                rows[-1].append(l)
-        return said + [" ".join(" ".join(row).split()) for row in rows] + [" ".join(" ".join(tail[end:]).split())] + rest
-    return said + [" ".join(" ".join(lines[at:]).split())] + rest
+        return said + _grid_rows(tail[:end]) + [_joined(tail[end:])] + rest
+    return said + [_joined(lines[at:])] + rest
 
 
 TRUCK_MIN_FILES = 20   # the floor the truck factor's rule documents (findings.truck_factor's min_files), stated here and not imported
