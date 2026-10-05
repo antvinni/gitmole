@@ -600,6 +600,9 @@ class TrojanSource(unittest.TestCase):
             "template_tail.ts": f"{world} {hello}`; const p{a}ss = 1; f(`",
             "hash.py": f"p{a}ss = 1  # it's",
             "far_prose.ts": f"const t = '{hello} {world} one two p{a}ss';",
+            # A quote after a letter or a `/` cannot open a string (the re-review's probes).
+            "regex_quote.ts": f"ok = /'/.test({hello} + p{a}ss) || /'/",
+            "jsx_text.tsx": f"<p>it's {{{hello} + p{a}ss}} '</p>",
         }
         with tempfile.TemporaryDirectory() as d:
             repo = Repo(d)

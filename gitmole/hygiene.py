@@ -982,14 +982,25 @@ def _blank_ranges(line: str) -> str:
     return _BRACKETS.sub(lambda m: _RANGE.sub(_is_range, m.group(0)), line) if "[" in line else line
 
 
+_OPENS = set("(,=:[{+?!&|<")   # what a string can follow; after a letter or a `/` a quote is an apostrophe or a regex's
+
+
+def _can_open(line: str, i: int) -> bool:
+    """Whether a quote at column `i` can open a string: at the start of the line, or after one of ( , = : [ { + ? ! & |
+    < or the word return (spaces between). `/'/.test(` and the `it's` of JSX text open nothing."""
+    before = line[:i].rstrip()
+    return not before or before[-1] in _OPENS or re.search(r"(?<!\w)return$", before) is not None
+
+
 def _quoted(line: str) -> list:
     """The quoted spans closed on this line, each as the list of its text parts' (start, end) columns: '…', "…" and
-    `…`, with a template literal's `${…}` left out, because that is code. An unclosed quote gives no span (a stray apostrophe in
-    a comment, or the first line of a multi-line literal), so a token there is judged as code."""
+    `…`, with a template literal's `${…}` left out, because that is code. A span opens only where a string can
+    (_can_open). An unclosed quote gives no span (a stray apostrophe in a comment, or the first line of a multi-line
+    literal), so a token there is judged as code."""
     parts, i, n = [], 0, len(line)
     while i < n:
         q = line[i]
-        if q not in "'\"`":
+        if q not in "'\"`" or not _can_open(line, i):
             i += 1
             continue
         j, start, here = i + 1, i + 1, []
