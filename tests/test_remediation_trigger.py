@@ -22,6 +22,7 @@ _ENV = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/n
 LEFT_OUT = {
     "gitmole/__init__.py": "the version string, which every release changes and no finding reads",
     "gitmole/banner.py": "the terminal banner",
+    "gitmole/brief.py": "the default terminal report's short form of a finding: it reads the rule and the evidence and writes neither, and remediation reads the export",
     "gitmole/clean.py": "--clean",
     "gitmole/doctor.py": "--doctor",
     "gitmole/install.py": "--install-tools",

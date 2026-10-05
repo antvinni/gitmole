@@ -359,13 +359,19 @@ def at_head(report: dict, path: str):
     return path in tree or any(p.startswith(prefix) for p in tree)
 
 
+def sweeps(report: dict) -> list:
+    """The sweeping commits sweeping_commits names, every one of them: the finding's evidence holds the first
+    ten, and the default report's short form (brief.py) counts them all and names the largest."""
+    return [c for c in (report.get("activity") or {}).get("sweeping") or [] if not c.get("declared")]
+
+
 def sweeping_commits(report: dict) -> list:
     """The commits the change analysis left out as sweeps (a formatter run, a rename across the tree:
     over the repository's 99th percentile of files touched, with as many lines out as in) that the
     repository has not declared in .git-blame-ignore-revs. Declaring them makes git blame and GitHub
     skip them too, which is the repository's own mechanism for exactly this."""
     act = report.get("activity") or {}
-    swept = [c for c in act.get("sweeping") or [] if not c.get("declared")]
+    swept = sweeps(report)
     if not swept:
         return []
     declared = act.get("ignored_revs") or 0

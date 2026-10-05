@@ -10,6 +10,8 @@ named here too. When people commit (the busiest weekday and hour) is in `--full`
 
 **Findings.** What the rules flagged, worst first. `✖` is critical, `▲` a warning, `●` a note. Each
 finding states the facts, and the line starting `↳` names the file, area or person to start with.
+The facts are the short form: how many, against which thresholds, and the worst one, with `(see Complex
+functions)` where a table below lists the rest. `--full` names every subject.
 
 - *"N more from the structure step, not labelled yet (2 warnings, 3 notes)"*: newer rules nobody has checked
   against real repositories yet. Treat them as leads, not verdicts; the header's count includes them.

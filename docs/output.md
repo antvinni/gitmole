@@ -116,6 +116,43 @@ The JSON's keys are unchanged.
    carries its id and the thresholds it fired on, and its `evidence` the
    numbers they were compared with.
 
+   The default report prints each finding in a short form: the count and
+   the rule's own numbers (`62 functions have 100 lines or more and
+   complexity 15 or more`), the worst subject, and the step in three lines
+   at most. `--full`, the Markdown export, the JSON and SARIF keep the
+   whole statement with every subject it names; the short form is a second
+   rendering of the same `rule` and `evidence`, and changes neither.
+   - A finding whose subjects are a table of the same report in the same
+     order names the worst one and points there: Brain methods at Complex
+     functions, Files that always change together at Change coupling
+     (`(see Complex functions)`). The pointer is printed only when that
+     table is in the report with the subject in it; otherwise the subject's
+     numbers are said in the finding.
+   - Any other finding has three subject lines at most, indented under its
+     statement. A list that is cut says `and N more`, and is never cut
+     between two subjects with the same count. Bug magnets counts its
+     files on either side of its warning threshold, so the parts sum to the
+     total: `7 at 5 or more: promql/engine.go 10, ... · 11 at 3 or 4`.
+   - The truck factor says what the number means (`9 people would have to
+     leave before 333 of the 653 source files (51%) had no author left`),
+     how many of them are already gone, and the areas where one person
+     leaving would be enough; the names of a truck factor over three and
+     the variant with knowledge halving are in `--full`.
+   - A credential-shaped file is `matched by name`. When the secrets step
+     ran to its end and holds no row for the path, at any commit, the
+     finding adds `The secrets scan found no value in it, at HEAD or in
+     history` and its step becomes conditional (`If it holds a login,
+     ...`); when the step did not run, or has a row for the file, neither
+     is said.
+   - A Go pseudo-version is shortened by its shape to its base and its
+     12-character commit (`0.307.4-0.…-1174b0ce4f1f`), installed and fixed
+     alike; the 14-digit commit time between them is in `--full`.
+   - The note for vulnerable packages only in test, example or vendored
+     lock files is one sentence with no step.
+   - A rule with no short form of its own prints its statement whole when
+     that is three lines or fewer, else what comes before its list and
+     three lines of the list.
+
    The default report folds the rules no label has reached yet into a
    closing line instead of spelling them out ("4 more from the structure
    step, not labelled yet (1 warning, 3 notes)", the severities the

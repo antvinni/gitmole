@@ -16,7 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import classify, coupling, deps, filetypes, hotspots, identity, knowledge, leaks, loss, provenance, scope, textfmt, trend, watch
+from . import brief, classify, coupling, deps, filetypes, hotspots, identity, knowledge, leaks, loss, provenance, scope, textfmt, trend, watch
 
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": "cyan"}
 
@@ -1503,7 +1503,35 @@ def unjudged_line(findings: list) -> str:
             f"{textfmt.join_and(names)}; --full lists them")
 
 
-def findings_panel(findings: list, report: dict = None, full: bool = True) -> Panel:
+def _short_entry(g: dict, report: dict, width: int, printed: dict, style: str) -> Text:
+    """One entry of the default report's Findings: the title, then each finding's short form (brief.short):
+    the statement, its subject lines indented two, and the step under ↳ with its continuation indented two.
+    The lines come wrapped, so a path or a version is never split. An entry holding several findings of one
+    title shows brief.SUBJECT_LINES of them and counts the rest."""
+    body = Text(g["title"], style=style)
+    shorts = [brief.short(f, report, width, printed) for f in g["findings"]]
+    steps = []
+    for s in shorts[:brief.SUBJECT_LINES]:
+        for line in s["statement"]:
+            body.append(f"\n{line}", style="dim" if len(shorts) == 1 else "")
+        for line in s["subjects"]:
+            body.append(f"\n  {line}", style="dim" if len(shorts) == 1 else "")
+        if s["step"] and s["step"] not in steps:
+            steps.append(s["step"])
+    if len(shorts) > brief.SUBJECT_LINES:
+        body.append(f"\nand {len(shorts) - brief.SUBJECT_LINES:,} more")
+    for step in steps:
+        body.append("\n↳ " + "\n  ".join(step), style="dim italic")
+    return body
+
+
+PROSE_WIDTH = 100   # a finding's lines are no longer than this on a terminal wider than it
+
+
+def findings_panel(findings: list, report: dict = None, full: bool = True, width: int = None, printed: dict = None) -> Panel:
+    """The Findings box. `full` False is the default report: each finding in its short form (brief.py), for
+    which `width` is the terminal's and `printed` the report's sections by id, so a "(see Section)" pointer
+    names only a table that is there. `full` True spells every finding out, as the Markdown export does."""
     passed = checks_passed(report or {}, footer=bool(full) or not footer_said(report or {}))
     absent = not_computed_line(report) if report else None
     if not findings and not passed and not absent:
@@ -1513,8 +1541,12 @@ def findings_panel(findings: list, report: dict = None, full: bool = True) -> Pa
     grid = Table.grid(padding=(0, 1))
     grid.add_column(no_wrap=True)
     grid.add_column(overflow="fold")
+    inner = min((width or PROSE_WIDTH + PANEL_EDGES + 2) - PANEL_EDGES - 2, PROSE_WIDTH)   # less the box, the mark and its gap
     for g in textfmt.group_findings(shown):
         style = SEVERITY_STYLE[g["severity"]]
+        if not full:
+            grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), _short_entry(g, report or {}, inner, printed, style))
+            continue
         body = Text(g["title"], style=style)
         for item in g["items"]:
             body.append(f"\n{item}", style="dim" if len(g["items"]) == 1 else "")
@@ -1754,11 +1786,11 @@ def _partners(secs: list) -> dict:
 
 def report(report: dict, findings: list, console: Console, full: bool = False, risk: dict = None, base: str = None, compare: dict = None) -> None:
     console.print(header(report, findings, full=full, width=console.width))
-    console.print(findings_panel(findings, report, full=full))
-    if compare is not None:
-        print_section(console, compare_section(compare))
     secs = sections(report, full=full, width=console.width)
     by_id = {s["id"]: s for s in secs}
+    console.print(findings_panel(findings, report, full=full, width=console.width, printed=by_id))   # a short finding may point at its table below
+    if compare is not None:
+        print_section(console, compare_section(compare))
     partners = _partners(secs) if console.width >= SIDE_BY_SIDE_MIN_WIDTH else {}
     done = set()
     for sec in secs:

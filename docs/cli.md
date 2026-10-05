@@ -68,7 +68,7 @@ What is printed, and what is written beside it.
 
 | Option | What it does |
 |---|---|
-| `--full` | A report option, not a help option: print the report with every section, column and row. Adds the hotspots, size, activity and code age tables; the default report keeps the columns you read, caps each table, elides long paths in the middle, hides test files, deleted files and vendored code, shows a directory that changes as one as a single coupling row, and names in one line the findings labelled true but never acted on. With `--clean`, it lists each temp clone rather than one row for them all. |
+| `--full` | A report option, not a help option: print the report with every section, column and row. Adds the hotspots, size, activity and code age tables; the default report keeps the columns you read, caps each table, elides long paths in the middle, hides test files, deleted files and vendored code, shows a directory that changes as one as a single coupling row, prints each finding in its short form (the count, the rule's numbers, the worst subject, one step) where `--full` names every subject, and names in one line the findings labelled true but never acted on. With `--clean`, it lists each temp clone rather than one row for them all. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
 | `--markdown PATH` | Write the report as Markdown to PATH, or `-` for stdout. |
 | `--sarif PATH` | Write the findings as SARIF 2.1.0 to PATH, or `-` for stdout, for GitHub code scanning and GitLab. See [SARIF](#sarif). |

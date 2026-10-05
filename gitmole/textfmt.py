@@ -179,7 +179,8 @@ def _statement_and_advice(f: dict):
 
 def group_findings(findings: list) -> list:
     """Merge findings that share a title into one entry with an item list and the distinct next
-    steps its items carry, in first-seen order. Order: by severity, then first appearance."""
+    steps its items carry, in first-seen order. Order: by severity, then first appearance. `findings` are
+    the entry's own, for the default report's short form (brief.py), which reads their rule and evidence."""
     order = {"critical": 0, "warning": 1, "info": 2}
     groups, index = [], {}
     for f in findings:
@@ -187,9 +188,10 @@ def group_findings(findings: list) -> list:
         key = f["title"]
         if key not in index:
             index[key] = len(groups)
-            groups.append({"severity": f["severity"], "title": key, "items": [], "advice": []})
+            groups.append({"severity": f["severity"], "title": key, "items": [], "advice": [], "findings": []})
         g = groups[index[key]]
         g["items"].append(statement)
+        g["findings"].append(f)
         if advice and advice not in g["advice"]:
             g["advice"].append(advice)
         if order[f["severity"]] < order[g["severity"]]:
