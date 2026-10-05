@@ -7,7 +7,7 @@ import math
 import os
 import re
 
-from . import classify, coupling, deps, filetypes, hotspots, knowledge, leaks, licences, loss, maat, osps, scope, structure, textfmt, trend
+from . import classify, coupling, deps, filetypes, hotspots, hygiene, knowledge, leaks, licences, loss, maat, osps, scope, structure, textfmt, trend
 
 SEVERITIES = ["critical", "warning", "info"]
 
@@ -871,8 +871,11 @@ def _generated(report: dict) -> set:
 
 
 def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = trend.GROWTH_FLOOR, top_n: int = 10) -> list:
-    """The top_n source hotspots whose complexity grew over the last year, from the trend samples.
-    Test files are left out: a growing test file is not the problem the finding is about."""
+    """The top_n source hotspots whose summed complexity grew over the last year, from the trend samples.
+    Test files are left out: a growing test file is not the problem the finding is about.
+    The sum is scc's per-file count, so it grows with the lines: each file shows its code's change beside it,
+    and "Split" goes to the first grown file whose complexity per line also rose by GROWTH_FLOOR - one that grew
+    more tangled, not only longer. When none did, the advice says they grew with their size."""
     series = (report.get("trend") or {}).get("files") or {}
     last = report["meta"].get("last_date") or ""
     if not series or not last:
@@ -883,17 +886,29 @@ def complexity_growth(report: dict, min_growers: int = 3, min_pct: int = trend.G
     for path in top:
         change = trend.change_over_year(series.get(path) or [], last)
         if change.startswith("+") and int(change[1:-1]) >= min_pct:
-            grown.append((path, int(change[1:-1])))
+            year = trend.year_change(series.get(path) or [], last) or {}
+            grown.append((path, int(change[1:-1]), year.get("code"), year.get("per_line")))
     if len(grown) < min_growers:
         return []
     sev = "warning" if top and grown[0][0] == top[0] else "info"
-    listed = ", ".join(f"{p} (+{g}%)" for p, g in grown[:5]) + (f" and {len(grown) - 5} more" if len(grown) > 5 else "")
-    first = grown[0]
+
+    def code(c):
+        return f", code {c:+d}%" if c is not None else ""
+    listed = ", ".join(f"{p} (+{g}%{code(c)})" for p, g, c, _ in grown[:5]) + (f" and {len(grown) - 5} more" if len(grown) > 5 else "")
+    split_floor = trend.GROWTH_FLOOR
+    denser = next((x for x in grown if x[3] is not None and x[3] >= split_floor), None)
+    if denser:
+        advice = f"Split {denser[0]} before the next change; its complexity per line rose {denser[3]}% in a year."
+    else:
+        advice = f"Each grew with its size: no file's complexity per line rose {split_floor}% or more in a year."
     return [_f(sev, "Hotspots getting more complex",
-               f"{len(grown)} of the {len(top)} top source hotspots grew by {min_pct}% or more in a year: {listed}.",
-               f"Split {first[0]} before the next change; its complexity grew {first[1]}% in a year.",
-               rule={"id": "complexity_growth", "min_growers": min_growers, "min_pct": min_pct, "top_n": top_n},
-               evidence={"hotspots": len(top), "grown": [{"file": p, "growth_pct": g} for p, g in grown[:10]]})]
+               f"{len(grown)} of the {len(top)} top source hotspots grew by {min_pct}% or more in summed complexity in a year: {listed}.",
+               advice,
+               rule={"id": "complexity_growth", "min_growers": min_growers, "min_pct": min_pct, "top_n": top_n,
+                     "split_min_per_line_pct": split_floor,
+                     "split_floor_from": "trend.GROWTH_FLOOR, set for summed complexity, borrowed for complexity per line"},
+               evidence={"hotspots": len(top), "split": denser[0] if denser else None,
+                         "grown": [{"file": p, "growth_pct": g, "code_pct": c, "per_line_pct": d} for p, g, c, d in grown[:10]]})]
 
 
 CRITICAL_SCORE = 9.0   # CVSS: the band the advisories themselves call critical
@@ -919,7 +934,8 @@ def _vuln_ref(r: dict) -> str:
     fixed = f", fixed in {r['fixed']}" if r.get("fixed") else ", no fix yet"
     loaded = ", imported by no tracked source" if r.get("imported") is False else ""
     dev = ", development dependencies only" if r.get("runtime") is False else ""
-    return f"{ref}{score}{fixed}{loaded}{dev}"
+    via = f", reached through {r['via']}" if r.get("runtime") is True and r.get("via") and r["via"] != r.get("name") else ""
+    return f"{ref}{score}{fixed}{loaded}{dev}{via}"
 
 
 def _vuln_statement(rows: list) -> str:
@@ -955,7 +971,8 @@ def _vuln_evidence(r: dict) -> dict:
            "fixed": r.get("fixed") or None, "ids": list(r.get("ids") or []),
            "aliases": list(r.get("aliases") or []), "malicious": bool(r.get("malicious")),
            "imported": r.get("imported", "unknown"), "deploys": list(r.get("deploys") or [])[:3],
-           **({"runtime": r["runtime"]} if isinstance(r.get("runtime"), bool) else {})}
+           **({"runtime": r["runtime"]} if isinstance(r.get("runtime"), bool) else {}),
+           **({"via": r["via"]} if r.get("runtime") is True and r.get("via") else {})}
     if _floating(r):   # the version is the range's floor, not an installed one
         out = {**{k: v for k, v in out.items() if k != "version"}, "floor": r["version"], "requirement": r.get("requirement")}
     return out
@@ -1096,12 +1113,17 @@ def _hygiene_actions(h: dict, out: list) -> None:
             if u["uses"] not in by_file.setdefault(u["file"], []):
                 by_file[u["file"]].append(u["uses"])
         listed = "; ".join(f"{textfmt.join_and(v[:3])}{' and more' if len(v) > 3 else ''} in {k}" for k, v in list(by_file.items())[:3])
-        first = min(a["unpinned"], key=lambda u: _action_trust(u["uses"], a.get("origin")))["uses"]
+        ranked = [u for _, u in sorted(enumerate(a["unpinned"]), key=lambda iu: _action_rank(iu, a.get("origin")))]
+        rule = {"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}
+        if all("ref" in u for u in a["unpinned"]):
+            rule["order"] = ACTION_ORDER
+            rows = list({(u["file"], u["uses"]): {"file": u["file"], "uses": u["uses"]} for u in ranked}.values())[:hygiene.CAP]
+        else:   # an output directory from before the rows said what each step is handed: its evidence as it was
+            rows = [{"file": u["file"], "uses": u["uses"]} for u in a["unpinned"][:10]]
         out.append(_f("warning", "Actions pinned by tag or branch",
                       f"{n} of {total} workflow steps use an action by tag or branch: {listed}. Whoever controls the action can move the tag to other code.",
-                      f"Pin {first} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
-                      rule={"id": "unpinned_actions", "scorecard": "Pinned-Dependencies"}, evidence={"count": n, "pinned": a.get("pinned", 0),
-                                                                                                "unpinned": [{"file": u["file"], "uses": u["uses"]} for u in a["unpinned"][:10]]}))
+                      f"Pin {ranked[0]['uses']} to a full commit SHA first, with the tag in a comment; Dependabot and Renovate keep such pins current.",
+                      rule=rule, evidence={"count": n, "pinned": a.get("pinned", 0), "unpinned": rows}))
 
 
 def _workflow_rows(rows: list) -> list:
@@ -1184,6 +1206,17 @@ def _action_trust(uses: str, origin) -> int:
     return 1 if home.get("host") == "github.com" and owner.lower() == (home.get("owner") or "").lower() else 0
 
 
+# The order unpinned steps are pinned in, first to last: owner trust (_action_trust), then a branch-shaped ref before a
+# release-shaped one, then a step handed a secret or a token that can write before one that is not, then the file
+# order. A row from before hygiene recorded ref, secrets and grants ties on the middle two, so the order is as it was.
+ACTION_ORDER = ["owner", "branch ref", "secrets or write grants", "file order"]
+
+
+def _action_rank(iu: tuple, origin) -> tuple:
+    i, u = iu
+    return (_action_trust(u["uses"], origin), u.get("ref") != "branch", not (u.get("secrets") or u.get("grants")), i)
+
+
 def _hygiene_lockfiles(h: dict, out: list) -> None:
     lf = h.get("lockfiles") or {}
     if lf.get("drift"):
@@ -1205,7 +1238,12 @@ def _hygiene_updates(h: dict, out: list) -> None:
     up = h.get("updates") or {}
     if up.get("uncovered"):
         names = textfmt.join_and(up["uncovered"])
-        if up.get("tool"):
+        locked = [e for e in up["uncovered"] if e != hygiene.ACTIONS_ECOSYSTEM]
+        if up.get("tool") and len(locked) < len(up["uncovered"]):   # github-actions: the workflows' actions, not a lock file
+            uses = f"{hygiene.ACTIONS_ECOSYSTEM}, whose actions the workflows here use"
+            statement = (f"dependabot.yml covers {textfmt.join_and(up['covered']) or 'nothing'} but not "
+                         + (f"{textfmt.join_and(locked)}, which have lock files here, nor {uses}." if locked else f"{uses}."))
+        elif up.get("tool"):
             statement = f"dependabot.yml covers {textfmt.join_and(up['covered']) or 'nothing'} but not {names}, which have lock files here."
         else:
             statement = f"No dependency update tool is declared for {names}, which have lock files here."
