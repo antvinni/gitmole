@@ -178,6 +178,25 @@ Reinartz gone`, `2019-01 gone`); blank means active.
      between two subjects with the same count. Bug magnets counts its
      files on either side of its warning threshold, so the parts sum to the
      total: `7 at 5 or more: promql/engine.go 10, ... · 11 at 3 or 4`.
+   - Vulnerable dependencies is the one exception to the three lines: its
+     subjects are lock files, at most three of them in at most three lines
+     each, and one line counting the rest (`and 25 more packages:
+     dependencies.json`), ten lines in all whatever the repository holds.
+     The lock files come path first and whole, in a fixed order: the one
+     something declares as shipped (`go.mod, which Dockerfile and 88 more
+     ship:`, the first such lock in the rule's order, with as many of its
+     packages as the three lines hold and the rest counted as `and N more
+     there`), then the one holding the highest score, then the one holding
+     the package the step names. A lock file is one entry however many of
+     the three it is. Every package named has one advisory id, its score
+     when there is one, `fixed in` and the version or `no fix published`,
+     and `imported by no tracked file` or `a dev dependency` when the scan
+     says so; packages of one lock file that share all of those are named
+     together and the facts said once (`for both, no fix published, ...`).
+     A lock file whose score is in the critical band while the finding is
+     a warning ends `not critical, as nothing beside it declares a
+     deployment`. With one lock file the statement names it and the
+     entry has no path in front.
    - The truck factor says what the number means (`9 people would have to
      leave before 333 of the 653 source files (51%) had no author left`),
      how many of them are already gone, and the areas where one person

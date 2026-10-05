@@ -18,7 +18,15 @@ from . import deps, findings, textfmt
 ELLIPSIS = textfmt.ELLIPSIS
 NBSP = " "         # holds a subject to its number while a line is wrapped ("promql/engine.go 10"); printed as a space
 SEPARATORS = ("·",)     # a line never starts with one
-SUBJECT_LINES = 3       # the subject lines of one finding, a hard cap
+SUBJECT_LINES = 3       # the subject lines of one finding, a hard cap, with the one exception below
+# Vulnerable dependencies is the exception: its subjects are lock files, each with the packages that make it
+# matter, so the block is at most VULN_GROUPS lock-file groups of at most VULN_GROUP_LINES lines each and one
+# line counting the rest, ten lines in all. A fourth group would replace one; nothing here grows with the
+# number of lock files.
+VULN_GROUPS = 3
+VULN_GROUP_LINES = 3
+HANG = "  "             # a subject entry's continuation, in from its first line
+DEPENDENCIES_FILE = "dependencies.json"   # the osv-scanner step's file in the output directory, where the packages not named are
 STEP_LINES = 3          # the step's lines
 WHOLE_LINES = 3         # a statement this short has no need of a short form
 BASELINE_MARK = "In the baseline: "   # gate.BASELINE_MARK, which --baseline puts in front of a finding's detail
@@ -37,10 +45,11 @@ def short_version(text: str) -> str:
     return PSEUDO_VERSION.sub(lambda m: f"{m.group(1)}{ELLIPSIS}-{m.group(2)}", text)
 
 
-def wrap(text: str, width: int) -> list:
+def wrap(text: str, width: int, rest: int = None) -> list:
     """`text` as lines of at most `width` characters, broken at spaces only: a path, a hash, a package or a
     version is never split (one longer than a line is left whole on a line of its own), a separator stays at
-    the end of the line before it, and what a no-break space joins stays together."""
+    the end of the line before it, and what a no-break space joins stays together. With `rest`, the lines
+    after the first are at most that wide: an entry whose continuation is indented."""
     words = []
     for w in text.split(" "):
         if not w:
@@ -51,7 +60,7 @@ def wrap(text: str, width: int) -> list:
             words.append(w)
     lines, line = [], ""
     for w in words:
-        if line and len(line) + 1 + len(w) > width:
+        if line and len(line) + 1 + len(w) > (width if rest is None or not lines else rest):
             lines.append(line)
             line = w
         else:
@@ -152,13 +161,14 @@ def _credential_files(f: dict, report: dict, ctx: dict):
     return {"statement": statement, "subjects": subjects, "step": step}
 
 
-WHY_WARNING = "; a warning, not critical, as nothing beside it declares a deployment"
+# Why a score in the critical band sits under a warning's mark. The mark says "warning"; the words say what is
+# missing, in few enough letters to stay on the entry's third line at 80 columns (prometheus's websocket-driver).
+WHY_WARNING = "; not critical, as nothing beside it declares a deployment"
 
 
-def _vuln_words(r: dict, where: bool, warning: bool) -> str:
-    """One vulnerable row: name, version, one advisory id, its score, its fix or that none is published, what
-    the lock and the imports say of its reach, its lock file when the finding has several, and why a
-    critical score is a warning here (WHY_WARNING, always last)."""
+def _vuln_parts(r: dict) -> tuple:
+    """One vulnerable row as (which, facts): name, version and one advisory id, then its score, its fix or
+    that none is published, and what the lock and the imports say of its reach."""
     ref = findings._malicious_id(r) or next(iter(list(r.get("aliases") or []) + list(r.get("ids") or [])), "")
     floating = findings._floating(r)
     if floating and r.get("requirement") is not None:
@@ -166,27 +176,87 @@ def _vuln_words(r: dict, where: bool, warning: bool) -> str:
     else:
         text = f"{r['name']} {r['version']}"
     text += f" ({ref})" if ref else ""
+    facts = []
     if r.get("malicious"):
-        text += ", malicious"
+        facts.append("malicious")
     elif r.get("score") is not None:
-        text += f", CVSS {r['score']:.1f}"
-    text += f", fixed in {r['fixed']}" if r.get("fixed") else "" if r.get("malicious") else ", no fix published"
+        facts.append(f"CVSS {r['score']:.1f}")
+    if r.get("fixed"):
+        facts.append(f"fixed in {r['fixed']}")
+    elif not r.get("malicious"):
+        facts.append("no fix published")
     if r.get("runtime") is False:
-        text += ", a dev dependency" + (" nothing imports" if r.get("imported") is False else "")
+        facts.append("a dev dependency" + (" nothing imports" if r.get("imported") is False else ""))
     elif r.get("imported") is False:
-        text += ", imported by no tracked file"
-    text += f", in {r['source']}" if where else ""
-    if warning and not floating and r.get("score") is not None and r["score"] >= findings.CRITICAL_SCORE and not r.get("deploys"):
-        text += WHY_WARNING
-    return text
+        facts.append("imported by no tracked file")
+    return text, ", ".join(facts)
+
+
+def _vuln_words(r: dict, where: bool = False) -> str:
+    """'websocket-driver 0.7.4 (CVE-2026-54466), CVSS 9.2, fixed in 0.7.5, a dev dependency nothing imports',
+    with its lock file when asked."""
+    which, facts = _vuln_parts(r)
+    return which + (f", {facts}" if facts else "") + (f", in {r['source']}" if where else "")
+
+
+def _vuln_list(rows: list) -> str:
+    """The rows of one lock file in words. Rows that share every fact are named together and the facts said
+    once ('A 1.55.8 (CVE-2020-8911) and B 0.56.0 (GO-2026-5932); for both, no fix published, imported by no
+    tracked file'), which is how prometheus's two packages in the lock a Dockerfile builds fit one entry."""
+    parts = [_vuln_parts(r) for r in rows]
+    if len(rows) > 1 and parts[0][1] and len({facts for _, facts in parts}) == 1:
+        return f"{textfmt.join_and([which for which, _ in parts])}; for {'both' if len(rows) == 2 else 'each'}, {parts[0][1]}"
+    return "; ".join(_vuln_words(r) for r in rows)
+
+
+def _unshipped_critical(r: dict) -> bool:
+    """A score in the critical band on a row that does not make the finding critical, since nothing declares
+    that its lock ships (findings._vuln_critical): what a reader of "CVSS 9.2" under a ▲ has to be told."""
+    return not findings._floating(r) and r.get("score") is not None and r["score"] >= findings.CRITICAL_SCORE and not r.get("deploys") and not r.get("malicious")
+
+
+def _ships_words(reasons: list) -> str:
+    """', which Dockerfile ships', or ', which Dockerfile and 88 more ship': the first thing that declares the
+    lock's deployment (deps.deploys, sorted) and how many more do."""
+    more = len(reasons) - 1
+    return f", which {reasons[0]}" + (f" and {more:,} more ship" if more else " ships")
+
+
+def _vuln_group(head: str, rows: list, why: bool, width: int) -> tuple:
+    """(lines, rows named) for one lock file: `head`, then as many of `rows` as VULN_GROUP_LINES lines hold,
+    in _vuln_list's words, the rest counted ("and 28 more there"), and WHY_WARNING last when the group holds
+    the critical score that is a warning. The first row is always named; the reason gives way whole before
+    a package's own facts are cut."""
+    def said(k, reason, counted=True):
+        listed = _vuln_list(rows[:k]) + (f" and {len(rows) - k:,} more there" if counted and len(rows) > k else "")
+        return short_version((f"{head}: " if head else "") + listed + (WHY_WARNING if reason else ""))
+    tries = [(k, reason, True) for reason in ([True, False] if why else [False]) for k in range(len(rows), 0, -1)]
+    out = []
+    for k, reason, counted in tries + [(1, False, False)]:   # last, the first row without the count of the rest, which the remainder line holds
+        out = wrap(said(k, reason, counted), width, width - len(HANG))
+        if len(out) <= VULN_GROUP_LINES:
+            break
+    out = cap(out, VULN_GROUP_LINES, width - len(HANG))
+    return [out[0]] + [HANG + x for x in out[1:]], rows[:k]
 
 
 def _vulnerable(f: dict, report: dict, ctx: dict):
-    """'28 packages in 43 places across 5 lock files' and the one row the advice names (findings._vuln_first):
-    the count, the lock files, the worst package, the step. The note for lock files under tests, examples and
-    vendored code is one sentence and no step, three lines with its title. The rows are the rule's own
-    (findings._vuln_rows), since the evidence holds the first ten in reach order and the advice's row need
-    not be among them."""
+    """'28 packages in 43 places across 5 lock files. By lock file:', then the lock files that make the
+    finding matter, path first and whole, in a fixed order: the one a deploy declaration ships (the first in
+    the rule's order) with its packages, the one holding the highest score, the one holding the package the
+    step names (findings._vuln_first); then 'and N more packages: dependencies.json'. A lock file is one
+    group, printed once: on prometheus the highest score and the step's pick are the same package, and that
+    is two groups, not three. Every package named carries one advisory id, its fix or that none is published,
+    and what the lock and the imports say of its reach; the group with a critical score that is a warning
+    says why. prometheus's report named neither the package scoring 9.2 nor the two in the one lock file a
+    Dockerfile builds, which have nothing to upgrade to. With one lock file there is one group and no path
+    in front of it, since the statement names the file.
+
+    The cap is VULN_GROUPS groups of VULN_GROUP_LINES lines and the remainder line: the one finding whose
+    subject block is not held to SUBJECT_LINES. The note for lock files under tests, examples and vendored
+    code is one sentence and no step, three lines with its title. The rows are the rule's own
+    (findings._vuln_rows), since the evidence holds the first ten in reach order and the rows named here
+    need not be among them."""
     group = next((g for rid, _, _, g in findings._vuln_rows(report or {}) if rid == f["rule"]["id"]), None)
     if not group:
         return None
@@ -206,19 +276,40 @@ def _vulnerable(f: dict, report: dict, ctx: dict):
     else:
         lead = range_words + (f" in {sources[0]}" if len(sources) == 1 else "")
     scores = [r["score"] for r in pool if r.get("score") is not None]
-    label = ("" if len(pool) == 1 else "Malicious" if worst.get("malicious")
-             else "Highest" if worst.get("score") is not None and worst["score"] == max(scores)
-             else "First to fix" if worst.get("fixed") else "First")
-    words = _vuln_words(worst, len(sources) > 1, f["severity"] == "warning")
-    named = short_version(f"{label}: {words}" if label else words)
     if aside:
+        label = ("" if len(pool) == 1 else "Malicious" if worst.get("malicious")
+                 else "Highest" if worst.get("score") is not None and worst["score"] == max(scores)
+                 else "First to fix" if worst.get("fixed") else "First")
+        named = short_version(f"{label}: {_vuln_words(worst, len(sources) > 1)}" if label else _vuln_words(worst, len(sources) > 1))
         return {"statement": f"{lead}{'. ' if label else ': '}{named}", "subjects": None, "step": None}
+    shipped = next((r for r in pool if r.get("deploys")), None)
+    highest = max(pool, key=lambda r: r["score"] if r.get("score") is not None else -1) if scores else None   # the first of equals, in the rule's order
+    keys = [r for r in (highest, worst) if r is not None]
+    several = len({r["source"] for r in pool}) > 1
+    order = []   # the lock files, in the fixed order: shipped, highest score, the step's
+    for r in ([shipped] if shipped else []) + keys:
+        if r["source"] not in order:
+            order.append(r["source"])
+    warning = f["severity"] == "warning"
+    inner = ctx["width"] - 2
+    subjects, said = [], []
+    for src in order[:VULN_GROUPS]:
+        rows = [r for i, r in enumerate(keys) if r["source"] == src and r not in keys[:i]]
+        ships = shipped["deploys"] if shipped and shipped["source"] == src else None
+        if ships:   # every package of the lock that ships, the ones the other groups would name first
+            rows += [r for r in pool if r["source"] == src and r not in rows]
+        head = (src + (_ships_words(ships) if ships else "")) if several else ""
+        why = warning and any(_unshipped_critical(r) for r in rows)
+        lines, named = _vuln_group(head, rows, why, inner)
+        subjects += lines
+        said += named
+    left = len({r["name"] for r in pool} - {r["name"] for r in said})
+    if left:
+        subjects.append(f"and {textfmt.count(left, 'more package')}: {DEPENDENCIES_FILE}")
+    statement = lead + (_ships_words(shipped["deploys"]) if shipped and not several else "") + (". By lock file:" if several else "")
     advice = f["advice"]
     target = advice[:-len(findings.IGNORE_DEPS)].rstrip() if advice.endswith(findings.IGNORE_DEPS) else None
-    inner = ctx["width"] - 2
-    if len(wrap(named, inner)) > SUBJECT_LINES and named.endswith(WHY_WARNING):
-        named = named[:-len(WHY_WARNING)]   # the reason gives way before the package's own facts are cut
-    return {"statement": lead, "subjects": cap(wrap(named, inner), SUBJECT_LINES, inner), "step": f"{target} {IGNORE_DEPS_SHORT}" if target else advice}
+    return {"statement": statement, "subjects": subjects, "step": f"{target} {IGNORE_DEPS_SHORT}" if target else advice}
 
 
 def _bug_magnets(f: dict, report: dict, ctx: dict):

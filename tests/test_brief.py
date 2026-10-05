@@ -218,21 +218,89 @@ class Vulnerable(unittest.TestCase):
     def report(self, rows):
         return {"meta": {"name": "r"}, "dependencies": {"status": "scanned", "sources": [{"path": r["source"], "packages": 10} for r in rows], "packages": 99, "vulnerable": rows}}
 
-    def test_the_count_the_lock_files_the_package_the_advice_names_and_the_step(self):
+    def test_the_count_the_lock_file_of_the_highest_score_and_the_step(self):
         rows = [self.row("example.org/own/module", "0.307.4-0.20251119130332-1174b0ce4f1f", "compliance/go.mod", fixed="0.311.2-0.20260410083055-07c6232d159b", imported=True),
                 self.row("websocket-driver", "0.7.4", "web/pnpm-lock.yaml", score=9.2, fixed="0.7.5", runtime=False, imported=False),
                 self.row("moment", "2.30.1", "web/pnpm-lock.yaml", score=5.9, fixed="2.31.0"), self.row("moment", "2.30.1", "console/pnpm-lock.yaml", score=5.9, fixed="2.31.0")]
         r = self.report(rows)
         [f] = findings.vulnerable_dependencies(r)
         self.assertIn("0.307.4-0.20251119130332-1174b0ce4f1f", f["detail"], "the long statement keeps the version whole")
-        self.assertEqual(_text(f, r, 200), "3 packages in 4 places across 3 lock files\n"
-                                           "  Highest: websocket-driver 0.7.4 (CVE-2026-1), CVSS 9.2, fixed in 0.7.5, a dev dependency nothing imports, in web/pnpm-lock.yaml; "
-                                           "a warning, not critical, as nothing beside it declares a deployment\n"
+        self.assertEqual(_text(f, r, 200), "3 packages in 4 places across 3 lock files. By lock file:\n"
+                                           "  web/pnpm-lock.yaml: websocket-driver 0.7.4 (CVE-2026-1), CVSS 9.2, fixed in 0.7.5, a dev dependency nothing imports; "
+                                           "not critical, as nothing beside it declares a deployment\n"
+                                           "  and 2 more packages: dependencies.json\n"
                                            "↳ Upgrade websocket-driver to 0.7.5 in web/pnpm-lock.yaml first; it scores CVSS 9.2, the highest with a fix published. "
                                            "One that does not apply to this code can be ignored in osv-scanner.toml.")
+        self.assertEqual(_text(f, r, 200).count("web/pnpm-lock.yaml:"), 1, "the highest score and the step's pick are one package: its lock file is one group")
         narrow = brief.short(f, r, 74)
-        self.assertLessEqual(len(narrow["subjects"]), 3)
+        self.assertLessEqual(len(narrow["subjects"]), brief.VULN_GROUP_LINES + 1)
         self.assertNotIn("…", " ".join(narrow["subjects"]), "the reason gives way whole before the package's facts are cut")
+
+    def test_the_groups_are_the_lock_that_ships_the_highest_score_and_the_steps_pick_in_that_order(self):
+        """prometheus: the two packages in the one lock file a Dockerfile builds have nothing to upgrade to, and
+        the 9.2 was named nowhere. Here the three are three lock files."""
+        rows = [self.row("example.org/aws/sdk", "1.55.8", "go.mod", score=None, fixed=None, imported=False),
+                self.row("example.org/x/crypto", "0.56.0", "go.mod", score=None, fixed=None, imported=False),
+                self.row("websocket-driver", "0.7.4", "web/pnpm-lock.yaml", score=9.2, fixed=None, runtime=False, imported=False),
+                self.row("lodash", "4.17.15", "api/package-lock.json", score=8.0, fixed="4.17.21", imported=True),
+                self.row("moment", "2.30.1", "api/package-lock.json", score=5.9, fixed="2.31.0")]
+        r = {**self.report(rows), "tree": ["Dockerfile", "go.mod"]}
+        [f] = findings.vulnerable_dependencies(r)
+        self.assertEqual(f["severity"], "warning")
+        self.assertEqual(_text(f, r, 74), "5 packages in 3 lock files. By lock file:\n"
+                                          "  go.mod, which Dockerfile ships: example.org/aws/sdk 1.55.8 (CVE-2026-1)\n"
+                                          "    and example.org/x/crypto 0.56.0 (CVE-2026-1); for both, no fix\n"
+                                          "    published, imported by no tracked file\n"
+                                          "  web/pnpm-lock.yaml: websocket-driver 0.7.4 (CVE-2026-1), CVSS 9.2, no\n"
+                                          "    fix published, a dev dependency nothing imports; not critical, as\n"
+                                          "    nothing beside it declares a deployment\n"
+                                          "  api/package-lock.json: lodash 4.17.15 (CVE-2026-1), CVSS 8.0, fixed in\n"
+                                          "    4.17.21\n"
+                                          "  and 1 more package: dependencies.json\n"
+                                          "↳ Upgrade lodash to 4.17.21 in api/package-lock.json first; it scores CVSS\n"
+                                          "  8.0, the highest with a fix published. One that does not apply to this\n"
+                                          "  code can be ignored in osv-scanner.toml.")
+        for line in brief.short(f, r, 74)["subjects"]:
+            self.assertLessEqual(len(line), 72)
+
+    def test_the_block_is_three_groups_of_three_lines_and_the_remainder_whatever_the_lock_files_hold(self):
+        """The one finding whose subjects are not held to brief.SUBJECT_LINES has a cap of its own, so it cannot
+        grow with the number of lock files or of packages."""
+        rows = ([self.row(f"example.org/a/module{i}", "1.0.0", "go.mod", score=5.0 + i / 10, imported=False) for i in range(30)]
+                + [self.row(f"pkg{i}", "1.0.0", f"web{i}/pnpm-lock.yaml", score=9.2 - i / 10, fixed=None if i == 0 else "2.0.0", runtime=False) for i in range(12)])
+        r = {**self.report(rows), "tree": ["Dockerfile", "go.mod"]}
+        [f] = findings.vulnerable_dependencies(r)
+        for width in (40, 74, 100):
+            s = brief.short(f, r, width)["subjects"]
+            self.assertLessEqual(len(s), brief.VULN_GROUPS * brief.VULN_GROUP_LINES + 1, width)
+            self.assertRegex(s[-1], r"^and \d+ more packages: dependencies\.json$")
+            self.assertTrue(width == 40 or all(len(x) <= width - 2 for x in s), width)   # at 40 a package's name is longer than a line
+        s = brief.short(f, r, 74)["subjects"]
+        self.assertEqual([x.split(":")[0] for x in s if not x.startswith((brief.HANG, "and "))],
+                         ["go.mod, which Dockerfile ships", "web0/pnpm-lock.yaml", "web1/pnpm-lock.yaml"])
+        self.assertIn(" and 29 more there", " ".join(s), "the lock that ships counts the packages it does not name")
+        self.assertEqual(s[-1], "and 39 more packages: dependencies.json", "42 names, three of them named")
+
+    def test_a_critical_finding_names_its_lock_file_once_and_gives_no_reason_for_a_warning(self):
+        rows = [self.row("left-pad", "1.0.0", "package-lock.json", score=9.8, fixed="1.0.1"), self.row("moment", "2.30.1", "web/pnpm-lock.yaml", score=5.9, fixed="2.31.0")]
+        r = {**self.report(rows), "tree": ["Dockerfile", "package-lock.json"]}
+        [f] = findings.vulnerable_dependencies(r)
+        self.assertEqual(f["severity"], "critical")
+        self.assertEqual(brief.short(f, r, 200)["subjects"],
+                         ["package-lock.json, which Dockerfile ships: left-pad 1.0.0 (CVE-2026-1), CVSS 9.8, fixed in 1.0.1", "and 1 more package: dependencies.json"])
+
+    def test_one_lock_file_is_one_group_with_no_path_in_front(self):
+        rows = [self.row("left-pad", "1.0.0", "package-lock.json", score=7.8, fixed="1.0.1"), self.row("a", "1.0.0", "package-lock.json", score=5.0),
+                self.row("b", "1.0.0", "package-lock.json", score=9.5, fixed=None)]
+        r = self.report(rows)
+        [f] = findings.vulnerable_dependencies(r)
+        s = brief.short(f, r, 200)
+        self.assertEqual(s["statement"], ["3 packages in package-lock.json"])
+        self.assertEqual(s["subjects"], ["b 1.0.0 (CVE-2026-1), CVSS 9.5, no fix published; left-pad 1.0.0 (CVE-2026-1), CVSS 7.8, fixed in 1.0.1; "
+                                         "not critical, as nothing beside it declares a deployment", "and 1 more package: dependencies.json"])
+        r = {**self.report(rows[:2]), "tree": ["Dockerfile"]}
+        [f] = findings.vulnerable_dependencies(r)
+        self.assertEqual(brief.short(f, r, 200)["statement"], ["2 packages in package-lock.json, which Dockerfile ships"])
 
     def test_a_pseudo_version_is_short_on_both_sides_in_the_default_form_only(self):
         r = self.report([self.row("example.org/own/module", "0.307.4-0.20251119130332-1174b0ce4f1f", "compliance/go.mod", fixed="0.311.2-0.20260410083055-07c6232d159b")])
