@@ -38,7 +38,7 @@ MONTH_WIDTH, INDENT, NAME_FLOOR = 5, 2, 8
 SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
            "Surviving code by year written": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
            "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
-           "Change risk": "◈", "Since last report": "⇄", "Most-changed documents": "✎"}
+           "Change risk": "◈", "Since last report": "⇄", "Most-changed documents": "✎", "Supply chain": "◧"}
 # the one column to read first in each table; the rest are dimmed
 # keyed on the head as printed: "changes", "together" and "complexity" are the report's words for what the JSON calls revs, degree and ccn
 KEY_METRIC = {"Size by language": "code", "People": "commits", "Hotspots": "changes", "Change coupling": "together",
@@ -384,16 +384,14 @@ def results_line(report: dict) -> str:
     return f"Full results{' and plots' if plots_written(report) else ''} in {report['out_dir']}"
 
 
-def signing_phrase(report: dict):
-    """'33% of commits signed (ssh 28%, gpg 6%), 50% of the last year's', or 'no commits signed'; None
-    without the step. Read from the commit objects, nothing verified: evidence, not a level. When the
-    forge committed and signed some of them itself (a merge from the web), those are named apart: its
-    signature says nothing about who wrote the change."""
+def _signing_parts(report: dict):
+    """(head, mechanisms, last year, forge) of the signing phrase, each '' when there is nothing to say; None
+    without the step."""
     sig = report.get("signing") or {}
     if not sig.get("commits"):
         return None
     if not sig.get("signed"):
-        return "no commits signed"
+        return "no commits signed", "", "", ""
     forge = sig.get("forge") or {}
     by_forge, forge_mix = forge.get("signed") or 0, forge.get("mechanisms") or {}
     last = sig.get("last_year") or {}
@@ -402,10 +400,22 @@ def signing_phrase(report: dict):
     mix = ", ".join(f"{k} {_pct(v, sig['commits'])}" for k, v in sorted(mechanisms.items(), key=lambda kv: (-kv[1], kv[0])) if v > 0)
     tail = f", {_pct(last['signed'] - (last.get('forge_signed') or 0) if by_forge else last['signed'], last['commits'])} of the last year's" if last.get("commits") else ""
     if not by_forge:
-        return f"{_pct(sig['signed'], sig['commits'])} of commits signed ({mix}){tail}"
-    head = f"{_pct(own, sig['commits'])} of commits signed by their authors ({mix}){tail}" if own else "no commits signed by their authors"
+        return f"{_pct(sig['signed'], sig['commits'])} of commits signed", f" ({mix})", tail, ""
+    if not own:
+        head, mix, tail = "no commits signed by their authors", "", ""
+    else:
+        head, mix = f"{_pct(own, sig['commits'])} of commits signed by their authors", f" ({mix})"
     share = _pct(by_forge, sig['commits'])
-    return head if share == "0%" else f"{head}; {share} signed by the forge on merge"
+    return head, mix, tail, "" if share == "0%" else f"; {share} signed by the forge on merge"
+
+
+def signing_phrase(report: dict):
+    """'33% of commits signed (ssh 28%, gpg 6%), 50% of the last year's', or 'no commits signed'; None
+    without the step. Read from the commit objects, nothing verified: evidence, not a level. When the
+    forge committed and signed some of them itself (a merge from the web), those are named apart: its
+    signature says nothing about who wrote the change."""
+    parts = _signing_parts(report)
+    return "".join(parts) if parts else None
 
 
 def _age_status(report: dict) -> str:
@@ -1520,14 +1530,11 @@ def run_line(report: dict):
     return " · ".join(parts + ([" ".join(flags)] if flags else []))
 
 
-def checks_passed(report: dict, footer: bool = True) -> list:
-    """The checks that ran and passed, secrets first: said out loud rather than left to silence. Without
-    the footer's two lines (footer_said) the secrets line also carries what only the footer said, the
-    unreachable sweep."""
-    passed = [p for p in (secrets_pass(report), dependencies_pass(report)) if p]
-    if not footer and passed:
-        passed[0] = (passed[0][0], passed[0][1] + _unreachable_words(report, True))
-    return passed
+def checks_passed(report: dict) -> list:
+    """The checks that ran and passed, secrets first, for the Markdown export's **ok** lines. The terminal
+    report says them where it says every scan's result, verdict first, in the Supply chain section
+    (supply_chain_rows): the Findings box had a ✔ line for each and the footer said the same again."""
+    return [p for p in (secrets_pass(report), dependencies_pass(report)) if p]
 
 
 def _unreachable_words(report: dict, short: bool) -> str:
@@ -1538,13 +1545,6 @@ def _unreachable_words(report: dict, short: bool) -> str:
     if loose.get("scanned"):
         return f"; {loose['scanned']:,} unreachable blob{'s' if loose['scanned'] != 1 else ''} scanned too"
     return ""
-
-
-def footer_said(report: dict) -> bool:
-    """Whether the Findings panel's two ✔ lines already say everything the footer's Secrets and Dependencies
-    lines would: both scans ran and found nothing, and no package carries an informational advisory, which
-    only the footer names. The default report then leaves the two lines out."""
-    return bool(secrets_pass(report) and dependencies_pass(report) and not (report.get("dependencies") or {}).get("informational"))
 
 
 def dependencies_line(report: dict):
@@ -1570,6 +1570,428 @@ def dependencies_line(report: dict):
     if status == "no-database":
         return "Dependencies: not scanned, no offline vulnerability database; fetch it once: gitmole --fetch-vuln-db CLONE", "yellow"
     return None
+
+
+# --- the Supply chain section and the closing lines --------------------------------------------------
+#
+# What the scans and the tree's own declarations say, in one titled place, last: secrets, dependencies, signing
+# and the checks that ran and found nothing. prometheus's report had them in an untitled footer, two ✔ lines of
+# the Findings box and a header row, gave the secrets scan's totals with no verdict (44 values in 1,188 places,
+# none in a source file and 1,156 of them graded high), counted 28 and 3 vulnerable packages above a footer
+# that said 29, and never printed a check that passed: 65 pinned actions and a tree with none looked the same.
+#
+# The default report holds the grid to SUPPLY_LINES lines, a cap per row, and the closing lines under it to
+# CLOSING_LINES before the path. A new row or clause replaces one. --full prints every row whole, with the
+# counts the default leaves to it (distinct values, placeholders, unreachable objects) and the tool versions.
+
+SUPPLY_TITLE = "Supply chain"
+SUPPLY_CAPS = {"secrets": 3, "dependencies": 3, "signing": 1, "checked, ok": 3}   # the default report's lines per row
+SUPPLY_LINES = sum(SUPPLY_CAPS.values())   # 10
+CLOSING_LINES = 6   # the index of --full's sections, the steps line and the re-render line, before the path
+INDEX_LINES = 4
+SECRETS_FILE, HYGIENE_FILE = "secrets.json", "hygiene.json"
+UNVERIFIED = " (signatures not verified)"
+NOT_SCANNED = "not scanned"   # in the verdict's position when a scan's step did not run
+# The classifier's reasons that set a file aside from the source, in its order, as an adjective before "files".
+ASIDE_WORDS = {"generated": "generated", "vendored": "vendored", "test file": "test", "example code": "example"}
+
+
+def _or(words: list) -> str:
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " or " + words[-1]
+
+
+def secret_places(report: dict) -> list:
+    """One entry per place a value was found (a value at a commit, file and line; placeholder-shaped hits left
+    out, as leaks.group leaves them): its file, whether HEAD still holds the value there (None when the run
+    did not record it) and whether the scanner graded any sighting of it high. Their number is the sum of the
+    places leaks.group counts, which is what the Markdown export's Secrets line says."""
+    places = {}
+    for i, r in enumerate(report.get("secrets") or []):
+        if r.get("placeholder"):
+            continue
+        key = (r.get("value") or ("row", i), r.get("commit"), r.get("file"), r.get("line"))
+        p = places.setdefault(key, {"file": r.get("file") or "", "at_head": None, "high": False})
+        if isinstance(r.get("at_head"), bool):
+            p["at_head"] = bool(p["at_head"]) or r["at_head"]
+        p["high"] = p["high"] or r.get("confidence") == "high"
+    return list(places.values())
+
+
+def _where_words(places: list, classifier) -> str:
+    """'all in test or example files', '12 of them in test files' or 'none of them in a test, example,
+    generated or vendored file': how many of `places` are in a file the classifier sets aside, and as what.
+    The words are the classifier's own reasons (ASIDE_WORDS), so a directory it calls example code is never
+    called test data here."""
+    kinds = [next((ASIDE_WORDS[x] for x in classifier.reasons(p["file"]) if x in ASIDE_WORDS), None) for p in places]
+    aside = [k for k in kinds if k]
+    if not aside:
+        return "none of them in a test, example, generated or vendored file"
+    words = _or([w for w in ASIDE_WORDS.values() if w in aside]) + " files"
+    return f"all in {words}" if len(aside) == len(places) else f"{len(aside):,} of them in {words}"
+
+
+def _places_words(label: str, places: list, classifier, where: bool, detail: bool = True) -> str:
+    """'at HEAD 18 places, all in test or example files, none high confidence', or 'history only 1,170 places,
+    1,156 high confidence, those all in example files': the count, where the places are when `where` asks
+    (HEAD's, which a reader can open), the count the scanner graded high, and where those are. `detail` False
+    leaves out both where-clauses."""
+    parts = [f"{label} {textfmt.count(len(places), 'place')}"]
+    said_all = False
+    if where and detail:
+        words = _where_words(places, classifier)
+        said_all = words.startswith("all ")
+        parts.append(words)
+    high = [p for p in places if p["high"]]
+    if not high:
+        parts.append("none high confidence")
+    else:
+        parts.append(f"{len(high):,} high confidence")
+        if detail and not said_all:
+            words = _where_words(high, classifier)
+            parts.append(f"those {words}" if words.startswith("all ") else words)
+    return ", ".join(parts)
+
+
+def _not_scanned(report: dict, step: str, label: str) -> str:
+    """'not scanned', with what became of the step when the run recorded it ('not scanned: the secrets scan
+    timed out'): in the verdict's position, so a scan that never ran cannot be read as one that found nothing."""
+    status = ((report.get("meta") or {}).get("steps") or {}).get(step)
+    return NOT_SCANNED + (f": {_step_phrase(label, status)}" if status not in (None, "run") else "")
+
+
+def secrets_variants(report: dict, full: bool = False) -> list:
+    """The secrets row as lists of facts, the fullest first: the verdict and its rule ('none in source
+    files', which is the rule that makes a value a finding), then HEAD, then history with its high-confidence
+    count, and the file that holds every row. The later variants say less, for a row that does not fit its
+    lines. `full` adds what the default report leaves to --full: the distinct values, the placeholder-shaped
+    hits left out and the sweep of unreachable objects."""
+    from .findings import secrets_found
+    if not report.get("secrets_scanned"):
+        return [[_not_scanned(report, "betterleaks", "the secrets scan")]]
+    rows = report.get("secrets") or []
+    groups = leaks.group(rows)
+    skipped = leaks.placeholders(rows)
+    extra = ([f"{skipped:,} placeholder-shaped hit{'s' if skipped != 1 else ''} left out"] if skipped else []) + \
+            ([_unreachable_words(report, False)[2:]] if _unreachable_words(report, False) else [])
+    if not groups:
+        return [["none found: betterleaks scanned every commit HEAD reaches"] + (extra if full else [])]
+    behind = [f for f in secrets_found(report) if f["rule"]["id"] in SECRET_FINDINGS]
+    held = sum((f.get("evidence") or {}).get("values", 0) for f in behind)
+    if not held:
+        verdict = f"none in source files ({SECRETS_FILE})"
+    else:
+        more = len(groups) - held
+        verdict = (f"{textfmt.count(held, 'value')} in the finding{'' if len(behind) == 1 else 's'} above"
+                   + (f", {more:,} more never in source" if more > 0 else "") + f" ({SECRETS_FILE})")
+    places = secret_places(report)
+    classifier = classify.Classifier(report)
+    head, past = [p for p in places if p["at_head"] is True], [p for p in places if p["at_head"] is False]
+    unknown = [p for p in places if p["at_head"] is None]
+
+    def split(detail):
+        return ([_places_words("at HEAD", head, classifier, True, detail)] if head else []) + \
+               ([_places_words("history only", past, classifier, False, detail)] if past else []) + \
+               ([_places_words("in", unknown, classifier, True, detail)] if unknown else [])
+    if full:
+        return [[verdict, f"{textfmt.count(len(groups), 'distinct value')} in {textfmt.count(len(places), 'place')}"] + split(True) + extra]
+    return [[verdict] + split(True), [verdict] + split(False), [verdict]]
+
+
+def _vulnerable_split(report: dict, found: list, names: set) -> str:
+    """': 28 in the warning above, 3 in the note, 2 counted in both', ', all in the warning above' or '': how the
+    total divides between the two dependency findings, which count a package pinned by a source lock and by
+    an example's lock once each. prometheus's findings said 28 and 3 over a footer that said 29. Derived from
+    the rule's own rows; '' when a finding is not in this report or the parts do not make the total, so no
+    number is printed that the reader cannot add up."""
+    from . import findings as rules
+    parts = {rid: {r.get("name") for r in group} for rid, _, _, group in rules._vuln_rows(report)}
+    said = {(f.get("rule") or {}).get("id"): textfmt.severity_word(f["severity"]) for f in found or [] if (f.get("rule") or {}).get("id") in DEPENDENCY_FINDINGS}
+    main, aside = parts.get("vulnerable_dependencies") or set(), parts.get("vulnerable_dependencies_aside") or set()
+    if not parts or set(parts) - set(said) or (main | aside) != names:
+        return ""
+    every = "" if len(names) == 1 else "all "
+    if main and aside:
+        both = len(main & aside)
+        return (f": {len(main):,} in the {said['vulnerable_dependencies']} above, {len(aside):,} in the {said['vulnerable_dependencies_aside']}"
+                + (f", {both:,} counted in both" if both else ""))
+    rid = "vulnerable_dependencies" if main else "vulnerable_dependencies_aside"
+    return f", {every}in the {said[rid]} above"
+
+
+def dependencies_variants(report: dict, found: list = (), full: bool = False) -> list:
+    """The dependencies row as lists of facts, the fullest first: what was scanned and how old the database
+    copy is, then the totals, reconciled with the findings above (_vulnerable_split), the packages with an
+    informational advisory, and the file that holds every row. 'not scanned' or 'no lock files found' stands
+    alone in the verdict's position."""
+    scan = report.get("dependencies") or {}
+    status = scan.get("status")
+    if status == "no-sources":
+        return [["no lock files found"]]
+    if status == "no-database":
+        return [[f"{NOT_SCANNED}: no offline vulnerability database; fetch it once with gitmole --fetch-vuln-db CLONE"]]
+    if status != "scanned":
+        return [[_not_scanned(report, "osv-scanner", "the dependency scan")]]
+    size = f"{_packages(scan.get('packages', 0))} in {_dependency_files(scan)}" + (f", database {scan['database_date']}" if scan.get("database_date") else "")
+    rows = scan.get("vulnerable") or []
+    names = {r.get("name") for r in rows}
+    total = (f"{len(names):,} vulnerable" + (f" in {len(rows):,} places" if len(rows) != len(names) else "")) if names else "none vulnerable"
+    notes = scan.get("informational") or []
+    counted = f"{len(notes):,} with an informational advisory" if notes else ""   # RustSec's unmaintained, unsound and notice advisories: said, not counted as vulnerable
+    first = notes[0] if notes else {}
+    named = (f"{counted} ({first.get('name')} {first.get('version')}, {' and '.join(first.get('kinds') or [])}"
+             + (f", and {len(notes) - 1:,} more" if len(notes) > 1 else "") + ")") if notes else ""
+    split = _vulnerable_split(report, found, names) if names else ""
+
+    def said(total_words, note_words):
+        facts = [size, total_words] + ([note_words] if note_words else [])
+        return facts[:-1] + [f"{facts[-1]} ({brief.DEPENDENCIES_FILE})"]
+    out = [said(total + split, named)]
+    return out if full else out + [said(total, named), said(total, counted)]
+
+
+def signing_variants(report: dict, full: bool = False) -> list:
+    """The signing row, the fullest first: the share of commits their authors signed, by what, the last year's,
+    the forge's own merges, and that no signature was verified. The default report's row is one line, so it
+    says the share and that nothing was verified, and --full and the Signing by year table say the rest."""
+    parts = _signing_parts(report)
+    if not parts:
+        return []
+    head, mix, tail, forge = parts
+    if not (mix or tail or forge):
+        return [[head]]   # "no commits signed": nothing to verify
+    whole = [[head + mix + tail + forge + UNVERIFIED]]
+    return whole if full else whole + [[head + tail + forge + UNVERIFIED], [head + tail + UNVERIFIED], [head + UNVERIFIED], [head]]
+
+
+def _ok_actions(h: dict):
+    a = h.get("actions") or {}
+    n = a.get("pinned") or 0
+    return f"{n:,} workflow action{'' if n == 1 else 's'} pinned" if n else None
+
+
+def _ok_updates(h: dict):
+    up = h.get("updates") or {}
+    return f"{up['tool']} covers {textfmt.join_and(list(up['covered']))}" if up.get("tool") and up.get("covered") else None
+
+
+def _ok_lockfiles(h: dict):
+    n = (h.get("lockfiles") or {}).get("pairs") or 0
+    return (f"{n:,} manifests match their lock files" if n > 1 else "1 manifest matches its lock file") if n else None
+
+
+def _ok_trojan(h: dict):
+    n = (h.get("trojan") or {}).get("files") or 0
+    return f"{textfmt.count(n, 'file')} free of bidi and mixed-script characters" if n else None
+
+
+def _ok_binaries(h: dict):
+    b = h.get("binaries") or {}
+    n = b.get("binaries") or 0
+    return f"{n:,} binar{'y' if n == 1 else 'ies'}, none executable" if n and not b.get("executables_count") else None
+
+
+def _ok_licence(h: dict):
+    lic = h.get("licences") or {}
+    names = [d.get("expression") for d in lic.get("declared") or [] if d.get("expression")] or ([lic["file_licence"]] if lic.get("file_licence") else [])
+    return f"{textfmt.join_and(list(dict.fromkeys(names)))} licence, OSI- or FSF-approved" if lic.get("approved") is True and names else None
+
+
+def _ok_presence(h: dict):
+    pr = h.get("presence") or {}
+    there = [word for key, word in (("codeowners", "CODEOWNERS"), ("security_policy", "security policy"), ("pull_request_template", "pull-request template")) if pr.get(key)]
+    return f"{textfmt.join_and(there)} present" if there else None
+
+
+def _ok_workflows(h: dict):
+    a = h.get("actions") or {}
+    uses = (a.get("pinned") or 0) + (a.get("local") or 0) + (a.get("unpinned_count") or 0)
+    return "workflows free of pull-request checkout and script injection" if uses else None
+
+
+def _ok_submodules(h: dict):
+    n = (h.get("submodules") or {}).get("count") or 0
+    return f"{textfmt.count(n, 'submodule URL')} safe" if n else None
+
+
+def _ok_symlinks(h: dict):
+    n = (h.get("symlinks") or {}).get("count") or 0
+    return f"{textfmt.count(n, 'symlink')} inside the tree" if n else None
+
+
+def _ok_imports(h: dict):
+    n = (h.get("imports") or {}).get("manifests") or 0
+    return f"every dependency declared in {textfmt.count(n, 'manifest')} imported" if n else None
+
+
+# The hygiene families a passed check is said for, in the order the row names them: the four a reader asks about
+# first (actions, the update tool, lock files, Trojan Source), then the rest. Each is (the rule ids that are a hit
+# in it, its words when it had something to check, else None). A family with a hit is a finding above and never
+# here; one with nothing to check (no workflow, no lock file) is not here either, since nothing was checked.
+# The families hygiene.json records with no denominator and no declaration to name (registry confusion, install
+# scripts) are in that file only.
+CHECKED_OK = [(("unpinned_actions",), _ok_actions), (("dependency_updates",), _ok_updates), (("lockfile_drift", "lockfile_missing"), _ok_lockfiles),
+              (("trojan_source",), _ok_trojan), (("committed_binaries",), _ok_binaries), (("project_licence", "copyleft_dependencies"), _ok_licence),
+              (("repo_policy",), _ok_presence), (("pwn_request", "expression_injection"), _ok_workflows), (("submodule_urls",), _ok_submodules),
+              (("unsafe_symlinks",), _ok_symlinks), (("unused_dependencies",), _ok_imports)]
+
+
+def checked_ok(report: dict) -> list:
+    """The hygiene checks that ran with something to check and found nothing, as phrases in CHECKED_OK's order;
+    [] without the hygiene step. Whether a family has a hit is the rules' own answer (findings.hygiene_findings),
+    so a drift the sweeping commits explain, or an executable under tests, is judged here as it is there."""
+    from . import findings as rules
+    if not report.get("hygiene"):
+        return []
+    h = rules._swept_hygiene(report)
+    hits = {f["rule"]["id"] for f in rules.hygiene_findings(report)}
+    out = []
+    for ids, words in CHECKED_OK:
+        said = None if hits & set(ids) else words(h)
+        if said:
+            out.append(said)
+    return out
+
+
+def checked_variants(report: dict, full: bool = False) -> list:
+    """The 'checked, ok' row, the fullest first: every phrase of checked_ok and the file they are read from,
+    then one phrase fewer at a time, closed with 'more in hygiene.json' for what did not fit."""
+    items = checked_ok(report)
+    if not items:
+        return []
+    whole = [items[:-1] + [f"{items[-1]} ({HYGIENE_FILE})"]]
+    return whole if full else whole + [items[:k] + [f"more in {HYGIENE_FILE}"] for k in range(len(items) - 1, 0, -1)]
+
+
+def supply_chain_rows(report: dict, found: list = (), full: bool = False, width=None) -> list:
+    """The Supply chain section as [(label, lines, verdict style)]: secrets and dependencies always, each
+    saying 'not scanned' when its step did not run; signing and 'checked, ok' when there is something to say.
+    Each row is the fullest of its variants that fits its lines (SUPPLY_CAPS) at `width`, the value's own
+    width; the tersest is cut at the cap as a last resort. `full`, or no `width`, is every row whole."""
+    rows = [("secrets", secrets_variants(report, full), footer_style(found, SECRET_FINDINGS, "")),
+            ("dependencies", dependencies_variants(report, found, full), footer_style(found, DEPENDENCY_FINDINGS, "")),
+            ("signing", signing_variants(report, full), ""), ("checked, ok", checked_variants(report, full), "")]
+    out = []
+    for label, variants, style in rows:
+        if not variants:
+            continue
+        if variants[0][0].startswith(NOT_SCANNED):
+            style = SEVERITY_STYLE["warning"]   # nothing was checked: not a pass, and not to be read as one
+        lines = None
+        for facts in variants:
+            lines = wrapped(SEP.join(facts), width)
+            if full or width is None or len(lines) <= SUPPLY_CAPS[label]:
+                break
+        else:
+            lines = brief.cap(lines, SUPPLY_CAPS[label], max(width, 20))
+        out.append((label, lines, style))
+    return out
+
+
+def supply_chain_block(report: dict, found: list = (), full: bool = False, width=None):
+    """The titled section: a label grid like the header's, the labels padded to the longest and a value that
+    does not fit wrapped under its own start. A row carries no status mark; the first words of a scan's row
+    are its verdict, in the colour of the worst finding behind it and in none when no finding is."""
+    pad = max(len(label) for label in SUPPLY_CAPS) + LABEL_GAP
+    rows = supply_chain_rows(report, found, full, width - INDENT - pad if width else None)
+    body = Text()
+    for n, (label, lines, style) in enumerate(rows):
+        for i, line in enumerate(lines):
+            body.append(f"{label if i == 0 else '':<{pad}}", style="dim")
+            piece = Text(line)
+            if style and label == "dependencies" and not lines[0].startswith(NOT_SCANNED):
+                piece.highlight_regex(r"[\d,]+ vulnerable\b", style)   # the scan's size comes first on this row; the verdict is the count
+            elif style and i == 0:
+                piece.stylize(style, 0, len(line.split(SEP)[0].rstrip(" ·")))
+            body.append_text(piece)
+            body.append("\n" if n < len(rows) - 1 or i < len(lines) - 1 else "")
+    return Group(heading({"title": SUPPLY_TITLE}), Padding(body, (0, 0, 0, INDENT)))
+
+
+# What gates a step that a run may leave out, and what the step gives: --plots draws the two plots and runs the
+# sampled survival analysis they are drawn from; --deep runs the blame pass when it is projected past its budget.
+STEP_GATES = {"git-of-theseus": ("--plots", "code survival"), "theseus stack plot": ("--plots", "plot"), "theseus survival plot": ("--plots", "plot"),
+              "code age": ("--deep", "code age")}
+
+
+def _all_steps() -> list:
+    """The names of every step a run can take, from the plan itself, so the count follows the code."""
+    from . import run
+    return [step["name"] for step in run.plan("", "", plots=True, lizard=True, structure=True, backtest="1970-01-01")]
+
+
+def steps_line(report: dict):
+    """'15 of 18 steps ran; --plots runs the other 3 (code survival, 2 plots).': how many of the steps a run can
+    take this one took, and for each that did not run the flag that runs it, or what became of it when no flag
+    does ('functions not run', 'osv-scanner timed out'). The plots a run did draw are named here and nowhere
+    else. None for an output directory whose run recorded no steps."""
+    took = (report.get("meta") or {}).get("steps") or {}
+    if not took:
+        return None
+    every = _all_steps()
+    every += [name for name in took if name not in every]   # a step of an older gitmole
+    ran = [name for name in every if took.get(name) == "run"]
+    rest = [name for name in every if took.get(name) != "run"]
+    by_flag, plain = {}, []
+    for name in rest:
+        flag, what = STEP_GATES.get(name, (None, name))
+        if flag and name not in took:
+            by_flag.setdefault(flag, []).append(what)
+        else:
+            plain.append(_step_phrase(name, took[name]) if name in took else f"{name} not run")
+    parts = []
+    for flag, whats in by_flag.items():
+        plots = whats.count("plot")
+        named = [w for w in whats if w != "plot"] + ([textfmt.count(plots, "plot")] if plots else [])
+        n = f"the other {len(whats):,}" if len(whats) == len(rest) and len(whats) > 1 else "it" if len(whats) == len(rest) else f"{len(whats):,} more"
+        parts.append(f"{flag} runs {n} ({', '.join(named)})")
+    try:
+        drawn = sorted(name for name in os.listdir(report.get("out_dir") or "") if name.endswith(".png"))
+    except OSError:
+        drawn = []
+    if drawn:
+        parts.append(f"{textfmt.count(len(drawn), 'plot')} drawn ({', '.join(drawn)})")
+    return "; ".join([f"{len(ran):,} of {len(every):,} steps ran"] + parts + plain) + "."
+
+
+def full_only_sections(report: dict) -> list:
+    """The titles of the sections only --full prints, in its order, for this report: the builders in FULL_ONLY
+    that give rows here (a repository with no agent files has no Agent surface to name). The OSPS Baseline's
+    title carries its result, the one number of the list: 'OSPS Baseline (2 gaps, 1 not seen, of 10)'."""
+    out = []
+    for b in BUILDERS:
+        sid = b.__name__[:-len("_section")]
+        if sid not in FULL_ONLY:
+            continue
+        sec = b(report, True, None)
+        if sec is None or not sec["rows"]:
+            continue
+        title = _base_title(sec["title"])
+        if sid == "osps":
+            results = [row[2] for row in sec["rows"]]
+            short = [f"{results.count(r):,} {word}" for r, word in (("gap", "gap" if results.count("gap") == 1 else "gaps"), ("not seen", "not seen"),
+                                                                     ("unrecognised", "unrecognised"), ("not checked", "not checked")) if results.count(r)]
+            title += f" ({', '.join(short)}, of {len(results):,})" if short else f" (all {len(results):,} met)"
+        out.append(title)
+    return out
+
+
+RERENDER = "gitmole DIR --no-run --full re-renders this run, DIR being the path below."
+
+
+def closing_lines(report: dict, width=None) -> list:
+    """The default report's last lines before the path, CLOSING_LINES at most: one sentence naming what --full
+    adds (the hidden rows of the tables above, and its own sections by title, generated from FULL_ONLY, so the
+    count follows the code), the steps line, and the command that re-renders this run with its argument named.
+    prometheus's report named none of --full's sections and none of the three steps it had not run."""
+    titles = full_only_sections(report)
+    whole = [t.partition(" (")[0].replace(" ", brief.NBSP) + "".join(t.partition(" (")[1:]) for t in titles]   # a title is not broken across two lines
+    index = (f"--full shows the hidden rows and adds {textfmt.count(len(titles), 'section')}: {', '.join(whole)}." if titles
+             else "--full shows the hidden rows.")
+    lines = brief.cap(wrapped(index, width), INDEX_LINES, max(width or 20, 20))
+    steps = steps_line(report)
+    if steps:
+        lines += brief.cap(wrapped(steps, width), CLOSING_LINES - 1 - len(lines), max(width or 20, 20))
+    return lines + [RERENDER]
 
 
 # --- rich ------------------------------------------------------------------
@@ -1625,9 +2047,9 @@ def header_rows(report: dict, full: bool = False) -> list:
     finish, first after history: every number below may be missing because of them), files (tracked, with code,
     scored: three counts with three denominators, which prometheus's header gave as "1,056 files" and left the
     653 that every ranking is over to a caption), code (lines, languages, the surviving share with its source),
-    commits (fixes, reverts), left out (the sweeping commits no count holds) and signing. A row with nothing
-    to say is not there. Signing stays here as its own row only until the Supply chain section (plan item A10)
-    gives it a home; nothing in this header reads it."""
+    commits (fixes, reverts) and left out (the sweeping commits no count holds). A row with nothing to say
+    is not there. Signing is a row of the Supply chain section (supply_chain_rows), where the rest of what the
+    tree and the history say about provenance is; prometheus's report had it in four places."""
     s = summary(report)
     rows = []
     history = [(f"{s['commits']:,} commits", "bold"), (f"{s['first_date']} → {s['last_date']}", "")]
@@ -1672,9 +2094,6 @@ def header_rows(report: dict, full: bool = False) -> list:
     left_out = _left_out_words(report)
     if left_out:
         rows.append(("left out", [(left_out, "")]))
-    signed = signing_phrase(report)
-    if signed:   # A10 moves this row to the Supply chain section
-        rows.append(("signing", [(signed, "")]))
     return rows
 
 
@@ -1787,9 +2206,8 @@ def findings_panel(findings: list, report: dict = None, full: bool = True, width
     names only a table that is there. `full` True spells every finding out, as the Markdown export does.
     Either way every finding is an entry with its own mark, and one from a rule not measured yet has the tag
     after its title, which the box's title glosses (tally_title)."""
-    passed = checks_passed(report or {}, footer=bool(full) or not footer_said(report or {}))
     absent = not_computed_line(report) if report else None
-    if not findings and not passed and not absent:
+    if not findings and not absent:   # a scan that came back clean is a row of the Supply chain section, not a line here
         return Panel(Text("Nothing flagged.", style="green"), title="Findings", title_align="left", border_style="green")
     grid = Table.grid(padding=(0, 1))
     grid.add_column(no_wrap=True)
@@ -1806,11 +2224,9 @@ def findings_panel(findings: list, report: dict = None, full: bool = True, width
         for advice in g["advice"]:
             body.append(f"\n↳ {advice}", style="dim italic")
         grid.add_row(Text(SEVERITY_MARK[g["severity"]], style=style), body)
-    if (passed or absent) and not findings:
+    if absent and not findings:
         grid.add_row(Text(""), Text("Nothing flagged.", style="green"))
-    for title, detail in passed:   # problems first, then the checks that passed
-        grid.add_row(Text("✔", style="green"), Text(title, style="green").append(f"\n{detail}", style="dim"))
-    if absent:   # last: what was found, what passed, then what was never measured, so its silence is not a pass
+    if absent:   # last: what was found, then what was never measured, so its silence is not a pass
         grid.add_row(Text("·", style="dim"), Text(absent, style="dim"))
     return Panel(grid, title=tally_title(findings, gloss=True, width=width), title_align="left", border_style=SEVERITY_STYLE[findings[0]["severity"]] if findings else "green")
 
@@ -2149,21 +2565,19 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
         if risk is not None and sec["id"] == "watch":
             print_section(console, risk_section(risk, base, full))   # the change, right under the list it is scored against
     console.print(Text(""))
-    if full or not footer_said(report):   # the default report does not repeat what the two ✔ lines said
-        console.print(Text(secrets_line(report), style=footer_style(findings, SECRET_FINDINGS, "" if leaks.group(report.get("secrets") or []) else "green")))
-        deps_line = dependencies_line(report)
-        if deps_line:
-            console.print(Text(deps_line[0], style=footer_style(findings, DEPENDENCY_FINDINGS, deps_line[1])))
-    if full and (line := run_line(report)):
+    console.print(supply_chain_block(report, findings, full=full, width=console.width))
+    steps = steps_line(report)
+    console.print(Text(""))
+    if full:
+        if steps:
+            console.print(Text(steps, style="dim"), soft_wrap=True)
+        if (line := run_line(report)):
+            console.print(Text(line, style="dim"), soft_wrap=True)
+        console.print(Text(results_line(report), style="dim"), soft_wrap=True)
+        return
+    for line in closing_lines(report, console.width):
         console.print(Text(line, style="dim"), soft_wrap=True)
-    if not full:
-        # The one pointer the default report keeps, now that no caption ends "--full shows them". It is plan item
-        # A10's to replace, with the closing index that names the sections only --full prints.
-        console.print(Text(FULL_POINTER, style="dim"))
-    console.print(Text(results_line(report), style="dim"), soft_wrap=True)
-
-
-FULL_POINTER = "--full shows the hidden rows and more sections"
+    console.print(Text(report.get("out_dir") or "", style="dim"), soft_wrap=True)   # the results path, alone on the last line
 
 
 def excerpt(report: dict, findings: list, console: Console, full: bool = False) -> None:

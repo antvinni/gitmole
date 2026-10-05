@@ -50,6 +50,17 @@ def _titled(secs, name: str) -> dict:
     return next(x for x in secs if render._base_title(x["title"]) == name)
 
 
+def _headings(text: str) -> list:
+    """The titles of the sections a rendered report prints, in order: the lines that start with a section's
+    pictogram. The default report's closing lines name --full's sections in a sentence, which is not a heading."""
+    return [render._base_title(line[2:]).split(":")[0] for line in text.splitlines() if line[:1] in set(render.SYMBOLS.values()) | {"•"} and line[1:2] == " "]
+
+
+def _supply(text: str) -> str:
+    """The Supply chain section of a rendered report as running text, its wrapped rows joined."""
+    return " ".join(_section_text(text, "Supply chain").split())
+
+
 def rendered(report, findings, width=120, full=False, compare=None):
     console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
     render.report(report, findings, console, full=full, compare=compare)
@@ -82,110 +93,222 @@ class Report(unittest.TestCase):
     def test_no_findings_says_so(self):
         self.assertIn("Nothing flagged", rendered(sample_report(), []))
 
-    def test_a_clean_secrets_scan_is_said_out_loud_in_the_findings(self):
+    def test_a_clean_secrets_scan_is_said_once_in_the_supply_chain_section(self):
+        """It was a ✔ line of the Findings box and, in --full, a footer line saying the same."""
         text = rendered(sample_report(), [])
-        self.assertIn("✔ No secrets in history", text)
-        self.assertIn("betterleaks scanned every commit HEAD reaches", text)
+        self.assertIn("secrets none found: betterleaks scanned every commit HEAD reaches", _supply(text))
+        self.assertNotIn("✔", text)
+        self.assertNotIn("No secrets in history", text)
+        self.assertEqual(text.count("betterleaks scanned every commit HEAD reaches"), 1)
         f = [{"severity": "warning", "title": "Bus factor of one", "detail": "Ann wrote 79% of the code."}]
         text = rendered(sample_report(), f)
-        self.assertIn("─ Findings · 1 warning ▲ ─", text, "the pass line is not a finding and is not counted")
-        self.assertIn("✔ No secrets in history", text)
-        self.assertLess(text.index("Bus factor of one"), text.index("No secrets in history"), "problems first, the pass line last")
+        self.assertIn("─ Findings · 1 warning ▲ ─", text, "a scan that came back clean is not a finding and is not counted")
+        self.assertLess(text.index("Bus factor of one"), text.index("none found: betterleaks"), "the findings first, the section last")
+        self.assertIn("- **ok** No secrets in history", render.markdown(sample_report(), []), "the Markdown export keeps its line")
 
-    def test_the_pass_line_names_the_placeholder_hits_left_out(self):
+    def test_the_placeholder_hits_left_out_are_fulls(self):
         r = sample_report()
         r["secrets"] = [{"rule": "r", "file": "p.json", "commit": "c1", "line": 1, "fingerprint": "c1:p.json", "value": "h3", "placeholder": True}]
-        self.assertIn("No secrets in history", rendered(r, []))
-        self.assertIn("1 placeholder-shaped hit left out", rendered(r, []))
+        self.assertIn("secrets none found: betterleaks scanned every commit HEAD reaches", _supply(rendered(r, [])))
+        self.assertNotIn("placeholder", rendered(r, []), "the default report leaves the count to --full")
+        self.assertIn("HEAD reaches · 1 placeholder-shaped hit left out", _supply(rendered(r, [], full=True)))
 
-    def test_no_pass_line_when_the_scan_did_not_run_or_found_something(self):
+    def test_a_scan_that_did_not_run_says_not_scanned_where_the_verdict_would_be(self):
         r = sample_report()
         r["secrets_scanned"] = False
-        self.assertNotIn("No secrets in history", rendered(r, []), "a killed step or an old output directory has no secrets.json: say nothing")
+        self.assertIn("secrets not scanned dependencies", _supply(rendered(r, [])), "a killed step or an old output directory has no secrets.json")
+        self.assertNotIn("none found", rendered(r, []))
+        r["meta"]["steps"] = {"betterleaks": "timeout", "scc": "run"}
+        self.assertIn("secrets not scanned: the secrets scan timed out dependencies", _supply(rendered(r, [])))
         r = sample_report()
-        r["secrets"] = [{"rule": "r", "file": "a.py", "commit": "c1", "line": 1, "fingerprint": "c1:a.py", "value": "h1", "placeholder": False}]
-        f = [{"severity": "critical", "title": "1 secret(s) in history", "detail": "x"}]
-        self.assertNotIn("No secrets in history", rendered(r, f))
+        r["dependencies"] = {"status": "not-run"}
+        self.assertTrue(_supply(rendered(r, [])).endswith("dependencies not scanned"), "an output directory from before the step")
+        r["meta"]["steps"] = {"osv-scanner": "failed", "scc": "run"}
+        self.assertIn("dependencies not scanned: the dependency scan failed", _supply(rendered(r, [])))
 
-    def test_a_clean_dependency_scan_is_said_out_loud_and_in_the_footer(self):
+    def test_values_outside_the_source_get_a_verdict_and_head_and_history_apart(self):
+        """prometheus: "44 distinct values in 1,188 places" with no verdict. 18 places were at HEAD, all in test or
+        example files and none graded high; 1,170 were in history only, 1,156 of them graded high, every one of
+        those in a file the classifier calls example code."""
+        def row(i, file, at_head, confidence="low"):
+            return {"rule": "generic-api-key", "file": file, "commit": f"c{i}", "line": i, "fingerprint": f"c{i}:{file}", "value": f"v{i % 4}",
+                    "placeholder": False, "confidence": confidence, "at_head": at_head}
+        r = sample_report()
+        r["secrets"] = ([row(i, "pkg/a_test.go", True) for i in range(2)] + [row(2, "examples/demo/conf.yml", True)]
+                        + [row(i, "testdata/big.json", False, "high") for i in range(3, 8)] + [row(8, "vendor/x/y.go", False)]
+                        + [{**row(9, "p.json", False), "placeholder": True}])
+        text = _supply(rendered(r, []))
+        self.assertIn("secrets none in source files (secrets.json) · at HEAD 3 places, all in test or example files, none high confidence · "
+                      "history only 6 places, 5 high confidence, those all in example files dependencies", text)
+        self.assertNotIn("distinct value", text)
+        full = _supply(rendered(r, [], full=True))
+        self.assertIn("none in source files (secrets.json) · 4 distinct values in 9 places · at HEAD 3 places", full, "the totals the Markdown export's line gives")
+        self.assertIn("those all in example files · 1 placeholder-shaped hit left out", full)
+        r["secrets"].append(row(10, "src/app/config.go", False, "high"))
+        r["secrets"].append(row(11, "docs/guide/setup.go", True))
+        text = _supply(rendered(r, [], width=200))
+        self.assertIn("at HEAD 4 places, 3 of them in test or example files, none high confidence", text, "the clause is counted, never assumed")
+        self.assertIn("history only 7 places, 6 high confidence, 5 of them in example files", text)
+
+    def test_a_value_in_source_is_counted_with_its_finding_in_the_verdict(self):
+        from gitmole import findings as rules
+        r = sample_report()
+        r["secrets"] = [{"rule": "aws-access-token", "file": "src/app.py", "commit": "c1", "line": 1, "fingerprint": "c1:a", "value": "h1", "placeholder": False, "confidence": "high", "at_head": True},
+                        {"rule": "generic-api-key", "file": "tests/test_app.py", "commit": "c1", "line": 2, "fingerprint": "c1:b", "value": "h2", "placeholder": False, "confidence": "low", "at_head": True}]
+        found = rules.secrets_found(r)
+        self.assertEqual([f["rule"]["id"] for f in found], ["secrets_in_source"])
+        text = _supply(rendered(r, found))
+        self.assertIn("secrets 1 value in the finding above, 1 more never in source (secrets.json) · at HEAD 2 places, 1 of them in test files, 1 high confidence, "
+                      "none of them in a test, example, generated or vendored file", text)
+
+    def test_a_clean_dependency_scan_is_a_row_with_what_was_scanned(self):
         text = rendered(sample_report(), [])
-        self.assertIn("✔ No known vulnerabilities in dependencies", text)
-        self.assertIn("osv-scanner checked 151 packages in 2 lock files against the local database from 2026-09-16", text)
-        self.assertIn("Dependencies: 151 packages in 2 lock files, none vulnerable (database from 2026-09-16)", rendered(sample_report(), [], full=True))
-        self.assertLess(text.index("No secrets in history"), text.index("No known vulnerabilities"), "secrets first")
+        self.assertIn("dependencies 151 packages in 2 lock files, database 2026-09-16 · none vulnerable (dependencies.json)", _supply(text))
+        self.assertNotIn("No known vulnerabilities", text)
+        self.assertNotIn("Dependencies:", text)
+        self.assertLess(text.index("  secrets "), text.index("  dependencies "), "secrets first")
+        self.assertIn("none vulnerable (dependencies.json)", _supply(rendered(sample_report(), [], full=True)))
+        self.assertIn("- **ok** No known vulnerabilities in dependencies", render.markdown(sample_report(), []))
 
-    def test_the_default_report_does_not_repeat_two_clean_scans_in_the_footer(self):
+    def test_the_unreachable_sweep_is_fulls_and_the_markdown_exports(self):
         r = sample_report()
         r["unreachable"] = {"objects": 4, "scanned": 3}
         text = rendered(r, [])
         self.assertNotIn("Secrets: none found", text)
-        self.assertNotIn("Dependencies: ", text)
-        self.assertIn("betterleaks scanned every commit HEAD reaches; 3 unreachable blobs scanned too", text, "what only the footer said moves up")
-        self.assertIn("Full results in", text)
+        self.assertNotIn("unreachable", text, "the default report leaves the sweep to --full")
         full = rendered(r, [], full=True)
-        self.assertIn("Secrets: none found; 3 unreachable blobs scanned too", full)
-        self.assertNotIn("HEAD reaches; 3 unreachable", full, "--full keeps the footer, so the line above it stays as it was")
-        self.assertIn("Secrets: none found", render.markdown(r, []))
+        self.assertIn("none found: betterleaks scanned every commit HEAD reaches · 3 unreachable blobs scanned too", _supply(full))
+        self.assertIn("Secrets: none found; 3 unreachable blobs scanned too", render.markdown(r, []))
+        r["unreachable"] = {"objects": 0, "blobs": 0, "scanned": 0, "findings": 0}
+        self.assertIn("no unreachable objects (a fresh clone fetches only what a ref reaches)", _supply(rendered(r, [], full=True)))
 
-    def test_the_footer_stays_when_either_scan_has_more_to_say(self):
+    def test_an_informational_advisory_and_a_tree_without_lock_files(self):
         r = sample_report()
         r["dependencies"]["informational"] = [{"name": "paste", "version": "1.0.15", "kinds": ["unmaintained"]}]
-        text = " ".join(rendered(r, []).split())
-        self.assertIn("Secrets: none found", text)
-        self.assertIn("1 with an informational advisory (paste 1.0.15, unmaintained)", text)
+        text = _supply(rendered(r, []))
+        self.assertIn("none vulnerable · 1 with an informational advisory (paste 1.0.15, unmaintained) (dependencies.json)", text)
         r = sample_report()
         r["dependencies"] = {"status": "no-sources"}
-        text = rendered(r, [])
-        self.assertIn("Secrets: none found", text)
-        self.assertIn("Dependencies: no lock files found", text)
+        text = _supply(rendered(r, []))
+        self.assertIn("secrets none found", text)
+        self.assertTrue(text.endswith("dependencies no lock files found"))
 
-    def test_vulnerable_packages_drop_the_pass_line_and_count_in_the_footer(self):
-        r = sample_report()
-        r["dependencies"]["vulnerable"] = [{"name": "lodash", "version": "4.17.15", "source": "package-lock.json", "score": 7.2, "fixed": "4.17.21",
-                                            "ids": ["GHSA-1"], "aliases": ["CVE-2021-23337"], "severity": "high", "ecosystem": "npm", "advisories": 1, "summary": ""}]
-        text = rendered(r, [])
-        self.assertNotIn("No known vulnerabilities", text)
-        self.assertIn("Dependencies: 151 packages in 2 lock files, 1 vulnerable (database from 2026-09-16)", text)
-
-    def test_the_footer_counts_packages_and_places_apart(self):
-        r = sample_report()
+    def test_vulnerable_packages_are_counted_and_reconciled_with_the_findings(self):
+        """prometheus: 28 in the warning and 3 in the note over a footer that said 29, two being in both."""
+        from gitmole import findings as rules
         row = {"name": "lodash", "version": "4.17.15", "source": "package-lock.json", "score": 7.2, "fixed": "4.17.21",
-               "ids": ["GHSA-1"], "aliases": [], "severity": "high", "ecosystem": "npm", "advisories": 1, "summary": ""}
-        r["dependencies"]["vulnerable"] = [row, {**row, "source": "web/package-lock.json"}]
-        self.assertIn("Dependencies: 151 packages in 2 lock files, 1 vulnerable in 2 places (database", rendered(r, []))
+               "ids": ["GHSA-1"], "aliases": ["CVE-2021-23337"], "severity": "high", "ecosystem": "npm", "advisories": 1, "summary": ""}
+        r = sample_report()
+        r["dependencies"]["vulnerable"] = [row]
+        found = rules.vulnerable_dependencies(r)
+        text = _supply(rendered(r, found))
+        self.assertIn("dependencies 151 packages in 2 lock files, database 2026-09-16 · 1 vulnerable, in the warning above (dependencies.json)", text)
+        self.assertIn("1 vulnerable (dependencies.json)", _supply(rendered(r, [])), "without the finding in the report there is no above to point at")
+        r["dependencies"]["vulnerable"] = [row, {**row, "source": "web/package-lock.json"}, {**row, "name": "moment"}]
+        self.assertIn("2 vulnerable in 3 places, all in the warning above", _supply(rendered(r, rules.vulnerable_dependencies(r))))
+        r["dependencies"]["vulnerable"] = [row, {**row, "name": "moment"}, {**row, "source": "examples/demo/package-lock.json"}, {**row, "name": "qs", "source": "examples/demo/package-lock.json"}]
+        found = rules.vulnerable_dependencies(r)
+        self.assertEqual([f["severity"] for f in found], ["warning", "info"])
+        self.assertIn("3 vulnerable in 4 places: 2 in the warning above, 2 in the note, 1 counted in both (dependencies.json)", _supply(rendered(r, found)))
+        r["dependencies"]["vulnerable"] = [row, {**row, "name": "qs", "source": "examples/demo/package-lock.json"}]
+        self.assertIn("2 vulnerable: 1 in the warning above, 1 in the note (dependencies.json)", _supply(rendered(r, rules.vulnerable_dependencies(r))))
+        r["dependencies"]["vulnerable"] = [{**row, "source": "examples/demo/package-lock.json"}]
+        self.assertIn("1 vulnerable, in the note above", _supply(rendered(r, rules.vulnerable_dependencies(r))))
 
     def test_a_requirement_file_is_not_counted_as_a_lock_file(self):
         r = sample_report()
         r["dependencies"]["sources"].append({"path": "tools/requirements.txt", "packages": 3})
-        text = rendered(r, [], full=True)
-        self.assertIn("osv-scanner checked 151 packages in 2 lock files and 1 requirement file against", text)
-        self.assertIn("Dependencies: 151 packages in 2 lock files and 1 requirement file, none vulnerable", text)
+        self.assertIn("dependencies 151 packages in 2 lock files and 1 requirement file, database 2026-09-16 · none vulnerable", _supply(rendered(r, [], full=True)))
+        self.assertIn("osv-scanner checked 151 packages in 2 lock files and 1 requirement file against", render.markdown(r, []))
 
     def test_one_lock_file_is_named_and_one_package_is_singular(self):
         """superpowers: "1 packages in 1 lock file" beside "package.json has no package-lock.json"; the lock was a test's."""
         r = sample_report()
         r["dependencies"].update(packages=1, sources=[{"path": "tests/server/package-lock.json", "packages": 1}])
-        text = " ".join(rendered(r, [], full=True).split())   # --full: the default report leaves the footer's two lines out when both scans are clean
-        self.assertIn("osv-scanner checked 1 package in 1 lock file (tests/server/package-lock.json) against the local database", text)
-        self.assertIn("Dependencies: 1 package in 1 lock file (tests/server/package-lock.json), none vulnerable", text)
-        self.assertNotIn("1 packages", text)
-        self.assertIn("osv-scanner checked 1 package in 1 lock file (tests/server/package-lock.json)", " ".join(rendered(r, []).split()))
+        for full in (False, True):
+            text = _supply(rendered(r, [], full=full))
+            self.assertIn("dependencies 1 package in 1 lock file (tests/server/package-lock.json), database 2026-09-16 · none vulnerable", text)
+            self.assertNotIn("1 packages", text)
         r["dependencies"].update(sources=[{"path": "requirements.txt", "packages": 1}])
-        self.assertIn("Dependencies: 1 package in 1 requirement file (requirements.txt), none vulnerable", " ".join(rendered(r, [], full=True).split()))
+        self.assertIn("dependencies 1 package in 1 requirement file (requirements.txt), database", _supply(rendered(r, [], full=True)))
 
-    def test_the_footer_says_why_dependencies_were_not_scanned(self):
+    def test_the_row_says_why_dependencies_were_not_scanned(self):
         r = sample_report()
         r["dependencies"] = {"status": "no-sources"}
-        text = rendered(r, [])
-        self.assertIn("Dependencies: no lock files found", text)
-        self.assertNotIn("No known vulnerabilities", text, "nothing was checked")
+        self.assertIn("dependencies no lock files found", _supply(rendered(r, [])))
         r["dependencies"] = {"status": "no-database", "download": "osv-scanner scan source -r --offline-vulnerabilities --download-offline-databases ."}
-        text = rendered(r, [])
-        self.assertIn("Dependencies: not scanned, no offline vulnerability database; fetch it once: gitmole --fetch-vuln-db", text)
-        r["dependencies"] = {"status": "not-run"}
-        text = rendered(r, [])
-        self.assertNotIn("Dependencies:", text, "an output directory from before the step says nothing")
-        self.assertIn("Secrets: none found", text)
+        self.assertIn("dependencies not scanned: no offline vulnerability database; fetch it once with gitmole --fetch-vuln-db CLONE", _supply(rendered(r, [])))
+
+    def test_signing_is_a_row_of_the_section_and_no_longer_of_the_header(self):
+        """prometheus: two header lines of signing detail, beside a footer and two findings on the same subject."""
+        r = sample_report()
+        r["signing"] = {"commits": 100, "signed": 46, "mechanisms": {"gpg": 40, "ssh": 6}, "last_year": {"commits": 50, "signed": 40, "forge_signed": 33},
+                        "forge": {"commits": 40, "signed": 39, "mechanisms": {"gpg": 39}}}
+        text = rendered(r, [], width=80)
+        self.assertNotIn("│ signing", text)
+        self.assertNotIn("signing", dict(render.header_rows(r)))
+        self.assertIn("  signing       7% of commits signed by their authors (signatures not verified)", text, "one line: the share, and that nothing was verified")
+        whole = "signing 7% of commits signed by their authors (ssh 6%, gpg 1%), 14% of the last year's; 39% signed by the forge on merge (signatures not verified)"
+        self.assertIn(whole, _supply(rendered(r, [], width=80, full=True)), "--full says the rest")
+        self.assertIn(whole, _supply(rendered(r, [], width=200)), "and so does a terminal wide enough for it on one line")
+        r["signing"] = {"commits": 5, "signed": 0}
+        self.assertIn("signing no commits signed", _supply(rendered(r, []) + "\n"))
+        r["signing"] = {}
+        self.assertNotIn("signing", _supply(rendered(r, [])), "an output directory without the step has no row")
+
+    HYGIENE = {"actions": {"unpinned": [], "unpinned_count": 0, "pinned": 65, "local": 5, "pwn_request": [], "injection": []},
+               "lockfiles": {"drift": [], "missing": [], "pairs": 9}, "updates": {"tool": "renovate", "covered": ["gomod", "npm"], "uncovered": []},
+               "presence": {"license": "LICENSE", "security_policy": "SECURITY.md", "codeowners": "CODEOWNERS", "codeowners_missing": [], "pull_request_template": ".github/PULL_REQUEST_TEMPLATE.md"},
+               "binaries": {"binaries": 9, "executables": [], "executables_count": 0}, "submodules": {"count": 0}, "symlinks": {"count": 2, "outside": [], "into_git": []},
+               "trojan": {"files": 675, "bidi": [], "mixed_script": []},
+               "licences": {"declared": [], "file_licence": "Apache-2.0", "project": "permissive", "approved": True, "mismatch": False, "strong": []},
+               "imports": {"manifests": 9, "unused": [], "count": 0}}
+
+    def test_the_checks_that_passed_are_named_in_a_fixed_order(self):
+        """prometheus: 65 pinned actions, 9 manifests level with their locks and 675 files free of bidi characters were
+        in hygiene.json and in no report, so a clean check and one that never ran looked the same."""
+        import copy
+        r = dict(sample_report(), hygiene=copy.deepcopy(self.HYGIENE))
+        every = ["65 workflow actions pinned", "renovate covers gomod and npm", "9 manifests match their lock files", "675 files free of bidi and mixed-script characters",
+                 "9 binaries, none executable", "Apache-2.0 licence, OSI- or FSF-approved", "CODEOWNERS, security policy and pull-request template present",
+                 "workflows free of pull-request checkout and script injection", "2 symlinks inside the tree", "every dependency declared in 9 manifests imported"]
+        self.assertEqual(render.checked_ok(r), every, "no submodule, so nothing was checked there and nothing is said")
+        text = rendered(r, [], width=80)
+        row = text[text.index("  checked, ok"):].split("\n\n")[0].splitlines()
+        self.assertEqual([line.strip() for line in row], ["checked, ok   65 workflow actions pinned · renovate covers gomod and npm ·",
+                                                          "9 manifests match their lock files · 675 files free of bidi and",
+                                                          "mixed-script characters · more in hygiene.json"])
+        self.assertTrue(_supply(rendered(r, [], full=True)).endswith(" · ".join(every) + " (hygiene.json)"), "--full names every one")
+        r["hygiene"]["actions"].update(unpinned=[{"uses": "a/b@v1", "file": ".github/workflows/ci.yml", "line": 3}], unpinned_count=1)
+        r["hygiene"]["lockfiles"].update(drift=[{"manifest": "package.json", "manifest_date": "2026-09-02", "lockfile": "package-lock.json", "lockfile_date": "2026-01-01"}])
+        r["hygiene"]["trojan"]["files"] = 0
+        r["hygiene"]["updates"] = {"tool": None, "covered": [], "uncovered": []}
+        self.assertEqual(render.checked_ok(r), every[4:], "a check with a hit, and one with nothing to check, are not there")
+        self.assertEqual(render.checked_ok(sample_report()), [], "without the hygiene step there is no row")
+        self.assertNotIn("checked, ok", rendered(sample_report(), []))
+
+    def test_the_grid_keeps_to_ten_lines_and_the_closing_lines_to_six_at_any_width(self):
+        import copy
+        from gitmole import findings as rules
+        r = dict(sample_report(), hygiene=copy.deepcopy(self.HYGIENE))
+        r["signing"] = {"commits": 100000, "signed": 99999, "mechanisms": {"gpg": 90000, "ssh": 9999}, "last_year": {"commits": 50, "signed": 40, "forge_signed": 33},
+                        "forge": {"commits": 40, "signed": 39, "mechanisms": {"gpg": 39}}}
+        r["secrets"] = [{"rule": "generic-api-key", "file": f"some/rather/long/directory/name{i}/pkg/a_test.go", "commit": f"c{i}", "line": i, "fingerprint": f"c{i}", "value": f"v{i}",
+                         "placeholder": False, "confidence": "high", "at_head": bool(i % 2)} for i in range(1200)]
+        row = {"name": "lodash", "version": "4.17.15", "source": "package-lock.json", "score": 7.2, "fixed": "4.17.21", "ids": ["GHSA-1"], "aliases": [], "severity": "high"}
+        r["dependencies"]["vulnerable"] = [{**row, "name": f"p{i}"} for i in range(1300)] + [{**row, "name": f"p{i}", "source": "examples/demo/package-lock.json"} for i in range(1100, 2400)]
+        r["dependencies"]["informational"] = [{"name": "a-crate-with-a-long-name", "version": "1.0.15", "kinds": ["unmaintained", "unsound"]}] * 12
+        r["meta"]["steps"] = {name: "failed" for name in render._all_steps()}
+        found = rules.vulnerable_dependencies(r)
+        for width in (60, 80, 100, 160):
+            text = rendered(r, found, width=width)
+            section = _section_text(text, "Supply chain").splitlines()
+            self.assertLessEqual(len(section) - 1, render.SUPPLY_LINES, width)
+            self.assertTrue(all(len(line.rstrip()) <= width for line in section), width)
+            closing = text[text.index("Supply chain"):].split("\n\n")[1].splitlines()
+            self.assertLessEqual(len(closing) - 1, render.CLOSING_LINES, (width, closing))
+            self.assertEqual(closing[-1], "/tmp/analysis-demo", "the results path, alone on the last line")
+            self.assertEqual(closing[-2], render.RERENDER)
 
     def test_tables_show_people_hotspots_coupling_and_age(self):
         text = rendered(sample_report(), [], full=True)
@@ -386,7 +509,7 @@ class Report(unittest.TestCase):
                                       "cohort": {"commits": 35, "reverted": 2, "fixes": 4, "retouched": 20},
                                       "rest": {"commits": 328, "reverted": 3, "fixes": 60, "retouched": 150}},
                            "shape": {"burst_share": 0.12, "conventional_share": 0.8, "hours_used": 20}, "agents": {}}
-        self.assertNotIn("Trailers", rendered(r, [], width=200))
+        self.assertNotIn("Trailers", _headings(rendered(r, [], width=200)))
         block = _section_text(rendered(r, [], width=200, full=True), "Trailers")
         self.assertRegex(block, r"Co-authored-by\s+40\s+11%")
         caption = render.trailers_section(r)["caption"]
@@ -424,7 +547,7 @@ class Report(unittest.TestCase):
 
     def test_the_watch_list_by_component_is_a_full_only_section(self):
         r = sample_report()
-        self.assertNotIn("Watch list by component", rendered(r, [], width=200))
+        self.assertNotIn("Watch list by component", _headings(rendered(r, [], width=200)))
         self.assertIn("Watch list by component", rendered(r, [], width=200, full=True))
         self.assertIn("## Watch list by component", render.markdown(r, []))
         self.assertIn("watch_by_component", render.to_json(r, []))
@@ -508,7 +631,48 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["out_dir"] = "/very/long/" + "x" * 150 + "/analysis-demo"
         text = rendered(r, [], width=80)
-        self.assertIn("Full results in " + r["out_dir"], text)
+        self.assertEqual(text.splitlines()[-1], r["out_dir"], "alone on the last line, whole")
+        self.assertEqual(text.splitlines()[-2], "gitmole DIR --no-run --full re-renders this run, DIR being the path below.")
+        self.assertIn("Full results in " + r["out_dir"], rendered(r, [], width=80, full=True))
+
+    def test_the_closing_lines_name_fulls_sections_the_steps_and_the_command(self):
+        """prometheus's default report named none of the ten sections only --full prints, nor the three steps it had
+        not run, and its last line promised plots that were not drawn."""
+        import os
+        import tempfile
+        r = sample_report()
+        text = rendered(r, [], width=80)
+        closing = " ".join(text[text.index("Supply chain"):].split("\n\n")[1].split())
+        titles = render.full_only_sections(r)
+        self.assertEqual(titles[:3], ["Watch list by component", "Hotspots", "Size by language"])
+        self.assertTrue(titles[-1].startswith("OSPS Baseline ("), titles)
+        self.assertIn(f"--full shows the hidden rows and adds {len(titles)} sections: {', '.join(titles)}.", closing)
+        self.assertNotIn("Agent surface", closing, "a section that would not print for this report is not promised")
+        self.assertNotIn("steps ran", closing, "an output directory that records no steps says nothing of them")
+        full = rendered(r, [], full=True)
+        empty = {render._base_title(line[2:]).split(":")[0] for line in full.splitlines() if line[:2] == "• " and ": " in line}   # a section with nothing to show is its title and a note
+        self.assertEqual(empty, {"Changed lines", "Trailers", "Signing by year"})
+        self.assertEqual(sorted(t.split(" (")[0] for t in titles), sorted(t for t in _headings(full) if t not in _headings(text) and t not in empty),
+                         "the index is --full's own headings, less the ones that would be a note saying there is nothing")
+        self.assertNotIn("--full shows", full)
+        every = render._all_steps()
+        self.assertEqual(len(every), 18)
+        r["meta"]["steps"] = {name: "run" for name in every if "theseus" not in name}
+        self.assertEqual(render.steps_line(r), "15 of 18 steps ran; --plots runs the other 3 (code survival, 2 plots).")
+        self.assertIn(render.steps_line(r), rendered(r, [], width=80))
+        self.assertIn(render.steps_line(r), rendered(r, [], width=80, full=True))
+        del r["meta"]["steps"]["code age"]
+        self.assertEqual(render.steps_line(r), "14 of 18 steps ran; --deep runs 1 more (code age); --plots runs 3 more (code survival, 2 plots).")
+        r["meta"]["steps"] = {name: "run" for name in every if name not in ("functions", "code age")}
+        r["meta"]["steps"]["trend"] = "timeout"
+        self.assertEqual(render.steps_line(r), "15 of 18 steps ran; --deep runs 1 more (code age); functions not run; trend timed out.")
+        with tempfile.TemporaryDirectory() as d:
+            r = dict(sample_report(), out_dir=d)
+            r["meta"] = dict(r["meta"], steps={name: "run" for name in every})
+            self.assertEqual(render.steps_line(r), "18 of 18 steps ran.")
+            open(os.path.join(d, "code-age.png"), "wb").close()
+            open(os.path.join(d, "survival.png"), "wb").close()
+            self.assertEqual(render.steps_line(r), "18 of 18 steps ran; 2 plots drawn (code-age.png, survival.png).", "plots are named only when written")
 
     def test_footer_points_at_output_dir(self):
         self.assertIn("/tmp/analysis-demo", rendered(sample_report(), []))
@@ -730,7 +894,7 @@ class Report(unittest.TestCase):
         coupling = text[text.index("Change coupling"):]
         self.assertNotIn("tests/test_tax.py", coupling)
         self.assertIn("2 pairs hidden: 1 historical, 1 test", coupling, "the sum with its breakdown")
-        self.assertIn(render.FULL_POINTER, text, "one pointer, at the report's end")
+        self.assertEqual(text.count("--full shows the hidden rows"), 1, "one pointer, at the report's end")
         full_text = rendered(r, [], full=True)
         self.assertIn("{static/tax.html,tests/test_tax.py}", full_text[full_text.index("Change coupling"):])
 
@@ -1294,10 +1458,11 @@ class FullOnlySections(unittest.TestCase):
     def test_default_report_leaves_them_out_and_full_brings_them_back(self):
         text = rendered(sample_report(), [])
         for title in ("Size by language", "Activity", "Surviving code by year written"):
-            self.assertNotIn(title, text, title)
+            self.assertNotIn(title, _headings(text), title)
+            self.assertIn(title, text, "the closing lines say --full has it")
         full = rendered(sample_report(), [], full=True)
         for title in ("Size by language", "Activity", "Surviving code by year written"):
-            self.assertIn(title, full, title)
+            self.assertIn(title, _headings(full), title)
 
     def test_hotspots_moved_to_full_and_markdown_alongside_the_other_descriptive_tables(self):
         self.assertIn("hotspots", render.FULL_ONLY)
@@ -1363,7 +1528,7 @@ class FullOnlySections(unittest.TestCase):
                               "git-sizer": "failed"}   # a retired step an old meta.json still names is not a core one
         text = rendered(r, [], width=160)
         self.assertRegex(text, r"│ steps +size timed out · change analysis skipped · dependency scan failed +│")
-        self.assertNotIn("trend failed", text, "the optional steps say so in their own sections")
+        self.assertNotIn("trend failed", text[:text.index("Findings")], "the optional steps say so in their own sections and in the closing steps line")
         self.assertNotIn("repo health", text)
         self.assertIn("size timed out · change analysis skipped", render.markdown(r, []))
         r["meta"]["steps"] = {"scc": "run"}
@@ -1538,7 +1703,7 @@ class Timeline(unittest.TestCase):
         """No rule reads it, and its months changed with the terminal's width; People says who is still here."""
         self.assertIn("timeline", render.FULL_ONLY)
         for width in (80, 120, 200):
-            self.assertNotIn("Timeline", rendered(sample_report(), [], width=width))
+            self.assertNotIn("Timeline", _headings(rendered(sample_report(), [], width=width)))
         self.assertIn("▦ Timeline", rendered(sample_report(), [], full=True))
         self.assertIn("## Timeline", render.markdown(sample_report(), []), "Markdown keeps the sections it had")
 
@@ -1716,13 +1881,13 @@ class Layout(unittest.TestCase):
             orders = set()
             for width in (80, 120, 200, 300):
                 text = rendered(sample_report(), [], width=width, full=full)
-                heads = [line for line in text.splitlines() if line[:1] in set(render.SYMBOLS.values()) | {"•"}]
+                heads = [line for line in text.splitlines() if line[:1] in set(render.SYMBOLS.values()) | {"•"} and line[1:2] == " "]
                 for line in heads:
                     self.assertNotRegex(line[2:], r"[◎◉◆⟷λ⌂▤◔▦◷•] [A-Z]", "one section on a line")
                 orders.add(tuple(render._base_title(line[2:]).split(":")[0] for line in heads))   # an empty section is its title, a colon and a note
             self.assertEqual(len(orders), 1, "one order of sections whatever the width")
         self.assertEqual(orders.pop(), ("Watch list", "Watch list by component", "Hotspots", "Complex functions", "Change coupling", "Size by language", "Knowledge map", "People",
-                                        "Timeline", "Activity", "Surviving code by year written", "Changed lines", "Trailers", "Signing by year", "OSPS Baseline"))
+                                        "Timeline", "Activity", "Surviving code by year written", "Changed lines", "Trailers", "Signing by year", "OSPS Baseline", "Supply chain"))
 
     def test_one_order_of_sections_in_the_default_report_full_and_markdown(self):
         """prometheus's default ran code, people, people, people, code, code."""
@@ -1875,7 +2040,8 @@ class AgentSurface(unittest.TestCase):
     def test_the_inventory_is_a_full_only_section_and_no_finding(self):
         r = sample_report()
         r["provenance"] = {**(r.get("provenance") or {}), "agents": self.AGENTS}
-        self.assertNotIn("Agent surface", rendered(r, []), "the default report does not move")
+        self.assertNotIn("Agent surface", _headings(rendered(r, [])), "the default report does not move")
+        self.assertIn("Agent surface, OSPS Baseline", " ".join(rendered(r, []).split()), "and its closing lines say --full has the section")
         text = " ".join(rendered(r, [], width=200, full=True).split())
         self.assertIn("Agent surface", text)
         self.assertIn("instructions AGENTS.md last changed 2026-09-01, 1 commit before the last", text)

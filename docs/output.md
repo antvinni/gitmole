@@ -92,14 +92,16 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    there are any; the busiest weekday and hour are `--full`'s Activity table.
    `left out`: the sweeping commits and the ones `.git-blame-ignore-revs`
    declares, `18 sweeping commits, not counted in churn, coupling or
-   ownership`, said here once for every table below. `signing`: the share of
-   commits signed and by what (`51% of commits signed (gpg 49%, ssh 2%), 60%
-   of the last year's`). `scope` (a `--path` run) and `steps` (the ones that
+   ownership`, said here once for every table below. `scope` (a `--path` run) and `steps` (the ones that
    did not finish) are rows when there is something to say, and a row with
    nothing to say is not printed. The tally of the findings is the Findings
    title's: `Findings · 4 warnings ▲ · 10 notes ● · 5 by rules not measured
    for precision yet`, each word beside the mark
-   its entries carry. Signing
+   its entries carry. Signing is a row of the Supply chain section, last
+   in the report: the share of commits signed and by what (`51% of commits
+   signed (gpg 49%, ssh 2%), 60% of the last year's (signatures not
+   verified)`; the default report keeps the row to one line, the share and
+   the last four words, and `--full` and a wide terminal say the rest). It
    is read from the `gpgsig` header in each commit object, so it needs no
    keyring and a fresh clone reads the same as the author's; nothing is
    verified, and the figure is evidence toward SLSA Source L2, never a
@@ -547,14 +549,17 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    share of the surviving code: that is the bus factor's measure, and the
    name changed with the step that counted the lines.
 
-   Two checks are also reported when they pass: a green `No secrets in
-   history` line closes the panel whenever the betterleaks scan ran and
-   found no secret value, and a green `No known vulnerabilities in
-   dependencies` line whenever osv-scanner checked the lock files and found
-   nothing, so a clean result is said out loud rather than left to silence.
-   Neither is counted as a finding. When a scan did not run, because the
-   step was killed or `--no-run` points at an output directory without its
-   file, the line is absent. The Markdown export carries them as `**ok**`.
+   Two scans are also reported when they pass, so a clean result is said
+   out loud rather than left to silence: the Supply chain section's
+   `secrets` row opens `none found: betterleaks scanned every commit HEAD
+   reaches` whenever the betterleaks scan ran and found no secret value,
+   and its `dependencies` row says `none vulnerable` whenever osv-scanner
+   checked the lock files and found nothing. Neither is counted as a
+   finding. When a scan did not run, because the step was killed or
+   `--no-run` points at an output directory without its file, the row says
+   `not scanned` where the verdict would be. The Markdown export carries
+   the two passes as `**ok**` lines under its findings. Until 0.44.0 the
+   terminal report had them as two green ✔ lines closing the Findings box.
 
    Vulnerable dependencies come from osv-scanner over the lock files,
    offline against the local copy of the OSV database (see
@@ -605,7 +610,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    and a row whose specifier does not name one version (`==`) is said as a
    range whose floor is vulnerable, never counted as an installed package,
    and never critical by its score. Requirement files are counted apart
-   from lock files, here and in the footer. The advice names the package to upgrade
+   from lock files, here and in the Supply chain section. The advice names the package to upgrade
    first, or, for a malicious one, to remove: a malicious package, then one
    that makes the finding critical, then the highest score that has a fixed
    version published ("it scores CVSS 9.2, the highest with a fix published";
@@ -622,8 +627,8 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    unimported package is still installed. This is not reachability, which
    needs a buildable tree. A package whose every advisory is informational
    (RustSec's `unmaintained`, `unsound` and `notice`, which report no
-   vulnerability) is not counted as vulnerable; the footer names it. The
-   footer line says how many packages in how
+   vulnerability) is not counted as vulnerable; the Supply chain section's
+   `dependencies` row names it. That row says how many packages in how
    many lock files were checked and how old the database copy is; without
    lock files, or without the database, it says that instead.
 
@@ -641,9 +646,10 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    labelled never actionable); nor is a value found only in generated
    files, mocks (`mock/`, `mocks/`, `mock_*`, `*_mock.*`), tooling under
    `hack/`, `fixtures-*` directories or `testdata.*` files. Such values
-   still count in the footer's `Secrets:` line and stay in `secrets.json`,
-   so the green `No secrets in history` line does not appear while any is
-   there, and the OSPS-BR-07.01 row counts them beside its result.
+   still count in the Supply chain section's `secrets` row and stay in
+   `secrets.json`, so the row opens `none in source files`, not `none
+   found`, while any is there, and the OSPS-BR-07.01 row counts them
+   beside its result.
    A copy in an unreachable blob has no path, so the value's other copies
    decide; a value found only in unreachable blobs counts as source.
    betterleaks grades each sighting low, medium or high. A value that only
@@ -655,7 +661,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    rule (an AWS key id, a Slack token) stays critical at any grade.
 
    Shapes that cannot be a live secret are left out, counted on the
-   footer line: version strings, tokens shortened with "...", a dotted
+   `secrets` row in `--full` and on the Markdown export's `Secrets:` line: version strings, tokens shortened with "...", a dotted
    path of lowercase words such as `passwords.password` (a translation or
    config key), whole-value
    template markers such as `your-project-id`, `<your-token>`, `XXXX-XXXX`
@@ -697,7 +703,7 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    less those a ref reaches, writes the blobs among them (up to a cap on
    count and size) under the output directory for one `betterleaks dir`
    pass, removes them again, and reports what it finds as `(unreachable
-   blob <hash>)`; the footer says how many it scanned, or that there were
+   blob <hash>)`; the `secrets` row in `--full`, and the Markdown export's `Secrets:` line, say how many it scanned, or that there were
    none, which is what a fresh clone looks like, since a clone fetches only
    what a ref reaches. What each clone happens to hold is its own, not the
    commit's, so the counts sit in the `--json` export's `envelope` and a
@@ -1107,20 +1113,85 @@ Reinartz gone`, `2019-01 gone`); blank means active.
    complexity 15 or more over 100 lines or more, and the whole list fits
    the table's eight rows; a longer list stays a table. `--full` and the
    Markdown export keep every one of these tables whole.
-6. **Footer**: a `Secrets:` line and a `Dependencies:` line with each
-   scan's totals, then where the files are (`Full results in …`, `Full
-   results and plots in …` only when the directory holds a plot). Each of
-   the two lines takes the colour of the worst finding behind it, and has
-   none when it counts something no finding holds. The default report
-   leaves the two lines out when both scans found nothing and the two ✔
-   lines in the findings panel already say so (the secrets ✔ line then
-   also carries what only the footer said, the sweep of unreachable
-   objects); a value, a vulnerable package, an informational advisory or
-   a scan that did not run keeps them. `--full` and Markdown close
-   with a Run line above it: what produced the report, gitmole's version,
-   every tool's and the `--ignore`, `--ignore-data` and `--deep` options,
-   read from the run manifest `meta.run` (the commit, the versions, the
-   options). The header shows that commit as `branch main @ 540ee5b5`.
+6. **Supply chain**, last: a titled grid of labelled rows, what the scans
+   and the tree's own declarations say in one place. No row carries a
+   status mark; the first words of a scan's row are its verdict, in the
+   colour of the worst finding behind it and in none when no finding is.
+   - `secrets`: the verdict and its rule first. `none found: betterleaks
+     scanned every commit HEAD reaches` when the scan held no value;
+     `none in source files (secrets.json)` when every value it held is in
+     a file that is no source, which is the rule that makes a value a
+     finding; `2 values in the findings above, 3 more never in source`
+     otherwise. Then the places, HEAD apart from history: `at HEAD 18
+     places, all in test or example files, none high confidence ·
+     history only 1,170 places, 1,156 high confidence, those all in
+     example files`. A place is one value at one commit, file and line,
+     placeholder-shaped hits left out. Where the places are is counted
+     from the file classifier every table uses (generated, vendored,
+     test, example), so the clause reads `12 of them in test files` when
+     that is the count, and never names a kind of file the classifier
+     does not.
+   - `dependencies`: what was scanned and the date of the database copy,
+     then the totals, reconciled with the findings above: `29 vulnerable
+     in 46 places: 28 in the warning above, 3 in the note, 2 counted in
+     both (dependencies.json)`. The two dependency findings each count a
+     package once, so one pinned by a source lock and by an example's
+     lock is in both; with one finding the row says `all in the warning
+     above`. A package with only an informational advisory is named
+     after the totals. `no lock files found`, or `not scanned` with the
+     reason, stands alone.
+   - `signing`: see the header's entry above.
+   - `checked, ok`: the hygiene checks that ran with something to check
+     and found nothing, from a fixed list in a fixed order: workflow
+     actions pinned, what the update tool covers, manifests level with
+     their lock files, files free of bidi and mixed-script characters,
+     then binaries with none executable, the licence, the declared files
+     (CODEOWNERS, security policy, pull-request template), workflows
+     free of pull-request checkout and script injection, submodule URLs,
+     symlinks, and declared dependencies all imported. A check with a hit
+     is a finding above and never here; one with nothing to check (no
+     workflow, no lock file) is absent, as is the whole row when the
+     hygiene step did not run. The registry-confusion and install-script
+     checks record no count of what they looked at and are in
+     `hygiene.json` only.
+
+   The default report holds the grid to ten lines: three each for
+   `secrets`, `dependencies` and `checked, ok` and one for `signing`. A row
+   that would pass its lines says less, in a fixed order (the secrets row
+   drops where the places are, then the places; the dependencies row
+   drops the split between the findings; `checked, ok` stops at the last
+   check that fits and ends `more in hygiene.json`). `--full` prints every
+   row whole and adds what the default leaves to it: the number of
+   distinct values, the placeholder-shaped hits left out, and the sweep of
+   unreachable objects.
+
+7. **Closing lines.** The default report ends with at most six lines and
+   the path:
+   - one sentence naming what `--full` adds: `--full shows the hidden rows
+     and adds 11 sections: Watch list by component, Hotspots, ..., OSPS
+     Baseline (2 gaps, 1 not seen, of 10).` The list is generated from the
+     sections only `--full` prints that have rows for this report (no
+     Agent surface without agent files), and the OSPS result is its only
+     number;
+   - the steps line: `15 of 18 steps ran; --plots runs the other 3 (code
+     survival, 2 plots).` The total is every step a run can take; each one
+     that did not run is named with the flag that runs it (`--plots`,
+     `--deep` for a blame pass projected past its budget) or with what
+     became of it (`functions not run`, `trend timed out`). Plots are
+     named here only when they were drawn (`2 plots drawn (code-age.png,
+     survival.png)`);
+   - `gitmole DIR --no-run --full re-renders this run, DIR being the path
+     below.`;
+   - the output directory's path, alone on the last line.
+
+   `--full` closes with the steps line, a Run line (what produced the
+   report: gitmole's version, every tool's and the `--ignore`,
+   `--ignore-data` and `--deep` options, read from the run manifest
+   `meta.run`), and `Full results in …` (`Full results and plots in …`
+   only when the directory holds a plot). Markdown keeps its `Secrets:`
+   and `Dependencies:` lines with each scan's totals, the Run line and
+   the `Full results` line. The header shows the manifest's commit as
+   `branch main @ 540ee5b5`.
 
 A full example, at a pinned commit, is
 [docs/examples/react.md](https://github.com/antvinni/gitmole/blob/main/docs/examples/react.md).

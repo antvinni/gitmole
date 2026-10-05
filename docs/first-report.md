@@ -7,7 +7,7 @@ full reference; back to [the README](https://github.com/antvinni/gitmole#readme)
 row per subject: `history` (commits, date span, people), `files` (how many are tracked, how many hold code and how
 many are *scored*, the source files every ranking below is over), `code` (lines, languages, how old the surviving
 code is), `commits` (how many are fixes or reverts), `left out` (commits that sweep the whole tree, which no count
-below includes) and `signing`. A step that failed or timed out gets a `steps` row. The findings are counted by
+below includes). A step that failed or timed out gets a `steps` row. The findings are counted by
 severity in the title of the Findings box under it. When people commit (the busiest weekday and hour) is in
 `--full`'s Activity table.
 
@@ -74,6 +74,18 @@ commits, the rest are counted in the title, and the top three are listed whateve
 **Timeline** (`--full` only). Commits per person per month over the twelve months to the last commit. Its rows are
 identities as gitmole merged them, so one person under two names it did not join has two rows, and the month of the last
 commit is marked `*` when it is not a whole month.
+
+**Supply chain.** The last section: what the scans found and what the repository declares, one labelled row each,
+the verdict first. `secrets` says whether any value is in a source file, then how many places hold one at HEAD and
+how many only in history, and how many of those the scanner graded *high confidence*. `dependencies` says what was
+scanned against a database of which date, and how the vulnerable packages divide between the findings above.
+`signing` is the share of commits their authors signed; no signature is verified. `checked, ok` names the checks
+that ran and found nothing (*65 workflow actions pinned*), so a clean check does not look like one that never ran.
+A row that says *not scanned* means exactly that. `--full` prints each row whole.
+
+**The last lines.** One sentence lists the sections only `--full` prints. The next says how many of the steps
+ran and which flag runs the others (*15 of 18 steps ran; --plots runs the other 3*). Then the command that
+re-renders this run without analysing again, and the directory with the results, alone on the last line.
 
 In a narrow terminal a long path keeps its file name and loses directories (`backend/…/routers/app.py`),
 and a table too wide for the terminal leaves its rightmost columns out and says which under it;

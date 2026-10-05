@@ -139,7 +139,7 @@ gitmole --fetch-vuln-db path/to/clone      # runs the pinned osv-scanner's own d
 
 It is the same as running `osv-scanner scan source -r --offline-vulnerabilities
 --download-offline-databases .` inside the clone, with the osv-scanner gitmole pins. Until then the
-report footer says the dependencies were not scanned and names that command. `gitmole --fetch-vuln-db` finds the osv-scanner that `--install-tools` placed, which your shell may not: `gitmole --doctor` names it when no database is there. The copy lives in osv-scanner's cache directory
+report's Supply chain section says the dependencies were not scanned and names that command. `gitmole --fetch-vuln-db` finds the osv-scanner that `--install-tools` placed, which your shell may not: `gitmole --doctor` names it when no database is there. The copy lives in osv-scanner's cache directory
 (`~/Library/Caches/osv-scalibr` on macOS, `~/.cache/osv-scalibr` on Linux, or
 `OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY`), and the report says how old it is.
 
