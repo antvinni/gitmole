@@ -149,7 +149,7 @@ class Merge(unittest.TestCase):
         ids = [{"name": "Univer", "email": "68851825+DR-Univer@users.noreply.github.com", "commits": 561},
                {"name": "DR-Univer", "email": "wbfsa@qq.com", "commits": 48},
                {"name": "Mona Lind", "email": "7+monalind@users.noreply.github.com", "commits": 9},
-               {"name": "M. L.", "email": "monalind@x.example", "commits": 2},
+               {"name": "ML", "email": "monalind@x.example", "commits": 2},
                # univer again: the forge kept the login's capital, and the other identity writes it in lower case
                {"name": "Gpound.liu", "email": "141617023+Gggpound@users.noreply.github.com", "commits": 181},
                {"name": "gggpound", "email": "gpoundLiu@x.example", "commits": 10}]
@@ -168,6 +168,28 @@ class Merge(unittest.TestCase):
                {"name": "noreply", "email": "n@z.example", "commits": 1}]
         self.assertEqual(len(identity.merge(ids)), 6, "Jack and Robin are written as given names, noreply@ names no one")
         self.assertEqual(identity._forge_login("noreply@users.noreply.github.com"), "")
+
+    def test_a_login_joins_a_mailbox_only_when_the_mailbox_could_be_no_one_else(self):
+        # review of #277: role and first-name mailboxes merged with any login that spelled them
+        for local in ("admin", "dev", "info", "me", "jack", "john"):
+            # admin is five letters and so distinctive by shape; only a full name of its own keeps it apart
+            for other in ("Alice Smith", "John Roe", *(("X",) if len(local) < 5 else ())):
+                ids = [{"name": "Jack Doe", "email": f"1+{local}@users.noreply.github.com", "commits": 3},
+                       {"name": other, "email": f"{local}@company.example", "commits": 2}]
+                self.assertEqual(len(identity.merge(ids)), 2, (local, other))
+        ids = [{"name": "Jack Doe", "email": "1+jackdoe77@users.noreply.github.com", "commits": 3},
+               {"name": "John Roe", "email": "jackdoe77@x.example", "commits": 2}]
+        self.assertEqual(len(identity.merge(ids)), 2, "two full names that share no word are two people")
+        ids = [{"name": "rh", "email": "1+robin@users.noreply.github.com", "commits": 3},
+               {"name": "Robin Kerr", "email": "robin@x.example", "commits": 2}]
+        self.assertEqual(len(identity.merge(ids)), 2, "a login that is the mailbox owner's first name is anyone's")
+        ids = [{"name": "Kid", "email": "kidonng@gmail.example", "commits": 3}, {"name": "Kid", "email": "44045911+kidonng@users.noreply.github.com", "commits": 1},
+               {"name": "KBS", "email": "youdie006@naver.example", "commits": 1}, {"name": "manon", "email": "youdie006@users.noreply.github.com", "commits": 1},
+               {"name": "Dev", "email": "dev@home.example", "commits": 2}, {"name": "Dev", "email": "7+dev@users.noreply.example", "commits": 1}]
+        groups = sorted(sorted(v["email"] for v in [m, *m["aliases"]]) for m in identity.merge(ids))
+        self.assertIn(["44045911+kidonng@users.noreply.github.com", "kidonng@gmail.example"], groups, "a distinctive mailbox still ties")
+        self.assertIn(["youdie006@naver.example", "youdie006@users.noreply.github.com"], groups)
+        self.assertIn(["dev@home.example"], groups, "dev is anyone's mailbox")
 
     def test_a_login_that_two_full_names_share_joins_nobody(self):
         ids = [{"name": "Morgan Hale", "email": "m@a.example", "commits": 3}, {"name": "Morgan Pike", "email": "p@b.example", "commits": 2},

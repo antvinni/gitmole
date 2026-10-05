@@ -102,7 +102,12 @@ def _login_matches(x: dict, y: dict, shared: frozenset) -> bool:
     and "DR-Univer <wbfsa@…>" are one account. The handle rule's guards hold on the name the login matches: one
     written as a given name (Jack, Frizlab) is anyone's, and so is a word that two full names here share. How the
     forge capitalised the login itself (Gggpound, Mariatta) says nothing about who else is named so: the login
-    is one account, and the question is only whether the other identity's name could be someone else's."""
+    is one account, and the question is only whether the other identity's name could be someone else's.
+
+    A mailbox is weaker evidence than a name: admin@, dev@, info@ or jack@ at a company is anyone's. So the
+    login must be distinctive (five letters or more, in no two full names here), must not be the first word of
+    y's name (John Roe <john@…>), and two full names that share no word (Jack Doe, John Roe) are two people
+    whatever their addresses say."""
     login = _forge_login(x["email"])
     if not login or login.lower() in shared:
         return False
@@ -110,7 +115,12 @@ def _login_matches(x: dict, y: dict, shared: frozenset) -> bool:
     ny = _plain(y["name"])
     if ny == login and " " not in ny and not _given(y["name"]):
         return True
-    return not shared_mailbox(y["email"]) and y["email"].strip().lower().rpartition("@")[0] == login
+    if shared_mailbox(y["email"]) or y["email"].strip().lower().rpartition("@")[0] != login:
+        return False
+    words_x, words_y = _words(x["name"]), _words(y["name"])
+    if not _distinctive(login, shared) or (words_y and words_y[0] == login):
+        return False
+    return not (len(words_x) >= 2 and len(words_y) >= 2 and not set(words_x) & set(words_y))
 
 
 def same_person(a: dict, b: dict, shared: frozenset = frozenset()) -> bool:
