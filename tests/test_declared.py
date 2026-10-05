@@ -214,7 +214,8 @@ class VulnerableImported(unittest.TestCase):
         f = findings.vulnerable_dependencies(report(dependencies={"status": "scanned", "vulnerable": rows}, tree=frozenset({"pnpm-lock.yaml"})))
         self.assertEqual([p["name"] for p in f[0]["evidence"]["packages"]], ["multer", "yarn-only", "fast-uri", "form-data"])
         self.assertEqual(f[0]["severity"], "warning")
-        self.assertTrue(f[0]["advice"].startswith("Upgrade multer to 2"))
+        # prometheus: reach orders the rows and the sentence; the step is the highest score with a fix, here yarn-only at 9.0
+        self.assertTrue(f[0]["advice"].startswith("Upgrade yarn-only to 2 in pnpm-lock.yaml first; it scores 9.0, the highest with a fix published."), f[0]["advice"])
         self.assertIn("development dependencies only", findings._vuln_ref(rows[0]))
         self.assertNotIn("development dependencies only", findings._vuln_ref(rows[3]))
         self.assertIs(f[0]["evidence"]["packages"][3]["runtime"], False)

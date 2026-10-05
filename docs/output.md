@@ -86,7 +86,11 @@ in plain words, and what to do first. This page is the reference.
    and none that is scored. A tree with more test files than source files
    gets none of this: tests are in the tables, hidden, and `--full` shows
    them. The counts are under `coverage` in the JSON.
-2. **Findings**: anything the heuristics flagged, worst first. Findings of
+2. **Findings**: anything the heuristics flagged, worst first. Within a
+   severity, a finding that rests on the name of a path alone (its `rule`
+   says `"by": "file name"` or `"by": "path convention"`: a tracked `.env`,
+   a personal settings file) comes after the ones a scan or a count stands
+   behind; otherwise the rules keep one fixed order. Findings of
    the same kind are grouped into one entry with a list, and every finding
    ends with a next step that names the file, area or person to start with,
    on its own line under the facts. This page says what each rule names and
@@ -134,8 +138,13 @@ in plain words, and what to do first. This page is the reference.
      a one-sided binomial test per file over the whole history, with a
      Benjamini-Hochberg false discovery rate of 5% over every source file.
      Fixes cluster within a pull request, which makes the test err towards
-     finding, so it orders and annotates and decides nothing: which files
-     are magnets, and the severity, are the six months' counts. With less
+     finding, so it orders and annotates, and which files are magnets is
+     the six months' counts. It decides one thing: when it ran and put no
+     file above the rate ("none beyond files of their size", an empty
+     `evidence.fix_rate.above_rate`), the finding is a note, not a warning,
+     since its own sentence says nothing here is unusual, and
+     `--fail-on warning` does not stop on it. With a file above the rate
+     the severity is the six months' counts. With less
      than twelve months of history the test does not run (it would test
      the window's own counts again); the finding says so, and is a note
      whatever the counts, since raw fix counts mostly follow file size.
@@ -458,7 +467,11 @@ in plain words, and what to do first. This page is the reference.
    range whose floor is vulnerable, never counted as an installed package,
    and never critical by its score. Requirement files are counted apart
    from lock files, here and in the footer. The advice names the package to upgrade
-   first, or, for a malicious one, to remove. An advisory that does not
+   first, or, for a malicious one, to remove: a malicious package, then one
+   that makes the finding critical, then the highest score that has a fixed
+   version published ("it scores 9.2, the highest with a fix published"),
+   which need not be the first package the sentence lists, since those are
+   in order of reach. An advisory that does not
    apply to your code is silenced in `osv-scanner.toml` at the repository
    root. Each row says whether any tracked source imports the package
    (`imported`: true, false, or unknown where the import name need not be

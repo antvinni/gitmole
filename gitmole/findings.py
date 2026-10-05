@@ -713,8 +713,11 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     A file whose recent fixes all fixed a file above it too is listed with that file (see _magnet_items).
     Most magnets are busy files in a repository that fixes a lot, so the finding names first the ones
     fixed more often than the repository's own fixes explain (see fix_prone), says how many of all
-    there are, and says so when there are none. Which files are magnets, and the severity, stay the
-    window's counts: the test annotates and orders. When the history is too short for the test
+    there are, and says so when there are none. Which files are magnets stays the window's counts: the
+    test annotates and orders. It decides one thing: when it ran and put no file above the rate of the
+    files of its size, the finding is a note, since its own sentence then says nothing here is unusual
+    (prometheus: a warning reading "18 file(s) ..., none beyond files of their size"). With a file above
+    the rate, or no test to ask, the severity is the window's. When the history is too short for the test
     (FIX_RATE_MIN_MONTHS), the finding says so and is a note: the counts are then raw, and raw fix counts
     mostly rank files by size (paperclip, 7.5 months: 391 magnets, Spearman 0.56 with lines of code, the
     top ten all among the largest files), which is not a warning's worth of evidence."""
@@ -726,9 +729,10 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     hot.sort(key=lambda f: (-f["recent-fixes"], -f["n-fixes"], f["entity"]))
     months = _history_months(report)
     short = months is not None and months < FIX_RATE_MIN_MONTHS
-    sev = "warning" if hot[0]["recent-fixes"] >= warn_at and not short else "info"
     prone = fix_prone(report, keep)
     above = [f for f in hot if f["entity"] in prone["above"]] if prone else []
+    usual = prone is not None and not above   # the test ran and named none of them
+    sev = "warning" if hot[0]["recent-fixes"] >= warn_at and not short and not usual else "info"
     history = report.get("fix_history") or {}
     order = sorted(hot, key=lambda f: f["entity"] not in prone["above"]) if prone else hot   # stable: the window's order within each
     items = _magnet_items(order, history, report["meta"].get("now") or _dt.date.today().isoformat(), report["meta"].get("first_date"))
@@ -989,7 +993,8 @@ def _vuln_rows(report: dict) -> list:
     a malicious package leading, then by reach (_vuln_reach: a version the lock installs for running that
     the source imports, then one it installs for running, then one only development dependencies reach),
     then the ones with a fixed version before the ones without, then by score. The grade does not move
-    with the reach. The finding and its SARIF results read the same rows."""
+    with the reach. The finding and its SARIF results read the same rows. The advice picks its own row
+    from them (_vuln_first)."""
     scan = report.get("dependencies") or {}
     rows = scan.get("vulnerable") or []
     if not rows:
@@ -1017,6 +1022,15 @@ def _vuln_rows(report: dict) -> list:
                                       -(r["score"] if r.get("score") is not None else -1), r["name"], r["source"]))
             out.append((rid, _vuln_severity(rid, group), title, group))
     return out
+
+
+def _vuln_first(rows: list) -> dict:
+    """The row the advice names: a malicious package, then one that makes the finding critical, then the
+    highest score among the rows with a fixed version, and the rows' own order between equals. Not the
+    first row: reach orders those, and prometheus was told to upgrade its own module at 7.5, imported and
+    so first, while a package at 9.2 with a fix published was named nowhere. A step is something to do,
+    so a row with a fix comes before a higher score that has none."""
+    return min(rows, key=lambda r: (not r.get("malicious"), not _vuln_critical(r), not r.get("fixed"), -(r["score"] if r.get("score") is not None else -1)))
 
 
 def _vuln_reach(r: dict) -> int:
@@ -1047,19 +1061,22 @@ def vulnerable_dependencies(report: dict) -> list:
     file's directory (or a workspace member it pins) declares that it ships; the rest are a warning. One
     pinned only by a lock file under tests, examples, docs or vendored code is a note. A pip requirement range
     whose floor is vulnerable is said as a range, not as an installed version. The advice names the package
-    to upgrade first and the version that fixes it."""
+    to upgrade first (_vuln_first) and the version that fixes it, and says it is the highest score with a
+    fix when that is why it was picked."""
     out = []
     for rid, sev, title, group in _vuln_rows(report):
         locked = [r for r in group if not _floating(r)]
-        worst = (locked or group)[0]
+        pool = locked or group
+        worst = _vuln_first(pool)
+        top = ", the highest with a fix published" if worst.get("fixed") and len(pool) > 1 and not _vuln_critical(worst) else ""
         if worst.get("malicious"):
             target = f"Remove {worst['name']} {worst['version']} from {worst['source']} first; {_malicious_id(worst)} lists it as malicious, so no version fixes it."
         elif _floating(worst):
             target = f"Raise the floor of {worst['name']} to {worst['fixed']} in {worst['source']} first" if worst.get("fixed") else f"Look at {worst['name']} in {worst['source']} first, which has no fixed version yet"
-            target += f"; its floor scores {worst['score']:.1f}." if worst.get("score") is not None else "."
+            target += f"; its floor scores {worst['score']:.1f}{top}." if worst.get("score") is not None else "."
         else:
             target = f"Upgrade {worst['name']} to {worst['fixed']} in {worst['source']} first" if worst.get("fixed") else f"Look at {worst['name']} in {worst['source']} first, which has no fixed version yet"
-            target += f"; it scores {worst['score']:.1f}" if worst.get("score") is not None else ""
+            target += f"; it scores {worst['score']:.1f}{top}" if worst.get("score") is not None else ""
             target += f", and {_deploy_phrase(worst['deploys'])} ships that lock." if worst.get("deploys") else "."
         statement = _vuln_statement(group)
         unshipped = sorted({r["source"] for r in locked if not r.get("deploys") and r.get("score") is not None and r["score"] >= CRITICAL_SCORE})
@@ -2158,6 +2175,19 @@ def one_owner(found: list, gone: set) -> list:
     return found
 
 
+# What a rule's `by` says when the name of a path is all it read: no scanner looked inside and nothing was counted.
+BY_NAME_ALONE = ("file name", "path convention")
+
+
+def order_key(f: dict) -> tuple:
+    """The order of the findings: by severity, and within a severity the ones that rest on a path's name alone
+    (the rule declares it: `by` in BY_NAME_ALONE) after the ones a scan or a count stands behind. The sort is
+    stable, so RULES' order holds otherwise. prometheus: the report opened on a tracked .env that the secrets
+    scan found no value in, ahead of 28 vulnerable packages; the order of the warnings is read as the order
+    to act in, and a name is the weakest evidence a warning has."""
+    return SEVERITIES.index(f["severity"]), f["rule"].get("by") in BY_NAME_ALONE
+
+
 def evaluate(report: dict) -> list:
     found = []
     for rule in RULES:
@@ -2167,5 +2197,5 @@ def evaluate(report: dict) -> list:
         if f["rule"]["id"] in UNJUDGED:
             f["summary"] = True
             f["unjudged"] = True   # a line of its own: true or not, nobody has said whether it is worth acting on
-    found.sort(key=lambda f: SEVERITIES.index(f["severity"]))
+    found.sort(key=order_key)
     return found

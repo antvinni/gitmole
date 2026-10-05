@@ -620,6 +620,20 @@ class BugMagnets(unittest.TestCase):
         self.assertIn("1 file(s) were fixed 3+ times in six months, none beyond files of their size: src/busy.py", f["detail"])
         self.assertEqual(f["evidence"]["fix_rate"]["above_rate"], [])
 
+    def test_is_a_note_when_none_is_fixed_beyond_the_rate(self):
+        """prometheus: a warning whose own sentence said "none beyond files of their size". Nine recent fixes
+        are over warn_at, and the test ran: with nothing above the rate the finding says nothing is unusual."""
+        r = self.rated([("src/busy.py", 30, 9), ("src/lib.py", 20, 0)], {"src/busy.py": 300, "src/lib.py": 100})
+        f = findings.bug_magnets(r)[0]
+        self.assertEqual(f["evidence"]["fix_rate"]["above_rate"], [])
+        self.assertEqual(f["severity"], "info")
+
+    def test_stays_a_warning_when_the_test_could_not_run(self):
+        """No revisions, so no rate to hold the files against: an empty list is the test's answer, a missing one is not."""
+        f = findings.bug_magnets(report(fixes=self.FIXES))[0]
+        self.assertNotIn("fix_rate", f["evidence"])
+        self.assertEqual(f["severity"], "warning")
+
     def test_a_large_file_is_tested_against_files_of_its_size(self):
         """hindsight at 0.40.0: all 13 files the whole-repository rate named were in the top tenth by lines of code.
         Ten big files fixed at 30% beside 90 small ones at 5%: against the pooled rate every big one stands out,
@@ -860,6 +874,33 @@ class VulnerableDependencies(unittest.TestCase):
         self.assertTrue(f["advice"].startswith("Upgrade minimist to 1.2.6 in package-lock.json first; it scores 9.8, and Dockerfile ships that lock."), f["advice"])
         self.assertIn("2 vulnerable packages in 1 lock file", f["detail"])
         self.assertEqual(f["evidence"]["packages"][0]["deploys"], ["Dockerfile"])
+
+    def test_the_advice_names_the_highest_score_that_has_a_fix(self):
+        """prometheus: the advice named its own module at 7.5, imported and so first by reach, while
+        websocket-driver at 9.2 with a fix published was named nowhere."""
+        rows = [{**self.row("own/module", "0.3.0", "go.mod", score=7.5, fixed="0.3.1"), "imported": True},
+                {**self.row("websocket-driver", "0.7.4", "pnpm-lock.yaml", score=9.2, fixed="0.7.5"), "imported": False},
+                {**self.row("nofix", "1.0.0", "pnpm-lock.yaml", score=9.6, fixed=None), "imported": False}]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        self.assertEqual(f["severity"], "warning")
+        self.assertEqual(f["advice"], "Upgrade websocket-driver to 0.7.5 in pnpm-lock.yaml first; it scores 9.2, the highest with a fix published. " + findings.IGNORE_DEPS)
+        self.assertEqual(f["evidence"]["packages"][0]["name"], "own/module", "the rows, and the sentence over them, keep their order")
+
+    def test_the_advice_gives_no_reason_it_does_not_have(self):
+        one = [self.row("lodash", "4.17.15", "yarn.lock", score=7.2, fixed="4.17.21")]
+        self.assertIn("first; it scores 7.2. ", findings.vulnerable_dependencies(report(dependencies=self.deps(one)))[0]["advice"], "nothing to be the highest of")
+        none = [self.row("a", "1.0.0", "yarn.lock", score=8.0, fixed=None), self.row("b", "1.0.0", "yarn.lock", score=6.0, fixed=None)]
+        self.assertTrue(findings.vulnerable_dependencies(report(dependencies=self.deps(none)))[0]["advice"]
+                        .startswith("Look at a in yarn.lock first, which has no fixed version yet; it scores 8.0. "))
+
+    def test_a_malicious_package_and_a_shipped_critical_still_lead_the_advice(self):
+        rows = [self.row("lodash", "4.17.15", "package-lock.json", score=9.9, fixed="4.17.21"),
+                self.row("evil", "1.0.0", "package-lock.json", score=None, fixed=None, ids=("MAL-2026-1",), malicious=True)]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows)))
+        self.assertTrue(f["advice"].startswith("Remove evil 1.0.0 from package-lock.json first"), f["advice"])
+        rows = [self.row("shipped", "1.0.0", "package-lock.json", score=9.1, fixed="1.0.1"), self.row("dev", "1.0.0", "tools/package-lock.json", score=9.8, fixed="1.0.1")]
+        [f] = findings.vulnerable_dependencies(report(dependencies=self.deps(rows), tree=frozenset({"Dockerfile", "package-lock.json", "tools/package-lock.json"})))
+        self.assertTrue(f["advice"].startswith("Upgrade shipped to 1.0.1 in package-lock.json first; it scores 9.1, and Dockerfile ships that lock."), f["advice"])
 
     def test_a_critical_score_in_a_lock_nothing_declares_it_ships_is_a_warning(self):
         """hindsight: the headline was chromadb in an integration library's development lock, not the shipped
@@ -1192,6 +1233,28 @@ class Evaluate(unittest.TestCase):
         sev = [f["severity"] for f in findings.evaluate(r)]
         self.assertEqual(sev, sorted(sev, key=["critical", "warning", "info"].index))
         self.assertEqual(sev[0], "critical")
+
+    def test_within_a_severity_a_finding_by_name_alone_comes_after_the_measured_ones(self):
+        """prometheus: the report opened on a .env the secrets scan found no value in, ahead of 28 vulnerable
+        packages. credential_files runs before the dependency rule, so only the tie-break can put it after."""
+        row = {"name": "lodash", "version": "4.17.15", "ecosystem": "npm", "source": "yarn.lock", "ids": ["GHSA-x"], "aliases": ["CVE-2024-1"],
+               "advisories": 1, "score": 7.2, "severity": "high", "summary": "", "fixed": "4.17.21", "malicious": False}
+        r = report(meta={"credential_files": [".env"]},
+                   dependencies={"status": "scanned", "sources": [{"path": "yarn.lock", "packages": 10}], "packages": 10, "vulnerable": [row], "database_date": "2026-09-17"})
+        found = findings.evaluate(r)
+        ids = [f["rule"]["id"] for f in found]
+        self.assertEqual([f["severity"] for f in found if f["rule"]["id"] in ("credential_files", "vulnerable_dependencies")], ["warning", "warning"])
+        self.assertLess(ids.index("vulnerable_dependencies"), ids.index("credential_files"))
+        sev = [f["severity"] for f in found]
+        self.assertEqual(sev, sorted(sev, key=findings.SEVERITIES.index), "severity stays the first key")
+
+    def test_the_tie_break_reads_what_the_rule_declares_not_which_rule_it_is(self):
+        f = {"severity": "warning", "rule": {"id": "anything", "by": "file name"}}
+        g = {"severity": "warning", "rule": {"id": "anything_else"}}
+        h = {"severity": "info", "rule": {"id": "a_note"}}
+        c = {"severity": "critical", "rule": {"id": "named", "by": "path convention"}}
+        self.assertEqual(sorted([h, f, g, c], key=findings.order_key), [c, g, f, h])
+        self.assertIn(findings.credential_files(report(meta={"credential_files": [".env"]}))[0]["rule"]["by"], findings.BY_NAME_ALONE)
 
 
 if __name__ == "__main__":
