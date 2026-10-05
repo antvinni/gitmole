@@ -125,6 +125,15 @@ def _remote(uses: str) -> bool:
     return not (uses.startswith("./") or uses.startswith("docker://") or "@" not in uses)
 
 
+def _keep_ranked(rows: list) -> list:
+    """The unpinned rows kept: every one on a branch-shaped ref, handed a secret or a token that can write (what
+    the advice ranks first, wherever it sits in the files), then the rest in file order up to CAP; file order
+    throughout. A cap in file order alone hid univer's sync-gitee step had it sat past the fiftieth row."""
+    marked = {i for i, u in enumerate(rows) if u["ref"] == "branch" or u["secrets"] or u["grants"]}
+    rest = [i for i in range(len(rows)) if i not in marked][:max(0, CAP - len(marked))]
+    return [rows[i] for i in sorted(marked.union(rest))]
+
+
 def actions_pinning(repo: str) -> dict:
     """Every `uses:` in the tracked workflows and composite actions (_actions_files): pinned to a full commit
     SHA, a local action or a docker image (neither), or unpinned (a tag or a branch the action's owner can
@@ -150,7 +159,7 @@ def actions_pinning(repo: str) -> dict:
             shapes = workflow_shapes(path, text)
             pwn += shapes["pwn_request"]
             injection += shapes["injection"]
-    return {"unpinned": unpinned[:CAP], "unpinned_count": len(unpinned), "pinned": pinned, "local": local, "origin": origin_owner(repo),
+    return {"unpinned": _keep_ranked(unpinned), "unpinned_count": len(unpinned), "pinned": pinned, "local": local, "origin": origin_owner(repo),
             "pwn_request": pwn[:CAP], "pwn_request_count": len(pwn), "injection": injection[:CAP], "injection_count": len(injection)}
 
 
@@ -291,11 +300,14 @@ def workflow_shapes(path: str, text: str) -> dict:
 # lines like the shapes above:
 # - ref: "version" when the ref is shaped like a release (v7, 1.2.3), else "branch" (main, release/v1, a short sha):
 #   a branch moves with every push to it, a tag only when someone retags it.
-# - secrets: the step's with: or env:, or the env: of its job or workflow it inherits, reads `secrets.`; for a job
-#   that calls a reusable workflow, its with: reads one or it has a secrets: key (`secrets: inherit` passes them all).
+# - secrets: the step's with: or env:, or the env: of its job or workflow it inherits, reads a repository secret
+#   (`secrets.<NAME>`); for a job that calls a reusable workflow, its with: or secrets: reads one, or it has
+#   `secrets: inherit`, which passes them all. `secrets.GITHUB_TOKEN` is the job's own token, the same as
+#   `github.token`, so neither counts here: what that token can do is `grants`.
 # - grants: the permissions: of its job, or of the workflow when the job declares none (a job's own replaces the
 #   workflow's), hold id-token: write, contents: write or write-all: a token that can mint cloud credentials or push.
 _VERSION_REF = re.compile(r"^v?\d+(?:\.\d+)*$")
+_SECRET = re.compile(r"\bsecrets\.(?!(?i:github_token)\b)\w")
 _WRITE_GRANT = re.compile(r"""(?:^|[\s{,])(?:id-token|contents)\s*:\s*['"]?write\b|\bwrite-all\b""")
 
 
@@ -318,6 +330,10 @@ def _value(lines: list, lo: int, hi: int, col, name: str):
     return None
 
 
+def _secret(text) -> bool:
+    return bool(text and _SECRET.search(text))
+
+
 def _step_context(lines: list, jobs: list, i: int, uses: str) -> dict:
     """ref, secrets and grants (above) for the `uses:` on line index i."""
     m = _KEY.match(lines[i])
@@ -326,13 +342,14 @@ def _step_context(lines: list, jobs: list, i: int, uses: str) -> dict:
     lo, hi = (job[0] + 1, job[1]) if job else (0, len(lines))
     jcol = next((_indent(lines[k]) for k in range(lo, hi) if _code(lines[k])), None) if job else None
     if job and col == jcol:   # the job itself calls a reusable workflow
-        secrets = _value(lines, lo, hi, col, "secrets") is not None or "secrets." in (_value(lines, lo, hi, col, "with") or "")
+        passed = _value(lines, lo, hi, col, "secrets") or ""
+        secrets = bool(re.match(r"\s*['\"]?inherit\b", passed) or _secret(passed) or _secret(_value(lines, lo, hi, col, "with")))
     else:
         end, dash = _step_end(lines, i, hi)
-        secrets = any("secrets." in (_value(lines, dash, end, col, k) or "") for k in ("with", "env"))
+        secrets = any(_secret(_value(lines, dash, end, col, k)) for k in ("with", "env"))
     if job:
-        secrets = secrets or "secrets." in (_value(lines, lo, hi, jcol, "env") or "")
-    secrets = secrets or "secrets." in (_value(lines, 0, len(lines), 0, "env") or "")
+        secrets = secrets or _secret(_value(lines, lo, hi, jcol, "env"))
+    secrets = secrets or _secret(_value(lines, 0, len(lines), 0, "env"))
     perms = _value(lines, lo, hi, jcol, "permissions") if job else None
     if perms is None:
         perms = _value(lines, 0, len(lines), 0, "permissions")
@@ -651,7 +668,8 @@ def dependency_updates(repo: str) -> dict:
     config = next((p for p in (".github/dependabot.yml", ".github/dependabot.yaml") if p in tracked), None)
     if not config:
         return {"tool": None, "covered": [], "uncovered": present}
-    declared = sorted({_ALIASES.get(e, e) for e in _ECOSYSTEM_LINE.findall(_text(repo, config))})
+    text = "\n".join(ln for ln in _text(repo, config).split("\n") if not ln.lstrip().startswith("#"))   # not a commented-out entry
+    declared = sorted({_ALIASES.get(e, e) for e in _ECOSYSTEM_LINE.findall(text)})
     uncovered = [e for e in present if e not in declared]
     if ACTIONS_ECOSYSTEM not in declared and any(_remote(m.group(1)) for _, text, _ in _actions_files(repo, tracked)
                                                  for m in _USES.finditer(text)):

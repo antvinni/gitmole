@@ -158,7 +158,8 @@ in plain words, and what to do first. This page is the reference.
    either before GitHub's own `actions/`; within each, a branch-shaped ref
    such as `@main` before a release-shaped one (`@v7`, `@1.2.3`), then a
    step handed a secret (`secrets.` in its `with:` or `env:`, or the
-   `env:` it inherits) or a token that can write (`id-token: write`,
+   `env:` it inherits; `secrets.GITHUB_TOKEN` is the job's own token, like
+   `github.token`, and counts only by what it may do) or a token that can write (`id-token: write`,
    `contents: write` or `write-all` in its job's `permissions:`, else the
    workflow's) before one that is not, each row in `hygiene.json` saying
    which as `ref`, `secrets` and `grants`; the evidence names each action

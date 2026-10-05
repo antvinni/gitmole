@@ -111,6 +111,49 @@ class ActionsPinning(unittest.TestCase):
         workflow_env = self.rows("env:\n  TOKEN: ${{ secrets.TOKEN }}\njobs:\n  t:\n    steps:\n      - uses: o/a@v1\n")
         self.assertTrue(workflow_env[6][2], "the workflow's env: is inherited too")
 
+    def test_the_jobs_own_token_is_not_a_handed_secret_however_it_is_written(self):
+        got = self.rows("""jobs:
+  t:
+    steps:
+      - uses: o/ctx@v1
+        with:
+          token: ${{ github.token }}
+      - uses: o/secret-ctx@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: o/lower@v1
+        env:
+          GH: ${{ secrets.github_token }}
+      - uses: o/longer@v1
+        env:
+          GH: ${{ secrets.GITHUB_TOKEN_PAT }}
+  caller:
+    uses: o/repo/.github/workflows/r.yml@main
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+  passes:
+    uses: o/repo/.github/workflows/p.yml@main
+    secrets:
+      npm: ${{ secrets.NPM_TOKEN }}
+""")
+        self.assertEqual({v[0]: v[2] for v in got.values()},
+                         {"o/ctx@v1": False, "o/secret-ctx@v1": False, "o/lower@v1": False, "o/longer@v1": True,
+                          "o/repo/.github/workflows/r.yml@main": False, "o/repo/.github/workflows/p.yml@main": True},
+                         "secrets.GITHUB_TOKEN is github.token; what it can do is grants")
+
+    def test_every_branch_or_secret_row_is_kept_past_the_cap(self):
+        text = "jobs:\n  t:\n    steps:\n" + "".join(f"      - uses: o/tag{i}@v1\n" for i in range(60)) + \
+               "      - uses: o/x@main\n        with:\n          token: ${{ secrets.DEPLOY }}\n"
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write(".github/workflows/w.yml", text)
+            r.commit()
+            out = hygiene.actions_pinning(d)
+        self.assertEqual(out["unpinned_count"], 61)
+        self.assertEqual(len(out["unpinned"]), hygiene.CAP)
+        self.assertEqual(out["unpinned"][-1]["uses"], "o/x@main", "row 61 is kept, a tag-pinned row gives way")
+        self.assertEqual([u["uses"] for u in out["unpinned"][:-1]], [f"o/tag{i}@v1" for i in range(hygiene.CAP - 1)], "file order")
+
     def test_a_token_that_can_write_comes_from_the_job_or_else_the_workflow(self):
         got = self.rows("""permissions:
   contents: write
@@ -502,6 +545,10 @@ class DependencyUpdates(unittest.TestCase):
             r.write("go.sum", "\n")
             r.commit()
             self.assertEqual(hygiene.dependency_updates(d)["uncovered"], ["gomod", "github-actions"], "after the lock files' ecosystems")
+            r.write(".github/dependabot.yml", "version: 2\nupdates:\n  - package-ecosystem: npm\n  # - package-ecosystem: github-actions\n"
+                                              "  - package-ecosystem: gomod # github-actions later\n")
+            r.commit()
+            self.assertEqual(hygiene.dependency_updates(d)["uncovered"], ["github-actions"], "a commented-out entry declares nothing")
             r.write(".github/dependabot.yml", "version: 2\nupdates:\n  - package-ecosystem: npm\n  - package-ecosystem: 'github-actions'\n  - package-ecosystem: gomod\n")
             r.commit()
             self.assertEqual(hygiene.dependency_updates(d)["uncovered"], [])
