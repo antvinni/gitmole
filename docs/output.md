@@ -38,7 +38,9 @@ in plain words, and what to do first. This page is the reference.
 1. **Header**: commits, date span, identities, branch, size, top languages,
    one line for the share of fix commits, the share that are reverts (git's `Revert "…"` subject or its `This reverts commit <sha>` body line) when
    there are any (the busiest weekday and hour are `--full`'s Activity
-   table), the year most surviving code was written (or why the blame pass did not run), and the share of
+   table), the year most surviving code was written with the step that counted it (`23% of surviving code
+   from 2026, by blame`; `by git-of-theseus` after a `--plots` run, whose sampling pass rewrites the same
+   two files and gives slightly different shares; or why the blame pass did not run), and the share of
    commits signed and by what (`51% of commits signed (gpg 49%, ssh 2%),
    60% of the last year's`), and a one-line tally of the findings. Signing
    is read from the `gpgsig` header in each commit object, so it needs no
@@ -140,7 +142,7 @@ in plain words, and what to do first. This page is the reference.
      Fixes cluster within a pull request, which makes the test err towards
      finding, so it orders and annotates, and which files are magnets is
      the six months' counts. It decides one thing: when it ran and put no
-     file above the rate ("none beyond files of their size", an empty
+     file above the rate ("no file more often than is usual for its size", an empty
      `evidence.fix_rate.above_rate`), the finding is a note, not a warning,
      since its own sentence says nothing here is unusual, and
      `--fail-on warning` does not stop on it. With a file above the rate
@@ -405,8 +407,9 @@ in plain words, and what to do first. This page is the reference.
    area is as new as the rest). One
    author is what a new area has, so the advice never starts in one. It is
    computed a second time with knowledge decaying over time
-   (JetBrains' Bus Factor Explorer), and when the surviving code's largest
-   share belongs to someone else, the finding says so.
+   (JetBrains' Bus Factor Explorer). It does not name who holds the largest
+   share of the surviving code: that is the bus factor's measure, and the
+   name changed with the step that counted the lines.
 
    Two checks are also reported when they pass: a green `No secrets in
    history` line closes the panel whenever the betterleaks scan ran and
@@ -783,7 +786,8 @@ in plain words, and what to do first. This page is the reference.
    and any author whose name says bot, CI, deploy or automation, no
    product names, are counted apart in the caption and kept out of the
    timeline; their lines are left out of ownership and surviving code
-   too, so a deploy job that commits a built site owns nothing), a knowledge map (lines added per area of the tree
+   too, so a deploy job that commits a built site owns nothing; the caption
+   says which step counted the surviving code, blame or git-of-theseus), a knowledge map (lines added per area of the tree
    and who wrote them), a timeline of commits per author over the last
    twelve months, change coupling, the most complex functions, repo
    health. On a narrow terminal the timeline shows fewer of those months,
@@ -926,7 +930,10 @@ in plain words, and what to do first. This page is the reference.
    the table's eight rows; a longer list stays a table. `--full` and the
    Markdown export keep every one of these tables whole.
 6. **Footer**: a `Secrets:` line and a `Dependencies:` line with each
-   scan's totals, then where the files and plots are. The default report
+   scan's totals, then where the files are (`Full results in …`, `Full
+   results and plots in …` only when the directory holds a plot). Each of
+   the two lines takes the colour of the worst finding behind it, and has
+   none when it counts something no finding holds. The default report
    leaves the two lines out when both scans found nothing and the two ✔
    lines in the findings panel already say so (the secrets ✔ line then
    also carries what only the footer said, the sweep of unreachable

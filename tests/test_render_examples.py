@@ -70,9 +70,9 @@ class Document(unittest.TestCase):
         from tests.test_render import sample_report
         from gitmole import render
         markdown = render.markdown(sample_report(), [])
-        self.assertIn("Full results and plots in", markdown)          # the fixture copies this sentence
+        self.assertIn("Full results in", markdown)          # no plot was written, so none is named; the fixture copies the --plots form
         doc = self.mod.document("demo/demo", "b" * 40, markdown)
-        self.assertNotIn("Full results and plots in", doc)
+        self.assertNotIn("Full results", doc)
         self.assertNotIn(sample_report()["out_dir"], doc)
 
 

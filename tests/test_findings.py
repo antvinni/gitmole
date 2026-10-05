@@ -338,6 +338,13 @@ class TightCoupling(unittest.TestCase):
         self.assertIn("a", f[0]["detail"])
         self.assertTrue(f[0]["detail"].endswith("Review a and b first: a shared layout or a hidden dependency links them."), f[0]["detail"])
 
+    def test_a_whole_list_is_not_introduced_as_an_example(self):
+        # prometheus: "1 pair changes together at least 80% of the time, e.g." and then its one pair
+        pairs = [{"entity": f"a{i}", "coupled": f"b{i}", "degree": 99 - i, "average-revs": 10} for i in range(4)]
+        self.assertIn("3 pairs change together at least 80% of the time: a0 + b0 (99%); a1 + b1 (98%); a2 + b2 (97%).", findings.tight_coupling(report(coupling=pairs[:3]))[0]["detail"])
+        self.assertIn("1 pair changes together at least 80% of the time: a0 + b0 (99%).", findings.tight_coupling(report(coupling=pairs[:1]))[0]["detail"])
+        self.assertIn("4 pairs change together at least 80% of the time, e.g. a0 + b0 (99%); a1 + b1 (98%); a2 + b2 (97%).", findings.tight_coupling(report(coupling=pairs))[0]["detail"])
+
     def test_a_file_and_its_test_are_expected_to_change_together(self):
         pairs = [{"entity": "gitmole/maat.py", "coupled": "tests/test_maat.py", "degree": 100, "average-revs": 16},
                  {"entity": "src/a.js", "coupled": "src/a.test.js", "degree": 100, "average-revs": 9}]
@@ -534,7 +541,7 @@ class BugMagnets(unittest.TestCase):
         r = report(fixes=fixes, fix_history=history)
         r["meta"]["now"] = "2026-09-17"
         f = findings.bug_magnets(r)[0]
-        self.assertIn("5 file(s) were fixed 3+ times in six months: core/parser.py (5 recent, 9 total); "
+        self.assertIn("5 files were fixed 3+ times in six months: core/parser.py (5 recent, 9 total); "
                       "plug/tasks/user.go (5 recent, 5 total) and 2 files beside it fixed in the same commits; "
                       "plug/tasks/helper.go (4 recent, 4 total).", f["detail"], "created seven months before now: not new in the window")
         self.assertIn("Review core/parser.py and plug/tasks/user.go before the next release", f["advice"])
@@ -605,7 +612,7 @@ class BugMagnets(unittest.TestCase):
         self.assertEqual((prone["fixes"], prone["changes"], prone["files"]), (42, 408, 99))
         self.assertEqual(prone["above"], {"src/prone.py"}, "12 of 14 against 42 of 408; 30 of 200 is about the rate")
         f = findings.bug_magnets(r)[0]
-        self.assertIn("2 file(s) were fixed 3+ times in six months, 1 beyond files of their size: "
+        self.assertIn("2 files were fixed 3+ times in six months, 1 more often than is usual for its size: "
                       "src/prone.py (4 recent, 12 total); src/busy.py (9 recent, 30 total).", f["detail"])
         self.assertIn("Review src/prone.py and src/busy.py before the next release.", f["advice"])
         self.assertEqual(f["severity"], "warning", "severity stays the window's: busy.py has 9 recent fixes")
@@ -617,7 +624,7 @@ class BugMagnets(unittest.TestCase):
     def test_says_so_when_none_is_fixed_beyond_the_rate(self):
         r = self.rated([("src/busy.py", 30, 9), ("src/lib.py", 20, 0)], {"src/busy.py": 300, "src/lib.py": 100})
         f = findings.bug_magnets(r)[0]   # 30 of 300 against 50 of 494
-        self.assertIn("1 file(s) were fixed 3+ times in six months, none beyond files of their size: src/busy.py", f["detail"])
+        self.assertIn("1 file was fixed 3+ times in six months, no file more often than is usual for its size: src/busy.py", f["detail"])
         self.assertEqual(f["evidence"]["fix_rate"]["above_rate"], [])
 
     def test_is_a_note_when_none_is_fixed_beyond_the_rate(self):
@@ -648,7 +655,7 @@ class BugMagnets(unittest.TestCase):
         self.assertEqual(prone["above"], {"src/worst.py"})
         self.assertAlmostEqual(prone["rate"]["src/big0.py"], (9 * 12 + 30) / 400)
         f = findings.bug_magnets(r)[0]
-        self.assertIn("10 file(s) were fixed 3+ times in six months, 1 beyond files of their size: src/worst.py", f["detail"])
+        self.assertIn("10 files were fixed 3+ times in six months, 1 more often than is usual for its size: src/worst.py", f["detail"])
 
     def test_no_rate_test_on_a_history_barely_longer_than_the_window(self):
         """hindsight: eleven months of history, the six-month window most of it."""
@@ -656,7 +663,7 @@ class BugMagnets(unittest.TestCase):
         r["meta"] = dict(r["meta"], first_date="2025-10-30", last_date="2026-09-30")
         self.assertIsNone(findings.fix_prone(r, lambda p: True))
         f = findings.bug_magnets(r)[0]
-        self.assertIn("2 file(s) were fixed 3+ times in six months: src/busy.py", f["detail"])
+        self.assertIn("2 files were fixed 3+ times in six months: src/busy.py", f["detail"])
         # paperclip review (D6): the test that did not run was advertised and never mentioned, and 391 raw counts were a warning
         self.assertIn("Raw counts: the test against files of their size needs 12 months of history, this has 11.", f["detail"])
         self.assertEqual(f["evidence"]["fix_rate"], {"not_run": "history too short", "history_months": 11})
@@ -1857,7 +1864,8 @@ class TruckFactor(unittest.TestCase):
         f = {x["rule"]["id"]: x for x in findings.evaluate(self.rep(doa, theseus_authors={"Ann": 50, "Bob": 50}))}["truck_factor"]
         self.assertEqual(f["advice"], "Those named are gone, and the 2 people still here who author the most files author equally many; "
                                       "give the files owners, starting with the ones changed most.")
-        self.assertIn("The surviving code's largest share, 50%, is held by 2 people equally, which the bus-factor finding reads.", f["detail"])
+        self.assertNotIn("surviving code", f["detail"], "the largest share's holder changed with --plots, and no bus-factor finding need exist to read it (prometheus)")
+        self.assertNotIn("bus-factor finding", f["detail"])
 
     def test_the_area_named_in_the_advice_is_the_named_persons_own(self):
         doa = [self.row(f"a{i}.py", "Ann") for i in range(20)] + [self.row(f"core/b{i}.py", "Bob") for i in range(10)]
@@ -2016,7 +2024,7 @@ class OneOwner(unittest.TestCase):
         self.assertEqual(f["evidence"]["measures"]["truck_factor"]["truck_factor"], 1)
         self.assertEqual(f["evidence"]["measures"]["knowledge_islands"]["owners"], ["Ann"])
         self.assertIn("Ann wrote 90% of the code that survives today. Without them, 30 of the 38 source files (79%) have no author left (truck factor 1)", f["detail"])
-        self.assertIn("2 area(s) of at least 200 lines are almost entirely theirs", f["detail"])
+        self.assertIn("2 areas of at least 200 lines are almost entirely theirs", f["detail"])
         self.assertIn("(knowledge islands)", f["detail"])
         self.assertEqual(f["advice"], "Pair someone with Ann on core/ first; 20 of its 20 files would have no author left without them.",
                          "the start area is the one with the most files at stake")

@@ -116,7 +116,7 @@ class Report(unittest.TestCase):
         self.assertNotIn("Secrets: none found", text)
         self.assertNotIn("Dependencies: ", text)
         self.assertIn("betterleaks scanned every commit HEAD reaches; 3 unreachable blobs scanned too", text, "what only the footer said moves up")
-        self.assertIn("Full results and plots in", text)
+        self.assertIn("Full results in", text)
         full = rendered(r, [], full=True)
         self.assertIn("Secrets: none found; 3 unreachable blobs scanned too", full)
         self.assertNotIn("HEAD reaches; 3 unreachable", full, "--full keeps the footer, so the line above it stays as it was")
@@ -440,10 +440,53 @@ class Report(unittest.TestCase):
         r = sample_report()
         r["out_dir"] = "/very/long/" + "x" * 150 + "/analysis-demo"
         text = rendered(r, [], width=80)
-        self.assertIn("Full results and plots in " + r["out_dir"], text)
+        self.assertIn("Full results in " + r["out_dir"], text)
 
     def test_footer_points_at_output_dir(self):
         self.assertIn("/tmp/analysis-demo", rendered(sample_report(), []))
+
+    def test_the_last_line_names_plots_only_when_a_plot_was_written(self):
+        # prometheus's default directory holds no .png, and its last line promised "Full results and plots"
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            r = dict(sample_report(), out_dir=d)
+            self.assertEqual(render.results_line(r), f"Full results in {d}")
+            self.assertIn(f"Full results in {d}", render.markdown(r, []))
+            open(os.path.join(d, "code-age.png"), "wb").close()
+            self.assertEqual(render.results_line(r), f"Full results and plots in {d}")
+            self.assertIn(f"Full results and plots in {d}", render.markdown(r, []))
+        self.assertEqual(render.results_line(dict(sample_report(), out_dir="/no/such/dir")), "Full results in /no/such/dir")
+
+    def test_a_surviving_code_figure_names_the_step_it_came_from(self):
+        # prometheus: 23% from 2026 by blame, 24% once --plots had git-of-theseus rewrite the same two files
+        r = sample_report()
+        self.assertIsNone(render.surviving_source(r), "an output directory that records neither step")
+        self.assertIn("76% of surviving code from 2025", render.pulse(r))
+        r["meta"]["age"] = {"status": "run", "method": "blame"}
+        r["meta"]["steps"] = {"code age": "run"}
+        self.assertIn("76% of surviving code from 2025, by blame", render.pulse(r))
+        self.assertIn("surviving code is counted by blame", _section_text(rendered(r, []), "People"))
+        self.assertIn("76% of surviving code from 2025, by blame", render.markdown(r, []))
+        r["meta"]["steps"]["git-of-theseus"] = "run"
+        self.assertIn("76% of surviving code from 2025, by git-of-theseus", render.pulse(r), "--plots ran after the blame pass, into the same files")
+        self.assertIn("surviving code is counted by git-of-theseus", _section_text(rendered(r, []), "People"))
+        self.assertIn("counted by git-of-theseus", _section_text(rendered(r, [], full=True), "Surviving code by year written"))
+        r["meta"]["steps"]["git-of-theseus"] = "failed"
+        self.assertIn("76% of surviving code from 2025, by blame", render.pulse(r), "a survival step that did not finish replaced nothing")
+        r["meta"]["since"] = "2026-07-15"
+        self.assertIn("commits since 2026-07-15; surviving code is for the whole tree, by blame", _section_text(rendered(r, []), "People"))
+
+    def test_a_footer_line_takes_its_colour_from_the_finding_behind_it(self):
+        # prometheus: 44 values, none in source and none in a finding, printed red
+        mk = lambda rid, sev: {"severity": sev, "title": rid, "detail": "x", "rule": {"id": rid}}   # noqa: E731
+        self.assertEqual(render.footer_style([], render.SECRET_FINDINGS, ""), "", "a count with no finding behind it has no colour")
+        self.assertEqual(render.footer_style([], render.SECRET_FINDINGS, "green"), "green", "a scan that found nothing")
+        self.assertEqual(render.footer_style([mk("bug_magnets", "critical")], render.SECRET_FINDINGS, ""), "", "another rule's finding is not behind this line")
+        self.assertEqual(render.footer_style([mk("secrets_possible", "info"), mk("secrets_in_source", "critical")], render.SECRET_FINDINGS, ""), "bold red")
+        self.assertEqual(render.footer_style([mk("vulnerable_dependencies", "warning")], render.DEPENDENCY_FINDINGS, ""), "yellow")
+        dep = {"status": "scanned", "packages": 5, "sources": [{"path": "go.mod"}], "vulnerable": [{"name": "a", "source": "go.mod"}]}
+        self.assertEqual(render.dependencies_line({"dependencies": dep})[1], "", "a vulnerable package is red only through its finding")
 
     def test_fits_a_narrow_terminal_without_error(self):
         text = rendered(sample_report(), [], width=80)
@@ -892,7 +935,7 @@ class Report(unittest.TestCase):
         self.assertNotIn("gitmole 0.10.0", rendered(r, []), "the default report stays tight")
         md = render.markdown(r, [])
         self.assertIn("branch main @ 540ee5b5", md)
-        self.assertIn(f"\n{line}  \nFull results and plots in", md)
+        self.assertIn(f"\n{line}  \nFull results in", md)
         r["meta"].pop("run")
         self.assertIsNone(render.run_line(r))
         self.assertNotIn("@ ", render.markdown(r, []).split("\n")[2], "an older output directory: the branch alone")

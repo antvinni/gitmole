@@ -605,7 +605,7 @@ class Baseline(unittest.TestCase):
             c = console()
             now = os.path.join(out, "now.json")
             self.assertEqual(cli.main([out, "--no-run", "--fail-on", "critical", "--baseline", base, "--json", now], console=c), 0)
-            self.assertIn("1 finding(s) at critical or worse were in", c.export_text())
+            self.assertIn("1 finding at critical or worse was in", c.export_text())
             with open(now) as fh:
                 crit = next(f for f in json.load(fh)["findings"] if f["rule"]["id"] == "secrets_in_source")
             self.assertEqual(crit["baseline"], "in the baseline")

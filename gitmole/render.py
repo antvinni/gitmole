@@ -5,6 +5,7 @@ paths. `full` restores every column and row (Markdown export is always full)."""
 from __future__ import annotations
 
 import json
+import os
 
 from rich import box
 from rich.columns import Columns
@@ -315,13 +316,51 @@ def pulse(report: dict) -> list:
     cohorts = report.get("cohorts") or {}
     if cohorts:
         label, lines = max(cohorts.items(), key=lambda kv: kv[1])
-        out.append(f"{_pct(lines, sum(cohorts.values()))} of surviving code from {label.replace('Code added in ', '')}")
+        out.append(f"{_pct(lines, sum(cohorts.values()))} of surviving code from {label.replace('Code added in ', '')}{_by_source(report)}")
     elif _age_status(report) != "run":
         out.append(_age_reason(report))   # the age table is --full only, so this is where a timeout shows
     signed = signing_phrase(report)
     if signed:
         out.append(signed)
     return out
+
+
+SURVIVING_SOURCES = {"blame": "blame", "survival": "git-of-theseus"}
+
+
+def surviving_source(report: dict):
+    """Which step the surviving-code figures came from: "blame" (gitmole's own pass, one git blame per file at
+    HEAD), "survival" (git-of-theseus, which --plots runs after it into the same two files, sampling the
+    history) or None for an output directory that records neither. prometheus read 23% from 2026 with Julien
+    Pivotto's the largest share in the default run and 24% with Bartlomiej Plotka's under --plots, and nothing
+    on either report said the two were different measurements."""
+    meta = report.get("meta") or {}
+    steps = meta.get("steps") or {}
+    if steps.get("git-of-theseus") == "run":
+        return "survival"
+    if (meta.get("age") or {}).get("method") == "blame" or steps.get("code age") == "run":
+        return "blame"
+    return None
+
+
+def _by_source(report: dict) -> str:
+    """', by blame' or ', by git-of-theseus', after a surviving-code figure; '' when the run does not say."""
+    source = surviving_source(report)
+    return f", by {SURVIVING_SOURCES[source]}" if source else ""
+
+
+def plots_written(report: dict) -> bool:
+    """Whether the output directory holds a plot: the two .png files only --plots draws (run.plan). The last
+    line named plots on every run, and prometheus's default directory has none."""
+    try:
+        return any(name.endswith(".png") for name in os.listdir(report.get("out_dir") or ""))
+    except OSError:
+        return False
+
+
+def results_line(report: dict) -> str:
+    """The report's last line: where the output directory is, naming plots only when some were written."""
+    return f"Full results{' and plots' if plots_written(report) else ''} in {report['out_dir']}"
 
 
 def signing_phrase(report: dict):
@@ -584,7 +623,8 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
         columns, rows = _keep(columns, rows, ["author", "commits", *(["merges"] if merges else []), *(["co-authored"] if credited else []),
                                               "share", "surviving code"])
     since = report["meta"].get("since")
-    notes = [f"commits since {since}; surviving code is for the whole tree"] if since else []
+    by = _by_source(report) if total_lines else ""   # the source of the column, said where the column is: the two steps give different shares
+    notes = [f"commits since {since}; surviving code is for the whole tree{by}"] if since else []
     if merges:
         notes.append(f"commits and share leave out merges, which are counted apart ({sum(i.get('merges', 0) for i in ids):,} in all)")
     more = f"and {len(ids) - len(listed)} more" if len(ids) > len(listed) else None
@@ -599,6 +639,8 @@ def people_section(report: dict, full: bool = True, width=None) -> dict:
     if merged:
         who = ", ".join(merged[:3]) + (f" and {len(merged) - 3} more" if len(merged) > 3 else "")
         notes.append(f"aliases merged for {who}; a .mailmap makes that permanent")
+    if by and not since:
+        notes.append(f"surviving code is counted{by[1:]}")
     return _section("People", columns, rows, caption="\n".join(notes) or None)
 
 
@@ -873,7 +915,7 @@ def age_section(report: dict, full: bool = True, width=None) -> dict:
     total = sum(cohorts.values())
     rows = [(label.replace("Code added in ", ""), f"{lines:,}", _pct(lines, total), _bar(lines, total)) for label, lines in cohorts.items()]
     return _section("Surviving code by year written", [("year", {}), ("lines", RIGHT), ("share", RIGHT), ("", {"style": "blue"})], rows,
-                    note=None if rows else "no age data")
+                    note=None if rows else "no age data", caption=f"counted{_by_source(report)[1:]}" if rows and _by_source(report) else None)
 
 
 def age_fallback_section(report: dict) -> dict:
@@ -1240,6 +1282,18 @@ def _homes(report: dict, secs: list) -> dict:
 SECRET_FINDINGS = ("secrets_in_source", "secrets_possible", "secrets_declared", "secrets_local")
 
 
+DEPENDENCY_FINDINGS = ("vulnerable_dependencies", "vulnerable_dependencies_aside")
+
+
+def footer_style(findings: list, rules: tuple, otherwise: str) -> str:
+    """The colour of a footer line: the severity of the worst finding among `rules`, else `otherwise` (green
+    for a scan that found nothing, none for a count no finding holds). The Secrets line was red whenever the
+    scan counted a value and the Dependencies line whenever a package was vulnerable, so prometheus's 44 values,
+    every one outside source and in no finding, were printed in the colour of a critical."""
+    behind = [f["severity"] for f in findings or [] if (f.get("rule") or {}).get("id") in rules]
+    return SEVERITY_STYLE[min(behind, key=["critical", "warning", "info"].index)] if behind else otherwise
+
+
 def secrets_line(report: dict) -> str:
     """The scan's totals, and how many of them no finding holds: since 0.39.0 a value only in test, example,
     vendored, generated or documentation files is no finding, so VoiceStudio's footer counted 4 values
@@ -1356,7 +1410,7 @@ def dependencies_line(report: dict):
                      f"{' and '.join(first.get('kinds') or [])}" + (f", and {len(notes) - 1} more" if len(notes) > 1 else "") + ")")
         if deps.get("database_date"):
             line += f" (database from {deps['database_date']})"
-        return line, ("red" if bad else "green")
+        return line, ("" if bad else "green")   # a count is not a verdict: footer_style colours it when a finding is behind it
     if status == "no-sources":
         return "Dependencies: no lock files found", "dim"
     if status == "no-database":
@@ -1701,13 +1755,13 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
             print_section(console, risk_section(risk, base, full))   # the change, right under the list it is scored against
     console.print(Text(""))
     if full or not footer_said(report):   # the default report does not repeat what the two ✔ lines said
-        console.print(Text(secrets_line(report), style="red" if leaks.group(report.get("secrets") or []) else "green"))
+        console.print(Text(secrets_line(report), style=footer_style(findings, SECRET_FINDINGS, "" if leaks.group(report.get("secrets") or []) else "green")))
         deps_line = dependencies_line(report)
         if deps_line:
-            console.print(Text(deps_line[0], style=deps_line[1]))
+            console.print(Text(deps_line[0], style=footer_style(findings, DEPENDENCY_FINDINGS, deps_line[1])))
     if full and (line := run_line(report)):
         console.print(Text(line, style="dim"), soft_wrap=True)
-    console.print(Text(f"Full results and plots in {report['out_dir']}", style="dim"), soft_wrap=True)
+    console.print(Text(results_line(report), style="dim"), soft_wrap=True)
 
 
 def excerpt(report: dict, findings: list, console: Console, full: bool = False) -> None:
@@ -1776,7 +1830,7 @@ def markdown(report: dict, findings: list, full: bool = False, risk: dict = None
     deps_line = dependencies_line(report)
     rl = run_line(report)
     out += ["", secrets_line(report) + ("  " if deps_line else ""), *([deps_line[0]] if deps_line else []), "",
-            *([rl + "  "] if rl else []), f"Full results and plots in {report['out_dir']}", ""]
+            *([rl + "  "] if rl else []), results_line(report), ""]
     return "\n".join(out)
 
 

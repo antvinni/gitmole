@@ -18,7 +18,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 
-from . import __version__, banner, blame, filetypes, findings, load, loss, run, scope, tools
+from . import __version__, banner, blame, filetypes, findings, load, loss, run, scope, textfmt, tools
 
 INSTALL_URL = "https://github.com/antvinni/gitmole/blob/main/docs/install.md"
 # what to do about a missing or moved required tool, said by a run and by --doctor alike
@@ -706,7 +706,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
     results = _execute(steps, log_path, repo_dir, args.workers, ui, timeout=args.timeout, stats=stats)
     if _control.cancelled.is_set():
         killed = [n for n, rc in results.items() if rc == "cancelled"]
-        ui.print(f"[red]interrupted:[/red] killed {len(killed)} step(s)")
+        ui.print(f"[red]interrupted:[/red] killed {textfmt.count(len(killed), 'step')}")
         raise Interrupted()
 
     _record_statuses(meta, results, age_ok, plots_ok, lizard_ok, cut)
@@ -718,7 +718,7 @@ def _analyse(repo_dir: str, out_dir: str, args, ui: Console, planner, estimator)
 
     failed = [n for n, rc in results.items() if rc != 0]
     if failed:
-        ui.print(f"[yellow]{len(failed)} step(s) did not complete:[/yellow] " + ", ".join(f"{n} ({results[n]})" for n in failed))
+        ui.print(f"[yellow]{textfmt.count(len(failed), 'step')} did not complete:[/yellow] " + ", ".join(f"{n} ({results[n]})" for n in failed))
         ui.print(f"[dim]details in {log_path}[/dim]\n")
 
 
@@ -902,7 +902,7 @@ def _render(out_dir: str, console: Console, ui: Console, args, err: Console) -> 
         from . import gate
         known = [f for f in found if f.get("baseline") == "in the baseline" and gate.tripped([f], args.fail_on)]
         if known:
-            err.print(f"[dim]--baseline: {len(known)} finding(s) at {args.fail_on} or worse were in {args.baseline} and do not count toward "
+            err.print(f"[dim]--baseline: {textfmt.count(len(known), 'finding')} at {args.fail_on} or worse {'was' if len(known) == 1 else 'were'} in {args.baseline} and {'does' if len(known) == 1 else 'do'} not count toward "
                       f"--fail-on: {', '.join(dict.fromkeys(f['rule']['id'] for f in known))}[/dim]", soft_wrap=True)
     return _gate_exit(report, counted, risk, args, err)
 

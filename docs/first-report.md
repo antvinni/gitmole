@@ -28,7 +28,7 @@ in the findings (*truck factor not computed: 17 source files, needs 20*) names a
 too small for, so its absence is not read as a pass.
 
 **People.** Who commits, their share of the commits, and how much of the code in the tree today each
-wrote (`surviving code`, from git blame). Bots and merges are counted apart, aliases of one person
+wrote (`surviving code`; the caption says which step counted it, gitmole's own blame pass or, after `--plots`, git-of-theseus). Bots and merges are counted apart, aliases of one person
 are merged, and a coding tool credited by `Co-authored-by` trailers is left out; the caption counts the names
 left out and the no-reply addresses they sit on (several names on one address are one assistant's model versions).
 

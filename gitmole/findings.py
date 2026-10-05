@@ -523,8 +523,9 @@ def tight_coupling(report: dict, min_degree: int = 80, min_revs: int = 5) -> lis
                    rule=rule, evidence=evidence)]
     count = f"{len(pairs)} pair changes" if len(pairs) == 1 else f"{len(pairs)} pairs change"
     first = pairs[0]
+    # three pairs or fewer are all of them, and "e.g." before a whole list says there are more (prometheus: 1 pair, "e.g." its one)
     return [_f("info", "Files that always change together",
-               f"{count} {when}, e.g. {top}.",
+               f"{count} {when}{': ' if len(pairs) <= 3 else ', e.g. '}{top}.",
                f"Review {first['entity']} and {first['coupled']} first: a shared layout or a hidden dependency links them.",
                rule=rule, evidence=evidence)]
 
@@ -716,7 +717,8 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     there are, and says so when there are none. Which files are magnets stays the window's counts: the
     test annotates and orders. It decides one thing: when it ran and put no file above the rate of the
     files of its size, the finding is a note, since its own sentence then says nothing here is unusual
-    (prometheus: a warning reading "18 file(s) ..., none beyond files of their size"). With a file above
+    (prometheus: a warning reading "18 files ..., none beyond files of their size", which now reads "no file
+    more often than is usual for its size": "beyond files" compared a count with files). With a file above
     the rate, or no test to ask, the severity is the window's. When the history is too short for the test
     (FIX_RATE_MIN_MONTHS), the finding says so and is a note: the counts are then raw, and raw fix counts
     mostly rank files by size (paperclip, 7.5 months: 391 magnets, Spearman 0.56 with lines of code, the
@@ -742,11 +744,12 @@ def bug_magnets(report: dict, min_recent: int = 3, warn_at: int = 5) -> list:
     first = " and ".join(label for _, _, label, _ in items[:2])
     clusters = [{"file": paths[0], "with": paths[1:], "fixes": history[paths[0]]["recent"]} for paths, _, _, _ in items if len(paths) > 1]
     fresh = [p for _, _, _, new in items for p in new]
-    rate = "" if prone is None else f", {len(above) or 'none'} beyond files of their size"
+    rate = ("" if prone is None else ", no file more often than is usual for its size" if not above
+            else f", {len(above)} more often than is usual for {'its' if len(above) == 1 else 'their'} size")
     untested = (f" Raw counts: the test against files of their size needs {FIX_RATE_MIN_MONTHS} months of history, "
                 f"this has {months or 'less than one'}.") if short else ""
     return [_f(sev, "Bug magnets",
-               f"{len(hot)} file(s) were fixed {min_recent}+ times in six months{rate}: {listed}{more}.{untested}",
+               f"{_plural(len(hot), 'file')} {'was' if len(hot) == 1 else 'were'} fixed {min_recent}+ times in six months{rate}: {listed}{more}.{untested}",
                f"Review {first} before the next release.",
                rule={"id": "bug_magnets", "min_recent": min_recent, "warn_at": warn_at, "window_months": 6, "fix": "the commit subject says so",
                      "oversized": "a fix over the repository's 99th percentile of lines changed credits nothing",
@@ -787,7 +790,7 @@ def knowledge_islands(report: dict, min_lines: int = 200, min_share: float = 0.9
                   else f"Give {largest['area']} an owner first; {at} and the {level} people still here who wrote the most of it wrote equally much." if level > 1
                   else f"Give {largest['area']} an owner first; {at} and nobody still here has written any of it.")
     return [_f(sev, "Knowledge islands",
-               f"{len(islands)} area(s) with at least {min_lines} lines were written almost entirely by one person: {listed}{more}. "
+               f"{_plural(len(islands), 'area')} with at least {min_lines} lines {'was' if len(islands) == 1 else 'were'} written almost entirely by one person: {listed}{more}. "
                f"That is {_pct(covered, total)} of all lines added.",
                advice,
                rule={"id": "knowledge_islands", "min_lines": min_lines, "min_share": min_share, "min_fraction": min_fraction},
@@ -834,7 +837,7 @@ def brain_methods(report: dict, min_ccn: int = 15, min_lines: int = 100) -> list
     first = big[0]
     which = f"the anonymous function at {_place(first)}" if _anonymous(first) else f"{first['function']} in {first['file']}"
     return [_f(sev, "Brain methods",
-               f"{len(big)} function(s) are both long and complex: {listed}{more}.{_partial_functions(report)}",
+               f"{_plural(len(big), 'function')} {'is' if len(big) == 1 else 'are'} both long and complex: {listed}{more}.{_partial_functions(report)}",
                f"Split {which} first, before the next change lands there.",
                rule={"id": "brain_methods", "min_ccn": min_ccn, "min_lines": min_lines},
                evidence={"count": len(big), "partial": bool(_partial_functions(report)),
@@ -1993,8 +1996,9 @@ def truck_factor(report: dict, min_files: int = TRUCK_MIN_FILES, area_files: int
     """Avelino et al.'s truck factor over the degree of authorship: how many people have to leave before
     more than half the source files have no author. One is a warning, two a note. Changes rather than
     lines, and a creator's bonus, so it can disagree with the surviving-code share, which the bus-factor
-    finding reads; the finding says so when it does. Also per area, and with knowledge halving every
-    five months."""
+    rule reads. The finding no longer names that share's holder: on prometheus the sentence cited a
+    "bus-factor finding" the report did not hold, and named Julien Pivotto or Bartlomiej Plotka by whether
+    --plots had run. Also per area, and with knowledge halving every five months."""
     if not report.get("doa"):
         return []
     files = _pool_files(report)
@@ -2053,11 +2057,6 @@ def truck_factor(report: dict, min_files: int = TRUCK_MIN_FILES, area_files: int
     if lone:
         statement += " Areas with a truck factor of one: " + ", ".join(
             f"{a} ({_who(w, gone)}{f', new since {young[a]}' if a in young else ''})" for a, w, _, _ in lone[:5]) + (f" and {len(lone) - 5} more" if len(lone) > 5 else "") + "."
-    if shares and top != removed[0] and level > 1:   # no one name to give: the first in the table would be an accident of its order
-        statement += f" The surviving code's largest share, {_pct(lines, whole)}, is held by {level} people equally, which the bus-factor finding reads."
-    elif shares and top != removed[0]:
-        statement += (f" The surviving code's largest share is {top}'s ({_pct(lines, whole)}), which the bus-factor finding reads." if top not in gone else
-                      f" The surviving code's largest share, {_pct(lines, whole)}, belongs to {top} (gone), which the bus-factor finding reads.")
     # the person to pair with is the first named who is still here, on an area that is theirs
     ask = next((p for p in removed if p not in gone), None)
     shared = 0
@@ -2154,7 +2153,7 @@ def one_owner(found: list, gone: set) -> list:
                          f"({_pct(ev['orphaned'], ev['files'])}) have no author left (truck factor 1)")
         if isl:
             ev = isl["evidence"]
-            parts.append(f"{ev['count']} area(s) of at least {isl['rule']['min_lines']} lines are almost entirely theirs, "
+            parts.append(f"{_plural(ev['count'], 'area')} of at least {isl['rule']['min_lines']} lines {'is' if ev['count'] == 1 else 'are'} almost entirely theirs, "
                          f"{_pct(ev['covered_lines'], ev['total_lines'])} of all lines added (knowledge islands)")
         said = ", and ".join(parts)
         said = said[0].upper() + said[1:] + "."
