@@ -130,6 +130,39 @@ it stood when the outcome was observed, so no window's outcome depends on what
 the repository did after it. `evaluate.py` computes the same against three
 outcome definitions (fix locality, R-SZZ bug insertion, external labels).
 
+**Two definitions of a fix.** Fix locality and R-SZZ both start from which
+commits are fixes, and the harness holds two definitions of that in its own
+tree (`gitmole/measure/outcome.py`), never in the release being measured.
+`current` is `maat.is_fix` as 0.44.0 shipped it, frozen as a copy in that
+module, so a candidate that edits `maat.is_fix` cannot move its own outcome (a
+test fails on purpose when the two part): a `fix:` prefix or a fix or bug word
+anywhere in the subject, so "ci: fix event name" counts. `declared` takes
+a repository that declares Conventional Commits at its word: a fix is a commit
+typed `fix` and nothing else. The convention is decided window by window, since
+a repository that adopted it late would otherwise lose its untyped fixes from
+before (a label taken from the future, as above): a window declares it when the
+tree at its cut-off tracks a commitlint or commitizen configuration at its root,
+or when the window's non-merge subjects carry one of the convention's own types
+at 90% or more with 95% confidence (the lower end of the Wilson score interval,
+Wilson 1927, so a quiet window of three typed commits switches nothing) (the
+specification's `fix` and `feat` and config-conventional's `build`, `chore`,
+`ci`, `docs`, `perf`, `refactor`, `revert`, `style`, `test`; an `area: text`
+subject is not typed). The threshold was set in the univer debate before any
+run, not swept. A window that declares nothing scores the same under both.
+Each cut-off's row keeps the current score and, where its window declares the
+convention, the declared one under `declared`; the ranking keeps the
+`convention` each window was decided on (the configurations by name and the
+typed share), and the dashboard gains a row printing the declared headroom
+beside the current one, for information, on every record from this change on. `candidate` scores both and `--outcome` names the one that
+decides, `current` unless asked, so a change to `maat.is_fix` is judged against
+an outcome it cannot move. Labels are not switched: no definition of a fix
+decides them, and `candidate --holdout` refuses `--outcome`. On the
+development set at the 0.44.0 pins only jadx declares it, by typed share in
+each of its six windows (99 to 100%, Wilson lower bounds 0.94 to 0.97, though
+73% over its whole history); its
+headroom is 0.593 under `current` and 0.569 under `declared`, and the median
+over the set does not move (0.696).
+
 **Headroom, not raw hits and not lift.** Raw hits do not compare across
 repositories: curl scores 86 against a random expectation of 30.1, react 55
 against 5.1. Dividing by the expectation (lift) looks like the fix, but lift

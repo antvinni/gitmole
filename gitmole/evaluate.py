@@ -8,8 +8,9 @@ and meta.json are read). For each cut-off T, counted back from the last commit i
 months, the change analysis is rebuilt from the commits before T, scc measures the tree at T, every
 variant names its `top` files, and the source files a fix commit touched in [T, T + horizon) are the
 outcome. A fix is a commit whose subject says so (maat.is_fix): a proxy, not a bug tracker, and the
-table is only as good as the repository's commit subjects. Prints Markdown: one row per variant, one
-column per cut-off, and the total; then what each list costs a reviewer against those same fixes —
+table is only as good as the repository's commit subjects. Where the repository declares Conventional
+Commits (measure.outcome), the tables are printed again against the commits typed `fix` alone. Prints
+Markdown: one row per variant, one column per cut-off, and the total; then what each list costs a reviewer against those same fixes —
 initial false alarms, the lines in its top, and Popt over the whole ordering, the measure the
 effort-aware literature states its results in; then how many commits `--all` adds to HEAD's."""
 from __future__ import annotations
@@ -39,25 +40,28 @@ def months_after(date: str, months: int) -> str:
     return dt.date(y, m, min(d.day, calendar.monthrange(y, m)[1])).isoformat()
 
 
-def fixed_between(commits: list, start: str, end: str) -> set:
+def fixed_between(commits: list, start: str, end: str, fix=None) -> set:
     """Source files a fix commit touched on or after `start` and before `end`. Test files change with
     every fix; an oversized fix is tangled by size. Oversized is the repository's own 99th percentile
     of lines over the commits before `end`, the history as it stood when the outcome was observed:
     drawn over the whole log, commits from after the window moved the cut-off, so the outcome of an
     early window depended on what the repository did years later: a label computed from the future
-    it is meant to predict, the leak Kang, Aw and Lo (ICSE 2022) found in the false-alarm studies."""
+    it is meant to predict, the leak Kang, Aw and Lo (ICSE 2022) found in the false-alarm studies.
+    `fix` is the classifier, maat.is_fix unless the harness passes an outcome's (measure.outcome)."""
+    fix = fix or maat.is_fix
     big = {c["hash"] for c in maat.oversized(maat.in_window(commits, until=end))}
-    return {p for c in maat.in_window(commits, start, end) if maat.is_fix(c.get("subject", "")) and c["hash"] not in big
+    return {p for c in maat.in_window(commits, start, end) if fix(c.get("subject", "")) and c["hash"] not in big
             for p, _, _ in c["files"] if not filetypes.is_test_path(p)}
 
 
-def induced_between(repo: str, commits: list, start: str, end: str, exclude=None) -> set:
+def induced_between(repo: str, commits: list, start: str, end: str, exclude=None, fix=None) -> set:
     """Source files a commit before `start` made buggy, by R-SZZ over the fixes landing on or after
     `start` and before `end`: the outcome is defect insertion the list could have known about, not
     fix locality. A fix whose bug-inducing commit is inside the horizon is not counted, since no
-    list drawn before `start` could have named it."""
+    list drawn before `start` could have named it. `fix` is the classifier of the fixes, as in
+    fixed_between."""
     out = set()
-    for c in maat.in_window(maat.fix_commits(commits), start, end):
+    for c in maat.in_window(maat.fix_commits(commits, fix), start, end):
         found = szz.bug_inducing(repo, c["hash"], exclude)
         if found and found["date"] < start:
             out.update(p for p in found["files"] if not filetypes.is_test_path(p))
@@ -228,17 +232,32 @@ def table(results: list, noun: str = "fixed") -> str:
 
 
 def page(name: str, top: int, horizon: int, results: list, efforts: list, induced: list = (), labelled: list = (),
-         labelled_effort: list = (), labels_name: str = "", spread: dict = None) -> str:
+         labelled_effort: list = (), labels_name: str = "", spread: dict = None, declared: dict = None) -> str:
     """The Markdown evaluate prints: the hits table against the fixes that followed, then what each
     list costs a reviewer against those same fixes (IFA, lines in the list, Popt) — the measure the
     effort-aware literature states its results in, and so available without labels; then the R-SZZ
-    table and the labelled tables when asked for, and the ref spread when measured."""
+    table and the labelled tables when asked for, and the ref spread when measured. `declared` is the
+    same against the declared-type outcome (measure.outcome), {"convention", "results", "efforts",
+    "induced"}: its tables follow the current outcome's where the repository declares Conventional
+    Commits, and one line says why not where it does not."""
     out = [f"### {name}, top {top}, {horizon}-month horizon", "", table(results)]
     out += ["", f"What each list costs a reviewer against the fixes that followed: initial false alarms before the first fixed file, "
                 f"the lines of code in its top {top}, and Popt over the whole ordering:", "", effort_table(efforts)]
     if induced:
         out += ["", "Against the files a commit before the cut-off made buggy, by R-SZZ over the fixes that followed (the most recent commit "
                     "each fix's removed lines blame to):", "", table(induced, noun="bug-inducing")]
+    if declared:
+        from .measure import outcome
+        conv = declared["convention"]
+        if conv.get("declared"):
+            out += ["", f"The same against the declared-type outcome, at the cut-offs whose window declares Conventional Commits "
+                        f"({outcome.describe(conv)}): a fix is a commit typed `fix` and nothing else:", "", table(declared["results"]),
+                    "", "What each list costs a reviewer against those fixes:", "", effort_table(declared["efforts"])]
+            if declared.get("induced"):
+                out += ["", "Against R-SZZ over the fixes typed `fix`:", "", table(declared["induced"], noun="bug-inducing")]
+        else:
+            out += ["", f"No window declares Conventional Commits ({outcome.describe(conv)}, no commitlint or commitizen "
+                        "configuration at a cut-off), so the declared-type outcome is the one above."]
     if labelled:
         out += ["", f"Against the files the bug-inducing commits labelled in {labels_name} touched inside each window:", "", table(labelled, noun="labelled"),
                 "", f"What each list costs a reviewer against the same labels: initial false alarms before the first labelled file, the lines of code "
@@ -277,7 +296,9 @@ def main(argv=None) -> int:
     types = filetypes.for_meta(meta)   # the pool the run scored: its file types and the scripts it found at HEAD
     aliases = maat.aliases_from_meta(os.path.join(args.out, "meta.json")) if "aliases" in meta else None
     with open(log_path, encoding="utf-8", errors="replace", newline="") as fh:
-        commits = maat.parse_log(fh.read(), aliases, types)
+        text = fh.read()
+    commits = maat.parse_log(text, aliases, types)
+    every = maat.parse_log(text)   # every file kept: a window's typed share is over the commits that touched any file
     from . import run
     declared = maat.read_ignore_revs(run.ignore_revs_files(args.repo))
     ignored = {c["hash"] for c in commits if declared and maat.is_ignored(c["hash"], declared)}
@@ -285,7 +306,10 @@ def main(argv=None) -> int:
     if args.labels and not labels:
         print(f"evaluate: no bug-inducing commits read from {args.labels}", file=sys.stderr)
         return 2
+    from .measure import outcome
+    windows = {}   # each cut-off's convention (measure.outcome): the tree at the cut-off, the window's own subjects
     results, efforts, induced_results, labelled_results, labelled_effort = [], [], [], [], []
+    declared = {"convention": None, "results": [], "efforts": [], "induced": []}
     for t in cutoffs(args.end or meta["last_date"], args.windows, args.horizon):
         rev = trend.rev_before(args.repo, t, end_of_day=False)
         if not rev:
@@ -298,10 +322,20 @@ def main(argv=None) -> int:
         pool = set(variants(report)["churn"])
         results.append((t, len(fixed & pool), len(pool), score(report, fixed, args.top)))
         efforts.append(effort(report, fixed, args.top))
+        windows[t] = outcome.convention(args.repo, rev, outcome.window_subjects(maat.in_window(every, t, end)))
+        declared_fix = outcome.predicate("declared", windows[t])
+        if windows[t]["declared"]:
+            typed = fixed_between(commits, t, end, declared_fix)
+            declared["results"].append((t, len(typed & pool), len(pool), score(report, typed, args.top)))
+            declared["efforts"].append(effort(report, typed, args.top))
         if args.szz:
             vendor = tuple(vendored)
-            induced = induced_between(args.repo, commits, t, end, exclude=lambda p: p in generated or filetypes.is_vendored(p, vendor) or filetypes.is_sample_path(p))
+            leave_out = lambda p: p in generated or filetypes.is_vendored(p, vendor) or filetypes.is_sample_path(p)   # noqa: E731
+            induced = induced_between(args.repo, commits, t, end, exclude=leave_out)
             induced_results.append((t, len(induced & pool), len(pool), score(report, induced, args.top)))
+            if windows[t]["declared"]:
+                typed_induced = induced_between(args.repo, commits, t, end, exclude=leave_out, fix=declared_fix)
+                declared["induced"].append((t, len(typed_induced & pool), len(pool), score(report, typed_induced, args.top)))
         if labels:
             marked = labelled_between(commits, labels, t, end)
             labelled_results.append((t, len(marked & pool), len(pool), score(report, marked, args.top)))
@@ -310,8 +344,9 @@ def main(argv=None) -> int:
     if not results:
         print("evaluate: no cut-off falls inside the history", file=sys.stderr)
         return 2
+    declared["convention"] = outcome.combine(windows)
     sys.stdout.write(page(meta.get("name", args.repo), args.top, args.horizon, results, efforts, induced_results, labelled_results, labelled_effort,
-                          os.path.basename(args.labels) if args.labels else "", ref_spread(args.repo)))
+                          os.path.basename(args.labels) if args.labels else "", ref_spread(args.repo), declared))
     return 0
 
 

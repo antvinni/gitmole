@@ -687,10 +687,12 @@ def oversized(commits: list, percentile: float = OVERSIZED_PERCENTILE, floor: in
     return [c for c in commits if c["files"] and _lines(c) >= cut]
 
 
-def fix_commits(commits: list) -> list:
-    """The fix pool: commits whose subject says fix, less the oversized ones."""
+def fix_commits(commits: list, fix=None) -> list:
+    """The fix pool: commits whose subject says fix, less the oversized ones. `fix` is the classifier,
+    is_fix unless the measurement harness passes its own (gitmole.measure.outcome)."""
+    fix = fix or is_fix
     big = {c["hash"] for c in oversized(commits)}
-    return [c for c in commits if is_fix(c.get("subject", "")) and c["hash"] not in big]
+    return [c for c in commits if fix(c.get("subject", "")) and c["hash"] not in big]
 
 
 def fixes(commits: list, now: str = None) -> list:

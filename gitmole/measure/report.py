@@ -174,12 +174,25 @@ def page(history: list, extras: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def declared_row(summary: dict, ranked: str) -> list:
+    """The headroom against the declared-type outcome (measure.outcome), beside the current outcome's and for
+    information; no row for a record made before the harness kept the convention."""
+    d = summary.get("declared_outcome")
+    if not d:
+        return []
+    who = ", ".join(d["declaring"]) if d["declaring"] else "none"
+    return [("median headroom at 15, declared-type outcome (information)", ranked,
+             f"{_num(d.get('headroom'))}; churn {_num(d.get('churn_headroom'))}, size {_num(d.get('size_headroom'))}; "
+             f"repositories declaring Conventional Commits: {who} (the rest score as above)")]
+
+
 def current(record: dict, extras: dict) -> list:
     s = record["summary"]
     out = [f"## The dashboard for {record['version']}", ""]
     ranked = _ranked_set(record)
     rows = [("median headroom at 15", "holdout", f"{_num(s.get('holdout_headroom'))} {s.get('holdout_headroom_ci') or ''}".strip() if s.get("holdout_headroom") is not None else "not run for this record"),
             ("median headroom at 15", ranked, _num(s.get("headroom"))),
+            *declared_row(s, ranked),
             ("recall at 20% of lines", "holdout" if s.get("holdout_recall20") is not None else ranked, _pct(s.get("holdout_recall20") if s.get("holdout_recall20") is not None else s.get("recall20"))),
             ("top-15 stability over 50 commits", ranked, _num(s.get("stability_top15"))),
             ("top-15 carried over from one cut-off to the next, six months", ranked, _num(s.get("carryover_top15"))),
@@ -307,28 +320,35 @@ def _extras(x: dict) -> list:
     return out
 
 
-def render(records_dir: str) -> list:
-    history = dashboard.load_history(records_dir)
+def history_page(records_dir: str) -> tuple:
+    """(records, page text): the records summarised as render writes them, and measurement-history.md's
+    text, without writing anything."""
+    records = dashboard.load_history(records_dir)
     series = set((corpus.load().get("series") or {}).get("repos") or []) or None
     marks = labels._read(os.path.join(labels.DIR, "labels.jsonl"))
-    for r in history:
+    for r in records:
         r["summary"] = dashboard.summarise(r)
         r["series"] = dashboard.summarise(r, only=series)
         r["useful"] = labels.usefulness(r, marks)
     extras = None
     extras_dir = os.path.join(records_dir, "extras")
-    if history and os.path.exists(os.path.join(extras_dir, f"{history[-1]['version']}.json")):
-        with open(os.path.join(extras_dir, f"{history[-1]['version']}.json"), encoding="utf-8") as fh:
+    if records and os.path.exists(os.path.join(extras_dir, f"{records[-1]['version']}.json")):
+        with open(os.path.join(extras_dir, f"{records[-1]['version']}.json"), encoding="utf-8") as fh:
             extras = json.load(fh)
+    return records, page(records, extras)
+
+
+def render(records_dir: str) -> list:
+    history, text = history_page(records_dir)
     os.makedirs(GRAPHS, exist_ok=True)
     written = []
-    for name, text in graphs(history).items():
+    for name, svg_text in graphs(history).items():
         path = os.path.join(GRAPHS, name)
         with open(path, "w", encoding="utf-8") as fh:
-            fh.write(text)
+            fh.write(svg_text)
         written.append(path)
     path = os.path.join(DOCS, "measurement-history.md")
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write(page(history, extras))
+        fh.write(text)
     written.append(path)
     return written
