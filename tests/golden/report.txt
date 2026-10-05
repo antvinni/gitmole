@@ -48,6 +48,6 @@ Findings · 2 notes ●
 --full shows the hidden rows and adds 9 sections: Watch list by component, Hotspots,
 Size by language, Timeline, Activity, Surviving code by year written, Changed lines,
 Signing by year, OSPS Baseline (4 gaps, 1 not seen, of 10).
-15 of 18 steps ran; --plots runs the other 3 (code survival, 2 plots).
+<steps>
 gitmole DIR --no-run --full re-renders this run, DIR being the path below.
 <out>
