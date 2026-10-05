@@ -555,6 +555,37 @@ class TrojanSource(unittest.TestCase):
         self.assertEqual(out["mixed_script"], [{"file": "src/b.py", "line": 2, "token": "pr\u043ecess", "scripts": ["CYRILLIC", "LATIN"]}])
         self.assertEqual(out["files"], 4, "source files scanned; the doc and the test fixture are not")
 
+    def test_a_regex_class_range_and_prose_in_a_literal_are_not_spoofed_identifiers(self):
+        # The three univer 0.44.0 shapes: the joint `zА` of two ranges in a character class, and a mixed token
+        # (ZТЕСТ, a Latin Z before Cyrillic) inside a string that is Russian prose.
+        prose = "Возвращает значение"   # Возвращает значение
+        z_test = "ZТЕСТ"   # ZТЕСТ
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/tools.ts", "const ok = /^[A-Za-zА-Яа-яЁё_]/.test(name);\n")
+            r.write("src/ru-RU.ts", f"export default {{\n    description: '{prose} (μ0) {z_test} {prose}',\n"
+                                    f"    abstract: \"{prose} {z_test}\",\n    tpl: `{prose} ${{x}} {z_test}`,\n}};\n")
+            r.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual(out["mixed_script"], [])
+
+    def test_a_look_alike_still_fires_in_code_in_a_lone_string_and_in_template_code(self):
+        a = "а"   # Cyrillic а
+        prose = "значение"   # значение
+        with tempfile.TemporaryDirectory() as d:
+            r = Repo(d)
+            r.write("src/a.py", f"p{a}ssword = 1\n")
+            r.write("src/b.py", f'if role == "{a}dmin":\n    pass\n')
+            r.write("src/c.ts", f"const s = `{prose} ${{p{a}ssword}}`;\n")   # ${…} is code, not the literal's text
+            r.write("src/d.ts", f"const s = '{prose}'; p{a}ssword();\n")   # prose in another literal on the line
+            r.write("src/e.ts", f"const m = /[{a}dmin]/;\n")   # a class with no range keeps its letters
+            r.write("src/f.ts", f"const s = 'x' + \"{prose}\" + '{a}dmin';\n")
+            r.commit()
+            out = hygiene.trojan_source(d)
+        self.assertEqual([(x["file"], x["token"]) for x in out["mixed_script"]],
+                         [("src/a.py", f"p{a}ssword"), ("src/b.py", f"{a}dmin"), ("src/c.ts", f"p{a}ssword"),
+                          ("src/d.ts", f"p{a}ssword"), ("src/e.ts", f"{a}dmin"), ("src/f.ts", f"{a}dmin")])
+
 
 class Step(unittest.TestCase):
     def test_the_step_writes_hygiene_json_from_inside_the_repository(self):

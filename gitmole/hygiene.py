@@ -955,6 +955,10 @@ LOOKALIKE = set(
     "\u13aa\u13f4\u13df\u13ac\u13bb\u13ab\u13e6\u13de\u13b7\u13e2\u13da\u13a2\u13d4\u13c3"   # Cherokee Ꭺ Ᏼ Ꮯ Ꭼ Ꮋ Ꭻ Ꮶ Ꮮ Ꮇ Ꮲ Ꮪ Ꭲ Ꮤ Ꮓ
 )
 _WORD = re.compile(r"[^\W\d]\w*")
+# A bracketed span and the X-Y ranges inside it: in `[A-Za-zА-Яа-я]` the joint `zА` is two ranges meeting, not a
+# word. Each range is blanked to spaces of the same length, so the columns of the rest of the line do not move.
+_BRACKETS = re.compile(r"\[(?:\\.|[^\]\\])*\]")
+_RANGE = re.compile(r"\S-\S")
 
 
 def _script(c: str) -> str:
@@ -964,11 +968,61 @@ def _script(c: str) -> str:
         return ""
 
 
+def _blank_ranges(line: str) -> str:
+    return _BRACKETS.sub(lambda m: _RANGE.sub("   ", m.group(0)), line) if "[" in line else line
+
+
+def _quoted(line: str) -> list:
+    """The quoted spans closed on this line, each as the list of its text parts' (start, end) columns: '…', "…" and
+    `…`, with a template literal's `${…}` left out, because that is code. An unclosed quote gives no span (a stray apostrophe in
+    a comment, or the first line of a multi-line literal), so a token there is judged as code."""
+    parts, i, n = [], 0, len(line)
+    while i < n:
+        q = line[i]
+        if q not in "'\"`":
+            i += 1
+            continue
+        j, start, here = i + 1, i + 1, []
+        while j < n and line[j] != q:
+            if line[j] == "\\":
+                j += 2
+                continue
+            if q == "`" and line.startswith("${", j):
+                here.append((start, j))
+                depth, j = 1, j + 2
+                while j < n and depth:
+                    depth += {"{": 1, "}": -1}.get(line[j], 0)
+                    j += 1
+                start = j
+                continue
+            j += 1
+        if j >= n:
+            break   # unclosed: nothing after it on this line is known to be text
+        here.append((start, j))
+        parts.append(here)
+        i = j + 1
+    return parts
+
+
+def _in_prose(line: str, at: int, foreign: set, parts: list) -> bool:
+    """A token at column `at` is prose when the quoted span holding it also holds, in its text, a word of two or
+    more letters written entirely in the token's foreign script: `функция ZТЕСТ возвращает` is a sentence, `"аdmin"`
+    alone is not."""
+    for span in parts:
+        if any(a <= at < b for a, b in span):
+            return any(len(w) > 1 and all(c.isalpha() and _script(c) in foreign for c in w)
+                       for a, b in span for w in _WORD.findall(line, a, b))
+    return False
+
+
 def trojan_source(repo: str, generated=frozenset(), scope=(), types=filetypes.DEFAULT) -> dict:
     """Bidirectional control characters in source files (CVE-2021-42574: code that reads one way and
     compiles another), and identifiers that mix Latin with a confusable script's look-alike letters (a
     Cyrillic о inside `process`; a Greek μ before a unit reads as itself, and is not one). Source files only, tests, examples, documentation and vendored code left out, so the
-    false-positive rate stays near zero; a whole word in one script is prose, not a trick."""
+    false-positive rate stays near zero; a whole word in one script is prose, not a trick. The ranges of a
+    bracketed class (`[A-Za-zА-Я]`) are not words, and a mixed token inside a quoted span that also holds a word
+    written entirely in the token's foreign script is a word of that sentence. This reads shapes, not a grammar:
+    comments are still read, and a multi-line literal is judged one line at a time."""
     bidi, mixed, files = [], [], 0
     for path in _tracked(repo):
         if not filetypes.matches(path, types) or _aside(path) or filetypes.is_doc_path(path) or path in generated or not _inside(path, scope):
@@ -987,13 +1041,19 @@ def trojan_source(repo: str, generated=frozenset(), scope=(), types=filetypes.DE
             for c in line:
                 if ord(c) in BIDI:
                     bidi.append({"file": path, "line": n, "char": f"U+{ord(c):04X}"})
-            for token in _WORD.findall(line):
+            if line.isascii():
+                continue
+            words, parts = _blank_ranges(line), None
+            for m in _WORD.finditer(words):
+                token = m.group(0)
                 if token.isascii():
                     continue
                 scripts = {_script(c) for c in token if c.isalpha()}
                 foreign = [c for c in token if c.isalpha() and _script(c) in CONFUSABLE]
                 if "LATIN" in scripts and foreign and all(c in LOOKALIKE for c in foreign):
-                    mixed.append({"file": path, "line": n, "token": token, "scripts": sorted(scripts)})
+                    parts = _quoted(words) if parts is None else parts
+                    if not _in_prose(words, m.start(), {_script(c) for c in foreign}, parts):
+                        mixed.append({"file": path, "line": n, "token": token, "scripts": sorted(scripts)})
     return {"files": files, "bidi": bidi[:CAP], "bidi_count": len(bidi), "mixed_script": mixed[:CAP], "mixed_script_count": len(mixed)}
 
 
