@@ -99,11 +99,12 @@ def _forge_login(email: str) -> str:
 
 def _login_matches(x: dict, y: dict, shared: frozenset) -> bool:
     """x's forge login is y's one-word name or y's own mailbox: univer's "Univer <68851825+DR-Univer@users.noreply…>"
-    and "DR-Univer <wbfsa@…>" are one account. The handle rule's guards hold: a login written as a given name
-    (Jack) is anyone's, and so is a word that two full names here share; a name matched by the login must not
-    be a given name either."""
+    and "DR-Univer <wbfsa@…>" are one account. The handle rule's guards hold on the name the login matches: one
+    written as a given name (Jack, Frizlab) is anyone's, and so is a word that two full names here share. How the
+    forge capitalised the login itself (Gggpound, Mariatta) says nothing about who else is named so: the login
+    is one account, and the question is only whether the other identity's name could be someone else's."""
     login = _forge_login(x["email"])
-    if not login or _given(login) or login.lower() in shared:
+    if not login or login.lower() in shared:
         return False
     login = login.lower()
     ny = _plain(y["name"])

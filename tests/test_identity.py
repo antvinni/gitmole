@@ -149,21 +149,24 @@ class Merge(unittest.TestCase):
         ids = [{"name": "Univer", "email": "68851825+DR-Univer@users.noreply.github.com", "commits": 561},
                {"name": "DR-Univer", "email": "wbfsa@qq.com", "commits": 48},
                {"name": "Mona Lind", "email": "7+monalind@users.noreply.github.com", "commits": 9},
-               {"name": "M. L.", "email": "monalind@x.example", "commits": 2}]
+               {"name": "M. L.", "email": "monalind@x.example", "commits": 2},
+               # univer again: the forge kept the login's capital, and the other identity writes it in lower case
+               {"name": "Gpound.liu", "email": "141617023+Gggpound@users.noreply.github.com", "commits": 181},
+               {"name": "gggpound", "email": "gpoundLiu@x.example", "commits": 10}]
         merged = {m["name"]: m["commits"] for m in identity.merge(ids)}
-        self.assertEqual(merged, {"Univer": 609, "Mona Lind": 11}, "a login equal to a one-word name or to a mailbox")
+        self.assertEqual(merged, {"Univer": 609, "Mona Lind": 11, "Gpound.liu": 191}, "a login equal to a one-word name or to a mailbox")
         self.assertEqual(identity._forge_login("68851825+DR-Univer@users.noreply.github.com"), "DR-Univer")
         self.assertEqual(identity._forge_login("dr-univer@users.noreply.github.com"), "dr-univer")
         self.assertEqual(identity._forge_login("wbfsa@qq.com"), "")
 
     def test_a_login_written_as_a_given_name_or_a_bare_no_reply_mailbox_joins_nobody(self):
-        ids = [{"name": "Jack Doe", "email": "1+Jack@users.noreply.github.com", "commits": 5},
-               {"name": "jack", "email": "j@x.example", "commits": 1},
+        ids = [{"name": "Jack Doe", "email": "1+jack@users.noreply.github.com", "commits": 5},
+               {"name": "Jack", "email": "j@x.example", "commits": 1},
                {"name": "Ann Roe", "email": "2+robin@users.noreply.github.com", "commits": 4},
                {"name": "Robin", "email": "r@y.example", "commits": 1},
                {"name": "Tool", "email": "noreply@users.noreply.github.com", "commits": 3},
                {"name": "noreply", "email": "n@z.example", "commits": 1}]
-        self.assertEqual(len(identity.merge(ids)), 6, "Jack is anyone's, Robin is written as a given name, noreply@ names no one")
+        self.assertEqual(len(identity.merge(ids)), 6, "Jack and Robin are written as given names, noreply@ names no one")
         self.assertEqual(identity._forge_login("noreply@users.noreply.github.com"), "")
 
     def test_a_login_that_two_full_names_share_joins_nobody(self):
