@@ -49,5 +49,5 @@ Findings · 2 notes ●
 Surviving code by year, Changed lines, Signing by year, Checks run, OSPS Baseline (4 gaps, 1 not
 seen, of 10). --section NAME prints one whole.
 15 of 18 steps ran; --plots runs the other 3 (code survival, 2 plots).
-gitmole DIR --no-run --full re-renders this run, DIR being the path below.
+gitmole DIR --no-run --full re-renders this run; findings.json is in DIR, below.
 <out>
