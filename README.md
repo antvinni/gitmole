@@ -68,7 +68,7 @@ gitmole --install-tools                # the three pinned tools, downloaded into
 
 A CI job that runs `gitmole . --fail-on critical --markdown - >> "$GITHUB_STEP_SUMMARY"`
 blocks on secrets in source files and still posts the report; in GitHub Actions,
-`uses: antvinni/gitmole@v0.44.0` does that with the pinned tools installed and cached
+`uses: antvinni/gitmole@v0.45.0` does that with the pinned tools installed and cached
 ([GitHub Actions](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#github-actions)),
 and a [Dockerfile](https://github.com/antvinni/gitmole/blob/main/docs/cli.md#docker) runs it anywhere else. The same
 scoring wires into Claude Code, Cursor, Gemini CLI and pre-commit as a hook

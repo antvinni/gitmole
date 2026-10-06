@@ -245,13 +245,27 @@ class Dashboard(unittest.TestCase):
                          "0.38; churn 0.25, size 0.00; repositories declaring Conventional Commits: a (the rest score as above)")
 
     def test_the_new_row_is_the_only_difference_on_the_committed_records(self):
-        """The committed records render as they would without the declared-type row: the row is the only
-        thing this change can add to the history page, and none of the records before it carries one."""
+        """The records from before the switch render as they would without the declared-type row: the row is the
+        only thing the switch can add to the history page, and none of those records carries one. 0.45.0 is the
+        first record made with the switch and has the row, so the page is drawn from the ones before it."""
+        import json
+        import shutil
+        import tempfile
         from gitmole.measure import corpus
         records = os.path.join(corpus.ROOT, "docs", "measurements")
-        _, with_row = report.history_page(records)
-        with mock.patch.object(report, "declared_row", return_value=[]):
-            _, without = report.history_page(records)
+        with tempfile.TemporaryDirectory() as before:
+            for name in sorted(os.listdir(records)):
+                src = os.path.join(records, name)
+                if not name.endswith(".json"):
+                    continue
+                with open(src) as fh:
+                    if "declared_outcome" in (json.load(fh).get("summary") or {}):
+                        continue
+                shutil.copy(src, os.path.join(before, name))
+            self.assertIn("0.44.0.json", os.listdir(before))
+            _, with_row = report.history_page(before)
+            with mock.patch.object(report, "declared_row", return_value=[]):
+                _, without = report.history_page(before)
         self.assertEqual(with_row, without)
         self.assertNotIn("declared-type outcome", with_row)
 

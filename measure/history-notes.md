@@ -616,3 +616,52 @@
   `--require-vuln-db` fails it; `--hook` before a first run passes and says how to set up; the Action keeps a
   `baseline`; file-shaped findings get SARIF locations (#209); tables, `<anonymous>` functions and
   first-report.md (#212); in_tree indexed (#213: react's example 734 → 65 s on the way).
+
+- **0.45.0 is the output release: the report is shorter because it says each thing once, and it now says what it
+  left out.** Fifteen reviewers (ten on content, five on layout) compared `--deep --full` with the default report on
+  prometheus and agreed a seventeen-item plan, landed as #282-#288: fixtures for the strings the report shares with a
+  pipeline and an agent first (#282), then the cuts (#284), the pieces that lengthen (#285), one layout grammar
+  (#286), `--section NAME` and a capped `--full` (#287), the Markdown export and findings.json (#288). Report lines
+  fall 195 -> 155 at the median (every development repository is shorter: react 251 -> 204, brew 211 -> 164, curl
+  168 -> 139), with the fifth kind of entry the old default folded into one line now printed, a titled Supply chain
+  section with the checks that passed, and a closing list of what `--full` adds. `--full` on prometheus goes from
+  4,359 lines to 964: every section and finding, tables capped at 50 rows, and `--section NAME` for every row.
+- **Findings and effectiveness are 0.44.0's.** Findings median 10 and 90th percentile 16.2, headroom, W/L/T, AUC,
+  recall and the standardised magnets unchanged, robustness 26 of 26, the gate 3 of 3, no critical on a well-kept
+  repository. Three repositories trade one warning for a note (brew, prometheus, react): Bug magnets is a note when
+  the size test ran and put no file above the usual rate, the maintainer's decision of 5 October with the order of
+  warnings (a warning that rests on a file name alone follows the measured ones) and the dependency advice (the
+  highest score with a fix published) in #283. `--fail-on warning` no longer stops on such a finding.
+- **Four cost ceilings rise by 1.5% to 2.7%, decided by the maintainer on 6 October.** Development peak 1,014 ->
+  1,032 MB (brew) and time 325 -> 330 s; large peak 1,153 -> 1,172 MB (ghidra) and time 495 -> 508 s (ghidra 46 ->
+  53 s, binutils-gdb 338 -> 344 s). The first round of this release read 1,159 MB on brew: #280's
+  maat-arrivals.csv, a row for every path the history ever held, was read whole three times a run and kept
+  unnarrowed for the backtest's sub-report. One run of brew at each commit put it there (1,013 MB at #277, 1,025 at
+  #281, 1,161 at #280), #289 reads the file by the line for the tree only, and the round was run again. What is left
+  is accepted: it came with the work merged on 5 October before the plan (the release tree was 10 MB under the tree
+  before the plan on the same run), and the same release cuts a fifth of the report.
+- **Contradictions read 104 -> 93, and the mix changed for three reasons that are not regressions.** #274's seven
+  checks from the univer review joined the harness (the 0.44.0 runs read 144 under them): action_order 1 and
+  noreply_split 5 are theirs. plural_one 19 -> 11 and silent_measure 9 -> 0 are fixes (counts take their plural; the
+  one-commit fixtures say the backtest was not run). fix_episode 21, self_credit 51, tied_owner 1,
+  unreferenced_named 2 and secrets_headline 1 are as recorded. Remediation's mechanical band reads 38 of 151 ->
+  68 of 376 because #276 counts unpinned actions as distinct pairs, up to 50 a repository (22 of 116 -> 52 of 341);
+  no other rule's counts moved, and the structural band is 25 of 110 as before.
+- **The round's own trouble, for the next one.** The first round's gate read 0 of 3: the /tmp cleaner had emptied
+  the harness fixtures on 5 October, and a fixture without its .git is refused, not scanned. The clones had been
+  checked and the fixtures had not. They were rebuilt and the round repeated after #289; both rounds took 26 to 28
+  minutes on AC without sleep, with no vulnerability database. Four consistency checks read the report's drawing
+  (an owner cell, the footer, the boxes, a whole table through --full) and were taught the new one in #282 before
+  the change they judge.
+- **Since 0.44.0, besides the measurement:** the eleven changes from the univer review (#271-#281: pnpm drift keys,
+  Trojan Source shapes, private workspace members, growth wording, action pin advice, no-reply logins, locale files,
+  the baseline row by row, area age); no email address in any rendering and no per-person signing rate; one number
+  format and one word per column (changes, complexity, together); four styles and an ASCII form for every mark, so
+  a report survives a pipe and a C locale; the Markdown export keeps `<anonymous>` and names no path of the machine
+  that wrote it; `findings.json` in the output directory (44 KB on prometheus); a table in docs/output.md of where
+  every exported key and output file is shown, held by a test. Removed from `--json`: the `plumbing` key when empty.
+  Renamed: the section "Surviving code by year written" is "Surviving code by year".
+- **The first record with the outcome switch (#278) carries one more row, for information.** Under the fix type a
+  repository declares, only jadx differs on the development set at these pins: median headroom 0.59 against 0.60,
+  W/L/T 45/13/26 against 46/13/25. The watch list is judged by the frozen classifier as before; the row decides
+  nothing here.

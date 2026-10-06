@@ -54,6 +54,7 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 | 0.43.0 | 0.60 [0.41, 0.80] | 0.55 | 0.47 | 46/13/25 | 0.78 | 34% | 1.00 | 3.31 | 1.86 | 10/16.9 | 197.5 | 35% | 26/26 | 3/3 | 352 | 1014 |  |
 | 0.43.1 | 0.60 [0.41, 0.80] | 0.55 | 0.47 | 46/13/25 | 0.78 | 34% | 1.00 | 3.31 | 1.86 | 10/16.9 | 197.5 | 35% | 26/26 | 3/3 | 345 | 1017 |  |
 | 0.44.0 | 0.60 [0.41, 0.80] | 0.55 | 0.47 | 46/13/25 | 0.78 | 34% | 1.00 | 3.30 | 1.86 | 10/16.2 | 195 | 37% | 26/26 | 3/3 | 325 | 1014 |  |
+| 0.45.0 | 0.60 [0.41, 0.80] | 0.55 | 0.47 | 46/13/25 | 0.78 | 34% | 1.00 | 3.30 | 1.86 | 10/16.2 | 155 | 37% | 26/26 | 3/3 | 330 | 1032 |  |
 
 ![ranking](evolution/ranking.svg)
 
@@ -75,28 +76,29 @@ Headroom is (hits − random) / (perfect − random) at 15, the median over the 
 
 Each release runs from its own source over the development set (medium repositories, one or more per ecosystem, and gitmole itself; `development_criterion` in measure/corpus.json), the large set in a release round, the awkward inputs and the gate fixtures, one repository at a time, with the reference date fixed at 2026-09-17. What it produces is scored by the current definitions, which stay fixed across the history: the ranking is the release's own, rebuilt at six cut-offs by its own backtest, and the outcome is the files a fix commit touched in the six months after each cut-off. The holdout is not read here: it runs only for the release a note claims is more effective. A release that crashed or timed out on a development or large repository is drawn at the bottom of every graph with a red cross, and its row says why. The graphs draw every release over the same four repositories, curl, django, react and gitmole, so a repository joining the development set is not a move; the table and the dashboard use the whole set: cost over the development set, effectiveness over development and large, and well-kept where a release round ranked it. Robust counts every set a round ran, so its denominator is larger in a release round. The README shows the ranking graph and the findings graph; the useful and robustness graphs are kept here, robustness summed up in the README as one line.
 
-## The dashboard for 0.44.0
+## The dashboard for 0.45.0
 
 | | set | value |
 |---|---|---|
 | median headroom at 15 | holdout | not run for this record |
 | median headroom at 15 | development, large and well-kept | 0.60 |
+| median headroom at 15, declared-type outcome (information) | development, large and well-kept | 0.59; churn 0.55, size 0.46; repositories declaring Conventional Commits: jadx (the rest score as above) |
 | recall at 20% of lines | development, large and well-kept | 34% |
 | top-15 stability over 50 commits | development, large and well-kept | 1.00 |
 | top-15 carried over from one cut-off to the next, six months | development, large and well-kept | 0.90 |
 | top-15 hits above the better of churn and size, summed over cut-offs (information) | development, large and well-kept | 1 over 84 cut-offs (27 ahead, 26 behind, 31 level) |
 | saturated cut-offs, half the pool or more fixed (information) | development, large and well-kept | 1 of 84 |
 | findings per repository, median and p90 | development | 10 and 16.2 |
-| findings the default report spells out that are labelled actionable | development, large and well-kept | 76% of 115, 32% labelled |
+| findings the default report spells out that are labelled actionable | development, large and well-kept | 74% of 115, 27% labelled |
 | rules sound, broken and undecided | labelled sample | broken 3, sound 3, undecided 26, unlabelled 7 |
 | repositories with a critical labelled false | well-kept | 0 of 4 fired a critical |
-| wall time and peak memory | development | 325 s, 1014 MB |
-| wall time and peak memory | large | 495 s, 1153 MB |
-| the round's wall clock, and the machine asleep in it | every set | 1513 s, 0 s asleep (0 s inside timed runs); power AC, caffeinate -i |
+| wall time and peak memory | development | 330 s, 1032 MB |
+| wall time and peak memory | large | 508 s, 1172 MB |
+| the round's wall clock, and the machine asleep in it | every set | 1582 s, 0 s asleep (0 s inside timed runs); power AC, caffeinate -i |
 | scored share of tracked files | development | 37% |
-| subjects the repository acted on within six months, mechanical and structural rules (a lower bound) | development | mechanical 38 of 151 (25%); structural 25 of 110 (23%) |
+| subjects the repository acted on within six months, mechanical and structural rules (a lower bound) | development | mechanical 68 of 376 (18%); structural 25 of 110 (23%) |
 | findings whose text agrees with their own numbers | every set | 204 of 204 |
-| contradictions between a finding and the report's own facts | every set | 104 (fix_episode 21, plural_one 19, secrets_headline 1, self_credit 51, silent_measure 9, tied_owner 1, unreferenced_named 2) |
+| contradictions between a finding and the report's own facts | every set | 93 (action_order 1, fix_episode 21, noreply_split 5, plural_one 11, secrets_headline 1, self_credit 51, tied_owner 1, unreferenced_named 2) |
 | unexplained description disagreements | development | not run |
 
 ### Was it acted on? Remediation by rule, as the yardstick stands
@@ -110,7 +112,7 @@ For each finding a release made at a ranking cut-off (42 of 42 cut-offs over 8 d
 | lockfile_missing | mechanical | 0 | 9 | 0 | 0 | no | 0 | 0 | 44 | 0 of 9 (0%) |
 | trojan_source | mechanical | 0 | 2 | 0 | 0 | yes | 0 | 0 | 2 | 0 of 2 |
 | trojan_source_mixed | mechanical | 0 | 2 | 0 | 0 | yes | 0 | 0 | 16 | 0 of 2 |
-| unpinned_actions | mechanical | 22 | 90 | 4 | 8 | no | 0 | 0 | 251 | 22 of 116 (19%) |
+| unpinned_actions | mechanical | 52 | 283 | 6 | 27 | no | 0 | 0 | 425 | 52 of 341 (15%) |
 | unsafe_symlinks | mechanical | 0 | 0 | 0 | 0 | yes | 1 | 0 | 9 | none the window could judge |
 | unused_dependencies | mechanical | 9 | 5 | 0 | 2 | yes | 0 | 0 | 17 | 11 of 16 (69%) |
 | brain_methods | structural | 9 | 0 | 3 | 0 | no | 90 | 0 | 240 | 9 of 9 (100%) |
