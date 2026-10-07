@@ -62,7 +62,8 @@ HERMETIC_ENV = {"GITMOLE_NOW": NOW, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFI
 
 
 def normalise(text: str, out_dir: str) -> str:
-    text = re.sub(r"^\d+ steps in [\d.]+s\n", "", text, flags=re.M)
+    # the line a run opens with holds its wall time, and the wordmark's the version too: neither is the commit's
+    text = re.sub(r"^(?:gitmole \S+ · )?\d+ steps in [\d.]+s\n", "", text, flags=re.M)
     # which steps ran is the machine's, not the commit's: Python 3.9 has no grammars, so the structure step
     # does not run there and the closing line says so (CI's 3.9 job read "14 of 18 steps ran; … structure not run")
     text = re.sub(r"^[\d,]+ of [\d,]+ steps ran.*$", "<steps>", text, flags=re.M)
