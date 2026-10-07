@@ -4,9 +4,8 @@ not touched: app/util.py, which moved in 83% of app/main.py's changes
 total 80.8%, over the 1% threshold
 
 [--risk HEAD~2 section]
-◈ Change risk (2 files since HEAD~2)
+Change risk (2 files since HEAD~2)
   file         risk
-  ───────────────────────
   app/main.py  ▰▰▰▰▰▰▰▰▰▰
     changed 7 times · fixed once in 6 months · changes with app/util.py (83%)
   app/util.py  ▰▰

@@ -17,31 +17,28 @@ Findings · 2 notes ●
 
 · truck factor not computed: 3 source files, needs 20
 
-◎ Watch list · all 2, ranked by changes × lines of code
+Watch list · all 2, ranked by changes × lines of code
   file         changes  fixes  top author
-  ───────────────────────────────────────
   app/main.py        7      1  85%
   app/util.py        5      0  67%
   fixes = in the 6 months to 2025-05-30 · top author = largest share of the lines added to the file
   Check: 6 months ago the top 2 of this ranking held 1 of the 1 file fixed since. The 2 most-changed
   files also held 1; 2 random files would hold 1.0, and 1 is not distinguishable from that (p = 1).
 
-λ Complex functions: nothing at complexity 10 or more (2 functions measured)
+Complex functions: nothing at complexity 10 or more (2 functions measured)
 
-⌂ Knowledge map · all 2 areas in the tree now, by lines added
+Knowledge map · all 2 areas in the tree now, by lines added
   area          added  main owner   share  second       share
-  ───────────────────────────────────────────────────────────
   app/             19  Ann Example    79%  Bob Example    21%
   (root files)      2  Bob Example   100%  -                -
 
-◉ People · all 2 identities, by commits · 1 with aliases merged
+People · all 2 identities, by commits · 1 with aliases merged
   author       commits  share  surviving  last commit
-  ───────────────────────────────────────────────────
   Ann Example        5    62%        64%  2025-03
   Bob Example        3    38%        36%  2025-05
   share = of commits · surviving = blame share at HEAD
 
-◧ Supply chain
+Supply chain
   secrets       none found: betterleaks scanned every commit HEAD reaches
   dependencies  no lock files found
   signing       no commits signed
