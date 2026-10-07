@@ -347,7 +347,8 @@ def _no_run(args, console, ui, err, stdin=None) -> int:
     if args.hook:
         return _hook(out_dir, args, console, err, sys.stdin if stdin is None else stdin)
     if ui.is_terminal and not args.section:   # a section on its own is that section and nothing else
-        ui.print(banner.neon(version=__version__))
+        ui.print(banner.wordmark(__version__))
+        ui.print()
     return _render(out_dir, console, ui, args, err)
 
 
@@ -814,7 +815,8 @@ def _portfolio(owner: str, args, console: Console, ui: Console, planner, estimat
 
 
 def _execute(steps, log_path, repo_dir, workers, console, timeout=None, stats: dict = None) -> dict:
-    """Run the steps under a Live display: the banner pulsing above a status line."""
+    """Run the steps under a Live display: the banner pulsing above a status line. The display clears when
+    the steps are done and one line takes its place, the wordmark with the steps and their time."""
     active, lock = set(), threading.Lock()
     started = time.monotonic()
     spinner = Spinner("dots", style="cyan")
@@ -840,15 +842,16 @@ def _execute(steps, log_path, repo_dir, workers, console, timeout=None, stats: d
             active.discard(name)
 
     results = {}
-    with Live(view(), console=console, refresh_per_second=10, transient=False) as live:
+    with Live(view(), console=console, refresh_per_second=10, transient=console.is_terminal) as live:
         worker = threading.Thread(
             target=lambda: results.update(run.execute(steps, log_path=log_path, cwd=repo_dir, workers=workers, on_start=on_start, on_done=on_done, timeout=timeout, control=_control, stats=stats)))
         worker.start()
         while worker.is_alive():
             live.update(view())
             worker.join(0.1)
-        live.update(Group(banner.neon(version=__version__), Text("")) if console.is_terminal else Text(""))
-    console.print(Text(f"{len(steps)} steps in {time.monotonic() - started:.1f}s\n", style="dim"))   # as text: a string would have its numbers coloured
+        live.update(Text(""))
+    console.print(banner.wordmark(__version__, f"{len(steps)} steps in {time.monotonic() - started:.1f}s"))
+    console.print()
     return results
 
 

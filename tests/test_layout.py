@@ -163,9 +163,9 @@ class OneRender(unittest.TestCase):
         self.assertIn("\n● \x1b[1mSweeping commits\x1b[0m\n", text, "a note's mark has no colour and its title is bold, as every title is")
         self.assertIn("● \x1b[1mDebt the authors flagged in hotspots\x1b[0m\x1b[2m (not measured yet)\x1b[0m\n  8 of the top 10", text,
                       "the tag dim, and the statement under the title as every entry's")
-        self.assertIn("\x1b[1m◎ Watch list\x1b[0m · ", text, "a section's name bold in the default foreground, its qualifier plain")
-        self.assertIn("\x1b[1mdemo\x1b[0m · branch main", text)
-        self.assertRegex(text, r"\n  \x1b\[2mfile +changes +fixes[^\n\x1b]*\x1b\[0m\n  \x1b\[2m─+\x1b\[0m\n  \x1b\[1m[^\x1b]+\x1b\[0m +[\d,]+ [^\x1b]*\n", "heads and rule dim, a row's first cell bold, its numbers plain")
+        self.assertIn("\n\x1b[1mWatch list\x1b[0m\x1b[2m · ", text, "a section's name bold in the default foreground, its qualifier dim, and no pictogram")
+        self.assertIn("\x1b[1mdemo\x1b[0m\x1b[2m · branch main", text)
+        self.assertRegex(text, r"\n  \x1b\[2mfile +changes +fixes[^\n\x1b]*\x1b\[0m\n  [^\x1b\n]+ +[\d,]+ [^\x1b]*\n", "heads dim and no rule under them; a row, its first cell too, plain")
 
 
 class Lines(unittest.TestCase):
@@ -208,7 +208,7 @@ class Lines(unittest.TestCase):
             block = findings_lines(drawn(width))
             self.assertIn(DEEP, " ".join(block), width)
             self.assertNotIn("…", " ".join(block), "no ellipsis in the Findings")
-        watch = drawn(80).split("◎ Watch list")[1].split("\n\n")[0]
+        watch = drawn(80).split("Watch list")[1].split("\n\n")[0]
         self.assertIn("…/token_validator.go", watch, "the table gives up the directories")
         self.assertNotIn(DEEP, watch)
 
@@ -223,14 +223,16 @@ class Tables(unittest.TestCase):
                     if sec["rows"] and not sec.get("grid"):
                         yield (width, full, sec["title"]), render.fit(sec, width), render.table_lines(render.fit(sec, width))
 
-    def test_every_table_s_rule_is_exactly_as_long_as_its_widest_row(self):
+    def test_a_table_is_its_heads_and_its_rows_with_no_rule_between(self):
+        """0.46.0 drew a dim rule under every table's heads: a line a table that the dim heads already said."""
         seen = 0
         for what, _, table in self.tables():
-            widest = max(len(line.plain) for line in [table["head"]] + table["rows"])
-            self.assertEqual(len(table["rule"].plain), widest, what)
-            self.assertEqual(set(table["rule"].plain.strip()), {"─"}, what)
+            self.assertEqual(set(table), {"head", "rows"}, what)
+            self.assertFalse([line for line in [table["head"]] + table["rows"] if set(line.plain.strip()) == {"─"}], what)
             seen += 1
         self.assertGreater(seen, 100, "every table of the default report and of --full, at five widths")
+        for full in (False, True):
+            self.assertFalse([line for line in drawn(80, full).splitlines() if set(line.strip()) == {"─"}], full)
 
     def test_no_cell_is_wrapped_and_no_number_is_cut(self):
         for what, fitted, table in self.tables():
@@ -240,15 +242,14 @@ class Tables(unittest.TestCase):
                 if opts.get("justify") == "right" or opts.get("kind") == "fixed":
                     self.assertFalse([cell for cell in column if "…" in cell], f"{what}: {name} is never cut")
             if what[0]:
-                self.assertLessEqual(len(table["rule"].plain), what[0], f"{what}: the table keeps to the width")
+                self.assertLessEqual(max(len(line.plain) for line in [table["head"]] + table["rows"]), what[0], f"{what}: the table keeps to the width")
 
     def test_columns_are_two_apart_and_heads_lie_as_their_cells_do(self):
         sec = render._section("T", [("file", render.PATH), ("changes", render.RIGHT), ("top author", render.WHOLE), ("look at first", render.TAIL)],
                               [("a.py", 1234, "23% gone", "eval() nesting 6"), ("lib/b.py", 7, " 9%", "")])
         table = render.table_lines(sec)
-        self.assertEqual([table["head"].plain, table["rule"].plain] + [row.plain for row in table["rows"]],
+        self.assertEqual([table["head"].plain] + [row.plain for row in table["rows"]],
                          ["  file      changes  top author  look at first",
-                          "  " + "─" * 47,
                           "  a.py        1,234  23% gone    eval() nesting 6",
                           "  lib/b.py        7   9%"])
 
@@ -267,16 +268,16 @@ class Tables(unittest.TestCase):
 
     def test_the_reasons_of_a_change_are_under_its_row_whole(self):
         """Change risk had a drawing of its own, its reasons a third column that wrapped inside its cell."""
-        text = drawn(80).split("◈ Change risk")[1].split("\n\n")[0].splitlines()
+        text = drawn(80).split("Change risk")[1].split("\n\n")[0].splitlines()
         self.assertRegex(text[1], r"^  file +risk$")
-        self.assertEqual(text[2], "  " + "─" * (len(text[1]) - 2 + len("▰" * 10) - len("risk")), "the table drawing of every other section: heads, then a rule as wide as the columns")
+        self.assertRegex(text[2], r"^  \S.* ▰+$", "the table drawing of every other section: heads, then the rows")
         row = next(i for i, line in enumerate(text) if "token_validator.go" in line)
         self.assertRegex(text[row], r"^  services/…/authentication/token_validator\.go +▰{5}$")
         self.assertEqual(text[row + 1:row + 3], ["    changed 240 times · fixed 12 times in 6 months · 7 of 9 authors are minor",
                                                  "    contributors · changes alongside 31 other files"])
 
     def test_since_last_report_is_a_label_grid_so_nothing_of_a_row_is_cut(self):
-        text = drawn(80).split("⇄ Since last report")[1].split("\n\n")[0].splitlines()
+        text = drawn(80).split("Since last report")[1].split("\n\n")[0].splitlines()
         self.assertEqual(text[1], "  new                     warning · Credential-shaped files tracked")
         at = next(i for i, line in enumerate(text) if line.startswith("  persisting"))
         self.assertEqual(text[at:at + 3], ["  persisting              warning → note · Vulnerable dependencies only in test,",
@@ -309,9 +310,8 @@ class Ascii(unittest.TestCase):
         self.assertEqual(lines[0], "demo - branch main")
         self.assertIn("x Secrets in source", lines)
         self.assertIn("  > Rotate it, then remove it from the history.", lines)
-        self.assertIn("# Watch list - all 3, ranked by changes x lines of code", lines)
+        self.assertIn("Watch list - all 3, ranked by changes x lines of code", lines)
         self.assertEqual(lines[1:3], ["  history  363 commits - 2025-08-20 -> 2026-09-10 - since", "           2025-01-01 - 2 identities"])
-        self.assertTrue(any(set(line.strip()) == {"-"} and len(line) > 20 for line in lines), "a rule of hyphens")
         self.assertTrue(any(".../token_validator.go" in line for line in lines), "an elided path")
         self.assertTrue(any(line.startswith("  Bj?rn Rabenstein") for line in lines), "a name it cannot carry does not stop the report")
 
@@ -327,10 +327,10 @@ class Ascii(unittest.TestCase):
         self.assertEqual(render.substitutes("no-such-codec"), {})
 
     def test_every_mark_has_one_fixed_substitute(self):
-        marks = set(render.SEVERITY_MARK.values()) | set(render.SYMBOLS.values()) | {render.SECTION_MARK, render.STEP_MARK, render.RULE_MARK, render.BAR_MARK, render.BLOCK_MARK, "…", "→", "·", "≥", "×"}
+        marks = set(render.SEVERITY_MARK.values()) | {render.STEP_MARK, render.BAR_MARK, render.BLOCK_MARK, "…", "→", "·", "≥", "×"}
         self.assertLessEqual(marks, set(render.ASCII_MARKS))
         self.assertTrue(all(plain.isascii() and plain for plain in render.ASCII_MARKS.values()))
-        one = [render.SEVERITY_MARK[s] for s in render.SEVERITY_MARK] + [render.STEP_MARK, render.RULE_MARK, render.SECTION_MARK] + list(render.SYMBOLS.values())
+        one = [render.SEVERITY_MARK[s] for s in render.SEVERITY_MARK] + [render.STEP_MARK]
         self.assertEqual({len(render.ASCII_MARKS[m]) for m in one}, {1}, "the marks a grid is counted from keep their one column")
         for full in (False, True):   # no mark the report prints is missing from the table: what is left is a letter of a name
             left = {ch for ch in drawn(80, full) if not ch.isascii() and ch not in render.ASCII_MARKS}
@@ -347,7 +347,7 @@ class Ascii(unittest.TestCase):
         self.assertEqual(rc, 0)
         text = raw.getvalue().decode("ascii")
         self.assertIn("demo - branch ?", text)
-        self.assertIn("# Supply chain", text)
+        self.assertIn("\nSupply chain\n", text)
 
 
 if __name__ == "__main__":

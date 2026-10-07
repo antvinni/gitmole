@@ -86,7 +86,7 @@ class NoRun(unittest.TestCase):
         self.assertIn("the target is that directory, not the clone", text)
         self.assertNotIn("Did you mean", text, "no guess without a directory that holds a report")
 
-    def test_terminal_no_run_prints_the_banner_with_the_version(self):
+    def test_terminal_no_run_opens_with_the_wordmark_and_the_version(self):
         from gitmole import __version__
         with tempfile.TemporaryDirectory() as out:
             with open(os.path.join(out, "meta.json"), "w") as fh:
@@ -95,8 +95,8 @@ class NoRun(unittest.TestCase):
             rc = cli.main([out, "--no-run"], console=c)
             text = c.export_text()
         self.assertEqual(rc, 0)
-        self.assertIn("███╗   ███╗", text)
-        self.assertIn(f"v{__version__}", text)
+        self.assertNotIn("███╗", text, "the banner is a run's wait screen, not a report's heading")
+        self.assertEqual(text.splitlines()[:2], [f"gitmole {__version__}", ""])
 
     def test_a_truncated_meta_json_is_an_error_not_a_traceback(self):
         with tempfile.TemporaryDirectory() as out:
@@ -438,7 +438,7 @@ class Export(unittest.TestCase):
             text = c.export_text()
         self.assertEqual(rc, 0)
         self.assertTrue(text.startswith("# demo"), text[:40])
-        self.assertNotIn("◎ Watch list", text, "no terminal report beside the export")
+        self.assertNotRegex(text, r"(?m)^Watch list", "no terminal report beside the export")
         self.assertNotIn("███╗", text, "no banner when piping an export to stdout")
 
     def test_sarif_export_to_file_and_to_stdout_with_a_scope(self):
@@ -951,7 +951,7 @@ class FileTypes(unittest.TestCase):
             rc = cli.main([d, "--list-file-types"], console=c, tool_check=lambda **kw: [])
             text = c.export_text()
         self.assertEqual(rc, 0)
-        self.assertRegex(text, r"\n▥ File types\n")
+        self.assertRegex(text, r"\nFile types\n")
         self.assertRegex(text, r"py\s+1\s+yes")
         self.assertRegex(text, r"md\s+1\s+no")
         self.assertNotIn("Findings", text)

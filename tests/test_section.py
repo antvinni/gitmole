@@ -82,13 +82,13 @@ class Names(unittest.TestCase):
 class OneSection(unittest.TestCase):
     def test_it_is_that_section_and_nothing_else(self):
         text = shown(["people"])
-        self.assertTrue(text.startswith("◉ People · all 3 identities, by commits"), text[:60])
+        self.assertTrue(text.startswith("People · all 3 identities, by commits"), text[:60])
         for other in ("demo · branch", "Findings", "Supply chain", "Watch list", "--full", "/tmp/analysis-demo"):
             self.assertNotIn(other, text)
 
     def test_several_come_in_the_order_asked_one_blank_line_apart(self):
         text = shown(["activity", "people"])
-        self.assertLess(text.index("◔ Activity"), text.index("◉ People"))
+        self.assertLess(text.index("Activity"), text.index("People"))
         self.assertEqual(text.count("\n\n"), 1)
 
     def test_every_row_the_default_s_first_then_the_kinds_it_hides(self):
@@ -139,7 +139,7 @@ class OneSection(unittest.TestCase):
 
     def test_watch_prints_the_reasons_the_default_dropped(self):
         text = shown(["watch"])
-        self.assertTrue(text.startswith("◎ Watch list · all "))
+        self.assertTrue(text.startswith("Watch list · all "))
         row = next(i for i, line in enumerate(text.splitlines()) if "token_validator.go" in line)
         self.assertEqual(text.splitlines()[row + 1], "    Björn Rabenstein wrote 100% of it", "under the row, as --full prints them")
         heads, rows = rows_of("watch")
@@ -227,16 +227,14 @@ class Layout(unittest.TestCase):
                 self.assertEqual([line for line in plain.split("\n") if line != line.rstrip()], [], (name, width))
                 codes = {code for params in SGR.findall(colour) for code in params.split(";")}
                 self.assertLessEqual(codes, {"0", "1", "2", "31", "33"}, (name, width))
-                lines = plain.splitlines()
-                for i, line in enumerate(lines):
-                    if set(line.strip()) == {"─"}:   # a table: its rule is as wide as its widest row
-                        table = [lines[i - 1]] + [row for row in lines[i + 1:] if row.startswith("  ") and not row.startswith("    ")]
-                        page = min(width, render.PAGE_WIDTH)   # the page is the terminal's width up to PAGE_WIDTH
-                        sec = render.whole_section(report, section.NAMES[name], page)
-                        drawn = render.table_lines(render.fit(sec, page))
-                        self.assertEqual(len(line), max(len(x.plain) for x in [drawn["head"]] + drawn["rows"]), (name, width))
-                        self.assertLessEqual(len(line), width, (name, width))
-                        self.assertTrue(table)
+                page = min(width, render.PAGE_WIDTH)   # the page is the terminal's width up to PAGE_WIDTH
+                built = any(b.__name__ == f"{section.NAMES[name]}_section" for b in render.BUILDERS + render.SECTION_ONLY)   # the Findings are no table
+                sec = render.whole_section(report, section.NAMES[name], page) if built else None
+                if sec and sec["rows"] and not sec.get("grid"):   # a table: its heads and every row keep to the width, and are printed as drawn
+                    drawn = render.table_lines(render.fit(sec, page))
+                    for x in [drawn["head"]] + drawn["rows"]:
+                        self.assertLessEqual(len(x.plain), width, (name, width))
+                        self.assertIn(x.plain, plain.splitlines(), (name, width))
 
     def test_an_ascii_stream_raises_nothing(self):
         report = whole_report()
@@ -287,7 +285,7 @@ class CommandLine(unittest.TestCase):
             after = _contents(out)
         self.assertEqual((rc, rc2), (0, 0))
         self.assertEqual(after, before, "no new file, and the existing ones as they were")
-        self.assertTrue(text.startswith("◆ Hotspots"), "no banner, no header: the section")
+        self.assertTrue(text.startswith("Hotspots"), "no banner, no header: the section")
         self.assertRegex(text, r"\n  …/test_a\.py +test +9 ")
         self.assertNotIn("Findings", text)
         self.assertEqual(table.splitlines()[:3], ["author,commits,merges,co-authored,share,surviving,surviving lines,lines added,lines deleted,first commit,last commit,gone,aliases",
@@ -345,7 +343,7 @@ class CommandLine(unittest.TestCase):
             _main([out, "--no-run", "--json", plain])
             with open(path) as a, open(plain) as b:
                 self.assertEqual(a.read(), b.read(), "the JSON export is the whole export, section or not")
-        self.assertTrue(text.startswith("◉ People"))
+        self.assertTrue(text.startswith("People"))
         self.assertIn(rc, (0, 3))
         self.assertEqual(rc, _main_rc_without_section(), "the gate reads the findings, not what is printed")
 

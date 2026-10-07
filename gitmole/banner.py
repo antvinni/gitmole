@@ -99,6 +99,13 @@ def neon(offset: int = 0, look: int = 0, version: str = None) -> Text:
     return text
 
 
+def wordmark(version: str, *after: str) -> Text:
+    """The one line that stands where the banner stood once the report is printed: `gitmole 0.46.0`, the name
+    bold and the rest dim, with what else it says (`18 steps in 42.1s`) behind a " · ". The neon banner is the
+    wait screen; above the report it was seven lines in colours the report itself never uses."""
+    return Text.assemble(("gitmole", "bold"), (" " + " · ".join([version, *after]), "dim"))
+
+
 LOOK_EVERY = 5  # frames per glance; at 10 fps the eyes move every half second
 
 

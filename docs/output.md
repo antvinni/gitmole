@@ -42,8 +42,8 @@ in plain words, and what to do first. This page is the reference.
 ## The terminal report
 
 One layout for every part, and no box anywhere: a title line at column 1,
-then what the part holds two columns in. A table is its column heads, a rule
-exactly as wide as its columns, a row a line and its caption; the header,
+then what the part holds two columns in. A table is its column heads, a row
+a line and its caption, and no rule under the heads; the header,
 the Supply chain section and Since last report are grids of labelled rows,
 a value that does not fit wrapped under its own start; the Findings are
 entries, each with its mark at column 1 and its title on that line, its
@@ -54,7 +54,7 @@ two parts and between two findings, none elsewhere, and no line ends in a
 space.
 
 The page has one width: the terminal's, or 110 columns on a wider one. The
-header, every finding, every table with its rule and caption, and the
+header, every finding, every table with its caption, and the
 closing lines are laid out to it, so the page has one right margin; 0.45.0
 wrapped the findings at 102 and let the rest run to the terminal's edge. At
 110 the univer report's watch list keeps every cell whole, which it does not
@@ -66,22 +66,28 @@ characters, takes words from the line above while that line stays the longer
 is never cut with `…`: a subject or a step longer than its lines is wrapped
 whole.
 
-The colours are four styles and no more: bold (a part's name, a table's
-first column, and in the header the commit count and a `--since` window or
-`--path` scope), dim (labels, column heads, rules, captions, the closing
-lines, the `(not measured yet)` tag, a subject's `·`), yellow for a warning and red for a
+The colours are four styles and no more: bold (a part's name, and in the
+header the commit count and a `--since` window or `--path` scope), dim (what
+qualifies a part's name, its count and ranking key; labels, column heads,
+captions, the closing lines, the `(not measured yet)` tag, a subject's `·`),
+yellow for a warning and red for a
 critical, on the finding's mark and title and on a scan's verdict in the
 Supply chain section. Every finding's title is bold, a note's too, so each
 stands out from the text under it. A note's mark has no colour, and neither
-has a statement, a step or a number, so the report reads the same on a light theme as on a dark one.
-(The logo banner keeps its own colours and is only drawn on a terminal.)
+has a statement, a step, a table's row or a number, so the report reads the same on a light theme as on a dark one.
+A part's name has no pictogram in front of it: the only marks are a
+severity's, a step's `↳` and a subject's `·`, which each say something.
+The logo banner keeps its own colours and is only drawn on a terminal, while
+a run's steps are under way; when they are done it gives way to one dim line,
+`gitmole 0.46.0 · 18 steps in 42.1s`, and a re-render (`--no-run`) opens with
+`gitmole 0.46.0` alone.
 Without colour (`NO_COLOR`, a pipe, a file) the report is the same bytes
 with the escapes left out.
 
 Every mark has an ASCII form for a stream whose encoding cannot carry it
 (`PYTHONIOENCODING=ascii`, a legacy code page), chosen per mark, so a
-Latin-1 stream keeps its `·`: `✖` `x`, `▲` `!`, `●` `*`, `↳` `>`, the rule
-`-`, a section's pictogram `#`, `·` `-`, `×` `x`, `…` `...`, `→` `->` and
+Latin-1 stream keeps its `·`: `✖` `x`, `▲` `!`, `●` `*`, `↳` `>`, `·` `-`,
+`×` `x`, `…` `...`, `→` `->` and
 `≥` `>=`. The report then has the same lines; a line that holds one of the
 last three is a character or two longer, so a table row with an elided path
 is that much out of its columns. Any other character the stream cannot

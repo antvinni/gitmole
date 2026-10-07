@@ -20,9 +20,10 @@ from . import brief, classify, coupling, deps, filetypes, hotspots, identity, kn
 # default render of prometheus held 23 different escape sequences, among them a truecolour blue, purple and pink
 # and a near-black row background, which is unreadable on a light theme and noise in a CI log. Yellow and red
 # are a severity's and go on a finding's mark and title (and a scan's verdict) only; a note has no colour; a
-# section title and a table's first column are bold; captions, rules, column heads and labels are dim; a
-# statement, a step and every number are in the terminal's own foreground. The logo banner (banner.py) keeps
-# its own colours: it is not the report.
+# title's name is bold and what qualifies it dim; captions, column heads and labels are dim; a table's rows, a
+# statement, a step and every number are in the terminal's own foreground. A title has no pictogram and a
+# table no rule under its heads: the only marks are the ones that say something, a severity's, a step's and a
+# subject's. The logo banner (banner.py) keeps its own colours, and shows only while a run is under way.
 BOLD, DIM = "bold", "dim"
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": ""}
 
@@ -33,14 +34,8 @@ SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": ""}
 # and the start of longer ones, recognisable). The year needs INDENT + NAME_FLOOR + 12 × MONTH_WIDTH = 70 columns.
 MONTH_WIDTH, INDENT, NAME_FLOOR = 5, 2, 8
 
-SYMBOLS = {"Size by language": "▤", "People": "◉", "Activity": "◔", "Timeline": "▦", "Hotspots": "◆", "Change coupling": "⟷",
-           "Surviving code by year": "◷", "Net lines added by year": "◷", "Paths in history by year last changed": "◷",
-           "Knowledge map": "⌂", "Repo health": "✚", "Portfolio": "▣", "File types": "▥", "Complex functions": "λ", "Watch list": "◎",
-           "Change risk": "◈", "Since last report": "⇄", "Most-changed documents": "✎", "Supply chain": "◧"}
-SECTION_MARK = "•"   # in front of the title of a section with no pictogram of its own
 SEVERITY_MARK = {"critical": "✖", "warning": "▲", "info": "●"}
 STEP_MARK = "↳"
-RULE_MARK = "─"
 BAR_MARK, BLOCK_MARK = "▰", "█"
 # How a column lies and how it gives way when a row does not fit (fit): "justify" right for a number, and a
 # "kind" of path (it loses middle directories), tail (the last text cell: cut at its end with an ellipsis once
@@ -2570,7 +2565,7 @@ def full_closing_lines(report: dict, width=None) -> list:
 # --- the terminal's drawing --------------------------------------------------
 #
 # One grammar for every block, and no box anywhere: a title line at column 1, then what the block holds two
-# columns in. A table is column heads, a rule exactly as wide as its columns, a row a line and its caption; a
+# columns in. A table is its dim column heads, a row a line and its caption; a
 # block without columns (the header, the Supply chain section, Since last report) is a label grid; the
 # Findings are entries, each with its mark at column 1. One blank line between two blocks and none inside one.
 # prometheus's report had three grammars (two boxes, open tables, bare footer lines), 55 of its 213 lines
@@ -2638,15 +2633,14 @@ def show(console: Console, block) -> None:
 #
 # Every mark the report prints, with the ASCII it becomes on a stream whose encoding cannot carry it
 # (PYTHONIOENCODING=ascii, a legacy code page). Chosen once per stream (carry), one mark at a time, so a
-# Latin-1 stream keeps its "·" and "×". The severity marks, the step, the rule and the pictograms are one
-# character each, so the finding grid and every rule keep their columns; "…", "→" and "≥" have no honest
+# Latin-1 stream keeps its "·" and "×". The severity marks and the step are one character each, so the
+# finding grid keeps its columns; "…", "→" and "≥" have no honest
 # one-character ASCII form, so a line holding one is a character or two longer than its UTF-8 twin, never a
 # line more. A character that is not a mark (a name, a path) prints as "?" where the stream cannot carry it:
 # prometheus's report raised nothing under LANG=C only because Python reads that locale as UTF-8.
 ASCII_MARKS = {
     SEVERITY_MARK["critical"]: "x", SEVERITY_MARK["warning"]: "!", SEVERITY_MARK["info"]: "*", STEP_MARK: ">",
-    textfmt.ELLIPSIS: "...", "→": "->", "·": "-", RULE_MARK: "-", "≥": ">=", "×": "x", "—": "-", brief.NBSP: " ",
-    **{symbol: "#" for symbol in list(SYMBOLS.values()) + [SECTION_MARK]},   # every pictogram: "# Watch list"
+    textfmt.ELLIPSIS: "...", "→": "->", "·": "-", "≥": ">=", "×": "x", "—": "-", brief.NBSP: " ",
     BAR_MARK: "#", BLOCK_MARK: "#", **{part: "|" if n < 3 else "#" for n, part in enumerate(BAR_PARTS)},   # under half a cell, and half or more
     **{block: str(level) for level, block in enumerate(trend.BLOCKS[:-1], 1)},   # a sparkline as its levels, 1 to 7 and "#"
     "═": "=", "║": "|", "╔": "+", "╗": "+", "╚": "+", "╝": "+", "▀": "#",   # the banner's, should a terminal that cannot carry them be given it
@@ -2806,11 +2800,11 @@ def _grid_lines(rows: list, pad: int) -> list:
             for label, lines in rows for i, line in enumerate(lines)]
 
 
-def _title(title: str, symbol: str = None) -> Text:
-    """A block's title line: its name bold (behind its pictogram, when it has one) and what qualifies it, the
-    count and the ranking key, in the plain foreground."""
+def _title(title: str) -> Text:
+    """A block's title line: its name bold and what qualifies it, the count and the ranking key, dim, so the
+    name is what the eye finds going down the page. It had a pictogram in front, one of nineteen."""
     name = _base_title(title)
-    return Text.assemble((f"{symbol} {name}" if symbol else name, BOLD), title[len(name):])
+    return Text.assemble((name, BOLD), (title[len(name):], DIM))
 
 
 def header(report: dict, findings: list = (), full: bool = False, width=None, contents: list = None) -> Text:
@@ -2823,7 +2817,7 @@ def header(report: dict, findings: list = (), full: bool = False, width=None, co
     if contents:
         rows.append(("contents", [(", ".join(contents), "")]))
     branch = f"branch {s['branch']}" + (f" @ {s['commit'][:8]}" if s["commit"] else "")
-    title = Text.assemble((s["name"], BOLD), f"{SEP}{branch}")
+    title = Text.assemble((s["name"], BOLD), (f"{SEP}{branch}", DIM))
     if width is not None and len(title.plain) > width:   # a title longer than the line: the branch is a row
         title = Text(s["name"], style=BOLD)
         rows.insert(0, ("branch", [(branch[len("branch "):], "")]))
@@ -3170,12 +3164,13 @@ def fit(sec: dict, width) -> dict:
 
 
 def table_lines(sec: dict) -> dict:
-    """A section's table as lines, {"head": line, "rule": line, "rows": [line]}, each two columns in: the
-    column heads, dim and lying as their cells do (text left, numbers right); a dim rule exactly as wide as
-    the columns, so its right edge is the last column's; and a row a line, its first cell bold and the rest
-    in the terminal's own foreground. Two spaces between columns. No colour marks a value, no row has a
-    background and nothing is padded on the right: prometheus's tables had a near-black stripe on every other
-    row, pink on a share over a fifth and a caption that stretched the table to the width of its sentence."""
+    """A section's table as lines, {"head": line, "rows": [line]}, each two columns in: the column heads, dim
+    and lying as their cells do (text left, numbers right), and a row a line in the terminal's own foreground.
+    Two spaces between columns. No colour marks a value, no row has a background and nothing is padded on the
+    right: prometheus's tables had a near-black stripe on every other row, pink on a share over a fifth and a
+    caption that stretched the table to the width of its sentence. In 0.46.0 a dim rule stood under the
+    heads and every first cell was bold: a line a table, and a heavy left edge that said nothing the dim
+    heads and the alignment did not."""
     from rich.cells import cell_len
     sec = _barred(sec)
     cols = sec["columns"]
@@ -3184,19 +3179,16 @@ def table_lines(sec: dict) -> dict:
     widths = [max([cell_len(c)] + [cell_len(r[i]) for r in cells]) for i, c in enumerate(cols)]
     shown = [i for i, w in enumerate(widths) if w]   # a column with no head and no cell (a bar column of zeroes) is not there
 
-    def line(values, first=None) -> Text:
+    def line(values) -> Text:
         out = Text(" " * INDENT)
         for n, i in enumerate(shown):
             pad = " " * max(widths[i] - cell_len(values[i]), 0)
-            out.append((" " * GAP if n else "") + ("" if left[i] else pad))
-            out.append(values[i], style=first if n == 0 else None)   # the first cell's style stops with the cell, before its padding
-            out.append(pad if left[i] else "")
+            out.append((" " * GAP if n else "") + ("" if left[i] else pad) + values[i] + (pad if left[i] else ""))
         out.rstrip()
         return out
     head = line(cols)
     head.stylize(DIM, INDENT)
-    rule = Text(" " * INDENT).append(RULE_MARK * (sum(widths[i] for i in shown) + GAP * (len(shown) - 1)), style=DIM)
-    return {"head": head, "rule": rule, "rows": [line(r, BOLD) for r in cells]}
+    return {"head": head, "rows": [line(r) for r in cells]}
 
 
 UNDER_INDENT = 2   # a row's line of detail, in from the row's first cell
@@ -3218,8 +3210,8 @@ def _captions(sec: dict, width=None) -> list:
 
 
 def heading(sec: dict) -> Text:
-    """A section's title line, behind its pictogram."""
-    return _title(sec["title"], SYMBOLS.get(_base_title(sec["title"]), SECTION_MARK))
+    """A section's title line."""
+    return _title(sec["title"])
 
 
 def _note_lines(sec: dict, width=None) -> list:
@@ -3228,7 +3220,7 @@ def _note_lines(sec: dict, width=None) -> list:
 
 
 def section_lines(sec: dict, width=None) -> list:
-    """A section as its lines: the title, then the column heads, the rule and a row a line, with a row's
+    """A section as its lines: the title, then the column heads and a row a line, with a row's
     `under` text wrapped beneath it, then the caption, dim; a section with no rows is its title and note; a
     `grid` section (Since last report) is a label grid, its first column the labels. With a `width`, the
     table is fitted to it first (fit) and the prose wrapped to it."""
@@ -3240,7 +3232,7 @@ def section_lines(sec: dict, width=None) -> list:
         return _wrap_styled(heading(sec), width, INDENT) + _grid_lines(rows, pad) + _captions(sec, width)
     fitted = fit(sec, width)
     table = table_lines(fitted)
-    out = _wrap_styled(heading(sec), width, INDENT) + [table["head"], table["rule"]]
+    out = _wrap_styled(heading(sec), width, INDENT) + [table["head"]]
     under = fitted.get("under") or []
     for n, row in enumerate(table["rows"]):
         out.append(row)
@@ -3250,9 +3242,9 @@ def section_lines(sec: dict, width=None) -> list:
             for line in under[n].split("\n"):
                 parts = [line] if width is None else brief.wrap(line, max(width - deep, 20), max(width - deep - UNDER_INDENT, 20) if several else None)
                 out += [" " * (deep + (UNDER_INDENT if several and k else 0)) + part for k, part in enumerate(parts)]
-    for sub in sec.get("more") or []:   # a second table of the same section (Trailers): its heads, its rule and its rows, no title
+    for sub in sec.get("more") or []:   # a second table of the same section (Trailers): its heads and its rows, no title
         drawn = table_lines(fit(sub, width))
-        out += [drawn["head"], drawn["rule"]] + drawn["rows"]
+        out += [drawn["head"]] + drawn["rows"]
     return out + _captions(fitted, width)
 
 

@@ -64,9 +64,13 @@ def _titled(secs, name: str) -> dict:
 
 
 def _headings(text: str) -> list:
-    """The titles of the sections a rendered report prints, in order: the lines that start with a section's
-    pictogram. The default report's closing lines name --full's sections in a sentence, which is not a heading."""
-    return [render._base_title(line[2:]).split(":")[0] for line in text.splitlines() if line[:1] in set(render.SYMBOLS.values()) | {"•"} and line[1:2] == " "]
+    """The titles of the sections a rendered report prints, in order: a line at column 1 after a blank one that
+    starts with a capital, other than the Findings' title. The header's title is the report's first line, a
+    finding's entry starts with its mark and the closing lines with a flag, a count or a path; the default
+    report's closing lines name --full's sections in a sentence, which is not a heading."""
+    lines = text.splitlines()
+    return [render._base_title(line).split(":")[0] for n, line in enumerate(lines)
+            if n and not lines[n - 1].strip() and line[:1].isupper() and not line.startswith("Findings")]
 
 
 def _flat(text: str) -> str:
@@ -388,7 +392,7 @@ class Report(unittest.TestCase):
         self.assertNotIn("code-maat", text)
         for year, count in (("2026", "2"), ("2025", "1"), ("2024", "1")):
             self.assertRegex(text, rf"{year}\s+{count}\s")
-        self.assertNotIn("◷ Surviving code by year", text)
+        self.assertNotIn("Surviving code by year", text)
 
     def test_age_uses_net_lines_from_the_log_when_blame_skipped(self):
         r = sample_report()
@@ -414,7 +418,7 @@ class Report(unittest.TestCase):
                           {"entity": "gone.py", "n-revs": 300}]
         with mock.patch.object(render, "PAGE_WIDTH", 140):
             text = rendered(r, [], width=140, full=True)   # a page wide enough for the eleven columns with their paths whole
-        text = text[text.index("◆ Hotspots"):]
+        text = text[re.search(r"(?m)^Hotspots", text).start():]
         lines = [l.strip() for l in text.splitlines() if l.strip().startswith(("static/", "gone.py"))]
         # index.html: 51 x 4000 = 204,000 beats metadata.json: 128 x 800 = 102,400; deleted gone.py has no score and no row
         self.assertTrue(lines[0].startswith("static/index.html"), lines)
@@ -431,7 +435,7 @@ class Report(unittest.TestCase):
         r["authors"] = [{"entity": "static/apps-metadata.json", "n-authors": 4, "n-revs": 128, "minor": 2}]
         r["soc"] = [{"entity": "static/apps-metadata.json", "soc": 300, "partners": 17}]
         text = rendered(r, [], full=True, width=200)
-        text = text[text.index("◆ Hotspots"):]
+        text = text[re.search(r"(?m)^Hotspots", text).start():]
         self.assertIn("minors", text)
         self.assertIn("co-changes", text)
         line = next(l for l in text.splitlines() if "apps-metadata.json" in l)
@@ -542,7 +546,7 @@ class Report(unittest.TestCase):
         self.assertEqual(sec["more"][0]["columns"], ["declared commits against the rest", "declared", "the rest"])
         self.assertEqual(sec["more"][0]["rows"], [["commits", "35", "328"], ["reverted", "6%", "1%"], ["fixes", "11%", "18%"], ["a file changed again within 2 weeks", "57%", "46%"]],
                          "the comparison is rows of its own table: it was a sentence of eight numbers under the first")
-        self.assertRegex(block, r"\n  declared commits against the rest +declared +the rest\n  ─+\n  commits +35 +328\n  reverted +6% +1%\n")
+        self.assertRegex(block, r"\n  declared commits against the rest +declared +the rest\n  commits +35 +328\n  reverted +6% +1%\n")
         self.assertEqual(sec["caption"].split("\n"), [
             "declared = an Assisted-by trailer, or a co-author who never authors a commit here or is a coding tool · the rest = every commit that declares nothing, undisclosed agent use included",
             "12% of commits land in bursts of 5 or more within 10 minutes · 80% have conventional-commit subjects · commits come in 20 hours of the day"], "the definition line is kept")
@@ -632,7 +636,7 @@ class Report(unittest.TestCase):
                         "last_year": {"commits": 210, "signed": 105}}
         self.assertIn("33% of commits signed (ssh 28%, gpg 6%), 50% of the last year's", render.pulse(r))
         text = rendered(r, [], width=200)
-        self.assertNotIn("◈ Signing", text, "the table is --full only")
+        self.assertNotRegex(text, r"(?m)^Signing", "the table is --full only")
         full = rendered(r, [], width=200, full=True)
         self.assertIn("Signing by year", full)
         block = _section_text(full, "Signing by year")
@@ -682,8 +686,8 @@ class Report(unittest.TestCase):
         self.assertNotIn("Agent surface", closing, "a section that would not print for this report is not promised")
         self.assertNotIn("steps ran", closing, "an output directory that records no steps says nothing of them")
         full = rendered(r, [], full=True)
-        empty = {render._base_title(line[2:]).split(":")[0] for line in full.splitlines() if line[:2] == "• " and ": " in line}   # a section with nothing to show is its title and a note
-        self.assertEqual(empty, {"Changed lines", "Trailers", "Signing by year"})
+        empty = {render._base_title(line).split(":")[0] for line in full.splitlines() if line[:1].isupper() and ": " in line and " · " not in line.split(": ")[0]}   # a section with nothing to show is its title and a note
+        self.assertEqual(empty, {"Change coupling", "Changed lines", "Trailers", "Signing by year"})   # a default section's too, now that no pictogram tells them apart
         self.assertEqual(sorted(t.split(" (")[0] for t in titles), sorted(t for t in _headings(full) if t not in _headings(text) and t not in empty),
                          "the index is --full's own headings, less the ones that would be a note saying there is nothing")
         self.assertNotIn("--full shows", full)
@@ -769,7 +773,7 @@ class Report(unittest.TestCase):
         self.assertRegex(text, r"static/\s+1,000\s+Ann\s+90%\s+Bob gone\s+10%", "the word after the name, one space, no brackets; the shares in their own columns")
         self.assertIn("gone = no commit in the 12 months to 2026-09-10", text)
         self.assertEqual(text.count("gone = "), 1, "defined once")
-        self.assertNotIn("lost", text.split("⌂ Knowledge map")[1].split("\n")[1], "the lost column is --full only")
+        self.assertNotIn("lost", text.split("Knowledge map")[1].split("\n")[1], "the lost column is --full only")
         full = rendered(r, [], full=True)
         self.assertRegex(full, r"area\s+added\s+authors\s+lost\s+main owner\s+share\s+second\s+share")
         self.assertRegex(full, r"static/\s+1,000\s+2\s+10%")
@@ -918,7 +922,7 @@ class Report(unittest.TestCase):
         self.assertNotIn("tests/test_a.py", hot)
         self.assertIn("1 test file hidden", hot)
         self.assertNotIn("--full shows them", hot, "the report says where the hidden rows are once, at its end")
-        full_text = _section_text(rendered(r, [], full=True), "◆ Hotspots")
+        full_text = _section_text(rendered(r, [], full=True), "Hotspots")
         self.assertNotIn("tests/test_a.py", full_text, "--full hides what the Markdown export hides")
         self.assertIn("1 test file hidden", full_text)
         self.assertRegex(whole(r, "hotspots"), r"tests/test_a\.py +test +200", "the section on its own has the row, and says what it is")
@@ -1018,7 +1022,7 @@ class Report(unittest.TestCase):
         hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
         self.assertNotIn("setup.py", hot)
         self.assertIn("2 release files hidden", hot)
-        self.assertIn("2 release files hidden", _section_text(rendered(r, [], width=200, full=True), "◆ Hotspots"))
+        self.assertIn("2 release files hidden", _section_text(rendered(r, [], width=200, full=True), "Hotspots"))
         self.assertRegex(whole(r, "hotspots"), r"setup\.py +release +184")
 
     def test_markdown_hotspots_hide_files_the_change_log_shows_as_plumbing(self):
@@ -1166,7 +1170,7 @@ class Report(unittest.TestCase):
         hot = _rendered_section(render.hotspots_section(r, full="markdown", width=200), width=200)
         self.assertNotIn("src/sizes/old.go", hot)
         self.assertIn("1 deleted file hidden", hot)
-        self.assertIn("1 deleted file hidden", _section_text(rendered(r, [], width=200, full=True), "◆ Hotspots"))
+        self.assertIn("1 deleted file hidden", _section_text(rendered(r, [], width=200, full=True), "Hotspots"))
         full = whole(r, "hotspots")
         self.assertRegex(full, r"src/sizes/old\.go +removed +40 +- +- +-")
         self.assertNotIn("hidden", full)
@@ -1338,7 +1342,7 @@ class Activity(unittest.TestCase):
         r["activity"]["fix_commits"] = 58
         full = rendered(r, [], full=True)
         self.assertRegex(full, r"(?m)^  commits +25% are fixes$")
-        self.assertNotIn("fixes", _section_text(full, "◔ Activity"), "prometheus's --full said it in the header and again here")
+        self.assertNotIn("fixes", _section_text(full, "Activity"), "prometheus's --full said it in the header and again here")
         self.assertEqual(full.count("are fixes"), 1)
 
     def test_activity_absent_when_no_data(self):
@@ -1460,7 +1464,7 @@ class WatchList(unittest.TestCase):
         r["authors"].append({"entity": "static/index.html", "n-authors": 1, "n-revs": 51})
         r["ownership"].append({"entity": "static/index.html", "author": "Ann", "added": 4000, "deleted": 0})
         text = rendered(r, [], width=120)
-        self.assertIn("◎ Watch list · all 2, ranked by changes × lines of code", text)
+        self.assertIn("Watch list · all 2, ranked by changes × lines of code", text)
         self.assertRegex(text, r"static/index.html\s+51\s+0\s+100%\s*\n")
         self.assertRegex(text, r"static/apps-metadata.json\s+128\s+4\s+-\s*\n", "no ownership row, so no share")
         self.assertNotIn("only Ann has touched it", text, "the reasons in words are --full's, under each row")
@@ -1485,7 +1489,7 @@ class WatchList(unittest.TestCase):
         r["revisions"] = [{"entity": deep, "n-revs": 9}, {"entity": "static/index.html", "n-revs": 2}]
         r["size"]["files"][deep] = {"code": 100, "complexity": 1}
         text = rendered(r, [], width=100)
-        self.assertIn(deep, text.split("◎ Watch list")[1].split("◉ People")[0])
+        self.assertIn(deep, text.split("Watch list")[1].split("People")[0])
 
     def test_note_when_nothing_qualifies(self):
         r = sample_report()
@@ -1522,9 +1526,9 @@ class FullOnlySections(unittest.TestCase):
     def test_hotspots_moved_to_full_and_markdown_alongside_the_other_descriptive_tables(self):
         self.assertIn("hotspots", render.FULL_ONLY)
         text = rendered(sample_report(), [])
-        self.assertNotIn("◆ Hotspots", text)
+        self.assertNotRegex(text, r"(?m)^Hotspots")
         full = rendered(sample_report(), [], full=True)
-        self.assertIn("◆ Hotspots", full)
+        self.assertIn("Hotspots", full)
         self.assertIn("## Hotspots", render.markdown(sample_report(), []))
 
     def test_header_keeps_one_line_of_them(self):
@@ -1763,12 +1767,12 @@ class Timeline(unittest.TestCase):
         self.assertIn("timeline", render.FULL_ONLY)
         for width in (80, 120, 200):
             self.assertNotIn("Timeline", _headings(rendered(sample_report(), [], width=width)))
-        self.assertIn("▦ Timeline", rendered(sample_report(), [], full=True))
+        self.assertIn("Timeline", rendered(sample_report(), [], full=True))
         self.assertIn("## Timeline", render.markdown(sample_report(), []), "Markdown keeps the sections it had")
 
     def test_last_twelve_months_per_author_with_zero_as_0(self):
         text = rendered(sample_report(), [], width=120, full=True)
-        self.assertIn("▦ Timeline · all 2, Oct 2025 → Sep 2026, by commits in those months", text)
+        self.assertIn("Timeline · all 2, Oct 2025 → Sep 2026, by commits in those months", text)
         self.assertRegex(text, r"Ann\s+3(\s+0){9}\s+12\s+7")
         self.assertRegex(text, r"Bob(\s+0){11}\s+5")
         self.assertIn("Oct", text)
@@ -1816,18 +1820,18 @@ class Timeline(unittest.TestCase):
         r["activity"]["timeline"]["Tool"] = {"2026-09": 40}   # an older run counted trailer credits here
         r["activity"]["authors"] = {"Ann": {"commits": 22}, "Tool": {"commits": 40, "authored": 0}}
         text = rendered(r, [], width=120, full=True)
-        self.assertNotRegex(_section_text(text, "▦ Timeline"), r"Tool\s+\d")
-        self.assertRegex(_section_text(text, "▦ Timeline"), r"Ann\s+\d")
+        self.assertNotRegex(_section_text(text, "Timeline"), r"Tool\s+\d")
+        self.assertRegex(_section_text(text, "Timeline"), r"Ann\s+\d")
 
     def test_bots_are_left_out_of_the_timeline_and_named_under_people(self):
         r = sample_report()
         r["meta"]["bots"] = [{"name": "renovate[bot]", "commits": 940}, {"name": "github-actions[bot]", "commits": 195}]
         r["activity"]["timeline"]["renovate[bot]"] = {"2026-08": 30, "2026-09": 40}
         text = rendered(r, [], width=120)
-        self.assertNotIn("renovate[bot]", text.split("◉ People")[0], "the header and the findings do not mention bots")
+        self.assertNotIn("renovate[bot]", text.split("People")[0], "the header and the findings do not mention bots")
         full = rendered(r, [], width=120, full=True)
         self.assertRegex(full, r"Ann\s+3(\s+0){9}\s+12\s+7")
-        self.assertNotIn("renovate[bot]", _section_text(full, "▦ Timeline"), "no timeline row for a bot")
+        self.assertNotIn("renovate[bot]", _section_text(full, "Timeline"), "no timeline row for a bot")
         self.assertIn("2 bots left out: renovate[bot] 940, 1 more", text, "how many, and the busiest")
         self.assertIn("2 bots left out: renovate[bot] 940, github-actions[bot] 195", rendered(r, [], width=120, full=True), "--full names three")
         self.assertNotIn("bots left out", rendered(sample_report(), []))
@@ -1837,7 +1841,7 @@ class Timeline(unittest.TestCase):
         r["meta"]["bots"] = [{"name": "GitHub", "commits": 12}]   # actions@github.com: a bot by its address, not its name
         r["activity"]["timeline"]["GitHub"] = {"2026-08": 30, "2026-09": 40}
         text = rendered(r, [], width=120, full=True)
-        timeline = _section_text(text, "▦ Timeline")
+        timeline = _section_text(text, "Timeline")
         self.assertNotIn("GitHub", timeline)
         self.assertIn("Ann", timeline)
 
@@ -1845,7 +1849,7 @@ class Timeline(unittest.TestCase):
         r = sample_report()
         r["meta"]["identities"][0]["aliases"] = [{"name": "ann-x", "email": "1@users.noreply.github.com", "commits": 3}]
         text = rendered(r, [])
-        self.assertIn("◉ People · all 2 identities, by commits · 1 with aliases merged", text, "the count is the title's")
+        self.assertIn("People · all 2 identities, by commits · 1 with aliases merged", text, "the count is the title's")
         self.assertNotIn(".mailmap", text, "whose, and the hint, are --full's")
         self.assertIn("aliases merged for Ann; a .mailmap makes that permanent", rendered(r, [], full=True))
         self.assertIn("\n\naliases merged for Ann; a `.mailmap` makes that permanent\n", render.markdown(r, []), "a caption line is a paragraph of its own")
@@ -1892,7 +1896,7 @@ class Timeline(unittest.TestCase):
         name = "a" * 70   # longer than any room the twelve months leave at 80 columns
         r["activity"]["timeline"] = {name: {f"2025-{m:02d}": 3 for m in range(10, 13)} | {f"2026-{m:02d}": 3 for m in range(1, 10)}}
         text = rendered(r, [], width=80, full=True)
-        section_text = _section_text(text, "▦ Timeline")
+        section_text = _section_text(text, "Timeline")
         sec = next(s for s in render.sections(r, full=True, width=80) if s["id"] == "timeline")
         self.assertEqual(len(sec["columns"]) - 1, 12)
         for month in ("Oct", "Jan", "Aug", "Sep*"):
@@ -1926,12 +1930,12 @@ class Layout(unittest.TestCase):
         self.assertIn("↳ Add a .mailmap to make it permanent.", text)
         self.assertIn("a <a@x> merged into A <A@x>", text)
 
-    def test_sections_open_with_a_symbol_and_a_title(self):
+    def test_sections_open_with_their_title(self):
         text = rendered(sample_report(), [], width=80)
-        self.assertRegex(text, r"\n\n◉ People · all 2 identities, by commits\n")
+        self.assertRegex(text, r"\n\nPeople · all 2 identities, by commits\n")
         full = rendered(sample_report(), [], width=80, full=True)
-        self.assertRegex(full, r"\n\n◆ Hotspots · all 2, by changes × lines of code\n")
-        self.assertNotIn("─────", text.split("◉ People")[1].split("\n")[0], "no rule across the width")
+        self.assertRegex(full, r"\n\nHotspots · all 2, by changes × lines of code\n")
+        self.assertNotIn("─", text, "no rule across the width, nor under a table's heads")
 
     def test_no_tables_sit_side_by_side_at_any_width(self):
         """Size by language sat beside People, and Activity beside Surviving code, from 100 columns: the order of the
@@ -1940,10 +1944,10 @@ class Layout(unittest.TestCase):
             orders = set()
             for width in (80, 120, 200, 300):
                 text = rendered(sample_report(), [], width=width, full=full)
-                heads = [line for line in text.splitlines() if line[:1] in set(render.SYMBOLS.values()) | {"•"} and line[1:2] == " "]
+                heads = _headings(text)   # an empty section is its title, a colon and a note
                 for line in heads:
-                    self.assertNotRegex(line[2:], r"[◎◉◆⟷λ⌂▤◔▦◷•] [A-Z]", "one section on a line")
-                orders.add(tuple(render._base_title(line[2:]).split(":")[0] for line in heads))   # an empty section is its title, a colon and a note
+                    self.assertNotRegex(line, r"  [A-Z][a-z]+ [a-z]+ · ", "one section on a line")
+                orders.add(tuple(heads))
             self.assertEqual(len(orders), 1, "one order of sections whatever the width")
         self.assertEqual(orders.pop(), ("Watch list", "Watch list by component", "Hotspots", "Complex functions", "Change coupling", "Size by language", "Knowledge map", "People",
                                         "Timeline", "Activity", "Surviving code by year", "Changed lines", "Trailers", "Supply chain", "Signing by year", "Checks run", "OSPS Baseline"),
@@ -1963,29 +1967,29 @@ class Layout(unittest.TestCase):
     def test_share_columns_carry_inline_bars_in_full_only_tables(self):
         text = rendered(sample_report(), [], width=80)
         self.assertNotIn("▰", text, "no bars in the default report: People's said nothing its number did not")
-        self.assertRegex(_section_text(text, "◉ People"), r"Ann\s+234\s+64%\s+79%")
+        self.assertRegex(_section_text(text, "People"), r"Ann\s+234\s+64%\s+79%")
         text = rendered(sample_report(), [], width=80, full=True)
-        self.assertRegex(_section_text(text, "▤ Size by language"), r"HTML\s+28\s+4,783\s+88%\s+0\n", "two rows draw two lengths: no bar column says more than the shares")
+        self.assertRegex(_section_text(text, "Size by language"), r"HTML\s+28\s+4,783\s+88%\s+0\n", "two rows draw two lengths: no bar column says more than the shares")
         r = sample_report()
         r["size"]["languages"] += [{"name": "CSS", "files": 3, "code": 1200, "comment": 0, "blank": 0, "complexity": 0}, {"name": "TOML", "files": 1, "code": 0, "comment": 0, "blank": 0, "complexity": 0}]
         r["size"]["total_code"] += 1200
-        size = _section_text(rendered(r, [], width=80, full=True), "▤ Size by language")
+        size = _section_text(rendered(r, [], width=80, full=True), "Size by language")
         self.assertRegex(size, r"HTML\s+28\s+4,783\s+72% █{8}\s+0\n", "the column's largest share fills the eight cells")
         self.assertRegex(size, r"CSS\s+3\s+1,200\s+18% ██\s+0\n", "18 of 72, in eighths of a cell")
         self.assertRegex(size, r"Python\s+7\s+638\s+10% █▏\s+57\n", "10 of 72 is nine eighths of a cell")
         self.assertRegex(size, r"TOML\s+1\s+0\s+0%\s+0$", "zero draws nothing")
         self.assertNotIn("▰", text + size, "one glyph family in --full")
-        self.assertNotIn("█", _section_text(text, "◉ People"))
-        self.assertNotIn("█", _section_text(text, "⌂ Knowledge map"), "two share columns, and no bar on either")
+        self.assertNotIn("█", _section_text(text, "People"))
+        self.assertNotIn("█", _section_text(text, "Knowledge map"), "two share columns, and no bar on either")
 
     def test_no_value_is_marked_by_a_colour(self):
         """A share over a half, a pair at 95% and a file fixed 1,204 times were pink, a share over a fifth a lighter
-        pink: a row's only style now is its bold first cell, whatever its numbers."""
+        pink: a row has no style now, its first cell neither, whatever its numbers."""
         sec = render._section("T", [("file", render.PATH), ("share", render.RIGHT), ("together", render.RIGHT), ("fixes", render.RIGHT)],
                               [("a.py", "64%", "95%", 1204), ("b.py", "3%", "70%", 2)])
         sec["bars"] = False
         for row in render.table_lines(sec)["rows"]:
-            self.assertEqual([(span.start, span.end, str(span.style)) for span in row.spans if str(span.style)], [(2, 6, "bold")], row.plain)
+            self.assertEqual([(span.start, span.end, str(span.style)) for span in row.spans if str(span.style)], [], row.plain)
 
     def test_default_columns_are_the_ones_you_read(self):
         secs = {render._base_title(x["title"]): x for x in render.sections(sample_report(), full=False)}
@@ -2027,11 +2031,11 @@ class Layout(unittest.TestCase):
     # same "elided, not folded" behaviour is already pinned for Complex functions, which stays in
     # the default report, by test_long_paths_are_elided_like_every_other_table above.
 
-    def test_column_heads_and_the_rule_are_dim_and_nothing_else_in_a_table_is(self):
+    def test_column_heads_are_dim_and_nothing_else_in_a_table_is(self):
         sec = render._section("T", [("file", render.PATH), ("fixes", render.RIGHT)], [("a.py", 2)])
         table = render.table_lines(sec)
         self.assertEqual({str(span.style) for span in table["head"].spans if str(span.style)}, {"dim"})
-        self.assertEqual({str(span.style) for span in table["rule"].spans if str(span.style)}, {"dim"})
+        self.assertEqual({str(span.style) for row in table["rows"] for span in row.spans if str(span.style)}, set(), "a row's first cell is not bold")
         self.assertNotIn("dim", {str(span.style) for row in table["rows"] for span in row.spans}, "no column is dimmed to send the eye to another")
 
 
@@ -2041,7 +2045,7 @@ class ReviewFixes(unittest.TestCase):
         render.print_section(c, render._section("File types", [("type", {})], [["py"]], caption="c = code"))
         render.print_section(c, render._section("Portfolio (0 repositories)", [("repo", {})], [], note="no repositories"))
         text = c.export_text()
-        self.assertRegex(text, r"\n▥ File types\n")
+        self.assertRegex(text, r"\nFile types\n")
         self.assertIn("c = code", text)
         self.assertIn("Portfolio (0 repositories): no repositories", text)
 
@@ -2434,8 +2438,8 @@ class ChangeRisk(unittest.TestCase):
         console = Console(file=io.StringIO(), width=120, record=True, force_terminal=False, color_system=None)
         render.report(sample_report(), [], console, full=False, risk={"base": "main", **self.RISK}, base="main")
         text = console.export_text()
-        self.assertLess(text.index("◈ Change risk"), text.index("◉ People"), "the risk of this change belongs with the watch list")
-        self.assertGreater(text.index("◈ Change risk"), text.index("◎ Watch list"))
+        self.assertLess(text.index("Change risk"), text.index("People"), "the risk of this change belongs with the watch list")
+        self.assertGreater(text.index("Change risk"), text.index("Watch list"))
         md = render.markdown(sample_report(), [], risk={"base": "main", **self.RISK}, base="main")
         self.assertLess(md.index("## Change risk"), md.index("## People"))
         self.assertGreater(md.index("## Change risk"), md.index("## Watch list"))
@@ -2583,7 +2587,7 @@ class SmallRepository(unittest.TestCase):
         self.assertIn("## Change coupling", render.markdown(r, found))
         r["coupling"][0]["degree"] = 60   # under the finding's 80%: the watch list's columns name no partner, so the table is the only place
         self.assertEqual(findings.tight_coupling(r), [])
-        self.assertIn("⟷ Change coupling", rendered(r, []))
+        self.assertIn("Change coupling", rendered(r, []))
 
     def test_the_coupling_table_stays_when_it_says_more_than_the_watch_list(self):
         r = self.coupled()
@@ -2774,7 +2778,7 @@ class Fit(unittest.TestCase):
         return r
 
     def test_a_name_is_never_split_across_lines(self):
-        text = _section_text(rendered(self.people(), [], width=80), "◉ People")
+        text = _section_text(rendered(self.people(), [], width=80), "People")
         self.assertIn("Palash Debnath", text)
         self.assertIn("Paolo Antinori", text)
 
@@ -2784,11 +2788,11 @@ class Fit(unittest.TestCase):
                          {"entity": "electron/src/renderer/src/features/settings/model-library.tsx", "coupled": "backend/api/schemas.py",
                           "degree": 30, "average-revs": 9}]
         r["size"]["files"].update({p: {"code": 10, "complexity": 0} for c in r["coupling"] for p in (c["entity"], c["coupled"])})
-        text = _section_text(rendered(r, [], width=80), "⟷ Change coupling")
+        text = _section_text(rendered(r, [], width=80), "Change coupling")
         self.assertIn("backend/api/routers/{openai_compat.py,tts_stream.py}", text, "two files of one directory print whole in one cell")
         self.assertIn("{electron/…/settings/model-library.tsx,backend/api/schemas.py}", text, "a path inside the braces loses its middle directories, the longer first")
         self.assertTrue(all(len(line) <= 80 for line in text.splitlines()))
-        narrow = _section_text(rendered(r, [], width=54), "⟷ Change coupling")
+        narrow = _section_text(rendered(r, [], width=54), "Change coupling")
         self.assertIn("…/routers/{openai_compat.py,tts_stream.py}", narrow, "the directory the two share goes before either name")
         self.assertIn("{…/model-library.tsx,…/api/schemas.py}", narrow)
         self.assertTrue(all(len(line.rstrip()) <= 54 for line in narrow.splitlines()))

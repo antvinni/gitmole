@@ -50,7 +50,7 @@ class Shape(unittest.TestCase):
         self.assertIn("▲ Brain methods\n  9 functions are both long and complex:\n    · one (a.py) complexity 20\n    · two (b.py) complexity 19\n    · three (c.py) complexity 18\n"
                       "    · four (d.py) complexity 17\n    · five (e.py) complexity 16\n    and 4 more\n  They are measured by lizard\n  ↳ Split one first.\n", text,
                       "the fact, five subjects a line each, the rest counted with the ones the statement had counted, what the statement adds, the step")
-        block = text[text.index("\nFindings"):text.index("\n◎ ")]
+        block = text[text.index("\nFindings"):text.index("\nWatch list")]
         self.assertEqual(len([line for line in block.splitlines() if line and line[0] in "✖▲●"]), 5, "every finding, each with its own mark")
         self.assertIn("● Debt the authors flagged in hotspots (not measured yet)\n  8 of the top 10 hotspots carry TODO or FIXME comments; most in\n  static/index.html (10)\n  ↳ Ticket it.", text,
                       "a statement that is no list is whole, and a note from a rule not measured yet keeps its step")
@@ -212,7 +212,7 @@ class SupplyChain(unittest.TestCase):
         self.assertEqual(rows["step: trend"], ("timed out", ""))
         self.assertEqual(rows["step: code age"], ("did not run", "--deep runs it"))
         self.assertEqual(rows["step: scc"], ("ran", "35 files with code"))
-        text = _section_text(full(report=r), "• Checks run")
+        text = _section_text(full(report=r), "Checks run")
         self.assertNotRegex(text, r"\d+(\.\d+)?s\b", "no seconds: the same commit, the same table")
         r["hygiene"] = {}
         r["structure"] = {}
@@ -228,7 +228,7 @@ class SupplyChain(unittest.TestCase):
         rows = {row[0]: row for row in render.osps_section(r)["wide"]["rows"]}
         self.assertEqual(rows["OSPS-BR-07.01"][1:], ["gap", "No unencrypted secrets or credentials in version control", "Credential-shaped files tracked (matched by file name alone)"])
         self.assertNotIn("file name alone", rows["OSPS-GV-03.01"][3], "a gap a check stands behind says nothing of it")
-        text = _section_text(full(report=r), "• OSPS Baseline")
+        text = _section_text(full(report=r), "OSPS Baseline")
         self.assertIn("  OSPS-BR-07.01  gap\n    asks: No unencrypted secrets or credentials in version control\n    evidence: Credential-shaped files tracked (matched by file name alone)\n", text)
 
 
@@ -238,7 +238,7 @@ class NothingLost(unittest.TestCase):
     def test_no_text_of_these_three_sections_is_cut_at_any_width(self):
         for width in WIDTHS:
             text = full(width)
-            for title in ("• Watch list by component", "• Agent surface", "• OSPS Baseline") + (("• Checks run", "• Dependencies by lock file") if width >= 80 else ()):   # 80 columns is the complete report
+            for title in ("Watch list by component", "Agent surface", "OSPS Baseline") + (("Checks run", "Dependencies by lock file") if width >= 80 else ()):   # 80 columns is the complete report
                 self.assertNotIn("…", _section_text(text, title).replace("…/", ""), (width, title))   # a path may still lose its directories
         text = full(80)
         self.assertIn("  static/      35%\n    static/index.html · static/apps-metadata.json\n", text, "a component's files under its row, whole")
@@ -259,21 +259,20 @@ class Tidied(unittest.TestCase):
         self.assertIsNone(render.bar_cells([5, 5, 0]), "two lengths: no column")
         self.assertIsNone(render.bar_cells([0, 0]))
         text = full()
-        self.assertRegex(_section_text(text, "◔ Activity"), r"Thu +60 +26%  ████████\n")
-        self.assertNotIn("▰", text.replace(_section_text(text, "◎ Watch list"), ""), "no second glyph family")
+        self.assertRegex(_section_text(text, "Activity"), r"Thu +60 +26%  ████████\n")
+        self.assertNotIn("▰", text.replace(_section_text(text, "Watch list"), ""), "no second glyph family")
         for mark in render.BAR_PARTS + render.BLOCK_MARK:
             self.assertIn(mark, render.ASCII_MARKS)
 
-    def test_the_second_table_of_trailers_has_a_rule_as_wide_as_its_widest_row(self):
+    def test_the_second_table_of_trailers_has_its_heads_then_its_rows(self):
         r = rich_report()
         r["provenance"]["cohort"] = {"definition": "an Assisted-by trailer", "share": 0.1, "cohort": {"commits": 35, "reverted": 2, "fixes": 4, "retouched": 20},
                                      "rest": {"commits": 328, "reverted": 3, "fixes": 60, "retouched": 150}}
         for width in WIDTHS:
-            lines = _section_text(full(width, report=r), "• Trailers").splitlines()
+            lines = _section_text(full(width, report=r), "Trailers").splitlines()
             at = next(i for i, line in enumerate(lines) if line.startswith("  declared commits against the rest"))
-            table = [lines[at]] + lines[at + 2:at + 6]
-            self.assertEqual(len(lines[at + 1]), max(len(line) for line in table), width)
-            self.assertEqual(set(lines[at + 1].strip()), {"─"})
+            self.assertRegex(lines[at + 1], r"^  commits +35 +328$", width)
+            self.assertLessEqual(max(len(line) for line in lines[at:at + 5]), width)
 
     def test_a_caption_of_full_is_definitions_not_a_chain_of_semicolons(self):
         sec = render.lines_section(rich_report())

@@ -115,11 +115,26 @@ class BannerInCli(unittest.TestCase):
             cli.main([out, "--no-run"], console=c)
             return c.export_text()
 
-    def test_printed_on_a_terminal(self):
-        self.assertIn("███╗   ███╗", self._run(terminal=True))
+    def test_a_terminal_gets_one_line_not_the_banner(self):
+        """Above a report the banner was seven lines in colours the report never uses: it is the wait screen of a
+        run, and a re-render opens with the wordmark alone."""
+        from gitmole import __version__
+        text = self._run(terminal=True)
+        self.assertNotIn("███╗", text)
+        self.assertTrue(text.startswith(f"gitmole {__version__}\n\ndemo"), text[:40])
 
     def test_not_printed_when_piped(self):
-        self.assertNotIn("███╗", self._run(terminal=False))
+        text = self._run(terminal=False)
+        self.assertNotIn("███╗", text)
+        self.assertFalse(text.startswith("gitmole "), text[:40])
+
+
+class Wordmark(unittest.TestCase):
+    def test_the_name_bold_and_the_rest_dim(self):
+        text = banner.wordmark("1.2.3", "18 steps in 4.2s")
+        self.assertEqual(text.plain, "gitmole 1.2.3 · 18 steps in 4.2s")
+        self.assertEqual([(text.plain[sp.start:sp.end], str(sp.style)) for sp in text.spans], [("gitmole", "bold"), (" 1.2.3 · 18 steps in 4.2s", "dim")])
+        self.assertEqual(banner.wordmark("1.2.3").plain, "gitmole 1.2.3")
 
 
 class VersionLine(unittest.TestCase):
