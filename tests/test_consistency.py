@@ -857,6 +857,26 @@ class FromTheSuperpowersExport(unittest.TestCase):
         boxed = ["╭─ demo ──╮", "│ history   1 │", "│ commits │", "╰─────────╯", "╭─ Findings ─╮", "│ ▲ checked 1 │", "│   packages  │", "╰────────────╯"]
         self.assertEqual(sorted(c["subject"] for c in self.complaints(boxed)), ["'1 commits' (1x)", "'1 packages' (1x)"], "the boxes are read as they were")
 
+    def test_a_table_without_a_rule_is_still_a_chunk_a_line(self):
+        """A table without a rule under its heads has the header's shape, a title over lines two in. Only the
+        report's first block is read as the header's label grid, so a row's last number is not the count of the
+        line under it, as it was not under a rule; the header's own wrapped row is still one."""
+        lines = ["demo · branch main @ 296080c0",
+                 "  history   21 commits · 2026-01-01 → 2026-09-01 · 1",
+                 "            identities",
+                 "",
+                 "Watch list · 1 of 1, ranked by changes × lines of code",
+                 "  file  changes  fixes",
+                 "  a.py        4      1",
+                 "    files changed with it: b.py",
+                 "",
+                 "Supply chain",
+                 "  secrets       none found"]
+        self.assertEqual([c["subject"] for c in self.complaints(lines)], ["'1 identities' (1x)"])
+        chunks = consistency._chunks(lines)
+        self.assertIn("  a.py        4      1", chunks)
+        self.assertIn("    files changed with it: b.py", chunks)
+
     def complaints(self, lines):
         with mock.patch.object(consistency, "_default_report", return_value=lines):
             return consistency.plural_one(report(), [])

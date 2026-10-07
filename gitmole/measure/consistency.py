@@ -1600,7 +1600,9 @@ def _running(lines: list) -> str:
 _SUPPLY_CHAIN = re.compile(r"^(?:\S+ )?Supply chain\s*$")   # the section's title line, behind its pictogram or without one
 _GRID_LABEL = re.compile(r"^ {2}\S")                        # a row of its label grid starts two in; what a row wraps to starts further in
 _FINDINGS = re.compile(r"^(?:\S+ )?Findings(?: · .*)?$")    # the Findings title line once it has no box around it, with its tally or bare
-_RULE = re.compile(r"^\s*─+\s*$")                           # the rule under a table's column heads
+_RULE = re.compile(r"^\s*─+\s*$")                           # the rule under a table's column heads, while tables had one
+_SINCE = re.compile(r"^(?:\S+ )?Since last report\b")       # the one label grid after the header that is not the Supply chain
+_ENTRY = re.compile(r"^[✖▲●·] ")                            # a finding's entry after the first, or the line on what was not measured
 
 
 def _joined(lines: list) -> str:
@@ -1619,14 +1621,20 @@ def _grid_rows(lines: list) -> list:
     return [_joined(row) for row in rows]
 
 
-def _unboxed(block: list) -> list:
-    """One run of lines between two blank ones, outside any box, as its chunks. A table (it has a rule under
-    its column heads) is a chunk a line, as it always was. From the output plan's item A11 the header and the
-    Findings have no box either, and are told by their shape: the Findings block opens with its title line and
-    each entry starts at column 1 with its mark, its statement, subject lines and step wrapped under it, so an
-    entry is one running text; the header is a title line over a label grid, each row of which is a chunk (a
-    row that ends in a number is not counting the next row's label, "files" or "commits"). Anything else is a
-    chunk a line."""
+def _unboxed(block: list, first: bool = False) -> list:
+    """One run of lines between two blank ones, outside any box, as its chunks. A table is a chunk a line, as it
+    always was. From the output plan's item A11 the header and the Findings have no box either, and are told by
+    their shape: the Findings block opens with its title line and each entry starts at column 1 with its mark,
+    its statement, subject lines and step wrapped under it, so an entry is one running text; the header is a
+    title line over a label grid, each row of which is a chunk (a row that ends in a number is not counting the
+    next row's label, "files" or "commits"). Anything else is a chunk a line.
+
+    A table was told by the rule under its column heads. A table without one has the header's shape, a title
+    over lines two columns in, so the blocks read that way are named instead: the header, which is the report's
+    `first` block; Since last report, the only grid after it (the Supply chain is _chunks'); and a finding's
+    entry after the first, which a blank line parts from the Findings block since 0.46.0, by its mark. A
+    table's row with a line under it (the watch list's "look at first" at a narrow width) is then two chunks,
+    as it was under a rule, not one."""
     if any(_RULE.match(l) for l in block):
         return list(block)
     if _FINDINGS.match(block[0]):
@@ -1637,7 +1645,8 @@ def _unboxed(block: list) -> list:
             else:
                 entries[-1].append(l)
         return [block[0]] + [_joined(e) for e in entries]
-    if len(block) > 1 and block[0][:1] != " " and all(l.startswith("  ") for l in block[1:]):
+    grid = first or _SINCE.match(block[0]) or _ENTRY.match(block[0])
+    if grid and len(block) > 1 and block[0][:1] != " " and all(l.startswith("  ") for l in block[1:]):
         return [block[0]] + _grid_rows(block[1:])
     return list(block)
 
@@ -1660,13 +1669,13 @@ def _chunks(lines: list) -> list:
     old = next((i for i, l in enumerate(lines) if l.startswith("Secrets:")), None)
     new = next((i for i, l in enumerate(lines) if _SUPPLY_CHAIN.match(l)), None)
     at = old if old is not None else new if new is not None else len(lines)
-    rest, block = [], []
+    rest, block, first = [], [], True
     for l in [l for l in lines[:at] if not l.startswith(("│", "╭", "╰"))] + [""]:
         if l.strip():
             block.append(l)
         elif block:
-            rest += _unboxed(block)
-            block = []
+            rest += _unboxed(block, first)
+            block, first = [], False
     said = [_joined(panel)]
     if old is None and new is not None:
         tail = lines[at + 1:]
