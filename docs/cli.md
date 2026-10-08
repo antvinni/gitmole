@@ -35,7 +35,7 @@ next to it), with sizes, and deletes them after one y/N question.
 `gitmole --help` prints the same groups, one line per option, and the
 [exit codes](#exit-codes); this is the long form.
 
-An option is taken by its whole name only. Until 0.47.0 any unambiguous
+An option is taken by its whole name only. Up to 0.47.0 any unambiguous
 prefix was accepted (`--ful` ran as `--full`), so a script that used one would
 have broken, or changed meaning, the day an option sharing it was added. A
 misspelt option, a value outside a flag's choices or an unknown `--section`
