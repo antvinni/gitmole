@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime as dt
+import difflib
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -46,6 +48,15 @@ examples:
 section names, for --section NAME:
 {section.names_text()}
 
+exit codes:
+  0    done, and no gate asked for found anything
+  1    --doctor found a tool off its pin; --install-tools or --clean fell short
+  2    the command line was refused, or an output directory could not be read
+  3    a gate found what it stops on: --fail-on, or --risk-threshold exceeded
+  4    a gate could not check: a step it reads did not finish, or
+       --require-vuln-db found no vulnerability database
+  130  interrupted
+
 every option in detail:
   {DOCS_URL}/cli.md
 reading your first report:
@@ -56,11 +67,49 @@ reading your first report:
 USAGE = """gitmole [options] [target]
        gitmole --doctor | --install-tools | --clean [DIR]"""
 
+# What a bare `gitmole` says: what it needs, then where to start. It said "target required" and nothing else.
+NO_TARGET = """target required: a clone, owner/repo, 'owner/*' or a git URL
+  gitmole .            the clone you are in
+  gitmole owner/repo   clone into a temp dir, then report
+  gitmole --help       every option, the section names and the exit codes"""
+
+
+_UNRECOGNIZED = "unrecognized arguments: "
+_INVALID_CHOICE = re.compile(r"^argument (\S+?)(?:/\S+)?: invalid choice: '([^']*)'")   # its choices are read from the action, not the message, whose wording moves between Pythons
+
+
+def did_you_mean(word: str, candidates) -> str | None:
+    """The one of `candidates` `word` was most likely meant to be, by difflib's ratio at its default cut-off of
+    0.6, or None: "--fulll" is "--full", "warnig" is "warning", and a word near nothing gets no guess."""
+    close = difflib.get_close_matches(word, list(candidates), n=1)
+    return close[0] if close else None
+
+
+class _Parser(argparse.ArgumentParser):
+    """argparse with a guess on a near miss. An unknown option and a value outside a flag's choices say which
+    known one they were likely meant to be, as `--section` does for a section's name. Python 3.14's
+    suggest_on_error does the second only, and gitmole runs from 3.9."""
+
+    def error(self, message):
+        if message.startswith(_UNRECOGNIZED):
+            options = [o for a in self._actions for o in a.option_strings if a.help != argparse.SUPPRESS]
+            guesses = [(w, did_you_mean(w, options)) for w in message[len(_UNRECOGNIZED):].split() if w.startswith("-")]
+            message += "".join(f"; did you mean {g}?" if len(guesses) == 1 else f"; {w}: did you mean {g}?" for w, g in guesses if g)
+        else:
+            m = _INVALID_CHOICE.search(message)
+            action = next((a for a in self._actions if m and m.group(1) in a.option_strings and a.choices), None)
+            guess = did_you_mean(m.group(2), [str(c) for c in action.choices]) if action and "you meant" not in message else None
+            if guess:
+                message += f"; did you mean {guess}?"
+        super().error(message)
+
 
 def build_parser() -> argparse.ArgumentParser:
-    """The command line, in groups, one line per option; the prose for each lives in docs/cli.md."""
-    p = argparse.ArgumentParser(prog="gitmole", usage=USAGE, description="Analyse a git repository offline and print a report.",
-                                epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter, add_help=False)
+    """The command line, in groups, one line per option; the prose for each lives in docs/cli.md. No option can
+    be abbreviated: `--ful` was taken for `--full`, so a script that used a prefix would break, or change
+    meaning, the day an option sharing that prefix was added."""
+    p = _Parser(prog="gitmole", usage=USAGE, description="Analyse a git repository offline and print a report.",
+                epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter, add_help=False, allow_abbrev=False)
     p.add_argument("target", nargs="?", help="a clone, owner/repo, 'owner/*' or a git URL; with --no-run, an output "
                                              "directory; with --clean, where to look (default .)")
 
@@ -255,7 +304,7 @@ def _check_args(args, err, kind=None) -> int | None:
         return None
     if kind is None:
         bad = ("--yes needs --clean" if args.yes and not args.clean else
-               "target required" if args.target is None and not args.clean else
+               NO_TARGET if args.target is None and not args.clean else
                "--hook needs --no-run and an output directory" if args.hook and not args.no_run else
                "--risk-threshold needs --risk" if args.risk_threshold is not None and not args.risk and not args.hook else
                "--compare: no such file: " + args.compare if args.compare and not os.path.isfile(args.compare) else

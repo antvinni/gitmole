@@ -32,7 +32,16 @@ next to it), with sizes, and deletes them after one y/N question.
 
 ## Options
 
-`gitmole --help` prints the same groups, one line per option; this is the long form.
+`gitmole --help` prints the same groups, one line per option, and the
+[exit codes](#exit-codes); this is the long form.
+
+An option is taken by its whole name only. Until 0.47.0 any unambiguous
+prefix was accepted (`--ful` ran as `--full`), so a script that used one would
+have broken, or changed meaning, the day an option sharing it was added. A
+misspelt option, a value outside a flag's choices or an unknown `--section`
+name is refused with exit 2 and a guess at what was meant
+(`unrecognized arguments: --fulll; did you mean --full?`), when one is near.
+`gitmole` with no target says what it needs and where to start.
 
 ### Run
 

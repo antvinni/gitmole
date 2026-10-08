@@ -311,7 +311,10 @@ class CommandLine(unittest.TestCase):
     def test_an_unknown_name_prints_the_list_and_exits_2_before_anything_runs(self):
         rc, text = _main(["/nonexistent/analysis-x", "--no-run", "--section", "hot spots", "--section", "nope"])
         self.assertEqual(rc, 2)
-        self.assertIn("--section: no section called 'hot spots', 'nope'. The names:", text)
+        self.assertIn("--section: no section called 'hot spots', 'nope'; did you mean hotspots? The names:", text, "a guess for the one near a name")
+        rc, text = _main(["/nonexistent/analysis-x", "--no-run", "--section", "nope"])
+        self.assertIn("--section: no section called 'nope'. The names:", text, "and none for a name near nothing")
+        self.assertEqual([section.close_name(n) for n in ("peple", "Complex-Function", "wach", "zzz")], ["people", "complex-functions", "watch-list", None])
         for name in section.NAMES:
             self.assertIn(name, text)
         self.assertNotIn("no gitmole output found", text, "said before the target is looked at")

@@ -15,6 +15,7 @@ every finding in the long form, and `companions`, the directed pairs --hook and 
 from __future__ import annotations
 
 import csv
+import difflib
 import io
 import re
 
@@ -38,6 +39,14 @@ def canonical(name: str):
     key = re.sub(r"[\s_-]+", "-", (name or "").strip().lower())
     key = ALIASES.get(key, key)
     return key if key in NAMES else None
+
+
+def close_name(name: str):
+    """The name in NAMES that a misspelt `name` was likely meant to be ("peple" -> "people"), by difflib at its
+    default cut-off, or None when nothing is near."""
+    key = re.sub(r"[\s_-]+", "-", (name or "").strip().lower())
+    close = difflib.get_close_matches(key, list(NAMES) + list(ALIASES), n=1)
+    return canonical(close[0]) if close else None
 
 
 def name_of(sid: str):
@@ -70,7 +79,9 @@ def check(args) -> str | None:
         return None
     unknown = [n for n in asked if canonical(n) is None]
     if unknown:
-        return f"--section: no section called {', '.join(repr(n) for n in unknown)}. The names:\n{names_text()}"
+        guesses = [g for g in (close_name(n) for n in unknown) if g]
+        guess = f"; did you mean {' or '.join(dict.fromkeys(guesses))}?" if guesses else "."
+        return f"--section: no section called {', '.join(repr(n) for n in unknown)}{guess} The names:\n{names_text()}"
     args.section = list(dict.fromkeys(canonical(n) for n in asked))
     if args.full:
         return "--section prints a section whole, every row of it; --full has nothing to add to it"

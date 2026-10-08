@@ -1442,6 +1442,49 @@ class Clean(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("target required", c.export_text())
 
+    def test_no_target_says_where_to_start(self):
+        c = console()
+        cli.main([], console=c)
+        lines = c.export_text().splitlines()
+        self.assertEqual(lines[0], "target required: a clone, owner/repo, 'owner/*' or a git URL", "the failure first")
+        self.assertIn("  gitmole .            the clone you are in", lines)
+        self.assertIn("  gitmole --help       every option, the section names and the exit codes", lines)
+
+
+class CommandLine(unittest.TestCase):
+    """The parser itself: no abbreviations, a guess on a near miss, and the exit codes in --help."""
+
+    def refused(self, argv) -> str:
+        err = io.StringIO()
+        with mock.patch("sys.stderr", err), self.assertRaises(SystemExit) as stop:
+            cli.parse_args(argv)
+        self.assertEqual(stop.exception.code, 2)
+        return err.getvalue().strip().splitlines()[-1]
+
+    def test_no_option_is_taken_by_its_prefix(self):
+        """`--ful` ran as `--full`: a script that used a prefix would break, or change meaning, the day an option
+        sharing it was added."""
+        self.assertEqual(self.refused([".", "--ful"]), "gitmole: error: unrecognized arguments: --ful; did you mean --full?")
+        self.assertTrue(cli.parse_args([".", "--full"]).full, "the whole name is taken as ever")
+
+    def test_a_near_miss_gets_one_guess_and_a_far_one_none(self):
+        self.assertEqual(self.refused([".", "--fulll"]), "gitmole: error: unrecognized arguments: --fulll; did you mean --full?")
+        self.assertEqual(self.refused([".", "--fulll", "--jsn", "x"]),
+                         "gitmole: error: unrecognized arguments: --fulll --jsn x; --fulll: did you mean --full?; --jsn: did you mean --json?")
+        self.assertEqual(self.refused([".", "--zzzzzz"]), "gitmole: error: unrecognized arguments: --zzzzzz")
+        self.assertNotIn("--duplicates", self.refused([".", "--duplicate"]), "a hidden option is never suggested")
+
+    def test_a_value_outside_a_flags_choices_gets_a_guess(self):
+        self.assertTrue(self.refused([".", "--fail-on", "warnig"]).endswith("; did you mean warning?"))
+        self.assertTrue(self.refused([".", "--sarif-scope", "histroy"]).endswith("; did you mean history?"))
+        self.assertNotIn("did you mean", self.refused([".", "--fail-on", "zzz"]))
+
+    def test_help_lists_every_exit_code(self):
+        text = cli.build_parser().format_help()
+        block = text[text.index("\nexit codes:\n"):text.index("\nevery option in detail:")]
+        self.assertEqual([line.split()[0] for line in block.splitlines()[2:] if line[:3] == "  " + line[2:3] and line[2:3].isdigit()],
+                         ["0", "1", "2", "3", "4", "130"], "the codes docs/cli.md#exit-codes documents, in its order")
+
 
 class Risk(unittest.TestCase):
     def _repo(self, d):
