@@ -129,8 +129,9 @@ run's summary says which branch to open, and publishing goes on regardless.
 
 So a release is three or four clicks: approve the release job, approve the publish
 job, open the formula pull request if the run says to, merge it. `main` takes pull
-requests only, and the tests, both determinism jobs and the formula job must be
-green before one can merge.
+requests only, and the tests, both determinism jobs, the formula job and the
+lint job must be green before one can merge. The release itself does not wait
+for lint: a release is tagged on a commit merged to `main`, which has passed it.
 
 The formula installs the last released tarball, not the checkout, so its
 dependencies have to satisfy the released code. A change that swaps or drops
