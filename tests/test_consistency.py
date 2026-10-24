@@ -877,6 +877,72 @@ class FromTheSuperpowersExport(unittest.TestCase):
         self.assertIn("  a.py        4      1", chunks)
         self.assertIn("    files changed with it: b.py", chunks)
 
+    def test_a_report_that_boxes_every_section_reads_as_the_drawing_before_it(self):
+        """Every section in a box, its title in the top border: the header's label grid, the Findings' entries,
+        a table and the Supply chain read as they do unboxed. A title too long for its border goes on in the
+        box's first line, from its " · "; a section's lines lose their two columns of indent in the box; a line
+        too long for its box loses its right border; a dim note between two boxes is a line of its own."""
+        boxed = ["╭─ demo · branch main @ 296080c0 ─────────────────────────╮",
+                 "│ history   21 commits · 2026-01-01 → 2026-09-01 · 1     │",
+                 "│           identities                                   │",
+                 "╰────────────────────────────────────────────────────────╯",
+                 "╭─ Findings · 1 warning ▲ ───────────────────────────────╮",
+                 "│ · 1 note ●                                             │",
+                 "│ ▲ Vulnerable dependencies                              │",
+                 "│   osv-scanner checked 1                                │",
+                 "│   packages in 1 lock file.                             │",
+                 "│                                                        │",
+                 "│ ● Bug magnets                                          │",
+                 "│   8 files were fixed 3 or more times                   │",
+                 "╰────────────────────────────────────────────────────────╯",
+                 "╭─ Watch list ───────────────────────────────────────────╮",
+                 "│ · 1 of 1, ranked by changes × lines of code, which     │",
+                 "│   is long                                              │",
+                 "│ file  changes                                          │",
+                 "│ a.py        1                                          │",
+                 "│ a/very/long/path/that/the/box/cannot/hold/whole/at/this/width.py",
+                 "│ files hidden: none                                     │",
+                 "╰────────────────────────────────────────────────────────╯",
+                 "Repo health: nothing flagged",
+                 "╭─ Supply chain ─────────────────────────────────────────╮",
+                 "│ secrets       none found                               │",
+                 "│ dependencies  1 packages in 1 lock file                │",
+                 "╰────────────────────────────────────────────────────────╯",
+                 "",
+                 "--full adds 1 section: Timeline.",
+                 "/tmp/out"]
+        self.assertEqual(consistency._unframed(boxed),
+                         ["demo · branch main @ 296080c0",
+                          "  history   21 commits · 2026-01-01 → 2026-09-01 · 1",
+                          "            identities",
+                          "",
+                          "Findings · 1 warning ▲ · 1 note ●",
+                          "▲ Vulnerable dependencies",
+                          "  osv-scanner checked 1",
+                          "  packages in 1 lock file.",
+                          "",
+                          "● Bug magnets",
+                          "  8 files were fixed 3 or more times",
+                          "",
+                          "Watch list · 1 of 1, ranked by changes × lines of code, which is long",
+                          "  file  changes",
+                          "  a.py        1",
+                          "  a/very/long/path/that/the/box/cannot/hold/whole/at/this/width.py",
+                          "  files hidden: none",
+                          "",
+                          "Repo health: nothing flagged",
+                          "Supply chain",
+                          "  secrets       none found",
+                          "  dependencies  1 packages in 1 lock file",
+                          "",
+                          "",
+                          "--full adds 1 section: Timeline.",
+                          "/tmp/out"])
+        self.assertEqual(sorted(c["subject"] for c in self.complaints(boxed)),
+                         ["'1 identities' (1x)", "'1 packages' (2x)"])
+        old = ["╭─ demo ──╮", "│ history   1 │", "│ commits │", "╰─────────╯", "Supply chain", "  secrets  none found"]
+        self.assertEqual(consistency._unframed(old), old, "a drawing with no box around the Supply chain is left as it is")
+
     def complaints(self, lines):
         with mock.patch.object(consistency, "_default_report", return_value=lines):
             return consistency.plural_one(report(), [])

@@ -1603,6 +1603,8 @@ _FINDINGS = re.compile(r"^(?:\S+ )?Findings(?: · .*)?$")    # the Findings titl
 _RULE = re.compile(r"^\s*─+\s*$")                           # the rule under a table's column heads, while tables had one
 _SINCE = re.compile(r"^(?:\S+ )?Since last report\b")       # the one label grid after the header that is not the Supply chain
 _ENTRY = re.compile(r"^[✖▲●·] ")                            # a finding's entry after the first, or the line on what was not measured
+_FRAMED = re.compile(r"^╭─ (?:\S+ )?Supply chain\b")        # the Supply chain's top border: the drawing that boxes every section
+_TOP = re.compile(r"^╭─ (.*?) ─*╮?\s*$")                    # a box's top border, the section's title in it
 
 
 def _joined(lines: list) -> str:
@@ -1651,6 +1653,53 @@ def _unboxed(block: list, first: bool = False) -> list:
     return list(block)
 
 
+def _inner(line: str) -> str:
+    """A box's line without its borders: "│ text │" is "text", a line too long for its box (a path left whole)
+    pushes the right border out and loses it the same way."""
+    s = line[1:]
+    s = s[1:] if s.startswith(" ") else s
+    s = s.rstrip()
+    return s[:-1].rstrip() if s.endswith("│") else s
+
+
+def _unframed(lines: list) -> list:
+    """The drawing that boxes every section, as the drawing before it: each box its title line and its lines,
+    then a blank line. The title is the top border's text; one too long for the border is cut at a " · " and
+    the rest is the box's first line, which starts with "· ", and the lines it wraps to, which start further in.
+    A section's lines lose two columns of indent in the box and get them back here; the Findings' entries start
+    at column 1 in either drawing. A drawing with no box around the Supply chain (every one before it, and the
+    one with only the header and the Findings boxed) is returned as it is."""
+    if not any(_FRAMED.match(l) for l in lines):
+        return list(lines)
+    return _unbox(lines)
+
+
+def _unbox(lines: list) -> list:
+    """Every box of `lines` as its title line, its lines and a blank line (_unframed), whatever drawing they
+    are part of: a section printed on its own has no Supply chain to tell the drawing by."""
+    out, box = [], None
+    for l in lines:
+        top = _TOP.match(l)
+        if box is None and top:
+            box = [top.group(1).strip()]
+        elif box is not None and l.startswith("╰"):
+            title, inner = box[0], box[1:]
+            if inner and inner[0].startswith("· "):
+                title += " " + inner.pop(0)
+                while inner and inner[0].startswith(" "):
+                    title += " " + inner.pop(0).strip()
+            out.append(title)
+            findings = bool(_FINDINGS.match(title))
+            out += [s if findings or not s else " " * 2 + s for s in inner]
+            out.append("")
+            box = None
+        elif box is not None:
+            box.append(_inner(l))
+        else:
+            out.append(l)
+    return out
+
+
 def _chunks(lines: list) -> list:
     """The report as the pieces a count phrase can sit in: the panels' text and the footer each as running text
     (both wrap mid-sentence), every table line on its own (joining rows would put one row's last number before
@@ -1664,8 +1713,12 @@ def _chunks(lines: list) -> list:
     the end, one running text. From A10 it is a titled Supply chain section, last in the report: a label grid,
     each row of which wraps under its own label and is a chunk of its own (a row that ends in a number is not
     counting the next row's label, "dependencies"), then a blank line and the closing lines, which are one
-    running text."""
-    panel = [l.strip("│ ") for l in lines if l.startswith("│")]
+    running text.
+
+    The drawing that boxes every section, the header and the Supply chain among them, is read as the one
+    before it (_unframed)."""
+    lines = _unframed(lines)
+    panel =[l.strip("│ ") for l in lines if l.startswith("│")]
     old = next((i for i, l in enumerate(lines) if l.startswith("Secrets:")), None)
     new = next((i for i, l in enumerate(lines) if _SUPPLY_CHAIN.match(l)), None)
     at = old if old is not None else new if new is not None else len(lines)
