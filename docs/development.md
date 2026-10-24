@@ -50,26 +50,14 @@ pinned in the job's `env` in `.github/workflows/ci.yml`; move them there.
 | ruff, rules `E9` and `F` only | a file that does not compile, an undefined name, an import or variable nothing uses, a redefinition | `ruff check --select E9,F --no-cache gitmole tests bin/*` |
 | every tracked `*.json`, `*.jsonl`, `*.yml`, `*.yaml` parses | a hand-edited record or label file that no longer loads; each line of a `.jsonl` is its own document | `python bin/lint-repo data` |
 
-`bin/lint-repo` needs PyYAML (`pip install PyYAML` at the version the job
-pins, in your own environment; it is not a dependency of gitmole) and uses
-its safe loader only. It reads `git ls-files`, so an untracked file is not
-checked, and it prints what it counted. For `action.yml` it writes each
-`shell: bash` step to a temporary file padded to the action's own line
-numbers, with every `${{ }}` replaced by underscores as actionlint does, so a
-finding reads `action.yml line N`.
-
-shellcheck reports errors and warnings only (`--severity=warning`, which
-the job also gives actionlint through `SHELLCHECK_OPTS`; set that variable
-when running `actionlint` yourself): its info and style notes are advice,
-not mistakes. The actionlint binary is the release archive for linux_amd64, checked against
-the sha256 its release publishes before it is unpacked. shellcheck is the one
-the runner image carries, so its version is the image's and is printed in the
-job's first step. Not covered: the Python inside a workflow's or the
-action's heredocs (`python - <<'PY'`), which no linter here reads, and a
-composite step whose shell is neither `sh` nor `bash` (there is none; the
-job would list it as not checked). When ruff reports an import that is there
-on purpose, a re-export or a probe for an optional module, mark that line
-`# noqa: F401` with the reason rather than widening the configuration.
+`bin/lint-repo` needs PyYAML at the version the job pins (not a dependency of
+gitmole), reads `git ls-files`, so an untracked file is not checked, and
+reports `action.yml` findings at the action's own line numbers. shellcheck
+reports errors and warnings only (`--severity=warning`; set
+`SHELLCHECK_OPTS` the same way when running `actionlint` yourself). The
+Python inside a workflow's heredocs is not linted. When ruff reports an import
+that is there on purpose, mark that line `# noqa: F401` with the reason rather
+than widening the configuration.
 
 ## Rules
 
@@ -120,11 +108,8 @@ named `formula/<tag>`; merging that is what makes `brew upgrade gitmole` follow.
 The tag publishes to PyPI after its own approval. Releases are listed at
 https://github.com/antvinni/gitmole/releases.
 
-The job tries to open the pull request for that branch and does not fail if it
-cannot: opening one needs the repository's "Allow GitHub Actions to create and
-approve pull requests", which is off, because the same setting lets a workflow
-approve a pull request and so satisfy this ruleset's extra approval for
-unattributed changes — and the formula commit is the bot's. When it cannot, the
+The job cannot open the pull request for that branch itself (the setting that
+would allow it also lets a workflow approve pull requests, so it is off); the
 run's summary says which branch to open, and publishing goes on regardless.
 
 So a release is three or four clicks: approve the release job, approve the publish
@@ -182,13 +167,9 @@ a parallel step writes belongs sorted where it is loaded.
 ## Code layout
 
 The code lives in `gitmole/`: `run.py` plans and executes the tools,
-`maat.py` is the standalone change analysis (revisions, coupling and sum of
-coupling over logical changesets, test co-change, authors with their minor
-contributors, age, ownership over the numstat log, co-authors credited,
-sweeping commits and declared ignore-revs left out, oversized fixes out of
-the fix pool, tangled commits counted; the file names still say maat because
-the layout matches what code-maat produced; degree of authorship, commits
-between midnight and 4 am and coupling between components are gitmole's own), `blame.py` is the standalone
+`maat.py` is the standalone change analysis over the numstat log (revisions,
+coupling, ownership, authorship, age, fixes; the file names say maat because
+the layout matches what code-maat produced), `blame.py` is the standalone
 code-age pass (its output mimics git-of-theseus so one loader serves both),
 `leaks.py` runs betterleaks and hashes the values before anything is
 written,
@@ -221,17 +202,12 @@ with the recorded reference date and writes `docs/examples/<repo>.md`; for
 the featured one it prints the report's opening as plain text on stdout. Clones and
 outputs are reused on a rerun; delete the directory to start clean.
 `python -m gitmole.evaluate CLONE OUT_DIR` replays the watch list at six
-cut-off dates against the fixes that followed each, next to the two factor
-products the list used to rank by, and lists ranked by churn alone, size
-alone, recent fixes, the change entropy variants and ManualUp, with a second
-table of what each list costs a reviewer against those fixes (initial false
-alarms, lines in the list, Popt); `--szz` adds a table against the files a
-commit before each cut-off made buggy, by R-SZZ over the fixes that followed
-(`szz.py`: the most recent commit a fix's removed lines blame to, one
-`git blame -w -C -C` per fix and file, so minutes on a large history), and
-`--labels CSV` a third against independent bug-inducing labels in
-ApacheJIT's, Defectors' or a bare-hash shape; the variants include Hassan's
-change entropy (`maat.entropy`, decayed over calendar months); the results are in
+cut-off dates against the fixes that followed each, next to lists ranked by
+other means (churn alone, size alone, recent fixes, change entropy, ManualUp)
+and what each costs a reviewer (initial false alarms, lines, Popt); `--szz`
+adds a table against bug-inducing commits found by R-SZZ (`szz.py`, minutes on
+a large history), and `--labels CSV` one against independent labels such as
+ApacheJIT's; the results are in
 [validation.md](https://github.com/antvinni/gitmole/blob/main/docs/validation.md).
 `python -m gitmole.measure.candidate BASE CANDIDATE` decides whether a ranking
 change beats the current watch list (measurement.md, "Is a candidate better?").
@@ -239,15 +215,11 @@ change beats the current watch list (measurement.md, "Is a candidate better?").
 [measurement.md](https://github.com/antvinni/gitmole/blob/main/docs/measurement.md):
 `run --ref TAG` runs a release from its own source over the corpus in
 `measure/corpus.json` and writes `docs/measurements/<version>.json` (only
-releases that change what gitmole finds or ranks are measured; the command that
-re-measured every past release tag was dropped at 0.39.0 as more machine time than
-it was worth, and the records it made stay as they are); it defaults to the
-fast loop's sets (development, awkward, gate), and `--release` runs a release
-round's instead (development, large, awkward, gate, well-kept), with remediation
-asked at the development set's six cut-offs when a path its answer depends on
-changed since the last record that asked it (`--remediation` asks it whatever
-changed and without `--release`, `--no-remediation` leaves it out; about 15 to 20
-minutes more wall time); `extras` runs the
+releases that change what gitmole finds or ranks are measured); it defaults to
+the fast loop's sets (development, awkward, gate), and `--release` runs a
+release round's (development, large, awkward, gate, well-kept), asking
+remediation when a path its answer depends on changed since the last record
+(`--remediation` and `--no-remediation` force it either way); `extras` runs the
 current tree's sensitivity sweep, description checks and hook replay over
 the development set (and the large set under `--release`) and its
 determinism check on curl and django (curl and react when django did not
@@ -257,14 +229,11 @@ Clones, fixtures and run outputs go under `$GITMOLE_MEASURE_DIR` (default
 `$TMPDIR/gitmole-measure`). Point it outside any temporary directory the
 system cleans by age: a cleaner that removes a clone's unread files leaves a
 clone that reads as "no commits yet". `GITMOLE_LABELS_DIR` points at ApacheJIT's
-`dataset/` for the holdout. The timed runs are sequential and share the
-machine with nothing, so the recorded times and memory are comparable, and
-each records the load average it ran under. The round holds off idle sleep
-with `caffeinate -i` for as long as it runs; plug in for comparable timings,
-and keep the lid open: a sleep still happens then, and shows as the record's
-`slept_seconds`. The rankings at cut-offs are not
-timed, so once every timed run is over they are computed side by side
-(`--jobs`, default 3; 1 is the old sequential round).
+`dataset/` for the holdout. The timed runs are sequential and should have the
+machine alone, so the recorded times and memory are comparable; each records
+its load average, and a sleep shows as `slept_seconds` (the round holds off
+idle sleep with `caffeinate -i`; plug in and keep the lid open). The untimed
+rankings at cut-offs run side by side afterwards (`--jobs`, default 3).
 
 The change analysis (hotspots, coupling, ownership, age) is gitmole's own
 code, written after the ideas in Adam Tornhill's code-maat but sharing no

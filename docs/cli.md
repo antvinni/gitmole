@@ -35,12 +35,9 @@ next to it), with sizes, and deletes them after one y/N question.
 `gitmole --help` prints the same groups, one line per option, and the
 [exit codes](#exit-codes); this is the long form.
 
-An option is taken by its whole name only. Up to 0.47.0 any unambiguous
-prefix was accepted (`--ful` ran as `--full`), so a script that used one would
-have broken, or changed meaning, the day an option sharing it was added. A
-misspelt option, a value outside a flag's choices or an unknown `--section`
-name is refused with exit 2 and a guess at what was meant
-(`unrecognized arguments: --fulll; did you mean --full?`), when one is near.
+An option is taken by its whole name only, never a prefix, so a script keeps its meaning when an option is
+added. A misspelt option, a value outside a flag's choices or an unknown `--section` name is refused with exit 2
+and a guess at what was meant (`unrecognized arguments: --fulll; did you mean --full?`).
 `gitmole` with no target says what it needs and where to start.
 
 ### Run
@@ -77,7 +74,7 @@ What is printed, and what is written beside it.
 
 | Option | What it does |
 |---|---|
-| `--full` | A report option, not a help option: print the report with every section and every finding. It is not every row: a table stops at 50 rows, hides what the default hides (test files, deleted files, vendored and generated code) and says in its title how many rows there are and which `--section NAME` prints them all (`People · 50 of 1,324 identities, by commits · --section people`). Each finding is laid out with the subjects its statement names a line each; the header closes with a `contents` row; the columns the default leaves out are back; and the sections only `--full` prints are added in their groups: Watch list by component, Hotspots, Size by language, Timeline, Activity, Surviving code by year, Changed lines, Trailers, and after the Supply chain section Secrets by rule, Dependencies by lock file, Signing by year, Checks run, Agent surface and the OSPS Baseline. `--markdown --full` takes the same cap. Until 0.44.0 `--full` printed every row (4,359 lines at 80 columns on prometheus, 964 now); a script that piped it for the rows wants `--section NAME --csv`. With `--clean`, it lists each temp clone rather than one row for them all. |
+| `--full` | A report option, not a help option: print the report with every section and every finding, and the columns the default leaves out. Not every row: a table stops at 50 rows, hides what the default hides, and says in its title which `--section NAME` prints the rest (`People · 50 of 1,324 identities, by commits · --section people`). The sections only `--full` prints are listed in [output.md](output.md#the-terminal-report). `--markdown --full` takes the same cap; for every row, use `--section NAME --csv`. With `--clean`, it lists each temp clone rather than one row for them all. |
 | `--section NAME` | Print one section of the report whole, and nothing else: every row, with no cap and nothing hidden. Repeatable. Works with `--no-run`, and with `--markdown`, which then holds the named sections only. See [One section, whole](#one-section-whole) for the names. |
 | `--csv` | With one `--section NAME`: write that section's rows to stdout as a CSV with a header line, holding every field the JSON export has for a row, and no email address. |
 | `--json PATH` | Write every table, the watch list and the findings as JSON to PATH, or `-` for stdout. |
@@ -86,7 +83,7 @@ What is printed, and what is written beside it.
 | `--sarif-scope SCOPE` | With `--sarif`, `head` or `history`: `head` (the default) keeps only the results whose file is in the tree; `history` keeps every result, the commit in its properties. |
 | `--sbom PATH` | Write a CycloneDX 1.6 SBOM of every locked package to PATH, or `-` for stdout. See [SBOM](#sbom). |
 | `--compare BEFORE.json` | Add a "Since last report" section against an earlier `--json` export of the same clone: findings new, resolved and persisting (with the counts that moved), files that entered or left the watch list. Works with `--no-run`; never changes the exit code; not with `owner/*`. |
-| `--feedback` | Ask five yes/no questions about the findings this run spelled out, and write the answers to `gitmole-feedback.json` beside the output. gitmole sends nothing: it prints a `gh issue create` command and a URL, and you choose. The file holds the rule id, the severity, your answer, gitmole's version and three bands (main language, file count, commit count) — no paths, names or values. Asked once on a plain interactive run without the flag; a decline is never repeated, and an answer is followed up after 90 days. Never asked with an export or gate flag (`--json`, `--markdown`, `--sarif`, `--sbom`, `--fail-on`, `--risk`, `--hook`, `--compare`), in portfolio mode, without a terminal, or where the environment declares CI. `GITMOLE_NO_FEEDBACK=1` turns it off for good, and `GITMOLE_CACHE=off` keeps no record of having asked. |
+| `--feedback` | Ask five yes/no questions about the findings this run spelled out, and write the answers to `gitmole-feedback.json` beside the output: the rule id, the severity, your answer, gitmole's version and three bands (main language, file count, commit count), no paths, names or values. gitmole sends nothing: it prints a `gh issue create` command and a URL, and you choose. Asked once on a plain interactive run without the flag, never with an export or gate flag, in portfolio mode, without a terminal or in CI; a decline is never repeated. `GITMOLE_NO_FEEDBACK=1` turns it off for good, and `GITMOLE_CACHE=off` keeps no record of having asked. |
 
 ### Gates
 
@@ -108,7 +105,7 @@ Checking and installing the tools, looking before a run, and tidying up after on
 | Option | What it does |
 |---|---|
 | `--doctor` | List every tool gitmole runs with the version found and the version pinned, and where to get a missing or moved one; whether the structure step can run; and the date of the local vulnerability database; then exit. Takes no target; other options are ignored. Exit 0 when every tool is at its pin, 1 otherwise. |
-| `--install-tools` | Download the three tools at the versions gitmole pins, from the release archives the Homebrew formula installs and checked against the same sha256, into gitmole's own directory, one `<tool>-<version>` directory each: `GITMOLE_TOOLS` if set (an absolute path), else `~/Library/Application Support/gitmole/tools` on macOS or `$XDG_DATA_HOME/gitmole/tools` (default `~/.local/share/gitmole/tools`) elsewhere. Each tool is run once after it lands to check it prints its pin. A run looks in the current pins' directories before PATH. Takes no target and refuses `--doctor`; other options are ignored. Nothing downloads when the directory cannot be written. Exit 0 when all three landed, 1 when one did not (no build for this platform, a hash mismatch, no network, a copy that does not run here) with the reason named. This, `--fetch-vuln-db` and a yes to the missing-tools question, which is asked only of a person at a terminal and never in CI or with an export or gate flag, are the only downloads gitmole makes of its own; see [install.md](install.md) for everything that reaches the network. |
+| `--install-tools` | Download the three tools at the versions gitmole pins, from the release archives the Homebrew formula installs and checked against the same sha256, into gitmole's own directory: `GITMOLE_TOOLS` if set, else `~/Library/Application Support/gitmole/tools` on macOS or `$XDG_DATA_HOME/gitmole/tools` (default `~/.local/share/gitmole/tools`) elsewhere. A run looks there before PATH. Takes no target and refuses `--doctor`. Exit 0 when all three landed, 1 when one did not, with the reason named. This, `--fetch-vuln-db` and a yes to the missing-tools question (asked only of a person at a terminal) are the only downloads gitmole makes of its own; see [install.md](install.md). |
 | `--fetch-vuln-db [CLONE]` | Download osv-scanner's offline vulnerability database for the ecosystems whose lock files CLONE holds (default `.`), with the pinned osv-scanner, into its cache (`OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY`, else the platform cache), then print the database's date and exit. The scan itself stays offline: a run reads the local copy and every report names its date, so the same commit gives the same report until you fetch again. Never automatic. Takes a local clone only; refuses `--doctor` and `--install-tools`. Exit 0 when fetched or when the clone has no lock file (nothing to fetch), osv-scanner's own code otherwise. |
 | `--list-file-types` | List the file types in the tree with counts and whether each counts as code, then exit. |
 | `--clean [DIR]` | List what gitmole left behind, temp clones, `analysis-*` outputs under DIR and tools `--install-tools` placed for pins this version no longer uses, with their sizes, and delete them after a y/N question. The temp clones show as one row with their count; `--full` lists each one. Exit 0 whether you answer yes or no, 2 without a terminal. |
@@ -235,10 +232,9 @@ parsing its sentence:
 A run also writes `findings.json` into its output directory, whether or not
 `--json` is given: the findings, the watch list with its check, the OSPS
 result, the header's numbers, what each hygiene check and each scan counted,
-the tools and the steps, in about a six-hundredth of the export's bytes
-(44 KB against 27 MB on prometheus) and with nothing in it that is the
-machine's or a secret's. It is the file to upload from a CI job or read
-from a script; the export is every table. See
+the tools and the steps, a small fraction of the export's size and with
+nothing in it that is the machine's or a secret's. It is the file to upload
+from a CI job or read from a script; the export is every table. See
 [The output directory](output.md#the-output-directory).
 
 The same commit with the same options gives the same bytes. The export is
@@ -246,21 +242,15 @@ written with its keys sorted, rows come back in one order whatever order a
 parallel step wrote them in, and each secret's keyed hash (the key is made
 for one run) is replaced by a stable label, `v1`, `v2`, the same value
 getting the same label. What does differ from one run to the next sits in
-one top-level key, `envelope`: the blame pass's projection (and
-`projected_partial` when its sample stopped early, over the budget; both are
-the same for the same commit now, and stay there so the export keeps its shape), the
-output directory, the clone's path on this machine, the structure cache's
-hits, each step's wall time and peak memory, and the count of objects no ref
-reaches — a reflog, a dropped stash, whatever gc has not collected — which
-belongs to the clone and not to the commit, so two clones of one commit
-differ there. A secret found in one of those objects is a finding this clone
-has and another does not. gitmole's own CI runs it
-twice on every commit, once more in another time zone and the C locale, and
-once on Linux, compares the exports without the envelope (a section an
-external tool produces only when both platforms ran the same version of
-it), and
-on `main` attests the report with `actions/attest`, so a report can be
-checked as coming from that commit and that workflow:
+one top-level key, `envelope`: the output directory, the clone's path, the
+structure cache's hits, each step's wall time and peak memory, the blame
+pass's projection, and the count of objects no ref reaches, which belongs to
+the clone and not to the commit (a secret found in one of those objects is a
+finding this clone has and another does not). gitmole's own CI runs it twice
+on every commit, once more in another time zone and the C locale, and once on
+Linux, compares the exports without the envelope, and on `main` attests the
+report with `actions/attest`, so a report can be checked as coming from that
+commit and that workflow:
 
 ```bash
 gh attestation verify report.json --repo antvinni/gitmole
@@ -276,6 +266,7 @@ A CI job that runs
 on secrets in source files and still posts the report. Secrets found only in
 test files are a warning, so gate on `warning` to block on those too. Both
 exports also work with `--no-run` against an earlier output directory.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -287,11 +278,9 @@ exports also work with `--no-run` against an earlier output directory.
 | 4 | A gate could not check: a step it reads failed, timed out or was skipped, and it found nothing it stops on in what the other steps left. The message names the step; `run.log` in the output directory says why. `--fail-on` reads every step but the two plots and the backtest; `--risk-threshold` reads scc, the log and the change analysis. Also, with `--require-vuln-db`, a dependency scan that had no vulnerability database. |
 | 130 | Interrupted. |
 
-A secrets scan that timed out leaves no secrets table, so before 4 existed
-`--fail-on critical` passed a repository whose scan never finished. The
-same holds for a re-render: `--no-run` on an output directory with a failed
-step exits 4 under a gate. An output directory from before steps were
-recorded (before 0.8.0) cannot say, and is judged on what it holds. Under
+Code 4 exists so a scan that never finished is not read as a clean one: a
+secrets scan that timed out leaves no secrets table. A re-render (`--no-run`)
+of an output directory with a failed step exits 4 under a gate too. Under
 `owner/*` the code is 3 if any repository tripped the gate, else 4 if any
 had an unfinished step. `--sarif` records the same thing on its run:
 `invocations[0].executionSuccessful` is false and
@@ -301,8 +290,7 @@ had an unfinished step. `--sarif` records the same thing on its run:
 
 osv-scanner runs `--offline`, and with no offline database on disk it
 checks nothing and exits cleanly. The step completed, so it is not a
-failed step, and until 0.40.0 `--fail-on critical` passed such a run as a
-clean one. Now a gate says so on stderr, once:
+failed step; a gate says so on stderr, once:
 
 ```
 dependency gate: no vulnerability database; nothing was checked
@@ -313,9 +301,7 @@ and the SARIF carries a `warning` notification with the descriptor
 (the invocation stays successful). The exit code does not change unless
 you asked for the database: `--require-vuln-db` makes it 4, the code for a
 gate that could not check. It is not the default because the database is
-a download (the report's header names the command), and the Action's
-`vulnerability-db` input is off by default, so every default CI run would
-exit 4 and the code would stop meaning anything; the Action passes
+a download, and every default CI run would then exit 4; the Action passes
 `--require-vuln-db` when `vulnerability-db: true`. A repository with no
 lock file had nothing to check and needs no database.
 
@@ -338,34 +324,18 @@ Commit the baseline, or keep it as a CI artifact, and write it again when
 the findings in it have been dealt with. A finding counts as in the
 baseline when the export has one with the same rule id (and, for the rules
 that report several, the same metric or email) at the same severity or
-worse; a finding that was a warning and is now critical is new. The rules
-whose one finding holds many subjects are compared by their subjects
-instead: a secret's place by betterleaks' fingerprint
-(`commit:file:rule:line`, the same one `.betterleaksignore` takes), a
-vulnerable package by name, version, lock file and advisory ids, an unpinned
-action by workflow file and `uses:` ref, a brain method or deeply nested
-function by file and name, a bug magnet by file, a Trojan Source
-character or mixed-script token by file, the character or token itself and
-which occurrence of it in that file it is (never its line, so an edit above
-a known token does not make it new), a lock file drift by its manifest. The subjects the
-baseline's finding did not hold go through the same rule on their own, and
-what that finds, at the severity it finds it, is what counts: a new secret
-or a new unpinned action fails the gate while the old ones stay reported,
-and a new magnet with three fixes is a note even when the finding is a
-warning because of an old one. A known value committed again is a new
-place, and counts. A truck factor counts when it hangs on a person, or
-names an area of one, the baseline's did not; complexity growth when a hotspot
-grew that the baseline's finding did not name. The subjects are read from
-the rows every `--json` export carries, so an older baseline works as it
-is; one that lacks a rule's rows (written before the structure step ran,
-say) is judged for that rule by its rule id alone, as every rule but
-secrets and vulnerable dependencies was until 0.42.0.
-The hygiene step keeps every unpinned action on a branch, handed a secret
-or a token that can write, and the others up to 50 per run, so a plain
-tag-pinned one past the fiftieth is not seen. Trojan Source rows and drifted
-manifests are kept 50 per list too; when a baseline's list was full, a row
-past its fiftieth that surfaces once an earlier one is fixed reads as new and
-counts, so the gate fails closed.
+worse; a finding that was a warning and is now critical is new. A rule
+whose one finding holds many subjects is compared by its subjects instead: a
+secret's place by betterleaks' fingerprint (`commit:file:rule:line`, the one
+`.betterleaksignore` takes), a vulnerable package by name, version, lock file
+and advisories, an unpinned action by workflow and `uses:` ref, a function by
+file and name, a bug magnet by file, a Trojan Source character by file,
+character and occurrence (never its line), a drifted lock file by its
+manifest. The subjects the baseline did not hold go through the rule on their
+own, and what that finds, at the severity it finds it, is what counts: a new
+secret fails the gate while the old ones stay reported. A baseline that lacks
+a rule's rows is judged for that rule by its rule id alone. Lists capped at 50
+fail closed: a row past the fiftieth that surfaces later reads as new.
 Findings in the baseline carry `"baseline": "in the baseline"` in the JSON
 (`"new"` otherwise) and `baselineState` `unchanged` or `new` in the SARIF;
 stderr names the ones that did not count. `--baseline` does not change the
@@ -373,45 +343,20 @@ exit code for a step that did not complete: 4 stays 4.
 
 `--risk-threshold` needs `--risk`; it exits 3 when the files changed since
 main hold more than 10% of the repository's changes × lines of code, and
-the total prints in the Change risk caption.
-
-The scale changed in 0.8.0: before, the total was a sum of factor-product
-scores with no fixed unit. A threshold chosen for 0.7 has to be chosen
-again; run `gitmole . --risk main` on a few merged changes and read the
-totals.
+the total prints in the Change risk caption. To choose a threshold, run
+`gitmole . --risk main` on a few merged changes and read the totals.
 
 The Change risk section, and `change_risk` in the JSON, carry what history
-says about the change beyond its total. Each scored file has its hotspot
-rank, fix counts, owner and share, minor-contributor count and whether it
-is on the watch list. `coupling_gaps` lists the companions a touched file
-usually changes with that the change did not touch: a file that moved in
-70% or more of the touched file's changes, over twenty or more of them
-(ROSE's directed confidence, after Zimmermann et al.). Replayed on real
-commits with one file left out, 54% of the warnings name the file that was
-left out, and 3% of complete commits get one, on thirteen repositories
-nobody tuned it on ([validation.md](validation.md#the-hooks-coupling-warning));
-so one is uncommon and right a little more often than not. Every touched file,
-scored or not, also says what imports it (`imported by 4 files, 31 counting
-what imports them`), from the structure step's import graph. Only importers
-in a language the graph is trusted for count: Python, JavaScript,
-TypeScript (`.ts` and `.tsx` gated apart) or Go, with ten or more files of that
-language and 60% or more of its imports resolved (`structure.trusted`, the same gate as possibly unreferenced
-files), and never a test file, which exercises a module rather than breaks
-with it; a file whose own language fails that gate and that no trusted
-importer names gets no count. `dependents` in the
-JSON holds both counts and names up to ten direct importers. A dynamic import
-or a plugin loaded by name is not in that graph, so the count is a floor.
-And `change` holds Kamei et al.'s
-just-in-time factors as named reasons beside the mass share, never folded
-into it: the files, directories, subsystems and commits, whether it is a
-fix by its subjects, lines added against the lines those files had, how
-evenly the change spreads over its files, how many of the files changed
-this month, their prior changes and people, and the author's prior commits
-here and in these subsystems (`touches 9 files across 4 directories in 2
-subsystems, 3 commits; a fix, by its subject; adds 340 lines to 1,200
-(28%), removes 12; most of the change is in one file; 3 of the 9 files
-changed this month; the files have 130 prior changes by 3 people; Bob has
-3 prior commits here, 2 in these subsystems`).
+says about the change beyond its total: each scored file's hotspot rank,
+fixes, owner and whether it is on the watch list; `coupling_gaps`, the
+companions a touched file usually changes with that the change did not touch
+(a file that moved in 70% or more of its changes, over twenty or more; ROSE's
+directed confidence, after Zimmermann et al.; right 54% of the time on a
+held-out replay, [validation.md](validation.md#the-hooks-coupling-warning));
+`dependents`, what imports each touched file, counted only through importers
+in a language the import graph is trusted for, and never a test file, so the
+count is a floor; and `change`, Kamei et al.'s just-in-time factors as named
+reasons beside the total, never folded into it.
 
 ## SARIF
 
@@ -438,8 +383,7 @@ whole rule's summary. Every result has a `partialFingerprints` entry hashed from
 path, commit and line, so a second upload updates alerts instead of
 duplicating them; a Trojan Source result's hash takes the character or token
 and its occurrence in the file in place of the line, which stays in the
-region, the same identity `--baseline` compares (gitmole 0.44.0 and earlier
-gave those results no location, so their fingerprints change once); for a secret that hash comes from where it was found,
+region, the same identity `--baseline` compares; for a secret that hash comes from where it was found,
 never from the value, so two runs agree although the keyed value hashes
 never do. A secret is one result per place, pointing at the file and
 naming the commit; its line belongs to that commit's version of the file,
@@ -557,8 +501,7 @@ The network is reached in the setup steps only: pip, the tool archives, and
 with `vulnerability-db: true` the OSV database for the ecosystems the
 workspace's lock files use. The scan itself runs `osv-scanner --offline` and
 `betterleaks --validation=false` as it does anywhere else. Linux and macOS
-runners are covered, x86_64 and arm64; before 0.39.0 a Linux arm64 runner was
-not, since those versions install git-sizer, which publishes no build for it.
+runners are covered, x86_64 and arm64.
 
 ## Docker
 
@@ -573,9 +516,7 @@ docker run --rm -v "$PWD:/repo" gitmole .
 docker run --rm -v "$PWD:/repo" gitmole . --fail-on critical --markdown /repo/gitmole.md
 ```
 
-The image builds for linux/amd64 and linux/arm64, natively on Apple silicon;
-an image of a release before 0.39.0 installs git-sizer, which has no Linux arm64
-build, and needs `--platform linux/amd64`. The analysis goes to `/analysis-repo` inside the
+The image builds for linux/amd64 and linux/arm64, natively on Apple silicon. The analysis goes to `/analysis-repo` inside the
 container unless `--out` names a mounted path. Run with
 `--user "$(id -u):$(id -g)"` to write exports as yourself; add
 `--out /tmp/analysis`, since that user cannot write to `/`. The vulnerability
@@ -623,23 +564,16 @@ documents` when it is on that list, and a change that touches no scored file
 ends `total 0.0%; none of these files is scored, so the total says nothing
 about this change`.
 
-The hook never blocks the agent; it is context. Up to 0.42.0 it exited 2,
-which every one of these hooks reads as "block", when the total was over
-`--risk-threshold`. But the total is the edited files' share of the
-repository's changes × lines of code, and no edit can lower it: the
-revisions are already in the log. Lewis et al. (ICSE 2013) put a flag of
-that kind in front of Google's code reviewers and saw no change in what
-they did, because "there is nothing that can be done by a team to
-immediately unflag a file". The only edits that did get under the threshold
-were the ones that hide a file from the count, splitting it or marking it
-`linguist-generated`, which make nothing safer. The coupling warning is
-something an edit can clear, by touching the companion, but it names the
-right file a little more often than not (54% on the held-out replay,
-[validation.md](validation.md#the-hooks-coupling-warning)), so a
-block on it would stop the agent wrongly about half the time; it stays
-context too. `--risk-threshold` with `--hook` is still accepted, so an
-existing hook configuration keeps working; it only says `over the 10%
-threshold` or `under` on the total line. The gate on a whole change is
+The hook never blocks the agent; it is context. The total is the edited
+files' share of the repository's changes × lines of code, and no edit can
+lower it: the revisions are already in the log. Lewis et al. (ICSE 2013) put
+a flag of that kind in front of Google's code reviewers and saw no change in
+what they did, because "there is nothing that can be done by a team to
+immediately unflag a file". The coupling warning names the right file a
+little more often than not (54% on the held-out replay,
+[validation.md](validation.md#the-hooks-coupling-warning)), so a block on it
+would stop the agent wrongly about half the time. `--risk-threshold` with
+`--hook` only says `over the 10% threshold` or `under` on the total line. The gate on a whole change is
 `gitmole . --risk origin/main --risk-threshold 10` in CI or at `pre-push`,
 which still exits 3 over the threshold: there it stops a change before
 review, where a person decides, not an agent's next edit.
@@ -718,20 +652,16 @@ Blame is the cost that scales with repo size. gitmole keeps it in check:
   skipped with a message, and the report shows net lines added per year from
   the change log instead, labelled as an approximation. The projection is not
   timed on your machine: the same commit gets the same decision, and the same
-  report, on a quiet laptop and a busy CI runner. Until 0.43.0 it was timed,
-  and a repository near the budget (django) ran code age on one run and not
-  the next. The rate is a typical one, not a promise: a repository can take
-  two or three times as long as projected (django is projected at 41 seconds
-  and its pass takes 80 to 100) or a fraction of it, and a slower machine takes
-  longer. Lower `--time-budget` to skip more, raise it or pass `--deep` to run
+  report, on a quiet laptop and a busy CI runner. The rate is a typical one,
+  not a promise: a repository can take two or three times as long as
+  projected, or a fraction of it. Lower `--time-budget` to skip more, raise it or pass `--deep` to run
   it regardless;
 - the plots need history, so `--plots` runs git-of-theseus with monthly
   sampling (tracked files × samples blames) on top, skipped above
   `--budget` (default 50,000 blames);
 - `--deep` forces both regardless of the budgets;
-- there is no duplicates step since 0.39.0 (jscpd was retired with the rule it
-  fed; [tools.md](tools.md#retired)). Older scripts that pass `--duplicates`
-  still parse; the flag does nothing;
+- `--duplicates` still parses for old scripts and does nothing; the duplicates
+  step was retired ([tools.md](tools.md#retired));
 - `--ignore-data` excludes data-like files (csv, json, lock files, minified
   and vendored assets) from blame and from the function metrics, and
   `--ignore GLOB` adds your own patterns, repeatable.
@@ -748,12 +678,7 @@ and removed again when the step ends.
 
 A tool that exceeds `--timeout` is killed along with its child processes,
 and the rest of the report still renders: whatever the tool had written is
-read as no data, the terminal header's `steps` row (in Markdown, the start of
-the line that gives the share of fix commits) names the step (`size timed out`; `structure checks timed out`, `failed`
-or `did not complete` for the step whose eight rules have no section of their
-own), and `meta.json` records every step's outcome under `steps`. A structure
-step skipped because gitmole runs on Python before 3.10 is said nowhere in
-the report, default or `--full`, so one commit renders one report on every
-interpreter; nor does the install say it, since the grammars' Python-version
-markers simply leave them out. Only `meta.json` says so, under `structure`,
-with the reason in `install`.
+read as no data, the header's `steps` row names the step (`size timed out`), and `meta.json`
+records every step's outcome under `steps`. A structure step skipped because
+gitmole runs on Python before 3.10 is said only in `meta.json`, under
+`structure`, so one commit renders one report on every interpreter.
