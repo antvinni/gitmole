@@ -16,15 +16,18 @@ from rich.text import Text
 
 from . import brief, classify, coupling, deps, filetypes, hotspots, identity, knowledge, leaks, loss, provenance, scope, textfmt, trend, watch
 
-# The report's whole palette: bold, dim, yellow for a warning and red for a critical, and nothing else. The
-# default render of prometheus held 23 different escape sequences, among them a truecolour blue, purple and pink
-# and a near-black row background, which is unreadable on a light theme and noise in a CI log. Yellow and red
-# are a severity's and go on a finding's mark and title (and a scan's verdict) only; a note has no colour; a
-# title's name is bold and what qualifies it dim; captions, column heads and labels are dim; a table's rows, a
-# statement, a step and every number are in the terminal's own foreground. A title has no pictogram and a
-# table no rule under its heads: the only marks are the ones that say something, a severity's, a step's and a
-# subject's. The logo banner (banner.py) keeps its own colours, and shows only while a run is under way.
-BOLD, DIM = "bold", "dim"
+# The report's whole palette: bold, dim, cyan for the accent, yellow for a warning and red for a critical, and
+# nothing else, all of them the terminal's own named colours, so a light theme and a dark one each draw them in
+# their own shade. The default render of prometheus held 23 different escape sequences, among them a truecolour
+# blue, purple and pink and a near-black row background, which is unreadable on a light theme and noise in a CI
+# log. Yellow and red are a severity's and go on a finding's mark and title (and a scan's verdict) only; a note
+# has no colour; cyan is the header's border and a step's mark, and nothing a reader must tell apart; a title's
+# name is bold and what qualifies it dim; captions, column heads, labels and the boxes' borders are dim; the
+# column a table is ranked by is bold; the rest of a table's rows, a statement, a step's text and every other
+# number are in the terminal's own foreground. A title has no pictogram and a table no rule under its heads:
+# the only marks are the ones that say something, a severity's, a step's and a subject's. The logo banner
+# (banner.py) keeps its own colours, and shows only while a run is under way.
+BOLD, DIM, ACCENT = "bold", "dim", "cyan"
 SEVERITY_STYLE = {"critical": "bold red", "warning": "yellow", "info": ""}
 
 # the Timeline's month columns: each is 3 characters wide plus the 2 of GAP in front of it, a clean 5 per
@@ -2644,6 +2647,7 @@ ASCII_MARKS = {
     BAR_MARK: "#", BLOCK_MARK: "#", **{part: "|" if n < 3 else "#" for n, part in enumerate(BAR_PARTS)},   # under half a cell, and half or more
     **{block: str(level) for level, block in enumerate(trend.BLOCKS[:-1], 1)},   # a sparkline as its levels, 1 to 7 and "#"
     "═": "=", "║": "|", "╔": "+", "╗": "+", "╚": "+", "╝": "+", "▀": "#",   # the banner's, should a terminal that cannot carry them be given it
+    "╭": "+", "╮": "+", "╰": "+", "╯": "+", "│": "|", "─": "-",   # a box's corners and borders (framed)
 }
 
 
@@ -2872,7 +2876,7 @@ def _titled(g: dict, style: str) -> Text:
 
 def _step(lines: list) -> list:
     """A step's lines as printed: led by its mark, the lines it wraps to under the text after the mark."""
-    return [f"{STEP_MARK} {lines[0]}"] + [f"  {line}" for line in lines[1:]] if lines else []
+    return [Text.assemble((STEP_MARK, ACCENT), f" {lines[0]}")] + [f"  {line}" for line in lines[1:]] if lines else []
 
 
 SUBJECT_MARK = "·"   # in front of a finding's subject line, two in from its statement
@@ -3158,7 +3162,7 @@ def fit(sec: dict, width) -> dict:
     col_opts = [dict(opts[i], width=widths[i]) for i in keep]
     caption = sec.get("caption")
     if dropped:
-        left = f"{textfmt.join_and(dropped)} left out at {width} columns; a wider terminal or --markdown shows {'it' if len(dropped) == 1 else 'them'}"
+        left = f"{textfmt.join_and(dropped)} left out at {width + sec.get('border', 0)} columns; a wider terminal or --markdown shows {'it' if len(dropped) == 1 else 'them'}"   # the page's width, a box's border too
         caption = f"{caption}\n{left}" if caption else left
     return dict(sec, columns=[cols[i] for i in keep], col_opts=col_opts, rows=fitted, caption=caption)
 
@@ -3188,7 +3192,24 @@ def table_lines(sec: dict) -> dict:
         return out
     head = line(cols)
     head.stylize(DIM, INDENT)
-    return {"head": head, "rows": [line(r) for r in cells]}
+    rows = [line(r) for r in cells]
+    key = _ranked_by(sec)
+    if key is not None and key in shown:
+        start = INDENT + sum(widths[i] + GAP for i in shown[:shown.index(key)])
+        for row in rows:
+            row.stylize(BOLD, start, start + widths[key])
+    return {"head": head, "rows": rows}
+
+
+def _ranked_by(sec: dict):
+    """The index of the column a table is ranked by: the first whose head the title's "by …" names as a whole
+    word ("ranked by changes × lines of code" is the changes column, "by share of changes made together" the
+    together column), or None."""
+    m = re.search(r"\bby ([^·]+)", sec.get("title") or "")
+    if not m:
+        return None
+    words = set(re.findall(r"[\w-]+", m.group(1)))
+    return next((i for i, c in enumerate(sec["columns"]) if c and c in words), None)
 
 
 UNDER_INDENT = 2   # a row's line of detail, in from the row's first cell
@@ -3253,11 +3274,111 @@ def section_block(sec: dict, width=None) -> Text:
     return _lines(section_lines(sec, width))
 
 
+# --- boxes -----------------------------------------------------------------------------------------------------
+#
+# Each block of the report, the header, the Findings, a section with rows and the Supply chain, is a rounded box
+# at the page's width with its title in the top border: the user's choice of 24 October 2026 among three
+# mock-ups, over the 0.47 drawing of bold titles above unframed lines. The borders are dim, the header's cyan.
+# One box under another at every width, never two side by side (see report). A box is what the block was, drawn
+# at the box's inner width and its title lifted into the border; a section's lines lose the two columns of
+# indent they had, the Findings' entries keep column 1. A title too long for the border is cut at a SEP and the
+# rest is the box's first line, after "· ". A section that is only a note stays a dim line of its own: a box
+# round one line is three. Under FRAME_MIN columns nothing is boxed, as a box's four columns of border are more
+# than a narrow line can spare. The consistency checks read this drawing as the one before it
+# (measure/consistency.py _unframed).
+FRAME_MIN = 60
+FRAME_BORDER, HEADER_BORDER = DIM, ACCENT
+BOX = {"top_left": "╭", "top_right": "╮", "bottom_left": "╰", "bottom_right": "╯", "side": "│", "rule": "─"}
+
+
+def framing(width) -> bool:
+    """Whether blocks are boxed at `width`: a page width at least FRAME_MIN wide."""
+    return width is not None and width >= FRAME_MIN
+
+
+def _strip_left(line: Text, n: int) -> Text:
+    """`line` less its first `n` columns where they are spaces, as many as there are otherwise."""
+    lead = len(line.plain) - len(line.plain.lstrip(" "))
+    return line[min(lead, n):]
+
+
+def _title_count(lines: list, title: str) -> int:
+    """How many of a block's first lines its title wrapped to: the lines whose words, joined, are the title's."""
+    want, said = title.split(), []
+    for n, line in enumerate(lines, 1):
+        said += (line.plain if isinstance(line, Text) else line).split()
+        if said == want:
+            return n
+        if len(said) >= len(want):
+            break
+    return 1
+
+
+def framed(lines: list, title: str, width: int, border: str = FRAME_BORDER, dedent: int = INDENT) -> list:
+    """A block's lines (its title first, wrapped to as many lines as it took) as a box `width` wide: the title
+    in the top border, then each line less `dedent` columns between "│ " and " │", then the bottom border. A
+    line longer than the box (a path left whole) runs past it and has no right border."""
+    from rich.cells import cell_len
+    lines = [line if isinstance(line, Text) else Text(line) for line in lines]
+    n = _title_count(lines, title)
+    head = Text(" ").join(_strip_left(line, len(line.plain)) for line in lines[:n])
+    inner = width - 4
+    room = width - 6   # "╭─ ", a space, at least one rule and "╮"
+    rest = None
+    if len(head.plain) > room:
+        cut = head.plain.rfind(SEP, 0, room + 1)
+        if cut > 0:
+            head, rest = head[:cut], head[cut + len(SEP):]
+        else:
+            head = head[:room]
+    top = Text.assemble((BOX["top_left"] + BOX["rule"] + " ", border), head,
+                        (" " + BOX["rule"] * (width - 5 - len(head.plain)) + BOX["top_right"], border))
+    body = []
+    if rest is not None:
+        body += [Text(line, style=DIM) for line in wrapped(f"{SUBJECT_MARK} {rest.plain}", inner, 2)]
+    body += [_strip_left(line, dedent) for line in lines[n:]]
+    out = [top]
+    for line in body:
+        pad = inner - cell_len(line.plain)
+        if pad < 0:
+            out.append(Text.assemble((BOX["side"] + " ", border), line))
+        else:
+            out.append(Text.assemble((BOX["side"] + " ", border), line, " " * pad, (" " + BOX["side"], border)))
+    out.append(Text(BOX["bottom_left"] + BOX["rule"] * (width - 2) + BOX["bottom_right"], style=border))
+    return out
+
+
+def _boxed_section(sec: dict, width) -> list:
+    """A section as printed at `width`: boxed (framed) when the page is wide enough and the section has rows,
+    its lines as they are otherwise."""
+    if not framing(width) or (not sec["rows"] and sec["note"]):
+        return section_lines(sec, width)
+    return framed(section_lines(dict(sec, border=INDENT), width - INDENT), heading(sec).plain, width)
+
+
+def _boxed_header(report: dict, findings: list, full, width, contents: list = None) -> list:
+    """The header as printed at `width`: in a cyan box when the page is wide enough (framed)."""
+    if not framing(width):
+        return header(report, findings, full=full, width=width, contents=contents).split("\n")
+    lines = header(report, findings, full=full, width=width - INDENT, contents=contents).split("\n")
+    return framed(lines, lines[0].plain, width, border=HEADER_BORDER)
+
+
+def _boxed_findings(findings: list, report: dict, full, width, printed: dict) -> list:
+    """The Findings as printed at `width`: boxed when the page is wide enough, the entries at the box's first
+    column as they were at the page's (framed, no dedent)."""
+    if not framing(width):
+        return findings_block(findings, report, full=full, width=width, printed=printed).split("\n")
+    inner = width - 4
+    lines = findings_block(findings, report, full=full, width=inner, printed=printed).split("\n")
+    return framed(lines, tally_title(findings, gloss=True, width=inner), width, dedent=0)
+
+
 def print_section(console: Console, sec: dict) -> None:
     """Blank line, then the section's title and table (or note), fitted to the console's width."""
     carry(console)
     console.print(Text(""))
-    show(console, section_block(sec, page_width(console)))
+    show(console, _lines(_boxed_section(sec, page_width(console))))
 
 
 def _dim(console: Console, line: str) -> None:
@@ -3287,15 +3408,19 @@ def report(report: dict, findings: list, console: Console, full: bool = False, r
                 contents.append("Change risk")
         if not grouped:
             contents.append(SUPPLY_TITLE)
-    show(console, header(report, findings, full=full, width=page_width(console), contents=contents))
+    width = page_width(console)
+    show(console, _lines(_boxed_header(report, findings, full, width, contents)))
     console.print(Text(""))
-    show(console, findings_block(findings, report, full=full, width=page_width(console), printed=by_id))   # a short finding may point at its table below
+    show(console, _lines(_boxed_findings(findings, report, full, width, by_id)))   # a short finding may point at its table below
     if compare is not None:
         print_section(console, compare_section(compare))
 
     def supply():
         console.print(Text(""))
-        show(console, supply_chain_block(report, findings, full=full, width=page_width(console)))
+        if framing(width):
+            show(console, _lines(framed(supply_chain_block(report, findings, full=full, width=width - INDENT).split("\n"), SUPPLY_TITLE, width)))
+        else:
+            show(console, supply_chain_block(report, findings, full=full, width=width))
     # One section under another at every width: small tables used to sit side by side from 100 columns, which
     # changed the order of the lines with the terminal and put two tables on every copied line. A wider terminal
     # un-elides paths and re-wraps prose, and changes nothing else.
@@ -3322,7 +3447,7 @@ def excerpt(report: dict, findings: list, console: Console, full: bool = False) 
     """The report's opening on its own: the header, the Findings title, whose tally counts the findings, and
     the watch list. What the README's text block shows; the findings themselves are in the full report."""
     carry(console)
-    show(console, header(report, findings, width=page_width(console)))
+    show(console, _lines(_boxed_header(report, findings, False, page_width(console))))
     console.print(Text(""))
     show(console, _title(tally_title(list(findings))))
     print_section(console, next(sec for sec in sections(report, full=full, width=page_width(console)) if sec["id"] == "watch"))

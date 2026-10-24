@@ -15,13 +15,13 @@ from rich.console import Console
 
 from gitmole import render, section
 from tests.test_layout import WIDTHS, drawn, found, rich_report
-from tests.test_render import _headings, _section_text, sample_report
+from tests.test_render import _headings, _section_text, sample_report, unboxed
 
 
 def full(width=80, report=None, findings=None) -> str:
     out = io.StringIO()
     render.report(report or rich_report(), found() if findings is None else findings, Console(file=out, width=width, force_terminal=False, color_system=None), full=True)
-    return out.getvalue()
+    return unboxed(out.getvalue())
 
 
 class Shape(unittest.TestCase):
@@ -38,7 +38,7 @@ class Shape(unittest.TestCase):
             "Knowledge map", "People", "Timeline",                                                                          # the people
             "Activity", "Surviving code by year", "Changed lines", "Trailers",                                              # the history
             "Supply chain", "Secrets by rule", "Dependencies by lock file", "Signing by year", "Checks run", "Agent surface", "OSPS Baseline"])
-        default = [h for h in _headings(drawn(80, extras=False))]
+        default = [h for h in _headings(unboxed(drawn(80, extras=False)))]
         self.assertEqual([h for h in _headings(full()) if h in default], default, "the default's sections, in the default's order")
         self.assertEqual(default[-1], "Supply chain", "last in the default report, where it has no sections of its own to open")
 

@@ -121,7 +121,7 @@ class BannerInCli(unittest.TestCase):
         from gitmole import __version__
         text = self._run(terminal=True)
         self.assertNotIn("███╗", text)
-        self.assertTrue(text.startswith(f"gitmole {__version__}\n\ndemo"), text[:40])
+        self.assertTrue(text.startswith(f"gitmole {__version__}\n\n╭─ demo"), text[:40])
 
     def test_not_printed_when_piped(self):
         text = self._run(terminal=False)

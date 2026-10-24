@@ -9,6 +9,7 @@ from unittest import mock
 from rich.console import Console
 
 from gitmole import cli, install, run, tools
+from tests.test_render import unboxed
 
 
 def console():
@@ -951,7 +952,7 @@ class FileTypes(unittest.TestCase):
             rc = cli.main([d, "--list-file-types"], console=c, tool_check=lambda **kw: [])
             text = c.export_text()
         self.assertEqual(rc, 0)
-        self.assertRegex(text, r"\nFile types\n")
+        self.assertRegex(text, r"\n╭─ File types ─")
         self.assertRegex(text, r"py\s+1\s+yes")
         self.assertRegex(text, r"md\s+1\s+no")
         self.assertNotIn("Findings", text)
@@ -1373,7 +1374,7 @@ class Clean(unittest.TestCase):
             return rc, c.export_text()
         rc, text = self._with_tmp(go)
         self.assertEqual(rc, 0)
-        rows = [line for line in text.splitlines() if line.strip().startswith(("/", "…/"))]   # an elided absolute path may lose its root
+        rows = [line for line in text.splitlines() if line.lstrip("│ ").startswith(("/", "…/"))]   # an elided absolute path may lose its root, in its box
         self.assertEqual(len(rows), 2, text)
         self.assertTrue(any("analysis-widgets" in r and "…/" in r for r in rows), text)
         self.assertTrue(all(" B " in r and "2026-" in r for r in rows), "each row carries its size and date on the same line:\n" + text)
@@ -1509,13 +1510,13 @@ class Risk(unittest.TestCase):
             rc = cli.main([d, "--out", out, "--risk", "main"], console=c, tool_check=lambda **kw: [], planner=planner,
                           estimator=lambda repo, interval, **kw: {"files": 1, "samples": 1, "blames": 1, "seconds": 0.0})
             self.assertEqual(rc, 0)
-            text = c.export_text()
+            text = unboxed(c.export_text())
             self.assertIn("Change risk (1 files since main)", text)
             self.assertRegex(text, r"a\.py\s+no revisions on record", "the stub planner writes no size.json and no log, so a.py has no scc row and no revisions")
             c = console()
             rc = cli.main([out, "--no-run", "--risk", "main"], console=c)
             self.assertEqual(rc, 0)
-            text = c.export_text()
+            text = unboxed(c.export_text())
             self.assertIn("Change risk (1 files since main)", text)
             self.assertRegex(text, r"a\.py\s+no revisions on record", "the stub planner writes no size.json and no log, so a.py has no scc row and no revisions")
 

@@ -16,7 +16,7 @@ import unittest
 from rich.console import Console
 
 from gitmole import cli, render
-from tests.test_render import AgentSurface, ChangeRisk, sample_report
+from tests.test_render import AgentSurface, ChangeRisk, sample_report, unboxed
 
 SGR = re.compile(r"\x1b\[([0-9;]*)m")
 WIDTHS = (60, 80, 100, 160)
@@ -109,32 +109,62 @@ def findings_lines(text: str) -> list:
     end = next(i for i, line in enumerate(block) if i and line and line[0] not in " ✖▲●·")
     return block[:end - 1] if block[end - 1] == "" else block[:end]
 
-class NoBoxes(unittest.TestCase):
-    def test_a_block_is_a_title_at_column_one_and_its_content_two_columns_in(self):
-        lines = drawn(80).splitlines()
-        self.assertFalse([line for line in lines if set(line) & set("│╭╮╰╯")], "no box anywhere")
-        self.assertEqual(lines[0], "demo · branch main", "the header's title line")
-        self.assertTrue(lines[1].startswith("  history  "), "its label grid, two columns in")
+class Boxes(unittest.TestCase):
+    def test_every_block_is_a_box_as_wide_as_the_page_one_under_another(self):
+        """The header, the Findings, every section with rows and the Supply chain: a rounded box with its title
+        in the top border, its lines between "│ " and " │", a blank line between two boxes and never two boxes
+        on one line."""
+        text = drawn(80)
+        lines = text.splitlines()
+        self.assertEqual(lines[0], "╭─ demo · branch main " + "─" * 57 + "╮", "the header's title in its border")
+        self.assertEqual(lines[1], "│ history  363 commits · 2025-08-20 → 2026-09-10 · since" + " " * 23 + "│", "its label grid at the box's first column")
         at = lines.index("")
-        self.assertEqual(lines[at + 1], "Findings · 1 critical ✖ · 1 warning ▲ · 2 notes ● · 1 not measured yet", "one blank line, then the Findings title at column 1")
-        self.assertEqual(lines[at + 2], "✖ Secrets in source", "the mark at column 1, the title on its line")
-        self.assertEqual(lines[at + 3], "  1 value in config/settings.py, still at HEAD", "the statement at column 3")
-        self.assertEqual(lines[at + 4], "  ↳ Rotate it, then remove it from the history.", "the step under its mark")
-        self.assertNotIn("", lines[at + 1:lines.index("", at + 1)], "no blank line inside a block")
-        self.assertNotIn("\n\n\n", drawn(80), "and one between two")
+        self.assertEqual(lines[at + 1], "╭─ Findings · 1 critical ✖ · 1 warning ▲ · 2 notes ● · 1 not measured yet " + "─" * 5 + "╮")
+        self.assertEqual(lines[at + 2:at + 5], ["│ ✖ Secrets in source" + " " * 58 + "│",
+                                                "│   1 value in config/settings.py, still at HEAD" + " " * 31 + "│",
+                                                "│   ↳ Rotate it, then remove it from the history." + " " * 30 + "│"], "the mark at the box's first column")
+        tops = [i for i, line in enumerate(lines) if line.startswith("╭─ ")]
+        bottoms = [i for i, line in enumerate(lines) if line.startswith("╰")]
+        self.assertEqual(len(tops), len(bottoms))
+        self.assertEqual(len(tops), 10, "header, Findings, Since last report, six sections and the Supply chain")
+        self.assertTrue(all(lines[b + 1] == "" for b in bottoms), "a blank line under every box")
+        self.assertTrue(all(line.count("╭") <= 1 for line in lines), "no two boxes side by side")
+        for line in lines:
+            if line.startswith(("╭", "╰")) or (line.startswith("│") and not line.endswith(DEEP)):
+                self.assertEqual(len(line), 80, line)
+        self.assertNotIn("\n\n\n", text, "one blank line between two boxes")
+
+    def test_a_note_alone_is_a_line_and_a_narrow_page_has_no_box(self):
+        c = Console(file=io.StringIO(), width=80, force_terminal=False, color_system=None)
+        render.print_section(c, render._section("Watch list", [("file", render.PATH)], [], note="no file changed more than once"))
+        self.assertEqual(c.file.getvalue(), "\nWatch list: no file changed more than once\n", "a box round one line is three")
+        narrow = drawn(render.FRAME_MIN - 1)
+        self.assertFalse(set(narrow) & set("│╭╮╰╯"), "under FRAME_MIN columns nothing is boxed")
+        self.assertTrue(narrow.startswith("demo · branch main\n  history  "), "and the blocks are drawn as they were")
+        self.assertIn("╭─ ", drawn(render.FRAME_MIN))
+
+    def test_a_title_too_long_for_its_border_goes_on_inside_from_its_separator(self):
+        c = Console(file=io.StringIO(), width=60, force_terminal=False, color_system=None)
+        title = "Watch list · 3 of 15, ranked by changes × lines · since 2025-01-01"   # 66 long; a border 60 wide holds 54
+        render.print_section(c, render._section(title, [("file", render.PATH)], [("a.py",)]))
+        lines = c.file.getvalue().splitlines()
+        self.assertEqual(lines[1], "╭─ Watch list · 3 of 15, ranked by changes × lines " + "─" * 8 + "╮")
+        self.assertEqual(lines[2], "│ · since 2025-01-01" + " " * 39 + "│")
+        self.assertEqual(lines[3:5], ["│ file" + " " * 53 + "│", "│ a.py" + " " * 53 + "│"])
 
     def test_every_finding_owns_one_mark_at_column_one(self):
         for full in (False, True):
-            block = findings_lines(drawn(80, full))
+            block = findings_lines(unboxed(drawn(80, full)))
             self.assertEqual([line[0] for line in block[1:] if line and line[0] != " "], ["✖", "▲", "●", "●", "·"], "four findings, and what was not computed last")
             starts = [i for i, line in enumerate(block) if line[:1] in ("✖", "▲", "●", "·")]
             self.assertTrue(all(block[i - 1] == "" for i in starts[1:]), "a blank line before every entry but the first")
             self.assertEqual(block[starts[0] - 1][:8], "Findings", "and none between the title and the first")
 
-    def test_a_title_longer_than_the_terminal_wraps_under_itself(self):
+    def test_a_title_longer_than_the_box_wraps_under_itself(self):
         lines = drawn(60).splitlines()
-        at = next(i for i, line in enumerate(lines) if line.startswith("▲ "))
-        self.assertEqual(lines[at:at + 2], ["▲ Vulnerable dependencies only in test, example or", "  vendored lock files"], "and its last line is not one word")
+        at = next(i for i, line in enumerate(lines) if line.startswith("│ ▲ "))
+        self.assertEqual([line.rstrip(" │") for line in lines[at:at + 2]], ["│ ▲ Vulnerable dependencies only in test, example or", "│   vendored lock files"],
+                         "and its last line is not one word")
 
 
 class OneRender(unittest.TestCase):
@@ -144,28 +174,31 @@ class OneRender(unittest.TestCase):
             for full in (False, True):
                 self.assertEqual(SGR.sub("", drawn(width, full, colour=True)), drawn(width, full), (width, full))
 
-    def test_the_colour_render_holds_only_bold_dim_yellow_and_red(self):
+    def test_the_colour_render_holds_only_bold_dim_cyan_yellow_and_red(self):
         seen = set()
         for what, text in every_render():
             if what[2]:
                 self.assertNotIn("\x1b[38", text, "no truecolour or 256-colour foreground")
                 self.assertNotIn("\x1b[48", text, "no background")
                 codes = {code for params in SGR.findall(text) for code in params.split(";")}
-                self.assertLessEqual(codes, {"0", "1", "2", "31", "33"}, what)   # reset, bold, dim, red, yellow: no italic (3), cyan (36), blue (34), green (32)
+                self.assertLessEqual(codes, {"0", "1", "2", "31", "33", "36"}, what)   # reset, bold, dim, red, yellow, cyan: no italic (3), blue (34), green (32)
                 seen |= set(SGR.findall(text))
                 self.assertEqual(SGR.sub("", text).count("\x1b"), 0, "and no other escape")
-        self.assertEqual(seen, {"0", "1", "2", "33", "1;33", "1;31"}, "reset, bold, dim, a warning's yellow (bold on its title) and a critical's bold red, and no other combination")
+        self.assertEqual(seen, {"0", "1", "2", "33", "36", "1;33", "1;31"},
+                         "reset, bold, dim, the accent's cyan, a warning's yellow (bold on its title) and a critical's bold red, and no other combination")
 
     def test_severity_colour_is_on_the_mark_and_title_only(self):
         text = drawn(80, colour=True)
-        self.assertIn("\x1b[1;31m✖\x1b[0m \x1b[1;31mSecrets in source\x1b[0m\n  1 value in config/settings.py, still at HEAD\n  ↳ Rotate it", text,
-                      "the statement and the step in the terminal's own foreground")
-        self.assertIn("\n● \x1b[1mSweeping commits\x1b[0m\n", text, "a note's mark has no colour and its title is bold, as every title is")
-        self.assertIn("● \x1b[1mDebt the authors flagged in hotspots\x1b[0m\x1b[2m (not measured yet)\x1b[0m\n  8 of the top 10", text,
-                      "the tag dim, and the statement under the title as every entry's")
-        self.assertIn("\n\x1b[1mWatch list\x1b[0m\x1b[2m · ", text, "a section's name bold in the default foreground, its qualifier dim, and no pictogram")
-        self.assertIn("\x1b[1mdemo\x1b[0m\x1b[2m · branch main", text)
-        self.assertRegex(text, r"\n  \x1b\[2mfile +changes +fixes[^\n\x1b]*\x1b\[0m\n  [^\x1b\n]+ +[\d,]+ [^\x1b]*\n", "heads dim and no rule under them; a row, its first cell too, plain")
+        side = "\x1b[2m│ \x1b[0m"
+        self.assertIn(f"{side}\x1b[1;31m✖\x1b[0m \x1b[1;31mSecrets in source\x1b[0m", text)
+        self.assertIn(f"{side}  1 value in config/settings.py, still at HEAD ", text, "the statement in the terminal's own foreground")
+        self.assertIn(f"{side}  \x1b[36m↳\x1b[0m Rotate it", text, "the step's mark in the accent, its text in the foreground")
+        self.assertIn(f"{side}● \x1b[1mSweeping commits\x1b[0m ", text, "a note's mark has no colour and its title is bold, as every title is")
+        self.assertIn(f"{side}● \x1b[1mDebt the authors flagged in hotspots\x1b[0m\x1b[2m (not measured yet)\x1b[0m", text, "the tag dim")
+        self.assertIn("\x1b[2m╭─ \x1b[0m\x1b[1mWatch list\x1b[0m\x1b[2m · ", text, "a section's name bold in its dim border, its qualifier dim")
+        self.assertIn("\x1b[36m╭─ \x1b[0m\x1b[1mdemo\x1b[0m\x1b[2m · branch main\x1b[0m\x1b[36m ─", text, "the header's border in the accent")
+        self.assertRegex(text, r"\n\x1b\[2m│ \x1b\[0m\x1b\[2mfile +changes +fixes[^\n\x1b]*\x1b\[0m", "heads dim")
+        self.assertIn(f"{side}…/token_validator.go  \x1b[1m    240\x1b[0m      0  ", text, "the column the table is ranked by bold, the rest plain")
 
 
 class Lines(unittest.TestCase):
@@ -201,11 +234,12 @@ class Lines(unittest.TestCase):
             for line in over:   # only where a path is longer than the room its block's indent leaves: it is whole, and the line is as short as it can be
                 self.assertTrue(line.endswith(DEEP) and len(DEEP) > width - (len(line) - len(DEEP)), (width, line))
             if width == 80:
-                self.assertEqual(over, [f"  {DEEP}", f"  left the watch list     {DEEP}"], "in a finding, on a line of its own; in a label grid, at the value's start")
+                self.assertEqual(over, [f"│   {DEEP}", f"│ left the watch list     {DEEP}"],
+                                 "in a finding, on a line of its own; in a label grid, at the value's start; past the box, without its right border")
 
     def test_a_path_is_whole_in_a_finding_and_elided_only_in_a_table(self):
         for width in WIDTHS:
-            block = findings_lines(drawn(width))
+            block = findings_lines(unboxed(drawn(width)))
             self.assertIn(DEEP, " ".join(block), width)
             self.assertNotIn("…", " ".join(block), "no ellipsis in the Findings")
         watch = drawn(80).split("Watch list")[1].split("\n\n")[0]
@@ -268,7 +302,7 @@ class Tables(unittest.TestCase):
 
     def test_the_reasons_of_a_change_are_under_its_row_whole(self):
         """Change risk had a drawing of its own, its reasons a third column that wrapped inside its cell."""
-        text = drawn(80).split("Change risk")[1].split("\n\n")[0].splitlines()
+        text = unboxed(drawn(80)).split("Change risk")[1].split("\n\n")[0].splitlines()
         self.assertRegex(text[1], r"^  file +risk$")
         self.assertRegex(text[2], r"^  \S.* ▰+$", "the table drawing of every other section: heads, then the rows")
         row = next(i for i, line in enumerate(text) if "token_validator.go" in line)
@@ -277,12 +311,12 @@ class Tables(unittest.TestCase):
                                                  "    contributors · changes alongside 31 other files"])
 
     def test_since_last_report_is_a_label_grid_so_nothing_of_a_row_is_cut(self):
-        text = drawn(80).split("Since last report")[1].split("\n\n")[0].splitlines()
+        text = unboxed(drawn(80)).split("Since last report")[1].split("\n\n")[0].splitlines()
         self.assertEqual(text[1], "  new                     warning · Credential-shaped files tracked")
         at = next(i for i, line in enumerate(text) if line.startswith("  persisting"))
-        self.assertEqual(text[at:at + 3], ["  persisting              warning → note · Vulnerable dependencies only in test,",
-                                           "                          example or vendored lock files (packages 16 → 1;",
-                                           "                          places 40 → 2; lock files 3 → 2)"])
+        self.assertEqual(text[at:at + 3], ["  persisting              warning → note · Vulnerable dependencies only in",
+                                           "                          test, example or vendored lock files (packages 16 →",
+                                           "                          1; places 40 → 2; lock files 3 → 2)"])
         self.assertFalse([line for line in text if set(line.strip()) == {"─"}], "a grid has no rule")
 
 
@@ -306,28 +340,28 @@ class Ascii(unittest.TestCase):
             self.assertEqual(len(text.splitlines()), len(plain.splitlines()), full)
             self.assertTrue(text.isascii())
             self.assertEqual(text, plain.translate(str.maketrans(render.ASCII_MARKS)).replace("ö", "?"), "each mark its substitute, any other character a question mark")
-        lines = self.into("ascii").splitlines()
-        self.assertEqual(lines[0], "demo - branch main")
-        self.assertIn("x Secrets in source", lines)
-        self.assertIn("  > Rotate it, then remove it from the history.", lines)
-        self.assertIn("Watch list - all 3, ranked by changes x lines of code", lines)
-        self.assertEqual(lines[1:3], ["  history  363 commits - 2025-08-20 -> 2026-09-10 - since", "           2025-01-01 - 2 identities"])
+        lines = [line.rstrip(" |") for line in self.into("ascii").splitlines()]
+        self.assertEqual(lines[0], "+- demo - branch main " + "-" * 57 + "+", "a box's corners and borders too")
+        self.assertIn("| x Secrets in source", lines)
+        self.assertIn("|   > Rotate it, then remove it from the history.", lines)
+        self.assertIn("+- Watch list - all 3, ranked by changes x lines of code " + "-" * 22 + "+", lines)
+        self.assertEqual(lines[1:3], ["| history  363 commits - 2025-08-20 -> 2026-09-10 - since", "|          2025-01-01 - 2 identities"])
         self.assertTrue(any(".../token_validator.go" in line for line in lines), "an elided path")
-        self.assertTrue(any(line.startswith("  Bj?rn Rabenstein") for line in lines), "a name it cannot carry does not stop the report")
+        self.assertTrue(any(line.startswith("| Bj?rn Rabenstein") for line in lines), "a name it cannot carry does not stop the report")
 
     def test_the_marks_the_stream_can_carry_are_kept(self):
         latin = self.into("latin-1")
         self.assertIn("demo · branch main", latin, "Latin-1 has the middle dot")
         self.assertIn("changes × lines of code", latin)
         self.assertIn("Björn Rabenstein", latin)
-        self.assertIn("\n! Vulnerable dependencies", latin, "and not the triangle")
+        self.assertIn("\n| ! Vulnerable dependencies", latin, "and not the triangle, nor a box's border")
         self.assertEqual(self.into("utf-8"), drawn(80), "a UTF-8 stream is written to as it always was")
         self.assertEqual(render.substitutes("utf-8"), {})
         self.assertEqual(render.substitutes(None), {}, "a string buffer names no encoding")
         self.assertEqual(render.substitutes("no-such-codec"), {})
 
     def test_every_mark_has_one_fixed_substitute(self):
-        marks = set(render.SEVERITY_MARK.values()) | {render.STEP_MARK, render.BAR_MARK, render.BLOCK_MARK, "…", "→", "·", "≥", "×"}
+        marks = set(render.SEVERITY_MARK.values()) | {render.STEP_MARK, render.BAR_MARK, render.BLOCK_MARK, "…", "→", "·", "≥", "×"} | set(render.BOX.values())
         self.assertLessEqual(marks, set(render.ASCII_MARKS))
         self.assertTrue(all(plain.isascii() and plain for plain in render.ASCII_MARKS.values()))
         one = [render.SEVERITY_MARK[s] for s in render.SEVERITY_MARK] + [render.STEP_MARK]
@@ -346,8 +380,8 @@ class Ascii(unittest.TestCase):
             stream.flush()
         self.assertEqual(rc, 0)
         text = raw.getvalue().decode("ascii")
-        self.assertIn("demo - branch ?", text)
-        self.assertIn("\nSupply chain\n", text)
+        self.assertIn("+- demo - branch ? -", text)
+        self.assertIn("\n+- Supply chain -", text)
 
 
 if __name__ == "__main__":

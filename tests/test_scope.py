@@ -11,6 +11,7 @@ import unittest
 from rich.console import Console
 
 from gitmole import blame, cli, hygiene, knowledge, load, maat, render, run, scope, structure
+from tests.test_render import unboxed
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -255,7 +256,7 @@ class CommandLine(unittest.TestCase):
         self.assertEqual(meta["scope"], ["svc"])
         self.assertEqual(meta["commits"], 4)
         self.assertIn("path svc", text)
-        self.assertIn(scope.REPOSITORY_WIDE, " ".join(text.split()), "on the header's scope row, wrapped under its label")
+        self.assertIn(scope.REPOSITORY_WIDE, " ".join(unboxed(text).split()), "on the header's scope row, wrapped under its label")
 
     def test_the_default_run_passes_no_scope(self):
         with tempfile.TemporaryDirectory() as d:

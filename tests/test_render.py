@@ -83,10 +83,18 @@ def _supply(text: str) -> str:
     return " ".join(_section_text(text, "Supply chain").split())
 
 
+def unboxed(text: str) -> str:
+    """A rendered report without its boxes, as the drawing before them: each box its title line over its lines
+    two columns in (the Findings' entries at column 1), read by the consistency checks' own _unbox. The
+    tests of what a report says read this; the tests of how it is drawn (test_layout) read the boxes."""
+    from gitmole.measure import consistency
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(consistency._unbox(text.split("\n"))))
+
+
 def rendered(report, findings, width=120, full=False, compare=None):
     console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
     render.report(report, findings, console, full=full, compare=compare)
-    return console.export_text()
+    return unboxed(console.export_text())
 
 
 def _rendered_section(sec: dict, width=120) -> str:
@@ -95,7 +103,7 @@ def _rendered_section(sec: dict, width=120) -> str:
     still worth checking directly."""
     console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
     render.print_section(console, sec)
-    return console.export_text()
+    return unboxed(console.export_text())
 
 
 class Report(unittest.TestCase):
@@ -272,7 +280,9 @@ class Report(unittest.TestCase):
         text = rendered(r, [], width=80)
         self.assertNotIn("signing", text.split("\n\n")[0], "no signing row in the header block")
         self.assertNotIn("signing", dict(render.header_rows(r)))
-        self.assertIn("  signing       7% of commits signed by their authors (signatures not verified)", text, "one line: the share, and that nothing was verified")
+        self.assertIn("  signing       7% of commits signed by their authors\n", text, "one line at 80 columns, the box's four columns taken: the share")
+        self.assertIn("  signing       7% of commits signed by their authors (signatures not verified)\n", rendered(r, [], width=84),
+                      "and from 84, that nothing was verified")
         whole = "signing 7% of commits signed by their authors (ssh 6%, gpg 1%), 14% of the last year's; 39% signed by the forge on merge (signatures not verified)"
         self.assertIn(whole, _supply(rendered(r, [], width=80, full=True)), "--full says the rest")
         self.assertEqual(_supply(rendered(r, [], width=200)), _supply(rendered(r, [], width=render.PAGE_WIDTH)),
@@ -302,8 +312,8 @@ class Report(unittest.TestCase):
         text = rendered(r, [], width=80)
         row = text[text.index("  checked, ok"):].split("\n\n")[0].splitlines()
         self.assertEqual([line.strip() for line in row], ["checked, ok   65 workflow actions pinned · renovate covers gomod and npm ·",
-                                                          "9 manifests match their lock files · 675 files free of bidi and",
-                                                          "mixed-script characters · more in hygiene.json"])
+                                                          "9 manifests match their lock files · 675 files free of bidi",
+                                                          "and mixed-script characters · more in hygiene.json"])
         self.assertTrue(_supply(rendered(r, [], full=True)).endswith(" · ".join(every) + " (hygiene.json)"), "--full names every one")
         r["hygiene"]["actions"].update(unpinned=[{"uses": "a/b@v1", "file": ".github/workflows/ci.yml", "line": 3}], unpinned_count=1)
         r["hygiene"]["lockfiles"].update(drift=[{"manifest": "package.json", "manifest_date": "2026-09-02", "lockfile": "package-lock.json", "lockfile_date": "2026-01-01"}])
@@ -1488,7 +1498,7 @@ class WatchList(unittest.TestCase):
         deep = "static/javascript/components/deeply/nested/directory/structure/app.js"
         r["revisions"] = [{"entity": deep, "n-revs": 9}, {"entity": "static/index.html", "n-revs": 2}]
         r["size"]["files"][deep] = {"code": 100, "complexity": 1}
-        text = rendered(r, [], width=100)
+        text = rendered(r, [], width=104)   # the row is 96 characters, and a box takes four columns of the page
         self.assertIn(deep, text.split("Watch list")[1].split("People")[0])
 
     def test_note_when_nothing_qualifies(self):
@@ -2045,7 +2055,7 @@ class ReviewFixes(unittest.TestCase):
         render.print_section(c, render._section("File types", [("type", {})], [["py"]], caption="c = code"))
         render.print_section(c, render._section("Portfolio (0 repositories)", [("repo", {})], [], note="no repositories"))
         text = c.export_text()
-        self.assertRegex(text, r"\nFile types\n")
+        self.assertRegex(text, r"\n╭─ File types ─+╮\n│ type +│\n│ py +│\n")
         self.assertIn("c = code", text)
         self.assertIn("Portfolio (0 repositories): no repositories", text)
 
@@ -2879,6 +2889,6 @@ class Fit(unittest.TestCase):
         r["meta"]["branch"] = "feature/" + "x" * 44
         self.assertEqual(rendered(r, [], width=80).splitlines()[0], "demo · branch feature/" + "x" * 44 + " @ eef0e230", "77 characters: it fits a line no border shortens")
         r["meta"]["branch"] = "feature/" + "x" * 50
-        text = rendered(r, [], width=80)
+        text = rendered(r, [], width=82)   # the row is 69 characters, and a box takes four columns of the page
         self.assertEqual(text.splitlines()[0], "demo", "a title longer than the line (83 characters) gives the branch a row")
         self.assertRegex(text, r"(?m)^  branch +feature/x{50} @ eef0e230$")

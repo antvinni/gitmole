@@ -41,21 +41,32 @@ in plain words, and what to do first. This page is the reference.
 
 ## The terminal report
 
-One layout for every part, and no box anywhere: a title line at column 1,
-then what the part holds two columns in. A table is its column heads, a row
-a line and its caption, and no rule under the heads; the header,
-the Supply chain section and Since last report are grids of labelled rows,
-a value that does not fit wrapped under its own start; the Findings are
-entries, each with its mark at column 1 and its title on that line, its
-statement under it at column 3, each subject behind a `·` at column 5 with
-the lines it wraps to under its text, and its step behind `↳` at column 3
-with the lines it wraps to under the step's text. One blank line between
-two parts and between two findings, none elsewhere, and no line ends in a
-space.
+Every part is a rounded box as wide as the page, its title in the top
+border: the header, the Findings, each section with rows and the Supply
+chain section, one box under another at every width and never two side by
+side, so a terminal's width changes wrapping and never the order of the
+lines. Inside a box a table is its column heads, a row a line and its
+caption, and no rule under the heads; the header, the Supply chain section
+and Since last report are grids of labelled rows, a value that does not fit
+wrapped under its own start; the Findings are entries, each with its mark at
+the box's first column and its title on that line, its statement under it
+two columns in, each subject behind a `·` four columns in with the lines it
+wraps to under its text, and its step behind `↳` two columns in with the
+lines it wraps to under the step's text. A title too long for its border is
+cut at a ` · ` and goes on in the box's first line, after `· `. A section with
+nothing in it is one dim line of its own (`Watch list: no file changed more
+than once`), not a box round one line. A path longer than its box runs past
+the right border, which that line goes without, so a copy still pastes as one
+path. One blank line between two boxes and between two findings, none
+elsewhere, and no line ends in a space. `--section NAME` prints its section
+without a box, so every line pastes as a row. Under 60 columns nothing is boxed:
+each part is its title line at column 1 and what it holds two columns in, as
+0.47 drew every width.
 
-The page has one width: the terminal's, or 110 columns on a wider one. The
-header, every finding, every table with its caption, and the
-closing lines are laid out to it, so the page has one right margin; 0.45.0
+The page has one width: the terminal's, or 110 columns on a wider one. Every
+box is that wide and what it holds is laid out to the four columns fewer its
+borders leave; the closing lines below the last box are laid out to the page,
+so the page has one right margin; 0.45.0
 wrapped the findings at 102 and let the rest run to the terminal's edge. At
 110 the univer report's watch list keeps every cell whole, which it does not
 at 100, and 74 of the 85 default tables of the sixteen 0.45.0 measurement
@@ -66,15 +77,19 @@ characters, takes words from the line above while that line stays the longer
 is never cut with `…`: a subject or a step longer than its lines is wrapped
 whole.
 
-The colours are four styles and no more: bold (a part's name, and in the
-header the commit count and a `--since` window or `--path` scope), dim (what
-qualifies a part's name, its count and ranking key; labels, column heads,
-captions, the closing lines, the `(not measured yet)` tag, a subject's `·`),
-yellow for a warning and red for a
-critical, on the finding's mark and title and on a scan's verdict in the
-Supply chain section. Every finding's title is bold, a note's too, so each
-stands out from the text under it. A note's mark has no colour, and neither
-has a statement, a step, a table's row or a number, so the report reads the same on a light theme as on a dark one.
+The colours are five styles and no more, each one of the terminal's own
+named colours, so a light theme and a dark one each draw it in their own
+shade: bold (a part's name; in the header the commit count and a `--since`
+window or `--path` scope; and the column a table is ranked by, the one its
+title's `by …` names), dim (what qualifies a part's name, its count and
+ranking key; the boxes' borders, labels, column heads, captions, the closing
+lines, the `(not measured yet)` tag, a subject's `·`), cyan for the accent
+(the header's border and a step's `↳`, nothing a reader must tell apart),
+yellow for a warning and red for a critical, on the finding's mark and title
+and on a scan's verdict in the Supply chain section. Every finding's title is
+bold, a note's too, so each stands out from the text under it. A note's mark
+has no colour, and neither has a statement, a step's text or any other number,
+so the report reads the same on a light theme as on a dark one.
 A part's name has no pictogram in front of it: the only marks are a
 severity's, a step's `↳` and a subject's `·`, which each say something.
 The logo banner keeps its own colours and is only drawn on a terminal, while
@@ -87,8 +102,8 @@ with the escapes left out.
 Every mark has an ASCII form for a stream whose encoding cannot carry it
 (`PYTHONIOENCODING=ascii`, a legacy code page), chosen per mark, so a
 Latin-1 stream keeps its `·`: `✖` `x`, `▲` `!`, `●` `*`, `↳` `>`, `·` `-`,
-`×` `x`, `…` `...`, `→` `->` and
-`≥` `>=`. The report then has the same lines; a line that holds one of the
+`×` `x`, `…` `...`, `→` `->`,
+`≥` `>=`, and a box's corners `+`, its sides `|` and its rules `-`. The report then has the same lines; a line that holds one of the
 last three is a character or two longer, so a table row with an elided path
 is that much out of its columns. Any other character the stream cannot
 carry, in a name or a path, prints as `?`. Columns are counted as a

@@ -11,6 +11,7 @@ import unittest
 from rich.console import Console
 
 from gitmole import classify, findings, hook, load, render, watch
+from tests.test_render import unboxed
 
 
 def _scc(files: dict) -> list:
@@ -68,7 +69,7 @@ def _docs_report(d: str) -> dict:
 def _text(report: dict, found=(), width=100, full=False) -> str:
     console = Console(file=io.StringIO(), width=width, record=True, force_terminal=False, color_system=None)
     render.report(report, list(found), console, full=full)
-    return console.export_text()
+    return unboxed(console.export_text())
 
 
 class Lines(unittest.TestCase):

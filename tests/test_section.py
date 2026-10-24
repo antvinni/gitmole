@@ -226,7 +226,7 @@ class Layout(unittest.TestCase):
                 self.assertEqual(SGR.sub("", colour), plain, (name, width))
                 self.assertEqual([line for line in plain.split("\n") if line != line.rstrip()], [], (name, width))
                 codes = {code for params in SGR.findall(colour) for code in params.split(";")}
-                self.assertLessEqual(codes, {"0", "1", "2", "31", "33"}, (name, width))
+                self.assertLessEqual(codes, {"0", "1", "2", "31", "33", "36"}, (name, width))   # the accent's cyan on a step's mark
                 page = min(width, render.PAGE_WIDTH)   # the page is the terminal's width up to PAGE_WIDTH
                 built = any(b.__name__ == f"{section.NAMES[name]}_section" for b in render.BUILDERS + render.SECTION_ONLY)   # the Findings are no table
                 sec = render.whole_section(report, section.NAMES[name], page) if built else None
