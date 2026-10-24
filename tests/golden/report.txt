@@ -1,48 +1,56 @@
 reference date fixed by GITMOLE_NOW: 2025-06-15
 
-demo · branch main @ b310579c
-  history  8 commits · 2024-01-10 → 2025-05-30 · 2 identities
-  files    5 tracked · 3 with code · 3 scored (source: not test, example, generated or vendored)
-  code     10 lines · Python, Makefile · 82% surviving from 2024, by blame
-  commits  12% are fixes
+╭─ demo · branch main @ b310579c ──────────────────────────────────────────────────────────────────╮
+│ history  8 commits · 2024-01-10 → 2025-05-30 · 2 identities                                      │
+│ files    5 tracked · 3 with code · 3 scored (source: not test, example, generated or vendored)   │
+│ code     10 lines · Python, Makefile · 82% surviving from 2024, by blame                         │
+│ commits  12% are fixes                                                                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-Findings · 2 notes ●
-● Files that always change together
-  1 pair changes together 80% of the time or more: main.py and util.py in app/, 83%
-  ↳ Look for a shared layout or a hidden dependency between the two.
+╭─ Findings · 2 notes ● ───────────────────────────────────────────────────────────────────────────╮
+│ ● Files that always change together                                                              │
+│   1 pair changes together 80% of the time or more: main.py and util.py in app/, 83%              │
+│   ↳ Look for a shared layout or a hidden dependency between the two.                             │
+│                                                                                                  │
+│ ● Repository policy files                                                                        │
+│   No licence file at the root; no security policy (SECURITY.md)                                  │
+│   ↳ Add a LICENSE; without one nobody may reuse the code.                                        │
+│                                                                                                  │
+│ · truck factor not computed: 3 source files, needs 20                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-● Repository policy files
-  No licence file at the root; no security policy (SECURITY.md)
-  ↳ Add a LICENSE; without one nobody may reuse the code.
-
-· truck factor not computed: 3 source files, needs 20
-
-Watch list · all 2, ranked by changes × lines of code
-  file         changes  fixes  top author
-  app/main.py        7      1  85%
-  app/util.py        5      0  67%
-  fixes = in the 6 months to 2025-05-30 · top author = largest share of the lines added to the file
-  Check: 6 months ago the top 2 of this ranking held 1 of the 1 file fixed since. The 2 most-changed
-  files also held 1; 2 random files would hold 1.0, and 1 is not distinguishable from that (p = 1).
+╭─ Watch list · all 2, ranked by changes × lines of code ──────────────────────────────────────────╮
+│ file         changes  fixes  top author                                                          │
+│ app/main.py        7      1  85%                                                                 │
+│ app/util.py        5      0  67%                                                                 │
+│ fixes = in the 6 months to 2025-05-30 · top author = largest share of the lines                  │
+│ added to the file                                                                                │
+│ Check: 6 months ago the top 2 of this ranking held 1 of the 1 file fixed since. The              │
+│ 2 most-changed files also held 1; 2 random files would hold 1.0, and 1 is not distinguishable    │
+│ from that (p = 1).                                                                               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 Complex functions: nothing at complexity 10 or more (2 functions measured)
 
-Knowledge map · all 2 areas in the tree now, by lines added
-  area          added  main owner   share  second       share
-  app/             19  Ann Example    79%  Bob Example    21%
-  (root files)      2  Bob Example   100%  -                -
+╭─ Knowledge map · all 2 areas in the tree now, by lines added ────────────────────────────────────╮
+│ area          added  main owner   share  second       share                                      │
+│ app/             19  Ann Example    79%  Bob Example    21%                                      │
+│ (root files)      2  Bob Example   100%  -                -                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-People · all 2 identities, by commits · 1 with aliases merged
-  author       commits  share  surviving  last commit
-  Ann Example        5    62%        64%  2025-03
-  Bob Example        3    38%        36%  2025-05
-  share = of commits · surviving = blame share at HEAD
+╭─ People · all 2 identities, by commits · 1 with aliases merged ──────────────────────────────────╮
+│ author       commits  share  surviving  last commit                                              │
+│ Ann Example        5    62%        64%  2025-03                                                  │
+│ Bob Example        3    38%        36%  2025-05                                                  │
+│ share = of commits · surviving = blame share at HEAD                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
-Supply chain
-  secrets       none found: betterleaks scanned every commit HEAD reaches
-  dependencies  no lock files found
-  signing       no commits signed
-  checked, ok   3 files free of bidi and mixed-script characters (hygiene.json)
+╭─ Supply chain ───────────────────────────────────────────────────────────────────────────────────╮
+│ secrets       none found: betterleaks scanned every commit HEAD reaches                          │
+│ dependencies  no lock files found                                                                │
+│ signing       no commits signed                                                                  │
+│ checked, ok   3 files free of bidi and mixed-script characters (hygiene.json)                    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 --full adds 10 sections: Watch list by component, Hotspots, Size by language, Timeline, Activity,
 Surviving code by year, Changed lines, Signing by year, Checks run, OSPS Baseline (4 gaps, 1 not
