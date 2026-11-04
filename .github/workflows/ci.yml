@@ -157,7 +157,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Tap this checkout
-        run: brew tap antvinni/gitmole "$PWD"
+        # Homebrew 7 refuses to load a formula from a tap nobody has trusted (docs/install.md says the same to users)
+        run: |
+          brew tap antvinni/gitmole "$PWD"
+          brew trust antvinni/gitmole
       - name: Audit
         run: brew audit --strict --online antvinni/gitmole/gitmole
       - name: Install from source
@@ -270,6 +273,7 @@ jobs:
             -e "s|^  sha256 \".*\"$|  sha256 \"${SHA}\"|" Formula/gitmole.rb
           git commit -am "Homebrew formula: ${GITHUB_REF_NAME}"
           brew tap antvinni/gitmole "$PWD"
+          brew trust antvinni/gitmole
           # the python dependencies are pinned in pyproject.toml, so their resources move only when a
           # release moves them: `brew update-python-resources` runs by hand, never here, since it would
           # also rewrite the pinned tool resources (gitmole/tools.py)
